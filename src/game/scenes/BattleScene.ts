@@ -7,7 +7,7 @@ import { enemies } from '../../data/enemies';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../data/heroes';
 import { demoState } from '../demoState';
 import { CardView, SLOT_W } from '../ui/CardView';
-import { UI, PROPERTY_COLOR } from '../theme';
+import { UI, PROPERTY_COLOR, ELEMENT_ICON, WEAPON_ICON } from '../theme';
 
 interface SideView {
   name: string;
@@ -80,6 +80,8 @@ export class BattleScene extends Phaser.Scene {
           stats: { ...enemyDef.stats },
           boardSize: enemyDef.boardSize,
           pieces: enemyDef.pieces.map((p) => ({ ...p })),
+          elementAffinity: enemyDef.elementAffinity,
+          weaponAffinity: enemyDef.weaponAffinity,
         },
         skillBook,
       },
@@ -97,7 +99,9 @@ export class BattleScene extends Phaser.Scene {
     this.bannerText = this.add
       .text(640, 336, 'battle begins…', { fontSize: '18px', color: UI.text, fontFamily: 'monospace', align: 'center' })
       .setOrigin(0.5);
-    this.logText = this.add.text(24, 240, '', {
+    this.add.text(24, 96, 'COMBAT LOG', { fontSize: '12px', color: UI.text, fontFamily: 'monospace', fontStyle: 'bold' });
+    this.add.rectangle(24, 112, 330, 560, 0x14141c).setOrigin(0, 0).setStrokeStyle(1, 0x2a2a36);
+    this.logText = this.add.text(32, 120, '', {
       fontSize: '11px',
       color: UI.textDim,
       fontFamily: 'monospace',
@@ -164,7 +168,7 @@ export class BattleScene extends Phaser.Scene {
 
   private log(line: string): void {
     this.logLines.push(line);
-    if (this.logLines.length > 14) this.logLines.shift();
+    if (this.logLines.length > 36) this.logLines.shift();
     this.logText.setText(this.logLines.join('\n'));
   }
 
@@ -184,11 +188,13 @@ export class BattleScene extends Phaser.Scene {
         this.bannerText.setText(`${this.fmtSide(e.player, 'YOU')}\n${this.fmtSide(e.enemy, 'FOE')}\n${who}`);
         this.views.player.scoreText.setText(e.player.state === 'ready' ? `score ${e.player.score}` : e.player.state);
         this.views.enemy.scoreText.setText(e.enemy.state === 'ready' ? `score ${e.enemy.score}` : e.enemy.state);
+        this.log(`── turn ${e.turn} ──`);
         break;
       }
       case 'skillCast': {
         const skill = skillBook[e.skillId];
-        this.log(`t${e.turn} ${e.side === 'player' ? 'YOU' : 'FOE'} cast ${skill?.name ?? e.skillId}${e.span > 1 ? ` (spans ${e.span})` : ''}`);
+        const kindIcon = skill?.element ? ` ${ELEMENT_ICON[skill.element]}` : skill?.weapon ? ` ${WEAPON_ICON[skill.weapon]}` : '';
+        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} cast ${skill?.name ?? e.skillId}${kindIcon}${e.span > 1 ? ` (spans ${e.span})` : ''}`);
         const card = this.views[e.side].cards.get(e.slot);
         if (card && !instant) {
           card.setHighlight(true, 0xffe27a);
@@ -203,15 +209,18 @@ export class BattleScene extends Phaser.Scene {
         this.refreshBars(e.side as Side);
         const dealt = e.amount - e.blocked;
         const label = e.source === 'skill' ? '' : ` ${e.source}`;
-        this.log(`t${e.turn} ${e.side === 'player' ? 'YOU' : 'FOE'} −${dealt}${e.blocked ? ` (${e.blocked} blocked)` : ''}${e.crit ? ' CRIT' : ''}${label}`);
-        if (!instant) this.floatText(view, `−${dealt}${e.crit ? '!' : ''}`, PROPERTY_COLOR[e.property]);
+        const match = e.matchup === 'advantage' ? ' ▲ super effective!' : e.matchup === 'disadvantage' ? ' ▼ resisted' : '';
+        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} −${dealt}${e.blocked ? ` (${e.blocked} blocked)` : ''}${e.crit ? ' CRIT' : ''}${label}${match}`);
+        if (!instant) {
+          this.floatText(view, `−${dealt}${e.crit ? '!' : ''}${e.matchup === 'advantage' ? ' ▲' : e.matchup === 'disadvantage' ? ' ▼' : ''}`, PROPERTY_COLOR[e.property]);
+        }
         break;
       }
       case 'heal': {
         if (!view) break;
         view.hp = e.hpAfter;
         this.refreshBars(e.side as Side);
-        this.log(`t${e.turn} ${e.side === 'player' ? 'YOU' : 'FOE'} +${e.amount} hp${e.flat ? ' (flat)' : ''}`);
+        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} +${e.amount} hp${e.flat ? ' (flat)' : ''}`);
         if (!instant) this.floatText(view, `+${e.amount}`, 0x4caf6e);
         break;
       }
@@ -219,7 +228,7 @@ export class BattleScene extends Phaser.Scene {
         if (!view) break;
         view.shield = e.totalAfter;
         this.refreshBars(e.side as Side);
-        this.log(`t${e.turn} ${e.side === 'player' ? 'YOU' : 'FOE'} +${e.amount} ${e.property} shield${e.wasted ? ` (${e.wasted} wasted, cap)` : ''}`);
+        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} +${e.amount} ${e.property} shield${e.wasted ? ` (${e.wasted} wasted, cap)` : ''}`);
         if (!instant) this.floatText(view, `+${e.amount}🛡`, 0xbbbbdd);
         break;
       }
@@ -227,7 +236,7 @@ export class BattleScene extends Phaser.Scene {
         if (!view) break;
         view.statuses.push({ status: e.status, turns: e.turns });
         this.refreshStatuses(e.side as Side);
-        this.log(`t${e.turn} ${e.side === 'player' ? 'YOU' : 'FOE'} gains ${e.status} (${e.turns}t)`);
+        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} gains ${e.status} (${e.turns}t)`);
         break;
       case 'statusExpired': {
         if (!view) break;
@@ -240,20 +249,20 @@ export class BattleScene extends Phaser.Scene {
         if (!view) break;
         view.statuses = view.statuses.filter((s) => s.status === 'buff');
         this.refreshStatuses(e.side as Side);
-        this.log(`t${e.turn} ${e.side === 'player' ? 'YOU' : 'FOE'} cleansed ${e.removed}`);
+        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} cleansed ${e.removed}`);
         break;
       case 'performSkipped':
-        this.log(`t${e.turn} ${e.side === 'player' ? 'YOU' : 'FOE'} stunned — performance lost`);
+        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} stunned — performance lost`);
         break;
       case 'suddenDeathStart':
-        this.log(`t${e.turn} ⚡ SUDDEN DEATH`);
+        this.log(`⚡ SUDDEN DEATH — damage ramps`);
         if (!instant) this.banner('⚡ SUDDEN DEATH — damage ramps: +10% you / +30% enemy per turn', '#ffd76a');
         break;
       case 'fatigueStart':
-        this.log(`t${e.turn} ⚡ fatigue backstop`);
+        this.log(`⚡ fatigue backstop`);
         break;
       case 'died':
-        this.log(`t${e.turn} ${e.side === 'player' ? 'YOU' : 'FOE'} died`);
+        this.log(`☠ ${e.side === 'player' ? 'YOU' : 'FOE'} died`);
         break;
       case 'combatEnd': {
         this.finished = true;

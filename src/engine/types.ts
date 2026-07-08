@@ -40,6 +40,12 @@ export type Property = 'physical' | 'magical' | 'true';
 /** Board slots occupied AND turn span: a size-3 card busies its caster 2 extra turns. */
 export type SkillSize = 1 | 2 | 3;
 
+/** Elements for Magical cards (wheel + Holy↔Dark pair). */
+export type Element = 'fire' | 'frost' | 'lightning' | 'nature' | 'holy' | 'dark';
+
+/** Weapon types for Physical damage cards (triangle; bow is outside it). */
+export type WeaponType = 'sword' | 'axe' | 'lance' | 'bow';
+
 /** Tier = Power Level budget: bronze 10 · silver 15 · gold 20 · diamond 25. */
 export type SkillTier = 'bronze' | 'silver' | 'gold' | 'diamond';
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
@@ -100,6 +106,10 @@ export interface SkillDef {
   rarity: Rarity;
   /** Power-level tier; the card's kit must sum to the tier's PL budget. */
   tier: SkillTier;
+  /** Required on every Magical card (advantage wheel + synergy filters). */
+  element?: Element;
+  /** Required on Physical cards that deal damage (weapon triangle). */
+  weapon?: WeaponType;
   /** Cast effects. Empty for pure passives (skipped by the rotation). */
   effects: Action[];
   /** Positional effect projected onto neighboring board cards. */
@@ -141,6 +151,10 @@ export interface CombatantSetup {
   boardSize: number;
   /** Placed cards; sizes come from the skill book. Must not overlap. */
   pieces: BoardPiece[];
+  /** Takes +50% from the element that beats this, −25% from the one it beats. */
+  elementAffinity?: Element;
+  /** Same rule against the weapon triangle. */
+  weaponAffinity?: WeaponType;
 }
 
 export interface CombatConfig {
@@ -170,6 +184,8 @@ export interface EnemyDef {
   stats: CombatantStats;
   boardSize: number;
   pieces: BoardPiece[];
+  elementAffinity?: Element;
+  weaponAffinity?: WeaponType;
   goldReward: number;
   xpReward: number;
 }

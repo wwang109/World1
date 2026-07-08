@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { powerLevel } from '../../engine/balance';
+import { ELEMENT_BEATS, WEAPON_BEATS } from '../../engine/elements';
+import { ELEMENT_ICON, WEAPON_ICON } from '../theme';
 import { skillBook } from '../../data/skills';
 import { enemies } from '../../data/enemies';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../data/heroes';
@@ -221,6 +223,23 @@ export class PrepScene extends Phaser.Scene {
       { fontSize: '13px', color: UI.text, fontFamily: 'monospace' },
     );
     this.enemyPreview.push(statText);
+    const affinities: string[] = [];
+    if (def.elementAffinity) {
+      const weakTo = Object.entries(ELEMENT_BEATS).find(([, beaten]) => beaten === def.elementAffinity)?.[0];
+      affinities.push(`${ELEMENT_ICON[def.elementAffinity]} ${def.elementAffinity} affinity — weak to ${weakTo}`);
+    }
+    if (def.weaponAffinity) {
+      const weakTo = Object.entries(WEAPON_BEATS).find(([, beaten]) => beaten === def.weaponAffinity)?.[0];
+      affinities.push(`${WEAPON_ICON[def.weaponAffinity]} ${def.weaponAffinity} affinity${weakTo ? ` — weak to ${weakTo}` : ''}`);
+    }
+    if (affinities.length > 0) {
+      const affText = this.add.text(560, 158, affinities.join('   '), {
+        fontSize: '12px',
+        color: '#ffd76a',
+        fontFamily: 'monospace',
+      });
+      this.enemyPreview.push(affText);
+    }
     const previewY = 205;
     const startX = 24 + (SLOT_W * 0.6) / 2;
     for (const piece of def.pieces) {
@@ -253,9 +272,10 @@ export class PrepScene extends Phaser.Scene {
   private bindCardHover(card: CardView): void {
     card.on('pointerover', () => {
       const sk = card.skill;
+      const kind = sk.element ? ` · ${sk.element}` : sk.weapon ? ` · ${sk.weapon}` : '';
       const lines = [
         `${sk.name}  [${sk.rarity}] · ${sk.tier.toUpperCase()} PL${powerLevel(sk)}`,
-        `${sk.archetypes.join(' + ')} · ${sk.property} · size ${sk.size} · weight ${sk.speedWeight ?? sk.size * 10}`,
+        `${sk.archetypes.join(' + ')} · ${sk.property}${kind} · size ${sk.size} · weight ${sk.speedWeight ?? sk.size * 10}`,
         sk.size > 1 ? `spans ${sk.size} turns when cast` : 'spans 1 turn',
         '',
         sk.text,

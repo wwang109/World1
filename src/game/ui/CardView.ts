@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { weightOf, type SkillDef } from '../../engine/types';
-import { ARCHETYPE_ICON, PROPERTY_COLOR, PROPERTY_LABEL, UI } from '../theme';
+import { ARCHETYPE_ICON, ELEMENT_ICON, PROPERTY_COLOR, PROPERTY_LABEL, UI, WEAPON_ICON } from '../theme';
 
 export const SLOT_W = 84;
 export const CARD_H = 96;
@@ -41,9 +41,10 @@ export class CardView extends Phaser.GameObjects.Container {
         })
         .setOrigin(0, 0.5),
     );
+    const kindIcon = skill.element ? ELEMENT_ICON[skill.element] : skill.weapon ? WEAPON_ICON[skill.weapon] : '';
     this.add(
       scene.add
-        .text(w / 2 - 5, h / 2 - 16 * fontScale, `${PROPERTY_LABEL[skill.property]} w${weightOf(skill)}`, {
+        .text(w / 2 - 5, h / 2 - 16 * fontScale, `${kindIcon}${PROPERTY_LABEL[skill.property]} w${weightOf(skill)}`, {
           fontSize: `${Math.round(10 * fontScale)}px`,
           color: `#${propColor.toString(16).padStart(6, '0')}`,
           fontFamily: 'monospace',

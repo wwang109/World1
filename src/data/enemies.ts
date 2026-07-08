@@ -21,6 +21,7 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Stone Beetle',
     baseDepth: 1,
     stats: { maxHp: 150, hp: 150, attack: 8, magicPower: 0, armor: 5, magicResist: 1, speed: 7, critPct: 0 },
+    elementAffinity: 'nature',
     boardSize: 6,
     pieces: [
       { skillId: 'iron_bulwark', slot: 0 },
@@ -34,6 +35,7 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Ember Imp',
     baseDepth: 1,
     stats: { maxHp: 85, hp: 85, attack: 4, magicPower: 13, armor: 0, magicResist: 3, speed: 11, critPct: 10 },
+    elementAffinity: 'fire',
     boardSize: 6,
     pieces: [
       { skillId: 'fireball', slot: 0 },
@@ -48,6 +50,7 @@ export const enemies: Record<string, EnemyDef> = {
     baseDepth: 1,
     isElite: true,
     stats: { maxHp: 140, hp: 140, attack: 13, magicPower: 0, armor: 2, magicResist: 1, speed: 12, critPct: 20 },
+    weaponAffinity: 'sword',
     boardSize: 7,
     pieces: [
       { skillId: 'war_banner', slot: 0 },
@@ -63,6 +66,7 @@ export const enemies: Record<string, EnemyDef> = {
     baseDepth: 1,
     isBoss: true,
     stats: { maxHp: 280, hp: 280, attack: 15, magicPower: 0, armor: 3, magicResist: 2, speed: 13, critPct: 10 },
+    weaponAffinity: 'axe',
     boardSize: 8,
     pieces: [
       { skillId: 'battle_howl', slot: 0 },

@@ -1,4 +1,4 @@
-import type { BuffableStat, CombatConfig, CombatantStats, Property, Side, SkillBook } from '../types';
+import type { BuffableStat, CombatConfig, CombatantStats, Element, Property, Side, SkillBook, WeaponType } from '../types';
 
 export interface StatusInstance {
   kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff';
@@ -46,6 +46,8 @@ export interface CombatantState {
   performs: number;
   /** Accumulated sudden-death damage amp (%). */
   sdStacks: number;
+  elementAffinity?: Element;
+  weaponAffinity?: WeaponType;
   statuses: StatusInstance[];
   alive: boolean;
 }
@@ -86,6 +88,8 @@ function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): Com
     busyTurns: 0,
     performs: 0,
     sdStacks: 0,
+    elementAffinity: setup.elementAffinity,
+    weaponAffinity: setup.weaponAffinity,
     statuses: [],
     alive: setup.stats.hp > 0,
   };

@@ -37,6 +37,8 @@ const { result, turns, events, finalState } = simulate(
       stats: { ...enemy.stats },
       boardSize: enemy.boardSize,
       pieces: [...enemy.pieces],
+      elementAffinity: enemy.elementAffinity,
+      weaponAffinity: enemy.weaponAffinity,
     },
     skillBook,
   },

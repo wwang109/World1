@@ -1,5 +1,6 @@
 import type { CombatOutcome, Property, Side } from '../types';
 
+
 export type StatusName = 'poison' | 'burn' | 'stun' | 'buff' | 'debuff';
 
 /** One side's numbers in a turn's initiative comparison. */
@@ -30,6 +31,8 @@ export type CombatEvent =
       property: Property;
       blocked: number;
       crit: boolean;
+      /** Element wheel / weapon triangle result for this hit. */
+      matchup?: 'advantage' | 'disadvantage';
       hpAfter: number;
       source: 'skill' | 'poison' | 'burn' | 'fatigue';
     }

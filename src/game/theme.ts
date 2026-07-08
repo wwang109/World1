@@ -20,6 +20,22 @@ export const ARCHETYPE_ICON: Record<Archetype, string> = {
   debuff: '☠',
 };
 
+export const ELEMENT_ICON: Record<string, string> = {
+  fire: '🔥',
+  frost: '❄',
+  lightning: '⚡',
+  nature: '🌿',
+  holy: '☀',
+  dark: '🌑',
+};
+
+export const WEAPON_ICON: Record<string, string> = {
+  sword: '🗡',
+  axe: '🪓',
+  lance: '🔱',
+  bow: '🏹',
+};
+
 export const ARCHETYPE_COLOR: Record<Archetype, number> = {
   offense: 0xcc4444,
   defensive: 0x4a7ab5,

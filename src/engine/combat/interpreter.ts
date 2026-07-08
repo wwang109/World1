@@ -2,6 +2,7 @@ import type { Rng } from '../rng';
 import type { Action, Property, SkillDef } from '../types';
 import type { CombatEvent } from './events';
 import type { AuraMods } from './auras';
+import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
 import { effStat, opponentOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 
@@ -60,7 +61,12 @@ export function dealDamage(
   victim: CombatantState,
   amount: number,
   property: Property,
-  opts: { crit?: boolean; bypassShields?: boolean; source?: 'skill' | 'poison' | 'burn' | 'fatigue' } = {},
+  opts: {
+    crit?: boolean;
+    bypassShields?: boolean;
+    matchup?: Matchup;
+    source?: 'skill' | 'poison' | 'burn' | 'fatigue';
+  } = {},
 ): void {
   if (!victim.alive || amount <= 0) return;
   const blocked = opts.bypassShields ? 0 : consumeShields(victim, property, amount);
@@ -74,6 +80,7 @@ export function dealDamage(
     property,
     blocked,
     crit: opts.crit ?? false,
+    matchup: opts.matchup === 'advantage' || opts.matchup === 'disadvantage' ? opts.matchup : undefined,
     hpAfter: victim.stats.hp,
     source: opts.source ?? 'skill',
   });
@@ -81,6 +88,13 @@ export function dealDamage(
     victim.alive = false;
     ctx.events.push({ turn: ctx.state.turn, kind: 'died', side: victim.side });
   }
+}
+
+/** Element wheel (magical) / weapon triangle (physical) result for a card vs a defender. */
+export function cardMatchup(skill: SkillDef, defender: CombatantState): Matchup {
+  if (skill.property === 'magical') return elementMatchup(skill.element, defender.elementAffinity);
+  if (skill.property === 'physical') return weaponMatchup(skill.weapon, defender.weaponAffinity);
+  return 'neutral';
 }
 
 function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): void {
@@ -107,8 +121,10 @@ function applyAction(ctx: Ctx, caster: CombatantState, skill: SkillDef, action: 
       const crit = ctx.rng.pct(Math.min(100, critChance));
       let amount = Math.max(1, base - mitigation(enemy, property));
       if (crit) amount = Math.floor((amount * 150) / 100);
+      const matchup = cardMatchup(skill, enemy);
+      amount = Math.floor((amount * matchupPct(matchup)) / 100);
       if (caster.sdStacks > 0) amount = Math.floor((amount * (100 + caster.sdStacks)) / 100);
-      dealDamage(ctx, enemy, amount, property, { crit });
+      dealDamage(ctx, enemy, Math.max(1, amount), property, { crit, matchup });
       break;
     }
     case 'heal': {
@@ -150,12 +166,17 @@ function applyAction(ctx: Ctx, caster: CombatantState, skill: SkillDef, action: 
       });
       break;
     }
-    case 'poison':
-      addStatus(ctx, enemy, { kind: 'poison', property, amount: action.amount, turnsLeft: action.turns, fresh: true });
+    case 'poison': {
+      // DoTs inherit the card's element/weapon: the matchup bakes into the tick amount.
+      const amount = Math.max(1, Math.floor((action.amount * matchupPct(cardMatchup(skill, enemy))) / 100));
+      addStatus(ctx, enemy, { kind: 'poison', property, amount, turnsLeft: action.turns, fresh: true });
       break;
-    case 'burn':
-      addStatus(ctx, enemy, { kind: 'burn', property, amount: action.amount, turnsLeft: action.turns, fresh: true });
+    }
+    case 'burn': {
+      const amount = Math.max(1, Math.floor((action.amount * matchupPct(cardMatchup(skill, enemy))) / 100));
+      addStatus(ctx, enemy, { kind: 'burn', property, amount, turnsLeft: action.turns, fresh: true });
       break;
+    }
     case 'stun':
       addStatus(ctx, enemy, { kind: 'stun', turnsLeft: action.turns, fresh: true });
       break;
