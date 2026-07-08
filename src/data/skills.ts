@@ -1,9 +1,12 @@
 import type { SkillBook, SkillDef } from '../engine/types';
 
-// Demo card set. Every card: archetype(s) + property (physical/magical/true)
-// + size (board slots AND turn span) + speed weight (defaults to size*10).
-// No cooldowns, no mana — the rotation and initiative comparison pace all.
-// power semantics: % of the scaling stat for physical/magical; FLAT for true.
+// Demo card set, balanced with the Power Level system: every card's kit sums
+// to its tier budget (Bronze 10 · Silver 15 · Gold 20 · Diamond 25 PL) using
+// the price table in src/engine/balance.ts — enforced by the balance audit
+// test. All demo cards ship at Bronze; tier-ups add player-chosen +5 PL paths.
+//
+// power semantics: % of the scaling stat (physical→Attack, magical→Magic
+// Power, true damage→higher of the two); FLAT amounts for true heals/shields.
 const defs: SkillDef[] = [
   // ---- Offense ----
   {
@@ -13,8 +16,9 @@ const defs: SkillDef[] = [
     property: 'physical',
     size: 1,
     rarity: 'common',
-    effects: [{ kind: 'damage', power: 100 }],
-    text: 'Deal 100% Attack physical damage.',
+    tier: 'bronze',
+    effects: [{ kind: 'damage', power: 200 }],
+    text: 'Deal 200% Attack physical damage.',
   },
   {
     id: 'arcane_bolt',
@@ -22,9 +26,11 @@ const defs: SkillDef[] = [
     archetypes: ['offense'],
     property: 'magical',
     size: 1,
+    speedWeight: 8,
     rarity: 'common',
-    effects: [{ kind: 'damage', power: 90 }],
-    text: 'Deal 90% Magic Power magical damage.',
+    tier: 'bronze',
+    effects: [{ kind: 'damage', power: 180 }],
+    text: 'Deal 180% Magic Power magical damage. Light and quick (weight 8).',
   },
   {
     id: 'crushing_blow',
@@ -33,6 +39,7 @@ const defs: SkillDef[] = [
     property: 'physical',
     size: 3,
     rarity: 'rare',
+    tier: 'bronze',
     effects: [{ kind: 'damage', power: 320 }],
     text: 'Deal 320% Attack physical damage. Spans 3 turns.',
   },
@@ -43,11 +50,12 @@ const defs: SkillDef[] = [
     property: 'magical',
     size: 2,
     rarity: 'common',
+    tier: 'bronze',
     effects: [
-      { kind: 'damage', power: 140 },
-      { kind: 'burn', amount: 6, turns: 2 },
+      { kind: 'damage', power: 200 },
+      { kind: 'burn', amount: 5, turns: 3 },
     ],
-    text: 'Deal 140% Magic Power magical damage and burn for 6 for 2 turns.',
+    text: 'Deal 200% Magic Power magical damage and burn for 5 for 3 turns.',
   },
   {
     id: 'soul_rend',
@@ -57,8 +65,9 @@ const defs: SkillDef[] = [
     size: 2,
     speedWeight: 26,
     rarity: 'epic',
-    effects: [{ kind: 'damage', power: 120 }],
-    text: 'Deal 120% of your higher power stat as TRUE damage — ignores Armor and Magic Resist.',
+    tier: 'bronze',
+    effects: [{ kind: 'damage', power: 280 }],
+    text: 'Deal 280% of your higher power stat as TRUE damage — ignores Armor and Magic Resist. Heavy (weight 26).',
   },
 
   // ---- Offense + Debuff (multi-archetype) ----
@@ -69,11 +78,12 @@ const defs: SkillDef[] = [
     property: 'physical',
     size: 2,
     rarity: 'rare',
+    tier: 'bronze',
     effects: [
-      { kind: 'damage', power: 130 },
+      { kind: 'damage', power: 160 },
       { kind: 'debuffStat', stat: 'attack', pct: 25, turns: 2 },
     ],
-    text: "Deal 130% Attack physical damage and reduce the enemy's Attack by 25% for 2 turns.",
+    text: "Deal 160% Attack physical damage and reduce the enemy's Attack by 25% for 2 turns.",
   },
   {
     id: 'venom_fang',
@@ -83,11 +93,12 @@ const defs: SkillDef[] = [
     size: 1,
     speedWeight: 12,
     rarity: 'common',
+    tier: 'bronze',
     effects: [
-      { kind: 'damage', power: 60 },
+      { kind: 'damage', power: 160 },
       { kind: 'poison', amount: 5, turns: 3 },
     ],
-    text: 'Deal 60% Attack physical damage and poison for 5 for 3 turns (poison bypasses shields).',
+    text: 'Deal 160% Attack physical damage and poison for 5 for 3 turns (poison bypasses shields).',
   },
 
   // ---- Defensive (typed shields) ----
@@ -98,8 +109,9 @@ const defs: SkillDef[] = [
     property: 'physical',
     size: 2,
     rarity: 'common',
-    effects: [{ kind: 'shield', power: 180 }],
-    text: 'Gain a Physical shield worth 180% Attack (blocks physical damage only).',
+    tier: 'bronze',
+    effects: [{ kind: 'shield', power: 260 }],
+    text: 'Gain a Physical shield worth 260% Attack (blocks physical damage only).',
   },
   {
     id: 'mana_ward',
@@ -108,8 +120,9 @@ const defs: SkillDef[] = [
     property: 'magical',
     size: 1,
     rarity: 'common',
-    effects: [{ kind: 'shield', power: 120 }],
-    text: 'Gain a Magical shield worth 120% Magic Power (blocks magical damage only).',
+    tier: 'bronze',
+    effects: [{ kind: 'shield', power: 200 }],
+    text: 'Gain a Magical shield worth 200% Magic Power (blocks magical damage only).',
   },
   {
     id: 'prism_barrier',
@@ -117,10 +130,11 @@ const defs: SkillDef[] = [
     archetypes: ['defensive'],
     property: 'true',
     size: 3,
-    speedWeight: 25,
+    speedWeight: 26,
     rarity: 'epic',
-    effects: [{ kind: 'shield', power: 45 }],
-    text: 'Gain a 45-point TRUE shield — blocks ALL damage types. Spans 3 turns.',
+    tier: 'bronze',
+    effects: [{ kind: 'shield', power: 60 }],
+    text: 'Gain a 60-point TRUE shield — blocks ALL damage types. Spans 3 turns.',
   },
 
   // ---- Healing ----
@@ -131,8 +145,9 @@ const defs: SkillDef[] = [
     property: 'magical',
     size: 2,
     rarity: 'common',
-    effects: [{ kind: 'heal', power: 220 }],
-    text: 'Restore 220% Magic Power health.',
+    tier: 'bronze',
+    effects: [{ kind: 'heal', power: 260 }],
+    text: 'Restore 260% Magic Power health.',
   },
   {
     id: 'second_wind',
@@ -141,8 +156,9 @@ const defs: SkillDef[] = [
     property: 'true',
     size: 1,
     rarity: 'rare',
-    effects: [{ kind: 'heal', power: 25 }],
-    text: 'Restore a flat 25 HP — no scaling, no reductions, always 25.',
+    tier: 'bronze',
+    effects: [{ kind: 'heal', power: 40 }],
+    text: 'Restore a flat 40 HP — no scaling, no reductions, always 40.',
   },
 
   // ---- Support (passive auras + active buffs) ----
@@ -151,8 +167,9 @@ const defs: SkillDef[] = [
     name: 'War Banner',
     archetypes: ['support'],
     property: 'physical',
-    size: 2,
+    size: 1,
     rarity: 'rare',
+    tier: 'bronze',
     effects: [],
     aura: { affects: 'adjacent', archetypeFilter: 'offense', mods: { damagePct: 25 } },
     text: 'Passive: touching Offense cards deal +25% damage.',
@@ -164,6 +181,7 @@ const defs: SkillDef[] = [
     property: 'magical',
     size: 1,
     rarity: 'rare',
+    tier: 'bronze',
     effects: [],
     aura: { affects: 'adjacent', propertyFilter: 'magical', mods: { weightDelta: -5 } },
     text: 'Passive: touching Magical cards are 5 speed-weight lighter (cast sooner).',
@@ -175,20 +193,21 @@ const defs: SkillDef[] = [
     property: 'true',
     size: 1,
     rarity: 'rare',
+    tier: 'bronze',
     effects: [],
-    aura: { affects: 'adjacent', mods: { critPctDelta: 15 } },
-    text: 'Passive: touching cards gain +15% crit chance.',
+    aura: { affects: 'adjacent', mods: { critPctDelta: 20 } },
+    text: 'Passive: touching cards gain +20% crit chance.',
   },
   {
     id: 'battle_howl',
     name: 'Battle Howl',
     archetypes: ['support'],
     property: 'physical',
-    size: 2,
-    speedWeight: 15,
+    size: 1,
     rarity: 'rare',
-    effects: [{ kind: 'buffStat', stat: 'attack', pct: 25, turns: 2 }],
-    text: 'Gain +25% Attack for 2 turns.',
+    tier: 'bronze',
+    effects: [{ kind: 'buffStat', stat: 'attack', pct: 50, turns: 2 }],
+    text: 'Gain +50% Attack for 2 turns.',
   },
 
   // ---- Debuff ----
@@ -200,8 +219,9 @@ const defs: SkillDef[] = [
     size: 1,
     speedWeight: 12,
     rarity: 'rare',
-    effects: [{ kind: 'debuffStat', stat: 'magicResist', pct: 30, turns: 2 }],
-    text: "Reduce the enemy's Magic Resist by 30% for 2 turns.",
+    tier: 'bronze',
+    effects: [{ kind: 'debuffStat', stat: 'magicResist', pct: 35, turns: 3 }],
+    text: "Reduce the enemy's Magic Resist by 35% for 3 turns.",
   },
   {
     id: 'armor_break',
@@ -209,10 +229,10 @@ const defs: SkillDef[] = [
     archetypes: ['debuff'],
     property: 'physical',
     size: 1,
-    speedWeight: 12,
     rarity: 'rare',
-    effects: [{ kind: 'debuffStat', stat: 'armor', pct: 40, turns: 2 }],
-    text: "Reduce the enemy's Armor by 40% for 2 turns.",
+    tier: 'bronze',
+    effects: [{ kind: 'debuffStat', stat: 'armor', pct: 50, turns: 2 }],
+    text: "Reduce the enemy's Armor by 50% for 2 turns.",
   },
   {
     id: 'slow_hex',
@@ -221,11 +241,12 @@ const defs: SkillDef[] = [
     property: 'magical',
     size: 1,
     rarity: 'common',
+    tier: 'bronze',
     effects: [
-      { kind: 'damage', power: 40 },
-      { kind: 'debuffStat', stat: 'speed', pct: 20, turns: 2 },
+      { kind: 'damage', power: 80 },
+      { kind: 'debuffStat', stat: 'speed', pct: 30, turns: 2 },
     ],
-    text: "Deal 40% Magic Power magical damage and reduce the enemy's Speed by 20% for 2 turns.",
+    text: "Deal 80% Magic Power magical damage and reduce the enemy's Speed by 30% for 2 turns.",
   },
   {
     id: 'stunning_smash',
@@ -235,11 +256,12 @@ const defs: SkillDef[] = [
     size: 2,
     speedWeight: 24,
     rarity: 'epic',
+    tier: 'bronze',
     effects: [
-      { kind: 'damage', power: 110 },
+      { kind: 'damage', power: 220 },
       { kind: 'stun', turns: 1 },
     ],
-    text: "Deal 110% Attack physical damage and stun — the enemy's next performance is consumed.",
+    text: "Deal 220% Attack physical damage and stun — the enemy's next performance is consumed. Heavy (weight 24).",
   },
   {
     id: 'purify',
@@ -248,6 +270,7 @@ const defs: SkillDef[] = [
     property: 'true',
     size: 1,
     rarity: 'rare',
+    tier: 'bronze',
     effects: [{ kind: 'cleanse' }],
     text: 'Remove your poisons, burns, stuns and debuffs.',
   },

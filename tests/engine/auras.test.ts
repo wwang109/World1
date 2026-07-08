@@ -46,19 +46,19 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
       { skillId: 'lucky_charm', slot: 0 },
       { skillId: 'mending_light', slot: 1 },
     ]);
-    expect(aurasOn(c, pieceAt(c, 1), skillBook).critPctDelta).toBe(15);
+    expect(aurasOn(c, pieceAt(c, 1), skillBook).critPctDelta).toBe(20);
   });
 
   it('auras stack additively across sources', () => {
     // slash touched by war_banner (left) and lucky_charm (right).
     const c = boardOf([
       { skillId: 'war_banner', slot: 0 },
-      { skillId: 'sword_slash', slot: 2 },
-      { skillId: 'lucky_charm', slot: 3 },
+      { skillId: 'sword_slash', slot: 1 },
+      { skillId: 'lucky_charm', slot: 2 },
     ]);
-    const mods = aurasOn(c, pieceAt(c, 2), skillBook);
+    const mods = aurasOn(c, pieceAt(c, 1), skillBook);
     expect(mods.damagePct).toBe(25);
-    expect(mods.critPctDelta).toBe(15);
+    expect(mods.critPctDelta).toBe(20);
   });
 
   it('war_banner changes actual combat damage', () => {
@@ -67,14 +67,14 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
         boardSize: 10,
         pieces: [
           { skillId: 'war_banner', slot: 0 },
-          { skillId: 'sword_slash', slot: 2 },
+          { skillId: 'sword_slash', slot: 1 },
         ],
       }),
       tc('wall', [], { maxHp: 1000, speed: 10 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
     const { events } = simulate(c, 1);
-    expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 12 }); // 10 * 1.25
+    expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 25 }); // 200% of 10 * 1.25
   });
 
   it('weightDelta changes the initiative comparison', () => {

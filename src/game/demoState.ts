@@ -4,10 +4,10 @@ import type { BoardPiece } from '../engine/types';
 export const demoState = {
   pieces: [
     { skillId: 'war_banner', slot: 0 },
-    { skillId: 'sword_slash', slot: 2 },
-    { skillId: 'crushing_blow', slot: 3 },
-    { skillId: 'iron_bulwark', slot: 6 },
-    { skillId: 'second_wind', slot: 8 },
+    { skillId: 'sword_slash', slot: 1 },
+    { skillId: 'crushing_blow', slot: 2 },
+    { skillId: 'iron_bulwark', slot: 5 },
+    { skillId: 'second_wind', slot: 7 },
   ] as BoardPiece[],
   enemyId: 'giant_rat',
   seed: 1,

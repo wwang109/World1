@@ -5,8 +5,8 @@ import type { CombatantStats } from '../engine/types';
  * from the drafted board, gear, and where stat points go on level-up.
  */
 export const BASE_HERO_STATS: CombatantStats = {
-  maxHp: 100,
-  hp: 100,
+  maxHp: 150,
+  hp: 150,
   attack: 12,
   magicPower: 12,
   armor: 2,

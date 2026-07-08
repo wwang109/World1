@@ -16,7 +16,7 @@ describe('property scaling and mitigation', () => {
       tc('wall', [], { armor: 3, speed: 10 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 7, property: 'physical' });
+    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 17, property: 'physical' }); // 200% of 10 − 3 armor
   });
 
   it('magical damage scales off Magic Power and is reduced by Magic Resist', () => {
@@ -25,7 +25,7 @@ describe('property scaling and mitigation', () => {
       tc('wall', [], { armor: 99, magicResist: 4, speed: 10 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 5, property: 'magical' }); // floor(9)−4
+    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 14, property: 'magical' }); // 180% of 10 − 4 resist
   });
 
   it('true damage ignores both defenses and scales off the higher stat', () => {
@@ -34,8 +34,8 @@ describe('property scaling and mitigation', () => {
       tc('wall', [], { armor: 99, magicResist: 99, speed: 10 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    // 120% of max(5,20)=20 -> 24, no mitigation.
-    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 24, property: 'true' });
+    // 280% of max(5,20)=20 -> 56, no mitigation.
+    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 56, property: 'true' });
   });
 
   it('crits multiply by 1.5 (floored) at 100% crit', () => {
@@ -44,7 +44,7 @@ describe('property scaling and mitigation', () => {
       tc('wall', [], { armor: 3, speed: 10 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 10, crit: true });
+    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 25, crit: true }); // floor(17 * 1.5)
   });
 });
 
@@ -59,6 +59,7 @@ describe('typed shields', () => {
       size: 1,
       speedWeight: 1, // casts first
       rarity: 'common',
+      tier: 'bronze',
       effects: [{ kind: 'shield', power: 200 }],
       text: '',
     },
@@ -70,6 +71,7 @@ describe('typed shields', () => {
       size: 1,
       speedWeight: 10,
       rarity: 'common',
+      tier: 'bronze',
       effects: [{ kind: 'damage', power: 100 }],
       text: '',
     },
@@ -81,6 +83,7 @@ describe('typed shields', () => {
       size: 1,
       speedWeight: 1,
       rarity: 'epic',
+      tier: 'bronze',
       effects: [{ kind: 'shield', power: 50 }],
       text: '',
     },
@@ -145,7 +148,7 @@ describe('healing', () => {
       { ...NO_ENDGAME, maxTurns: 1 },
     );
     const { events } = simulate(c, 1);
-    expect(events.find((e) => e.kind === 'heal')).toMatchObject({ amount: 25, flat: true, hpAfter: 75 });
+    expect(events.find((e) => e.kind === 'heal')).toMatchObject({ amount: 40, flat: true, hpAfter: 90 });
   });
 });
 
@@ -161,6 +164,7 @@ describe('damage over time (global-turn durations)', () => {
         size: 1,
         speedWeight: 1,
         rarity: 'common',
+        tier: 'bronze',
         effects: [{ kind: 'poison', amount: 5, turns: 3 }],
         text: '',
       },
@@ -172,6 +176,7 @@ describe('damage over time (global-turn durations)', () => {
         size: 1,
         speedWeight: 10,
         rarity: 'common',
+        tier: 'bronze',
         effects: [{ kind: 'shield', power: 30 }],
         text: '',
       },
@@ -202,6 +207,7 @@ describe('damage over time (global-turn durations)', () => {
         size: 1,
         speedWeight: 12,
         rarity: 'common',
+        tier: 'bronze',
         effects: [{ kind: 'burn', amount: 6, turns: 2 }],
         text: '',
       },
@@ -213,6 +219,7 @@ describe('damage over time (global-turn durations)', () => {
         size: 1,
         speedWeight: 1,
         rarity: 'common',
+        tier: 'bronze',
         effects: [{ kind: 'shield', power: 300 }],
         text: '',
       },
@@ -237,6 +244,7 @@ describe('damage over time (global-turn durations)', () => {
         size: 1,
         speedWeight: 10,
         rarity: 'common',
+        tier: 'bronze',
         effects: [{ kind: 'poison', amount: 5, turns: 3 }],
         text: '',
       },
@@ -275,9 +283,9 @@ describe('buffs, debuffs and cleanse', () => {
       { ...NO_ENDGAME, maxTurns: 4 },
     );
     const { events } = simulate(c, 1);
-    // Bruiser hits while -25% attack: floor(10*0.75)=7 -> 7 damage (0 armor).
+    // Bruiser hits while -25% attack: 200% of floor(10*0.75)=7 -> 14 (0 armor).
     const hit = events.find((e) => e.kind === 'damage' && e.side === 'player');
-    expect(hit).toMatchObject({ amount: 7 });
+    expect(hit).toMatchObject({ amount: 14 });
   });
 
   it('cleanse removes dots and debuffs from the caster', () => {

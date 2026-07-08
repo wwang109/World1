@@ -40,7 +40,8 @@ export type Property = 'physical' | 'magical' | 'true';
 /** Board slots occupied AND turn span: a size-3 card busies its caster 2 extra turns. */
 export type SkillSize = 1 | 2 | 3;
 
-export type SkillTier = 'bronze' | 'silver' | 'gold';
+/** Tier = Power Level budget: bronze 10 · silver 15 · gold 20 · diamond 25. */
+export type SkillTier = 'bronze' | 'silver' | 'gold' | 'diamond';
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 
 export type BuffableStat = 'attack' | 'magicPower' | 'armor' | 'magicResist' | 'speed' | 'critPct';
@@ -97,6 +98,8 @@ export interface SkillDef {
    */
   speedWeight?: number;
   rarity: Rarity;
+  /** Power-level tier; the card's kit must sum to the tier's PL budget. */
+  tier: SkillTier;
   /** Cast effects. Empty for pure passives (skipped by the rotation). */
   effects: Action[];
   /** Positional effect projected onto neighboring board cards. */

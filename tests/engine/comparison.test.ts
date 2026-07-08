@@ -98,6 +98,7 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
         size: 1,
         speedWeight: 10,
         rarity: 'common',
+        tier: 'bronze',
         effects: [{ kind: 'heal', power: 25 }],
         text: '',
       },

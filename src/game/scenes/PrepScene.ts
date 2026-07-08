@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { powerLevel } from '../../engine/balance';
 import { skillBook } from '../../data/skills';
 import { enemies } from '../../data/enemies';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../data/heroes';
@@ -253,7 +254,7 @@ export class PrepScene extends Phaser.Scene {
     card.on('pointerover', () => {
       const sk = card.skill;
       const lines = [
-        `${sk.name}  [${sk.rarity}]`,
+        `${sk.name}  [${sk.rarity}] · ${sk.tier.toUpperCase()} PL${powerLevel(sk)}`,
         `${sk.archetypes.join(' + ')} · ${sk.property} · size ${sk.size} · weight ${sk.speedWeight ?? sk.size * 10}`,
         sk.size > 1 ? `spans ${sk.size} turns when cast` : 'spans 1 turn',
         '',
