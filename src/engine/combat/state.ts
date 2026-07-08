@@ -1,53 +1,58 @@
-import type { BuffableStat, CombatConfig, CombatantStats, Side, SkillBook } from '../types';
+import type { BuffableStat, CombatConfig, CombatantStats, Property, Side, SkillBook } from '../types';
 
 export interface StatusInstance {
   kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff';
+  /** DoT mitigation/synergy typing (inherited from the card). */
+  property?: Property;
   stat?: BuffableStat;
   pct?: number;
   amount?: number;
+  /** Remaining GLOBAL turns (stun: remaining performances). */
   turnsLeft: number;
-  /**
-   * Set when the owner applied this to itself during its own turn: the cast
-   * turn's end must not consume a duration turn, so "2 turns" means two full
-   * subsequent turns.
-   */
-  skipFirstExpiry?: boolean;
+  /** Newly applied this turn: skip the first end-of-turn decrement. */
+  fresh?: boolean;
 }
 
-/** A skill placed on the board with its live combat state. */
+/** Typed shield pools. A pool only blocks its own property; true blocks all. */
+export interface ShieldPools {
+  physical: number;
+  magical: number;
+  true: number;
+}
+
+/** A card placed on the board with cached size for adjacency/span math. */
 export interface PieceState {
   skillId: string;
   /** Leftmost occupied slot. */
   slot: number;
-  /** Slots occupied (from the skill def, cached for adjacency math). */
   size: number;
-  /** Turns until castable again (0 = ready). */
-  cooldown: number;
 }
 
 export interface CombatantState {
   side: Side;
   name: string;
   stats: CombatantStats;
-  shield: number;
+  shields: ShieldPools;
   boardSize: number;
-  /** Sorted by slot ascending; cast order = this order. */
+  /** Sorted by slot ascending; rotation order = this order. */
   pieces: PieceState[];
-  /** Board slot the cast scan starts from (wraps). */
+  /** Board slot the rotation scan starts from (wraps). */
   castCursor: number;
-  /** Timeline position of this combatant's next turn. */
-  nextActionAt: number;
-  /** Number of turns this combatant has taken. */
-  turnCount: number;
-  /** Accumulated sudden-death damage amp (%). Grows each own turn once active. */
+  /** Banked initiative from turns spent not performing. */
+  bank: number;
+  /** Remaining turns this side is busy finishing a spanning cast. */
+  busyTurns: number;
+  /** Number of performances taken (casts + stun-consumed performances). */
+  performs: number;
+  /** Accumulated sudden-death damage amp (%). */
   sdStacks: number;
   statuses: StatusInstance[];
   alive: boolean;
 }
 
 export interface CombatState {
-  /** Current timeline position (the acting combatant's turn time). */
-  now: number;
+  /** Global turn counter (one comparison+performance step per turn). */
+  turn: number;
   player: CombatantState;
   enemy: CombatantState;
 }
@@ -66,19 +71,20 @@ function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): Com
       if (occupied[s]) throw new Error(`Board overlap at slot ${s} (${piece.skillId})`);
       occupied[s] = true;
     }
-    pieces.push({ skillId: piece.skillId, slot: piece.slot, size: def.size, cooldown: 0 });
+    pieces.push({ skillId: piece.skillId, slot: piece.slot, size: def.size });
   }
   pieces.sort((a, b) => a.slot - b.slot);
   return {
     side,
     name: setup.name,
     stats: { ...setup.stats },
-    shield: 0,
+    shields: { physical: 0, magical: 0, true: 0 },
     boardSize: setup.boardSize,
     pieces,
     castCursor: 0,
-    nextActionAt: 0,
-    turnCount: 0,
+    bank: 0,
+    busyTurns: 0,
+    performs: 0,
     sdStacks: 0,
     statuses: [],
     alive: setup.stats.hp > 0,
@@ -87,7 +93,7 @@ function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): Com
 
 export function initCombatState(cfg: CombatConfig): CombatState {
   return {
-    now: 0,
+    turn: 0,
     player: initCombatant('player', cfg, cfg.skillBook),
     enemy: initCombatant('enemy', cfg, cfg.skillBook),
   };
@@ -97,14 +103,25 @@ export function opponentOf(state: CombatState, c: CombatantState): CombatantStat
   return c.side === 'player' ? state.enemy : state.player;
 }
 
-/** Effective stat after buff/debuff percentages. Floored, never below 0. */
+/** Effective stat after buff/debuff percentages (and flat amounts). Never below 0. */
 export function effStat(c: CombatantState, stat: BuffableStat): number {
   let pct = 100;
+  let flat = 0;
   for (const s of c.statuses) {
-    if (s.kind === 'buff' && s.stat === stat) pct += s.pct ?? 0;
-    if (s.kind === 'debuff' && s.stat === stat) pct -= s.pct ?? 0;
+    if (s.stat !== stat) continue;
+    if (s.kind === 'buff') {
+      pct += s.pct ?? 0;
+      flat += s.amount ?? 0;
+    } else if (s.kind === 'debuff') {
+      pct -= s.pct ?? 0;
+      flat -= s.amount ?? 0;
+    }
   }
-  return Math.max(0, Math.floor((c.stats[stat] * pct) / 100));
+  return Math.max(0, Math.floor((c.stats[stat] * pct) / 100) + flat);
+}
+
+export function totalShield(c: CombatantState): number {
+  return c.shields.physical + c.shields.magical + c.shields.true;
 }
 
 export function hasStatus(c: CombatantState, kind: StatusInstance['kind']): boolean {

@@ -1,22 +1,22 @@
 import type { SkillBook } from '../types';
 import type { CombatantState, PieceState } from './state';
 
-/** Accumulated aura modifiers affecting one board piece. */
+/** Accumulated aura modifiers affecting one board card. */
 export interface AuraMods {
   damagePct: number;
   healPct: number;
-  cooldownDelta: number;
+  weightDelta: number;
   critPctDelta: number;
 }
 
 export const NO_MODS: AuraMods = {
   damagePct: 0,
   healPct: 0,
-  cooldownDelta: 0,
+  weightDelta: 0,
   critPctDelta: 0,
 };
 
-/** Two pieces are adjacent when their occupied ranges touch edge to edge. */
+/** Two cards are adjacent when their occupied ranges touch edge to edge. */
 function touches(a: PieceState, b: PieceState): boolean {
   return a.slot + a.size === b.slot || b.slot + b.size === a.slot;
 }
@@ -35,8 +35,8 @@ function covers(source: PieceState, target: PieceState, affects: 'adjacent' | 'l
 }
 
 /**
- * Sum every aura on this combatant's board that reaches `piece` and whose tag
- * filter matches the skill sitting there. Recomputed at cast time so board
+ * Sum every aura on this combatant's board that reaches `piece` and whose
+ * filters match the card sitting there. Recomputed at cast time so board
  * state changes are always reflected.
  */
 export function aurasOn(c: CombatantState, piece: PieceState, skillBook: SkillBook): AuraMods {
@@ -50,16 +50,12 @@ export function aurasOn(c: CombatantState, piece: PieceState, skillBook: SkillBo
     const aura = def?.aura;
     if (!aura) continue;
     if (!covers(source, piece, aura.affects)) continue;
-    if (aura.tagFilter && !targetDef.tags.includes(aura.tagFilter)) continue;
+    if (aura.archetypeFilter && !targetDef.archetypes.includes(aura.archetypeFilter)) continue;
+    if (aura.propertyFilter && targetDef.property !== aura.propertyFilter) continue;
     mods.damagePct += aura.mods.damagePct ?? 0;
     mods.healPct += aura.mods.healPct ?? 0;
-    mods.cooldownDelta += aura.mods.cooldownDelta ?? 0;
+    mods.weightDelta += aura.mods.weightDelta ?? 0;
     mods.critPctDelta += aura.mods.critPctDelta ?? 0;
   }
   return mods;
-}
-
-/** Effective cooldown set after casting, never below 0. */
-export function effCooldown(cooldownTurns: number | undefined, mods: AuraMods): number {
-  return Math.max(0, (cooldownTurns ?? 0) + mods.cooldownDelta);
 }

@@ -1,6 +1,6 @@
 // ASCII combat log for eyeballing engine behavior:
 //   npm run fight            (hero vs bandit_duelist)
-//   npm run fight -- goblin_thug 42
+//   npm run fight -- ember_imp 42
 import { simulate } from '../src/engine/combat/simulate';
 import { hashSeed } from '../src/engine/rng';
 import { skillBook } from '../src/data/skills';
@@ -18,18 +18,18 @@ if (!enemy) {
 
 // A plausible drafted starter board.
 const heroName = 'Hero';
-const { result, endedAt, turns, events, finalState } = simulate(
+const { result, turns, events, finalState } = simulate(
   {
     player: {
       name: heroName,
       stats: { ...BASE_HERO_STATS },
       boardSize: HERO_BOARD_SLOTS,
       pieces: [
-        { skillId: 'strike', slot: 0 },
-        { skillId: 'whetstone', slot: 1 },
-        { skillId: 'heavy_blow', slot: 2 },
-        { skillId: 'guard', slot: 4 },
-        { skillId: 'mend', slot: 5 },
+        { skillId: 'war_banner', slot: 0 },
+        { skillId: 'sword_slash', slot: 2 },
+        { skillId: 'crushing_blow', slot: 3 },
+        { skillId: 'iron_bulwark', slot: 6 },
+        { skillId: 'second_wind', slot: 8 },
       ],
     },
     enemy: {
@@ -44,35 +44,39 @@ const { result, endedAt, turns, events, finalState } = simulate(
 );
 
 const tag = (side: string) => (side === 'player' ? heroName : enemy.name).padEnd(16);
+const fmt = (side: { bank: number; speed: number; weight: number | null; score: number | null; state: string; queuedSkillId: string | null }) =>
+  side.state === 'ready'
+    ? `${side.bank}+${side.speed}-${side.weight}=${side.score} (${side.queuedSkillId})`
+    : side.state;
 
 for (const e of events) {
-  const t = String(e.time).padStart(6);
+  const t = String(e.turn).padStart(3);
   switch (e.kind) {
-    case 'turnStart':
-      console.log(`${t} ── ${tag(e.side)} turn ${e.turn}`);
+    case 'comparison':
+      console.log(`${t} ┌ you ${fmt(e.player)} | foe ${fmt(e.enemy)} → ${e.performer ?? 'nobody'}`);
       break;
     case 'skillCast':
-      console.log(`${t}    ${tag(e.side)} casts [${e.slot}] ${e.skillId}`);
+      console.log(`${t} │  ${tag(e.side)} casts [${e.slot}] ${e.skillId}${e.span > 1 ? ` (spans ${e.span})` : ''}`);
       break;
-    case 'turnSkipped':
-      console.log(`${t}    ${tag(e.side)} skips (${e.reason})`);
+    case 'performSkipped':
+      console.log(`${t} │  ${tag(e.side)} performance consumed (${e.reason})`);
       break;
     case 'damage':
       console.log(
-        `${t}    ${tag(e.side)} takes ${e.amount}${e.crit ? ' CRIT' : ''}${e.blocked ? ` (${e.blocked} blocked)` : ''} -> ${e.hpAfter} hp${e.source === 'fatigue' ? ' [fatigue]' : ''}`,
+        `${t} │  ${tag(e.side)} takes ${e.amount} ${e.property}${e.crit ? ' CRIT' : ''}${e.blocked ? ` (${e.blocked} blocked)` : ''} -> ${e.hpAfter} hp${e.source !== 'skill' ? ` [${e.source}]` : ''}`,
       );
       break;
     case 'heal':
-      console.log(`${t}    ${tag(e.side)} heals ${e.amount} -> ${e.hpAfter} hp`);
+      console.log(`${t} │  ${tag(e.side)} heals ${e.amount}${e.flat ? ' (flat)' : ''} -> ${e.hpAfter} hp`);
       break;
     case 'shieldGain':
-      console.log(`${t}    ${tag(e.side)} shields +${e.amount} -> ${e.shieldAfter}`);
+      console.log(`${t} │  ${tag(e.side)} +${e.amount} ${e.property} shield${e.wasted ? ` (${e.wasted} wasted)` : ''} -> ${e.totalAfter} total`);
       break;
     case 'statusApplied':
-      console.log(`${t}    ${tag(e.side)} gains ${e.status} (${e.turns}t)`);
+      console.log(`${t} │  ${tag(e.side)} gains ${e.status}${e.property ? `(${e.property})` : ''} for ${e.turns}t`);
       break;
-    case 'statusTick':
-      console.log(`${t}    ${tag(e.side)} suffers ${e.status} ${e.amount} -> ${e.hpAfter} hp`);
+    case 'statusExpired':
+      console.log(`${t} │  ${tag(e.side)} ${e.status} expired`);
       break;
     case 'suddenDeathStart':
       console.log(`${t} ⚡ SUDDEN DEATH — damage ramps each turn (+10% you, +30% foe)`);
@@ -84,7 +88,7 @@ for (const e of events) {
       console.log(`${t} ☠  ${tag(e.side)} dies`);
       break;
     case 'combatEnd':
-      console.log(`${t} ═══ ${e.result.toUpperCase()} after ${turns} turns ═══`);
+      console.log(`${t} ═══ ${e.result.toUpperCase()} after ${e.turns} turns ═══`);
       break;
     default:
       break;
@@ -94,5 +98,5 @@ for (const e of events) {
 console.log(
   `\nfinal: ${heroName} ${finalState.player.stats.hp}/${finalState.player.stats.maxHp} hp | ` +
     `${enemy.name} ${finalState.enemy.stats.hp}/${finalState.enemy.stats.maxHp} hp | ` +
-    `result=${result} endedAt=${endedAt} seed=${seed}`,
+    `result=${result} turns=${turns} seed=${seed}`,
 );

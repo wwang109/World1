@@ -4,16 +4,17 @@ import { skillBook as dataSkillBook } from '../src/data/skills';
 export const DEFAULT_STATS: CombatantStats = {
   maxHp: 100,
   hp: 100,
-  atk: 10,
-  def: 0,
+  attack: 10,
+  magicPower: 10,
+  armor: 0,
+  magicResist: 0,
   speed: 10,
   critPct: 0,
 };
 
 /**
  * Test combatant. `skills` are laid out left to right with sizes taken from
- * the data skill book (pass explicit pieces via `piecesOverride` when a test
- * needs gaps or a custom book).
+ * the skill book; pass `pieces` for gaps or custom layouts.
  */
 export function tc(
   name: string,
@@ -59,7 +60,47 @@ export function cfg(
     enemy,
     skillBook: extra.skillBook ?? dataSkillBook,
     suddenDeathRound: extra.suddenDeathRound ?? 5,
-    fatigueRound: extra.fatigueRound ?? 20,
-    maxTurns: extra.maxTurns ?? 300,
+    fatigueTurn: extra.fatigueTurn ?? 40,
+    maxTurns: extra.maxTurns ?? 200,
   };
 }
+
+/** Endgame disabled — for tests isolating a single mechanic. */
+export const NO_ENDGAME = { suddenDeathRound: 999, fatigueTurn: 9999, maxTurns: 60 } as const;
+
+/** A minimal book of neutral cards for precise scheduling tests. */
+export const MINI_BOOK: SkillBook = {
+  slash: {
+    id: 'slash',
+    name: 'Slash',
+    archetypes: ['offense'],
+    property: 'physical',
+    size: 1,
+    speedWeight: 10,
+    rarity: 'common',
+    effects: [{ kind: 'damage', power: 100 }],
+    text: '',
+  },
+  bite: {
+    id: 'bite',
+    name: 'Bite',
+    archetypes: ['offense'],
+    property: 'physical',
+    size: 1,
+    speedWeight: 10,
+    rarity: 'common',
+    effects: [{ kind: 'damage', power: 100 }],
+    text: '',
+  },
+  meteor: {
+    id: 'meteor',
+    name: 'Meteor',
+    archetypes: ['offense'],
+    property: 'magical',
+    size: 3,
+    speedWeight: 30,
+    rarity: 'epic',
+    effects: [{ kind: 'damage', power: 300 }],
+    text: '',
+  },
+};

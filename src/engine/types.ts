@@ -1,4 +1,4 @@
-// Core shared types for the 1v1 action-timeline skill-board combat engine.
+// Core shared types for the 1v1 initiative-comparison skill-board combat engine.
 //
 // DETERMINISM RULES (apply to everything under src/engine):
 // - Simulation state holds integers only. No floats persist between turns;
@@ -12,62 +12,75 @@ export type Side = 'player' | 'enemy';
 export interface CombatantStats {
   maxHp: number;
   hp: number;
-  atk: number;
-  def: number;
-  /** Compresses action delays: delay = timeCost * 100 / speed. */
+  /** Scales Physical skills. */
+  attack: number;
+  /** Scales Magical skills. */
+  magicPower: number;
+  /** Reduces incoming Physical damage. */
+  armor: number;
+  /** Reduces incoming Magical damage. */
+  magicResist: number;
+  /** Initiative: turn score = bank + speed − queued card's weight. */
   speed: number;
   critPct: number;
 }
 
-/** Small = 1 board slot, Medium = 2, Large = 3. Also scales cast time. */
-export type SkillSize = 1 | 2 | 3;
+/** Card type identity — a card carries ONE OR MORE of these. */
+export type Archetype = 'offense' | 'defensive' | 'healing' | 'support' | 'debuff';
 
-export type SkillTag =
-  | 'attack'
-  | 'defense'
-  | 'magic'
-  | 'fire'
-  | 'frost'
-  | 'venom'
-  | 'holy'
-  | 'passive';
+/**
+ * Property shapes how the card works in every archetype:
+ * - physical: damage vs Armor, scales off Attack; shields block Physical
+ * - magical:  damage vs Magic Resist, scales off Magic Power; shields block Magical
+ * - true:     damage ignores defenses (scales off higher stat); shields block
+ *             EVERYTHING; heals/buffs are flat, no scaling or reduction math
+ */
+export type Property = 'physical' | 'magical' | 'true';
+
+/** Board slots occupied AND turn span: a size-3 card busies its caster 2 extra turns. */
+export type SkillSize = 1 | 2 | 3;
 
 export type SkillTier = 'bronze' | 'silver' | 'gold';
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 
-export type BuffableStat = 'atk' | 'def' | 'speed' | 'critPct';
+export type BuffableStat = 'attack' | 'magicPower' | 'armor' | 'magicResist' | 'speed' | 'critPct';
 
 /**
  * Cast actions. Targets are implicit in 1v1: offensive actions hit the enemy,
- * supportive ones apply to the caster. `power` scales off the caster's ATK.
+ * supportive ones apply to the caster.
+ *
+ * `power` semantics follow the card's property: for physical/magical it is a
+ * percentage of the scaling stat (Attack / Magic Power); for TRUE cards it is
+ * a FLAT amount (no scaling, no reduction). Durations are GLOBAL turns.
  */
 export type Action =
-  /** damage = floor(atk * power / 100) - target def, min 1. Crits x1.5. */
   | { kind: 'damage'; power: number }
   | { kind: 'heal'; power: number }
   | { kind: 'shield'; power: number }
-  /** Acts on every turn of the victim until it expires. Ignores shield. */
+  /** Ticks on the victim at the start of each global turn. Bypasses shields. */
   | { kind: 'poison'; amount: number; turns: number }
-  /** Acts on every turn of the victim until it expires. Hits shield first. */
+  /** Ticks on the victim at the start of each global turn. Consumed by shields. */
   | { kind: 'burn'; amount: number; turns: number }
-  /** Victim skips its next `turns` turns. */
+  /** Consumes the victim's next performance (not a global turn). */
   | { kind: 'stun'; turns: number }
   | { kind: 'buffStat'; stat: BuffableStat; pct: number; turns: number }
-  /** In force on every turn taken while active. */
   | { kind: 'debuffStat'; stat: BuffableStat; pct: number; turns: number }
   /** Remove the caster's poisons, burns, stuns and debuffs. */
   | { kind: 'cleanse' };
 
-/** Positional modifiers a (usually passive) skill projects onto board neighbors. */
+/** Positional modifiers a (usually Support/passive) card projects onto board neighbors. */
 export interface AuraDef {
-  /** adjacent/left/right = pieces physically touching this skill's edges. */
+  /** adjacent/left/right = pieces physically touching this card's edges. */
   affects: 'adjacent' | 'left' | 'right' | 'allBoard';
-  /** Only skills carrying this tag receive the aura. */
-  tagFilter?: SkillTag;
+  /** Only cards carrying this archetype receive the aura. */
+  archetypeFilter?: Archetype;
+  /** Only cards of this property receive the aura. */
+  propertyFilter?: Property;
   mods: {
     damagePct?: number;
     healPct?: number;
-    cooldownDelta?: number;
+    /** Reduces (negative) or raises the card's speed weight. */
+    weightDelta?: number;
     critPctDelta?: number;
   };
 }
@@ -75,20 +88,18 @@ export interface AuraDef {
 export interface SkillDef {
   id: string;
   name: string;
-  /** Board slots occupied AND the base cast-time multiplier. */
+  archetypes: Archetype[];
+  property: Property;
   size: SkillSize;
-  tags: SkillTag[];
-  rarity: Rarity;
   /**
-   * Cast time = size * 100 + (timeCostMod ?? 0). The delay to the caster's
-   * next turn is this scaled by Speed.
+   * Initiative weight: heavier = comes out later. Defaults to size * 10.
+   * A card CAN be big but quick (low weight, long span) or small but heavy.
    */
-  timeCostMod?: number;
-  /** Turns (of the owner) before this skill can be cast again. */
-  cooldownTurns?: number;
-  /** Cast effects. Empty for pure passives (they are skipped by the cursor). */
+  speedWeight?: number;
+  rarity: Rarity;
+  /** Cast effects. Empty for pure passives (skipped by the rotation). */
   effects: Action[];
-  /** Positional effect projected onto neighboring board skills. */
+  /** Positional effect projected onto neighboring board cards. */
   aura?: AuraDef;
   /** Registry key for hand-coded behavior the DSL can't express. */
   special?: string;
@@ -97,8 +108,8 @@ export interface SkillDef {
 
 export type SkillBook = Record<string, SkillDef>;
 
-export function timeCost(skill: SkillDef): number {
-  return skill.size * 100 + (skill.timeCostMod ?? 0);
+export function weightOf(skill: SkillDef): number {
+  return skill.speedWeight ?? skill.size * 10;
 }
 
 export type EquipmentSlot = 'weapon' | 'armor' | 'trinket';
@@ -113,7 +124,7 @@ export interface EquipmentDef {
   text: string;
 }
 
-/** A skill placed on a board; `slot` is its leftmost occupied slot. */
+/** A card placed on a board; `slot` is its leftmost occupied slot. */
 export interface BoardPiece {
   skillId: string;
   slot: number;
@@ -125,7 +136,7 @@ export interface CombatantSetup {
   stats: CombatantStats;
   /** Board width in slots (10 for the hero). */
   boardSize: number;
-  /** Placed skills; sizes come from the skill book. Must not overlap. */
+  /** Placed cards; sizes come from the skill book. Must not overlap. */
   pieces: BoardPiece[];
 }
 
@@ -134,13 +145,13 @@ export interface CombatConfig {
   enemy: CombatantSetup;
   skillBook: SkillBook;
   /**
-   * Rounds (both sides have acted N times) before sudden death: damage ramps
-   * +10%/turn for the player, +30%/turn for the enemy. Default 5.
+   * Rounds (both sides have performed N times) before sudden death: damage
+   * ramps +10%/turn for the player, +30%/turn for the enemy. Default 5.
    */
   suddenDeathRound?: number;
-  /** Rounds before the flat-fatigue backstop for zero-damage boards. Default 20. */
-  fatigueRound?: number;
-  /** Hard turn-count guard; sudden death ends fights long before this. */
+  /** Global turn after which the flat fatigue backstop starts. Default 40. */
+  fatigueTurn?: number;
+  /** Hard global-turn guard; sudden death ends fights long before this. */
   maxTurns?: number;
 }
 

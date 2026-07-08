@@ -28,8 +28,10 @@ function randomCombatant(rng: Rng, name: string): CombatantSetup {
     stats: {
       maxHp,
       hp: maxHp,
-      atk: 5 + rng.int(15),
-      def: rng.int(5),
+      attack: 5 + rng.int(15),
+      magicPower: 5 + rng.int(15),
+      armor: rng.int(5),
+      magicResist: rng.int(5),
       speed: 5 + rng.int(15),
       critPct: rng.int(40),
     },
@@ -56,7 +58,7 @@ describe('simulate determinism', () => {
     }
   });
 
-  it('all random matchups terminate (no draws) via sudden death + backstop', () => {
+  it('all random matchups terminate (no draws)', () => {
     const metaRng = new Rng(0xdeadbeef);
     for (let i = 0; i < 100; i++) {
       const config: CombatConfig = {
@@ -72,9 +74,9 @@ describe('simulate determinism', () => {
   it('different seeds can diverge (crit rolls consume RNG)', () => {
     const make = (): CombatantSetup => ({
       name: 'x',
-      stats: { maxHp: 200, hp: 200, atk: 10, def: 0, speed: 10, critPct: 50 },
+      stats: { maxHp: 200, hp: 200, attack: 10, magicPower: 0, armor: 0, magicResist: 0, speed: 10, critPct: 50 },
       boardSize: 10,
-      pieces: [{ skillId: 'strike', slot: 0 }],
+      pieces: [{ skillId: 'sword_slash', slot: 0 }],
     });
     const logs = new Set<string>();
     for (let seed = 0; seed < 10; seed++) {

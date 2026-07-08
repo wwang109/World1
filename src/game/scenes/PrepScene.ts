@@ -1,0 +1,329 @@
+import Phaser from 'phaser';
+import { skillBook } from '../../data/skills';
+import { enemies } from '../../data/enemies';
+import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../data/heroes';
+import { canPlace, clampSlot } from '../../run/loadout';
+import type { BoardPiece } from '../../engine/types';
+import { demoState } from '../demoState';
+import { CardView, SLOT_W, CARD_H } from '../ui/CardView';
+import { UI } from '../theme';
+
+const BOARD_Y = 400;
+const BOARD_X = (1280 - HERO_BOARD_SLOTS * SLOT_W) / 2;
+const POOL_Y = 560;
+
+export class PrepScene extends Phaser.Scene {
+  private slotRects: Phaser.GameObjects.Rectangle[] = [];
+  private boardCards: CardView[] = [];
+  private poolCards: CardView[] = [];
+  private enemyPreview: Phaser.GameObjects.GameObject[] = [];
+  private tooltip!: Phaser.GameObjects.Container;
+  private tooltipText!: Phaser.GameObjects.Text;
+  private dragGhost: CardView | null = null;
+  private dragSource: { fromBoard: boolean; piece?: BoardPiece; skillId: string } | null = null;
+
+  constructor() {
+    super('Prep');
+  }
+
+  create(): void {
+    this.add.text(24, 16, 'WORLD1 — combat demo', {
+      fontSize: '26px',
+      color: UI.text,
+      fontFamily: 'monospace',
+      fontStyle: 'bold',
+    });
+    this.add.text(24, 48, 'arrange your board · pick an enemy · fight', {
+      fontSize: '13px',
+      color: UI.textDim,
+      fontFamily: 'monospace',
+    });
+
+    this.buildEnemyPicker();
+    this.buildBoardSlots();
+    this.buildTooltip();
+    this.renderBoard();
+    this.renderPool();
+    this.renderEnemyPreview();
+    this.buildButtons();
+
+    this.add
+      .text(BOARD_X, BOARD_Y - CARD_H / 2 - 22, 'YOUR BOARD — left to right = cast order · touching cards share auras', {
+        fontSize: '12px',
+        color: UI.textDim,
+        fontFamily: 'monospace',
+      });
+  }
+
+  // ---------- board ----------
+
+  private buildBoardSlots(): void {
+    for (let s = 0; s < HERO_BOARD_SLOTS; s++) {
+      const rect = this.add
+        .rectangle(BOARD_X + s * SLOT_W + SLOT_W / 2, BOARD_Y, SLOT_W - 4, CARD_H + 8, UI.slot)
+        .setStrokeStyle(1, 0x44444f);
+      this.slotRects.push(rect);
+      this.add
+        .text(rect.x, BOARD_Y + CARD_H / 2 + 16, String(s + 1), {
+          fontSize: '10px',
+          color: UI.textDim,
+          fontFamily: 'monospace',
+        })
+        .setOrigin(0.5);
+    }
+  }
+
+  private renderBoard(): void {
+    for (const c of this.boardCards) c.destroy();
+    this.boardCards = [];
+    for (const piece of demoState.pieces) {
+      const skill = skillBook[piece.skillId];
+      if (!skill) continue;
+      const x = BOARD_X + piece.slot * SLOT_W + (skill.size * SLOT_W) / 2;
+      const card = new CardView(this, x, BOARD_Y, skill);
+      card.setInteractive({ draggable: true, useHandCursor: true });
+      this.bindCardHover(card);
+      card.on('dragstart', () => this.startDrag({ fromBoard: true, piece, skillId: piece.skillId }, card.x, card.y));
+      card.on('drag', (_p: unknown, dragX: number, dragY: number) => this.moveDrag(dragX, dragY));
+      card.on('dragend', () => this.endDrag());
+      this.boardCards.push(card);
+    }
+  }
+
+  // ---------- pool ----------
+
+  private renderPool(): void {
+    for (const c of this.poolCards) c.destroy();
+    this.poolCards = [];
+    this.add
+      .text(24, POOL_Y - CARD_H / 2 - 4, 'CARD POOL — drag onto your board (drag off the board to remove)', {
+        fontSize: '12px',
+        color: UI.textDim,
+        fontFamily: 'monospace',
+      })
+      .setDepth(1);
+
+    const ids = Object.keys(skillBook).sort();
+    let x = 40;
+    let y = POOL_Y + 18;
+    for (const id of ids) {
+      const skill = skillBook[id]!;
+      const w = skill.size * SLOT_W * 0.72;
+      if (x + w > 1020) {
+        x = 40;
+        y += CARD_H * 0.72 + 14;
+      }
+      const card = new CardView(this, x + w / 2, y, skill, { mini: true });
+      card.setScale(0.72);
+      card.setInteractive({ draggable: true, useHandCursor: true });
+      this.bindCardHover(card);
+      card.on('dragstart', () => this.startDrag({ fromBoard: false, skillId: id }, card.x, card.y));
+      card.on('drag', (_p: unknown, dragX: number, dragY: number) => this.moveDrag(dragX, dragY));
+      card.on('dragend', () => this.endDrag());
+      this.poolCards.push(card);
+      x += w + 12;
+    }
+  }
+
+  // ---------- drag & drop ----------
+
+  private startDrag(source: { fromBoard: boolean; piece?: BoardPiece; skillId: string }, x: number, y: number): void {
+    this.dragSource = source;
+    const skill = skillBook[source.skillId]!;
+    this.dragGhost = new CardView(this, x, y, skill);
+    this.dragGhost.setAlpha(0.85).setDepth(10);
+    this.tooltip.setVisible(false);
+  }
+
+  private moveDrag(x: number, y: number): void {
+    if (!this.dragGhost || !this.dragSource) return;
+    this.dragGhost.setPosition(x, y);
+    this.paintSlots();
+  }
+
+  private targetSlot(): number | null {
+    if (!this.dragGhost || !this.dragSource) return null;
+    const { x, y } = this.dragGhost;
+    if (Math.abs(y - BOARD_Y) > CARD_H) return null;
+    const skill = skillBook[this.dragSource.skillId]!;
+    const raw = (x - BOARD_X - (skill.size * SLOT_W) / 2) / SLOT_W;
+    return clampSlot(raw, this.dragSource.skillId, skillBook, HERO_BOARD_SLOTS);
+  }
+
+  private paintSlots(): void {
+    for (const rect of this.slotRects) rect.setFillStyle(UI.slot);
+    const slot = this.targetSlot();
+    if (slot === null || !this.dragSource) return;
+    const skill = skillBook[this.dragSource.skillId]!;
+    const ok = canPlace(demoState.pieces, skillBook, this.dragSource.skillId, slot, HERO_BOARD_SLOTS, this.dragSource.piece);
+    for (let s = slot; s < slot + skill.size; s++) {
+      this.slotRects[s]?.setFillStyle(ok ? 0x2e4433 : 0x4a2e2e);
+    }
+  }
+
+  private endDrag(): void {
+    const slot = this.targetSlot();
+    const source = this.dragSource;
+    this.dragGhost?.destroy();
+    this.dragGhost = null;
+    this.dragSource = null;
+    for (const rect of this.slotRects) rect.setFillStyle(UI.slot);
+    if (!source) return;
+
+    if (slot !== null && canPlace(demoState.pieces, skillBook, source.skillId, slot, HERO_BOARD_SLOTS, source.piece)) {
+      if (source.fromBoard && source.piece) {
+        source.piece.slot = slot;
+      } else {
+        demoState.pieces.push({ skillId: source.skillId, slot });
+      }
+    } else if (source.fromBoard && source.piece) {
+      // Dropped off-board: remove it.
+      demoState.pieces = demoState.pieces.filter((p) => p !== source.piece);
+    }
+    this.renderBoard();
+  }
+
+  // ---------- enemy picker ----------
+
+  private buildEnemyPicker(): void {
+    let x = 24;
+    const y = 92;
+    for (const id of Object.keys(enemies)) {
+      const def = enemies[id]!;
+      const label = `${def.isBoss ? '👑 ' : def.isElite ? '★ ' : ''}${def.name}`;
+      const btn = this.add
+        .text(x, y, label, {
+          fontSize: '13px',
+          color: demoState.enemyId === id ? '#ffd76a' : UI.text,
+          backgroundColor: demoState.enemyId === id ? '#3a3a1a' : '#24242e',
+          padding: { x: 8, y: 5 },
+          fontFamily: 'monospace',
+        })
+        .setInteractive({ useHandCursor: true });
+      btn.on('pointerdown', () => {
+        demoState.enemyId = id;
+        this.scene.restart();
+      });
+      x += btn.width + 10;
+    }
+  }
+
+  private renderEnemyPreview(): void {
+    for (const obj of this.enemyPreview) obj.destroy();
+    this.enemyPreview = [];
+    const def = enemies[demoState.enemyId]!;
+    const s = def.stats;
+    const statText = this.add.text(
+      24,
+      132,
+      `${def.name} — HP ${s.maxHp} · ATK ${s.attack} · MPW ${s.magicPower} · ARM ${s.armor} · RES ${s.magicResist} · SPD ${s.speed} · CRIT ${s.critPct}%`,
+      { fontSize: '13px', color: UI.text, fontFamily: 'monospace' },
+    );
+    this.enemyPreview.push(statText);
+    const previewY = 205;
+    const startX = 24 + (SLOT_W * 0.6) / 2;
+    for (const piece of def.pieces) {
+      const skill = skillBook[piece.skillId];
+      if (!skill) continue;
+      const card = new CardView(this, startX + piece.slot * SLOT_W * 0.6 + ((skill.size - 1) * SLOT_W * 0.6) / 2, previewY, skill, { mini: true });
+      card.setScale(0.6);
+      this.bindCardHover(card);
+      card.setInteractive();
+      this.enemyPreview.push(card);
+    }
+    const label = this.add.text(24, 158, "ENEMY'S BOARD:", { fontSize: '11px', color: UI.textDim, fontFamily: 'monospace' });
+    this.enemyPreview.push(label);
+  }
+
+  // ---------- tooltip ----------
+
+  private buildTooltip(): void {
+    this.tooltipText = this.add.text(0, 0, '', {
+      fontSize: '12px',
+      color: UI.text,
+      fontFamily: 'monospace',
+      wordWrap: { width: 300 },
+      padding: { x: 10, y: 8 },
+      backgroundColor: '#101018',
+    });
+    this.tooltip = this.add.container(0, 0, [this.tooltipText]).setDepth(20).setVisible(false);
+  }
+
+  private bindCardHover(card: CardView): void {
+    card.on('pointerover', () => {
+      const sk = card.skill;
+      const lines = [
+        `${sk.name}  [${sk.rarity}]`,
+        `${sk.archetypes.join(' + ')} · ${sk.property} · size ${sk.size} · weight ${sk.speedWeight ?? sk.size * 10}`,
+        sk.size > 1 ? `spans ${sk.size} turns when cast` : 'spans 1 turn',
+        '',
+        sk.text,
+      ];
+      this.tooltipText.setText(lines.join('\n'));
+      const tx = Math.min(card.x + 20, 1280 - 330);
+      const ty = Math.max(20, card.y - CARD_H - 40);
+      this.tooltip.setPosition(tx, ty).setVisible(true);
+    });
+    card.on('pointerout', () => this.tooltip.setVisible(false));
+  }
+
+  // ---------- buttons ----------
+
+  private buildButtons(): void {
+    const fight = this.add
+      .text(1130, 640, '⚔ FIGHT', {
+        fontSize: '26px',
+        color: '#ffffff',
+        backgroundColor: '#7a2222',
+        padding: { x: 18, y: 12 },
+        fontFamily: 'monospace',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    fight.on('pointerover', () => fight.setBackgroundColor('#a03030'));
+    fight.on('pointerout', () => fight.setBackgroundColor('#7a2222'));
+    fight.on('pointerdown', () => {
+      if (demoState.pieces.length === 0) return;
+      this.scene.start('Battle');
+    });
+
+    const clear = this.add
+      .text(1130, 585, 'clear board', {
+        fontSize: '13px',
+        color: UI.textDim,
+        backgroundColor: '#24242e',
+        padding: { x: 8, y: 5 },
+        fontFamily: 'monospace',
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    clear.on('pointerdown', () => {
+      demoState.pieces = [];
+      this.renderBoard();
+    });
+
+    const seedBtn = this.add
+      .text(1130, 550, `seed ${demoState.seed} ↻`, {
+        fontSize: '13px',
+        color: UI.textDim,
+        backgroundColor: '#24242e',
+        padding: { x: 8, y: 5 },
+        fontFamily: 'monospace',
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    seedBtn.on('pointerdown', () => {
+      demoState.seed = Math.floor(Math.random() * 1_000_000);
+      seedBtn.setText(`seed ${demoState.seed} ↻`);
+    });
+
+    const heroStats = BASE_HERO_STATS;
+    this.add.text(
+      24,
+      688,
+      `HERO — HP ${heroStats.maxHp} · ATK ${heroStats.attack} · MPW ${heroStats.magicPower} · ARM ${heroStats.armor} · RES ${heroStats.magicResist} · SPD ${heroStats.speed} · CRIT ${heroStats.critPct}%`,
+      { fontSize: '12px', color: UI.textDim, fontFamily: 'monospace' },
+    );
+  }
+}

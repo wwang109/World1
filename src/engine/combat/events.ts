@@ -1,29 +1,44 @@
-import type { CombatOutcome, Side } from '../types';
+import type { CombatOutcome, Property, Side } from '../types';
 
 export type StatusName = 'poison' | 'burn' | 'stun' | 'buff' | 'debuff';
 
-/** All events carry `time`: the timeline position of the acting turn. */
+/** One side's numbers in a turn's initiative comparison. */
+export interface ComparisonSide {
+  /** null when the side cannot compete this turn (busy / nothing usable). */
+  queuedSkillId: string | null;
+  queuedSlot: number | null;
+  bank: number;
+  speed: number;
+  weight: number | null;
+  /** bank + speed − weight; null when not competing. */
+  score: number | null;
+  state: 'ready' | 'busy' | 'nothingUsable';
+}
+
+/** All events carry `turn`: the global turn index (1-based). */
 export type CombatEvent =
-  | { time: number; kind: 'turnStart'; side: Side; turn: number }
-  | { time: number; kind: 'turnSkipped'; side: Side; reason: 'stunned' | 'noUsableSkill' }
-  | { time: number; kind: 'skillCast'; side: Side; slot: number; skillId: string }
+  | { turn: number; kind: 'comparison'; player: ComparisonSide; enemy: ComparisonSide; performer: Side | null }
+  | { turn: number; kind: 'performStart'; side: Side; performs: number }
+  | { turn: number; kind: 'performSkipped'; side: Side; reason: 'stunned' }
+  | { turn: number; kind: 'noPerformer' }
+  | { turn: number; kind: 'skillCast'; side: Side; slot: number; skillId: string; span: number }
   | {
-      time: number;
+      turn: number;
       kind: 'damage';
       side: Side; // the victim
       amount: number;
+      property: Property;
       blocked: number;
       crit: boolean;
       hpAfter: number;
-      source: 'skill' | 'fatigue';
+      source: 'skill' | 'poison' | 'burn' | 'fatigue';
     }
-  | { time: number; kind: 'heal'; side: Side; amount: number; hpAfter: number }
-  | { time: number; kind: 'shieldGain'; side: Side; amount: number; shieldAfter: number }
-  | { time: number; kind: 'statusApplied'; side: Side; status: StatusName; turns: number }
-  | { time: number; kind: 'statusTick'; side: Side; status: 'poison' | 'burn'; amount: number; hpAfter: number }
-  | { time: number; kind: 'statusExpired'; side: Side; status: StatusName }
-  | { time: number; kind: 'cleansed'; side: Side; removed: number }
-  | { time: number; kind: 'suddenDeathStart' }
-  | { time: number; kind: 'fatigueStart' }
-  | { time: number; kind: 'died'; side: Side }
-  | { time: number; kind: 'combatEnd'; result: CombatOutcome };
+  | { turn: number; kind: 'heal'; side: Side; amount: number; flat: boolean; hpAfter: number }
+  | { turn: number; kind: 'shieldGain'; side: Side; property: Property; amount: number; wasted: number; totalAfter: number }
+  | { turn: number; kind: 'statusApplied'; side: Side; status: StatusName; property?: Property; turns: number }
+  | { turn: number; kind: 'statusExpired'; side: Side; status: StatusName }
+  | { turn: number; kind: 'cleansed'; side: Side; removed: number }
+  | { turn: number; kind: 'suddenDeathStart' }
+  | { turn: number; kind: 'fatigueStart' }
+  | { turn: number; kind: 'died'; side: Side }
+  | { turn: number; kind: 'combatEnd'; result: CombatOutcome; turns: number };
