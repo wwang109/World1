@@ -74,9 +74,10 @@ describe('Power Level budgets', () => {
     expect(powerLevelDeci(passive)).toBe(20 * 5); // aura only, no premium
   });
 
-  it('powerLevel() rounds deci-PL for display', () => {
+  it('powerLevel() reports decimal-precise PL and all demo cards sit on budget', () => {
     for (const skill of Object.values(skillBook)) {
-      expect(powerLevel(skill)).toBe(10); // all demo cards are Bronze
+      // All demo cards are Bronze (budget 10, tolerance ±0.5 PL).
+      expect(Math.abs(powerLevel(skill) - 10), skill.id).toBeLessThanOrEqual(0.5);
       expect(isOnBudget(skill)).toBe(true);
     }
   });

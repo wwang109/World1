@@ -41,6 +41,9 @@ export type CombatEvent =
   | { turn: number; kind: 'statusApplied'; side: Side; status: StatusName; property?: Property; turns: number }
   | { turn: number; kind: 'statusExpired'; side: Side; status: StatusName }
   | { turn: number; kind: 'cleansed'; side: Side; removed: number }
+  | { turn: number; kind: 'slowedNext'; side: Side; weight: number }
+  | { turn: number; kind: 'staggered'; side: Side; amount: number; bankAfter: number }
+  | { turn: number; kind: 'shieldBroken'; side: Side; amount: number; totalAfter: number }
   | { turn: number; kind: 'suddenDeathStart' }
   | { turn: number; kind: 'fatigueStart' }
   | { turn: number; kind: 'died'; side: Side }

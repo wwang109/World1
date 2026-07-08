@@ -80,6 +80,15 @@ for (const e of events) {
     case 'statusExpired':
       console.log(`${t} │  ${tag(e.side)} ${e.status} expired`);
       break;
+    case 'slowedNext':
+      console.log(`${t} │  ${tag(e.side)} next action +${e.weight} weight (slowed)`);
+      break;
+    case 'staggered':
+      console.log(`${t} │  ${tag(e.side)} staggered −${e.amount} bank -> ${e.bankAfter}`);
+      break;
+    case 'shieldBroken':
+      console.log(`${t} │  ${tag(e.side)} shield shattered −${e.amount} -> ${e.totalAfter}`);
+      break;
     case 'suddenDeathStart':
       console.log(`${t} ⚡ SUDDEN DEATH — damage ramps each turn (+10% you, +30% foe)`);
       break;

@@ -1,4 +1,4 @@
-import type { BuffableStat, CombatConfig, CombatantStats, Element, Property, Side, SkillBook, WeaponType } from '../types';
+import type { Archetype, BuffableStat, CombatConfig, CombatantStats, Element, Property, Side, SkillBook, WeaponType } from '../types';
 
 export interface StatusInstance {
   kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff';
@@ -46,6 +46,10 @@ export interface CombatantState {
   performs: number;
   /** Accumulated sudden-death damage amp (%). */
   sdStacks: number;
+  /** Extra weight on this side's next action (from enemy Slow Next riders). */
+  nextWeightPenalty: number;
+  /** Archetypes of the last card this side cast (for Combo riders). */
+  lastCastArchetypes: Archetype[];
   elementAffinity?: Element;
   weaponAffinity?: WeaponType;
   statuses: StatusInstance[];
@@ -88,6 +92,8 @@ function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): Com
     busyTurns: 0,
     performs: 0,
     sdStacks: 0,
+    nextWeightPenalty: 0,
+    lastCastArchetypes: [],
     elementAffinity: setup.elementAffinity,
     weaponAffinity: setup.weaponAffinity,
     statuses: [],

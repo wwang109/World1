@@ -254,6 +254,20 @@ export class BattleScene extends Phaser.Scene {
       case 'performSkipped':
         this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} stunned — performance lost`);
         break;
+      case 'slowedNext':
+        this.log(`  ${e.side === 'player' ? 'YOUR' : "FOE's"} next action +${e.weight} weight (slowed)`);
+        break;
+      case 'staggered':
+        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} staggered — bank −${e.amount} → ${e.bankAfter}`);
+        break;
+      case 'shieldBroken': {
+        if (!view) break;
+        view.shield = e.totalAfter;
+        this.refreshBars(e.side as Side);
+        this.log(`  ${e.side === 'player' ? 'YOUR' : "FOE's"} shield shattered −${e.amount}`);
+        if (!instant) this.floatText(view, `🛡−${e.amount}`, 0xcc8844);
+        break;
+      }
       case 'suddenDeathStart':
         this.log(`⚡ SUDDEN DEATH — damage ramps`);
         if (!instant) this.banner('⚡ SUDDEN DEATH — damage ramps: +10% you / +30% enemy per turn', '#ffd76a');

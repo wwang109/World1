@@ -70,6 +70,22 @@ export function powerLevelDeci(skill: SkillDef): number {
       case 'cleanse':
         deci += 80;
         break;
+      // Special ability riders — every magnitude properly weighted per unit.
+      case 'slowNext':
+        deci += Math.floor((action.weight * 5) / 2); // 1 PL per +4 weight
+        break;
+      case 'stagger':
+        deci += Math.floor((action.amount * 5) / 4); // 1 PL per 8 drained
+        break;
+      case 'lifesteal':
+        deci += Math.floor((action.pct * 2) / 3); // 1 PL per 15%
+        break;
+      case 'shieldBreak':
+        deci += Math.floor((action.amount * 5) / 4); // 1 PL per 8 shattered
+        break;
+      case 'comboBonus':
+        deci += Math.floor((action.pct * 2) / 3); // 1 PL per 15%
+        break;
     }
   }
 
@@ -93,9 +109,9 @@ export function powerLevelDeci(skill: SkillDef): number {
   return deci;
 }
 
-/** Display power level (e.g. 10 for a well-budgeted Bronze card). */
+/** Display power level with one-decimal precision (e.g. 10 or 9.5). */
 export function powerLevel(skill: SkillDef): number {
-  return Math.round(powerLevelDeci(skill) / 10);
+  return powerLevelDeci(skill) / 10;
 }
 
 /** Whether the card's kit matches its tier budget within tolerance. */

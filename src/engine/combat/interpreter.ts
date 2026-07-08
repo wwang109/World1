@@ -55,6 +55,12 @@ function consumeShields(c: CombatantState, property: Property, amount: number): 
   return blocked;
 }
 
+/** Per-cast scratch state for rider actions (combo bonus, lifesteal). */
+interface CastCtx {
+  damageDealt: number;
+  bonusPct: number;
+}
+
 /** Apply damage through typed shields; emits events, marks death. */
 export function dealDamage(
   ctx: Ctx,
@@ -110,13 +116,20 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
   });
 }
 
-function applyAction(ctx: Ctx, caster: CombatantState, skill: SkillDef, action: Action, mods: AuraMods): void {
+function applyAction(
+  ctx: Ctx,
+  caster: CombatantState,
+  skill: SkillDef,
+  action: Action,
+  mods: AuraMods,
+  cast: CastCtx,
+): void {
   const enemy = opponentOf(ctx.state, caster);
   const property = skill.property;
   switch (action.kind) {
     case 'damage': {
       let base = Math.floor((scaleStat(caster, property) * action.power) / 100);
-      base = Math.floor((base * (100 + mods.damagePct)) / 100);
+      base = Math.floor((base * (100 + mods.damagePct + cast.bonusPct)) / 100);
       const critChance = Math.max(0, effStat(caster, 'critPct') + mods.critPctDelta);
       const crit = ctx.rng.pct(Math.min(100, critChance));
       let amount = Math.max(1, base - mitigation(enemy, property));
@@ -124,7 +137,9 @@ function applyAction(ctx: Ctx, caster: CombatantState, skill: SkillDef, action: 
       const matchup = cardMatchup(skill, enemy);
       amount = Math.floor((amount * matchupPct(matchup)) / 100);
       if (caster.sdStacks > 0) amount = Math.floor((amount * (100 + caster.sdStacks)) / 100);
+      const hpBefore = enemy.stats.hp;
       dealDamage(ctx, enemy, Math.max(1, amount), property, { crit, matchup });
+      cast.damageDealt += hpBefore - enemy.stats.hp;
       break;
     }
     case 'heal': {
@@ -205,6 +220,54 @@ function applyAction(ctx: Ctx, caster: CombatantState, skill: SkillDef, action: 
       }
       break;
     }
+    case 'slowNext':
+      // Slows don't stack (that would permanently lock out slow enemies):
+      // the strongest pending slow applies until the enemy next performs.
+      if (!enemy.alive) break;
+      enemy.nextWeightPenalty = Math.max(enemy.nextWeightPenalty, action.weight);
+      ctx.events.push({ turn: ctx.state.turn, kind: 'slowedNext', side: enemy.side, weight: action.weight });
+      break;
+    case 'stagger': {
+      if (!enemy.alive) break;
+      const drained = Math.min(enemy.bank, action.amount);
+      enemy.bank -= drained;
+      ctx.events.push({ turn: ctx.state.turn, kind: 'staggered', side: enemy.side, amount: drained, bankAfter: enemy.bank });
+      break;
+    }
+    case 'lifesteal': {
+      if (!caster.alive || cast.damageDealt <= 0) break;
+      const amount = Math.floor((cast.damageDealt * action.pct) / 100);
+      if (amount <= 0) break;
+      const before = caster.stats.hp;
+      caster.stats.hp = Math.min(caster.stats.maxHp, caster.stats.hp + amount);
+      const healed = caster.stats.hp - before;
+      if (healed > 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, amount: healed, flat: false, hpAfter: caster.stats.hp });
+      }
+      break;
+    }
+    case 'shieldBreak': {
+      if (!enemy.alive) break;
+      // Strip the card's own property pool first, then true, then the rest.
+      const order: (keyof typeof enemy.shields)[] =
+        property === 'true' ? ['true', 'physical', 'magical'] : [property, 'true', property === 'physical' ? 'magical' : 'physical'];
+      let remaining = action.amount;
+      for (const pool of order) {
+        const strip = Math.min(enemy.shields[pool], remaining);
+        enemy.shields[pool] -= strip;
+        remaining -= strip;
+      }
+      const broken = action.amount - remaining;
+      if (broken > 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'shieldBroken', side: enemy.side, amount: broken, totalAfter: totalShield(enemy) });
+      }
+      break;
+    }
+    case 'comboBonus':
+      if (caster.lastCastArchetypes.some((a) => skill.archetypes.includes(a))) {
+        cast.bonusPct += action.pct;
+      }
+      break;
   }
 }
 
@@ -224,8 +287,9 @@ export function applyCast(
     skillId: skill.id,
     span: skill.size,
   });
+  const cast: CastCtx = { damageDealt: 0, bonusPct: 0 };
   for (const action of skill.effects) {
-    applyAction(ctx, caster, skill, action, mods);
+    applyAction(ctx, caster, skill, action, mods, cast);
   }
   if (skill.special !== undefined) {
     getSpecial(skill.special)(ctx, caster, skill, slot, mods);

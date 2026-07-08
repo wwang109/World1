@@ -193,6 +193,9 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         c.castCursor = (choice.piece.slot + choice.piece.size) % c.boardSize;
         c.busyTurns = choice.piece.size - 1;
         applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods);
+        // Slow Next is consumed by this action; Combo remembers this cast.
+        c.nextWeightPenalty = 0;
+        c.lastCastArchetypes = choice.skill.archetypes;
       }
       outcome = checkEnd(state);
       if (outcome !== null) return finish(outcome);

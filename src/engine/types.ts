@@ -77,7 +77,18 @@ export type Action =
   | { kind: 'buffStat'; stat: BuffableStat; pct: number; turns: number }
   | { kind: 'debuffStat'; stat: BuffableStat; pct: number; turns: number }
   /** Remove the caster's poisons, burns, stuns and debuffs. */
-  | { kind: 'cleanse' };
+  | { kind: 'cleanse' }
+  // ---- Special ability riders (combined-archetype cards) ----
+  /** The enemy's NEXT action is this much heavier (their attack comes later). */
+  | { kind: 'slowNext'; weight: number }
+  /** Drain the enemy's banked readiness (steal their built-up tempo). */
+  | { kind: 'stagger'; amount: number }
+  /** Heal the caster for pct% of the damage this cast dealt (place after damage). */
+  | { kind: 'lifesteal'; pct: number }
+  /** Shatter enemy shields before the hit (place before damage). */
+  | { kind: 'shieldBreak'; amount: number }
+  /** +pct% damage this cast if the previous cast shared an archetype (place first). */
+  | { kind: 'comboBonus'; pct: number };
 
 /** Positional modifiers a (usually Support/passive) card projects onto board neighbors. */
 export interface AuraDef {

@@ -24,6 +24,9 @@ function isUseful(c: CombatantState, skill: SkillDef): boolean {
       case 'stun':
       case 'debuffStat':
       case 'buffStat':
+      case 'slowNext':
+      case 'stagger':
+      case 'shieldBreak':
         return true;
       case 'shield':
         if (totalShield(c) < c.stats.maxHp) return true;
@@ -33,6 +36,10 @@ function isUseful(c: CombatantState, skill: SkillDef): boolean {
         break;
       case 'cleanse':
         if (c.statuses.some((s) => s.kind !== 'buff')) return true;
+        break;
+      case 'lifesteal':
+      case 'comboBonus':
+        // Pure riders — they don't make a card worth casting on their own.
         break;
     }
   }
@@ -58,7 +65,7 @@ export function selectCast(c: CombatantState, skillBook: SkillBook): CastChoice 
     if (skill.effects.length === 0 && skill.special === undefined) continue;
     if (!isUseful(c, skill)) continue;
     const mods = aurasOn(c, piece, skillBook);
-    const weight = Math.max(1, weightOf(skill) + mods.weightDelta);
+    const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty);
     return { piece, skill, mods, weight };
   }
   return null;
