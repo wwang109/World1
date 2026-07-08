@@ -30,14 +30,19 @@ describe('element wheel', () => {
 });
 
 describe('weapon triangle', () => {
-  it('Sword → Axe → Lance → Sword; bow is outside the triangle', () => {
+  it('Sword → Axe → Lance → Sword; bow and beast are outside the triangle', () => {
     expect(weaponMatchup('sword', 'axe')).toBe('advantage');
     expect(weaponMatchup('axe', 'lance')).toBe('advantage');
     expect(weaponMatchup('lance', 'sword')).toBe('advantage');
     expect(weaponMatchup('axe', 'sword')).toBe('disadvantage');
-    // Bow: neutral both ways against everything.
+    // Bow and beast: neutral against the triangle.
     expect(weaponMatchup('bow', 'sword')).toBe('neutral');
     expect(weaponMatchup('sword', 'bow')).toBe('neutral');
+    expect(weaponMatchup('beast', 'lance')).toBe('neutral');
+    expect(weaponMatchup('axe', 'beast')).toBe('neutral');
+    // But bow beats beast (the hunter's niche).
+    expect(weaponMatchup('bow', 'beast')).toBe('advantage');
+    expect(weaponMatchup('beast', 'bow')).toBe('disadvantage');
   });
 
   it('multipliers are +50% / −25%', () => {
@@ -87,8 +92,8 @@ describe('matchups in combat', () => {
     expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 30, matchup: 'advantage' });
   });
 
-  it('bows are neutral against every weapon affinity', () => {
-    // venom_fang (bow): 160% of 10 = 16, no multiplier vs sword affinity.
+  it('beast attacks are neutral against the triangle', () => {
+    // venom_fang (beast): 160% of 10 = 16, no multiplier vs sword affinity.
     const c = cfg(
       tc('hero', ['venom_fang'], { attack: 10, speed: 20 }),
       { ...tc('swordsman', [], { speed: 10, maxHp: 200 }), weaponAffinity: 'sword' },
@@ -98,6 +103,17 @@ describe('matchups in combat', () => {
     const hit = events.find((e) => e.kind === 'damage');
     expect(hit).toMatchObject({ amount: 16 });
     expect((hit as { matchup?: string }).matchup).toBeUndefined();
+  });
+
+  it('a bow hits a beast-affinity monster for +50%', () => {
+    // hunter_shot: 200% of 10 = 20, x1.5 = 30 vs the beast wolf.
+    const c = cfg(
+      tc('hero', ['hunter_shot'], { attack: 10, speed: 20 }),
+      { ...tc('wolf', [], { speed: 10, maxHp: 200 }), weaponAffinity: 'beast' },
+      { ...NO_ENDGAME, maxTurns: 1 },
+    );
+    const { events } = simulate(c, 1);
+    expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 30, matchup: 'advantage' });
   });
 
   it('true damage ignores affinities entirely', () => {

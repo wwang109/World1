@@ -17,12 +17,14 @@ export const ELEMENT_BEATS: Record<Element, Element> = {
 /**
  * Weapon triangle (Physical damage cards):
  *   Sword → Axe → Lance → Sword
- * Bow sits OUTSIDE the triangle: neutral against everything.
+ * Beast (fangs/claws/monster attacks) and Bow sit outside the triangle,
+ * but Bow beats Beast — the hunter's niche.
  */
 export const WEAPON_BEATS: Partial<Record<WeaponType, WeaponType>> = {
   sword: 'axe',
   axe: 'lance',
   lance: 'sword',
+  bow: 'beast',
 };
 
 export type Matchup = 'advantage' | 'disadvantage' | 'neutral';

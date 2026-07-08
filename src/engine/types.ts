@@ -43,8 +43,12 @@ export type SkillSize = 1 | 2 | 3;
 /** Elements for Magical cards (wheel + Holy↔Dark pair). */
 export type Element = 'fire' | 'frost' | 'lightning' | 'nature' | 'holy' | 'dark';
 
-/** Weapon types for Physical damage cards (triangle; bow is outside it). */
-export type WeaponType = 'sword' | 'axe' | 'lance' | 'bow';
+/**
+ * Weapon types for Physical damage cards. Sword/axe/lance form the triangle;
+ * beast is the natural-weapon class (fangs, claws, monster attacks); bow sits
+ * outside the triangle but beats beast.
+ */
+export type WeaponType = 'sword' | 'axe' | 'lance' | 'bow' | 'beast';
 
 /** Tier = Power Level budget: bronze 10 · silver 15 · gold 20 · diamond 25. */
 export type SkillTier = 'bronze' | 'silver' | 'gold' | 'diamond';

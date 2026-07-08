@@ -34,6 +34,7 @@ export const WEAPON_ICON: Record<string, string> = {
   axe: '🪓',
   lance: '🔱',
   bow: '🏹',
+  beast: '🐾',
 };
 
 export const ARCHETYPE_COLOR: Record<Archetype, number> = {
