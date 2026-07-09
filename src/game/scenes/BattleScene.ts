@@ -35,6 +35,8 @@ const DELAYS: Record<string, number> = {
   statusApplied: 250,
   statusExpired: 160,
   cleansed: 250,
+  purged: 250,
+  quickenedNext: 250,
   performSkipped: 400,
   suddenDeathStart: 900,
   fatigueStart: 900,
@@ -247,15 +249,24 @@ export class BattleScene extends Phaser.Scene {
       }
       case 'cleansed':
         if (!view) break;
-        view.statuses = view.statuses.filter((s) => s.status === 'buff');
+        view.statuses = view.statuses.filter((s) => s.status === 'buff' || s.status === 'thorns' || s.status === 'regen');
         this.refreshStatuses(e.side as Side);
         this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} cleansed ${e.removed}`);
+        break;
+      case 'purged':
+        if (!view) break;
+        view.statuses = view.statuses.filter((s) => s.status !== 'buff' && s.status !== 'thorns' && s.status !== 'regen');
+        this.refreshStatuses(e.side as Side);
+        this.log(`  ${e.side === 'player' ? 'YOUR' : "FOE's"} buffs purged (${e.removed})`);
         break;
       case 'performSkipped':
         this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} stunned — performance lost`);
         break;
       case 'slowedNext':
         this.log(`  ${e.side === 'player' ? 'YOUR' : "FOE's"} next action +${e.weight} weight (slowed)`);
+        break;
+      case 'quickenedNext':
+        this.log(`  ${e.side === 'player' ? 'YOUR' : "FOE's"} next action −${e.weight} weight (quickened)`);
         break;
       case 'staggered':
         this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} staggered — bank −${e.amount} → ${e.bankAfter}`);
@@ -309,7 +320,7 @@ export class BattleScene extends Phaser.Scene {
 
   private refreshStatuses(side: Side): void {
     const v = this.views[side];
-    const icons: Record<string, string> = { poison: '☠', burn: '🔥', stun: '💫', buff: '▲', debuff: '▼' };
+    const icons: Record<string, string> = { poison: '☠', burn: '🔥', stun: '💫', buff: '▲', debuff: '▼', thorns: '🌵', regen: '💚' };
     v.statusText.setText(v.statuses.map((s) => `${icons[s.status] ?? s.status}${s.turns > 0 ? s.turns : ''}`).join(' '));
   }
 

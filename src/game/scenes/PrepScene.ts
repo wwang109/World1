@@ -13,7 +13,9 @@ import { UI } from '../theme';
 
 const BOARD_Y = 400;
 const BOARD_X = (1280 - HERO_BOARD_SLOTS * SLOT_W) / 2;
-const POOL_Y = 560;
+const POOL_Y = 530;
+/** Pool card scale — sized so the whole catalog fits above the fold. */
+const POOL_SCALE = 0.6;
 
 export class PrepScene extends Phaser.Scene {
   private slotRects: Phaser.GameObjects.Rectangle[] = [];
@@ -99,7 +101,7 @@ export class PrepScene extends Phaser.Scene {
     for (const c of this.poolCards) c.destroy();
     this.poolCards = [];
     this.add
-      .text(24, POOL_Y - CARD_H / 2 - 4, 'CARD POOL — drag onto your board (drag off the board to remove)', {
+      .text(24, POOL_Y - (CARD_H * POOL_SCALE) / 2 - 8, 'CARD POOL — drag onto your board (drag off the board to remove)', {
         fontSize: '12px',
         color: UI.textDim,
         fontFamily: 'monospace',
@@ -108,23 +110,23 @@ export class PrepScene extends Phaser.Scene {
 
     const ids = Object.keys(skillBook).sort();
     let x = 40;
-    let y = POOL_Y + 18;
+    let y = POOL_Y + 12;
     for (const id of ids) {
       const skill = skillBook[id]!;
-      const w = skill.size * SLOT_W * 0.72;
+      const w = skill.size * SLOT_W * POOL_SCALE;
       if (x + w > 1020) {
         x = 40;
-        y += CARD_H * 0.72 + 14;
+        y += CARD_H * POOL_SCALE + 8;
       }
       const card = new CardView(this, x + w / 2, y, skill, { mini: true });
-      card.setScale(0.72);
+      card.setScale(POOL_SCALE);
       card.setInteractive({ draggable: true, useHandCursor: true });
       this.bindCardHover(card);
       card.on('dragstart', () => this.startDrag({ fromBoard: false, skillId: id }, card.x, card.y));
       card.on('drag', (_p: unknown, dragX: number, dragY: number) => this.moveDrag(dragX, dragY));
       card.on('dragend', () => this.endDrag());
       this.poolCards.push(card);
-      x += w + 12;
+      x += w + 10;
     }
   }
 
@@ -342,7 +344,7 @@ export class PrepScene extends Phaser.Scene {
     const heroStats = BASE_HERO_STATS;
     this.add.text(
       24,
-      688,
+      704,
       `HERO — HP ${heroStats.maxHp} · ATK ${heroStats.attack} · MPW ${heroStats.magicPower} · ARM ${heroStats.armor} · RES ${heroStats.magicResist} · SPD ${heroStats.speed} · CRIT ${heroStats.critPct}%`,
       { fontSize: '12px', color: UI.textDim, fontFamily: 'monospace' },
     );

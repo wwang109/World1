@@ -83,6 +83,12 @@ for (const e of events) {
     case 'slowedNext':
       console.log(`${t} │  ${tag(e.side)} next action +${e.weight} weight (slowed)`);
       break;
+    case 'quickenedNext':
+      console.log(`${t} │  ${tag(e.side)} next action −${e.weight} weight (quickened)`);
+      break;
+    case 'purged':
+      console.log(`${t} │  ${tag(e.side)} purged of ${e.removed} positive status${e.removed > 1 ? 'es' : ''}`);
+      break;
     case 'staggered':
       console.log(`${t} │  ${tag(e.side)} staggered −${e.amount} bank -> ${e.bankAfter}`);
       break;

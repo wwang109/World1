@@ -88,7 +88,19 @@ export type Action =
   /** Shatter enemy shields before the hit (place before damage). */
   | { kind: 'shieldBreak'; amount: number }
   /** +pct% damage this cast if the previous cast shared an archetype (place first). */
-  | { kind: 'comboBonus'; pct: number };
+  | { kind: 'comboBonus'; pct: number }
+  /** +pct% damage this cast while the enemy is below belowPct% HP (place first). */
+  | { kind: 'execute'; pct: number; belowPct: number }
+  /** The caster's NEXT action is this much lighter (comes out sooner). */
+  | { kind: 'quicken'; weight: number }
+  /** Reflect pct% of skill hits taken back at the attacker as TRUE damage. */
+  | { kind: 'thorns'; pct: number; turns: number }
+  /** `hits` separate strikes of power% each; crit and mitigation roll per hit. */
+  | { kind: 'multiHit'; power: number; hits: number }
+  /** Strip the ENEMY's positive statuses (buffs, thorns, regen). */
+  | { kind: 'purge' }
+  /** Heal the caster a flat amount at the start of each global turn. */
+  | { kind: 'regen'; amount: number; turns: number };
 
 /** Positional modifiers a (usually Support/passive) card projects onto board neighbors. */
 export interface AuraDef {

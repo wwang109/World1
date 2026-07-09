@@ -86,6 +86,26 @@ export function powerLevelDeci(skill: SkillDef): number {
       case 'comboBonus':
         deci += Math.floor((action.pct * 2) / 3); // 1 PL per 15%
         break;
+      case 'execute':
+        // Conditional damage, scaled by how often the window is live.
+        deci += Math.floor((action.pct * action.belowPct) / 75); // 1 PL per 15% at the 50%-HP window
+        break;
+      case 'quicken':
+        deci += Math.floor((action.weight * 5) / 2); // mirror of slowNext: 1 PL per 4 weight
+        break;
+      case 'thorns':
+        deci += action.pct * action.turns; // 10%-turn = 1 PL, like buffs
+        break;
+      case 'multiHit':
+        // Total magnitude plus a per-hit premium (per-hit crits chew shields).
+        deci += Math.floor((action.power * action.hits) / 2) + action.hits * 5;
+        break;
+      case 'purge':
+        deci += 60; // narrower than cleanse's four status families
+        break;
+      case 'regen':
+        deci += action.amount * action.turns * 2; // HoT mirror of poison/burn
+        break;
     }
   }
 

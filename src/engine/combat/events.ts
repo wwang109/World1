@@ -1,7 +1,7 @@
 import type { CombatOutcome, Property, Side } from '../types';
 
 
-export type StatusName = 'poison' | 'burn' | 'stun' | 'buff' | 'debuff';
+export type StatusName = 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'thorns' | 'regen';
 
 /** One side's numbers in a turn's initiative comparison. */
 export interface ComparisonSide {
@@ -34,7 +34,7 @@ export type CombatEvent =
       /** Element wheel / weapon triangle result for this hit. */
       matchup?: 'advantage' | 'disadvantage';
       hpAfter: number;
-      source: 'skill' | 'poison' | 'burn' | 'fatigue';
+      source: 'skill' | 'poison' | 'burn' | 'fatigue' | 'thorns';
     }
   | { turn: number; kind: 'heal'; side: Side; amount: number; flat: boolean; hpAfter: number }
   | { turn: number; kind: 'shieldGain'; side: Side; property: Property; amount: number; wasted: number; totalAfter: number }
@@ -42,6 +42,8 @@ export type CombatEvent =
   | { turn: number; kind: 'statusExpired'; side: Side; status: StatusName }
   | { turn: number; kind: 'cleansed'; side: Side; removed: number }
   | { turn: number; kind: 'slowedNext'; side: Side; weight: number }
+  | { turn: number; kind: 'quickenedNext'; side: Side; weight: number }
+  | { turn: number; kind: 'purged'; side: Side; removed: number }
   | { turn: number; kind: 'staggered'; side: Side; amount: number; bankAfter: number }
   | { turn: number; kind: 'shieldBroken'; side: Side; amount: number; totalAfter: number }
   | { turn: number; kind: 'suddenDeathStart' }

@@ -1,6 +1,6 @@
 import { weightOf, type SkillBook, type SkillDef } from '../types';
 import { aurasOn, type AuraMods } from './auras';
-import { totalShield, type CombatantState, type PieceState } from './state';
+import { isPositiveStatus, totalShield, type CombatantState, type PieceState } from './state';
 
 export interface CastChoice {
   piece: PieceState;
@@ -27,18 +27,24 @@ function isUseful(c: CombatantState, skill: SkillDef): boolean {
       case 'slowNext':
       case 'stagger':
       case 'shieldBreak':
+      case 'multiHit':
+      case 'quicken':
+      case 'thorns':
+      case 'purge':
         return true;
       case 'shield':
         if (totalShield(c) < c.stats.maxHp) return true;
         break;
       case 'heal':
+      case 'regen':
         if (c.stats.hp < c.stats.maxHp) return true;
         break;
       case 'cleanse':
-        if (c.statuses.some((s) => s.kind !== 'buff')) return true;
+        if (c.statuses.some((s) => !isPositiveStatus(s))) return true;
         break;
       case 'lifesteal':
       case 'comboBonus':
+      case 'execute':
         // Pure riders — they don't make a card worth casting on their own.
         break;
     }
@@ -65,7 +71,7 @@ export function selectCast(c: CombatantState, skillBook: SkillBook): CastChoice 
     if (skill.effects.length === 0 && skill.special === undefined) continue;
     if (!isUseful(c, skill)) continue;
     const mods = aurasOn(c, piece, skillBook);
-    const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty);
+    const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty - c.nextWeightBonus);
     return { piece, skill, mods, weight };
   }
   return null;

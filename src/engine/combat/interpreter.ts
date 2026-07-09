@@ -3,7 +3,7 @@ import type { Action, Property, SkillDef } from '../types';
 import type { CombatEvent } from './events';
 import type { AuraMods } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
-import { effStat, opponentOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
+import { effStat, isPositiveStatus, opponentOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 
 export interface Ctx {
@@ -71,7 +71,7 @@ export function dealDamage(
     crit?: boolean;
     bypassShields?: boolean;
     matchup?: Matchup;
-    source?: 'skill' | 'poison' | 'burn' | 'fatigue';
+    source?: 'skill' | 'poison' | 'burn' | 'fatigue' | 'thorns';
   } = {},
 ): void {
   if (!victim.alive || amount <= 0) return;
@@ -116,6 +116,35 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
   });
 }
 
+/** One skill strike: scaling, crit roll, mitigation, matchup, thorns payback. */
+function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number, mods: AuraMods, cast: CastCtx): void {
+  const enemy = opponentOf(ctx.state, caster);
+  const property = skill.property;
+  let base = Math.floor((scaleStat(caster, property) * power) / 100);
+  base = Math.floor((base * (100 + mods.damagePct + cast.bonusPct)) / 100);
+  const critChance = Math.max(0, effStat(caster, 'critPct') + mods.critPctDelta);
+  const crit = ctx.rng.pct(Math.min(100, critChance));
+  let amount = Math.max(1, base - mitigation(enemy, property));
+  if (crit) amount = Math.floor((amount * 150) / 100);
+  const matchup = cardMatchup(skill, enemy);
+  amount = Math.floor((amount * matchupPct(matchup)) / 100);
+  if (caster.sdStacks > 0) amount = Math.floor((amount * (100 + caster.sdStacks)) / 100);
+  amount = Math.max(1, amount);
+  const hpBefore = enemy.stats.hp;
+  dealDamage(ctx, enemy, amount, property, { crit, matchup });
+  cast.damageDealt += hpBefore - enemy.stats.hp;
+  // Thorns: the defender pays back a cut of the incoming hit (pre-shield) as
+  // TRUE damage. Iterate by index — statuses is an array, order is fixed.
+  let thornsPct = 0;
+  for (const s of enemy.statuses) {
+    if (s.kind === 'thorns') thornsPct += s.pct ?? 0;
+  }
+  if (thornsPct > 0) {
+    const reflect = Math.floor((amount * thornsPct) / 100);
+    if (reflect > 0) dealDamage(ctx, caster, reflect, 'true', { source: 'thorns' });
+  }
+}
+
 function applyAction(
   ctx: Ctx,
   caster: CombatantState,
@@ -127,21 +156,16 @@ function applyAction(
   const enemy = opponentOf(ctx.state, caster);
   const property = skill.property;
   switch (action.kind) {
-    case 'damage': {
-      let base = Math.floor((scaleStat(caster, property) * action.power) / 100);
-      base = Math.floor((base * (100 + mods.damagePct + cast.bonusPct)) / 100);
-      const critChance = Math.max(0, effStat(caster, 'critPct') + mods.critPctDelta);
-      const crit = ctx.rng.pct(Math.min(100, critChance));
-      let amount = Math.max(1, base - mitigation(enemy, property));
-      if (crit) amount = Math.floor((amount * 150) / 100);
-      const matchup = cardMatchup(skill, enemy);
-      amount = Math.floor((amount * matchupPct(matchup)) / 100);
-      if (caster.sdStacks > 0) amount = Math.floor((amount * (100 + caster.sdStacks)) / 100);
-      const hpBefore = enemy.stats.hp;
-      dealDamage(ctx, enemy, Math.max(1, amount), property, { crit, matchup });
-      cast.damageDealt += hpBefore - enemy.stats.hp;
+    case 'damage':
+      strike(ctx, caster, skill, action.power, mods, cast);
       break;
-    }
+    case 'multiHit':
+      // Each hit is a full independent strike: its own crit roll (fixed RNG
+      // order), its own mitigation — armor is strong against many small hits.
+      for (let i = 0; i < action.hits && enemy.alive && caster.alive; i++) {
+        strike(ctx, caster, skill, action.power, mods, cast);
+      }
+      break;
     case 'heal': {
       if (!caster.alive) break;
       // TRUE heals are flat: exact amount, no scaling, no aura math.
@@ -213,10 +237,20 @@ function applyAction(
     case 'cleanse': {
       if (!caster.alive) break;
       const before = caster.statuses.length;
-      caster.statuses = caster.statuses.filter((s) => s.kind === 'buff');
+      caster.statuses = caster.statuses.filter(isPositiveStatus);
       const removed = before - caster.statuses.length;
       if (removed > 0) {
         ctx.events.push({ turn: ctx.state.turn, kind: 'cleansed', side: caster.side, removed });
+      }
+      break;
+    }
+    case 'purge': {
+      if (!enemy.alive) break;
+      const before = enemy.statuses.length;
+      enemy.statuses = enemy.statuses.filter((s) => !isPositiveStatus(s));
+      const removed = before - enemy.statuses.length;
+      if (removed > 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'purged', side: enemy.side, removed });
       }
       break;
     }
@@ -267,6 +301,25 @@ function applyAction(
       if (caster.lastCastArchetypes.some((a) => skill.archetypes.includes(a))) {
         cast.bonusPct += action.pct;
       }
+      break;
+    case 'execute':
+      // Window check against the enemy's CURRENT hp (place before damage).
+      if (enemy.stats.hp * 100 < enemy.stats.maxHp * action.belowPct) {
+        cast.bonusPct += action.pct;
+      }
+      break;
+    case 'quicken':
+      // Like slows, quickens don't stack — the strongest pending one applies
+      // to the caster's next action.
+      if (!caster.alive) break;
+      caster.nextWeightBonus = Math.max(caster.nextWeightBonus, action.weight);
+      ctx.events.push({ turn: ctx.state.turn, kind: 'quickenedNext', side: caster.side, weight: action.weight });
+      break;
+    case 'thorns':
+      addStatus(ctx, caster, { kind: 'thorns', pct: action.pct, turnsLeft: action.turns, fresh: true });
+      break;
+    case 'regen':
+      addStatus(ctx, caster, { kind: 'regen', amount: action.amount, turnsLeft: action.turns, fresh: true });
       break;
   }
 }

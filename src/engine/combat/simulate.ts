@@ -29,22 +29,31 @@ function checkEnd(state: CombatState): CombatOutcome | null {
 }
 
 /**
- * DoTs act on their victim at the start of every global turn (except the turn
- * they were applied). Poison bypasses shields; burn is consumed by shields.
- * Duration decrements with each tick; expires at 0.
+ * DoTs and HoTs act on their owner at the start of every global turn (except
+ * the turn they were applied). Poison bypasses shields; burn is consumed by
+ * shields; regen restores flat HP. Duration decrements with each tick.
  */
 function tickDots(ctx: Ctx, c: CombatantState): void {
   const remaining: typeof c.statuses = [];
   for (const status of c.statuses) {
-    if ((status.kind !== 'poison' && status.kind !== 'burn') || status.fresh) {
+    if ((status.kind !== 'poison' && status.kind !== 'burn' && status.kind !== 'regen') || status.fresh) {
       remaining.push(status);
       continue;
     }
     if (c.alive) {
-      dealDamage(ctx, c, status.amount ?? 0, status.property ?? 'true', {
-        bypassShields: status.kind === 'poison',
-        source: status.kind,
-      });
+      if (status.kind === 'regen') {
+        const before = c.stats.hp;
+        c.stats.hp = Math.min(c.stats.maxHp, c.stats.hp + (status.amount ?? 0));
+        const healed = c.stats.hp - before;
+        if (healed > 0) {
+          ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: c.side, amount: healed, flat: true, hpAfter: c.stats.hp });
+        }
+      } else {
+        dealDamage(ctx, c, status.amount ?? 0, status.property ?? 'true', {
+          bypassShields: status.kind === 'poison',
+          source: status.kind,
+        });
+      }
     }
     status.turnsLeft -= 1;
     if (status.turnsLeft > 0) {
@@ -65,8 +74,8 @@ function expireStatuses(ctx: Ctx, c: CombatantState): void {
       remaining.push(status);
       continue;
     }
-    if (status.kind !== 'buff' && status.kind !== 'debuff') {
-      // poison/burn decrement in tickDots; stun decrements when consumed.
+    if (status.kind !== 'buff' && status.kind !== 'debuff' && status.kind !== 'thorns') {
+      // poison/burn/regen decrement in tickDots; stun decrements when consumed.
       remaining.push(status);
       continue;
     }
@@ -192,9 +201,13 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         c.bank = 0;
         c.castCursor = (choice.piece.slot + choice.piece.size) % c.boardSize;
         c.busyTurns = choice.piece.size - 1;
-        applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods);
-        // Slow Next is consumed by this action; Combo remembers this cast.
+        // Slow Next / Quicken were consumed by this action's weight; clear
+        // them BEFORE the cast so a Quicken rider on this very card can prime
+        // the caster's next action.
         c.nextWeightPenalty = 0;
+        c.nextWeightBonus = 0;
+        applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods);
+        // Combo remembers this cast.
         c.lastCastArchetypes = choice.skill.archetypes;
       }
       outcome = checkEnd(state);

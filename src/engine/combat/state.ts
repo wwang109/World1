@@ -1,7 +1,7 @@
 import type { Archetype, BuffableStat, CombatConfig, CombatantStats, Element, Property, Side, SkillBook, WeaponType } from '../types';
 
 export interface StatusInstance {
-  kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff';
+  kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'thorns' | 'regen';
   /** DoT mitigation/synergy typing (inherited from the card). */
   property?: Property;
   stat?: BuffableStat;
@@ -48,6 +48,8 @@ export interface CombatantState {
   sdStacks: number;
   /** Extra weight on this side's next action (from enemy Slow Next riders). */
   nextWeightPenalty: number;
+  /** Weight shaved off this side's next action (from own Quicken riders). */
+  nextWeightBonus: number;
   /** Archetypes of the last card this side cast (for Combo riders). */
   lastCastArchetypes: Archetype[];
   elementAffinity?: Element;
@@ -93,6 +95,7 @@ function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): Com
     performs: 0,
     sdStacks: 0,
     nextWeightPenalty: 0,
+    nextWeightBonus: 0,
     lastCastArchetypes: [],
     elementAffinity: setup.elementAffinity,
     weaponAffinity: setup.weaponAffinity,
@@ -136,4 +139,9 @@ export function totalShield(c: CombatantState): number {
 
 export function hasStatus(c: CombatantState, kind: StatusInstance['kind']): boolean {
   return c.statuses.some((s) => s.kind === kind);
+}
+
+/** Statuses the owner wants to keep: cleanse spares them, purge strips them. */
+export function isPositiveStatus(s: StatusInstance): boolean {
+  return s.kind === 'buff' || s.kind === 'thorns' || s.kind === 'regen';
 }

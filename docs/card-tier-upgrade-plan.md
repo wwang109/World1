@@ -60,10 +60,11 @@ Offense cards + the 5 rider showcases).
 - every non-Diamond card has at least one upgrade path; no cycles;
 - all nodes on budget (already enforced, now covers new tiers).
 
-## P1 — New priced DSL actions (the "remaining catalog")
+## P1 — New priced DSL actions (the "remaining catalog") — ✅ SHIPPED
 
-These five were explicitly deferred; price them with the existing deci-PL
-table conventions and add to the `Action` union + interpreter + pricing switch:
+Shipped as "ability catalog wave 2": all six actions below are live in the
+`Action` union, interpreter, pricing switch, and both combat logs, each with a
+Bronze showcase card and engine tests (`tests/engine/abilities.test.ts`):
 
 | Action | Shape | Price (deci-PL) |
 |---|---|---|
