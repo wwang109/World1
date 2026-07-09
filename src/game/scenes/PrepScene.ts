@@ -3,6 +3,7 @@ import { powerLevel } from '../../engine/balance';
 import { ELEMENT_BEATS, WEAPON_BEATS } from '../../engine/elements';
 import { ELEMENT_ICON, WEAPON_ICON } from '../theme';
 import { skillBook } from '../../data/skills';
+import { fullBook } from '../../data/library';
 import { enemies } from '../../data/enemies';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../data/heroes';
 import { canPlace, clampSlot } from '../../run/loadout';
@@ -82,7 +83,7 @@ export class PrepScene extends Phaser.Scene {
     for (const c of this.boardCards) c.destroy();
     this.boardCards = [];
     for (const piece of demoState.pieces) {
-      const skill = skillBook[piece.skillId];
+      const skill = fullBook[piece.skillId];
       if (!skill) continue;
       const x = BOARD_X + piece.slot * SLOT_W + (skill.size * SLOT_W) / 2;
       const card = new CardView(this, x, BOARD_Y, skill);
@@ -134,7 +135,7 @@ export class PrepScene extends Phaser.Scene {
 
   private startDrag(source: { fromBoard: boolean; piece?: BoardPiece; skillId: string }, x: number, y: number): void {
     this.dragSource = source;
-    const skill = skillBook[source.skillId]!;
+    const skill = fullBook[source.skillId]!;
     this.dragGhost = new CardView(this, x, y, skill);
     this.dragGhost.setAlpha(0.85).setDepth(10);
     this.tooltip.setVisible(false);
@@ -150,17 +151,17 @@ export class PrepScene extends Phaser.Scene {
     if (!this.dragGhost || !this.dragSource) return null;
     const { x, y } = this.dragGhost;
     if (Math.abs(y - BOARD_Y) > CARD_H) return null;
-    const skill = skillBook[this.dragSource.skillId]!;
+    const skill = fullBook[this.dragSource.skillId]!;
     const raw = (x - BOARD_X - (skill.size * SLOT_W) / 2) / SLOT_W;
-    return clampSlot(raw, this.dragSource.skillId, skillBook, HERO_BOARD_SLOTS);
+    return clampSlot(raw, this.dragSource.skillId, fullBook, HERO_BOARD_SLOTS);
   }
 
   private paintSlots(): void {
     for (const rect of this.slotRects) rect.setFillStyle(UI.slot);
     const slot = this.targetSlot();
     if (slot === null || !this.dragSource) return;
-    const skill = skillBook[this.dragSource.skillId]!;
-    const ok = canPlace(demoState.pieces, skillBook, this.dragSource.skillId, slot, HERO_BOARD_SLOTS, this.dragSource.piece);
+    const skill = fullBook[this.dragSource.skillId]!;
+    const ok = canPlace(demoState.pieces, fullBook, this.dragSource.skillId, slot, HERO_BOARD_SLOTS, this.dragSource.piece);
     for (let s = slot; s < slot + skill.size; s++) {
       this.slotRects[s]?.setFillStyle(ok ? 0x2e4433 : 0x4a2e2e);
     }
@@ -175,7 +176,7 @@ export class PrepScene extends Phaser.Scene {
     for (const rect of this.slotRects) rect.setFillStyle(UI.slot);
     if (!source) return;
 
-    if (slot !== null && canPlace(demoState.pieces, skillBook, source.skillId, slot, HERO_BOARD_SLOTS, source.piece)) {
+    if (slot !== null && canPlace(demoState.pieces, fullBook, source.skillId, slot, HERO_BOARD_SLOTS, source.piece)) {
       if (source.fromBoard && source.piece) {
         source.piece.slot = slot;
       } else {
@@ -325,6 +326,18 @@ export class PrepScene extends Phaser.Scene {
       demoState.pieces = [];
       this.renderBoard();
     });
+
+    const cards = this.add
+      .text(1130, 510, '🃏 card library', {
+        fontSize: '13px',
+        color: UI.textDim,
+        backgroundColor: '#24242e',
+        padding: { x: 8, y: 5 },
+        fontFamily: 'monospace',
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    cards.on('pointerdown', () => this.scene.start('Cards'));
 
     const seedBtn = this.add
       .text(1130, 550, `seed ${demoState.seed} ↻`, {

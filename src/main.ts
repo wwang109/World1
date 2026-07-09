@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { PrepScene } from './game/scenes/PrepScene';
 import { BattleScene } from './game/scenes/BattleScene';
+import { CardsScene } from './game/scenes/CardsScene';
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -12,5 +13,5 @@ new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [PrepScene, BattleScene],
+  scene: [PrepScene, CardsScene, BattleScene],
 });

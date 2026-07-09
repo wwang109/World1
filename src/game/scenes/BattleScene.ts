@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { simulate, type CombatResult } from '../../engine/combat/simulate';
 import type { CombatEvent, ComparisonSide } from '../../engine/combat/events';
 import type { Side } from '../../engine/types';
-import { skillBook } from '../../data/skills';
+import { fullBook as skillBook } from '../../data/library';
 import { enemies } from '../../data/enemies';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../data/heroes';
 import { demoState } from '../demoState';

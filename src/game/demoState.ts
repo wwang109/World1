@@ -1,6 +1,6 @@
 import type { BoardPiece } from '../engine/types';
 
-/** Mutable demo session state shared between Prep and Battle scenes. */
+/** Mutable demo session state shared between the Prep/Cards/Battle scenes. */
 export const demoState = {
   pieces: [
     { skillId: 'war_banner', slot: 0 },
@@ -10,6 +10,8 @@ export const demoState = {
     { skillId: 'second_wind', slot: 6 },
     { skillId: 'arcane_bolt', slot: 7 },
   ] as BoardPiece[],
+  /** Stashed cards (fullBook ids, tier variants included) — demo inventory. */
+  inventory: [] as string[],
   enemyId: 'bandit_duelist',
   seed: 1,
 };
