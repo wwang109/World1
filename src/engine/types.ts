@@ -182,11 +182,20 @@ export interface CombatantSetup {
   elementAffinity?: Element;
   /** Same rule against the weapon triangle. */
   weaponAffinity?: WeaponType;
+  /**
+   * Starting threat. Enemies hit the highest-aggro living foe (ties to the
+   * front of the formation); 0 everywhere = front-line targeting.
+   */
+  aggro?: number;
 }
 
+/** Max combatants on one side of a battle. */
+export const MAX_SIDE_SIZE = 5;
+
 export interface CombatConfig {
-  player: CombatantSetup;
-  enemy: CombatantSetup;
+  /** One combatant or a party of up to MAX_SIDE_SIZE (array order = formation). */
+  player: CombatantSetup | CombatantSetup[];
+  enemy: CombatantSetup | CombatantSetup[];
   skillBook: SkillBook;
   /**
    * Rounds (both sides have performed N times) before sudden death: damage

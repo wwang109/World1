@@ -12,6 +12,7 @@ export const demoState = {
   ] as BoardPiece[],
   /** Stashed cards (fullBook ids, tier variants included) — demo inventory. */
   inventory: [] as string[],
-  enemyId: 'bandit_duelist',
+  /** Enemy party (1-5, formation order = kill order under front-line aggro). */
+  enemyIds: ['bandit_duelist'] as string[],
   seed: 1,
 };

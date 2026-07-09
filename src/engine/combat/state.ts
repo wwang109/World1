@@ -1,4 +1,5 @@
-import type { Archetype, BuffableStat, CombatConfig, CombatantStats, Element, Property, Side, SkillBook, WeaponType } from '../types';
+import { MAX_SIDE_SIZE } from '../types';
+import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantStats, Element, Property, Side, SkillBook, WeaponType } from '../types';
 
 export interface StatusInstance {
   kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'thorns' | 'regen';
@@ -30,6 +31,8 @@ export interface PieceState {
 
 export interface CombatantState {
   side: Side;
+  /** Index within its side's formation (0 = front line), fixed at init. */
+  unit: number;
   name: string;
   stats: CombatantStats;
   shields: ShieldPools;
@@ -50,6 +53,12 @@ export interface CombatantState {
   nextWeightPenalty: number;
   /** Weight shaved off this side's next action (from own Quicken riders). */
   nextWeightBonus: number;
+  /**
+   * Threat: hostile actions target the highest-aggro living foe (ties go to
+   * the front of the formation). All-zero aggro = pure front-line targeting.
+   * Future taunt/lure cards raise or dump this.
+   */
+  aggro: number;
   /** Archetypes of the last card this side cast (for Combo riders). */
   lastCastArchetypes: Archetype[];
   elementAffinity?: Element;
@@ -61,12 +70,12 @@ export interface CombatantState {
 export interface CombatState {
   /** Global turn counter (one comparison+performance step per turn). */
   turn: number;
-  player: CombatantState;
-  enemy: CombatantState;
+  /** Formations: array order decides front line (index 0) and tie-breaks. */
+  player: CombatantState[];
+  enemy: CombatantState[];
 }
 
-function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): CombatantState {
-  const setup = side === 'player' ? cfg.player : cfg.enemy;
+function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBook: SkillBook): CombatantState {
   const occupied = new Array<boolean>(setup.boardSize).fill(false);
   const pieces: PieceState[] = [];
   for (const piece of setup.pieces) {
@@ -84,6 +93,7 @@ function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): Com
   pieces.sort((a, b) => a.slot - b.slot);
   return {
     side,
+    unit,
     name: setup.name,
     stats: { ...setup.stats },
     shields: { physical: 0, magical: 0, true: 0 },
@@ -96,6 +106,7 @@ function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): Com
     sdStacks: 0,
     nextWeightPenalty: 0,
     nextWeightBonus: 0,
+    aggro: setup.aggro ?? 0,
     lastCastArchetypes: [],
     elementAffinity: setup.elementAffinity,
     weaponAffinity: setup.weaponAffinity,
@@ -104,16 +115,44 @@ function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): Com
   };
 }
 
+function initSide(side: Side, setups: CombatantSetup | CombatantSetup[], skillBook: SkillBook): CombatantState[] {
+  const list = Array.isArray(setups) ? setups : [setups];
+  if (list.length < 1 || list.length > MAX_SIDE_SIZE) {
+    throw new Error(`Side '${side}' must field 1-${MAX_SIDE_SIZE} combatants, got ${list.length}`);
+  }
+  return list.map((setup, unit) => initCombatant(side, unit, setup, skillBook));
+}
+
 export function initCombatState(cfg: CombatConfig): CombatState {
   return {
     turn: 0,
-    player: initCombatant('player', cfg, cfg.skillBook),
-    enemy: initCombatant('enemy', cfg, cfg.skillBook),
+    player: initSide('player', cfg.player, cfg.skillBook),
+    enemy: initSide('enemy', cfg.enemy, cfg.skillBook),
   };
 }
 
+export function sideOf(state: CombatState, side: Side): CombatantState[] {
+  return side === 'player' ? state.player : state.enemy;
+}
+
+/**
+ * Aggro targeting: hostile actions hit the highest-aggro LIVING member of
+ * the opposing formation; ties go to the front (lowest unit index). With
+ * everyone at 0 aggro this is pure front-line targeting. Resolved at action
+ * time, so kills retarget mid-cast. Falls back to the front unit when the
+ * whole side is down so callers can still no-op on `!target.alive`.
+ */
 export function opponentOf(state: CombatState, c: CombatantState): CombatantState {
-  return c.side === 'player' ? state.enemy : state.player;
+  const foes = sideOf(state, c.side === 'player' ? 'enemy' : 'player');
+  let target: CombatantState | null = null;
+  for (const foe of foes) {
+    if (foe.alive && (target === null || foe.aggro > target.aggro)) target = foe;
+  }
+  return target ?? foes[0]!;
+}
+
+export function sideDefeated(units: CombatantState[]): boolean {
+  return units.every((u) => !u.alive);
 }
 
 /** Effective stat after buff/debuff percentages (and flat amounts). Never below 0. */

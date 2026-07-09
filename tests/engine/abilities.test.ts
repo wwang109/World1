@@ -108,7 +108,7 @@ describe('ability catalog wave 2', () => {
     const purged = events.find((e) => e.kind === 'purged');
     expect(purged).toMatchObject({ side: 'enemy' });
     expect((purged as { removed: number }).removed).toBeGreaterThanOrEqual(1);
-    expect(finalState.enemy.statuses.some((s) => s.kind === 'buff')).toBe(false);
+    expect(finalState.enemy[0]!.statuses.some((s) => s.kind === 'buff')).toBe(false);
   });
 
   it('cleanse keeps its own thorns (positive status), stripping only harm', () => {

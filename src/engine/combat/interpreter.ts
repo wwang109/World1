@@ -82,6 +82,7 @@ export function dealDamage(
     turn: ctx.state.turn,
     kind: 'damage',
     side: victim.side,
+    unit: victim.unit,
     amount,
     property,
     blocked,
@@ -92,7 +93,7 @@ export function dealDamage(
   });
   if (victim.stats.hp === 0) {
     victim.alive = false;
-    ctx.events.push({ turn: ctx.state.turn, kind: 'died', side: victim.side });
+    ctx.events.push({ turn: ctx.state.turn, kind: 'died', side: victim.side, unit: victim.unit });
   }
 }
 
@@ -110,6 +111,7 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
     turn: ctx.state.turn,
     kind: 'statusApplied',
     side: target.side,
+    unit: target.unit,
     status: status.kind,
     property: status.property,
     turns: status.turnsLeft,
@@ -162,7 +164,9 @@ function applyAction(
     case 'multiHit':
       // Each hit is a full independent strike: its own crit roll (fixed RNG
       // order), its own mitigation — armor is strong against many small hits.
-      for (let i = 0; i < action.hits && enemy.alive && caster.alive; i++) {
+      // Target re-resolves per hit, so a kill rolls leftover hits into the
+      // next foe in the formation.
+      for (let i = 0; i < action.hits && caster.alive && opponentOf(ctx.state, caster).alive; i++) {
         strike(ctx, caster, skill, action.power, mods, cast);
       }
       break;
@@ -182,7 +186,7 @@ function applyAction(
       caster.stats.hp = Math.min(caster.stats.maxHp, caster.stats.hp + amount);
       const healed = caster.stats.hp - before;
       if (healed > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, amount: healed, flat, hpAfter: caster.stats.hp });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, unit: caster.unit, amount: healed, flat, hpAfter: caster.stats.hp });
       }
       break;
     }
@@ -198,6 +202,7 @@ function applyAction(
         turn: ctx.state.turn,
         kind: 'shieldGain',
         side: caster.side,
+        unit: caster.unit,
         property,
         amount: gain,
         wasted,
@@ -240,7 +245,7 @@ function applyAction(
       caster.statuses = caster.statuses.filter(isPositiveStatus);
       const removed = before - caster.statuses.length;
       if (removed > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'cleansed', side: caster.side, removed });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'cleansed', side: caster.side, unit: caster.unit, removed });
       }
       break;
     }
@@ -250,7 +255,7 @@ function applyAction(
       enemy.statuses = enemy.statuses.filter((s) => !isPositiveStatus(s));
       const removed = before - enemy.statuses.length;
       if (removed > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'purged', side: enemy.side, removed });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'purged', side: enemy.side, unit: enemy.unit, removed });
       }
       break;
     }
@@ -259,13 +264,13 @@ function applyAction(
       // the strongest pending slow applies until the enemy next performs.
       if (!enemy.alive) break;
       enemy.nextWeightPenalty = Math.max(enemy.nextWeightPenalty, action.weight);
-      ctx.events.push({ turn: ctx.state.turn, kind: 'slowedNext', side: enemy.side, weight: action.weight });
+      ctx.events.push({ turn: ctx.state.turn, kind: 'slowedNext', side: enemy.side, unit: enemy.unit, weight: action.weight });
       break;
     case 'stagger': {
       if (!enemy.alive) break;
       const drained = Math.min(enemy.bank, action.amount);
       enemy.bank -= drained;
-      ctx.events.push({ turn: ctx.state.turn, kind: 'staggered', side: enemy.side, amount: drained, bankAfter: enemy.bank });
+      ctx.events.push({ turn: ctx.state.turn, kind: 'staggered', side: enemy.side, unit: enemy.unit, amount: drained, bankAfter: enemy.bank });
       break;
     }
     case 'lifesteal': {
@@ -276,7 +281,7 @@ function applyAction(
       caster.stats.hp = Math.min(caster.stats.maxHp, caster.stats.hp + amount);
       const healed = caster.stats.hp - before;
       if (healed > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, amount: healed, flat: false, hpAfter: caster.stats.hp });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, unit: caster.unit, amount: healed, flat: false, hpAfter: caster.stats.hp });
       }
       break;
     }
@@ -293,7 +298,7 @@ function applyAction(
       }
       const broken = action.amount - remaining;
       if (broken > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'shieldBroken', side: enemy.side, amount: broken, totalAfter: totalShield(enemy) });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'shieldBroken', side: enemy.side, unit: enemy.unit, amount: broken, totalAfter: totalShield(enemy) });
       }
       break;
     }
@@ -313,7 +318,7 @@ function applyAction(
       // to the caster's next action.
       if (!caster.alive) break;
       caster.nextWeightBonus = Math.max(caster.nextWeightBonus, action.weight);
-      ctx.events.push({ turn: ctx.state.turn, kind: 'quickenedNext', side: caster.side, weight: action.weight });
+      ctx.events.push({ turn: ctx.state.turn, kind: 'quickenedNext', side: caster.side, unit: caster.unit, weight: action.weight });
       break;
     case 'thorns':
       addStatus(ctx, caster, { kind: 'thorns', pct: action.pct, turnsLeft: action.turns, fresh: true });
@@ -336,6 +341,7 @@ export function applyCast(
     turn: ctx.state.turn,
     kind: 'skillCast',
     side: caster.side,
+    unit: caster.unit,
     slot,
     skillId: skill.id,
     span: skill.size,

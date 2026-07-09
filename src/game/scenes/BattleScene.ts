@@ -23,6 +23,10 @@ interface SideView {
   cards: Map<number, CardView>;
   barY: number;
   boardY: number;
+  /** Center x for floating numbers. */
+  cx: number;
+  /** HP bar width (full-width lane in 1v1, panel width in parties). */
+  barW: number;
 }
 
 const BAR_W = 420;
@@ -48,7 +52,7 @@ const DELAYS: Record<string, number> = {
 
 export class BattleScene extends Phaser.Scene {
   private result!: CombatResult;
-  private views!: Record<Side, SideView>;
+  private views!: { player: SideView; enemies: SideView[] };
   private eventIdx = 0;
   private speedFactor = 1;
   private skipping = false;
@@ -68,7 +72,7 @@ export class BattleScene extends Phaser.Scene {
     this.finished = false;
     this.logLines = [];
 
-    const enemyDef = enemies[demoState.enemyId]!;
+    const enemyDefs = demoState.enemyIds.map((id) => enemies[id]!);
     this.result = simulate(
       {
         player: {
@@ -77,21 +81,24 @@ export class BattleScene extends Phaser.Scene {
           boardSize: HERO_BOARD_SLOTS,
           pieces: demoState.pieces.map((p) => ({ ...p })),
         },
-        enemy: {
-          name: enemyDef.name,
-          stats: { ...enemyDef.stats },
-          boardSize: enemyDef.boardSize,
-          pieces: enemyDef.pieces.map((p) => ({ ...p })),
-          elementAffinity: enemyDef.elementAffinity,
-          weaponAffinity: enemyDef.weaponAffinity,
-        },
+        enemy: enemyDefs.map((def) => ({
+          name: def.name,
+          stats: { ...def.stats },
+          boardSize: def.boardSize,
+          pieces: def.pieces.map((p) => ({ ...p })),
+          elementAffinity: def.elementAffinity,
+          weaponAffinity: def.weaponAffinity,
+        })),
         skillBook,
       },
       demoState.seed,
     );
 
     this.views = {
-      enemy: this.buildSideView(enemyDef.name, enemyDef.stats.maxHp, 'enemy', 54, 150, enemyDef.pieces, enemyDef.boardSize),
+      enemies:
+        enemyDefs.length === 1
+          ? [this.buildSideView(enemyDefs[0]!.name, enemyDefs[0]!.stats.maxHp, 'enemy', 54, 150, enemyDefs[0]!.pieces, enemyDefs[0]!.boardSize)]
+          : enemyDefs.map((def, i) => this.buildEnemyPanel(def.name, def.stats.maxHp, i, enemyDefs.length)),
       player: this.buildSideView('Hero', BASE_HERO_STATS.maxHp, 'player', 640, 520, demoState.pieces, HERO_BOARD_SLOTS),
     };
 
@@ -150,7 +157,60 @@ export class BattleScene extends Phaser.Scene {
       card.setScale(0.9);
       cards.set(piece.slot, card);
     }
-    return { name, maxHp, hp: maxHp, shield: 0, hpBar, shieldBar, hpText, statusText, scoreText, statuses: [], cards, barY, boardY };
+    return { name, maxHp, hp: maxHp, shield: 0, hpBar, shieldBar, hpText, statusText, scoreText, statuses: [], cards, barY, boardY, cx: 640, barW: BAR_W };
+  }
+
+  /** Compact per-enemy panel used when fighting a party (no board display). */
+  private buildEnemyPanel(name: string, maxHp: number, index: number, count: number): SideView {
+    const gap = 12;
+    const panelW = Math.min(244, Math.floor((1232 - (count - 1) * gap) / count));
+    const rowW = count * panelW + (count - 1) * gap;
+    const px = Math.floor((1280 - rowW) / 2) + index * (panelW + gap);
+    const barY = 66;
+    const barW = panelW - 16;
+
+    this.add.rectangle(px, 30, panelW, 112, 0x14141c).setOrigin(0, 0).setStrokeStyle(1, 0x2a2a36);
+    this.add.text(px + 8, 40, name, { fontSize: '13px', color: UI.text, fontFamily: 'monospace', fontStyle: 'bold' });
+    const scoreText = this.add
+      .text(px + panelW - 8, 46, '', { fontSize: '10px', color: '#ffd76a', fontFamily: 'monospace' })
+      .setOrigin(1, 0.5);
+    this.add.rectangle(px + 8, barY, barW, 12, UI.hpBack).setOrigin(0, 0.5);
+    const hpBar = this.add.rectangle(px + 8, barY, barW, 12, 0xc05050).setOrigin(0, 0.5);
+    const shieldBar = this.add.rectangle(px + 8, barY - 10, 0, 4, 0xbbbbdd).setOrigin(0, 0.5);
+    const hpText = this.add.text(px + 8, 84, `${maxHp}/${maxHp}`, { fontSize: '11px', color: UI.text, fontFamily: 'monospace' }).setOrigin(0, 0.5);
+    const statusText = this.add.text(px + 8, 102, '', { fontSize: '11px', color: UI.textDim, fontFamily: 'monospace' }).setOrigin(0, 0.5);
+
+    return {
+      name,
+      maxHp,
+      hp: maxHp,
+      shield: 0,
+      hpBar,
+      shieldBar,
+      hpText,
+      statusText,
+      scoreText,
+      statuses: [],
+      cards: new Map(),
+      barY,
+      boardY: 30,
+      cx: px + panelW / 2,
+      barW,
+    };
+  }
+
+  /** The view for a combatant; enemy units map to their panel. */
+  private viewFor(side: Side, unit: number): SideView | null {
+    return side === 'player' ? this.views.player : (this.views.enemies[unit] ?? null);
+  }
+
+  private allViews(): SideView[] {
+    return [this.views.player, ...this.views.enemies];
+  }
+
+  /** Log tag for a combatant (YOU, or the enemy unit's name). */
+  private tagOf(side: Side, unit: number): string {
+    return side === 'player' ? 'YOU' : (this.views.enemies[unit]?.name ?? 'FOE');
   }
 
   // ---------- playback ----------
@@ -182,22 +242,31 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private applyEvent(e: CombatEvent, instant: boolean): void {
-    const view = 'side' in e ? this.views[e.side as Side] : null;
+    const view = 'side' in e && 'unit' in e ? this.viewFor(e.side as Side, e.unit) : null;
     switch (e.kind) {
       case 'comparison': {
         this.turnText.setText(`— turn ${e.turn} —`);
-        const who = e.performer === 'player' ? '▶ HERO performs' : e.performer === 'enemy' ? '▶ ENEMY performs' : '▶ nobody can act';
+        const who =
+          e.performer === 'player'
+            ? '▶ HERO performs'
+            : e.performer === 'enemy'
+              ? `▶ ${(this.views.enemies[e.performerUnit ?? 0]?.name ?? 'ENEMY').toUpperCase()} performs`
+              : '▶ nobody can act';
         this.bannerText.setText(`${this.fmtSide(e.player, 'YOU')}\n${this.fmtSide(e.enemy, 'FOE')}\n${who}`);
         this.views.player.scoreText.setText(e.player.state === 'ready' ? `score ${e.player.score}` : e.player.state);
-        this.views.enemy.scoreText.setText(e.enemy.state === 'ready' ? `score ${e.enemy.score}` : e.enemy.state);
+        for (const u of e.contenders) {
+          if (u.side !== 'enemy') continue;
+          const v = this.views.enemies[u.unit];
+          if (v) v.scoreText.setText(!u.alive ? '☠ down' : u.state === 'ready' ? `score ${u.score}` : u.state);
+        }
         this.log(`── turn ${e.turn} ──`);
         break;
       }
       case 'skillCast': {
         const skill = skillBook[e.skillId];
         const kindIcon = skill?.element ? ` ${ELEMENT_ICON[skill.element]}` : skill?.weapon ? ` ${WEAPON_ICON[skill.weapon]}` : '';
-        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} cast ${skill?.name ?? e.skillId}${kindIcon}${e.span > 1 ? ` (spans ${e.span})` : ''}`);
-        const card = this.views[e.side].cards.get(e.slot);
+        this.log(`  ${this.tagOf(e.side, e.unit)} cast ${skill?.name ?? e.skillId}${kindIcon}${e.span > 1 ? ` (spans ${e.span})` : ''}`);
+        const card = view?.cards.get(e.slot);
         if (card && !instant) {
           card.setHighlight(true, 0xffe27a);
           this.tweens.add({ targets: card, scale: 1.02, duration: 140, yoyo: true, onComplete: () => card.setHighlight(false) });
@@ -208,11 +277,11 @@ export class BattleScene extends Phaser.Scene {
         if (!view) break;
         view.hp = e.hpAfter;
         if (e.blocked > 0) view.shield = Math.max(0, view.shield - e.blocked);
-        this.refreshBars(e.side as Side);
+        this.refreshBars(view);
         const dealt = e.amount - e.blocked;
         const label = e.source === 'skill' ? '' : ` ${e.source}`;
         const match = e.matchup === 'advantage' ? ' ▲ super effective!' : e.matchup === 'disadvantage' ? ' ▼ resisted' : '';
-        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} −${dealt}${e.blocked ? ` (${e.blocked} blocked)` : ''}${e.crit ? ' CRIT' : ''}${label}${match}`);
+        this.log(`  ${this.tagOf(e.side, e.unit)} −${dealt}${e.blocked ? ` (${e.blocked} blocked)` : ''}${e.crit ? ' CRIT' : ''}${label}${match}`);
         if (!instant) {
           this.floatText(view, `−${dealt}${e.crit ? '!' : ''}${e.matchup === 'advantage' ? ' ▲' : e.matchup === 'disadvantage' ? ' ▼' : ''}`, PROPERTY_COLOR[e.property]);
         }
@@ -221,61 +290,61 @@ export class BattleScene extends Phaser.Scene {
       case 'heal': {
         if (!view) break;
         view.hp = e.hpAfter;
-        this.refreshBars(e.side as Side);
-        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} +${e.amount} hp${e.flat ? ' (flat)' : ''}`);
+        this.refreshBars(view);
+        this.log(`  ${this.tagOf(e.side, e.unit)} +${e.amount} hp${e.flat ? ' (flat)' : ''}`);
         if (!instant) this.floatText(view, `+${e.amount}`, 0x4caf6e);
         break;
       }
       case 'shieldGain': {
         if (!view) break;
         view.shield = e.totalAfter;
-        this.refreshBars(e.side as Side);
-        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} +${e.amount} ${e.property} shield${e.wasted ? ` (${e.wasted} wasted, cap)` : ''}`);
+        this.refreshBars(view);
+        this.log(`  ${this.tagOf(e.side, e.unit)} +${e.amount} ${e.property} shield${e.wasted ? ` (${e.wasted} wasted, cap)` : ''}`);
         if (!instant) this.floatText(view, `+${e.amount}🛡`, 0xbbbbdd);
         break;
       }
       case 'statusApplied':
         if (!view) break;
         view.statuses.push({ status: e.status, turns: e.turns });
-        this.refreshStatuses(e.side as Side);
-        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} gains ${e.status} (${e.turns}t)`);
+        this.refreshStatuses(view);
+        this.log(`  ${this.tagOf(e.side, e.unit)} gains ${e.status} (${e.turns}t)`);
         break;
       case 'statusExpired': {
         if (!view) break;
         const idx = view.statuses.findIndex((s) => s.status === e.status);
         if (idx >= 0) view.statuses.splice(idx, 1);
-        this.refreshStatuses(e.side as Side);
+        this.refreshStatuses(view);
         break;
       }
       case 'cleansed':
         if (!view) break;
         view.statuses = view.statuses.filter((s) => s.status === 'buff' || s.status === 'thorns' || s.status === 'regen');
-        this.refreshStatuses(e.side as Side);
-        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} cleansed ${e.removed}`);
+        this.refreshStatuses(view);
+        this.log(`  ${this.tagOf(e.side, e.unit)} cleansed ${e.removed}`);
         break;
       case 'purged':
         if (!view) break;
         view.statuses = view.statuses.filter((s) => s.status !== 'buff' && s.status !== 'thorns' && s.status !== 'regen');
-        this.refreshStatuses(e.side as Side);
-        this.log(`  ${e.side === 'player' ? 'YOUR' : "FOE's"} buffs purged (${e.removed})`);
+        this.refreshStatuses(view);
+        this.log(`  ${e.side === 'player' ? 'YOUR' : `${this.tagOf(e.side, e.unit)}'s`} buffs purged (${e.removed})`);
         break;
       case 'performSkipped':
-        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} stunned — performance lost`);
+        this.log(`  ${this.tagOf(e.side, e.unit)} stunned — performance lost`);
         break;
       case 'slowedNext':
-        this.log(`  ${e.side === 'player' ? 'YOUR' : "FOE's"} next action +${e.weight} weight (slowed)`);
+        this.log(`  ${e.side === 'player' ? 'YOUR' : `${this.tagOf(e.side, e.unit)}'s`} next action +${e.weight} weight (slowed)`);
         break;
       case 'quickenedNext':
-        this.log(`  ${e.side === 'player' ? 'YOUR' : "FOE's"} next action −${e.weight} weight (quickened)`);
+        this.log(`  ${e.side === 'player' ? 'YOUR' : `${this.tagOf(e.side, e.unit)}'s`} next action −${e.weight} weight (quickened)`);
         break;
       case 'staggered':
-        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} staggered — bank −${e.amount} → ${e.bankAfter}`);
+        this.log(`  ${this.tagOf(e.side, e.unit)} staggered — bank −${e.amount} → ${e.bankAfter}`);
         break;
       case 'shieldBroken': {
         if (!view) break;
         view.shield = e.totalAfter;
-        this.refreshBars(e.side as Side);
-        this.log(`  ${e.side === 'player' ? 'YOUR' : "FOE's"} shield shattered −${e.amount}`);
+        this.refreshBars(view);
+        this.log(`  ${e.side === 'player' ? 'YOUR' : `${this.tagOf(e.side, e.unit)}'s`} shield shattered −${e.amount}`);
         if (!instant) this.floatText(view, `🛡−${e.amount}`, 0xcc8844);
         break;
       }
@@ -287,7 +356,7 @@ export class BattleScene extends Phaser.Scene {
         this.log(`⚡ fatigue backstop`);
         break;
       case 'died':
-        this.log(`☠ ${e.side === 'player' ? 'YOU' : 'FOE'} died`);
+        this.log(`☠ ${this.tagOf(e.side, e.unit)} died`);
         break;
       case 'combatEnd': {
         this.finished = true;
@@ -302,31 +371,29 @@ export class BattleScene extends Phaser.Scene {
 
     // Countdown the visible status timers on each comparison (new global turn).
     if (e.kind === 'comparison') {
-      for (const side of ['player', 'enemy'] as Side[]) {
-        for (const s of this.views[side].statuses) {
+      for (const v of this.allViews()) {
+        for (const s of v.statuses) {
           if (s.status !== 'stun') s.turns = Math.max(0, s.turns - (e.turn > 1 ? 1 : 0));
         }
-        this.refreshStatuses(side);
+        this.refreshStatuses(v);
       }
     }
   }
 
-  private refreshBars(side: Side): void {
-    const v = this.views[side];
-    v.hpBar.width = Math.max(0, (v.hp / v.maxHp) * BAR_W);
-    v.shieldBar.width = Math.max(0, Math.min(1, v.shield / v.maxHp) * BAR_W);
+  private refreshBars(v: SideView): void {
+    v.hpBar.width = Math.max(0, (v.hp / v.maxHp) * v.barW);
+    v.shieldBar.width = Math.max(0, Math.min(1, v.shield / v.maxHp) * v.barW);
     v.hpText.setText(`${v.hp}/${v.maxHp}${v.shield > 0 ? ` +${v.shield}🛡` : ''}`);
   }
 
-  private refreshStatuses(side: Side): void {
-    const v = this.views[side];
+  private refreshStatuses(v: SideView): void {
     const icons: Record<string, string> = { poison: '☠', burn: '🔥', stun: '💫', buff: '▲', debuff: '▼', thorns: '🌵', regen: '💚' };
     v.statusText.setText(v.statuses.map((s) => `${icons[s.status] ?? s.status}${s.turns > 0 ? s.turns : ''}`).join(' '));
   }
 
   private floatText(view: SideView, text: string, color: number): void {
     const t = this.add
-      .text(640 + (Math.random() * 120 - 60), view.barY + 8, text, {
+      .text(view.cx + (Math.random() * 120 - 60), view.barY + 8, text, {
         fontSize: '20px',
         color: `#${color.toString(16).padStart(6, '0')}`,
         fontFamily: 'monospace',

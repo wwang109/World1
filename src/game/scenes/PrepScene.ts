@@ -196,28 +196,43 @@ export class PrepScene extends Phaser.Scene {
     const y = 92;
     for (const id of Object.keys(enemies)) {
       const def = enemies[id]!;
-      const label = `${def.isBoss ? '👑 ' : def.isElite ? '★ ' : ''}${def.name}`;
+      const selected = demoState.enemyIds.includes(id);
+      const label = `${def.isBoss ? '👑 ' : def.isElite ? '★ ' : ''}${def.name}${selected ? ' ✓' : ''}`;
       const btn = this.add
         .text(x, y, label, {
           fontSize: '13px',
-          color: demoState.enemyId === id ? '#ffd76a' : UI.text,
-          backgroundColor: demoState.enemyId === id ? '#3a3a1a' : '#24242e',
+          color: selected ? '#ffd76a' : UI.text,
+          backgroundColor: selected ? '#3a3a1a' : '#24242e',
           padding: { x: 8, y: 5 },
           fontFamily: 'monospace',
         })
         .setInteractive({ useHandCursor: true });
       btn.on('pointerdown', () => {
-        demoState.enemyId = id;
+        // Toggle party membership: keep at least 1, cap at 5.
+        if (selected) {
+          if (demoState.enemyIds.length > 1) demoState.enemyIds = demoState.enemyIds.filter((e) => e !== id);
+        } else if (demoState.enemyIds.length < 5) {
+          demoState.enemyIds = [...demoState.enemyIds, id];
+        }
         this.scene.restart();
       });
       x += btn.width + 10;
     }
+    this.add.text(x + 6, y + 6, `enemy party ${demoState.enemyIds.length}/5 — click to add/remove`, {
+      fontSize: '11px',
+      color: UI.textDim,
+      fontFamily: 'monospace',
+    });
   }
 
   private renderEnemyPreview(): void {
     for (const obj of this.enemyPreview) obj.destroy();
     this.enemyPreview = [];
-    const def = enemies[demoState.enemyId]!;
+    if (demoState.enemyIds.length > 1) {
+      this.renderEnemyPartyPreview();
+      return;
+    }
+    const def = enemies[demoState.enemyIds[0]!]!;
     const s = def.stats;
     const statText = this.add.text(
       24,
@@ -256,6 +271,33 @@ export class PrepScene extends Phaser.Scene {
     }
     const label = this.add.text(24, 158, "ENEMY'S BOARD:", { fontSize: '11px', color: UI.textDim, fontFamily: 'monospace' });
     this.enemyPreview.push(label);
+  }
+
+  /** Compact stat lines when facing a party — front of the list tanks first. */
+  private renderEnemyPartyPreview(): void {
+    this.enemyPreview.push(
+      this.add.text(24, 132, `ENEMY PARTY (${demoState.enemyIds.length}) — front line first:`, {
+        fontSize: '11px',
+        color: UI.textDim,
+        fontFamily: 'monospace',
+      }),
+    );
+    demoState.enemyIds.forEach((id, i) => {
+      const def = enemies[id]!;
+      const s = def.stats;
+      const aff = [
+        def.elementAffinity ? ELEMENT_ICON[def.elementAffinity] : '',
+        def.weaponAffinity ? WEAPON_ICON[def.weaponAffinity] : '',
+      ].join('');
+      this.enemyPreview.push(
+        this.add.text(
+          24,
+          152 + i * 17,
+          `${i + 1}. ${def.name.padEnd(16)} HP ${String(s.maxHp).padStart(3)} · ATK ${s.attack} · MPW ${s.magicPower} · ARM ${s.armor} · RES ${s.magicResist} · SPD ${s.speed} ${aff}`,
+          { fontSize: '12px', color: UI.text, fontFamily: 'monospace' },
+        ),
+      );
+    });
   }
 
   // ---------- tooltip ----------

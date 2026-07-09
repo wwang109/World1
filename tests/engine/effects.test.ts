@@ -123,7 +123,7 @@ describe('typed shields', () => {
     const gains = events.filter((e) => e.kind === 'shieldGain') as Extract<Events[number], { kind: 'shieldGain' }>[];
     expect(gains[0]).toMatchObject({ amount: 60, wasted: 0, totalAfter: 60 });
     expect(gains[1]).toMatchObject({ amount: 20, wasted: 40, totalAfter: 80 });
-    expect(finalState.player.shields.physical).toBe(80);
+    expect(finalState.player[0]!.shields.physical).toBe(80);
     // Once at the cap, further shield casts are skipped as useless.
     const casts = events.filter((e) => e.kind === 'skillCast' && e.side === 'player');
     expect(casts.length).toBe(2);

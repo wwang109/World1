@@ -1,7 +1,12 @@
 # Party Battles Plan — 1v1 · 1v2 · 1v3 · 2v2 · 3v3 … up to 5v5
 
-Goal: any battle shape from 1v1 to 5v5 (max 5 combatants per side). This is a
-plan, not an implementation — nothing here is built yet.
+Goal: any battle shape from 1v1 to 5v5 (max 5 combatants per side).
+
+STATUS: **Phase A (engine) and Phase B (1vN demo) are SHIPPED.** The engine
+takes 1-5 combatants per side; the demo UI exposes one hero versus an enemy
+party of up to 5 (Prep picker + per-enemy battle panels;
+`npm run fight -- giant_rat,ember_imp,wolf_king` for ASCII). Phase C (party
+prep / multiplayer) remains design-stage.
 
 ## Why this is cheap in principle
 
@@ -48,22 +53,48 @@ often in wall-clock turns but each member individually paces by its own
 weight — outnumbered fights feel outnumbered, which is the point of 1v2/1v3
 encounter design.
 
-### Targeting — the new question
+### Targeting — aggro (SHIPPED as the base rule)
 
 Offensive actions need a victim; supportive ones keep applying to the caster.
 
-- **v1 rule: front-line targeting.** Each side's array order is its
-  formation; hostile actions hit the FIRST ALIVE member of the opposing
-  side. Deterministic, zero data changes, and formation order becomes a
-  real pre-battle decision (your slot-1 hero is the tank).
+- **Base rule (shipped): aggro targeting.** Every combatant carries an
+  `aggro` number (default 0). Hostile actions hit the HIGHEST-AGGRO living
+  foe; ties go to the front of the formation, so all-zero aggro = pure
+  front-line targeting and formation order stays a real decision.
 - Target resolves **per strike**, not per cast — a multi-hit that kills the
   front unit rolls its remaining hits into the next one; thorns pays back
   the actual attacker.
-- **v2 (later, priced like everything else):** targeting riders on cards —
-  `{ target: 'backline' | 'lowestHp' | 'all' }`. AoE ("hit ALL enemies")
-  gets a PL multiplier per extra target (~×0.6 per additional victim,
-  tuned by sim). This is data + one interpreter switch, no new engine
-  concepts — same pattern as the ability riders.
+
+### Aggro manipulation — cards, not a new archetype
+
+Ruling on "should party influence be an archetype?": **no new archetype for
+aggro** — aggro manipulation is priced DSL *actions* that any card can carry
+(same pattern as the rider catalog), so a tanky Defensive card can taunt and
+a Healing card can lure without changing its type identity:
+
+- `{ kind: 'taunt', amount, turns }` — raise OWN aggro (tank draws fire)
+- `{ kind: 'lure', amount, turns }` — lower own aggro (healer hides;
+  negative aggro is fine, comparisons are relative)
+- `{ kind: 'aggroSwap' }` — swap your aggro value with the current
+  highest-aggro ally (bodyguard flips), or a variant that swaps two FOES
+  (misdirection). Priced flat like cleanse/purge.
+
+Pricing sketch: aggro is only meaningful in party fights, so cost these
+cheap (≈1 PL per 2 aggro-turns) and tune by sim once party fights exist.
+Timed statuses (`turns`) rather than permanent deltas, so fights don't
+degenerate into stacking wars.
+
+Where a NEW archetype ("party"/"banner") IS earned: cards whose auras cross
+COMBATANT boundaries — today `AuraDef.affects` reaches board neighbors only;
+a `'party'` reach (whole formation gets +damage%, −weight, etc.) is a
+genuinely new positional concept, doubles as the "bonus to parties" idea,
+and would justify the sixth archetype for aura filters/combo routing.
+
+### Targeting riders (later, priced like everything else)
+
+`{ target: 'backline' | 'lowestHp' | 'all' }` on damage cards. AoE ("hit
+ALL enemies") pays a PL multiplier per extra victim (~×0.6 each, tuned by
+sim). Data + one interpreter switch — no new engine concepts.
 
 ### End, sudden death, fatigue
 
@@ -109,15 +140,24 @@ Smallest UI that shows the feature: one hero versus an enemy PARTY.
   front-line targeting legible.
 - Reward preview sums the party's gold/xp.
 
-## Phase C — party prep (2v2+)
+## Phase C — party prep (2v2+) and multiplayer co-op
 
 Needs real design (this is where "don't build yet" matters most):
 
-- A party = up to 5 heroes, EACH with its own 10-slot board — prep needs a
-  hero switcher (tabs) and a formation row (drag to reorder = who tanks).
-- Where do extra heroes come from? Ties into the run layer (recruit events)
-  and the meta skills tree (Legacy branch could unlock party slots) — the
-  demo can fake it with "add a hero" cloning base stats.
+- **Multiplayer direction (user call): extra heroes are OTHER PLAYERS.**
+  Each player preps and sees ONLY their own board; everyone shares the
+  combat log and the turn/initiative readout. That maps cleanly onto the
+  engine: one deterministic `simulate()` runs from all submitted boards +
+  a shared seed, and each client just filters the event stream for its
+  own `unit` plus the global log — no per-player engine state. Lockstep
+  determinism (already guaranteed: integer state, seeded RNG) is what
+  makes this cheap; netcode/lobby is the real work.
+- Single-player fallback: a party = up to 5 heroes, EACH with its own
+  10-slot board — prep needs a hero switcher (tabs) and a formation row
+  (drag to reorder = who tanks, until taunt/lure cards say otherwise).
+- Where do extra heroes come from (single-player)? Ties into the run layer
+  (recruit events) and the meta skills tree (Legacy branch could unlock
+  party slots) — the demo can fake it with "add a hero" cloning base stats.
 - Card ownership: one collection shared across boards, or per-hero drafts?
   Recommendation: shared collection, a card can sit on only one board
   (the Cards page inventory already models the shared pool).

@@ -8,7 +8,7 @@ import { cfg, tc, NO_ENDGAME } from '../helpers';
 
 function boardOf(pieces: BoardPiece[]): CombatantState {
   const state = initCombatState(cfg(tc('hero', [], {}, { boardSize: 10, pieces }), tc('foe', [])));
-  return state.player;
+  return state.player[0]!;
 }
 
 function pieceAt(c: CombatantState, slot: number) {
