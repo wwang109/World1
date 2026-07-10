@@ -227,12 +227,13 @@ effects show a "RESISTED" line in the log.
 
 ## Staleness — the anti-spam rule
 
-Consecutive casts of the SAME skill decay: −10% damage per re-cast, capped
-at −30%. Casting anything else resets it. A diverse rotation never feels
-this; a one-card spam board settles at 70% output by its fourth cast
-(20 → 18 → 16 → 14). Spamming the strongest attack stays viable — it's
-just never optimal, so varied boards (where the effect cards and combo
-routing live) always out-rate them.
+Spamming the SAME skill never touches its BASE damage — a plain Sword
+Slash deals its full 200% forever. What decays is BONUS effectiveness:
+aura boosts and combo/execute riders fade −25% of the bonus per
+consecutive re-cast, gone by the 4th (a War Banner'd slash spam runs
+25 → 23 → 22 → 21 → 20). Casting anything else resets it. So simple
+attacks and simple enemies keep their full bite, while synergy payoffs —
+the whole reason to build a themed board — demand variety.
 
 Pacing levers for higher-level fights (design intent: longer, not
 burstier): staleness kills same-attack spam; the utility premium keeps

@@ -25,6 +25,7 @@ function isUseful(c: CombatantState, skill: SkillDef): boolean {
       case 'debuffStat':
       case 'buffStat':
       case 'slowNext':
+      case 'weakenNext':
       case 'stagger':
       case 'shieldBreak':
       case 'multiHit':

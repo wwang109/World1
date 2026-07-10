@@ -76,6 +76,9 @@ export function powerLevelDeci(skill: SkillDef): number {
       case 'slowNext':
         deci += Math.floor((action.weight * 5) / 2); // 1 PL per +4 weight
         break;
+      case 'weakenNext':
+        deci += action.pct; // 1 PL per 10% jammed off their next cast
+        break;
       case 'stagger':
         deci += Math.floor((action.amount * 5) / 4); // 1 PL per 8 drained
         break;

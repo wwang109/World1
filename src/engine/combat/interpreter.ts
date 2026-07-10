@@ -134,12 +134,16 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
 function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number, mods: AuraMods, cast: CastCtx, enemy: CombatantState): void {
   const property = skill.property;
   let base = Math.floor((scaleStat(caster, property) * power) / 100);
-  base = Math.floor((base * (100 + mods.damagePct + cast.bonusPct)) / 100);
-  // Staleness: spamming the same skill decays its damage −10% per
-  // consecutive re-cast, capped at −30% — spam stays viable, just never
-  // optimal. Variety resets it.
-  const stalePct = 10 * Math.min(caster.staleCasts, 3);
-  if (stalePct > 0) base = Math.floor((base * (100 - stalePct)) / 100);
+  // Staleness: BASE damage is never reduced by spamming — only BONUS
+  // effectiveness (aura boosts, combo/execute riders) decays, −25% of the
+  // bonus per consecutive re-cast, gone by the 4th. Variety resets it.
+  const stalePct = 25 * Math.min(caster.staleCasts, 4);
+  let bonus = mods.damagePct + cast.bonusPct;
+  if (stalePct > 0 && bonus > 0) bonus = Math.floor((bonus * (100 - stalePct)) / 100);
+  base = Math.floor((base * (100 + bonus)) / 100);
+  // Weaken (enemy "reduced effect" cards): this cast was jammed — its
+  // damage lands weaker. Consumed after the cast completes.
+  if (caster.nextCastWeakenPct > 0) base = Math.floor((base * (100 - caster.nextCastWeakenPct)) / 100);
   // Deterministic crits — combat has NO randomness: each strike banks its
   // crit chance; at 100 the strike crits and spends the bank, so 50% crit
   // means exactly every 2nd strike. Clamped so >100% chance stays "always".
@@ -340,6 +344,19 @@ function applyAction(
       }
       enemy.nextWeightPenalty = Math.max(enemy.nextWeightPenalty, weight);
       ctx.events.push({ turn: ctx.state.turn, kind: 'slowedNext', side: enemy.side, unit: enemy.unit, weight });
+      break;
+    }
+    case 'weakenNext': {
+      // Like slows, weakens don't stack — the strongest pending jam applies
+      // to the enemy's next cast. Subject to the resolve check.
+      if (!enemy.alive) break;
+      const pct = Math.floor((action.pct * effectPotencyPct(enemy)) / 100);
+      if (pct <= 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'resisted', side: enemy.side, unit: enemy.unit, status: 'weaken' });
+        break;
+      }
+      enemy.nextCastWeakenPct = Math.max(enemy.nextCastWeakenPct, pct);
+      ctx.events.push({ turn: ctx.state.turn, kind: 'weakenedNext', side: enemy.side, unit: enemy.unit, pct });
       break;
     }
     case 'stagger': {

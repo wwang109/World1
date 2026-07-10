@@ -96,6 +96,9 @@ for (const e of events) {
     case 'quickenedNext':
       console.log(`${t} │  ${tag(e.side, 'unit' in e ? e.unit : 0)} next action −${e.weight} weight (quickened)`);
       break;
+    case 'weakenedNext':
+      console.log(`${t} │  ${tag(e.side, 'unit' in e ? e.unit : 0)} next cast −${e.pct}% damage (jammed)`);
+      break;
     case 'purged':
       console.log(`${t} │  ${tag(e.side, 'unit' in e ? e.unit : 0)} purged of ${e.removed} positive status${e.removed > 1 ? 'es' : ''}`);
       break;

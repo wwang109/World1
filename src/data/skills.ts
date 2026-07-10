@@ -423,6 +423,22 @@ const defs: SkillDef[] = [
     text: 'Restore 120% Magic Power health, then regenerate 5 HP at the start of each turn for 3 turns.',
   },
 
+  {
+    id: 'numbing_chill',
+    name: 'Numbing Chill',
+    archetypes: ['debuff'],
+    property: 'magical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'frost',
+    effects: [
+      { kind: 'damage', power: 120 },
+      { kind: 'weakenNext', pct: 40 },
+    ],
+    text: "Deal 120% Magic Power magical damage and jam the enemy's NEXT cast — it lands 40% weaker.",
+  },
+
   // ---- Resolve (effect resistance / potency) ----
   {
     id: 'iron_will',

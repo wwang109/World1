@@ -263,6 +263,8 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         c.lastCastSkillId = choice.skill.id;
         const enchant = choice.piece.enchant !== undefined ? cfg.enchantBook?.[choice.piece.enchant] : undefined;
         applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, enchant);
+        // Weaken jams THIS cast and is spent by it.
+        c.nextCastWeakenPct = 0;
         // Combo remembers this cast.
         c.lastCastArchetypes = choice.skill.archetypes;
       }

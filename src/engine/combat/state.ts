@@ -71,10 +71,13 @@ export interface CombatantState {
   /** Skill id of the last card cast (staleness tracking). */
   lastCastSkillId: string | null;
   /**
-   * Consecutive re-casts of the same skill: damage decays −10% per stale
-   * cast (capped −30%). Variety resets it — anti-spam pacing.
+   * Consecutive re-casts of the same skill. BASE damage never decays; only
+   * BONUS effectiveness (auras, combo/execute riders) fades: −25% of the
+   * bonus per stale cast, gone by the 4th. Variety resets it.
    */
   staleCasts: number;
+  /** The caster's next cast deals this % less damage (enemy Weaken cards). */
+  nextCastWeakenPct: number;
   elementAffinity?: Element;
   weaponAffinity?: WeaponType;
   statuses: StatusInstance[];
@@ -125,6 +128,7 @@ function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBoo
     lastCastArchetypes: [],
     lastCastSkillId: null,
     staleCasts: 0,
+    nextCastWeakenPct: 0,
     elementAffinity: setup.elementAffinity,
     weaponAffinity: setup.weaponAffinity,
     statuses: [],

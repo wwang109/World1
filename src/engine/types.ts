@@ -121,6 +121,8 @@ export type Action =
   // ---- Special ability riders (combined-archetype cards) ----
   /** The enemy's NEXT action is this much heavier (their attack comes later). */
   | { kind: 'slowNext'; weight: number }
+  /** The enemy's NEXT cast deals pct% less damage (jam their queued card). */
+  | { kind: 'weakenNext'; pct: number }
   /** Drain the enemy's banked readiness (steal their built-up tempo). */
   | { kind: 'stagger'; amount: number }
   /** Heal the caster for pct% of the damage this cast dealt (place after damage). */

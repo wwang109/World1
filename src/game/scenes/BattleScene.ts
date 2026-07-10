@@ -342,6 +342,9 @@ export class BattleScene extends Phaser.Scene {
       case 'slowedNext':
         this.log(`  ${e.side === 'player' ? 'YOUR' : `${this.tagOf(e.side, e.unit)}'s`} next action +${e.weight} weight (slowed)`);
         break;
+      case 'weakenedNext':
+        this.log(`  ${e.side === 'player' ? 'YOUR' : `${this.tagOf(e.side, e.unit)}'s`} next cast −${e.pct}% damage (jammed)`);
+        break;
       case 'quickenedNext':
         this.log(`  ${e.side === 'player' ? 'YOUR' : `${this.tagOf(e.side, e.unit)}'s`} next action −${e.weight} weight (quickened)`);
         break;

@@ -52,7 +52,7 @@ describe('ability catalog wave 2', () => {
 
   it('thorns reflects a cut of skill hits as TRUE damage to the attacker', () => {
     // Turn 1 foe slashes (no thorns yet), turn 2 hero coats, turn 3 the foe's
-    // second consecutive slash (stale −10%: 20 -> 18) pays 25% -> 4 TRUE back.
+    // 20-damage slash pays 25% -> 5 TRUE back (staleness never touches base).
     const c = cfg(
       tc('hero', ['bramble_coat'], { magicPower: 10, speed: 12, maxHp: 500 }),
       tc('foe', ['sword_slash'], { attack: 10, speed: 14, maxHp: 500 }),
@@ -60,11 +60,10 @@ describe('ability catalog wave 2', () => {
     );
     const { events } = simulate(c, 1);
     const reflected = damageEvents(events).find((e) => e.source === 'thorns');
-    expect(reflected).toMatchObject({ side: 'enemy', amount: 4, property: 'true' });
+    expect(reflected).toMatchObject({ side: 'enemy', amount: 5, property: 'true' });
   });
 
-  it('staleness: spamming one skill decays −10% per re-cast (cap −30%), variety resets', () => {
-    // A one-card board recasting Sword Slash into a wall: 20, 18, 16, 14, 14…
+  it('staleness never reduces BASE damage — a plain card spams at full power', () => {
     const spam = simulate(
       cfg(tc('hero', ['sword_slash'], { attack: 10, speed: 20, maxHp: 500 }), tc('wall', [], { maxHp: 500, speed: 1 }), {
         ...NO_ENDGAME,
@@ -72,17 +71,34 @@ describe('ability catalog wave 2', () => {
       }),
       1,
     );
-    expect(damageEvents(spam.events).map((e) => e.amount)).toEqual([20, 18, 16, 14, 14]);
+    expect(damageEvents(spam.events).map((e) => e.amount)).toEqual([20, 20, 20, 20, 20]);
+  });
 
-    // Alternating two attacks never goes stale: full damage every cast.
-    const varied = simulate(
-      cfg(tc('hero', ['sword_slash', 'hunter_shot'], { attack: 10, speed: 20, maxHp: 500 }), tc('wall', [], { maxHp: 500, speed: 1 }), {
-        ...NO_ENDGAME,
-        maxTurns: 4,
-      }),
-      1,
+  it('staleness decays BONUS effectiveness: −25% of bonuses per re-cast, gone by the 4th', () => {
+    // War Banner aura (+25%) on a spammed slash: bonus fades 25 -> 18 -> 12 -> 6 -> 0
+    // so damage runs 25, 23, 22, 21, 20 — base 20 never dips.
+    const c = cfg(
+      tc('hero', [], { attack: 10, speed: 20, maxHp: 500 }, { boardSize: 10, pieces: [{ skillId: 'war_banner', slot: 0 }, { skillId: 'sword_slash', slot: 1 }] }),
+      tc('wall', [], { maxHp: 500, speed: 1 }),
+      { ...NO_ENDGAME, maxTurns: 5 },
     );
-    expect(damageEvents(varied.events).map((e) => e.amount)).toEqual([20, 20, 20, 20]);
+    const { events } = simulate(c, 1);
+    expect(damageEvents(events).map((e) => e.amount)).toEqual([25, 23, 22, 21, 20]);
+  });
+
+  it('weakenNext jams the enemy next cast for reduced damage', () => {
+    // Numbing Chill: foe's next slash lands 40% weaker (20 -> 12), then
+    // recovers (the bulwark filler keeps the hero from re-jamming).
+    const c = cfg(
+      tc('hero', ['numbing_chill', 'iron_bulwark'], { magicPower: 10, speed: 14, maxHp: 500 }),
+      tc('foe', ['sword_slash', 'savage_bite'], { attack: 10, speed: 12, maxHp: 500 }),
+      { ...NO_ENDGAME, maxTurns: 4 },
+    );
+    const { events } = simulate(c, 1);
+    expect(events.find((e) => e.kind === 'weakenedNext')).toMatchObject({ side: 'enemy', pct: 40 });
+    const foeHits = damageEvents(events).filter((e) => e.side === 'player');
+    expect(foeHits[0]!.amount).toBe(12); // jammed slash
+    expect(foeHits[1]!.amount).toBe(20); // next cast back to full
   });
 
   it('thorns expires after its duration like other timed statuses', () => {
