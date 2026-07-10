@@ -81,6 +81,13 @@ Mark on Arcane Bolt — the fast card cleans up wounded stragglers. **Weak
 to:** size-3 spans (a busy caster can't be slowed) and Stone Beetle (bolt vs
 armor... use the magic side).
 
+**The one rule of tempo theft:** a victim can be staggered at most ONCE
+between its own actions (extra staggers fizzle as "resisted"). Full
+initiative lock-out is impossible by design — the same principle that keeps
+stun a delay, not a lock. MIX your verbs instead: stagger once per enemy
+action cycle, and cover the rest with Slow Next (Hamstring), Speed debuffs
+(Slowing Hex) and Weaken. Two-stagger boards waste half their riders.
+
 ## ⚰ 5. Executioner Burst — kill-window snowball
 
 **Identity:** get the enemy under 50%, then everything hits like a truck.
@@ -226,6 +233,35 @@ effects show a "RESISTED" line in the log.
 - Enemy presets: Stone Beetle carries 25 Resolve, the Wolf King 15 — DoT
   and control builds now feel the check in the wild.
 
+## Multi-play chains — Speed converts into extra casts
+
+The initiative rule grew one clause (shipped, sim-validated): the
+performer's winning score, minus each card's weight, is a **budget** —
+while that budget still strictly beats every other ready contender, the
+performer keeps the stage and casts again (max 2 extra plays, so 3 per
+stage). One sentence on the player's side: *"fast heroes with light cards
+sometimes act twice."*
+
+What this rewards and what keeps it honest:
+
+- **Fast + light chains.** Speed 20 with weight-8 cards double-casts from
+  turn one; Time Crystal (−5 weight) and Quicken riders feed the budget.
+  Speed buffs and light boards are now a real archetype, not just
+  turn-order garnish — Chase Mark is no longer the only path to multi-play.
+- **Heavy never chains.** A weight-20+ card eats the whole budget (and
+  size-2/3 spans end the stage outright), so big-hit boards keep their
+  once-a-cycle rhythm.
+- **Equal builds never chain.** The budget must STRICTLY beat the
+  runner-up; parity hands the stage over, preserving the classic 2:1
+  rhythm at double Speed.
+- **No free chains.** With no ready opponent (busy or passive), there is
+  no runner-up to outscore and no chain — you already act every turn.
+- **Enemies chain too.** Fast elites (Feral Alpha, speed 14) got scarier;
+  the counter is tempo theft — stagger their bank before it becomes plays.
+- **Banked initiative is chain fuel** — which is why stagger is guarded
+  (one per victim action cycle, see Tempo Thief) and why fights against
+  idle-heavy parties (1v5) resolve faster and meaner than before.
+
 ## Momentum & staleness — the variety axis
 
 BASE damage is sacred: no rotation pattern ever changes a card's printed
@@ -337,8 +373,8 @@ wins:
 | Elite | The question | Answers that work |
 |---|---|---|
 | **Runewall Sentinel** | shields cycling behind armor 6 + resolve 25 | poison (bypasses shields), Shield Splitter, true damage — or patient tempo+sustain |
-| **Feral Alpha** | Battle Howl into hard, varied beast attacks | Dispelling Arrow (purge the howl), bows (beast matchup), tempo theft |
-| **Grave Chanter** | 45-point heals behind hexes and slows | burst windows (Crushing Blow + execute), stuns to eat the heal cast |
+| **Feral Alpha** | Battle Howl into hard, varied beast attacks — and speed 14 CHAINS | Dispelling Arrow (purge the howl), bows (beast matchup), MIXED tempo verbs: one stagger per cycle + Slowing Hex or Hamstring |
+| **Grave Chanter** | 45-point heals behind hexes and slows (190 HP since the chain patch) | burst windows (Crushing Blow + execute), stuns to eat the heal cast |
 | **Spellward Wraith** | Magic Resist 9, armor 0 — gates MAGE boards (a hex deck bounces off) | physical decks, true damage |
 | **Twinblade Marauder** | mixed physical AND magical damage — gates single-typed WALLS (a double-Bulwark turtle dies) | true shields, layered defense, or the lance matchup vs his sword affinity |
 
@@ -347,6 +383,13 @@ well-built deck of another flavor may grind one out (the hunter deck beats
 the Sentinel in 39 patient turns). Depth scaling from the run layer will
 raise elite STATS later; the tactic requirement comes from kits, and that
 ships now.
+
+Chain-patch retunes (sim-validated): the multi-play rule made the naive
+board out-race two checks, so **Grave Chanter** went 170→190 HP and
+**Bandit Duelist** 12→13 speed, 13→14 attack. The starter elite is now a
+near-even fight for the naive board (10 HP squeaker); tempo or shield
+answers win it comfortably. Feral Alpha's old double-stagger answer died
+to the stagger guard — its current answers are listed above.
 
 ## Complexity budget — keep the floor low
 

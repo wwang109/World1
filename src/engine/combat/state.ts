@@ -87,6 +87,12 @@ export interface CombatantState {
   momentumCasts: number;
   /** The caster's next cast deals this % less damage (enemy Weaken cards). */
   nextCastWeakenPct: number;
+  /**
+   * True once staggered; cleared when this side next takes the stage. A side
+   * can be staggered at most ONCE between its own actions — tempo theft is a
+   * setback, never a permanent lock (the same rule that keeps stun honest).
+   */
+  staggerGuard: boolean;
   elementAffinity?: Element;
   weaponAffinity?: WeaponType;
   statuses: StatusInstance[];
@@ -141,6 +147,7 @@ function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBoo
     staleCasts: 0,
     momentumCasts: 0,
     nextCastWeakenPct: 0,
+    staggerGuard: false,
     elementAffinity: setup.elementAffinity,
     weaponAffinity: setup.weaponAffinity,
     statuses: [],

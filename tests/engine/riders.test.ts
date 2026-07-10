@@ -42,6 +42,25 @@ describe('special ability riders', () => {
     expect((stagger as { amount: number }).amount).toBeGreaterThan(0);
   });
 
+  it('a victim can be staggered at most once between its own actions', () => {
+    // Hero Speed 20 cycles two stagger cards; the foe crawls toward a
+    // weight-30 card. Without the guard the foe would be tempo-locked and
+    // never act; with it, only the first stagger per action cycle lands.
+    const c = cfg(
+      tc('tempo', ['concussive_shot', 'thunder_clap'], { attack: 10, magicPower: 10, speed: 20, maxHp: 5000 }),
+      tc('heavy', ['crushing_blow'], { attack: 1, speed: 10, maxHp: 5000 }),
+      { ...NO_ENDGAME, maxTurns: 20 },
+    );
+    const { events } = simulate(c, 1);
+    // The guard shows up as resisted staggers...
+    expect(events.some((e) => e.kind === 'resisted' && (e as { status?: string }).status === 'stagger')).toBe(true);
+    // ...and the heavy foe still gets to act (the lock is impossible).
+    expect(events.some((e) => e.kind === 'skillCast' && e.side === 'enemy')).toBe(true);
+    // Guard re-arms after the victim performs: staggers land again later.
+    const enemyCastTurn = (events.find((e) => e.kind === 'skillCast' && e.side === 'enemy') as { turn: number }).turn;
+    expect(events.some((e) => e.kind === 'staggered' && e.turn > enemyCastTurn)).toBe(true);
+  });
+
   it('lifesteal heals for a percentage of the damage dealt', () => {
     // Leeching Fang: 160% of 10 = 16 dealt, 45% lifesteal -> heal 7.
     const c = cfg(

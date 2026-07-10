@@ -405,11 +405,19 @@ function applyAction(
     }
     case 'stagger': {
       if (!enemy.alive) break;
+      // At most ONE stagger lands between the victim's own actions — repeated
+      // tempo theft can slow an enemy but never lock it out entirely (the
+      // same principle that keeps stun a delay, not a lock).
+      if (enemy.staggerGuard) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'resisted', side: enemy.side, unit: enemy.unit, status: 'stagger' });
+        break;
+      }
       const potent = Math.floor((action.amount * effectPotencyPct(enemy)) / 100);
       if (potent <= 0) {
         ctx.events.push({ turn: ctx.state.turn, kind: 'resisted', side: enemy.side, unit: enemy.unit, status: 'stagger' });
         break;
       }
+      enemy.staggerGuard = true;
       const drained = Math.min(enemy.bank, potent);
       enemy.bank -= drained;
       ctx.events.push({ turn: ctx.state.turn, kind: 'staggered', side: enemy.side, unit: enemy.unit, amount: drained, bankAfter: enemy.bank });

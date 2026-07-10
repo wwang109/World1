@@ -7,6 +7,7 @@
     ],
     "property": "physical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "common",
     "tier": "bronze",
     "weapon": "sword",
@@ -26,6 +27,7 @@
     ],
     "property": "physical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "common",
     "tier": "bronze",
     "weapon": "beast",
@@ -45,6 +47,7 @@
     ],
     "property": "physical",
     "size": 3,
+    "speedWeight": 30,
     "rarity": "rare",
     "tier": "bronze",
     "weapon": "beast",
@@ -64,6 +67,7 @@
     ],
     "property": "physical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "common",
     "tier": "bronze",
     "weapon": "bow",
@@ -103,6 +107,7 @@
     ],
     "property": "physical",
     "size": 3,
+    "speedWeight": 30,
     "rarity": "rare",
     "tier": "bronze",
     "weapon": "axe",
@@ -122,6 +127,7 @@
     ],
     "property": "magical",
     "size": 2,
+    "speedWeight": 20,
     "rarity": "common",
     "tier": "bronze",
     "element": "fire",
@@ -155,7 +161,7 @@
         "power": 320
       }
     ],
-    "text": "Deal 320% of your higher power stat as TRUE damage — ignores Armor and Magic Resist. Heavy (weight 26)."
+    "text": "Deal 320% of your higher power stat as TRUE damage \u2014 ignores Armor and Magic Resist. Heavy (weight 26)."
   },
   {
     "id": "crippling_strike",
@@ -166,6 +172,7 @@
     ],
     "property": "physical",
     "size": 2,
+    "speedWeight": 20,
     "rarity": "rare",
     "tier": "bronze",
     "weapon": "lance",
@@ -217,6 +224,7 @@
     ],
     "property": "physical",
     "size": 2,
+    "speedWeight": 20,
     "rarity": "common",
     "tier": "bronze",
     "effects": [
@@ -235,6 +243,7 @@
     ],
     "property": "magical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "common",
     "tier": "bronze",
     "element": "frost",
@@ -263,7 +272,7 @@
         "power": 80
       }
     ],
-    "text": "Gain an 80-point TRUE shield — blocks ALL damage types. Spans 3 turns."
+    "text": "Gain an 80-point TRUE shield \u2014 blocks ALL damage types. Spans 3 turns."
   },
   {
     "id": "mending_light",
@@ -273,6 +282,7 @@
     ],
     "property": "magical",
     "size": 2,
+    "speedWeight": 20,
     "rarity": "common",
     "tier": "bronze",
     "element": "holy",
@@ -292,6 +302,7 @@
     ],
     "property": "true",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "effects": [
@@ -300,7 +311,7 @@
         "power": 40
       }
     ],
-    "text": "Restore a flat 40 HP — no scaling, no reductions, always 40."
+    "text": "Restore a flat 40 HP \u2014 no scaling, no reductions, always 40."
   },
   {
     "id": "war_banner",
@@ -310,6 +321,7 @@
     ],
     "property": "physical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "effects": [],
@@ -330,6 +342,7 @@
     ],
     "property": "magical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "element": "nature",
@@ -351,6 +364,7 @@
     ],
     "property": "true",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "effects": [],
@@ -370,6 +384,7 @@
     ],
     "property": "physical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "effects": [
@@ -391,6 +406,7 @@
     ],
     "property": "physical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "weapon": "lance",
@@ -440,6 +456,7 @@
     ],
     "property": "physical",
     "size": 2,
+    "speedWeight": 20,
     "rarity": "rare",
     "tier": "bronze",
     "weapon": "axe",
@@ -463,6 +480,7 @@
     ],
     "property": "physical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "weapon": "sword",
@@ -487,6 +505,7 @@
     ],
     "property": "physical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "weapon": "bow",
@@ -510,6 +529,7 @@
     ],
     "property": "physical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "weapon": "axe",
@@ -534,6 +554,7 @@
     ],
     "property": "physical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "weapon": "lance",
@@ -557,6 +578,7 @@
     ],
     "property": "magical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "element": "nature",
@@ -592,7 +614,7 @@
         "hits": 3
       }
     ],
-    "text": "Strike 3 times for 50% Attack physical damage each — every hit rolls its own crit and armor. Light (weight 8)."
+    "text": "Strike 3 times for 50% Attack physical damage each \u2014 every hit rolls its own crit and armor. Light (weight 8)."
   },
   {
     "id": "dispelling_arrow",
@@ -603,6 +625,7 @@
     ],
     "property": "physical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "weapon": "bow",
@@ -625,6 +648,7 @@
     ],
     "property": "magical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "element": "nature",
@@ -649,6 +673,7 @@
     ],
     "property": "magical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "element": "frost",
@@ -662,7 +687,7 @@
         "pct": 40
       }
     ],
-    "text": "Deal 120% Magic Power magical damage and jam the enemy's NEXT cast — it lands 40% weaker."
+    "text": "Deal 120% Magic Power magical damage and jam the enemy's NEXT cast \u2014 it lands 40% weaker."
   },
   {
     "id": "hex_trap",
@@ -672,6 +697,7 @@
     ],
     "property": "magical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "element": "dark",
@@ -696,6 +722,7 @@
     ],
     "property": "true",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "effects": [
@@ -706,7 +733,7 @@
         "turns": 2
       }
     ],
-    "text": "Gain +32 Resolve for 2 turns — hostile poisons, burns, debuffs, slows and staggers land 32% weaker on you."
+    "text": "Gain +32 Resolve for 2 turns \u2014 hostile poisons, burns, debuffs, slows and staggers land 32% weaker on you."
   },
   {
     "id": "expose_weakness",
@@ -716,6 +743,7 @@
     ],
     "property": "true",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "effects": [
@@ -726,7 +754,7 @@
         "turns": 3
       }
     ],
-    "text": "Reduce the enemy's Resolve by 20 for 3 turns — your lingering effects on them land 20% STRONGER."
+    "text": "Reduce the enemy's Resolve by 20 for 3 turns \u2014 your lingering effects on them land 20% STRONGER."
   },
   {
     "id": "hex_of_frailty",
@@ -758,6 +786,7 @@
     ],
     "property": "physical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "effects": [
@@ -778,6 +807,7 @@
     ],
     "property": "magical",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "common",
     "tier": "bronze",
     "element": "frost",
@@ -818,7 +848,7 @@
         "turns": 1
       }
     ],
-    "text": "Deal 260% Attack physical damage and stun — the enemy's next performance is consumed. Heavy (weight 24)."
+    "text": "Deal 260% Attack physical damage and stun \u2014 the enemy's next performance is consumed. Heavy (weight 24)."
   },
   {
     "id": "purify",
@@ -829,6 +859,7 @@
     ],
     "property": "true",
     "size": 1,
+    "speedWeight": 10,
     "rarity": "rare",
     "tier": "bronze",
     "effects": [
@@ -837,5 +868,147 @@
       }
     ],
     "text": "Remove your poisons, burns, stuns and debuffs."
+  },
+  {
+    "id": "smite",
+    "name": "Smite",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "element": "holy",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 200
+      }
+    ],
+    "text": "Deal 200% Magic Power magical damage. Holy scorches Dark creatures."
+  },
+  {
+    "id": "shield_bash",
+    "name": "Shield Bash",
+    "archetypes": [
+      "defensive",
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "weapon": "sword",
+    "effects": [
+      {
+        "kind": "shield",
+        "power": 120
+      },
+      {
+        "kind": "damage",
+        "power": 80
+      }
+    ],
+    "text": "Gain a Physical shield worth 120% Attack, then deal 80% Attack physical damage."
+  },
+  {
+    "id": "rallying_cry",
+    "name": "Rallying Cry",
+    "archetypes": [
+      "healing",
+      "support"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "heal",
+        "power": 100
+      },
+      {
+        "kind": "buffStat",
+        "stat": "attack",
+        "pct": 20,
+        "turns": 2
+      }
+    ],
+    "text": "Restore 100% Attack health and gain +20% Attack for 2 turns."
+  },
+  {
+    "id": "thunder_clap",
+    "name": "Thunder Clap",
+    "archetypes": [
+      "offense",
+      "debuff"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "lightning",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 120
+      },
+      {
+        "kind": "stagger",
+        "amount": 32
+      }
+    ],
+    "text": "Deal 120% Magic Power magical damage and drain 32 from the enemy's banked readiness."
+  },
+  {
+    "id": "searing_brand",
+    "name": "Searing Brand",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "fire",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 100
+      },
+      {
+        "kind": "burn",
+        "amount": 4,
+        "turns": 5
+      }
+    ],
+    "text": "Deal 100% Magic Power magical damage and brand the target: burn 4 for 5 turns."
+  },
+  {
+    "id": "stone_skin",
+    "name": "Stone Skin",
+    "archetypes": [
+      "defensive"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "buffStat",
+        "stat": "armor",
+        "pct": 40,
+        "turns": 2
+      }
+    ],
+    "text": "Gain +40% Armor for 2 turns."
   }
 ]

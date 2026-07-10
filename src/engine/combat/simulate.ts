@@ -20,6 +20,8 @@ const DEFAULT_MAX_TURNS = 200;
 const SD_PLAYER_AMP = 10;
 const SD_ENEMY_AMP = 30;
 const FATIGUE_BASE = 5;
+/** Max EXTRA casts a performer can chain in one stage (so 3 plays total). */
+const MAX_CHAIN_CASTS = 2;
 
 /** null while combat continues. The player wins simultaneous wipes. */
 function checkEnd(state: CombatState): CombatOutcome | null {
@@ -140,7 +142,10 @@ function sideSummary(units: ComparisonUnit[]): ComparisonSide {
  * initiative comparison across all ready contenders (score = bank + Speed −
  * weight; highest performs; ties: player side, then front of formation) →
  * the performer casts (or a stun consumes the performance); everyone else
- * banks their Speed. Hostile actions hit the opposing side's highest-aggro
+ * banks their Speed. The performer's winning score, less each card's weight,
+ * is a BUDGET: while it still strictly beats every other ready contender the
+ * performer chains extra casts (max 2), so fast, light builds convert
+ * surplus Speed into multiple plays per stage. Hostile actions hit the opposing side's highest-aggro
  * living unit (ties to the front). A side is defeated when ALL its members
  * are down. Sudden death arms once each side's total performances reach
  * round × side size; a flat fatigue backstop guarantees termination.
@@ -157,6 +162,58 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
   let fatigueAnnounced = false;
 
   const everyone = (): CombatantState[] => [...state.player, ...state.enemy];
+
+  /**
+   * Execute one cast: advance the rotation cursor, occupy the span, run
+   * staleness/momentum bookkeeping, detonate any card trap, spend limited
+   * uses, then apply the effects. `chased` marks Chase Mark's free follow-up
+   * (weaker, keeps weight riders, cannot chase again).
+   */
+  const doCast = (c: CombatantState, choice: CastChoice, chased: boolean): void => {
+    c.castCursor = (choice.piece.slot + choice.piece.size) % c.boardSize;
+    c.busyTurns = choice.piece.size - 1;
+    if (!chased) {
+      // Slow Next / Quicken were consumed by this action's weight; clear them
+      // BEFORE the cast so a Quicken rider on this very card can prime the
+      // caster's next action. A chased cast is free — it consumes nothing.
+      c.nextWeightPenalty = 0;
+      c.nextWeightBonus = 0;
+    }
+    // Staleness / momentum: repeating the SAME skill fades bonus
+    // effectiveness; chaining DIFFERENT skills amplifies it.
+    if (choice.skill.id === c.lastCastSkillId) {
+      c.staleCasts += 1;
+      c.momentumCasts = 0;
+    } else {
+      c.staleCasts = 0;
+      c.momentumCasts = c.lastCastSkillId === null ? 0 : c.momentumCasts + 1;
+    }
+    c.lastCastSkillId = choice.skill.id;
+    // A cursed card detonates its trap as it activates; if the trap kills
+    // the caster, the cast itself is lost.
+    if (choice.piece.curse) {
+      const trap = choice.piece.curse;
+      delete choice.piece.curse;
+      dealDamage(ctx, c, trap.amount, trap.property, { source: 'curse' });
+    }
+    if (choice.piece.castsLeft !== undefined) choice.piece.castsLeft -= 1;
+    if (!c.alive) return;
+    const enchant = choice.piece.enchant !== undefined ? cfg.enchantBook?.[choice.piece.enchant] : undefined;
+    applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, enchant, chased);
+    // Weaken jams THIS cast and is spent by it.
+    c.nextCastWeakenPct = 0;
+    // Combo remembers this cast.
+    c.lastCastArchetypes = choice.skill.archetypes;
+
+    // Chase Mark: the cast flows straight into the next card — ONE free
+    // follow-up (a chased cast cannot chase), only while the caster is free
+    // (a size-2+ chase card is busy finishing its span) and the fight is
+    // still live.
+    if (!chased && enchant?.chase && c.alive && c.busyTurns === 0 && checkEnd(state) === null) {
+      const chasedChoice = selectCast(c, cfg.skillBook);
+      if (chasedChoice) doCast(c, chasedChoice, true);
+    }
+  };
 
   const finish = (result: CombatOutcome): CombatResult => {
     events.push({ turn: state.turn, kind: 'combatEnd', result, turns: state.turn });
@@ -197,6 +254,17 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
       }
     }
 
+    // Highest score among the OTHER ready contenders — the bar a performer
+    // must keep beating to chain extra casts. null = nobody else is ready;
+    // free stage time never chains (you already act every turn).
+    let runnerUp: number | null = null;
+    for (let i = 0; i < all.length; i++) {
+      const unit = contenders[i]!;
+      if (all[i] !== performer && unit.state === 'ready') {
+        runnerUp = runnerUp === null ? unit.score! : Math.max(runnerUp, unit.score!);
+      }
+    }
+
     const playerUnits = contenders.filter((u) => u.side === 'player');
     const enemyUnits = contenders.filter((u) => u.side === 'enemy');
     events.push({
@@ -222,6 +290,8 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
       const c = performer;
       const choice = choices.get(c)!;
       c.performs += 1;
+      // Taking the stage (even a stun-consumed one) re-arms staggerability.
+      c.staggerGuard = false;
       events.push({ turn: state.turn, kind: 'performStart', side: c.side, unit: c.unit, performs: c.performs });
 
       // Sudden death: armed once each side's total performances reach
@@ -249,71 +319,23 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         // stun reads as "skip their next action" — usually a one-turn delay.
         // Draining the bank is stagger's job (and priced separately).
       } else {
+        // The winning score, less this card's weight, is the performer's
+        // remaining initiative BUDGET. While that budget still strictly beats
+        // every other ready contender, the performer keeps the stage and
+        // casts again (paying each card's weight, max 2 extra) — surplus
+        // Speed converts into extra plays for fast, light builds instead of
+        // being wasted. The bank then resets exactly as before.
+        let budget = c.bank + effStat(c, 'speed') - choice.weight;
         c.bank = 0;
-        c.castCursor = (choice.piece.slot + choice.piece.size) % c.boardSize;
-        c.busyTurns = choice.piece.size - 1;
-        // Slow Next / Quicken were consumed by this action's weight; clear
-        // them BEFORE the cast so a Quicken rider on this very card can prime
-        // the caster's next action.
-        c.nextWeightPenalty = 0;
-        c.nextWeightBonus = 0;
-        // Staleness / momentum: repeating the SAME skill fades bonus
-        // effectiveness; chaining DIFFERENT skills amplifies it.
-        if (choice.skill.id === c.lastCastSkillId) {
-          c.staleCasts += 1;
-          c.momentumCasts = 0;
-        } else {
-          c.staleCasts = 0;
-          c.momentumCasts = c.lastCastSkillId === null ? 0 : c.momentumCasts + 1;
-        }
-        c.lastCastSkillId = choice.skill.id;
-        // A cursed card detonates its trap as it activates; if the trap
-        // kills the caster, the cast itself is lost.
-        if (choice.piece.curse) {
-          const trap = choice.piece.curse;
-          delete choice.piece.curse;
-          dealDamage(ctx, c, trap.amount, trap.property, { source: 'curse' });
-        }
-        if (choice.piece.castsLeft !== undefined) choice.piece.castsLeft -= 1;
-        if (c.alive) {
-          const enchant = choice.piece.enchant !== undefined ? cfg.enchantBook?.[choice.piece.enchant] : undefined;
-          applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, enchant);
-          // Weaken jams THIS cast and is spent by it.
-          c.nextCastWeakenPct = 0;
-          // Combo remembers this cast.
-          c.lastCastArchetypes = choice.skill.archetypes;
-
-          // Chase Mark: the cast flows straight into the next card — ONE free
-          // follow-up (a chased cast cannot chase), only while the caster is
-          // free (a size-2+ chase card is busy finishing its span) and the
-          // fight is still live.
-          if (enchant?.chase && c.alive && c.busyTurns === 0 && checkEnd(state) === null) {
-            const chasedChoice = selectCast(c, cfg.skillBook);
-            if (chasedChoice) {
-              if (chasedChoice.piece.curse) {
-                const trap = chasedChoice.piece.curse;
-                delete chasedChoice.piece.curse;
-                dealDamage(ctx, c, trap.amount, trap.property, { source: 'curse' });
-              }
-              if (chasedChoice.piece.castsLeft !== undefined) chasedChoice.piece.castsLeft -= 1;
-              if (c.alive) {
-                if (chasedChoice.skill.id === c.lastCastSkillId) {
-                  c.staleCasts += 1;
-                  c.momentumCasts = 0;
-                } else {
-                  c.staleCasts = 0;
-                  c.momentumCasts += 1;
-                }
-                c.lastCastSkillId = chasedChoice.skill.id;
-                c.castCursor = (chasedChoice.piece.slot + chasedChoice.piece.size) % c.boardSize;
-                c.busyTurns = chasedChoice.piece.size - 1;
-                const chasedEnchant = chasedChoice.piece.enchant !== undefined ? cfg.enchantBook?.[chasedChoice.piece.enchant] : undefined;
-                applyCast(ctx, c, chasedChoice.skill, chasedChoice.piece.slot, chasedChoice.mods, chasedEnchant, true);
-                c.nextCastWeakenPct = 0;
-                c.lastCastArchetypes = chasedChoice.skill.archetypes;
-              }
-            }
-          }
+        doCast(c, choice, false);
+        for (let extra = 0; extra < MAX_CHAIN_CASTS; extra++) {
+          if (runnerUp === null || !c.alive || c.busyTurns > 0 || checkEnd(state) !== null) break;
+          const next = selectCast(c, cfg.skillBook);
+          if (next === null || budget - next.weight <= runnerUp) break;
+          budget -= next.weight;
+          c.performs += 1;
+          events.push({ turn: state.turn, kind: 'performStart', side: c.side, unit: c.unit, performs: c.performs });
+          doCast(c, next, false);
         }
       }
       outcome = checkEnd(state);

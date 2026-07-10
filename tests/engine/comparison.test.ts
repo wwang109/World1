@@ -87,6 +87,63 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
     expect(cmp.player.state).toBe('nothingUsable');
   });
 
+  it('surplus initiative chains extra casts for fast, light builds', () => {
+    // Hero Speed 20 with weight-8 cards vs Speed-10 foe: T1 score 0+20−8=12
+    // beats foe's 0; the remaining budget 12−8=4 still beats 0, so the hero
+    // chains a second cast in the same stage. 4−8 < 0 ends the chain.
+    const book: typeof MINI_BOOK = {
+      ...MINI_BOOK,
+      jab: { ...MINI_BOOK.slash!, id: 'jab', name: 'Jab', speedWeight: 8 },
+      jab2: { ...MINI_BOOK.slash!, id: 'jab2', name: 'Jab II', speedWeight: 8 },
+    };
+    const c = cfg(
+      tc('fast', ['jab', 'jab2'], { speed: 20, attack: 1, maxHp: 5000 }, { skillBook: book }),
+      tc('slow', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: book }),
+      { ...NO_ENDGAME, skillBook: book, maxTurns: 1 },
+    );
+    const { events } = simulate(c, 1);
+    expect(casts(events, 'player')).toEqual(['jab', 'jab2']);
+  });
+
+  it('chains cap at 2 extra casts even with a huge surplus', () => {
+    const book: typeof MINI_BOOK = {
+      ...MINI_BOOK,
+      jab: { ...MINI_BOOK.slash!, id: 'jab', name: 'Jab', speedWeight: 8 },
+    };
+    const c = cfg(
+      tc('blur', ['jab', 'slash'], { speed: 100, attack: 1, maxHp: 5000 }, { skillBook: book }),
+      tc('slow', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: book }),
+      { ...NO_ENDGAME, skillBook: book, maxTurns: 1 },
+    );
+    const { events } = simulate(c, 1);
+    expect(casts(events, 'player')).toHaveLength(3);
+  });
+
+  it('equal-weight parity never chains: the tie hands the stage over', () => {
+    // Speed 20 vs 10, both weight 10: budget after the cast exactly ties the
+    // foe's score — strict comparison means no chain, keeping the classic
+    // 2:1 rhythm instead of a runaway.
+    const c = cfg(
+      tc('fast', ['slash'], { speed: 20, attack: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
+      tc('slow', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
+      { ...NO_ENDGAME, skillBook: MINI_BOOK, maxTurns: 1 },
+    );
+    const { events } = simulate(c, 1);
+    expect(casts(events, 'player')).toHaveLength(1);
+  });
+
+  it('never chains without a ready opponent (free stage time)', () => {
+    // The foe's board is passive-only, so there is no runner-up score to
+    // beat; a blindingly fast hero still plays exactly one card per turn.
+    const c = cfg(
+      tc('blur', ['sword_slash', 'arcane_bolt'], { speed: 100, attack: 1, magicPower: 1, maxHp: 5000 }),
+      tc('idol', ['war_banner'], { maxHp: 5000 }),
+      { ...NO_ENDGAME, maxTurns: 4 },
+    );
+    const { events } = simulate(c, 1);
+    expect(casts(events, 'player')).toHaveLength(4);
+  });
+
   it('strict left→right rotation wraps and skips useless heals', () => {
     const book: typeof MINI_BOOK = {
       ...MINI_BOOK,
