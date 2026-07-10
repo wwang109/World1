@@ -273,6 +273,30 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         c.nextCastWeakenPct = 0;
         // Combo remembers this cast.
         c.lastCastArchetypes = choice.skill.archetypes;
+
+        // Chase Mark: the cast flows straight into the next card — ONE free
+        // follow-up (a chased cast cannot chase), only while the caster is
+        // free (a size-2+ chase card is busy finishing its span) and the
+        // fight is still live.
+        if (enchant?.chase && c.alive && c.busyTurns === 0 && checkEnd(state) === null) {
+          const chasedChoice = selectCast(c, cfg.skillBook);
+          if (chasedChoice) {
+            if (chasedChoice.skill.id === c.lastCastSkillId) {
+              c.staleCasts += 1;
+              c.momentumCasts = 0;
+            } else {
+              c.staleCasts = 0;
+              c.momentumCasts += 1;
+            }
+            c.lastCastSkillId = chasedChoice.skill.id;
+            c.castCursor = (chasedChoice.piece.slot + chasedChoice.piece.size) % c.boardSize;
+            c.busyTurns = chasedChoice.piece.size - 1;
+            const chasedEnchant = chasedChoice.piece.enchant !== undefined ? cfg.enchantBook?.[chasedChoice.piece.enchant] : undefined;
+            applyCast(ctx, c, chasedChoice.skill, chasedChoice.piece.slot, chasedChoice.mods, chasedEnchant, true);
+            c.nextCastWeakenPct = 0;
+            c.lastCastArchetypes = chasedChoice.skill.archetypes;
+          }
+        }
       }
       outcome = checkEnd(state);
       if (outcome !== null) return finish(outcome);

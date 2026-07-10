@@ -163,7 +163,7 @@ for (const e of events) {
       console.log(`${t} ┌ you ${fmt(e.player)} | foe ${fmt(e.enemy)} → ${e.performer ?? 'nobody'}${e.performer === 'enemy' ? `[${e.performerUnit}]` : ''}`);
       break;
     case 'skillCast':
-      console.log(`${t} │  ${tag(e.side, u)} casts [${e.slot}] ${e.skillId}${e.enchant ? ` {${e.enchant}}` : ''}${e.span > 1 ? ` (spans ${e.span})` : ''}`);
+      console.log(`${t} │  ${tag(e.side, u)} casts [${e.slot}] ${e.skillId}${e.enchant ? ` {${e.enchant}}` : ''}${e.chased ? ' ⚡CHASE' : ''}${e.span > 1 ? ` (spans ${e.span})` : ''}`);
       break;
     case 'performSkipped':
       console.log(`${t} │  ${tag(e.side, u)} performance consumed (${e.reason})`);

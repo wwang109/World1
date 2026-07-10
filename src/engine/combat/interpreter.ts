@@ -66,6 +66,8 @@ interface TargetPlan {
   mode: TargetMode;
   /** For 'all': each target takes this % of the rolled damage. */
   aoePct: number;
+  /** Enchant power trade-off (e.g. Chase Mark pays 40% damage for tempo). */
+  powerPct: number;
 }
 
 /** Single-target mode for a plan ('all' riders stick to the default pick). */
@@ -194,27 +196,30 @@ function applyAction(
   const enemy = pickTarget(ctx.state, caster, singleMode(plan));
   const property = skill.property;
   switch (action.kind) {
-    case 'damage':
+    case 'damage': {
+      const power = Math.floor((action.power * plan.powerPct) / 100);
       if (plan.mode === 'all') {
-        const aoePower = Math.floor((action.power * plan.aoePct) / 100);
+        const aoePower = Math.floor((power * plan.aoePct) / 100);
         for (const foe of livingFoes(ctx.state, caster)) {
           if (!caster.alive) break;
           strike(ctx, caster, skill, aoePower, mods, cast, foe);
         }
       } else {
-        strike(ctx, caster, skill, action.power, mods, cast, enemy);
+        strike(ctx, caster, skill, power, mods, cast, enemy);
       }
       break;
-    case 'multiHit':
+    }
+    case 'multiHit': {
       // Each hit is a full independent strike: its own crit roll (fixed RNG
       // order), its own mitigation — armor is strong against many small hits.
       // Target re-resolves per hit, so a kill rolls leftover hits into the
       // next foe in the formation.
+      const hitPower = Math.floor((action.power * plan.powerPct) / 100);
       for (let i = 0; i < action.hits && caster.alive; i++) {
         if (plan.mode === 'all') {
           const foes = livingFoes(ctx.state, caster);
           if (foes.length === 0) break;
-          const aoePower = Math.floor((action.power * plan.aoePct) / 100);
+          const aoePower = Math.floor((hitPower * plan.aoePct) / 100);
           for (const foe of foes) {
             if (!caster.alive || !foe.alive) continue;
             strike(ctx, caster, skill, aoePower, mods, cast, foe);
@@ -222,10 +227,11 @@ function applyAction(
         } else {
           const target = pickTarget(ctx.state, caster, singleMode(plan));
           if (!target.alive) break;
-          strike(ctx, caster, skill, action.power, mods, cast, target);
+          strike(ctx, caster, skill, hitPower, mods, cast, target);
         }
       }
       break;
+    }
     case 'heal': {
       if (!caster.alive) break;
       // TRUE heals are flat: exact amount, no scaling, no aura math.
@@ -442,6 +448,7 @@ export function applyCast(
   slot: number,
   mods: AuraMods,
   enchant?: EnchantDef,
+  chased?: boolean,
 ): void {
   ctx.events.push({
     turn: ctx.state.turn,
@@ -452,10 +459,12 @@ export function applyCast(
     skillId: skill.id,
     span: skill.size,
     enchant: enchant?.id,
+    chased,
   });
   const plan: TargetPlan = {
     mode: enchant?.targeting ?? skill.targeting ?? 'aggro',
     aoePct: enchant?.aoeDamagePct ?? 100,
+    powerPct: enchant?.powerPct ?? 100,
   };
   const cast: CastCtx = { damageDealt: 0, bonusPct: 0 };
   for (const action of skill.effects) {

@@ -68,6 +68,57 @@ describe('targeting enchantments', () => {
     expect(cast).toMatchObject({ enchant: 'storm_mark' });
   });
 
+  it('chase mark: the cast flows into the next card at a 40% damage cost', () => {
+    // [slash+chase][bite]: turn 1 casts BOTH — chased slash at 60% (12),
+    // then bite at full 20 with momentum. Exactly one chase per turn.
+    const c: CombatConfig = {
+      player: {
+        ...tc('hero', [], { attack: 10, speed: 20, maxHp: 500 }),
+        pieces: [
+          { skillId: 'sword_slash', slot: 0, enchant: 'chase_mark' },
+          { skillId: 'savage_bite', slot: 1 },
+        ],
+        boardSize: 10,
+      },
+      enemy: [tc('wall', [], { maxHp: 500, speed: 1 })],
+      skillBook,
+      enchantBook,
+      ...NO_ENDGAME,
+      maxTurns: 1,
+    };
+    const { events } = simulate(c, 1);
+    const casts = events.filter((e) => e.kind === 'skillCast') as Extract<Events[number], { kind: 'skillCast' }>[];
+    expect(casts.map((e) => ({ id: e.skillId, chased: e.chased ?? false }))).toEqual([
+      { id: 'sword_slash', chased: false },
+      { id: 'savage_bite', chased: true },
+    ]);
+    expect(enemyHits(events).map((e) => e.amount)).toEqual([12, 20]);
+    // Single performStart: the chase happens inside ONE performance.
+    expect(events.filter((e) => e.kind === 'performStart')).toHaveLength(1);
+  });
+
+  it('a chased cast cannot chase again (no infinite chains)', () => {
+    const c: CombatConfig = {
+      player: {
+        ...tc('hero', [], { attack: 10, speed: 20, maxHp: 500 }),
+        pieces: [
+          { skillId: 'sword_slash', slot: 0, enchant: 'chase_mark' },
+          { skillId: 'savage_bite', slot: 1, enchant: 'chase_mark' },
+          { skillId: 'hunter_shot', slot: 2 },
+        ],
+        boardSize: 10,
+      },
+      enemy: [tc('wall', [], { maxHp: 500, speed: 1 })],
+      skillBook,
+      enchantBook,
+      ...NO_ENDGAME,
+      maxTurns: 1,
+    };
+    const { events } = simulate(c, 1);
+    // Turn 1: slash chases into bite; bite's own mark must NOT trigger.
+    expect(events.filter((e) => e.kind === 'skillCast')).toHaveLength(2);
+  });
+
   it('lifesteal heals from the total dealt across all AoE targets', () => {
     const enemy = [tc('a', [], { maxHp: 100 }), tc('b', [], { maxHp: 100 })];
     // Leeching Fang 160% of 10 = 16 -> AoE 60% = 9 each, 18 total; 45% -> 8.

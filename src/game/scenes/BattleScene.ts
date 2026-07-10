@@ -269,7 +269,7 @@ export class BattleScene extends Phaser.Scene {
         const kindIcon = skill?.element ? ` ${ELEMENT_ICON[skill.element]}` : skill?.weapon ? ` ${WEAPON_ICON[skill.weapon]}` : '';
         const ench = e.enchant ? enchantBook[e.enchant] : undefined;
         const enchTag = ench ? ` ${ench.icon}${ench.name}` : '';
-        this.log(`  ${this.tagOf(e.side, e.unit)} cast ${skill?.name ?? e.skillId}${kindIcon}${enchTag}${e.span > 1 ? ` (spans ${e.span})` : ''}`);
+        this.log(`  ${this.tagOf(e.side, e.unit)} cast ${skill?.name ?? e.skillId}${kindIcon}${enchTag}${e.chased ? ' ⚡chase' : ''}${e.span > 1 ? ` (spans ${e.span})` : ''}`);
         const card = view?.cards.get(e.slot);
         if (card && !instant) {
           card.setHighlight(true, 0xffe27a);

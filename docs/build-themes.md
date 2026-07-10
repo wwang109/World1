@@ -251,6 +251,26 @@ and push `suddenDeathRound` later — both already config knobs on
 `simulate()` — so late fights breathe instead of ending in one alpha
 strike.
 
+## Enchantments — free-flow mechanics, not themed families
+
+Design principle (Yi Xian comparison, resolved): mechanics ship as
+ENCHANTMENTS any placed card can carry — never as sect/theme-locked card
+families. Themes emerge from what players compose, not from what the
+catalog prescribes. The marks so far:
+
+- 🌀 **Storm** — AoE: damage hits every foe at 60%.
+- 🎯 **Assassin** — hit the lowest-aggro foe.
+- ⚰ **Executioner** — hit the weakest foe.
+- 🏃 **Chase** — after this card resolves, immediately perform your next
+  card; this card's damage is 40% weaker. Tempo bought with power — a
+  chase-marked opener turns any rotation into a Yi Xian-style flurry, and
+  the follow-up arrives with momentum already flowing.
+
+Every mark is a SIDEGRADE (it trades, never adds raw power), swappable
+per-piece between fights on the Cards page. Future candidates in the same
+mold: charge/spend stacks, cycle timing (every 2nd loop), exhaust
+(N casts per battle), HP-cost casting.
+
 ## General placement rules
 
 - **Combo routing:** Follow-Through checks the PREVIOUS cast's archetype —

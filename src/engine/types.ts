@@ -75,6 +75,10 @@ export interface EnchantDef {
   targeting: TargetMode;
   /** For 'all': each target takes this % of the rolled damage. */
   aoeDamagePct?: number;
+  /** This card's damage strikes are scaled to this % (behavioral trade-offs). */
+  powerPct?: number;
+  /** After this card resolves, immediately perform the next card (once — a chased cast cannot chase). */
+  chase?: boolean;
   text: string;
 }
 

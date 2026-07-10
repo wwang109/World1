@@ -22,6 +22,15 @@ export const enchantBook: EnchantBook = {
     targeting: 'lowAggro',
     text: 'Hostile effects hit the LOWEST-aggro enemy — snipe whoever hides behind the tank.',
   },
+  chase_mark: {
+    id: 'chase_mark',
+    name: 'Chase Mark',
+    icon: '🏃',
+    targeting: 'aggro',
+    powerPct: 60,
+    chase: true,
+    text: "Chase: after this card resolves, immediately perform your next card — but this card's damage is 40% weaker. Tempo bought with power.",
+  },
   executioner_mark: {
     id: 'executioner_mark',
     name: "Executioner's Mark",
