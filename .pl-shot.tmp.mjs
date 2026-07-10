@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const errors = [];
+page.on('pageerror', (e) => errors.push(String(e)));
+await page.goto('http://localhost:5199/', { waitUntil: 'networkidle' });
+await page.waitForTimeout(2000);
+await page.screenshot({ path: '/tmp/claude-0/-home-user-World1/79927270-1302-5615-a069-3ea2c5a567fa/scratchpad/prep-pl.png', clip: { x: 0, y: 300, width: 1280, height: 180 } });
+console.log('errors:', errors.length ? errors : 'none');
+await browser.close();

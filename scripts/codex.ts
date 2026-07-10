@@ -87,7 +87,9 @@ const bestiaryRows = Object.values(enemies)
     const st = e.stats;
     const badge = e.isBoss ? '<span class="badge boss">BOSS</span>' : e.isElite ? '<span class="badge elite">ELITE</span>' : '';
     const kit = e.pieces.map((pc) => esc(skillBook[pc.skillId]?.name ?? pc.skillId)).join(' · ');
+    const boardPlSum = e.pieces.reduce((n, pc) => n + powerLevel(skillBook[pc.skillId]!), 0);
     const statBits = [
+      `BOARD PL ${boardPlSum.toFixed(1)}`,
       `HP ${st.maxHp}`, `ATK ${st.attack}`, `MPW ${st.magicPower}`, `ARM ${st.armor}`, `RES ${st.magicResist}`, `SPD ${st.speed}`,
       ...(st.resolve ? [`RESOLVE ${st.resolve}`] : []),
     ].join(' · ');

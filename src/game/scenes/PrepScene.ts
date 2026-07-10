@@ -25,6 +25,7 @@ export class PrepScene extends Phaser.Scene {
   private enemyPreview: Phaser.GameObjects.GameObject[] = [];
   private tooltip!: Phaser.GameObjects.Container;
   private tooltipText!: Phaser.GameObjects.Text;
+  private boardPlText!: Phaser.GameObjects.Text;
   private dragGhost: CardView | null = null;
   private dragSource: { fromBoard: boolean; piece?: BoardPiece; skillId: string } | null = null;
 
@@ -59,6 +60,20 @@ export class PrepScene extends Phaser.Scene {
         color: UI.textDim,
         fontFamily: 'monospace',
       });
+    this.boardPlText = this.add
+      .text(BOARD_X + HERO_BOARD_SLOTS * SLOT_W, BOARD_Y - CARD_H / 2 - 22, '', {
+        fontSize: '12px',
+        color: '#ffd76a',
+        fontFamily: 'monospace',
+      })
+      .setOrigin(1, 0);
+    this.refreshBoardPl();
+  }
+
+  /** Total Power Level fielded — the benchmark number for the board. */
+  private refreshBoardPl(): void {
+    const pl = demoState.pieces.reduce((n, p) => n + powerLevel(fullBook[p.skillId]!), 0);
+    this.boardPlText?.setText(`total PL ${pl.toFixed(1)}`);
   }
 
   // ---------- board ----------
@@ -94,6 +109,7 @@ export class PrepScene extends Phaser.Scene {
       card.on('dragend', () => this.endDrag());
       this.boardCards.push(card);
     }
+    this.refreshBoardPl();
   }
 
   // ---------- pool ----------
@@ -236,7 +252,7 @@ export class PrepScene extends Phaser.Scene {
     const statText = this.add.text(
       24,
       132,
-      `${def.name} — HP ${s.maxHp} · ATK ${s.attack} · MPW ${s.magicPower} · ARM ${s.armor} · RES ${s.magicResist} · SPD ${s.speed} · CRIT ${s.critPct}%`,
+      `${def.name} — HP ${s.maxHp} · ATK ${s.attack} · MPW ${s.magicPower} · ARM ${s.armor} · RES ${s.magicResist} · SPD ${s.speed} · CRIT ${s.critPct}% · board PL ${def.pieces.reduce((n, p) => n + powerLevel(fullBook[p.skillId]!), 0).toFixed(1)}`,
       { fontSize: '13px', color: UI.text, fontFamily: 'monospace' },
     );
     this.enemyPreview.push(statText);
@@ -292,7 +308,7 @@ export class PrepScene extends Phaser.Scene {
         this.add.text(
           24,
           152 + i * 17,
-          `${i + 1}. ${def.name.padEnd(16)} HP ${String(s.maxHp).padStart(3)} · ATK ${s.attack} · MPW ${s.magicPower} · ARM ${s.armor} · RES ${s.magicResist} · SPD ${s.speed} ${aff}`,
+          `${i + 1}. ${def.name.padEnd(16)} HP ${String(s.maxHp).padStart(3)} · ATK ${s.attack} · MPW ${s.magicPower} · ARM ${s.armor} · RES ${s.magicResist} · SPD ${s.speed} · PL ${def.pieces.reduce((n, p) => n + powerLevel(fullBook[p.skillId]!), 0).toFixed(1)} ${aff}`,
           { fontSize: '12px', color: UI.text, fontFamily: 'monospace' },
         ),
       );
