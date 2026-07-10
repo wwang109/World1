@@ -311,3 +311,28 @@ must-cast cards (Rending Claws, Fireball) are the juiciest marks.
   natural home for a sixth "party" archetype.
 - **Meta skills tree loadouts** (deferred phase) → theme-boosting perks
   (e.g. Legacy's affinity picks locking in matchup advantage per run).
+
+## Complexity budget — keep the floor low
+
+Design law (2026-07): the game must stay ONE sentence to learn — "put cards
+in a row; they cast left to right; lighter cards act sooner." Everything
+else is optional depth. Rules that protect this:
+
+1. **Depth is invisible; the floor is visible.** Staleness, momentum, the
+   crit meter, resolve, aggro, PL budgets — none of these require player
+   knowledge to play well enough. They reward natural play (variety, tanks
+   up front) without being readable prerequisites. Keep it that way: a new
+   mechanic that a beginner MUST understand to win fight one is rejected.
+2. **The card is the only required reading.** Every card self-describes in
+   one sentence on its face. If a card needs a glossary, rewrite the card.
+3. **Verb freeze.** The action DSL (~20 verbs) is enough for years of
+   content — new cards RECOMBINE existing verbs; adding a verb needs a
+   reason recombination can't serve. Enchant marks cap at a handful.
+4. **Progressive disclosure via the tier cadence.** Bronze cards early in a
+   run use core verbs (damage/heal/shield/poison); richer verbs arrive on
+   upgrades and later drops — the ability-every-2nd-tier cadence IS the
+   tutorial pacing.
+5. **Show, don't formula.** The battle banner's raw math (bank+speed−weight)
+   is developer UI. Player-facing: a "next to act" indicator, with the math
+   in a tooltip for the curious. Stats on the card face cap at the few that
+   matter for placement; the rest lives in an inspect panel.
