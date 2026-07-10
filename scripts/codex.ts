@@ -4,6 +4,8 @@
 import { writeFileSync } from 'node:fs';
 import { skillBook } from '../src/data/skills';
 import { enchantBook } from '../src/data/enchants';
+import { enemies } from '../src/data/enemies';
+import { elementMatchup, weaponMatchup } from '../src/engine/elements';
 import { cardAtTier } from '../src/data/library';
 import { powerLevel } from '../src/engine/balance';
 import { weightOf, type EnchantDef, type SkillDef, type SkillTier } from '../src/engine/types';
@@ -62,6 +64,45 @@ function enchantType(e: EnchantDef): { type: string; chips: string[] } {
   if (e.uses !== undefined) chips.push(`${e.uses} cast${e.uses > 1 ? 's' : ''}/battle`);
   return { type, chips };
 }
+
+const ELEMENTS = ['fire', 'frost', 'lightning', 'nature', 'holy', 'dark'] as const;
+const WEAPONS = ['sword', 'axe', 'lance', 'bow', 'beast'] as const;
+
+/** Bestiary rows: natures + COMPUTED weaknesses/resists from the matchup fns. */
+const bestiaryRows = Object.values(enemies)
+  .map((e) => {
+    const natures: string[] = [];
+    if (e.elementAffinity) natures.push(`${ELEM_ICON[e.elementAffinity]} ${e.elementAffinity}`);
+    if (e.weaponAffinity) natures.push(`${WEAP_ICON[e.weaponAffinity]} ${e.weaponAffinity}`);
+    const weak: string[] = [];
+    const resist: string[] = [];
+    for (const el of ELEMENTS) {
+      if (elementMatchup(el, e.elementAffinity) === 'advantage') weak.push(`${ELEM_ICON[el]} ${el}`);
+      if (elementMatchup(el, e.elementAffinity) === 'disadvantage') resist.push(`${ELEM_ICON[el]} ${el}`);
+    }
+    for (const w of WEAPONS) {
+      if (weaponMatchup(w, e.weaponAffinity) === 'advantage') weak.push(`${WEAP_ICON[w]} ${w}`);
+      if (weaponMatchup(w, e.weaponAffinity) === 'disadvantage') resist.push(`${WEAP_ICON[w]} ${w}`);
+    }
+    const st = e.stats;
+    const badge = e.isBoss ? '<span class="badge boss">BOSS</span>' : e.isElite ? '<span class="badge elite">ELITE</span>' : '';
+    const kit = e.pieces.map((pc) => esc(skillBook[pc.skillId]?.name ?? pc.skillId)).join(' · ');
+    const statBits = [
+      `HP ${st.maxHp}`, `ATK ${st.attack}`, `MPW ${st.magicPower}`, `ARM ${st.armor}`, `RES ${st.magicResist}`, `SPD ${st.speed}`,
+      ...(st.resolve ? [`RESOLVE ${st.resolve}`] : []),
+    ].join(' · ');
+    return `<article class="beast">
+      <div class="beast-head"><span class="beast-name">${esc(e.name)}</span>${badge}</div>
+      <div class="beast-grid">
+        <div><div class="blabel">nature</div>${natures.length ? natures.map((n) => `<span class="chip">${n}</span>`).join(' ') : '<span class="chip">none — takes everything neutral</span>'}</div>
+        <div><div class="blabel">weak to (+50%)</div>${weak.length ? weak.map((n) => `<span class="chip weakchip">${n}</span>`).join(' ') : '<span class="chip">nothing</span>'}</div>
+        <div><div class="blabel">resists (−25%)</div>${resist.length ? resist.map((n) => `<span class="chip">${n}</span>`).join(' ') : '<span class="chip">nothing</span>'}</div>
+      </div>
+      <div class="beast-stats">${statBits}</div>
+      <div class="beast-kit">casts: ${kit}</div>
+    </article>`;
+  })
+  .join('\n');
 
 const groups: [string, string, (s: SkillDef) => boolean][] = [
   ['Offense', 'damage first — swords, spells, executions', (s) => s.archetypes[0] === 'offense'],
@@ -168,6 +209,18 @@ header .sub{color:var(--dim);max-width:64ch}
 .mark-chips{display:flex;flex-wrap:wrap;gap:5px;margin:7px 0 5px}
 .chip{font-size:11px;background:var(--panel2);padding:2px 7px;color:var(--ink)}
 .mark p{margin:0;color:var(--dim);font-size:13px}
+.beast{background:var(--panel);border:1px solid var(--line);padding:14px;margin-bottom:10px}
+.beast-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.beast-name{font-weight:700;font-size:15px}
+.badge{font-size:10px;letter-spacing:.14em;padding:2px 7px;border:1px solid}
+.badge.elite{color:var(--gold);border-color:var(--gold)}
+.badge.boss{color:var(--phys);border-color:var(--phys)}
+.beast-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px}
+.blabel{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
+.weakchip{outline:1px solid var(--gold)}
+.beast-stats{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.beast-kit{font-size:12px;color:var(--dim);margin-top:3px}
+@media (max-width:820px){.beast-grid{grid-template-columns:1fr}}
 .note{background:var(--panel);border:1px solid var(--line);padding:18px 20px;margin-top:14px}
 .note h3{margin:0 0 8px;font-size:15px}
 .note p{margin:8px 0;max-width:70ch}
@@ -190,11 +243,17 @@ footer{margin-top:64px;color:var(--dim);font-size:12px;border-top:1px solid var(
     <span class="lg-silver"><b>Silver</b> 15 PL</span>
     <span class="lg-gold"><b>Gold</b> 20 PL</span>
     <span class="lg-diamond"><b>Diamond</b> 25 PL</span>
-    <span>${all.length} cards · ${Object.keys(enchantBook).length} enchant marks · deterministic combat, no dice</span>
+    <span>${all.length} cards · ${Object.keys(enemies).length} creatures · ${Object.keys(enchantBook).length} enchant marks · deterministic combat, no dice</span>
   </div>
 </header>
 
 ${sections}
+
+<section>
+  <div class="eyebrow">Bestiary — the nature chart <span class="count">${Object.keys(enemies).length}</span></div>
+  <p class="section-sub">plan your deck against the creature's nature: weaknesses computed from the live matchup rules. Nature never limits what a creature casts — it is what YOUR card types exploit.</p>
+  ${bestiaryRows}
+</section>
 
 <section>
   <div class="eyebrow">Enchant marks <span class="count">${Object.keys(enchantBook).length}</span></div>
