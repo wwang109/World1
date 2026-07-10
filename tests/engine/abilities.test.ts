@@ -129,7 +129,7 @@ describe('ability catalog wave 2', () => {
   });
 
   it('regen heals a flat tick at the start of each global turn', () => {
-    // Spores: heal 140% of 10 = 14 up front, then 5/turn for 3 turns. The
+    // Spores: heal 120% of 10 = 12 up front, then 5/turn for 3 turns. The
     // size-3 barrier keeps the hero busy so spores isn't simply recast.
     const c = cfg(
       tc('hero', ['soothing_spores', 'prism_barrier'], { magicPower: 10, speed: 20, maxHp: 100, hp: 50 }),
@@ -138,7 +138,7 @@ describe('ability catalog wave 2', () => {
     );
     const { events } = simulate(c, 1);
     const heals = events.filter((e) => e.kind === 'heal' && e.side === 'player') as Extract<Events[number], { kind: 'heal' }>[];
-    expect(heals[0]).toMatchObject({ amount: 14, flat: false });
+    expect(heals[0]).toMatchObject({ amount: 12, flat: false });
     expect(heals.slice(1, 4).map((e) => ({ amount: e.amount, flat: e.flat }))).toEqual([
       { amount: 5, flat: true },
       { amount: 5, flat: true },

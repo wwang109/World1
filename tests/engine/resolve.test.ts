@@ -58,8 +58,8 @@ describe('resolve — the effect resistance/potency check', () => {
   });
 
   it('Iron Will grants temporary resolve that gates enemy debuffs', () => {
-    // Hero wills up (+40 resolve, 2 turns); the foe's Crippling Strike debuff
-    // (-25% attack) lands at floor(25 * 0.6) = 15%.
+    // Hero wills up (+32 resolve, 2 turns); the foe's Crippling Strike debuff
+    // (-20% attack) lands at floor(20 * 0.68) = 13%.
     const c = cfg(
       tc('hero', ['iron_will'], { attack: 10, speed: 20, maxHp: 500 }),
       tc('foe', ['crippling_strike'], { attack: 10, speed: 30, maxHp: 500 }),
@@ -68,6 +68,6 @@ describe('resolve — the effect resistance/potency check', () => {
     const { events, finalState } = simulate(c, 1);
     expect(events.some((e) => e.kind === 'statusApplied' && e.side === 'player' && e.status === 'buff')).toBe(true);
     const debuff = finalState.player[0]!.statuses.find((s) => s.kind === 'debuff');
-    expect(debuff?.pct).toBe(15);
+    expect(debuff?.pct).toBe(13);
   });
 });

@@ -92,10 +92,10 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'fire',
     effects: [
-      { kind: 'damage', power: 240 },
+      { kind: 'damage', power: 220 },
       { kind: 'burn', amount: 5, turns: 3 },
     ],
-    text: 'Deal 240% Magic Power magical damage and burn for 5 for 3 turns.',
+    text: 'Deal 220% Magic Power magical damage and burn for 5 for 3 turns.',
   },
   {
     id: 'soul_rend',
@@ -122,9 +122,9 @@ const defs: SkillDef[] = [
     weapon: 'lance',
     effects: [
       { kind: 'damage', power: 200 },
-      { kind: 'debuffStat', stat: 'attack', pct: 25, turns: 2 },
+      { kind: 'debuffStat', stat: 'attack', pct: 20, turns: 2 },
     ],
-    text: "Deal 200% Attack physical damage and reduce the enemy's Attack by 25% for 2 turns.",
+    text: "Deal 200% Attack physical damage and reduce the enemy's Attack by 20% for 2 turns.",
   },
   {
     id: 'venom_fang',
@@ -137,10 +137,10 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     weapon: 'beast',
     effects: [
-      { kind: 'damage', power: 160 },
+      { kind: 'damage', power: 140 },
       { kind: 'poison', amount: 5, turns: 3 },
     ],
-    text: 'Deal 160% Attack physical damage and poison for 5 for 3 turns (poison bypasses shields).',
+    text: 'Deal 140% Attack physical damage and poison for 5 for 3 turns (poison bypasses shields).',
   },
 
   // ---- Defensive (typed shields) ----
@@ -251,8 +251,8 @@ const defs: SkillDef[] = [
     size: 1,
     rarity: 'rare',
     tier: 'bronze',
-    effects: [{ kind: 'buffStat', stat: 'attack', pct: 50, turns: 2 }],
-    text: 'Gain +50% Attack for 2 turns.',
+    effects: [{ kind: 'buffStat', stat: 'attack', pct: 40, turns: 2 }],
+    text: 'Gain +40% Attack for 2 turns.',
   },
 
   // ---- Special-ability showcase (combined archetypes, priced riders) ----
@@ -417,10 +417,10 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'nature',
     effects: [
-      { kind: 'heal', power: 140 },
+      { kind: 'heal', power: 120 },
       { kind: 'regen', amount: 5, turns: 3 },
     ],
-    text: 'Restore 140% Magic Power health, then regenerate 5 HP at the start of each turn for 3 turns.',
+    text: 'Restore 120% Magic Power health, then regenerate 5 HP at the start of each turn for 3 turns.',
   },
 
   // ---- Resolve (effect resistance / potency) ----
@@ -432,8 +432,8 @@ const defs: SkillDef[] = [
     size: 1,
     rarity: 'rare',
     tier: 'bronze',
-    effects: [{ kind: 'buffStat', stat: 'resolve', pct: 40, turns: 2 }],
-    text: 'Gain +40 Resolve for 2 turns — hostile poisons, burns, debuffs, slows and staggers land 40% weaker on you.',
+    effects: [{ kind: 'buffStat', stat: 'resolve', pct: 32, turns: 2 }],
+    text: 'Gain +32 Resolve for 2 turns — hostile poisons, burns, debuffs, slows and staggers land 32% weaker on you.',
   },
   {
     id: 'expose_weakness',
@@ -443,8 +443,8 @@ const defs: SkillDef[] = [
     size: 1,
     rarity: 'rare',
     tier: 'bronze',
-    effects: [{ kind: 'debuffStat', stat: 'resolve', pct: 25, turns: 3 }],
-    text: "Reduce the enemy's Resolve by 25 for 3 turns — your lingering effects on them land 25% STRONGER.",
+    effects: [{ kind: 'debuffStat', stat: 'resolve', pct: 20, turns: 3 }],
+    text: "Reduce the enemy's Resolve by 20 for 3 turns — your lingering effects on them land 20% STRONGER.",
   },
 
   // ---- Debuff ----
@@ -458,8 +458,8 @@ const defs: SkillDef[] = [
     rarity: 'rare',
     tier: 'bronze',
     element: 'dark',
-    effects: [{ kind: 'debuffStat', stat: 'magicResist', pct: 35, turns: 3 }],
-    text: "Reduce the enemy's Magic Resist by 35% for 3 turns.",
+    effects: [{ kind: 'debuffStat', stat: 'magicResist', pct: 30, turns: 3 }],
+    text: "Reduce the enemy's Magic Resist by 30% for 3 turns.",
   },
   {
     id: 'armor_break',
@@ -469,8 +469,8 @@ const defs: SkillDef[] = [
     size: 1,
     rarity: 'rare',
     tier: 'bronze',
-    effects: [{ kind: 'debuffStat', stat: 'armor', pct: 50, turns: 2 }],
-    text: "Reduce the enemy's Armor by 50% for 2 turns.",
+    effects: [{ kind: 'debuffStat', stat: 'armor', pct: 40, turns: 2 }],
+    text: "Reduce the enemy's Armor by 40% for 2 turns.",
   },
   {
     id: 'slow_hex',
@@ -482,10 +482,10 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'frost',
     effects: [
-      { kind: 'damage', power: 80 },
+      { kind: 'damage', power: 50 },
       { kind: 'debuffStat', stat: 'speed', pct: 30, turns: 2 },
     ],
-    text: "Deal 80% Magic Power magical damage and reduce the enemy's Speed by 30% for 2 turns.",
+    text: "Deal 50% Magic Power magical damage and reduce the enemy's Speed by 30% for 2 turns.",
   },
   {
     id: 'stunning_smash',

@@ -300,9 +300,9 @@ describe('buffs, debuffs and cleanse', () => {
       { ...NO_ENDGAME, maxTurns: 4 },
     );
     const { events } = simulate(c, 1);
-    // Bruiser hits while -25% attack: 200% of floor(10*0.75)=7 -> 14 (0 armor).
+    // Bruiser hits while -20% attack: 200% of floor(10*0.8)=8 -> 16 (0 armor).
     const hit = events.find((e) => e.kind === 'damage' && e.side === 'player');
-    expect(hit).toMatchObject({ amount: 14 });
+    expect(hit).toMatchObject({ amount: 16 });
   });
 
   it('cleanse removes dots and debuffs from the caster', () => {

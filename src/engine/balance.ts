@@ -10,9 +10,11 @@
 // - scaling magnitude (damage/heal/shield %): power / 2      (20% = 1 PL)
 // - flat TRUE magnitude:                       amount * 2    (5 flat = 1 PL)
 // - TRUE property premium (casting cards):     +20           (+2 PL)
-// - poison/burn:                    (amount * turns) * 2     (5 total = 1 PL)
+// UTILITY PREMIUM: lingering effects price 25% above magnitude parity —
+// sims showed effect kits outperform raw damage at equal PL:
+// - poison/burn/regen:            (amount * turns) * 5/2     (4 total = 1 PL)
 // - stun:                                      40 / turn     (4 PL)
-// - buff/debuff:                    pct * turns               (10%-turn = 1 PL)
+// - buff/debuff:                  (pct * turns) * 5/4        (8%-turn = 1 PL)
 // - cleanse:                                   80            (8 PL)
 // - weight: (baseline − weight) * 5 — every 2 lighter costs 1 PL, every 2
 //   heavier REFUNDS 1 PL (more weight = slower attacks), baseline = size × 10
@@ -58,14 +60,14 @@ export function powerLevelDeci(skill: SkillDef): number {
         break;
       case 'poison':
       case 'burn':
-        deci += action.amount * action.turns * 2;
+        deci += Math.floor((action.amount * action.turns * 5) / 2);
         break;
       case 'stun':
         deci += action.turns * 40;
         break;
       case 'buffStat':
       case 'debuffStat':
-        deci += action.pct * action.turns;
+        deci += Math.floor((action.pct * action.turns * 5) / 4);
         break;
       case 'cleanse':
         deci += 80;
@@ -104,7 +106,7 @@ export function powerLevelDeci(skill: SkillDef): number {
         deci += 60; // narrower than cleanse's four status families
         break;
       case 'regen':
-        deci += action.amount * action.turns * 2; // HoT mirror of poison/burn
+        deci += Math.floor((action.amount * action.turns * 5) / 2); // HoT mirror of poison/burn
         break;
     }
   }
