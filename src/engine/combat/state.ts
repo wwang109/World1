@@ -51,6 +51,11 @@ export interface CombatantState {
   performs: number;
   /** Accumulated sudden-death damage amp (%). */
   sdStacks: number;
+  /**
+   * Deterministic crit meter: each strike banks its crit chance; at 100 the
+   * strike crits and spends 100 (50% crit = exactly every 2nd strike).
+   */
+  critBank: number;
   /** Extra weight on this side's next action (from enemy Slow Next riders). */
   nextWeightPenalty: number;
   /** Weight shaved off this side's next action (from own Quicken riders). */
@@ -106,6 +111,7 @@ function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBoo
     busyTurns: 0,
     performs: 0,
     sdStacks: 0,
+    critBank: 0,
     nextWeightPenalty: 0,
     nextWeightBonus: 0,
     aggro: setup.aggro ?? 0,

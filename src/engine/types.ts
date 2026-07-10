@@ -4,7 +4,10 @@
 // - Simulation state holds integers only. No floats persist between turns;
 //   percentage math is computed transiently and floored immediately.
 // - Never iterate Map/Set where order can vary — iterate arrays by index.
-// - No Date.now()/Math.random(). All randomness flows through Rng, and RNG
+// - No Date.now()/Math.random(). COMBAT ITSELF IS RNG-FREE: crits use a
+//   deterministic bank (chance accrues per strike, crits at 100), so one
+//   setup has exactly one outcome. The seeded Rng is reserved for systems
+//   outside the fight (drops, map generation, future specials); any such
 //   calls must happen in a fixed order regardless of rendering.
 
 export type Side = 'player' | 'enemy';

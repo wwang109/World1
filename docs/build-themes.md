@@ -146,19 +146,21 @@ uptime.
 - Leeching Fang turns your filler attack into another heal.
 - Purify clears stuns/poisons but KEEPS your thorns and regen.
 
-**Sim results** (20 seeds per enemy, base hero stats unless noted):
+**Sim results** (combat is deterministic — metered crits, one outcome per
+matchup; run these yourself with `npm run battle -- --hero ... --enemy all`):
 
 | Version | Rat | Beetle | Imp | Bandit (elite) | Wolf King (boss) |
 |---|---|---|---|---|---|
-| Pure sustain, no offense | 0/20 | 20/20 | 0/20 | 0/20 | 0/20 |
-| + venom/leech clock (Bronze) | 18/20 | 20/20 | 19/20 | 0/20 | 0/20 |
-| Silver core (coat/spores/mending/fangs) | 20/20 | 20/20 | 20/20 | 12/20 | 15/20 |
+| Pure sustain, no offense | L | W | L | L | L |
+| + venom/leech clock (Bronze) | W | W | W | L | L |
+| Silver core (coat/spores/mending/fangs) | W (42 hp) | W (150 hp) | W (103 hp) | W (17 hp) | W (0 hp — tie, player wins) |
 
 The first row is the design lesson: **sudden death exists to kill turtles**
 — with zero offense the enemy's +30%/turn ramp always outgrows heal
 throughput, and thorns alone (25% of incoming) can't race it. A heal-tank
 NEEDS a clock; poison is the right one because it loves exactly the long
-fights this build creates.
+fights this build creates. The Silver Wolf King win is a literal
+simultaneous wipe decided by the player-wins-ties rule — zero margin.
 
 **Tier priority:** Venom Fang first (the clock decides elite/boss fights),
 then Bramble Coat. Note the generated Coat tiers grow the SHIELD knob —
@@ -180,19 +182,19 @@ fight.
 Thorns instances DO stack (the reflect sums every active instance), but
 each expires after its `turns`, so under current rules the stack plateaus.
 Sim: triple-Bramble-Coat spam board vs never-expiring thorns (same card,
-999-turn duration), 20 seeds per preset, base Bronze stats:
+999-turn duration), base Bronze stats:
 
 | Rules | Peak stacks | Rat | Beetle | Imp | Bandit | Wolf King |
 |---|---|---|---|---|---|---|
-| Current (3-turn instances) | 2–3 (50–75%) | 0/20 | 20/20 | 15/20 | 0/20 | 0/20 |
-| Never-expiring (purge = only counter) | 4–13 (100–325%) | 20/20 | 20/20 | 20/20 | 20/20 | 19/20 |
+| Current (3-turn instances) | 2–3 (50–75%) | L | W | W | L | L |
+| Never-expiring (purge = only counter) | 4–13 (100–325%) | W | W | W | W | W |
 
 Permanent stacking is spectacular — past ~4 stacks (100%) the enemy kills
 itself, and sudden death's +30%/turn enemy ramp flips into the TURTLE'S
 win condition (bigger hits = bigger reflects). That inversion is elegant,
-but as a spammable Bronze mechanic it's degenerate: 99/100 wins including
-elite and boss with zero offense, zero tier investment, and no enemy in
-the roster carries purge to answer it.
+but as a spammable Bronze mechanic it's degenerate: a clean sweep of every
+preset including elite and boss with zero offense, zero tier investment,
+and no enemy in the roster carries purge to answer it.
 
 Recommendation: keep baseline thorns timed, and ship permanence as SCARCE:
 - a Diamond/legendary authored card ("Living Armor" — thorns you apply

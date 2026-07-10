@@ -135,8 +135,13 @@ function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number
   const property = skill.property;
   let base = Math.floor((scaleStat(caster, property) * power) / 100);
   base = Math.floor((base * (100 + mods.damagePct + cast.bonusPct)) / 100);
+  // Deterministic crits — combat has NO randomness: each strike banks its
+  // crit chance; at 100 the strike crits and spends the bank, so 50% crit
+  // means exactly every 2nd strike. Clamped so >100% chance stays "always".
   const critChance = Math.max(0, effStat(caster, 'critPct') + mods.critPctDelta);
-  const crit = ctx.rng.pct(Math.min(100, critChance));
+  caster.critBank += critChance;
+  const crit = caster.critBank >= 100;
+  if (crit) caster.critBank = Math.min(caster.critBank - 100, 100);
   let amount = Math.max(1, base - mitigation(enemy, property));
   if (crit) amount = Math.floor((amount * 150) / 100);
   const matchup = cardMatchup(skill, enemy);

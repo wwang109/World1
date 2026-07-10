@@ -1,15 +1,17 @@
-// Battle tester — run any board vs any enemy party and get the log or a sweep.
+// Battle tester — run any board vs any enemy party and get the combat log.
+// Combat is fully deterministic (metered crits, no RNG): one setup = one
+// outcome, so there are no seeds to sweep — use --enemy all for a matchup
+// table across every preset instead.
 //
-//   npm run battle -- --hero "war_banner,sword_slash,crippling_strike" --enemy bandit_duelist --seed 7
+//   npm run battle -- --hero "war_banner,sword_slash,crippling_strike" --enemy bandit_duelist
 //   npm run battle -- --hero "bramble_coat@silver,venom_fang+assassin_mark" --enemy giant_rat,wolf_king
-//   npm run battle -- --hero "..." --enemy wolf_king --runs 50        (win-rate sweep, no log)
+//   npm run battle -- --hero "..." --enemy all                          (matchup table, no log)
 //   npm run battle -- --hero "..." --mpw 20 --hp 200 --enemy ember_imp  (stat overrides)
 //
 // Card token: id[@tier][+enchant][:slot] — slots auto-pack left→right when
 // omitted. Tiers use generated variants (silver/gold/diamond); enchants are
 // storm_mark / assassin_mark / executioner_mark.
 import { simulate } from '../src/engine/combat/simulate';
-import { hashSeed } from '../src/engine/rng';
 import { powerLevel } from '../src/engine/balance';
 import { variantId } from '../src/engine/tierUp';
 import type { BoardPiece, CombatantStats, SkillTier } from '../src/engine/types';
@@ -29,8 +31,8 @@ function flag(name: string): string | undefined {
 const DEFAULT_HERO = 'war_banner,sword_slash,crippling_strike,iron_bulwark:5,second_wind:7';
 const heroSpec = flag('hero') ?? DEFAULT_HERO;
 const enemySpec = flag('enemy') ?? 'bandit_duelist';
-const runs = Number(flag('runs') ?? 1);
-const seed = Number(flag('seed') ?? hashSeed('battle', heroSpec + enemySpec));
+// Combat is RNG-free; the seed exists only for future rng-using specials.
+const SEED = 1;
 
 function die(msg: string): never {
   console.error(`error: ${msg}`);
@@ -81,13 +83,14 @@ for (const [key, stat] of [
 }
 heroStats.hp = heroStats.maxHp;
 
-const enemyDefs = enemySpec.split(',').map((id) => {
+const matchupMode = enemySpec.trim() === 'all';
+const enemyDefs = (matchupMode ? Object.keys(enemies).join(',') : enemySpec).split(',').map((id) => {
   const def = enemies[id.trim()];
   if (!def) die(`unknown enemy '${id}'. Options: ${Object.keys(enemies).join(', ')}`);
   return def;
 });
 
-const cfg = (s: number) => ({
+const cfg = (_s: number) => ({
   player: { name: 'Hero', stats: { ...heroStats, hp: heroStats.maxHp }, boardSize: HERO_BOARD_SLOTS, pieces: heroPieces.map((p) => ({ ...p })) },
   enemy: enemyDefs.map((def) => ({
     name: def.name,
@@ -108,40 +111,44 @@ console.log(`HERO  ${heroPieces.map((p) => `[${p.slot}]${p.skillId}${p.enchant ?
 console.log(
   `      board PL ${boardPl.toFixed(1)} · HP ${heroStats.maxHp} ATK ${heroStats.attack} MPW ${heroStats.magicPower} ARM ${heroStats.armor} RES ${heroStats.magicResist} SPD ${heroStats.speed} CRIT ${heroStats.critPct}%`,
 );
-console.log(`ENEMY ${enemyDefs.map((d, i) => `[${i}]${d.name}`).join(' ')}\n`);
+console.log(matchupMode ? 'ENEMY every preset, one duel each\n' : `ENEMY ${enemyDefs.map((d, i) => `[${i}]${d.name}`).join(' ')}\n`);
 
-// ---------- sweep mode ----------
+// ---------- matchup-table mode (--enemy all) ----------
 
-if (runs > 1) {
-  let w = 0, l = 0, d = 0, turns = 0, heroHpLeft = 0;
-  const dealtBySource: Record<string, number> = {};
-  for (let s = 1; s <= runs; s++) {
-    const r = simulate(cfg(s), s);
-    if (r.result === 'win') { w++; heroHpLeft += r.finalState.player[0]!.stats.hp; }
-    else if (r.result === 'loss') l++;
-    else d++;
-    turns += r.turns;
+if (matchupMode) {
+  for (const def of Object.values(enemies)) {
+    const one = (dd: typeof def) => ({
+      name: dd.name,
+      stats: { ...dd.stats },
+      boardSize: dd.boardSize,
+      pieces: dd.pieces.map((p) => ({ ...p })),
+      elementAffinity: dd.elementAffinity,
+      weaponAffinity: dd.weaponAffinity,
+    });
+    const r = simulate(
+      { player: { name: 'Hero', stats: { ...heroStats, hp: heroStats.maxHp }, boardSize: HERO_BOARD_SLOTS, pieces: heroPieces.map((p) => ({ ...p })) }, enemy: one(def), skillBook: fullBook, enchantBook },
+      SEED,
+    );
+    const dealt: Record<string, number> = {};
     for (const e of r.events) {
-      if (e.kind === 'damage' && e.side === 'enemy') {
-        dealtBySource[e.source] = (dealtBySource[e.source] ?? 0) + (e.amount - e.blocked);
-      }
+      if (e.kind === 'damage' && e.side === 'enemy') dealt[e.source] = (dealt[e.source] ?? 0) + (e.amount - e.blocked);
     }
-  }
-  console.log(`${runs} runs (seeds 1..${runs}):  W${w} L${l} D${d}  (${((100 * w) / runs).toFixed(0)}% win)  avg turns ${(turns / runs).toFixed(1)}`);
-  if (w > 0) console.log(`avg hero HP on win: ${(heroHpLeft / w).toFixed(0)}/${heroStats.maxHp}`);
-  const total = Object.values(dealtBySource).reduce((a, b) => a + b, 0) || 1;
-  console.log(
-    `damage to enemy by source: ${Object.entries(dealtBySource)
+    const total = Object.values(dealt).reduce((a, b) => a + b, 0) || 1;
+    const bySource = Object.entries(dealt)
       .sort((a, b) => b[1] - a[1])
       .map(([k, v]) => `${k} ${((100 * v) / total).toFixed(0)}%`)
-      .join(' · ')}`,
-  );
+      .join(' ');
+    const hp = r.finalState.player[0]!.stats.hp;
+    console.log(
+      `${def.name.padEnd(16)} ${r.result.toUpperCase().padEnd(5)} in ${String(r.turns).padStart(3)} turns · hero ${String(hp).padStart(3)}/${heroStats.maxHp} hp · dmg: ${bySource}`,
+    );
+  }
   process.exit(0);
 }
 
-// ---------- single-seed log mode ----------
+// ---------- combat-log mode ----------
 
-const { result, turns, events, finalState } = simulate(cfg(seed), seed);
+const { result, turns, events, finalState } = simulate(cfg(SEED), SEED);
 
 const tag = (side: string, unit = 0) => (side === 'player' ? 'Hero' : `${enemyDefs[unit]!.name}[${unit}]`).padEnd(18);
 const fmt = (s: { bank: number; speed: number; weight: number | null; score: number | null; state: string; queuedSkillId: string | null }) =>
@@ -213,4 +220,4 @@ for (const e of events) {
 }
 
 const foeLine = finalState.enemy.map((c, i) => `${enemyDefs[i]!.name}[${i}] ${c.stats.hp}/${c.stats.maxHp}`).join(' | ');
-console.log(`\nfinal: Hero ${finalState.player[0]!.stats.hp}/${finalState.player[0]!.stats.maxHp} hp | ${foeLine} | result=${result} turns=${turns} seed=${seed}`);
+console.log(`\nfinal: Hero ${finalState.player[0]!.stats.hp}/${finalState.player[0]!.stats.maxHp} hp | ${foeLine} | result=${result} turns=${turns}`);

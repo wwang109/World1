@@ -71,7 +71,7 @@ describe('simulate determinism', () => {
     }
   });
 
-  it('different seeds can diverge (crit rolls consume RNG)', () => {
+  it('combat is seed-independent — crits are metered, not rolled', () => {
     const make = (): CombatantSetup => ({
       name: 'x',
       stats: { maxHp: 200, hp: 200, attack: 10, magicPower: 0, armor: 0, magicResist: 0, speed: 10, critPct: 50 },
@@ -83,6 +83,34 @@ describe('simulate determinism', () => {
       const { events } = simulate({ player: make(), enemy: make(), skillBook }, seed);
       logs.add(JSON.stringify(events));
     }
-    expect(logs.size).toBeGreaterThan(1);
+    // One setup, one outcome: every seed produces the identical fight.
+    expect(logs.size).toBe(1);
+  });
+
+  it('crit meter cadence is exact: 50% crit = every 2nd strike, always', () => {
+    const { events } = simulate(
+      {
+        player: {
+          name: 'critter',
+          stats: { maxHp: 500, hp: 500, attack: 10, magicPower: 0, armor: 0, magicResist: 0, speed: 20, critPct: 50 },
+          boardSize: 10,
+          pieces: [{ skillId: 'sword_slash', slot: 0 }],
+        },
+        enemy: {
+          name: 'wall',
+          stats: { maxHp: 500, hp: 500, attack: 0, magicPower: 0, armor: 0, magicResist: 0, speed: 1, critPct: 0 },
+          boardSize: 6,
+          pieces: [],
+        },
+        skillBook,
+        suddenDeathRound: 999,
+        fatigueTurn: 9999,
+        maxTurns: 8,
+      },
+      1,
+    );
+    const crits = events.filter((e) => e.kind === 'damage' && e.side === 'enemy').map((e) => (e as { crit: boolean }).crit);
+    // Bank: 50, 100(crit), 50, 100(crit) ... -> strikes 2, 4, 6 crit.
+    expect(crits).toEqual([false, true, false, true, false, true, false, true].slice(0, crits.length));
   });
 });

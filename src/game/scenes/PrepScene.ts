@@ -381,21 +381,6 @@ export class PrepScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     cards.on('pointerdown', () => this.scene.start('Cards'));
 
-    const seedBtn = this.add
-      .text(1130, 550, `seed ${demoState.seed} ↻`, {
-        fontSize: '13px',
-        color: UI.textDim,
-        backgroundColor: '#24242e',
-        padding: { x: 8, y: 5 },
-        fontFamily: 'monospace',
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-    seedBtn.on('pointerdown', () => {
-      demoState.seed = Math.floor(Math.random() * 1_000_000);
-      seedBtn.setText(`seed ${demoState.seed} ↻`);
-    });
-
     const heroStats = BASE_HERO_STATS;
     this.add.text(
       24,

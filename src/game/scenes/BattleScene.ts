@@ -468,11 +468,9 @@ export class BattleScene extends Phaser.Scene {
       btn.on('pointerdown', cb);
       return btn;
     };
-    mk(500, '↩ back to prep', () => this.scene.start('Prep'));
-    mk(660, '↻ replay', () => this.scene.restart());
-    mk(790, '🎲 new seed', () => {
-      demoState.seed = Math.floor(Math.random() * 1_000_000);
-      this.scene.restart();
-    });
+    // Combat is deterministic (metered crits): same setup, same fight — a
+    // "new seed" button would be a no-op, so there isn't one.
+    mk(540, '↩ back to prep', () => this.scene.start('Prep'));
+    mk(720, '↻ replay', () => this.scene.restart());
   }
 }
