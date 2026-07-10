@@ -135,9 +135,10 @@ function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number
   const property = skill.property;
   let base = Math.floor((scaleStat(caster, property) * power) / 100);
   base = Math.floor((base * (100 + mods.damagePct + cast.bonusPct)) / 100);
-  // Staleness: spamming the same skill decays its damage −20% per
-  // consecutive re-cast, capped at −60%. Variety resets it.
-  const stalePct = 20 * Math.min(caster.staleCasts, 3);
+  // Staleness: spamming the same skill decays its damage −10% per
+  // consecutive re-cast, capped at −30% — spam stays viable, just never
+  // optimal. Variety resets it.
+  const stalePct = 10 * Math.min(caster.staleCasts, 3);
   if (stalePct > 0) base = Math.floor((base * (100 - stalePct)) / 100);
   // Deterministic crits — combat has NO randomness: each strike banks its
   // crit chance; at 100 the strike crits and spends the bank, so 50% crit

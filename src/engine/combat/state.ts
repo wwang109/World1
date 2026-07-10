@@ -71,8 +71,8 @@ export interface CombatantState {
   /** Skill id of the last card cast (staleness tracking). */
   lastCastSkillId: string | null;
   /**
-   * Consecutive re-casts of the same skill: damage decays −20% per stale
-   * cast (capped −60%). Variety resets it — anti-spam pacing.
+   * Consecutive re-casts of the same skill: damage decays −10% per stale
+   * cast (capped −30%). Variety resets it — anti-spam pacing.
    */
   staleCasts: number;
   elementAffinity?: Element;

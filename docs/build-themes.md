@@ -227,12 +227,12 @@ effects show a "RESISTED" line in the log.
 
 ## Staleness — the anti-spam rule
 
-Consecutive casts of the SAME skill decay: −20% damage per re-cast, capped
-at −60%. Casting anything else resets it. A diverse rotation never feels
-this; a one-card spam board decays to 40% output by its fourth cast
-(20 → 16 → 12 → 8). Duplicate-stacking the strongest attack is dead as a
-strategy — boards want variety, which is where the effect cards and combo
-routing live.
+Consecutive casts of the SAME skill decay: −10% damage per re-cast, capped
+at −30%. Casting anything else resets it. A diverse rotation never feels
+this; a one-card spam board settles at 70% output by its fourth cast
+(20 → 18 → 16 → 14). Spamming the strongest attack stays viable — it's
+just never optimal, so varied boards (where the effect cards and combo
+routing live) always out-rate them.
 
 Pacing levers for higher-level fights (design intent: longer, not
 burstier): staleness kills same-attack spam; the utility premium keeps

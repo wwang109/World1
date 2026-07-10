@@ -52,7 +52,7 @@ describe('ability catalog wave 2', () => {
 
   it('thorns reflects a cut of skill hits as TRUE damage to the attacker', () => {
     // Turn 1 foe slashes (no thorns yet), turn 2 hero coats, turn 3 the foe's
-    // second consecutive slash (stale −20%: 20 -> 16) pays 25% -> 4 TRUE back.
+    // second consecutive slash (stale −10%: 20 -> 18) pays 25% -> 4 TRUE back.
     const c = cfg(
       tc('hero', ['bramble_coat'], { magicPower: 10, speed: 12, maxHp: 500 }),
       tc('foe', ['sword_slash'], { attack: 10, speed: 14, maxHp: 500 }),
@@ -63,8 +63,8 @@ describe('ability catalog wave 2', () => {
     expect(reflected).toMatchObject({ side: 'enemy', amount: 4, property: 'true' });
   });
 
-  it('staleness: spamming one skill decays −20% per re-cast (cap −60%), variety resets', () => {
-    // A one-card board recasting Sword Slash into a wall: 20, 16, 12, 8, 8…
+  it('staleness: spamming one skill decays −10% per re-cast (cap −30%), variety resets', () => {
+    // A one-card board recasting Sword Slash into a wall: 20, 18, 16, 14, 14…
     const spam = simulate(
       cfg(tc('hero', ['sword_slash'], { attack: 10, speed: 20, maxHp: 500 }), tc('wall', [], { maxHp: 500, speed: 1 }), {
         ...NO_ENDGAME,
@@ -72,7 +72,7 @@ describe('ability catalog wave 2', () => {
       }),
       1,
     );
-    expect(damageEvents(spam.events).map((e) => e.amount)).toEqual([20, 16, 12, 8, 8]);
+    expect(damageEvents(spam.events).map((e) => e.amount)).toEqual([20, 18, 16, 14, 14]);
 
     // Alternating two attacks never goes stale: full damage every cast.
     const varied = simulate(
