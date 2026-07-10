@@ -49,8 +49,9 @@ describe('Power Level budgets', () => {
       effects: [{ kind: 'damage', power: 200 }],
       text: '',
     });
-    expect(powerLevelDeci(mk(2))).toBe(powerLevelDeci(mk(1)) - 30);
-    expect(powerLevelDeci(mk(3))).toBe(powerLevelDeci(mk(1)) - 60);
+    // 5 PL per extra slot: big cards pay in board space and span turns.
+    expect(powerLevelDeci(mk(2))).toBe(powerLevelDeci(mk(1)) - 50);
+    expect(powerLevelDeci(mk(3))).toBe(powerLevelDeci(mk(1)) - 100);
   });
 
   it('the true-property premium applies to casting cards only', () => {

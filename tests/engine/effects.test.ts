@@ -35,7 +35,7 @@ describe('property scaling and mitigation', () => {
       { ...NO_ENDGAME, maxTurns: 1 },
     );
     // 280% of max(5,20)=20 -> 56, no mitigation.
-    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 56, property: 'true' });
+    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 64, property: 'true' }); // 320% of 20
   });
 
   it('crits multiply by 1.5 (floored) at 100% crit', () => {

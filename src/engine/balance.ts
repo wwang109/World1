@@ -16,8 +16,8 @@
 // - cleanse:                                   80            (8 PL)
 // - weight: (baseline − weight) * 5 — every 2 lighter costs 1 PL, every 2
 //   heavier REFUNDS 1 PL (more weight = slower attacks), baseline = size × 10
-// - size grant: size 2 → −30, size 3 → −60 (big cards pay in board space and
-//   span turns, so they get a bigger kit)
+// - size grant: size 2 → −50, size 3 → −100 (5 PL per extra slot: big cards
+//   pay in board space and span turns, so they get a much bigger kit)
 // - auras (per point): damage% ×4 · heal% ×4 · crit% ×5 · |weightDelta| ×20;
 //   allBoard reach doubles the aura price
 //
@@ -36,7 +36,7 @@ export const TIER_BUDGET_DECI: Record<SkillTier, number> = {
 /** Audit tolerance: half a power level. */
 export const BUDGET_TOLERANCE_DECI = 5;
 
-const SIZE_GRANT_DECI = [0, 0, 30, 60] as const;
+const SIZE_GRANT_DECI = [0, 0, 50, 100] as const;
 
 /** Total deci-PL of a card's kit. */
 export function powerLevelDeci(skill: SkillDef): number {

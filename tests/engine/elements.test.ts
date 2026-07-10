@@ -66,7 +66,7 @@ describe('matchups in combat', () => {
 
   it('fire magic into a fire... into frost affinity is resisted −25%', () => {
     // fireball (fire) vs frost affinity: frost beats fire -> disadvantage.
-    // 200% of MP 10 = 20 -> x0.75 = 15. Burn 5 bakes to 3 (floor 5*0.75).
+    // 240% of MP 10 = 24 -> x0.75 = 18. Burn 5 bakes to 3 (floor 5*0.75).
     const c = cfg(
       tc('hero', ['fireball'], { magicPower: 10, speed: 20 }),
       { ...tc('yeti', [], { speed: 10, maxHp: 200 }), elementAffinity: 'frost' },
@@ -74,7 +74,7 @@ describe('matchups in combat', () => {
     );
     const { events } = simulate(c, 1);
     expect(events.find((e) => e.kind === 'damage' && e.source === 'skill')).toMatchObject({
-      amount: 15,
+      amount: 18,
       matchup: 'disadvantage',
     });
     const burnTick = events.find((e) => e.kind === 'damage' && e.source === 'burn');
@@ -124,7 +124,7 @@ describe('matchups in combat', () => {
     );
     const { events } = simulate(c, 1);
     const hit = events.find((e) => e.kind === 'damage');
-    expect(hit).toMatchObject({ amount: 28 }); // 280% of 10, no matchup
+    expect(hit).toMatchObject({ amount: 32 }); // 320% of 10, no matchup
     expect((hit as { matchup?: string }).matchup).toBeUndefined();
   });
 });

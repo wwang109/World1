@@ -72,12 +72,12 @@ describe('special ability riders', () => {
       { ...NO_ENDGAME, maxTurns: 3 },
     );
     const { events } = simulate(c, 1);
-    // Bulwark: 260% of 10 = 26 physical shield. Splitter shatters 24 of it,
-    // then hits 200% of 10 = 20: only 2 shield left to block.
+    // Bulwark: 300% of 10 = 30 physical shield. Splitter shatters 24 of it,
+    // then hits 240% of 10 = 24: only 6 shield left to block.
     const broken = events.find((e) => e.kind === 'shieldBroken');
-    expect(broken).toMatchObject({ amount: 24, totalAfter: 2 });
+    expect(broken).toMatchObject({ amount: 24, totalAfter: 6 });
     const hit = events.find((e) => e.kind === 'damage' && e.side === 'enemy');
-    expect(hit).toMatchObject({ amount: 20, blocked: 2 });
+    expect(hit).toMatchObject({ amount: 24, blocked: 6 });
   });
 
   it('comboBonus triggers only when the previous cast shared an archetype', () => {

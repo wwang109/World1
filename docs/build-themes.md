@@ -86,7 +86,7 @@ armor... use the magic side).
 
 **Board:** `[War Banner][Crushing Blow··][Executioner's Chop][Soul Rend··][Stunning Smash··] ·`
 
-- Crushing Blow opens (320%), Chop follows: past half HP it's 120%+60%.
+- Crushing Blow opens (400%), Chop follows: past half HP it's 120%+60%.
 - Soul Rend's TRUE damage ignores the armor that walls the others; Stunning
   Smash eats the enemy's comeback performance.
 - All-heavy board = you bank huge Speed during spans — the smash arrives
@@ -153,14 +153,17 @@ matchup; run these yourself with `npm run battle -- --hero ... --enemy all`):
 |---|---|---|---|---|---|
 | Pure sustain, no offense | L | W | L | L | L |
 | + venom/leech clock (Bronze) | W | W | W | L | L |
-| Silver core (coat/spores/mending/fangs) | W (42 hp) | W (150 hp) | W (103 hp) | W (17 hp) | W (0 hp — tie, player wins) |
+| Silver core (coat/spores/mending/fangs) | W (42 hp) | W (150 hp) | W (98 hp) | **L** | W (0 hp — tie, player wins) |
 
 The first row is the design lesson: **sudden death exists to kill turtles**
 — with zero offense the enemy's +30%/turn ramp always outgrows heal
 throughput, and thorns alone (25% of incoming) can't race it. A heal-tank
 NEEDS a clock; poison is the right one because it loves exactly the long
-fights this build creates. The Silver Wolf King win is a literal
-simultaneous wipe decided by the player-wins-ties rule — zero margin.
+fights this build creates. The Wolf King win is a literal simultaneous
+wipe decided by the player-wins-ties rule — zero margin — while the
+size-grant rebalance (big cards +5 PL/extra slot) buffed the elite
+Bandit's Crippling Strike into a wall this build can't yet out-sustain:
+its next tier-up or a weapon-matchup swap is the answer.
 
 **Tier priority:** Venom Fang first (the clock decides elite/boss fights),
 then Bramble Coat. Note the generated Coat tiers grow the SHIELD knob —

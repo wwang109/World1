@@ -42,8 +42,8 @@ const defs: SkillDef[] = [
     rarity: 'rare',
     tier: 'bronze',
     weapon: 'beast',
-    effects: [{ kind: 'damage', power: 320 }],
-    text: 'Deal 320% Attack physical damage. Spans 3 turns.',
+    effects: [{ kind: 'damage', power: 400 }],
+    text: 'Deal 400% Attack physical damage. Spans 3 turns.',
   },
   {
     id: 'hunter_shot',
@@ -79,8 +79,8 @@ const defs: SkillDef[] = [
     rarity: 'rare',
     tier: 'bronze',
     weapon: 'axe',
-    effects: [{ kind: 'damage', power: 320 }],
-    text: 'Deal 320% Attack physical damage. Spans 3 turns.',
+    effects: [{ kind: 'damage', power: 400 }],
+    text: 'Deal 400% Attack physical damage. Spans 3 turns.',
   },
   {
     id: 'fireball',
@@ -92,10 +92,10 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'fire',
     effects: [
-      { kind: 'damage', power: 200 },
+      { kind: 'damage', power: 240 },
       { kind: 'burn', amount: 5, turns: 3 },
     ],
-    text: 'Deal 200% Magic Power magical damage and burn for 5 for 3 turns.',
+    text: 'Deal 240% Magic Power magical damage and burn for 5 for 3 turns.',
   },
   {
     id: 'soul_rend',
@@ -106,8 +106,8 @@ const defs: SkillDef[] = [
     speedWeight: 26,
     rarity: 'epic',
     tier: 'bronze',
-    effects: [{ kind: 'damage', power: 280 }],
-    text: 'Deal 280% of your higher power stat as TRUE damage — ignores Armor and Magic Resist. Heavy (weight 26).',
+    effects: [{ kind: 'damage', power: 320 }],
+    text: 'Deal 320% of your higher power stat as TRUE damage — ignores Armor and Magic Resist. Heavy (weight 26).',
   },
 
   // ---- Offense + Debuff (multi-archetype) ----
@@ -121,10 +121,10 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     weapon: 'lance',
     effects: [
-      { kind: 'damage', power: 160 },
+      { kind: 'damage', power: 200 },
       { kind: 'debuffStat', stat: 'attack', pct: 25, turns: 2 },
     ],
-    text: "Deal 160% Attack physical damage and reduce the enemy's Attack by 25% for 2 turns.",
+    text: "Deal 200% Attack physical damage and reduce the enemy's Attack by 25% for 2 turns.",
   },
   {
     id: 'venom_fang',
@@ -152,8 +152,8 @@ const defs: SkillDef[] = [
     size: 2,
     rarity: 'common',
     tier: 'bronze',
-    effects: [{ kind: 'shield', power: 260 }],
-    text: 'Gain a Physical shield worth 260% Attack (blocks physical damage only).',
+    effects: [{ kind: 'shield', power: 300 }],
+    text: 'Gain a Physical shield worth 300% Attack (blocks physical damage only).',
   },
   {
     id: 'mana_ward',
@@ -176,8 +176,8 @@ const defs: SkillDef[] = [
     speedWeight: 26,
     rarity: 'epic',
     tier: 'bronze',
-    effects: [{ kind: 'shield', power: 60 }],
-    text: 'Gain a 60-point TRUE shield — blocks ALL damage types. Spans 3 turns.',
+    effects: [{ kind: 'shield', power: 80 }],
+    text: 'Gain an 80-point TRUE shield — blocks ALL damage types. Spans 3 turns.',
   },
 
   // ---- Healing ----
@@ -190,8 +190,8 @@ const defs: SkillDef[] = [
     rarity: 'common',
     tier: 'bronze',
     element: 'holy',
-    effects: [{ kind: 'heal', power: 260 }],
-    text: 'Restore 260% Magic Power health.',
+    effects: [{ kind: 'heal', power: 300 }],
+    text: 'Restore 300% Magic Power health.',
   },
   {
     id: 'second_wind',
@@ -298,9 +298,9 @@ const defs: SkillDef[] = [
     weapon: 'axe',
     effects: [
       { kind: 'shieldBreak', amount: 24 },
-      { kind: 'damage', power: 200 },
+      { kind: 'damage', power: 240 },
     ],
-    text: 'Shatter up to 24 enemy shield, then deal 200% Attack physical damage.',
+    text: 'Shatter up to 24 enemy shield, then deal 240% Attack physical damage.',
   },
   {
     id: 'follow_through',
@@ -474,10 +474,10 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     weapon: 'axe',
     effects: [
-      { kind: 'damage', power: 220 },
+      { kind: 'damage', power: 260 },
       { kind: 'stun', turns: 1 },
     ],
-    text: "Deal 220% Attack physical damage and stun — the enemy's next performance is consumed. Heavy (weight 24).",
+    text: "Deal 260% Attack physical damage and stun — the enemy's next performance is consumed. Heavy (weight 24).",
   },
   {
     id: 'purify',
