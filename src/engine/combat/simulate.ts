@@ -257,9 +257,15 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         // the caster's next action.
         c.nextWeightPenalty = 0;
         c.nextWeightBonus = 0;
-        // Staleness: consecutive re-casts of the SAME skill decay in damage;
-        // casting anything else resets the counter.
-        c.staleCasts = choice.skill.id === c.lastCastSkillId ? c.staleCasts + 1 : 0;
+        // Staleness / momentum: repeating the SAME skill fades bonus
+        // effectiveness; chaining DIFFERENT skills amplifies it.
+        if (choice.skill.id === c.lastCastSkillId) {
+          c.staleCasts += 1;
+          c.momentumCasts = 0;
+        } else {
+          c.staleCasts = 0;
+          c.momentumCasts = c.lastCastSkillId === null ? 0 : c.momentumCasts + 1;
+        }
         c.lastCastSkillId = choice.skill.id;
         const enchant = choice.piece.enchant !== undefined ? cfg.enchantBook?.[choice.piece.enchant] : undefined;
         applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, enchant);

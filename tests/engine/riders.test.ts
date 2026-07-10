@@ -91,7 +91,7 @@ describe('special ability riders', () => {
     const { events } = simulate(c, 1);
     const hits = events.filter((e) => e.kind === 'damage').map((e) => (e as { amount: number }).amount);
     expect(hits[0]).toBe(20); // slash 200%
-    expect(hits[1]).toBe(17); // follow_through 100% * 1.75 = 17 (floored)
+    expect(hits[1]).toBe(19); // follow_through: combo 75% amplified by momentum +25% -> 93% -> floor(10*1.93)
   });
 
   it('rider magnitudes are priced per unit (decimal-precise deci-PL)', () => {

@@ -86,6 +86,26 @@ describe('ability catalog wave 2', () => {
     expect(damageEvents(events).map((e) => e.amount)).toEqual([25, 23, 22, 21, 20]);
   });
 
+  it('momentum: chaining DIFFERENT skills amplifies bonuses +25% per link (cap +75%)', () => {
+    // [banner][slash][bite]: only slash gets the +25% aura. Rotation
+    // slash,bite,slash,bite,slash — slash's bonus ramps with the chain:
+    // link 0: 25% -> 25 dmg; link 2: 25*1.5=37% -> 27; link 4 (cap): 25*1.75=43% -> 28.
+    const c = cfg(
+      tc('hero', [], { attack: 10, speed: 20, maxHp: 500 }, {
+        boardSize: 10,
+        pieces: [
+          { skillId: 'war_banner', slot: 0 },
+          { skillId: 'sword_slash', slot: 1 },
+          { skillId: 'savage_bite', slot: 2 },
+        ],
+      }),
+      tc('wall', [], { maxHp: 500, speed: 1 }),
+      { ...NO_ENDGAME, maxTurns: 5 },
+    );
+    const { events } = simulate(c, 1);
+    expect(damageEvents(events).map((e) => e.amount)).toEqual([25, 20, 27, 20, 28]);
+  });
+
   it('weakenNext jams the enemy next cast for reduced damage', () => {
     // Numbing Chill: foe's next slash lands 40% weaker (20 -> 12), then
     // recovers (the bulwark filler keeps the hero from re-jamming).

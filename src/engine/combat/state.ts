@@ -76,6 +76,11 @@ export interface CombatantState {
    * bonus per stale cast, gone by the 4th. Variety resets it.
    */
   staleCasts: number;
+  /**
+   * Consecutive DIFFERENT casts (the mirror of staleCasts): each chain link
+   * AMPLIFIES bonus effectiveness +25%, capped at +75%. Repeating resets it.
+   */
+  momentumCasts: number;
   /** The caster's next cast deals this % less damage (enemy Weaken cards). */
   nextCastWeakenPct: number;
   elementAffinity?: Element;
@@ -128,6 +133,7 @@ function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBoo
     lastCastArchetypes: [],
     lastCastSkillId: null,
     staleCasts: 0,
+    momentumCasts: 0,
     nextCastWeakenPct: 0,
     elementAffinity: setup.elementAffinity,
     weaponAffinity: setup.weaponAffinity,

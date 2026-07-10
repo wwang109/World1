@@ -134,12 +134,19 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
 function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number, mods: AuraMods, cast: CastCtx, enemy: CombatantState): void {
   const property = skill.property;
   let base = Math.floor((scaleStat(caster, property) * power) / 100);
-  // Staleness: BASE damage is never reduced by spamming — only BONUS
-  // effectiveness (aura boosts, combo/execute riders) decays, −25% of the
-  // bonus per consecutive re-cast, gone by the 4th. Variety resets it.
+  // Staleness / momentum — BASE damage is never touched by either; only
+  // BONUS effectiveness (aura boosts, combo/execute riders) flexes:
+  // - repeating the same skill fades the bonus −25% per re-cast (gone by
+  //   the 4th);
+  // - chaining DIFFERENT skills amplifies it +25% per link (cap +75%),
+  //   so combo rotations ramp UP.
   const stalePct = 25 * Math.min(caster.staleCasts, 4);
+  const momentumPct = 25 * Math.min(caster.momentumCasts, 3);
   let bonus = mods.damagePct + cast.bonusPct;
-  if (stalePct > 0 && bonus > 0) bonus = Math.floor((bonus * (100 - stalePct)) / 100);
+  if (bonus > 0) {
+    if (stalePct > 0) bonus = Math.floor((bonus * (100 - stalePct)) / 100);
+    else if (momentumPct > 0) bonus = Math.floor((bonus * (100 + momentumPct)) / 100);
+  }
   base = Math.floor((base * (100 + bonus)) / 100);
   // Weaken (enemy "reduced effect" cards): this cast was jammed — its
   // damage lands weaker. Consumed after the cast completes.

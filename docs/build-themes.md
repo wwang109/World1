@@ -23,7 +23,8 @@ so the chain outpaces the enemy.
 
 - Windstep Jab casts, quickens the NEXT card by 12 → Flurry (w8) comes out
   at effective w1–2, banking almost nothing for the enemy.
-- Follow-Through lands third: the previous cast was Offense → +75%.
+- Follow-Through lands third: the previous cast was Offense → +75%,
+  amplified by momentum (+25%/chain link) since the rotation never repeats.
 - War Banner touches Jab (+25% damage); Lucky Charm gives Follow-Through and
   Sword Slash +20% crit — each hit of a crit-heavy Flurry rolls separately.
 
@@ -225,15 +226,22 @@ effects show a "RESISTED" line in the log.
 - Enemy presets: Stone Beetle carries 25 Resolve, the Wolf King 15 — DoT
   and control builds now feel the check in the wild.
 
-## Staleness — the anti-spam rule
+## Momentum & staleness — the variety axis
 
-Spamming the SAME skill never touches its BASE damage — a plain Sword
-Slash deals its full 200% forever. What decays is BONUS effectiveness:
-aura boosts and combo/execute riders fade −25% of the bonus per
-consecutive re-cast, gone by the 4th (a War Banner'd slash spam runs
-25 → 23 → 22 → 21 → 20). Casting anything else resets it. So simple
-attacks and simple enemies keep their full bite, while synergy payoffs —
-the whole reason to build a themed board — demand variety.
+BASE damage is sacred: no rotation pattern ever changes a card's printed
+numbers. What flexes is BONUS effectiveness (aura boosts, combo/execute
+riders), in both directions:
+
+- **Staleness** — re-casting the SAME skill fades its bonuses −25% per
+  repeat, gone by the 4th (a War Banner'd slash spam runs
+  25 → 23 → 22 → 21 → 20, settling at base).
+- **Momentum** — chaining DIFFERENT skills amplifies bonuses +25% per
+  link, capped at +75%. A Blade Dancer rotation RAMPS: by the fourth
+  distinct cast, Follow-Through's +75% combo reads as +131%.
+
+Simple attacks and simple enemies keep their full bite either way;
+synergy payoffs — the reason to build a themed board — are what variety
+buys, and they climb the longer the chain runs.
 
 Pacing levers for higher-level fights (design intent: longer, not
 burstier): staleness kills same-attack spam; the utility premium keeps
