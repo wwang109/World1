@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "fight": "tsx scripts/fight.ts",
     "sim": "tsx scripts/balance.ts",
-    "battle": "tsx scripts/battle.ts"
+    "battle": "tsx scripts/battle.ts",
+    "codex": "tsx scripts/codex.ts"
   },
   "dependencies": {
     "phaser": "^3.90.0"
