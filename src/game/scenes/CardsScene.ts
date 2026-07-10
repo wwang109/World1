@@ -19,7 +19,8 @@ const PANEL_X = 884;
 const PANEL_W = 372;
 const BOARD_STRIP_Y = 520;
 const INV_STRIP_Y = 620;
-const INVENTORY_CAP = 24;
+/** Backpack capacity in SLOTS (size-weighted, like the board): 10 board + 10 backpack = 20 held. */
+const BACKPACK_SLOTS = 10;
 
 const TIER_LABEL: Record<SkillTier, string> = { bronze: 'BRONZE', silver: 'SILVER', gold: 'GOLD', diamond: 'DIAMOND' };
 const TIER_COLOR: Record<SkillTier, string> = { bronze: '#c08850', silver: '#b8c4d4', gold: '#ffd76a', diamond: '#8ee0ff' };
@@ -114,6 +115,15 @@ export class CardsScene extends Phaser.Scene {
 
   private flash(msg: string): void {
     this.feedback.setText(msg);
+  }
+
+  /** Backpack slots used — cards occupy their SIZE, same as the board. */
+  private backpackUsed(): number {
+    return demoState.inventory.reduce((n, id) => n + (fullBook[id]?.size ?? 1), 0);
+  }
+
+  private backpackFits(id: string): boolean {
+    return this.backpackUsed() + (fullBook[id]?.size ?? 1) <= BACKPACK_SLOTS;
   }
 
   private button(x: number, y: number, label: string, onClick: () => void, opts: { danger?: boolean } = {}): Phaser.GameObjects.Text {
@@ -240,9 +250,9 @@ export class CardsScene extends Phaser.Scene {
     const ay = 436;
     if (source === 'library') {
       this.detailObjs.push(this.button(cx - 90, ay, '+ board', () => this.addToBoard(skill.id)));
-      this.detailObjs.push(this.button(cx + 90, ay, '+ inventory', () => this.addToInventory(skill.id)));
+      this.detailObjs.push(this.button(cx + 90, ay, '+ backpack', () => this.addToInventory(skill.id)));
     } else if (source === 'board') {
-      this.detailObjs.push(this.button(cx - 90, ay, '→ inventory', () => this.boardToInventory()));
+      this.detailObjs.push(this.button(cx - 90, ay, '→ backpack', () => this.boardToInventory()));
       this.detailObjs.push(this.button(cx + 90, ay, '✕ remove', () => this.removeFromBoard(), { danger: true }));
     } else {
       this.detailObjs.push(this.button(cx - 90, ay, '→ board', () => this.inventoryToBoard()));
@@ -288,26 +298,26 @@ export class CardsScene extends Phaser.Scene {
   }
 
   private addToInventory(id: string): void {
-    if (demoState.inventory.length >= INVENTORY_CAP) {
-      this.flash('inventory full');
+    if (!this.backpackFits(id)) {
+      this.flash(`backpack full — no room for a size-${fullBook[id]?.size ?? 1} card`);
       return;
     }
     demoState.inventory.push(id);
-    this.flash('stashed in inventory');
+    this.flash('stashed in backpack');
     this.renderInventoryStrip();
   }
 
   private boardToInventory(): void {
     const piece = this.sel?.piece;
     if (!piece) return;
-    if (demoState.inventory.length >= INVENTORY_CAP) {
-      this.flash('inventory full');
+    if (!this.backpackFits(piece.skillId)) {
+      this.flash(`backpack full — no room for a size-${fullBook[piece.skillId]?.size ?? 1} card`);
       return;
     }
     demoState.pieces = demoState.pieces.filter((p) => p !== piece);
     demoState.inventory.push(piece.skillId);
     this.sel = null;
-    this.flash('moved to inventory');
+    this.flash('moved to backpack');
     this.renderBoardStrip();
     this.renderInventoryStrip();
     this.renderDetail();
@@ -393,16 +403,26 @@ export class CardsScene extends Phaser.Scene {
   private renderInventoryStrip(): void {
     for (const o of this.invObjs) o.destroy();
     this.invObjs = [];
+    const slotW = SLOT_W * GRID_SCALE;
+    const used = this.backpackUsed();
     this.invObjs.push(
-      this.add.text(GRID_X, INV_STRIP_Y - 22, `INVENTORY — ${demoState.inventory.length}/${INVENTORY_CAP}`, {
+      this.add.text(GRID_X, INV_STRIP_Y - 22, `BACKPACK — ${used}/${BACKPACK_SLOTS} slots (cards take their size; 10 board + 10 backpack = 20 held)`, {
         fontSize: '12px',
         color: UI.textDim,
         fontFamily: 'monospace',
       }),
     );
+    // Slot cells, mirroring the board strip.
+    for (let sl = 0; sl < BACKPACK_SLOTS; sl++) {
+      this.invObjs.push(
+        this.add
+          .rectangle(GRID_X + sl * slotW + slotW / 2, INV_STRIP_Y + (CARD_H * GRID_SCALE) / 2, slotW - 3, CARD_H * GRID_SCALE + 4, UI.slot)
+          .setStrokeStyle(1, 0x3a3a46),
+      );
+    }
     if (demoState.inventory.length === 0) {
       this.invObjs.push(
-        this.add.text(GRID_X, INV_STRIP_Y + 16, 'empty — stash cards here from the library or your board', {
+        this.add.text(GRID_X + BACKPACK_SLOTS * slotW + 14, INV_STRIP_Y + (CARD_H * GRID_SCALE) / 2 - 6, 'empty — stash cards here', {
           fontSize: '12px',
           color: '#4a4a55',
           fontFamily: 'monospace',
@@ -410,22 +430,17 @@ export class CardsScene extends Phaser.Scene {
       );
       return;
     }
-    let x = GRID_X;
-    let y = INV_STRIP_Y + (CARD_H * GRID_SCALE) / 2;
+    let cursor = 0;
     demoState.inventory.forEach((id, invIndex) => {
       const skill = fullBook[id];
       if (!skill) return;
-      const w = skill.size * SLOT_W * GRID_SCALE;
-      if (x + w > 1256) {
-        x = GRID_X;
-        y += CARD_H * GRID_SCALE + 8;
-      }
-      const card = new CardView(this, x + w / 2, y, skill, { mini: true });
+      const x = GRID_X + cursor * slotW + (skill.size * slotW) / 2;
+      const card = new CardView(this, x, INV_STRIP_Y + (CARD_H * GRID_SCALE) / 2, skill, { mini: true });
       card.setScale(GRID_SCALE);
       card.setInteractive({ useHandCursor: true });
       card.on('pointerdown', () => this.select({ baseId: baseIdOf(id), tier: skill.tier, source: 'inventory', invIndex }));
       this.invObjs.push(card);
-      x += w + 10;
+      cursor += skill.size;
     });
   }
 }

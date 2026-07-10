@@ -286,6 +286,16 @@ detonation when their trapped card activates. Counterplay is rotation
 knowledge: the victim "walks into" the trap on schedule, so heavy
 must-cast cards (Rending Claws, Fireball) are the juiciest marks.
 
+## Possession cap — 10 board + 10 backpack
+
+A player holds at most 20 SLOTS of cards: the 10-slot board they fight
+with, plus a 10-slot backpack — and cards occupy their SIZE in both (a
+size-3 Crushing Blow eats 3 backpack slots in reserve exactly as it would
+on the board). This is the roguelite's inventory pressure: drafting a new
+card past the cap means dropping or selling something, and hoarding
+answers for every check is impossible — you commit to a strategy. The
+Cards page enforces it today.
+
 ## General placement rules
 
 - **Combo routing:** Follow-Through checks the PREVIOUS cast's archetype —

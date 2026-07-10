@@ -10,7 +10,7 @@ export const demoState = {
     { skillId: 'second_wind', slot: 6 },
     { skillId: 'arcane_bolt', slot: 7 },
   ] as BoardPiece[],
-  /** Stashed cards (fullBook ids, tier variants included) — demo inventory. */
+  /** Backpack (fullBook ids): 10 size-weighted slots; board 10 + backpack 10 = 20 held. */
   inventory: [] as string[],
   /** Enemy party (1-5, formation order = kill order under front-line aggro). */
   enemyIds: ['bandit_duelist'] as string[],
