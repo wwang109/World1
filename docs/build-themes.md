@@ -319,14 +319,18 @@ planning, but always through kits made of existing player-facing rules —
 a boss is a question, your deck is the answer, and no check ever
 introduces a mechanic the player hasn't seen on their own cards.
 
-Sim-validated (a naive all-damage board LOSES all three; each tailored
-answer wins):
+Sim-validated — each check gates the DECK STYLE it's aimed at (naive
+all-damage loses to the first three; mage boards bounce off the Wraith;
+single-typed shield walls die to the Marauder) and every tailored answer
+wins:
 
 | Elite | The question | Answers that work |
 |---|---|---|
 | **Runewall Sentinel** | shields cycling behind armor 6 + resolve 25 | poison (bypasses shields), Shield Splitter, true damage — or patient tempo+sustain |
 | **Feral Alpha** | Battle Howl into hard, varied beast attacks | Dispelling Arrow (purge the howl), bows (beast matchup), tempo theft |
 | **Grave Chanter** | 45-point heals behind hexes and slows | burst windows (Crushing Blow + execute), stuns to eat the heal cast |
+| **Spellward Wraith** | Magic Resist 9, armor 0 — gates MAGE boards (a hex deck bounces off) | physical decks, true damage |
+| **Twinblade Marauder** | mixed physical AND magical damage — gates single-typed WALLS (a double-Bulwark turtle dies) | true shields, layered defense, or the lance matchup vs his sword affinity |
 
 Checks gate THOUGHTLESS decks, not demand one true answer — a genuinely
 well-built deck of another flavor may grind one out (the hunter deck beats

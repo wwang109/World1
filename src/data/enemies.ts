@@ -119,6 +119,47 @@ export const enemies: Record<string, EnemyDef> = {
     goldReward: 35,
     xpReward: 22,
   },
+  spellward_wraith: {
+    id: 'spellward_wraith',
+    name: 'Spellward Wraith',
+    baseDepth: 1,
+    isElite: true,
+    // The anti-magic check: massive Magic Resist, no armor, and it fights
+    // back with magic. Answer: physical decks (or true damage); mage boards
+    // bounce off. Dark affinity — a future holy damage card will feast.
+    stats: { maxHp: 150, hp: 150, attack: 0, magicPower: 13, armor: 0, magicResist: 9, speed: 12, critPct: 0 },
+    boardSize: 7,
+    pieces: [
+      { skillId: 'numbing_chill', slot: 0 },
+      { skillId: 'arcane_bolt', slot: 1 },
+      { skillId: 'hex_of_frailty', slot: 2 },
+      { skillId: 'mana_ward', slot: 3 },
+    ],
+    elementAffinity: 'dark',
+    goldReward: 35,
+    xpReward: 22,
+  },
+  twinblade_marauder: {
+    id: 'twinblade_marauder',
+    name: 'Twinblade Marauder',
+    baseDepth: 1,
+    isElite: true,
+    // The mixed-damage check: swings steel AND slings fire, so one typed
+    // shield or one defense stat never walls it. Answer: layered defenses,
+    // true shields, or out-racing it.
+    stats: { maxHp: 140, hp: 140, attack: 10, magicPower: 10, armor: 3, magicResist: 3, speed: 12, critPct: 10 },
+    boardSize: 7,
+    pieces: [
+      { skillId: 'sword_slash', slot: 0 },
+      { skillId: 'fireball', slot: 1 },
+      { skillId: 'hunter_shot', slot: 3 },
+      { skillId: 'arcane_bolt', slot: 4 },
+    ],
+    weaponAffinity: 'sword',
+    elementAffinity: 'fire',
+    goldReward: 35,
+    xpReward: 22,
+  },
   wolf_king: {
     id: 'wolf_king',
     name: 'The Wolf King',
