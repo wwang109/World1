@@ -31,6 +31,15 @@ export const enchantBook: EnchantBook = {
     chase: true,
     text: "Chase: after this card resolves, immediately perform your next card — but this card's damage is 40% weaker. Tempo bought with power.",
   },
+  overload_mark: {
+    id: 'overload_mark',
+    name: 'Overload Mark',
+    icon: '💥',
+    targeting: 'aggro',
+    powerPct: 150,
+    uses: 1,
+    text: "Overload: this card's damage is 50% STRONGER — but it can be cast only ONCE per battle. One perfect swing.",
+  },
   executioner_mark: {
     id: 'executioner_mark',
     name: "Executioner's Mark",

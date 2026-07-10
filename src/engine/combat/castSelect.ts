@@ -26,6 +26,7 @@ function isUseful(c: CombatantState, skill: SkillDef): boolean {
       case 'buffStat':
       case 'slowNext':
       case 'weakenNext':
+      case 'curseCard':
       case 'stagger':
       case 'shieldBreak':
       case 'multiHit':
@@ -70,6 +71,7 @@ export function selectCast(c: CombatantState, skillBook: SkillBook): CastChoice 
     const skill = skillBook[piece.skillId];
     if (!skill) continue;
     if (skill.effects.length === 0 && skill.special === undefined) continue;
+    if (piece.castsLeft !== undefined && piece.castsLeft <= 0) continue; // exhausted
     if (!isUseful(c, skill)) continue;
     const mods = aurasOn(c, piece, skillBook);
     const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty - c.nextWeightBonus);

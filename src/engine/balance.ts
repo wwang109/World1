@@ -79,6 +79,9 @@ export function powerLevelDeci(skill: SkillDef): number {
       case 'weakenNext':
         deci += action.pct; // 1 PL per 10% jammed off their next cast
         break;
+      case 'curseCard':
+        deci += Math.floor((action.power * 2) / 5); // delayed damage: 1 PL per 25%
+        break;
       case 'stagger':
         deci += Math.floor((action.amount * 5) / 4); // 1 PL per 8 drained
         break;
@@ -130,6 +133,11 @@ export function powerLevelDeci(skill: SkillDef): number {
 
   // Size grant.
   deci -= SIZE_GRANT_DECI[skill.size];
+
+  // Exhaust grant: limited casts per battle refund budget (1 use -> +4 PL of
+  // kit, 2 uses -> +2 PL).
+  if (skill.uses === 1) deci -= 40;
+  else if (skill.uses === 2) deci -= 20;
 
   return deci;
 }

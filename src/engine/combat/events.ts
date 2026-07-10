@@ -58,15 +58,17 @@ export type CombatEvent =
       /** Element wheel / weapon triangle result for this hit. */
       matchup?: 'advantage' | 'disadvantage';
       hpAfter: number;
-      source: 'skill' | 'poison' | 'burn' | 'fatigue' | 'thorns';
+      source: 'skill' | 'poison' | 'burn' | 'fatigue' | 'thorns' | 'curse';
     }
   | { turn: number; kind: 'heal'; side: Side; unit: number; amount: number; flat: boolean; hpAfter: number }
   | { turn: number; kind: 'shieldGain'; side: Side; unit: number; property: Property; amount: number; wasted: number; totalAfter: number }
   | { turn: number; kind: 'statusApplied'; side: Side; unit: number; status: StatusName; property?: Property; turns: number }
   | { turn: number; kind: 'statusExpired'; side: Side; unit: number; status: StatusName }
   /** A hostile effect was shrugged off entirely by the target's Resolve. */
-  | { turn: number; kind: 'resisted'; side: Side; unit: number; status: StatusName | 'slow' | 'stagger' | 'weaken' }
+  | { turn: number; kind: 'resisted'; side: Side; unit: number; status: StatusName | 'slow' | 'stagger' | 'weaken' | 'curse' }
   | { turn: number; kind: 'weakenedNext'; side: Side; unit: number; pct: number }
+  /** A trap was laid on the victim's queued card (detonates when it casts). */
+  | { turn: number; kind: 'skillCursed'; side: Side; unit: number; slot: number; skillId: string; amount: number }
   | { turn: number; kind: 'cleansed'; side: Side; unit: number; removed: number }
   | { turn: number; kind: 'purged'; side: Side; unit: number; removed: number }
   | { turn: number; kind: 'slowedNext'; side: Side; unit: number; weight: number }

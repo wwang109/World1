@@ -265,11 +265,26 @@ catalog prescribes. The marks so far:
   card; this card's damage is 40% weaker. Tempo bought with power — a
   chase-marked opener turns any rotation into a Yi Xian-style flurry, and
   the follow-up arrives with momentum already flowing.
+- 💥 **Overload** — this card's damage is 50% STRONGER, but it can be cast
+  only ONCE per battle (exhaust). One perfect swing; the rotation skips
+  the spent piece afterwards.
 
 Every mark is a SIDEGRADE (it trades, never adds raw power), swappable
-per-piece between fights on the Cards page. Future candidates in the same
-mold: charge/spend stacks, cycle timing (every 2nd loop), exhaust
-(N casts per battle), HP-cost casting.
+per-piece between fights on the Cards page. Authored cards can also carry
+`uses` natively — limited casts REFUND budget (1 use = +4 PL of kit).
+Future candidates in the same mold: charge/spend stacks, cycle timing
+(every 2nd loop), HP-cost casting.
+
+### Card-targeted debuffs — traps on THEIR skills
+
+Debuffs can now land on a specific enemy CARD instead of the enemy's
+stats: `curseCard` traps the enemy's QUEUED card, and when they next cast
+that piece the trap detonates (damage baked at application from the
+curser's stat, matchup and the victim's resolve — fully deterministic).
+Showcase: **Hex Trap** (dark, Bronze 10) — 100% damage now, 125%
+detonation when their trapped card activates. Counterplay is rotation
+knowledge: the victim "walks into" the trap on schedule, so heavy
+must-cast cards (Rending Claws, Fireball) are the juiciest marks.
 
 ## General placement rules
 

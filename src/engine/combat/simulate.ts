@@ -149,7 +149,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
   const state = initCombatState(cfg);
   const rng = new Rng(seed);
   const events: CombatEvent[] = [];
-  const ctx: Ctx = { state, rng, events };
+  const ctx: Ctx = { state, rng, events, book: cfg.skillBook };
   const suddenDeathRound = cfg.suddenDeathRound ?? DEFAULT_SUDDEN_DEATH_ROUND;
   const fatigueTurn = cfg.fatigueTurn ?? DEFAULT_FATIGUE_TURN;
   const maxTurns = cfg.maxTurns ?? DEFAULT_MAX_TURNS;
@@ -267,34 +267,52 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
           c.momentumCasts = c.lastCastSkillId === null ? 0 : c.momentumCasts + 1;
         }
         c.lastCastSkillId = choice.skill.id;
-        const enchant = choice.piece.enchant !== undefined ? cfg.enchantBook?.[choice.piece.enchant] : undefined;
-        applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, enchant);
-        // Weaken jams THIS cast and is spent by it.
-        c.nextCastWeakenPct = 0;
-        // Combo remembers this cast.
-        c.lastCastArchetypes = choice.skill.archetypes;
+        // A cursed card detonates its trap as it activates; if the trap
+        // kills the caster, the cast itself is lost.
+        if (choice.piece.curse) {
+          const trap = choice.piece.curse;
+          delete choice.piece.curse;
+          dealDamage(ctx, c, trap.amount, trap.property, { source: 'curse' });
+        }
+        if (choice.piece.castsLeft !== undefined) choice.piece.castsLeft -= 1;
+        if (c.alive) {
+          const enchant = choice.piece.enchant !== undefined ? cfg.enchantBook?.[choice.piece.enchant] : undefined;
+          applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, enchant);
+          // Weaken jams THIS cast and is spent by it.
+          c.nextCastWeakenPct = 0;
+          // Combo remembers this cast.
+          c.lastCastArchetypes = choice.skill.archetypes;
 
-        // Chase Mark: the cast flows straight into the next card — ONE free
-        // follow-up (a chased cast cannot chase), only while the caster is
-        // free (a size-2+ chase card is busy finishing its span) and the
-        // fight is still live.
-        if (enchant?.chase && c.alive && c.busyTurns === 0 && checkEnd(state) === null) {
-          const chasedChoice = selectCast(c, cfg.skillBook);
-          if (chasedChoice) {
-            if (chasedChoice.skill.id === c.lastCastSkillId) {
-              c.staleCasts += 1;
-              c.momentumCasts = 0;
-            } else {
-              c.staleCasts = 0;
-              c.momentumCasts += 1;
+          // Chase Mark: the cast flows straight into the next card — ONE free
+          // follow-up (a chased cast cannot chase), only while the caster is
+          // free (a size-2+ chase card is busy finishing its span) and the
+          // fight is still live.
+          if (enchant?.chase && c.alive && c.busyTurns === 0 && checkEnd(state) === null) {
+            const chasedChoice = selectCast(c, cfg.skillBook);
+            if (chasedChoice) {
+              if (chasedChoice.piece.curse) {
+                const trap = chasedChoice.piece.curse;
+                delete chasedChoice.piece.curse;
+                dealDamage(ctx, c, trap.amount, trap.property, { source: 'curse' });
+              }
+              if (chasedChoice.piece.castsLeft !== undefined) chasedChoice.piece.castsLeft -= 1;
+              if (c.alive) {
+                if (chasedChoice.skill.id === c.lastCastSkillId) {
+                  c.staleCasts += 1;
+                  c.momentumCasts = 0;
+                } else {
+                  c.staleCasts = 0;
+                  c.momentumCasts += 1;
+                }
+                c.lastCastSkillId = chasedChoice.skill.id;
+                c.castCursor = (chasedChoice.piece.slot + chasedChoice.piece.size) % c.boardSize;
+                c.busyTurns = chasedChoice.piece.size - 1;
+                const chasedEnchant = chasedChoice.piece.enchant !== undefined ? cfg.enchantBook?.[chasedChoice.piece.enchant] : undefined;
+                applyCast(ctx, c, chasedChoice.skill, chasedChoice.piece.slot, chasedChoice.mods, chasedEnchant, true);
+                c.nextCastWeakenPct = 0;
+                c.lastCastArchetypes = chasedChoice.skill.archetypes;
+              }
             }
-            c.lastCastSkillId = chasedChoice.skill.id;
-            c.castCursor = (chasedChoice.piece.slot + chasedChoice.piece.size) % c.boardSize;
-            c.busyTurns = chasedChoice.piece.size - 1;
-            const chasedEnchant = chasedChoice.piece.enchant !== undefined ? cfg.enchantBook?.[chasedChoice.piece.enchant] : undefined;
-            applyCast(ctx, c, chasedChoice.skill, chasedChoice.piece.slot, chasedChoice.mods, chasedEnchant, true);
-            c.nextCastWeakenPct = 0;
-            c.lastCastArchetypes = chasedChoice.skill.archetypes;
           }
         }
       }

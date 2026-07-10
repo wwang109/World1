@@ -99,6 +99,9 @@ for (const e of events) {
     case 'weakenedNext':
       console.log(`${t} │  ${tag(e.side, 'unit' in e ? e.unit : 0)} next cast −${e.pct}% damage (jammed)`);
       break;
+    case 'skillCursed':
+      console.log(`${t} │  ${tag(e.side, 'unit' in e ? e.unit : 0)} card [${e.slot}] ${e.skillId} is TRAPPED (detonates for ${e.amount})`);
+      break;
     case 'purged':
       console.log(`${t} │  ${tag(e.side, 'unit' in e ? e.unit : 0)} purged of ${e.removed} positive status${e.removed > 1 ? 'es' : ''}`);
       break;

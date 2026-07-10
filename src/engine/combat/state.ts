@@ -1,5 +1,5 @@
 import { MAX_SIDE_SIZE } from '../types';
-import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantStats, Element, Property, Side, SkillBook, WeaponType } from '../types';
+import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantStats, Element, EnchantBook, Property, Side, SkillBook, WeaponType } from '../types';
 
 export interface StatusInstance {
   kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'thorns' | 'regen';
@@ -29,6 +29,10 @@ export interface PieceState {
   size: number;
   /** Enchantment id attached to this piece (resolved via cfg.enchantBook). */
   enchant?: string;
+  /** Remaining casts this battle (exhaust); undefined = unlimited. */
+  castsLeft?: number;
+  /** Trap on this card: detonates on its next cast (baked at application). */
+  curse?: { amount: number; property: Property };
 }
 
 export interface CombatantState {
@@ -97,7 +101,7 @@ export interface CombatState {
   enemy: CombatantState[];
 }
 
-function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBook: SkillBook): CombatantState {
+function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBook: SkillBook, enchantBook?: EnchantBook): CombatantState {
   const occupied = new Array<boolean>(setup.boardSize).fill(false);
   const pieces: PieceState[] = [];
   for (const piece of setup.pieces) {
@@ -110,7 +114,9 @@ function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBoo
       if (occupied[s]) throw new Error(`Board overlap at slot ${s} (${piece.skillId})`);
       occupied[s] = true;
     }
-    pieces.push({ skillId: piece.skillId, slot: piece.slot, size: def.size, enchant: piece.enchant });
+    const enchant = piece.enchant !== undefined ? enchantBook?.[piece.enchant] : undefined;
+    const uses = enchant?.uses ?? def.uses;
+    pieces.push({ skillId: piece.skillId, slot: piece.slot, size: def.size, enchant: piece.enchant, castsLeft: uses });
   }
   pieces.sort((a, b) => a.slot - b.slot);
   return {
@@ -142,19 +148,19 @@ function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBoo
   };
 }
 
-function initSide(side: Side, setups: CombatantSetup | CombatantSetup[], skillBook: SkillBook): CombatantState[] {
+function initSide(side: Side, setups: CombatantSetup | CombatantSetup[], skillBook: SkillBook, enchantBook?: EnchantBook): CombatantState[] {
   const list = Array.isArray(setups) ? setups : [setups];
   if (list.length < 1 || list.length > MAX_SIDE_SIZE) {
     throw new Error(`Side '${side}' must field 1-${MAX_SIDE_SIZE} combatants, got ${list.length}`);
   }
-  return list.map((setup, unit) => initCombatant(side, unit, setup, skillBook));
+  return list.map((setup, unit) => initCombatant(side, unit, setup, skillBook, enchantBook));
 }
 
 export function initCombatState(cfg: CombatConfig): CombatState {
   return {
     turn: 0,
-    player: initSide('player', cfg.player, cfg.skillBook),
-    enemy: initSide('enemy', cfg.enemy, cfg.skillBook),
+    player: initSide('player', cfg.player, cfg.skillBook, cfg.enchantBook),
+    enemy: initSide('enemy', cfg.enemy, cfg.skillBook, cfg.enchantBook),
   };
 }
 

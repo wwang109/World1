@@ -342,6 +342,9 @@ export class BattleScene extends Phaser.Scene {
       case 'slowedNext':
         this.log(`  ${e.side === 'player' ? 'YOUR' : `${this.tagOf(e.side, e.unit)}'s`} next action +${e.weight} weight (slowed)`);
         break;
+      case 'skillCursed':
+        this.log(`  ${e.side === 'player' ? 'YOUR' : `${this.tagOf(e.side, e.unit)}'s`} ${skillBook[e.skillId]?.name ?? e.skillId} is TRAPPED (${e.amount} on cast)`);
+        break;
       case 'weakenedNext':
         this.log(`  ${e.side === 'player' ? 'YOUR' : `${this.tagOf(e.side, e.unit)}'s`} next cast −${e.pct}% damage (jammed)`);
         break;

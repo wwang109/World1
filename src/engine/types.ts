@@ -79,6 +79,8 @@ export interface EnchantDef {
   powerPct?: number;
   /** After this card resolves, immediately perform the next card (once — a chased cast cannot chase). */
   chase?: boolean;
+  /** Casts per battle for the marked piece (exhaust trade-offs). */
+  uses?: number;
   text: string;
 }
 
@@ -127,6 +129,9 @@ export type Action =
   | { kind: 'slowNext'; weight: number }
   /** The enemy's NEXT cast deals pct% less damage (jam their queued card). */
   | { kind: 'weakenNext'; pct: number }
+  /** Curse the enemy's QUEUED card: when they next cast it, the trap detonates
+   *  for power% of the curser's scaling stat (baked at application). */
+  | { kind: 'curseCard'; power: number }
   /** Drain the enemy's banked readiness (steal their built-up tempo). */
   | { kind: 'stagger'; amount: number }
   /** Heal the caster for pct% of the damage this cast dealt (place after damage). */
@@ -185,6 +190,8 @@ export interface SkillDef {
   weapon?: WeaponType;
   /** Hostile-action targeting; default 'aggro'. Enchants override per piece. */
   targeting?: TargetMode;
+  /** Casts per battle (exhaust); limited uses REFUND budget in pricing. */
+  uses?: number;
   /** Cast effects. Empty for pure passives (skipped by the rotation). */
   effects: Action[];
   /** Positional effect projected onto neighboring board cards. */

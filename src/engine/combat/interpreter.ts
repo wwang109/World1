@@ -1,15 +1,18 @@
 import type { Rng } from '../rng';
-import type { Action, EnchantDef, Property, SkillDef, TargetMode } from '../types';
+import type { Action, EnchantDef, Property, SkillBook, SkillDef, TargetMode } from '../types';
 import type { CombatEvent } from './events';
 import type { AuraMods } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
 import { effectPotencyPct, effStat, isPositiveStatus, livingFoes, pickTarget, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
+import { selectCast } from './castSelect';
 
 export interface Ctx {
   state: CombatState;
   rng: Rng;
   events: CombatEvent[];
+  /** Skill definitions (needed to resolve an enemy's queued card). */
+  book: SkillBook;
 }
 
 /** Scaling stat for a property: Attack / Magic Power / higher of the two. */
@@ -85,7 +88,7 @@ export function dealDamage(
     crit?: boolean;
     bypassShields?: boolean;
     matchup?: Matchup;
-    source?: 'skill' | 'poison' | 'burn' | 'fatigue' | 'thorns';
+    source?: 'skill' | 'poison' | 'burn' | 'fatigue' | 'thorns' | 'curse';
   } = {},
 ): void {
   if (!victim.alive || amount <= 0) return;
@@ -357,6 +360,34 @@ function applyAction(
       }
       enemy.nextWeightPenalty = Math.max(enemy.nextWeightPenalty, weight);
       ctx.events.push({ turn: ctx.state.turn, kind: 'slowedNext', side: enemy.side, unit: enemy.unit, weight });
+      break;
+    }
+    case 'curseCard': {
+      // Trap the enemy's QUEUED card: bake the damage now (curser's stat,
+      // matchup vs this enemy, their resolve check); it detonates when they
+      // next cast that piece. Strongest trap wins on re-application.
+      if (!enemy.alive) break;
+      const queued = selectCast(enemy, ctx.book);
+      if (!queued) break;
+      let amount = Math.floor((scaleStat(caster, property) * action.power) / 100);
+      amount = Math.floor((amount * matchupPct(cardMatchup(skill, enemy))) / 100);
+      amount = Math.floor((amount * effectPotencyPct(enemy)) / 100);
+      if (amount <= 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'resisted', side: enemy.side, unit: enemy.unit, status: 'curse' });
+        break;
+      }
+      if (!queued.piece.curse || amount > queued.piece.curse.amount) {
+        queued.piece.curse = { amount, property };
+      }
+      ctx.events.push({
+        turn: ctx.state.turn,
+        kind: 'skillCursed',
+        side: enemy.side,
+        unit: enemy.unit,
+        slot: queued.piece.slot,
+        skillId: queued.piece.skillId,
+        amount,
+      });
       break;
     }
     case 'weakenNext': {

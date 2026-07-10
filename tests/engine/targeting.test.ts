@@ -119,6 +119,57 @@ describe('targeting enchantments', () => {
     expect(events.filter((e) => e.kind === 'skillCast')).toHaveLength(2);
   });
 
+  it('overload mark: 150% damage but only one cast per battle (exhaust)', () => {
+    const c: CombatConfig = {
+      player: {
+        ...tc('hero', [], { attack: 10, speed: 20, maxHp: 500 }),
+        pieces: [
+          { skillId: 'sword_slash', slot: 0, enchant: 'overload_mark' },
+          { skillId: 'savage_bite', slot: 1 },
+        ],
+        boardSize: 10,
+      },
+      enemy: [tc('wall', [], { maxHp: 500, speed: 1 })],
+      skillBook,
+      enchantBook,
+      ...NO_ENDGAME,
+      maxTurns: 4,
+    };
+    const { events } = simulate(c, 1);
+    const casts = (events.filter((e) => e.kind === 'skillCast') as Extract<Events[number], { kind: 'skillCast' }>[]).map((e) => e.skillId);
+    // Overloaded slash once (30 = 200% * 1.5), then the piece is exhausted:
+    // only bites remain in the rotation.
+    expect(casts).toEqual(['sword_slash', 'savage_bite', 'savage_bite', 'savage_bite']);
+    expect(enemyHits(events)[0]!.amount).toBe(30);
+  });
+
+  it('curseCard traps the enemy queued card and detonates when it casts', () => {
+    // Hero hex-traps first (speed 30); the foe's queued slash is trapped.
+    // When the foe casts it, the trap detonates for 125% of MP 10 = 12.
+    const c: CombatConfig = {
+      player: { ...tc('hero', [], { magicPower: 10, speed: 30, maxHp: 500 }), pieces: [{ skillId: 'hex_trap', slot: 0 }, { skillId: 'mana_ward', slot: 1 }], boardSize: 10 },
+      enemy: [tc('foe', ['sword_slash', 'savage_bite'], { attack: 10, speed: 12, maxHp: 500 })],
+      skillBook,
+      enchantBook,
+      ...NO_ENDGAME,
+      maxTurns: 4,
+    };
+    const { events } = simulate(c, 1);
+    const cursed = events.find((e) => e.kind === 'skillCursed');
+    expect(cursed).toMatchObject({ side: 'enemy', skillId: 'sword_slash', amount: 12 });
+    // Detonation lands on the FOE as it activates the trapped card.
+    const boom = events.find((e) => e.kind === 'damage' && (e as { source: string }).source === 'curse');
+    expect(boom).toMatchObject({ side: 'enemy', amount: 12 });
+    const boomTurn = (boom as { turn: number }).turn;
+    const trapTurn = (cursed as { turn: number }).turn;
+    expect(boomTurn).toBeGreaterThan(trapTurn);
+    // One-shot: no second detonation without a re-trap... the hero DOES
+    // re-trap on its rotation, so just assert detonations never exceed traps.
+    const traps = events.filter((e) => e.kind === 'skillCursed').length;
+    const booms = events.filter((e) => e.kind === 'damage' && (e as { source: string }).source === 'curse').length;
+    expect(booms).toBeLessThanOrEqual(traps);
+  });
+
   it('lifesteal heals from the total dealt across all AoE targets', () => {
     const enemy = [tc('a', [], { maxHp: 100 }), tc('b', [], { maxHp: 100 })];
     // Leeching Fang 160% of 10 = 16 -> AoE 60% = 9 each, 18 total; 45% -> 8.

@@ -439,6 +439,22 @@ const defs: SkillDef[] = [
     text: "Deal 120% Magic Power magical damage and jam the enemy's NEXT cast — it lands 40% weaker.",
   },
 
+  {
+    id: 'hex_trap',
+    name: 'Hex Trap',
+    archetypes: ['debuff'],
+    property: 'magical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'dark',
+    effects: [
+      { kind: 'damage', power: 100 },
+      { kind: 'curseCard', power: 125 },
+    ],
+    text: "Deal 100% Magic Power magical damage and TRAP the enemy's queued card: when they next cast it, the trap detonates for 125% Magic Power.",
+  },
+
   // ---- Resolve (effect resistance / potency) ----
   {
     id: 'iron_will',
