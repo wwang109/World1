@@ -62,6 +62,63 @@ export const enemies: Record<string, EnemyDef> = {
     goldReward: 30,
     xpReward: 20,
   },
+  // ---- Tactic checks: elites whose KITS demand an answer (no new rules) ----
+  runewall_sentinel: {
+    id: 'runewall_sentinel',
+    name: 'Runewall Sentinel',
+    baseDepth: 1,
+    isElite: true,
+    // The turtle check: cycles typed shields behind high armor and resolve.
+    // Answer: poison (bypasses shields), Shield Splitter, or true damage.
+    stats: { maxHp: 180, hp: 180, attack: 12, magicPower: 8, armor: 6, magicResist: 4, speed: 10, critPct: 0, resolve: 25 },
+    boardSize: 7,
+    pieces: [
+      { skillId: 'iron_bulwark', slot: 0 },
+      { skillId: 'sword_slash', slot: 2 },
+      { skillId: 'mana_ward', slot: 3 },
+    ],
+    weaponAffinity: 'sword',
+    goldReward: 35,
+    xpReward: 22,
+  },
+  feral_alpha: {
+    id: 'feral_alpha',
+    name: 'Feral Alpha',
+    baseDepth: 1,
+    isElite: true,
+    // The buff-stacker check: howls then hits hard with varied fangs.
+    // Answer: purge (Dispelling Arrow) or the bow matchup vs beast.
+    stats: { maxHp: 150, hp: 150, attack: 13, magicPower: 0, armor: 1, magicResist: 1, speed: 14, critPct: 10 },
+    boardSize: 7,
+    pieces: [
+      { skillId: 'battle_howl', slot: 0 },
+      { skillId: 'savage_bite', slot: 1 },
+      { skillId: 'venom_fang', slot: 2 },
+      { skillId: 'leeching_fang', slot: 3 },
+    ],
+    weaponAffinity: 'beast',
+    goldReward: 35,
+    xpReward: 22,
+  },
+  grave_chanter: {
+    id: 'grave_chanter',
+    name: 'Grave Chanter',
+    baseDepth: 1,
+    isElite: true,
+    // The healer check: out-heals slow chip damage behind hexes.
+    // Answer: burst windows (execute), stuns to eat the heal, or heavy alpha.
+    stats: { maxHp: 170, hp: 170, attack: 4, magicPower: 15, armor: 4, magicResist: 6, speed: 12, critPct: 0 },
+    boardSize: 7,
+    pieces: [
+      { skillId: 'hex_of_frailty', slot: 0 },
+      { skillId: 'mending_light', slot: 1 },
+      { skillId: 'arcane_bolt', slot: 3 },
+      { skillId: 'slow_hex', slot: 4 },
+    ],
+    elementAffinity: 'dark',
+    goldReward: 35,
+    xpReward: 22,
+  },
   wolf_king: {
     id: 'wolf_king',
     name: 'The Wolf King',

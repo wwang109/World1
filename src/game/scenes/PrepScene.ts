@@ -39,7 +39,7 @@ export class PrepScene extends Phaser.Scene {
       fontFamily: 'monospace',
       fontStyle: 'bold',
     });
-    this.add.text(24, 48, 'arrange your board · pick an enemy · fight', {
+    this.add.text(24, 48, 'arrange your board · click enemies to build their party (1-5) · fight', {
       fontSize: '13px',
       color: UI.textDim,
       fontFamily: 'monospace',
@@ -193,7 +193,7 @@ export class PrepScene extends Phaser.Scene {
 
   private buildEnemyPicker(): void {
     let x = 24;
-    const y = 92;
+    let y = 92;
     for (const id of Object.keys(enemies)) {
       const def = enemies[id]!;
       const selected = demoState.enemyIds.includes(id);
@@ -217,12 +217,11 @@ export class PrepScene extends Phaser.Scene {
         this.scene.restart();
       });
       x += btn.width + 10;
+      if (x > 1080) {
+        x = 24;
+        y += 30;
+      }
     }
-    this.add.text(x + 6, y + 6, `enemy party ${demoState.enemyIds.length}/5 — click to add/remove`, {
-      fontSize: '11px',
-      color: UI.textDim,
-      fontFamily: 'monospace',
-    });
   }
 
   private renderEnemyPreview(): void {

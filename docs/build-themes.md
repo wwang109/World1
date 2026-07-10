@@ -312,6 +312,28 @@ must-cast cards (Rending Claws, Fireball) are the juiciest marks.
 - **Meta skills tree loadouts** (deferred phase) → theme-boosting perks
   (e.g. Legacy's affinity picks locking in matchup advantage per run).
 
+## Enemy curriculum — checks, not stat walls
+
+Low floor, high ceiling: elites and bosses demand PROPER TACTICS and deck
+planning, but always through kits made of existing player-facing rules —
+a boss is a question, your deck is the answer, and no check ever
+introduces a mechanic the player hasn't seen on their own cards.
+
+Sim-validated (a naive all-damage board LOSES all three; each tailored
+answer wins):
+
+| Elite | The question | Answers that work |
+|---|---|---|
+| **Runewall Sentinel** | shields cycling behind armor 6 + resolve 25 | poison (bypasses shields), Shield Splitter, true damage — or patient tempo+sustain |
+| **Feral Alpha** | Battle Howl into hard, varied beast attacks | Dispelling Arrow (purge the howl), bows (beast matchup), tempo theft |
+| **Grave Chanter** | 45-point heals behind hexes and slows | burst windows (Crushing Blow + execute), stuns to eat the heal cast |
+
+Checks gate THOUGHTLESS decks, not demand one true answer — a genuinely
+well-built deck of another flavor may grind one out (the hunter deck beats
+the Sentinel in 39 patient turns). Depth scaling from the run layer will
+raise elite STATS later; the tactic requirement comes from kits, and that
+ships now.
+
 ## Complexity budget — keep the floor low
 
 Design law (2026-07): the game must stay ONE sentence to learn — "put cards
