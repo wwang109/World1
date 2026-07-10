@@ -26,6 +26,13 @@ export interface CombatantStats {
   /** Initiative: turn score = bank + speed − queued card's weight. */
   speed: number;
   critPct: number;
+  /**
+   * Resistance to hostile lingering effects: each point makes incoming
+   * DoTs/debuffs/slows/staggers 1% weaker and shortens stun durations
+   * (fully resisting 1-turn stuns past ~50). Debuffed below 0 it AMPLIFIES
+   * incoming effects (up to 150%). Default 0.
+   */
+  resolve?: number;
 }
 
 /** Card type identity — a card carries ONE OR MORE of these. */
@@ -87,7 +94,7 @@ export type WeaponType = 'sword' | 'axe' | 'lance' | 'bow' | 'beast';
 export type SkillTier = 'bronze' | 'silver' | 'gold' | 'diamond';
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 
-export type BuffableStat = 'attack' | 'magicPower' | 'armor' | 'magicResist' | 'speed' | 'critPct';
+export type BuffableStat = 'attack' | 'magicPower' | 'armor' | 'magicResist' | 'speed' | 'critPct' | 'resolve';
 
 /**
  * Cast actions. Targets are implicit in 1v1: offensive actions hit the enemy,

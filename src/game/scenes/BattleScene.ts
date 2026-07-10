@@ -313,6 +313,10 @@ export class BattleScene extends Phaser.Scene {
         this.refreshStatuses(view);
         this.log(`  ${this.tagOf(e.side, e.unit)} gains ${e.status} (${e.turns}t)`);
         break;
+      case 'resisted':
+        this.log(`  ${this.tagOf(e.side, e.unit)} RESISTED the ${e.status} (resolve)`);
+        if (view && !instant) this.floatText(view, '✋ resisted', 0xb8c4d4);
+        break;
       case 'statusExpired': {
         if (!view) break;
         const idx = view.statuses.findIndex((s) => s.status === e.status);

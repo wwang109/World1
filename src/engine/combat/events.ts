@@ -64,6 +64,8 @@ export type CombatEvent =
   | { turn: number; kind: 'shieldGain'; side: Side; unit: number; property: Property; amount: number; wasted: number; totalAfter: number }
   | { turn: number; kind: 'statusApplied'; side: Side; unit: number; status: StatusName; property?: Property; turns: number }
   | { turn: number; kind: 'statusExpired'; side: Side; unit: number; status: StatusName }
+  /** A hostile effect was shrugged off entirely by the target's Resolve. */
+  | { turn: number; kind: 'resisted'; side: Side; unit: number; status: StatusName | 'slow' | 'stagger' }
   | { turn: number; kind: 'cleansed'; side: Side; unit: number; removed: number }
   | { turn: number; kind: 'purged'; side: Side; unit: number; removed: number }
   | { turn: number; kind: 'slowedNext'; side: Side; unit: number; weight: number }

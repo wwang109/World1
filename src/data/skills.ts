@@ -423,6 +423,30 @@ const defs: SkillDef[] = [
     text: 'Restore 140% Magic Power health, then regenerate 5 HP at the start of each turn for 3 turns.',
   },
 
+  // ---- Resolve (effect resistance / potency) ----
+  {
+    id: 'iron_will',
+    name: 'Iron Will',
+    archetypes: ['support', 'defensive'],
+    property: 'true',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [{ kind: 'buffStat', stat: 'resolve', pct: 40, turns: 2 }],
+    text: 'Gain +40 Resolve for 2 turns — hostile poisons, burns, debuffs, slows and staggers land 40% weaker on you.',
+  },
+  {
+    id: 'expose_weakness',
+    name: 'Expose Weakness',
+    archetypes: ['debuff'],
+    property: 'true',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [{ kind: 'debuffStat', stat: 'resolve', pct: 25, turns: 3 }],
+    text: "Reduce the enemy's Resolve by 25 for 3 turns — your lingering effects on them land 25% STRONGER.",
+  },
+
   // ---- Debuff ----
   {
     id: 'hex_of_frailty',

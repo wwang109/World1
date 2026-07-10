@@ -68,7 +68,7 @@ function parseBoard(spec: string): BoardPiece[] {
 
 const heroPieces = parseBoard(heroSpec);
 
-const heroStats: CombatantStats = { ...BASE_HERO_STATS };
+const heroStats: CombatantStats = { ...BASE_HERO_STATS, resolve: 0 };
 for (const [key, stat] of [
   ['hp', 'maxHp'],
   ['atk', 'attack'],
@@ -77,6 +77,7 @@ for (const [key, stat] of [
   ['res', 'magicResist'],
   ['spd', 'speed'],
   ['crit', 'critPct'],
+  ['resolve', 'resolve'],
 ] as const) {
   const v = flag(key);
   if (v !== undefined) heroStats[stat] = Number(v);
@@ -180,6 +181,9 @@ for (const e of events) {
       break;
     case 'statusApplied':
       console.log(`${t} │  ${tag(e.side, u)} gains ${e.status}${e.property ? `(${e.property})` : ''} for ${e.turns}t`);
+      break;
+    case 'resisted':
+      console.log(`${t} │  ${tag(e.side, u)} RESISTED the ${e.status} (resolve)`);
       break;
     case 'statusExpired':
       console.log(`${t} │  ${tag(e.side, u)} ${e.status} expired`);

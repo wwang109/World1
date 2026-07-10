@@ -21,7 +21,7 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'stone_beetle',
     name: 'Stone Beetle',
     baseDepth: 1,
-    stats: { maxHp: 150, hp: 150, attack: 8, magicPower: 0, armor: 5, magicResist: 1, speed: 7, critPct: 0 },
+    stats: { maxHp: 150, hp: 150, attack: 8, magicPower: 0, armor: 5, magicResist: 1, speed: 7, critPct: 0, resolve: 25 },
     elementAffinity: 'nature',
     weaponAffinity: 'beast',
     boardSize: 6,
@@ -67,7 +67,7 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'The Wolf King',
     baseDepth: 1,
     isBoss: true,
-    stats: { maxHp: 280, hp: 280, attack: 15, magicPower: 0, armor: 3, magicResist: 2, speed: 13, critPct: 10 },
+    stats: { maxHp: 280, hp: 280, attack: 15, magicPower: 0, armor: 3, magicResist: 2, speed: 13, critPct: 10, resolve: 15 },
     weaponAffinity: 'beast',
     boardSize: 8,
     pieces: [

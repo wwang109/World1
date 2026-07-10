@@ -187,8 +187,8 @@ export function sideDefeated(units: CombatantState[]): boolean {
   return units.every((u) => !u.alive);
 }
 
-/** Effective stat after buff/debuff percentages (and flat amounts). Never below 0. */
-export function effStat(c: CombatantState, stat: BuffableStat): number {
+/** Effective stat after buff/debuff percentages (and flat amounts), signed. */
+export function effStatSigned(c: CombatantState, stat: BuffableStat): number {
   let pct = 100;
   let flat = 0;
   for (const s of c.statuses) {
@@ -201,7 +201,21 @@ export function effStat(c: CombatantState, stat: BuffableStat): number {
       flat -= s.amount ?? 0;
     }
   }
-  return Math.max(0, Math.floor((c.stats[stat] * pct) / 100) + flat);
+  return Math.floor(((c.stats[stat] ?? 0) * pct) / 100) + flat;
+}
+
+/** Effective stat after buff/debuff percentages (and flat amounts). Never below 0. */
+export function effStat(c: CombatantState, stat: BuffableStat): number {
+  return Math.max(0, effStatSigned(c, stat));
+}
+
+/**
+ * The RESOLVE CHECK: how strongly hostile lingering effects land on `c`, as
+ * a percentage. 100 = full effect; each point of Resolve shaves 1%; Resolve
+ * debuffed below 0 AMPLIFIES effects, capped at 150%.
+ */
+export function effectPotencyPct(c: CombatantState): number {
+  return Math.max(0, Math.min(150, 100 - effStatSigned(c, 'resolve')));
 }
 
 export function totalShield(c: CombatantState): number {

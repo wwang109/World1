@@ -208,6 +208,23 @@ Recommendation: keep baseline thorns timed, and ship permanence as SCARCE:
 
 ---
 
+## Resolve — the effect-resistance check
+
+Every combatant has a **Resolve** stat (default 0). When a hostile lingering
+effect lands, it passes the resolve check: `effectiveness = 100 − target's
+Resolve` percent (clamped 0–150). Poison/burn ticks, debuff strengths, slow
+weights and stagger drains all scale by it; stun DURATIONS round down with
+it, so 1-turn stuns are fully shrugged off past ~50 Resolve. Fully-resisted
+effects show a "RESISTED" line in the log.
+
+- **Iron Will** (+40 Resolve, 2 turns) is the defensive tech card — slot it
+  into any build that folds to Venom/hex enemies.
+- **Expose Weakness** (−25 enemy Resolve, 3 turns) is the potency lever:
+  pushing Resolve below 0 makes YOUR effects land up to 150% — the natural
+  opener for Venom Attrition and Tempo Thief.
+- Enemy presets: Stone Beetle carries 25 Resolve, the Wolf King 15 — DoT
+  and control builds now feel the check in the wild.
+
 ## General placement rules
 
 - **Combo routing:** Follow-Through checks the PREVIOUS cast's archetype —

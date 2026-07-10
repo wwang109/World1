@@ -84,6 +84,9 @@ for (const e of events) {
     case 'statusApplied':
       console.log(`${t} │  ${tag(e.side, 'unit' in e ? e.unit : 0)} gains ${e.status}${e.property ? `(${e.property})` : ''} for ${e.turns}t`);
       break;
+    case 'resisted':
+      console.log(`${t} │  ${tag(e.side, 'unit' in e ? e.unit : 0)} RESISTED the ${e.status} (resolve)`);
+      break;
     case 'statusExpired':
       console.log(`${t} │  ${tag(e.side, 'unit' in e ? e.unit : 0)} ${e.status} expired`);
       break;

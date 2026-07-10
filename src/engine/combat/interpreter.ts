@@ -3,7 +3,7 @@ import type { Action, EnchantDef, Property, SkillDef, TargetMode } from '../type
 import type { CombatEvent } from './events';
 import type { AuraMods } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
-import { effStat, isPositiveStatus, livingFoes, pickTarget, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
+import { effectPotencyPct, effStat, isPositiveStatus, livingFoes, pickTarget, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 
 export interface Ctx {
@@ -251,19 +251,38 @@ function applyAction(
       break;
     }
     case 'poison': {
-      // DoTs inherit the card's element/weapon: the matchup bakes into the tick amount.
-      const amount = Math.max(1, Math.floor((action.amount * matchupPct(cardMatchup(skill, enemy))) / 100));
+      // DoTs inherit the card's element/weapon (matchup bakes into the tick),
+      // then the victim's RESOLVE CHECK scales the whole effect.
+      const base = Math.max(1, Math.floor((action.amount * matchupPct(cardMatchup(skill, enemy))) / 100));
+      const amount = Math.floor((base * effectPotencyPct(enemy)) / 100);
+      if (amount <= 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'resisted', side: enemy.side, unit: enemy.unit, status: 'poison' });
+        break;
+      }
       addStatus(ctx, enemy, { kind: 'poison', property, amount, turnsLeft: action.turns, fresh: true });
       break;
     }
     case 'burn': {
-      const amount = Math.max(1, Math.floor((action.amount * matchupPct(cardMatchup(skill, enemy))) / 100));
+      const base = Math.max(1, Math.floor((action.amount * matchupPct(cardMatchup(skill, enemy))) / 100));
+      const amount = Math.floor((base * effectPotencyPct(enemy)) / 100);
+      if (amount <= 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'resisted', side: enemy.side, unit: enemy.unit, status: 'burn' });
+        break;
+      }
       addStatus(ctx, enemy, { kind: 'burn', property, amount, turnsLeft: action.turns, fresh: true });
       break;
     }
-    case 'stun':
-      addStatus(ctx, enemy, { kind: 'stun', turnsLeft: action.turns, fresh: true });
+    case 'stun': {
+      // Resolve shortens stun DURATION (rounded): past ~50 Resolve a 1-turn
+      // stun is fully resisted.
+      const turns = Math.round((action.turns * effectPotencyPct(enemy)) / 100);
+      if (turns <= 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'resisted', side: enemy.side, unit: enemy.unit, status: 'stun' });
+        break;
+      }
+      addStatus(ctx, enemy, { kind: 'stun', turnsLeft: turns, fresh: true });
       break;
+    }
     case 'buffStat':
       // TRUE buffs are flat amounts; physical/magical buffs are percentages.
       if (property === 'true') {
@@ -272,13 +291,19 @@ function applyAction(
         addStatus(ctx, caster, { kind: 'buff', stat: action.stat, pct: action.pct, turnsLeft: action.turns, fresh: true });
       }
       break;
-    case 'debuffStat':
+    case 'debuffStat': {
+      const strength = Math.floor((action.pct * effectPotencyPct(enemy)) / 100);
+      if (strength <= 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'resisted', side: enemy.side, unit: enemy.unit, status: 'debuff' });
+        break;
+      }
       if (property === 'true') {
-        addStatus(ctx, enemy, { kind: 'debuff', stat: action.stat, amount: action.pct, turnsLeft: action.turns, fresh: true });
+        addStatus(ctx, enemy, { kind: 'debuff', stat: action.stat, amount: strength, turnsLeft: action.turns, fresh: true });
       } else {
-        addStatus(ctx, enemy, { kind: 'debuff', stat: action.stat, pct: action.pct, turnsLeft: action.turns, fresh: true });
+        addStatus(ctx, enemy, { kind: 'debuff', stat: action.stat, pct: strength, turnsLeft: action.turns, fresh: true });
       }
       break;
+    }
     case 'cleanse': {
       if (!caster.alive) break;
       const before = caster.statuses.length;
@@ -299,16 +324,27 @@ function applyAction(
       }
       break;
     }
-    case 'slowNext':
+    case 'slowNext': {
       // Slows don't stack (that would permanently lock out slow enemies):
       // the strongest pending slow applies until the enemy next performs.
       if (!enemy.alive) break;
-      enemy.nextWeightPenalty = Math.max(enemy.nextWeightPenalty, action.weight);
-      ctx.events.push({ turn: ctx.state.turn, kind: 'slowedNext', side: enemy.side, unit: enemy.unit, weight: action.weight });
+      const weight = Math.floor((action.weight * effectPotencyPct(enemy)) / 100);
+      if (weight <= 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'resisted', side: enemy.side, unit: enemy.unit, status: 'slow' });
+        break;
+      }
+      enemy.nextWeightPenalty = Math.max(enemy.nextWeightPenalty, weight);
+      ctx.events.push({ turn: ctx.state.turn, kind: 'slowedNext', side: enemy.side, unit: enemy.unit, weight });
       break;
+    }
     case 'stagger': {
       if (!enemy.alive) break;
-      const drained = Math.min(enemy.bank, action.amount);
+      const potent = Math.floor((action.amount * effectPotencyPct(enemy)) / 100);
+      if (potent <= 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'resisted', side: enemy.side, unit: enemy.unit, status: 'stagger' });
+        break;
+      }
+      const drained = Math.min(enemy.bank, potent);
       enemy.bank -= drained;
       ctx.events.push({ turn: ctx.state.turn, kind: 'staggered', side: enemy.side, unit: enemy.unit, amount: drained, bankAfter: enemy.bank });
       break;
