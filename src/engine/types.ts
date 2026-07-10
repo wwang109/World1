@@ -40,6 +40,36 @@ export type Property = 'physical' | 'magical' | 'true';
 /** Board slots occupied AND turn span: a size-3 card busies its caster 2 extra turns. */
 export type SkillSize = 1 | 2 | 3;
 
+/**
+ * Who a card's hostile actions hit:
+ * - aggro:    highest-aggro living foe (ties to the front) — the default
+ * - lowAggro: lowest-aggro living foe (assassin: snipe whoever hides)
+ * - lowestHp: weakest living foe (executioner: finish wounded targets)
+ * - all:      every living foe — damage strikes only, at a reduced %;
+ *             non-damage riders stick to the default single target
+ */
+export type TargetMode = 'aggro' | 'lowAggro' | 'lowestHp' | 'all';
+
+/**
+ * An enchantment: a modifier attached to a PLACED card (per board piece, not
+ * per card def), overriding how the card targets. Enchants compose with tier
+ * variants. Shipped enchants are sidegrades — they trade target QUALITY for
+ * raw power (AoE pays a per-target damage cut) — so they carry no PL price;
+ * an enchant that adds raw power must price it with the balance table.
+ */
+export interface EnchantDef {
+  id: string;
+  name: string;
+  /** Small badge shown on enchanted pieces. */
+  icon: string;
+  targeting: TargetMode;
+  /** For 'all': each target takes this % of the rolled damage. */
+  aoeDamagePct?: number;
+  text: string;
+}
+
+export type EnchantBook = Record<string, EnchantDef>;
+
 /** Elements for Magical cards (wheel + Holy↔Dark pair). */
 export type Element = 'fire' | 'frost' | 'lightning' | 'nature' | 'holy' | 'dark';
 
@@ -137,6 +167,8 @@ export interface SkillDef {
   element?: Element;
   /** Required on Physical cards that deal damage (weapon triangle). */
   weapon?: WeaponType;
+  /** Hostile-action targeting; default 'aggro'. Enchants override per piece. */
+  targeting?: TargetMode;
   /** Cast effects. Empty for pure passives (skipped by the rotation). */
   effects: Action[];
   /** Positional effect projected onto neighboring board cards. */
@@ -168,6 +200,8 @@ export interface EquipmentDef {
 export interface BoardPiece {
   skillId: string;
   slot: number;
+  /** Enchantment attached to this placed card (id into the enchant book). */
+  enchant?: string;
 }
 
 /** A fully resolved combatant fed into simulate(). */
@@ -197,6 +231,8 @@ export interface CombatConfig {
   player: CombatantSetup | CombatantSetup[];
   enemy: CombatantSetup | CombatantSetup[];
   skillBook: SkillBook;
+  /** Enchant definitions referenced by pieces' `enchant` ids. */
+  enchantBook?: EnchantBook;
   /**
    * Rounds (both sides have performed N times) before sudden death: damage
    * ramps +10%/turn for the player, +30%/turn for the enemy. Default 5.

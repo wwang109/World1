@@ -27,6 +27,8 @@ export interface PieceState {
   /** Leftmost occupied slot. */
   slot: number;
   size: number;
+  /** Enchantment id attached to this piece (resolved via cfg.enchantBook). */
+  enchant?: string;
 }
 
 export interface CombatantState {
@@ -88,7 +90,7 @@ function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBoo
       if (occupied[s]) throw new Error(`Board overlap at slot ${s} (${piece.skillId})`);
       occupied[s] = true;
     }
-    pieces.push({ skillId: piece.skillId, slot: piece.slot, size: def.size });
+    pieces.push({ skillId: piece.skillId, slot: piece.slot, size: def.size, enchant: piece.enchant });
   }
   pieces.sort((a, b) => a.slot - b.slot);
   return {
@@ -135,20 +137,44 @@ export function sideOf(state: CombatState, side: Side): CombatantState[] {
   return side === 'player' ? state.player : state.enemy;
 }
 
+export function foesOf(state: CombatState, c: CombatantState): CombatantState[] {
+  return sideOf(state, c.side === 'player' ? 'enemy' : 'player');
+}
+
+export function livingFoes(state: CombatState, c: CombatantState): CombatantState[] {
+  return foesOf(state, c).filter((f) => f.alive);
+}
+
 /**
- * Aggro targeting: hostile actions hit the highest-aggro LIVING member of
- * the opposing formation; ties go to the front (lowest unit index). With
- * everyone at 0 aggro this is pure front-line targeting. Resolved at action
- * time, so kills retarget mid-cast. Falls back to the front unit when the
- * whole side is down so callers can still no-op on `!target.alive`.
+ * Pick a single hostile target among LIVING foes; ties always go to the
+ * front of the formation (lowest unit index). Resolved at action time, so
+ * kills retarget mid-cast. Falls back to the front unit when the whole side
+ * is down so callers can still no-op on `!target.alive`.
+ * - aggro:    highest aggro (default — with all-zero aggro = front line)
+ * - lowAggro: lowest aggro (assassin)
+ * - lowestHp: least current HP (executioner)
  */
-export function opponentOf(state: CombatState, c: CombatantState): CombatantState {
-  const foes = sideOf(state, c.side === 'player' ? 'enemy' : 'player');
+export function pickTarget(state: CombatState, c: CombatantState, mode: 'aggro' | 'lowAggro' | 'lowestHp'): CombatantState {
+  const foes = foesOf(state, c);
   let target: CombatantState | null = null;
   for (const foe of foes) {
-    if (foe.alive && (target === null || foe.aggro > target.aggro)) target = foe;
+    if (!foe.alive) continue;
+    if (target === null) {
+      target = foe;
+    } else if (mode === 'aggro' && foe.aggro > target.aggro) {
+      target = foe;
+    } else if (mode === 'lowAggro' && foe.aggro < target.aggro) {
+      target = foe;
+    } else if (mode === 'lowestHp' && foe.stats.hp < target.stats.hp) {
+      target = foe;
+    }
   }
   return target ?? foes[0]!;
+}
+
+/** Default-mode target (highest aggro, ties to the front). */
+export function opponentOf(state: CombatState, c: CombatantState): CombatantState {
+  return pickTarget(state, c, 'aggro');
 }
 
 export function sideDefeated(units: CombatantState[]): boolean {

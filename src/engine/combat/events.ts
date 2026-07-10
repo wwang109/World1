@@ -45,7 +45,7 @@ export type CombatEvent =
   | { turn: number; kind: 'performStart'; side: Side; unit: number; performs: number }
   | { turn: number; kind: 'performSkipped'; side: Side; unit: number; reason: 'stunned' }
   | { turn: number; kind: 'noPerformer' }
-  | { turn: number; kind: 'skillCast'; side: Side; unit: number; slot: number; skillId: string; span: number }
+  | { turn: number; kind: 'skillCast'; side: Side; unit: number; slot: number; skillId: string; span: number; enchant?: string }
   | {
       turn: number;
       kind: 'damage';

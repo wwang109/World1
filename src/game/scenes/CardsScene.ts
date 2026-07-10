@@ -3,6 +3,7 @@ import type { BoardPiece, SkillTier } from '../../engine/types';
 import { TIER_ORDER, variantId, baseIdOf } from '../../engine/tierUp';
 import { powerLevel } from '../../engine/balance';
 import { skillBook } from '../../data/skills';
+import { enchantBook } from '../../data/enchants';
 import { fullBook, cardAtTier, tiersOf } from '../../data/library';
 import { HERO_BOARD_SLOTS } from '../../data/heroes';
 import { canPlace } from '../../run/loadout';
@@ -187,6 +188,54 @@ export class CardsScene extends Phaser.Scene {
       }),
     );
 
+    // Enchant picker — targeting marks attach to PLACED cards only.
+    if (source === 'board' && this.sel.piece) {
+      const piece = this.sel.piece;
+      const options: (string | null)[] = [null, ...Object.keys(enchantBook)];
+      const ew = Math.floor((PANEL_W - 28) / options.length);
+      const enchBlurb = piece.enchant ? ` — ${(enchantBook[piece.enchant]?.text ?? '').split('. ')[0]}.` : ' (targeting mark)';
+      this.detailObjs.push(
+        this.add.text(PANEL_X + 16, 368, `ENCHANT${enchBlurb}`, {
+          fontSize: '10px',
+          color: UI.textDim,
+          fontFamily: 'monospace',
+          wordWrap: { width: PANEL_W - 32 },
+        }),
+      );
+      options.forEach((id, i) => {
+        const active = (piece.enchant ?? null) === id;
+        const label = id ? `${enchantBook[id]!.icon} ${enchantBook[id]!.name.split(' ')[0]}` : '— none';
+        const btn = this.add
+          .text(PANEL_X + 14 + ew / 2 + i * ew, 406, label, {
+            fontSize: '10px',
+            color: active ? '#101018' : UI.text,
+            backgroundColor: active ? '#c9a227' : '#1c1c26',
+            padding: { x: 4, y: 4 },
+            fontFamily: 'monospace',
+          })
+          .setOrigin(0.5);
+        if (!active) {
+          btn.setInteractive({ useHandCursor: true });
+          btn.on('pointerdown', () => {
+            if (id === null) delete piece.enchant;
+            else piece.enchant = id;
+            this.renderBoardStrip();
+            this.renderDetail();
+          });
+        }
+        this.detailObjs.push(btn);
+      });
+    } else if (source === 'library') {
+      this.detailObjs.push(
+        this.add.text(PANEL_X + 16, 396, 'place on the board to attach a targeting enchant (AoE / assassin / executioner)', {
+          fontSize: '10px',
+          color: '#4a4a55',
+          fontFamily: 'monospace',
+          wordWrap: { width: PANEL_W - 32 },
+        }),
+      );
+    }
+
     // Actions depend on where the selection came from.
     const ay = 436;
     if (source === 'library') {
@@ -330,6 +379,13 @@ export class CardsScene extends Phaser.Scene {
       card.setInteractive({ useHandCursor: true });
       card.on('pointerdown', () => this.select({ baseId: baseIdOf(piece.skillId), tier: skill.tier, source: 'board', piece }));
       this.boardObjs.push(card);
+      if (piece.enchant) {
+        const badge = this.add
+          .text(x + (skill.size * slotW) / 2 - 4, BOARD_STRIP_Y - 4, enchantBook[piece.enchant]?.icon ?? '✦', { fontSize: '12px' })
+          .setOrigin(1, 0)
+          .setDepth(2);
+        this.boardObjs.push(badge);
+      }
     }
   }
 

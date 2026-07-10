@@ -3,6 +3,7 @@ import { simulate, type CombatResult } from '../../engine/combat/simulate';
 import type { CombatEvent, ComparisonSide } from '../../engine/combat/events';
 import type { Side } from '../../engine/types';
 import { fullBook as skillBook } from '../../data/library';
+import { enchantBook } from '../../data/enchants';
 import { enemies } from '../../data/enemies';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../data/heroes';
 import { demoState } from '../demoState';
@@ -90,6 +91,7 @@ export class BattleScene extends Phaser.Scene {
           weaponAffinity: def.weaponAffinity,
         })),
         skillBook,
+        enchantBook,
       },
       demoState.seed,
     );
@@ -265,7 +267,9 @@ export class BattleScene extends Phaser.Scene {
       case 'skillCast': {
         const skill = skillBook[e.skillId];
         const kindIcon = skill?.element ? ` ${ELEMENT_ICON[skill.element]}` : skill?.weapon ? ` ${WEAPON_ICON[skill.weapon]}` : '';
-        this.log(`  ${this.tagOf(e.side, e.unit)} cast ${skill?.name ?? e.skillId}${kindIcon}${e.span > 1 ? ` (spans ${e.span})` : ''}`);
+        const ench = e.enchant ? enchantBook[e.enchant] : undefined;
+        const enchTag = ench ? ` ${ench.icon}${ench.name}` : '';
+        this.log(`  ${this.tagOf(e.side, e.unit)} cast ${skill?.name ?? e.skillId}${kindIcon}${enchTag}${e.span > 1 ? ` (spans ${e.span})` : ''}`);
         const card = view?.cards.get(e.slot);
         if (card && !instant) {
           card.setHighlight(true, 0xffe27a);

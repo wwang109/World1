@@ -1,9 +1,9 @@
 import type { Rng } from '../rng';
-import type { Action, Property, SkillDef } from '../types';
+import type { Action, EnchantDef, Property, SkillDef, TargetMode } from '../types';
 import type { CombatEvent } from './events';
 import type { AuraMods } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
-import { effStat, isPositiveStatus, opponentOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
+import { effStat, isPositiveStatus, livingFoes, pickTarget, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 
 export interface Ctx {
@@ -59,6 +59,18 @@ function consumeShields(c: CombatantState, property: Property, amount: number): 
 interface CastCtx {
   damageDealt: number;
   bonusPct: number;
+}
+
+/** Resolved targeting for one cast (enchant overrides the card's default). */
+interface TargetPlan {
+  mode: TargetMode;
+  /** For 'all': each target takes this % of the rolled damage. */
+  aoePct: number;
+}
+
+/** Single-target mode for a plan ('all' riders stick to the default pick). */
+function singleMode(plan: TargetPlan): 'aggro' | 'lowAggro' | 'lowestHp' {
+  return plan.mode === 'all' ? 'aggro' : plan.mode;
 }
 
 /** Apply damage through typed shields; emits events, marks death. */
@@ -118,9 +130,8 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
   });
 }
 
-/** One skill strike: scaling, crit roll, mitigation, matchup, thorns payback. */
-function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number, mods: AuraMods, cast: CastCtx): void {
-  const enemy = opponentOf(ctx.state, caster);
+/** One skill strike at a specific target: scaling, crit, mitigation, matchup, thorns payback. */
+function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number, mods: AuraMods, cast: CastCtx, enemy: CombatantState): void {
   const property = skill.property;
   let base = Math.floor((scaleStat(caster, property) * power) / 100);
   base = Math.floor((base * (100 + mods.damagePct + cast.bonusPct)) / 100);
@@ -154,20 +165,44 @@ function applyAction(
   action: Action,
   mods: AuraMods,
   cast: CastCtx,
+  plan: TargetPlan,
 ): void {
-  const enemy = opponentOf(ctx.state, caster);
+  // Non-damage hostile actions always pick ONE target by the plan's mode
+  // (an assassin-marked poison lands on the backline); AoE spreads damage
+  // strikes only.
+  const enemy = pickTarget(ctx.state, caster, singleMode(plan));
   const property = skill.property;
   switch (action.kind) {
     case 'damage':
-      strike(ctx, caster, skill, action.power, mods, cast);
+      if (plan.mode === 'all') {
+        const aoePower = Math.floor((action.power * plan.aoePct) / 100);
+        for (const foe of livingFoes(ctx.state, caster)) {
+          if (!caster.alive) break;
+          strike(ctx, caster, skill, aoePower, mods, cast, foe);
+        }
+      } else {
+        strike(ctx, caster, skill, action.power, mods, cast, enemy);
+      }
       break;
     case 'multiHit':
       // Each hit is a full independent strike: its own crit roll (fixed RNG
       // order), its own mitigation — armor is strong against many small hits.
       // Target re-resolves per hit, so a kill rolls leftover hits into the
       // next foe in the formation.
-      for (let i = 0; i < action.hits && caster.alive && opponentOf(ctx.state, caster).alive; i++) {
-        strike(ctx, caster, skill, action.power, mods, cast);
+      for (let i = 0; i < action.hits && caster.alive; i++) {
+        if (plan.mode === 'all') {
+          const foes = livingFoes(ctx.state, caster);
+          if (foes.length === 0) break;
+          const aoePower = Math.floor((action.power * plan.aoePct) / 100);
+          for (const foe of foes) {
+            if (!caster.alive || !foe.alive) continue;
+            strike(ctx, caster, skill, aoePower, mods, cast, foe);
+          }
+        } else {
+          const target = pickTarget(ctx.state, caster, singleMode(plan));
+          if (!target.alive) break;
+          strike(ctx, caster, skill, action.power, mods, cast, target);
+        }
       }
       break;
     case 'heal': {
@@ -329,13 +364,14 @@ function applyAction(
   }
 }
 
-/** Resolve one card cast from a board slot, with its aura modifiers. */
+/** Resolve one card cast from a board slot, with its aura modifiers and enchant. */
 export function applyCast(
   ctx: Ctx,
   caster: CombatantState,
   skill: SkillDef,
   slot: number,
   mods: AuraMods,
+  enchant?: EnchantDef,
 ): void {
   ctx.events.push({
     turn: ctx.state.turn,
@@ -345,10 +381,15 @@ export function applyCast(
     slot,
     skillId: skill.id,
     span: skill.size,
+    enchant: enchant?.id,
   });
+  const plan: TargetPlan = {
+    mode: enchant?.targeting ?? skill.targeting ?? 'aggro',
+    aoePct: enchant?.aoeDamagePct ?? 100,
+  };
   const cast: CastCtx = { damageDealt: 0, bonusPct: 0 };
   for (const action of skill.effects) {
-    applyAction(ctx, caster, skill, action, mods, cast);
+    applyAction(ctx, caster, skill, action, mods, cast, plan);
   }
   if (skill.special !== undefined) {
     getSpecial(skill.special)(ctx, caster, skill, slot, mods);

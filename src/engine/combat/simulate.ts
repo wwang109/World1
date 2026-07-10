@@ -255,7 +255,8 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         // the caster's next action.
         c.nextWeightPenalty = 0;
         c.nextWeightBonus = 0;
-        applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods);
+        const enchant = choice.piece.enchant !== undefined ? cfg.enchantBook?.[choice.piece.enchant] : undefined;
+        applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, enchant);
         // Combo remembers this cast.
         c.lastCastArchetypes = choice.skill.archetypes;
       }
