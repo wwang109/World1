@@ -273,6 +273,23 @@ describe('stun', () => {
     const { events } = simulate(c, 1);
     expect(events.some((e) => e.kind === 'performSkipped' && e.side === 'enemy')).toBe(true);
   });
+
+  it('is a delay, not a stagger: the kept bank breaks perma-stun locks', () => {
+    // A fast hero recasting Stunning Smash every rotation. Under bank-zeroing
+    // stun this was an infinite lock (the victim could never outrace the next
+    // smash); with the bank kept, skipped turns still accumulate tempo and
+    // the victim forces its way to a real cast.
+    const c = cfg(
+      tc('hero', ['stunning_smash'], { attack: 10, speed: 20, maxHp: 500 }),
+      tc('victim', ['sword_slash'], { attack: 10, speed: 10, maxHp: 500 }),
+      { ...NO_ENDGAME, maxTurns: 12 },
+    );
+    const { events } = simulate(c, 1);
+    const skipTurn = (events.find((e) => e.kind === 'performSkipped' && e.side === 'enemy') as { turn: number }).turn;
+    const nextCast = events.find((e) => e.kind === 'skillCast' && e.side === 'enemy' && e.turn > skipTurn) as { turn: number } | undefined;
+    expect(nextCast).toBeDefined();
+    expect(nextCast!.turn).toBeLessThanOrEqual(skipTurn + 3);
+  });
 });
 
 describe('buffs, debuffs and cleanse', () => {

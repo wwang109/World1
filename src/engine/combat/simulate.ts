@@ -245,7 +245,9 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
           events.push({ turn: state.turn, kind: 'statusExpired', side: c.side, unit: c.unit, status: 'stun' });
         }
         events.push({ turn: state.turn, kind: 'performSkipped', side: c.side, unit: c.unit, reason: 'stunned' });
-        c.bank = 0;
+        // Pure action denial: the victim KEEPS its banked initiative, so a
+        // stun reads as "skip their next action" — usually a one-turn delay.
+        // Draining the bank is stagger's job (and priced separately).
       } else {
         c.bank = 0;
         c.castCursor = (choice.piece.slot + choice.piece.size) % c.boardSize;
