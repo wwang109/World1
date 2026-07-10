@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "fight": "tsx scripts/fight.ts",
-    "sim": "tsx scripts/balance.ts"
+    "sim": "tsx scripts/balance.ts",
+    "battle": "tsx scripts/battle.ts"
   },
   "dependencies": {
     "phaser": "^3.90.0"
