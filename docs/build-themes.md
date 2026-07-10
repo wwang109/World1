@@ -175,6 +175,32 @@ pure-sustain version becomes viable because the CLOCK is your teammates.
 that outpace Mending Light's size-2 span, and anything that shortens the
 fight.
 
+### Thorns stacking — measured, and a design fork
+
+Thorns instances DO stack (the reflect sums every active instance), but
+each expires after its `turns`, so under current rules the stack plateaus.
+Sim: triple-Bramble-Coat spam board vs never-expiring thorns (same card,
+999-turn duration), 20 seeds per preset, base Bronze stats:
+
+| Rules | Peak stacks | Rat | Beetle | Imp | Bandit | Wolf King |
+|---|---|---|---|---|---|---|
+| Current (3-turn instances) | 2–3 (50–75%) | 0/20 | 20/20 | 15/20 | 0/20 | 0/20 |
+| Never-expiring (purge = only counter) | 4–13 (100–325%) | 20/20 | 20/20 | 20/20 | 20/20 | 19/20 |
+
+Permanent stacking is spectacular — past ~4 stacks (100%) the enemy kills
+itself, and sudden death's +30%/turn enemy ramp flips into the TURTLE'S
+win condition (bigger hits = bigger reflects). That inversion is elegant,
+but as a spammable Bronze mechanic it's degenerate: 99/100 wins including
+elite and boss with zero offense, zero tier investment, and no enemy in
+the roster carries purge to answer it.
+
+Recommendation: keep baseline thorns timed, and ship permanence as SCARCE:
+- a Diamond/legendary authored card ("Living Armor" — thorns you apply
+  never expire), priced far above the pct×turns table entry, and/or
+- a total-reflect cap (~100%) if stacking cards multiply, and
+- purge in elite/boss enemy kits BEFORE any permanent thorns ships — the
+  counterplay must exist in the world first.
+
 ---
 
 ## General placement rules
