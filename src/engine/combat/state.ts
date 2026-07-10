@@ -2,7 +2,7 @@ import { MAX_SIDE_SIZE } from '../types';
 import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantStats, Element, EnchantBook, Property, Side, SkillBook, WeaponType } from '../types';
 
 export interface StatusInstance {
-  kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'thorns' | 'regen';
+  kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'thorns' | 'regen' | 'dodge';
   /** DoT mitigation/synergy typing (inherited from the card). */
   property?: Property;
   stat?: BuffableStat;
@@ -241,6 +241,18 @@ export function effStat(c: CombatantState, stat: BuffableStat): number {
   return Math.max(0, effStatSigned(c, stat));
 }
 
+/** No amount of slow-stacking parks a combatant at zero initiative gain. */
+export const MIN_EFFECTIVE_SPEED = 5;
+
+/**
+ * Effective Speed for banking and initiative scores, floored at 5: debuffs
+ * can cripple tempo but never freeze it — the slowest enemy still crawls
+ * toward its next play.
+ */
+export function effSpeed(c: CombatantState): number {
+  return Math.max(MIN_EFFECTIVE_SPEED, effStat(c, 'speed'));
+}
+
 /**
  * The RESOLVE CHECK: how strongly hostile lingering effects land on `c`, as
  * a percentage. 100 = full effect; each point of Resolve shaves 1%; Resolve
@@ -260,5 +272,5 @@ export function hasStatus(c: CombatantState, kind: StatusInstance['kind']): bool
 
 /** Statuses the owner wants to keep: cleanse spares them, purge strips them. */
 export function isPositiveStatus(s: StatusInstance): boolean {
-  return s.kind === 'buff' || s.kind === 'thorns' || s.kind === 'regen';
+  return s.kind === 'buff' || s.kind === 'thorns' || s.kind === 'regen' || s.kind === 'dodge';
 }

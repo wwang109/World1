@@ -1,7 +1,7 @@
 import type { CombatOutcome, Property, Side } from '../types';
 
 
-export type StatusName = 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'thorns' | 'regen';
+export type StatusName = 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'thorns' | 'regen' | 'dodge';
 
 /** One contender's numbers in a turn's initiative comparison. */
 export interface ComparisonSide {
@@ -74,6 +74,8 @@ export type CombatEvent =
   | { turn: number; kind: 'slowedNext'; side: Side; unit: number; weight: number }
   | { turn: number; kind: 'quickenedNext'; side: Side; unit: number; weight: number }
   | { turn: number; kind: 'staggered'; side: Side; unit: number; amount: number; bankAfter: number }
+  /** A single-target physical strike missed a dodging defender. */
+  | { turn: number; kind: 'dodged'; side: Side; unit: number; hitsLeft: number }
   | { turn: number; kind: 'shieldBroken'; side: Side; unit: number; amount: number; totalAfter: number }
   | { turn: number; kind: 'suddenDeathStart' }
   | { turn: number; kind: 'fatigueStart' }

@@ -96,11 +96,11 @@
     "stats": {
       "maxHp": 140,
       "hp": 140,
-      "attack": 14,
+      "attack": 13,
       "magicPower": 0,
       "armor": 2,
       "magicResist": 1,
-      "speed": 13,
+      "speed": 12,
       "critPct": 20
     },
     "weaponAffinity": "sword",
@@ -201,8 +201,8 @@
     "baseDepth": 1,
     "isElite": true,
     "stats": {
-      "maxHp": 190,
-      "hp": 190,
+      "maxHp": 170,
+      "hp": 170,
       "attack": 4,
       "magicPower": 15,
       "armor": 4,

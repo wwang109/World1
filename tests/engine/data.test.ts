@@ -41,6 +41,7 @@ const ACTION_SHAPES: Record<string, string[]> = {
   multiHit: ['power', 'hits'],
   purge: [],
   regen: ['amount', 'turns'],
+  dodge: ['hits'],
 };
 
 describe('skills.json integrity', () => {

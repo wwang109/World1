@@ -136,8 +136,23 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
 }
 
 /** One skill strike at a specific target: scaling, crit, mitigation, matchup, thorns payback. */
-function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number, mods: AuraMods, cast: CastCtx, enemy: CombatantState): void {
+function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number, mods: AuraMods, cast: CastCtx, enemy: CombatantState, aoe = false): void {
   const property = skill.property;
+  // Dodge: a defender who acted FIRST slips single-target physical strikes
+  // entirely — no damage, no crit-meter tick, no thorns. You can sidestep a
+  // blade; AoE and magic still connect.
+  if (property === 'physical' && !aoe) {
+    const dodge = enemy.statuses.find((s) => s.kind === 'dodge' && (s.amount ?? 0) > 0);
+    if (dodge) {
+      dodge.amount = (dodge.amount ?? 0) - 1;
+      if (dodge.amount <= 0) {
+        enemy.statuses = enemy.statuses.filter((s) => s !== dodge);
+        ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: enemy.side, unit: enemy.unit, status: 'dodge' });
+      }
+      ctx.events.push({ turn: ctx.state.turn, kind: 'dodged', side: enemy.side, unit: enemy.unit, hitsLeft: Math.max(0, dodge.amount) });
+      return;
+    }
+  }
   let base = Math.floor((scaleStat(caster, property) * power) / 100);
   // Staleness / momentum — BASE damage is never touched by either; only
   // BONUS effectiveness (aura boosts, combo/execute riders) flexes:
@@ -205,7 +220,7 @@ function applyAction(
         const aoePower = Math.floor((power * plan.aoePct) / 100);
         for (const foe of livingFoes(ctx.state, caster)) {
           if (!caster.alive) break;
-          strike(ctx, caster, skill, aoePower, mods, cast, foe);
+          strike(ctx, caster, skill, aoePower, mods, cast, foe, true);
         }
       } else {
         strike(ctx, caster, skill, power, mods, cast, enemy);
@@ -225,7 +240,7 @@ function applyAction(
           const aoePower = Math.floor((hitPower * plan.aoePct) / 100);
           for (const foe of foes) {
             if (!caster.alive || !foe.alive) continue;
-            strike(ctx, caster, skill, aoePower, mods, cast, foe);
+            strike(ctx, caster, skill, aoePower, mods, cast, foe, true);
           }
         } else {
           const target = pickTarget(ctx.state, caster, singleMode(plan));
@@ -475,6 +490,12 @@ function applyAction(
       break;
     case 'regen':
       addStatus(ctx, caster, { kind: 'regen', amount: action.amount, turnsLeft: action.turns, fresh: true });
+      break;
+    case 'dodge':
+      // Active immediately (no fresh flag) — the whole point is protecting
+      // the window before your next action; simulate clears it when the
+      // caster next takes the stage. turnsLeft is unused (charge-based).
+      addStatus(ctx, caster, { kind: 'dodge', amount: action.hits, turnsLeft: 999 });
       break;
   }
 }

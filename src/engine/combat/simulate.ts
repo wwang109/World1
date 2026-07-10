@@ -1,7 +1,7 @@
 import { Rng } from '../rng';
 import type { CombatConfig, CombatOutcome, Side } from '../types';
 import type { CombatEvent, ComparisonSide, ComparisonUnit } from './events';
-import { effStat, initCombatState, sideDefeated, type CombatState, type CombatantState } from './state';
+import { effSpeed, initCombatState, sideDefeated, type CombatState, type CombatantState } from './state';
 import { selectCast, type CastChoice } from './castSelect';
 import { applyCast, dealDamage, type Ctx } from './interpreter';
 
@@ -20,8 +20,15 @@ const DEFAULT_MAX_TURNS = 200;
 const SD_PLAYER_AMP = 10;
 const SD_ENEMY_AMP = 30;
 const FATIGUE_BASE = 5;
-/** Max EXTRA casts a performer can chain in one stage (so 3 plays total). */
-const MAX_CHAIN_CASTS = 2;
+/**
+ * Chained extra plays cost exponentially more: the Nth extra cast costs
+ * (weight + FLAT) × GROWTH^N (2×, 4×, 8×…). No hard cap — pure speed
+ * stacking buys deeper chains, but every additional play squares the ask.
+ * The flat term keeps the cost strictly growing even for a hypothetical
+ * 0-weight card, so a chain can never run forever.
+ */
+const CHAIN_COST_GROWTH = 2;
+const CHAIN_COST_FLAT = 2;
 
 /** null while combat continues. The player wins simultaneous wipes. */
 function checkEnd(state: CombatState): CombatOutcome | null {
@@ -93,7 +100,7 @@ function expireStatuses(ctx: Ctx, c: CombatantState): void {
 
 function comparisonUnit(c: CombatantState, choice: CastChoice | null): ComparisonUnit {
   const base = { side: c.side, unit: c.unit, name: c.name, alive: c.alive };
-  const speed = effStat(c, 'speed');
+  const speed = effSpeed(c);
   if (!c.alive || c.busyTurns > 0) {
     return {
       ...base,
@@ -144,8 +151,9 @@ function sideSummary(units: ComparisonUnit[]): ComparisonSide {
  * the performer casts (or a stun consumes the performance); everyone else
  * banks their Speed. The performer's winning score, less each card's weight,
  * is a BUDGET: while it still strictly beats every other ready contender the
- * performer chains extra casts (max 2), so fast, light builds convert
- * surplus Speed into multiple plays per stage. Hostile actions hit the opposing side's highest-aggro
+ * performer chains extra casts, each costing exponentially more (2×, 4×,
+ * 8×… the card's weight) — so multiple plays per stage exist for any build,
+ * but deep chains demand pure Speed stacking. Hostile actions hit the opposing side's highest-aggro
  * living unit (ties to the front). A side is defeated when ALL its members
  * are down. Sudden death arms once each side's total performances reach
  * round × side size; a flat fatigue backstop guarantees termination.
@@ -280,7 +288,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     // 3. Perform (or pass); every other living combatant banks its Speed.
     for (const c of everyone()) {
       if (performer === c || !c.alive) continue;
-      c.bank += effStat(c, 'speed');
+      c.bank += effSpeed(c);
       if (c.busyTurns > 0) c.busyTurns -= 1;
     }
 
@@ -292,6 +300,12 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
       c.performs += 1;
       // Taking the stage (even a stun-consumed one) re-arms staggerability.
       c.staggerGuard = false;
+      // Dodge only guards the window BEFORE your next action — acting again
+      // (even stun-consumed) drops any unspent dodge charges.
+      if (c.statuses.some((s) => s.kind === 'dodge')) {
+        c.statuses = c.statuses.filter((s) => s.kind !== 'dodge');
+        events.push({ turn: state.turn, kind: 'statusExpired', side: c.side, unit: c.unit, status: 'dodge' });
+      }
       events.push({ turn: state.turn, kind: 'performStart', side: c.side, unit: c.unit, performs: c.performs });
 
       // Sudden death: armed once each side's total performances reach
@@ -322,17 +336,20 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         // The winning score, less this card's weight, is the performer's
         // remaining initiative BUDGET. While that budget still strictly beats
         // every other ready contender, the performer keeps the stage and
-        // casts again (paying each card's weight, max 2 extra) — surplus
-        // Speed converts into extra plays for fast, light builds instead of
-        // being wasted. The bank then resets exactly as before.
-        let budget = c.bank + effStat(c, 'speed') - choice.weight;
+        // casts again — but each extra play costs exponentially more (2×,
+        // 4×, 8×… the card's weight), so chains price themselves out unless
+        // the build stacks pure Speed. The bank then resets exactly as
+        // before.
+        let budget = c.bank + effSpeed(c) - choice.weight;
         c.bank = 0;
         doCast(c, choice, false);
-        for (let extra = 0; extra < MAX_CHAIN_CASTS; extra++) {
+        for (let costMult = CHAIN_COST_GROWTH; ; costMult *= CHAIN_COST_GROWTH) {
           if (runnerUp === null || !c.alive || c.busyTurns > 0 || checkEnd(state) !== null) break;
           const next = selectCast(c, cfg.skillBook);
-          if (next === null || budget - next.weight <= runnerUp) break;
-          budget -= next.weight;
+          if (next === null) break;
+          const cost = (next.weight + CHAIN_COST_FLAT) * costMult;
+          if (budget - cost <= runnerUp) break;
+          budget -= cost;
           c.performs += 1;
           events.push({ turn: state.turn, kind: 'performStart', side: c.side, unit: c.unit, performs: c.performs });
           doCast(c, next, false);

@@ -88,6 +88,14 @@ stun a delay, not a lock. MIX your verbs instead: stagger once per enemy
 action cycle, and cover the rest with Slow Next (Hamstring), Speed debuffs
 (Slowing Hex) and Weaken. Two-stagger boards waste half their riders.
 
+**Dodge (Sidestep) — the timing sidegrade:** DODGE charges make the next
+3 single-target PHYSICAL strikes miss, and unspent charges vanish when you
+next act — so the card is only worth its weight if you're FIRST (it's w8
+for exactly that reason). Magic, AoE (Storm Mark) and DoTs go straight
+through, purge strips it, and a pure dodge wall has no clock — sudden
+death eats it. Prime use: bosses and elites that swing big single-target
+physical hits (the Wolf King's entire kit).
+
 ## ⚰ 5. Executioner Burst — kill-window snowball
 
 **Identity:** get the enemy under 50%, then everything hits like a truck.
@@ -238,16 +246,22 @@ effects show a "RESISTED" line in the log.
 The initiative rule grew one clause (shipped, sim-validated): the
 performer's winning score, minus each card's weight, is a **budget** —
 while that budget still strictly beats every other ready contender, the
-performer keeps the stage and casts again (max 2 extra plays, so 3 per
-stage). One sentence on the player's side: *"fast heroes with light cards
-sometimes act twice."*
+performer keeps the stage and casts again. There is NO hard cap; instead
+each extra play costs exponentially more — the Nth extra cast costs
+**(weight + 2) × 2^N** (so ~2×, 4×, 8× the card's weight). One sentence
+on the player's side: *"really fast heroes with light cards act twice."*
 
 What this rewards and what keeps it honest:
 
-- **Fast + light chains.** Speed 20 with weight-8 cards double-casts from
-  turn one; Time Crystal (−5 weight) and Quicken riders feed the budget.
-  Speed buffs and light boards are now a real archetype, not just
-  turn-order garnish — Chase Mark is no longer the only path to multi-play.
+- **Chains are a speed-BUILD payoff, not a freebie.** At normal speeds
+  (10–14) the first extra play (~20 initiative for a light card) is
+  already out of reach — ordinary fights keep their classic rhythm. Speed
+  30 with weight-8 cards double-casts; every deeper link doubles the ask,
+  so triple-plays demand pure Speed stacking (buffs, light boards, Time
+  Crystal, Quicken).
+- **The flat +2 term bounds everything.** Even a hypothetical 0-weight
+  card has an exponentially growing chain cost — no build can loop the
+  stage forever.
 - **Heavy never chains.** A weight-20+ card eats the whole budget (and
   size-2/3 spans end the stage outright), so big-hit boards keep their
   once-a-cycle rhythm.
@@ -256,11 +270,13 @@ What this rewards and what keeps it honest:
   rhythm at double Speed.
 - **No free chains.** With no ready opponent (busy or passive), there is
   no runner-up to outscore and no chain — you already act every turn.
-- **Enemies chain too.** Fast elites (Feral Alpha, speed 14) got scarier;
-  the counter is tempo theft — stagger their bank before it becomes plays.
+- **Effective Speed floors at 5.** No amount of slow-stacking parks a
+  combatant at zero initiative gain — the slowest enemy still banks 5 a
+  turn and eventually plays its card. Slows cripple tempo; they never
+  freeze it.
 - **Banked initiative is chain fuel** — which is why stagger is guarded
-  (one per victim action cycle, see Tempo Thief) and why fights against
-  idle-heavy parties (1v5) resolve faster and meaner than before.
+  (one per victim action cycle, see Tempo Thief), and why Dodge exists:
+  a chain of physical strikes walks into Sidestep charge by charge.
 
 ## Momentum & staleness — the variety axis
 
@@ -373,8 +389,8 @@ wins:
 | Elite | The question | Answers that work |
 |---|---|---|
 | **Runewall Sentinel** | shields cycling behind armor 6 + resolve 25 | poison (bypasses shields), Shield Splitter, true damage — or patient tempo+sustain |
-| **Feral Alpha** | Battle Howl into hard, varied beast attacks — and speed 14 CHAINS | Dispelling Arrow (purge the howl), bows (beast matchup), MIXED tempo verbs: one stagger per cycle + Slowing Hex or Hamstring |
-| **Grave Chanter** | 45-point heals behind hexes and slows (190 HP since the chain patch) | burst windows (Crushing Blow + execute), stuns to eat the heal cast |
+| **Feral Alpha** | Battle Howl into hard, varied beast attacks at speed 14 | Dispelling Arrow (purge the howl) + bows (beast matchup) + Concussive Shot + Hamstring — purge, matchup and BOTH tempo verbs together |
+| **Grave Chanter** | 45-point heals behind hexes and slows | Stunning Smash to EAT the heal cast + Crushing Blow to punish the window — burst or stun alone is not enough |
 | **Spellward Wraith** | Magic Resist 9, armor 0 — gates MAGE boards (a hex deck bounces off) | physical decks, true damage |
 | **Twinblade Marauder** | mixed physical AND magical damage — gates single-typed WALLS (a double-Bulwark turtle dies) | true shields, layered defense, or the lance matchup vs his sword affinity |
 
@@ -384,12 +400,15 @@ the Sentinel in 39 patient turns). Depth scaling from the run layer will
 raise elite STATS later; the tactic requirement comes from kits, and that
 ships now.
 
-Chain-patch retunes (sim-validated): the multi-play rule made the naive
-board out-race two checks, so **Grave Chanter** went 170→190 HP and
-**Bandit Duelist** 12→13 speed, 13→14 attack. The starter elite is now a
-near-even fight for the naive board (10 HP squeaker); tempo or shield
-answers win it comfortably. Feral Alpha's old double-stagger answer died
-to the stagger guard — its current answers are listed above.
+Chain-patch aftermath (sim-validated): under the exponential chain cost,
+normal-speed fights match the pre-chain baseline exactly, so NO elite stat
+retunes were needed. What did shift is the answer decks: the stagger guard
+killed every double-stagger answer, so tempo answers now mix verbs (see
+rows above), and the **Wolf King** — an all-physical, single-target kit —
+is now cleanly answered by Sidestep tech: `sidestep, hunter_shot,
+dispelling_arrow, concussive_shot, second_wind` wins with 74 HP standing.
+A pure dodge-tank does NOT trivialize physical elites (no clock — sudden
+death wins the argument).
 
 ## Complexity budget — keep the floor low
 

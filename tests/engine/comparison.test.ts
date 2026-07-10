@@ -87,25 +87,37 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
     expect(cmp.player.state).toBe('nothingUsable');
   });
 
-  it('surplus initiative chains extra casts for fast, light builds', () => {
-    // Hero Speed 20 with weight-8 cards vs Speed-10 foe: T1 score 0+20−8=12
-    // beats foe's 0; the remaining budget 12−8=4 still beats 0, so the hero
-    // chains a second cast in the same stage. 4−8 < 0 ends the chain.
+  it('surplus initiative chains an extra cast — at DOUBLE its weight', () => {
+    // Hero Speed 30 with weight-8 cards vs Speed-10 foe: T1 score 0+30−8=22
+    // beats foe's 0; the first EXTRA play costs (8+2)×2=20, and 22−20=2
+    // still beats 0, so the hero chains a second cast. The next would cost
+    // (8+2)×4=40 — priced out. At Speed 20 the budget (12) can't even
+    // afford the first extra (20): moderate speed does not chain.
     const book: typeof MINI_BOOK = {
       ...MINI_BOOK,
       jab: { ...MINI_BOOK.slash!, id: 'jab', name: 'Jab', speedWeight: 8 },
       jab2: { ...MINI_BOOK.slash!, id: 'jab2', name: 'Jab II', speedWeight: 8 },
     };
-    const c = cfg(
-      tc('fast', ['jab', 'jab2'], { speed: 20, attack: 1, maxHp: 5000 }, { skillBook: book }),
+    const fast = cfg(
+      tc('fast', ['jab', 'jab2'], { speed: 30, attack: 1, maxHp: 5000 }, { skillBook: book }),
       tc('slow', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: book }),
       { ...NO_ENDGAME, skillBook: book, maxTurns: 1 },
     );
-    const { events } = simulate(c, 1);
-    expect(casts(events, 'player')).toEqual(['jab', 'jab2']);
+    expect(casts(simulate(fast, 1).events, 'player')).toEqual(['jab', 'jab2']);
+
+    const moderate = cfg(
+      tc('brisk', ['jab', 'jab2'], { speed: 20, attack: 1, maxHp: 5000 }, { skillBook: book }),
+      tc('slow', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: book }),
+      { ...NO_ENDGAME, skillBook: book, maxTurns: 1 },
+    );
+    expect(casts(simulate(moderate, 1).events, 'player')).toEqual(['jab']);
   });
 
-  it('chains cap at 2 extra casts even with a huge surplus', () => {
+  it('deeper chains demand exponentially more Speed (no hard cap)', () => {
+    // Speed 100 on [jab w8, slash w10]: budget 92 → slash costs (10+2)×2=24
+    // (68 left) → jab costs (8+2)×4=40 (28 left) → slash would cost
+    // (10+2)×8=96, priced out. Three plays in one stage, bought purely with
+    // Speed — beyond the 1-extra reach of moderate builds.
     const book: typeof MINI_BOOK = {
       ...MINI_BOOK,
       jab: { ...MINI_BOOK.slash!, id: 'jab', name: 'Jab', speedWeight: 8 },
@@ -115,8 +127,7 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
       tc('slow', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: book }),
       { ...NO_ENDGAME, skillBook: book, maxTurns: 1 },
     );
-    const { events } = simulate(c, 1);
-    expect(casts(events, 'player')).toHaveLength(3);
+    expect(casts(simulate(c, 1).events, 'player')).toEqual(['jab', 'slash', 'jab']);
   });
 
   it('equal-weight parity never chains: the tie hands the stage over', () => {
@@ -142,6 +153,23 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
     );
     const { events } = simulate(c, 1);
     expect(casts(events, 'player')).toHaveLength(4);
+  });
+
+  it('effective Speed is floored at 5 — slow-stacking never freezes a side', () => {
+    // A speed-7 foe under Slowing Hex (−30% → 4.9) still banks 5 per turn,
+    // so it keeps crawling toward its casts instead of being parked at 0.
+    const c = cfg(
+      tc('hexer', ['slow_hex'], { magicPower: 10, speed: 20, maxHp: 5000 }),
+      tc('slug', ['sword_slash'], { attack: 1, speed: 7, maxHp: 5000 }),
+      { ...NO_ENDGAME, maxTurns: 8 },
+    );
+    const { events } = simulate(c, 1);
+    const cmps = events.filter((e) => e.kind === 'comparison') as Extract<Events[number], { kind: 'comparison' }>[];
+    // After the hex lands, the debuffed foe's effective speed reads 5, not 4.
+    expect(cmps.some((e) => e.enemy.speed === 5)).toBe(true);
+    expect(cmps.every((e) => e.enemy.speed >= 5)).toBe(true);
+    // And the slug still gets to act despite permanent re-hexing.
+    expect(events.some((e) => e.kind === 'skillCast' && e.side === 'enemy')).toBe(true);
   });
 
   it('strict left→right rotation wraps and skips useless heals', () => {

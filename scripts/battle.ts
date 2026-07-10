@@ -209,6 +209,9 @@ for (const e of events) {
     case 'staggered':
       console.log(`${t} │  ${tag(e.side, u)} staggered −${e.amount} bank -> ${e.bankAfter}`);
       break;
+    case 'dodged':
+      console.log(`${t} │  ${tag(e.side, u)} DODGES the strike (${e.hitsLeft} left)`);
+      break;
     case 'shieldBroken':
       console.log(`${t} │  ${tag(e.side, u)} shield shattered −${e.amount} -> ${e.totalAfter}`);
       break;

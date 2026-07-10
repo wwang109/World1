@@ -354,6 +354,9 @@ export class BattleScene extends Phaser.Scene {
       case 'staggered':
         this.log(`  ${this.tagOf(e.side, e.unit)} staggered — bank −${e.amount} → ${e.bankAfter}`);
         break;
+      case 'dodged':
+        this.log(`  ${this.tagOf(e.side, e.unit)} DODGES the strike (${e.hitsLeft} left)`);
+        break;
       case 'shieldBroken': {
         if (!view) break;
         view.shield = e.totalAfter;

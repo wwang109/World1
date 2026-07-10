@@ -44,6 +44,11 @@ function isUseful(c: CombatantState, skill: SkillDef): boolean {
       case 'cleanse':
         if (c.statuses.some((s) => !isPositiveStatus(s))) return true;
         break;
+      case 'dodge':
+        // Re-casting while charges remain would waste them (they expire on
+        // this very performance) — skip until the guard is spent.
+        if (!c.statuses.some((s) => s.kind === 'dodge')) return true;
+        break;
       case 'lifesteal':
       case 'comboBonus':
       case 'execute':
