@@ -68,6 +68,13 @@ export interface CombatantState {
   aggro: number;
   /** Archetypes of the last card this side cast (for Combo riders). */
   lastCastArchetypes: Archetype[];
+  /** Skill id of the last card cast (staleness tracking). */
+  lastCastSkillId: string | null;
+  /**
+   * Consecutive re-casts of the same skill: damage decays −20% per stale
+   * cast (capped −60%). Variety resets it — anti-spam pacing.
+   */
+  staleCasts: number;
   elementAffinity?: Element;
   weaponAffinity?: WeaponType;
   statuses: StatusInstance[];
@@ -116,6 +123,8 @@ function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBoo
     nextWeightBonus: 0,
     aggro: setup.aggro ?? 0,
     lastCastArchetypes: [],
+    lastCastSkillId: null,
+    staleCasts: 0,
     elementAffinity: setup.elementAffinity,
     weaponAffinity: setup.weaponAffinity,
     statuses: [],

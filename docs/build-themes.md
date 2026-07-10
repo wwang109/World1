@@ -225,6 +225,23 @@ effects show a "RESISTED" line in the log.
 - Enemy presets: Stone Beetle carries 25 Resolve, the Wolf King 15 — DoT
   and control builds now feel the check in the wild.
 
+## Staleness — the anti-spam rule
+
+Consecutive casts of the SAME skill decay: −20% damage per re-cast, capped
+at −60%. Casting anything else resets it. A diverse rotation never feels
+this; a one-card spam board decays to 40% output by its fourth cast
+(20 → 16 → 12 → 8). Duplicate-stacking the strongest attack is dead as a
+strategy — boards want variety, which is where the effect cards and combo
+routing live.
+
+Pacing levers for higher-level fights (design intent: longer, not
+burstier): staleness kills same-attack spam; the utility premium keeps
+raw-damage stat-checks from being the efficient buy; and when the run
+layer lands, depth should scale enemy HP pools faster than enemy damage
+and push `suddenDeathRound` later — both already config knobs on
+`simulate()` — so late fights breathe instead of ending in one alpha
+strike.
+
 ## General placement rules
 
 - **Combo routing:** Follow-Through checks the PREVIOUS cast's archetype —

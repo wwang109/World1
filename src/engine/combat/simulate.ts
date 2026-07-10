@@ -257,6 +257,10 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         // the caster's next action.
         c.nextWeightPenalty = 0;
         c.nextWeightBonus = 0;
+        // Staleness: consecutive re-casts of the SAME skill decay in damage;
+        // casting anything else resets the counter.
+        c.staleCasts = choice.skill.id === c.lastCastSkillId ? c.staleCasts + 1 : 0;
+        c.lastCastSkillId = choice.skill.id;
         const enchant = choice.piece.enchant !== undefined ? cfg.enchantBook?.[choice.piece.enchant] : undefined;
         applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, enchant);
         // Combo remembers this cast.
