@@ -40,6 +40,12 @@ between them, so the engine needs zero changes. A run-layer `upgradeSkill()`
 helper swaps the board piece's `skillId` in place (same size ⇒ same slots; if a
 branch grows in size, the Prep scene re-validates placement with `canPlace`).
 
+**Upgrade cadence (design decision, 2026-07): a new ABILITY every second
+tier — Silver and Diamond — with Gold as the pure numbers step.** Each card
+gains exactly two abilities across its whole track, so Diamond kits stay
+readable: base identity + two learned tricks. Worked, priced examples live
+in the Card Codex artifact (scripts/codex.ts).
+
 **Branching rule** — every Bronze card gets **two** Silver branches that spend
 the +5 PL differently, so the tree forks meaningfully:
 

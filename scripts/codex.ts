@@ -209,39 +209,42 @@ ${sections}
     <h3>The current tracks above are generated stat knobs — placeholders, not the destination.</h3>
     <p>Today's Silver/Gold/Diamond variants raise one magnitude until the kit fills the tier budget
     (damage 200% → 300% → …). It's balanced and automatic, but upgrades read as bigger numbers, not new decisions.</p>
-    <p>The Bazaar model: <b>each tier-up buys a new effect</b>. The balance table already prices every
-    action, and every tier grants exactly +5 PL — so an authored upgrade path simply spends those
-    5 PL on riders instead of magnitude. Authored variants replace generated ones id-for-id; the audit
-    keeps them honest either way. Worked examples, exact to the price table:</p>
+    <p>The Bazaar model, on a two-tier cadence: <b>a new ability every SECOND tier — Silver and
+    Diamond — with Gold as the pure numbers step.</b> Each card gains exactly two abilities across
+    its whole track (not three), so Diamond kits stay readable: base identity + two learned tricks.
+    The balance table already prices every action and every tier grants exactly +5 PL, so each step
+    below spends precisely that. Authored variants replace generated ones id-for-id; the audit keeps
+    them honest either way:</p>
 
     <div class="tablewrap"><table class="ledger">
-      <tr><th>Sword Slash</th><th>Kit</th><th class="pl">PL</th></tr>
-      <tr><td><span class="tag">Bronze</span></td><td>Deal 200% Attack damage.</td><td class="pl">10.0</td></tr>
-      <tr><td><span class="tag">Silver</span></td><td>+ <b>Combo</b>: +75% if your previous cast was Offense <i>(learns to chain)</i></td><td class="pl">15.0</td></tr>
-      <tr><td><span class="tag">Gold</span></td><td>+ <b>Execute</b>: +60% while the enemy is below half HP + damage 220%</td><td class="pl">20.0</td></tr>
-      <tr><td><span class="tag">Diamond</span></td><td>+ <b>Quicken 12</b>: your next action arrives sooner + damage 260%</td><td class="pl">25.0</td></tr>
+      <tr><th>Sword Slash</th><th>Step</th><th>Kit</th><th class="pl">PL</th></tr>
+      <tr><td><span class="tag">Bronze</span></td><td>base</td><td>Deal 200% Attack damage.</td><td class="pl">10.0</td></tr>
+      <tr><td><span class="tag">Silver</span></td><td><b>ability</b></td><td>+ <b>Combo</b>: +75% if your previous cast was Offense <i>(learns to chain)</i></td><td class="pl">15.0</td></tr>
+      <tr><td><span class="tag">Gold</span></td><td>numbers</td><td>damage 200% → 300%</td><td class="pl">20.0</td></tr>
+      <tr><td><span class="tag">Diamond</span></td><td><b>ability</b></td><td>+ <b>Execute</b>: +75% while the enemy is below half HP <i>(the finisher)</i></td><td class="pl">25.0</td></tr>
     </table></div>
 
     <div class="tablewrap"><table class="ledger">
-      <tr><th>Fireball</th><th>Kit</th><th class="pl">PL</th></tr>
-      <tr><td><span class="tag">Bronze</span></td><td>220% damage + burn 5 for 3 turns.</td><td class="pl">10.0</td></tr>
-      <tr><td><span class="tag">Silver</span></td><td>+ <b>Jam 30%</b>: the scorch weakens their next cast + damage 260%</td><td class="pl">15.0</td></tr>
-      <tr><td><span class="tag">Gold</span></td><td>+ <b>Fire Rune</b>: curse their queued card for a 125% detonation</td><td class="pl">20.0</td></tr>
-      <tr><td><span class="tag">Diamond</span></td><td>+ <b>Backdraft</b>: stagger 40 banked initiative off the victim</td><td class="pl">25.0</td></tr>
+      <tr><th>Fireball</th><th>Step</th><th>Kit</th><th class="pl">PL</th></tr>
+      <tr><td><span class="tag">Bronze</span></td><td>base</td><td>220% damage + burn 5 for 3 turns.</td><td class="pl">10.0</td></tr>
+      <tr><td><span class="tag">Silver</span></td><td><b>ability</b></td><td>+ <b>Jam 40%</b>: the scorch weakens their next cast + damage 240%</td><td class="pl">15.0</td></tr>
+      <tr><td><span class="tag">Gold</span></td><td>numbers</td><td>damage 240% → 340%</td><td class="pl">20.0</td></tr>
+      <tr><td><span class="tag">Diamond</span></td><td><b>ability</b></td><td>+ <b>Fire Rune</b>: curse their queued card for a 125% detonation</td><td class="pl">25.0</td></tr>
     </table></div>
 
     <div class="tablewrap"><table class="ledger">
-      <tr><th>Venom Fang</th><th>Kit</th><th class="pl">PL</th></tr>
-      <tr><td><span class="tag">Bronze</span></td><td>140% damage + poison 5 for 3 turns.</td><td class="pl">10.0</td></tr>
-      <tr><td><span class="tag">Silver</span></td><td>+ <b>Feed</b>: lifesteal 75% of damage dealt <i>(the venom feeds you)</i></td><td class="pl">15.0</td></tr>
-      <tr><td><span class="tag">Gold</span></td><td>+ <b>Expose</b>: −20 Resolve for 2 turns <i>(their body rejects cures)</i> + damage 180%</td><td class="pl">20.0</td></tr>
-      <tr><td><span class="tag">Diamond</span></td><td>+ <b>Plague</b>: poison 5 → 9 per tick <i>(the one stat knob, saved for last)</i></td><td class="pl">25.0</td></tr>
+      <tr><th>Venom Fang</th><th>Step</th><th>Kit</th><th class="pl">PL</th></tr>
+      <tr><td><span class="tag">Bronze</span></td><td>base</td><td>140% damage + poison 5 for 3 turns.</td><td class="pl">10.0</td></tr>
+      <tr><td><span class="tag">Silver</span></td><td><b>ability</b></td><td>+ <b>Feed</b>: lifesteal 75% of damage dealt <i>(the venom feeds you)</i></td><td class="pl">15.0</td></tr>
+      <tr><td><span class="tag">Gold</span></td><td>numbers</td><td>damage 140% → 240%</td><td class="pl">20.0</td></tr>
+      <tr><td><span class="tag">Diamond</span></td><td><b>ability</b></td><td>+ <b>Expose</b>: −20 Resolve for 2 turns <i>(their body rejects cures)</i></td><td class="pl">25.0</td></tr>
     </table></div>
 
-    <p>Design rules that fall out: the stat knob is the <i>least interesting</i> spend, so save it for
-    where identity is already complete; every added effect must already exist in the priced DSL
-    (so it is programmable and auditable by the same balance test); and cards with no cheap knob
-    (Purify, Time Crystal) stop being bronze-locked the moment their upgrade buys an effect instead.</p>
+    <p>Design rules that fall out: two abilities per track keeps Diamond kits readable (base + two
+    learned tricks, never a five-effect wall of text); the Gold numbers step makes mid-run tiering
+    feel like growth without new rules to learn; every added effect must already exist in the priced
+    DSL (programmable, auditable by the same balance test); and cards with no cheap knob (Purify,
+    Time Crystal) stop being bronze-locked the moment their Silver buys an ability instead.</p>
   </div>
 </section>
 
