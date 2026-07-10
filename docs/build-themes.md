@@ -128,6 +128,53 @@ ignore the wall, delete the threat.
 
 **Weak to:** 1v1 (marks do nothing), uniform parties with no priority target.
 
+## 💚 8. Thorn Warden — healing tank (sim-validated)
+
+**Identity:** a magic-power sustain core (shields, heals, regen, thorns all
+scale MP or care only about surviving) wrapped around a poison clock. The
+skip-aware rotation is the engine of the build: heals are SKIPPED at full
+HP, so the rotation auto-plays — coat and fangs while healthy, healing
+exactly when hurt — and Bramble Coat's re-casts keep thorns at near-100%
+uptime.
+
+**Board:** `[Bramble Coat][Time Crystal][Soothing Spores][Mending Light··][Venom Fang][Purify][Leeching Fang] · ·`
+
+- Time Crystal touches Coat AND Spores (both magical → −5 weight each).
+- Venom Fang is the clock: poison bypasses shields and ticks every global
+  turn — the longer the fight (and this build makes fights long), the more
+  total damage each application buys. Re-casts stack fresh instances.
+- Leeching Fang turns your filler attack into another heal.
+- Purify clears stuns/poisons but KEEPS your thorns and regen.
+
+**Sim results** (20 seeds per enemy, base hero stats unless noted):
+
+| Version | Rat | Beetle | Imp | Bandit (elite) | Wolf King (boss) |
+|---|---|---|---|---|---|
+| Pure sustain, no offense | 0/20 | 20/20 | 0/20 | 0/20 | 0/20 |
+| + venom/leech clock (Bronze) | 18/20 | 20/20 | 19/20 | 0/20 | 0/20 |
+| Silver core (coat/spores/mending/fangs) | 20/20 | 20/20 | 20/20 | 12/20 | 15/20 |
+
+The first row is the design lesson: **sudden death exists to kill turtles**
+— with zero offense the enemy's +30%/turn ramp always outgrows heal
+throughput, and thorns alone (25% of incoming) can't race it. A heal-tank
+NEEDS a clock; poison is the right one because it loves exactly the long
+fights this build creates.
+
+**Tier priority:** Venom Fang first (the clock decides elite/boss fights),
+then Bramble Coat. Note the generated Coat tiers grow the SHIELD knob —
+a hand-authored "identity branch" that grows the thorns % instead is the
+kind of upgrade the card-tier plan reserves for authored paths.
+
+**Enchant:** Assassin's Mark on Venom Fang in party fights — the tank holds
+the front while the poison finds the healer. **Party role:** this is the
+build's true home once taunt cards land — a taunting Thorn Warden holds
+aggro (thorns punishing every hit) while allies bring the damage, and the
+pure-sustain version becomes viable because the CLOCK is your teammates.
+
+**Weak to:** purge (strips thorns AND regen in one cast), burst windows
+that outpace Mending Light's size-2 span, and anything that shortens the
+fight.
+
 ---
 
 ## General placement rules
