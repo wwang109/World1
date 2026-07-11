@@ -83,7 +83,7 @@ function expireStatuses(ctx: Ctx, c: CombatantState): void {
       remaining.push(status);
       continue;
     }
-    if (status.kind !== 'buff' && status.kind !== 'debuff' && status.kind !== 'thorns') {
+    if (status.kind !== 'buff' && status.kind !== 'debuff' && status.kind !== 'thorns' && status.kind !== 'guard') {
       // poison/burn/regen decrement in tickDots; stun decrements when consumed.
       remaining.push(status);
       continue;

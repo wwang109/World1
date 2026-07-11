@@ -1,7 +1,7 @@
 import type { CombatOutcome, Property, Side } from '../types';
 
 
-export type StatusName = 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'thorns' | 'regen' | 'dodge';
+export type StatusName = 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'thorns' | 'regen' | 'dodge' | 'guard';
 
 /** One contender's numbers in a turn's initiative comparison. */
 export interface ComparisonSide {

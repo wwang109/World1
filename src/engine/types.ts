@@ -110,7 +110,9 @@ export type BuffableStat = 'attack' | 'magicPower' | 'armor' | 'magicResist' | '
  * percentage of the scaling stat (Attack / Magic Power); for TRUE cards it is
  * a FLAT amount (no scaling, no reduction). Durations are GLOBAL turns.
  */
-export type Action =
+export type Action = ActionBase & { onlyIf?: SpeedCondition };
+
+type ActionBase =
   | { kind: 'damage'; power: number }
   | { kind: 'heal'; power: number }
   | { kind: 'shield'; power: number }
@@ -159,7 +161,21 @@ export type Action =
    * next takes the stage — dodging rewards acting FIRST, and never carries
    * past your own action. AoE and magic connect.
    */
-  | { kind: 'dodge'; hits: number };
+  | { kind: 'dodge'; hits: number }
+  /**
+   * Guard stance: PHYSICAL strike damage taken is reduced pct% for `turns`
+   * global turns (multiplicative, applied after armor; total guard caps at
+   * 75%). Magic, true damage and DoT ticks are not guarded.
+   */
+  | { kind: 'guard'; pct: number; turns: number };
+
+/**
+ * Speed-conditional effects: an action tagged `onlyIf` resolves only when
+ * the caster's effective Speed is strictly higher ('faster') or strictly
+ * lower ('slower') than its target's at cast time. Priced at a discount in
+ * balance.ts.
+ */
+export type SpeedCondition = 'faster' | 'slower';
 
 /** Positional modifiers a (usually Support/passive) card projects onto board neighbors. */
 export interface AuraDef {

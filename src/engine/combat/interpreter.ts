@@ -3,7 +3,7 @@ import type { Action, EnchantDef, Property, SkillBook, SkillDef, TargetMode } fr
 import type { CombatEvent } from './events';
 import type { AuraMods } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
-import { effectPotencyPct, effStat, isPositiveStatus, livingFoes, pickTarget, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
+import { effectPotencyPct, effSpeed, effStat, isPositiveStatus, livingFoes, pickTarget, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 import { selectCast } from './castSelect';
 
@@ -168,6 +168,15 @@ function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number
   const matchup = cardMatchup(skill, enemy);
   amount = Math.floor((amount * matchupPct(matchup)) / 100);
   if (caster.sdStacks > 0) amount = Math.floor((amount * (100 + caster.sdStacks)) / 100);
+  // Guard stance: physical strike damage is cut multiplicatively (after
+  // armor, stacking guards capped at 75%). Magic and true damage ignore it.
+  if (property === 'physical') {
+    let guardPct = 0;
+    for (const s of enemy.statuses) {
+      if (s.kind === 'guard') guardPct += s.pct ?? 0;
+    }
+    if (guardPct > 0) amount = Math.floor((amount * (100 - Math.min(75, guardPct))) / 100);
+  }
   amount = Math.max(1, amount);
   const hpBefore = enemy.stats.hp;
   dealDamage(ctx, enemy, amount, property, { crit, matchup });
@@ -207,6 +216,10 @@ function applyAction(
   // The target dodged this whole ACTION: every hostile piece of the card
   // whiffs (damage, every multi-hit, riders). Self effects still resolve.
   if (dodgedTarget !== null && enemy === dodgedTarget && HOSTILE_KINDS.has(action.kind)) return;
+  // Speed-conditional effects: resolve only when the caster is strictly
+  // faster (or slower) than the action's target at cast time.
+  if (action.onlyIf === 'faster' && effSpeed(caster) <= effSpeed(enemy)) return;
+  if (action.onlyIf === 'slower' && effSpeed(caster) >= effSpeed(enemy)) return;
   const property = skill.property;
   switch (action.kind) {
     case 'damage': {
@@ -491,6 +504,11 @@ function applyAction(
       // the window before your next action; simulate clears it when the
       // caster next takes the stage. turnsLeft is unused (charge-based).
       addStatus(ctx, caster, { kind: 'dodge', amount: action.hits, turnsLeft: 999 });
+      break;
+    case 'guard':
+      // Active immediately (fresh only skips the end-of-turn decrement) —
+      // a guard stance must cover the window before your next action.
+      addStatus(ctx, caster, { kind: 'guard', pct: action.pct, turnsLeft: action.turns, fresh: true });
       break;
   }
 }

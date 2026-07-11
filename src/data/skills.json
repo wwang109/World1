@@ -1019,15 +1019,109 @@
     ],
     "property": "physical",
     "size": 1,
-    "speedWeight": 6,
+    "speedWeight": 8,
     "rarity": "rare",
     "tier": "bronze",
     "effects": [
       {
         "kind": "dodge",
         "hits": 2
+      },
+      {
+        "kind": "quicken",
+        "weight": 5
       }
     ],
-    "text": "DODGE the next 2 physical cards played against you \u2014 the whole action misses, damage and riders alike. Lost when you next act. Featherweight (6): move first, then slip the counterblow. Magic and AoE still connect."
+    "text": "DODGE the next 2 physical cards played against you \u2014 the whole action misses. Lost when you next act. Your next action is 5 lighter (+5 in the speed check). Magic and AoE still connect."
+  },
+  {
+    "id": "brace",
+    "name": "Brace",
+    "archetypes": [
+      "defensive"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "guard",
+        "pct": 25,
+        "turns": 2
+      }
+    ],
+    "text": "Guard stance: physical strikes against you deal 25% less damage for 2 turns. Magic goes around your shield arm."
+  },
+  {
+    "id": "parry",
+    "name": "Parry",
+    "archetypes": [
+      "defensive"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "guard",
+        "pct": 50,
+        "turns": 1
+      }
+    ],
+    "text": "Read the blow: physical strikes against you deal 50% less damage for 1 turn. Timing is everything \u2014 raise it BEFORE the hit."
+  },
+  {
+    "id": "swift_strike",
+    "name": "Swift Strike",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "weapon": "sword",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 120
+      },
+      {
+        "kind": "damage",
+        "power": 100,
+        "onlyIf": "faster"
+      }
+    ],
+    "text": "Deal 120% Attack physical damage; if you are FASTER than the target, strike again for 100%."
+  },
+  {
+    "id": "underdog_crush",
+    "name": "Underdog Crush",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "weapon": "axe",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 80
+      },
+      {
+        "kind": "damage",
+        "power": 150,
+        "onlyIf": "slower"
+      }
+    ],
+    "text": "Deal 80% Attack physical damage; if you are SLOWER than the target, add a crushing 150% follow-through."
   }
 ]

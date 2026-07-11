@@ -42,6 +42,7 @@ const ACTION_SHAPES: Record<string, string[]> = {
   purge: [],
   regen: ['amount', 'turns'],
   dodge: ['hits'],
+  guard: ['pct', 'turns'],
 };
 
 describe('skills.json integrity', () => {
@@ -70,6 +71,7 @@ describe('skills.json integrity', () => {
     for (const action of c.effects) {
       const shape = ACTION_SHAPES[action.kind];
       expect(shape, `unknown action kind '${action.kind}'`).toBeDefined();
+      if (action.onlyIf !== undefined) expect(['faster', 'slower']).toContain(action.onlyIf);
       for (const field of shape!) {
         const value = (action as unknown as Record<string, unknown>)[field];
         if (field === 'stat') expect(BUFFABLE).toContain(value);

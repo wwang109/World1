@@ -2,7 +2,7 @@ import { MAX_SIDE_SIZE } from '../types';
 import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantStats, Element, EnchantBook, Property, Side, SkillBook, WeaponType } from '../types';
 
 export interface StatusInstance {
-  kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'thorns' | 'regen' | 'dodge';
+  kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'thorns' | 'regen' | 'dodge' | 'guard';
   /** DoT mitigation/synergy typing (inherited from the card). */
   property?: Property;
   stat?: BuffableStat;
@@ -272,5 +272,5 @@ export function hasStatus(c: CombatantState, kind: StatusInstance['kind']): bool
 
 /** Statuses the owner wants to keep: cleanse spares them, purge strips them. */
 export function isPositiveStatus(s: StatusInstance): boolean {
-  return s.kind === 'buff' || s.kind === 'thorns' || s.kind === 'regen' || s.kind === 'dodge';
+  return s.kind === 'buff' || s.kind === 'thorns' || s.kind === 'regen' || s.kind === 'dodge' || s.kind === 'guard';
 }

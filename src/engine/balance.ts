@@ -47,81 +47,91 @@ export function powerLevelDeci(skill: SkillDef): number {
 
   for (const action of skill.effects) {
     hasCast = true;
+    let add = 0;
     switch (action.kind) {
       case 'damage':
         // True damage still scales (off the higher stat); its edge is priced
         // by the TRUE premium below.
-        deci += Math.floor(action.power / 2);
+        add += Math.floor(action.power / 2);
         break;
       case 'heal':
       case 'shield':
         // True heals/shields are FLAT amounts.
-        deci += skill.property === 'true' ? action.power * 2 : Math.floor(action.power / 2);
+        add += skill.property === 'true' ? action.power * 2 : Math.floor(action.power / 2);
         break;
       case 'poison':
       case 'burn':
-        deci += Math.floor((action.amount * action.turns * 5) / 2);
+        add += Math.floor((action.amount * action.turns * 5) / 2);
         break;
       case 'stun':
-        deci += action.turns * 40;
+        add += action.turns * 40;
         break;
       case 'buffStat':
       case 'debuffStat':
-        deci += Math.floor((action.pct * action.turns * 5) / 4);
+        add += Math.floor((action.pct * action.turns * 5) / 4);
         break;
       case 'cleanse':
-        deci += 80;
+        add += 80;
         break;
       // Special ability riders — every magnitude properly weighted per unit.
       case 'slowNext':
-        deci += Math.floor((action.weight * 5) / 2); // 1 PL per +4 weight
+        add += Math.floor((action.weight * 5) / 2); // 1 PL per +4 weight
         break;
       case 'weakenNext':
-        deci += action.pct; // 1 PL per 10% jammed off their next cast
+        add += action.pct; // 1 PL per 10% jammed off their next cast
         break;
       case 'curseCard':
-        deci += Math.floor((action.power * 2) / 5); // delayed damage: 1 PL per 25%
+        add += Math.floor((action.power * 2) / 5); // delayed damage: 1 PL per 25%
         break;
       case 'stagger':
-        deci += Math.floor((action.amount * 5) / 4); // 1 PL per 8 drained
+        add += Math.floor((action.amount * 5) / 4); // 1 PL per 8 drained
         break;
       case 'lifesteal':
-        deci += Math.floor((action.pct * 2) / 3); // 1 PL per 15%
+        add += Math.floor((action.pct * 2) / 3); // 1 PL per 15%
         break;
       case 'shieldBreak':
-        deci += Math.floor((action.amount * 5) / 4); // 1 PL per 8 shattered
+        add += Math.floor((action.amount * 5) / 4); // 1 PL per 8 shattered
         break;
       case 'comboBonus':
-        deci += Math.floor((action.pct * 2) / 3); // 1 PL per 15%
+        add += Math.floor((action.pct * 2) / 3); // 1 PL per 15%
         break;
       case 'execute':
         // Conditional damage, scaled by how often the window is live.
-        deci += Math.floor((action.pct * action.belowPct) / 75); // 1 PL per 15% at the 50%-HP window
+        add += Math.floor((action.pct * action.belowPct) / 75); // 1 PL per 15% at the 50%-HP window
         break;
       case 'quicken':
-        deci += Math.floor((action.weight * 5) / 2); // mirror of slowNext: 1 PL per 4 weight
+        add += Math.floor((action.weight * 5) / 2); // mirror of slowNext: 1 PL per 4 weight
         break;
       case 'thorns':
-        deci += action.pct * action.turns; // 10%-turn = 1 PL, like buffs
+        add += action.pct * action.turns; // 10%-turn = 1 PL, like buffs
         break;
       case 'multiHit':
         // Total magnitude plus a per-hit premium (per-hit crits chew shields).
-        deci += Math.floor((action.power * action.hits) / 2) + action.hits * 5;
+        add += Math.floor((action.power * action.hits) / 2) + action.hits * 5;
         break;
       case 'purge':
-        deci += 60; // narrower than cleanse's four status families
+        add += 60; // narrower than cleanse's four status families
         break;
       case 'regen':
-        deci += Math.floor((action.amount * action.turns * 5) / 2); // HoT mirror of poison/burn
+        add += Math.floor((action.amount * action.turns * 5) / 2); // HoT mirror of poison/burn
         break;
       case 'dodge':
         // Evades one whole single-target physical CARD per charge (damage,
         // multi-hits and riders alike) — stun-parity action denial (40),
         // narrowed by the physical/non-AoE condition but sharpened by
         // choosing WHAT it denies; unspent charges vanish when you act.
-        deci += action.hits * 40;
+        add += action.hits * 40;
+        break;
+      case 'guard':
+        // Physical strike damage taken −pct% while up: multiplicative
+        // reduction beats flat armor vs big hits, so it prices above the
+        // buff rate (2 deci per %-turn vs 5/4).
+        add += action.pct * action.turns * 2;
         break;
     }
+    // Speed-conditional effects (onlyIf faster/slower) price at 4/5 — the
+    // condition is build-selected, so the discount stays conservative.
+    deci += action.onlyIf !== undefined ? Math.floor((add * 4) / 5) : add;
   }
 
   if (skill.aura) {

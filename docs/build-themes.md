@@ -92,12 +92,30 @@ action cycle, and cover the rest with Slow Next (Hamstring), Speed debuffs
 whole single-target PHYSICAL card against you miss — its damage, every
 multi-hit AND its riders (a dodged Concussive Shot steals no tempo; the
 caster's own self effects still resolve). Unspent charges vanish when you
-next act, so the card is only worth its weight if you're FIRST (it's
-featherweight 6 for exactly that reason). Priced at stun parity (4 PL per
-charge, 2 charges). Magic, AoE (Storm Mark) and DoTs go straight through,
-purge strips it, and a pure dodge wall has no clock — sudden death eats
-it. Prime use: bosses and elites that swing big single-target physical
-hits (the Wolf King's entire kit).
+next act, so the card is only worth its weight if you're FIRST (weight 8,
+plus a Quicken 5 rider: dodging feeds +5 into your next speed check).
+Priced at stun parity (4 PL per charge, 2 charges). Magic, AoE (Storm
+Mark) and DoTs go straight through, purge strips it, and a pure dodge
+wall has no clock — sudden death eats it. Prime use: bosses and elites
+that swing big single-target physical hits (the Wolf King's entire kit).
+
+**Guard (Brace / Parry) — the physical damage stance:** guard reduces
+incoming PHYSICAL strike damage multiplicatively (after armor), and
+stacking stances cap at 75%. Brace is the steady version (−25% for 2
+turns); Parry is the timing version (−50% for 1 turn — raise it BEFORE
+the blow). Magic, true damage and DoT ticks ignore guard, purge strips
+it, and like every pure wall it has no clock. Dodge says "that card
+missed"; guard says "everything physical hits softer" — the wall vs the
+sidestep.
+
+**Speed-conditional effects (onlyIf faster/slower):** any effect can be
+gated on the speed check — it resolves only if your effective Speed is
+strictly higher ('faster') or lower ('slower') than the target's at cast
+time, and it reads EFFECTIVE speed, so Slowing Hex flips the check on.
+Priced at a 20% discount (build-selected conditions stay conservative).
+Shipped pair: Swift Strike (120% + 100% more while faster — the fast
+build's payoff) and Underdog Crush (80% + 150% more while slower — the
+heavy build's answer to fast elites).
 
 ## ⚰ 5. Executioner Burst — kill-window snowball
 

@@ -30,9 +30,9 @@ function isUseful(c: CombatantState, skill: SkillDef): boolean {
       case 'stagger':
       case 'shieldBreak':
       case 'multiHit':
-      case 'quicken':
       case 'thorns':
       case 'purge':
+      case 'guard':
         return true;
       case 'shield':
         if (totalShield(c) < c.stats.maxHp) return true;
@@ -49,10 +49,13 @@ function isUseful(c: CombatantState, skill: SkillDef): boolean {
         // this very performance) — skip until the guard is spent.
         if (!c.statuses.some((s) => s.kind === 'dodge')) return true;
         break;
+
       case 'lifesteal':
       case 'comboBonus':
       case 'execute':
-        // Pure riders — they don't make a card worth casting on their own.
+      case 'quicken':
+        // Pure riders — they don't make a card worth casting on their own
+        // (quicken here keeps Sidestep gated by its dodge charges).
         break;
     }
   }
