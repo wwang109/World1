@@ -1123,5 +1123,27 @@
       }
     ],
     "text": "Deal 80% Attack physical damage; if you are SLOWER than the target, add a crushing 150% follow-through."
+  },
+  {
+    "id": "haste",
+    "name": "Haste",
+    "archetypes": [
+      "support"
+    ],
+    "property": "magical",
+    "size": 2,
+    "speedWeight": 20,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "lightning",
+    "effects": [
+      {
+        "kind": "buffStat",
+        "stat": "speed",
+        "pct": 40,
+        "turns": 3
+      }
+    ],
+    "text": "Gain +40% Speed for 3 turns \u2014 bank initiative faster, win more comparisons, feed your chains. The lasting cousin of Sidestep's one-action quicken. Spans 2 turns."
   }
 ]

@@ -280,6 +280,11 @@ What this rewards and what keeps it honest:
   30 with weight-8 cards double-casts; every deeper link doubles the ask,
   so triple-plays demand pure Speed stacking (buffs, light boards, Time
   Crystal, Quicken).
+- **Tempo comes in two durations.** Sidestep's Quicken is the burst
+  (+5, next action only, size 1); **Haste** is the commitment (+40%
+  Speed for 3 turns, size 2 — two board slots and a 2-turn span for a
+  buff that wins comparisons all fight). Sim-verified: a Haste board at
+  base speed 12 produces real double-play turns mid-fight.
 - **The flat +2 term bounds everything.** Even a hypothetical 0-weight
   card has an exponentially growing chain cost — no build can loop the
   stage forever.
