@@ -89,10 +89,10 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
 
   it('surplus initiative chains an extra cast — at DOUBLE its weight', () => {
     // Hero Speed 30 with weight-8 cards vs Speed-10 foe: T1 score 0+30−8=22
-    // beats foe's 0; the first EXTRA play costs (8+2)×2=20, and 22−20=2
-    // still beats 0, so the hero chains a second cast. The next would cost
-    // (8+2)×4=40 — priced out. At Speed 20 the budget (12) can't even
-    // afford the first extra (20): moderate speed does not chain.
+    // beats foe's 0; the first EXTRA play costs DOUBLE the card's weight
+    // (8×2=16), and 22−16=6 still beats 0, so the hero chains a second
+    // cast. The next doubles again (8×4=32) — priced out. At Speed 20 the
+    // budget (12) can't afford even the first extra: no chain.
     const book: typeof MINI_BOOK = {
       ...MINI_BOOK,
       jab: { ...MINI_BOOK.slash!, id: 'jab', name: 'Jab', speedWeight: 8 },
@@ -114,10 +114,10 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
   });
 
   it('deeper chains demand exponentially more Speed (no hard cap)', () => {
-    // Speed 100 on [jab w8, slash w10]: budget 92 → slash costs (10+2)×2=24
-    // (68 left) → jab costs (8+2)×4=40 (28 left) → slash would cost
-    // (10+2)×8=96, priced out. Three plays in one stage, bought purely with
-    // Speed — beyond the 1-extra reach of moderate builds.
+    // Speed 100 on [jab w8, slash w10]: budget 92 → slash costs 10×2=20
+    // (72 left) → jab costs 8×4=32 (40 left) → slash would cost 10×8=80,
+    // priced out. Three plays in one stage, bought purely with Speed —
+    // beyond the 1-extra reach of moderate builds.
     const book: typeof MINI_BOOK = {
       ...MINI_BOOK,
       jab: { ...MINI_BOOK.slash!, id: 'jab', name: 'Jab', speedWeight: 8 },

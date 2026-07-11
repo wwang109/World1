@@ -65,7 +65,8 @@ describe('skills.json integrity', () => {
     if (c.element !== undefined) expect(ELEMENTS).toContain(c.element);
     if (c.weapon !== undefined) expect(WEAPONS).toContain(c.weapon);
     if (c.targeting !== undefined) expect(TARGET_MODES).toContain(c.targeting);
-    if (c.speedWeight !== undefined) expect(c.speedWeight).toBeGreaterThan(0);
+    // Minimum weight 5: keeps the chain rule's doubling cost honest.
+    if (c.speedWeight !== undefined) expect(c.speedWeight).toBeGreaterThanOrEqual(5);
     if (c.uses !== undefined) expect(c.uses).toBeGreaterThan(0);
 
     for (const action of c.effects) {

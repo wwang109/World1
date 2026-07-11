@@ -367,8 +367,9 @@ export class CardsScene extends Phaser.Scene {
     const slotW = SLOT_W * GRID_SCALE;
     const used = demoState.pieces.reduce((n, p) => n + (fullBook[p.skillId]?.size ?? 1), 0);
     const pl = demoState.pieces.reduce((n, p) => n + powerLevel(fullBook[p.skillId]!), 0);
+    const avgW = demoState.pieces.length > 0 ? Math.round(demoState.pieces.reduce((t, p) => t + (fullBook[p.skillId]!.speedWeight ?? fullBook[p.skillId]!.size * 10), 0) / demoState.pieces.length) : 0;
     this.boardObjs.push(
-      this.add.text(GRID_X, BOARD_STRIP_Y - 22, `YOUR BOARD — ${used}/${HERO_BOARD_SLOTS} slots · total PL ${pl.toFixed(1)} (drag to reorder in prep)`, {
+      this.add.text(GRID_X, BOARD_STRIP_Y - 22, `YOUR BOARD — ${used}/${HERO_BOARD_SLOTS} slots · total PL ${pl.toFixed(1)} · avg weight ${avgW} (drag to reorder in prep)`, {
         fontSize: '12px',
         color: UI.textDim,
         fontFamily: 'monospace',

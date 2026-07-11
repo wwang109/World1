@@ -21,14 +21,14 @@ const SD_PLAYER_AMP = 10;
 const SD_ENEMY_AMP = 30;
 const FATIGUE_BASE = 5;
 /**
- * Chained extra plays cost exponentially more: the Nth extra cast costs
- * (weight + FLAT) × GROWTH^N (2×, 4×, 8×…). No hard cap — pure speed
- * stacking buys deeper chains, but every additional play squares the ask.
- * The flat term keeps the cost strictly growing even for a hypothetical
- * 0-weight card, so a chain can never run forever.
+ * The player-facing chain rule, verbatim: "an extra play costs DOUBLE the
+ * card's weight — and doubles again each time (2×, 4×, 8×…)". No hard cap —
+ * pure speed stacking buys deeper chains. Cards are data-required to weigh
+ * at least MIN_CHAIN_WEIGHT (integrity test), so the cost always grows and
+ * a chain can never run forever; the clamp below is just the safety net.
  */
 const CHAIN_COST_GROWTH = 2;
-const CHAIN_COST_FLAT = 2;
+const MIN_CHAIN_WEIGHT = 5;
 
 /** null while combat continues. The player wins simultaneous wipes. */
 function checkEnd(state: CombatState): CombatOutcome | null {
@@ -347,10 +347,11 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
           if (runnerUp === null || !c.alive || c.busyTurns > 0 || checkEnd(state) !== null) break;
           const next = selectCast(c, cfg.skillBook);
           if (next === null) break;
-          const cost = (next.weight + CHAIN_COST_FLAT) * costMult;
+          const cost = Math.max(MIN_CHAIN_WEIGHT, next.weight) * costMult;
           if (budget - cost <= runnerUp) break;
           budget -= cost;
           c.performs += 1;
+          events.push({ turn: state.turn, kind: 'chained', side: c.side, unit: c.unit, cost, budgetLeft: budget });
           events.push({ turn: state.turn, kind: 'performStart', side: c.side, unit: c.unit, performs: c.performs });
           doCast(c, next, false);
         }

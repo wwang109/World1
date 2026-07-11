@@ -357,6 +357,9 @@ export class BattleScene extends Phaser.Scene {
       case 'dodged':
         this.log(`  ${this.tagOf(e.side, e.unit)} DODGES the strike (${e.hitsLeft} left)`);
         break;
+      case 'chained':
+        this.log(`  ⚡ ${this.tagOf(e.side, e.unit)} acts AGAIN — chain (paid ${e.cost} initiative, ${e.budgetLeft} left)`);
+        break;
       case 'shieldBroken': {
         if (!view) break;
         view.shield = e.totalAfter;

@@ -212,6 +212,9 @@ for (const e of events) {
     case 'dodged':
       console.log(`${t} │  ${tag(e.side, u)} DODGES the strike (${e.hitsLeft} left)`);
       break;
+    case 'chained':
+      console.log(`${t} │  ${tag(e.side, u)} ⚡ acts AGAIN (chain: paid ${e.cost} initiative, ${e.budgetLeft} left)`);
+      break;
     case 'shieldBroken':
       console.log(`${t} │  ${tag(e.side, u)} shield shattered −${e.amount} -> ${e.totalAfter}`);
       break;

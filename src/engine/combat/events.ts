@@ -74,6 +74,8 @@ export type CombatEvent =
   | { turn: number; kind: 'slowedNext'; side: Side; unit: number; weight: number }
   | { turn: number; kind: 'quickenedNext'; side: Side; unit: number; weight: number }
   | { turn: number; kind: 'staggered'; side: Side; unit: number; amount: number; bankAfter: number }
+  /** A performer kept the stage: extra cast paid for with surplus initiative. */
+  | { turn: number; kind: 'chained'; side: Side; unit: number; cost: number; budgetLeft: number }
   /** A single-target physical strike missed a dodging defender. */
   | { turn: number; kind: 'dodged'; side: Side; unit: number; hitsLeft: number }
   | { turn: number; kind: 'shieldBroken'; side: Side; unit: number; amount: number; totalAfter: number }

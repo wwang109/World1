@@ -7,7 +7,7 @@ import { fullBook } from '../../data/library';
 import { enemies } from '../../data/enemies';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../data/heroes';
 import { canPlace, clampSlot } from '../../run/loadout';
-import type { BoardPiece } from '../../engine/types';
+import { weightOf, type BoardPiece } from '../../engine/types';
 import { demoState } from '../demoState';
 import { CardView, SLOT_W, CARD_H } from '../ui/CardView';
 import { UI } from '../theme';
@@ -70,10 +70,14 @@ export class PrepScene extends Phaser.Scene {
     this.refreshBoardPl();
   }
 
-  /** Total Power Level fielded — the benchmark number for the board. */
+  /** Total Power Level fielded — the benchmark number for the board — plus
+   *  average card weight, the tempo number (lighter = act sooner, and an
+   *  extra chained play costs double the card's weight). */
   private refreshBoardPl(): void {
     const pl = demoState.pieces.reduce((n, p) => n + powerLevel(fullBook[p.skillId]!), 0);
-    this.boardPlText?.setText(`total PL ${pl.toFixed(1)}`);
+    const n = demoState.pieces.length;
+    const avgW = n > 0 ? Math.round(demoState.pieces.reduce((t, p) => t + weightOf(fullBook[p.skillId]!), 0) / n) : 0;
+    this.boardPlText?.setText(n > 0 ? `total PL ${pl.toFixed(1)} · avg weight ${avgW}` : 'total PL 0');
   }
 
   // ---------- board ----------

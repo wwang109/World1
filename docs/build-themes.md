@@ -267,10 +267,13 @@ effects show a "RESISTED" line in the log.
 The initiative rule grew one clause (shipped, sim-validated): the
 performer's winning score, minus each card's weight, is a **budget** —
 while that budget still strictly beats every other ready contender, the
-performer keeps the stage and casts again. There is NO hard cap; instead
-each extra play costs exponentially more — the Nth extra cast costs
-**(weight + 2) × 2^N** (so ~2×, 4×, 8× the card's weight). One sentence
-on the player's side: *"really fast heroes with light cards act twice."*
+performer keeps the stage and casts again. There is NO hard cap; the whole
+cost rule fits in one breath: **an extra play costs DOUBLE the card's
+weight — and doubles again each time (2×, 4×, 8×…)**. A weight-8 card's
+second play costs 16 initiative, its third 32. That's the number to build
+against, and it's why the Prep screen shows your board's average weight
+next to its total PL. (Data rule backing it: no card may weigh less than
+5, so the doubling always bites.)
 
 What this rewards and what keeps it honest:
 
@@ -285,9 +288,8 @@ What this rewards and what keeps it honest:
   Speed for 3 turns, size 2 — two board slots and a 2-turn span for a
   buff that wins comparisons all fight). Sim-verified: a Haste board at
   base speed 12 produces real double-play turns mid-fight.
-- **The flat +2 term bounds everything.** Even a hypothetical 0-weight
-  card has an exponentially growing chain cost — no build can loop the
-  stage forever.
+- **The weight floor bounds everything.** Cards weigh at least 5, so the
+  doubling cost always grows — no build can loop the stage forever.
 - **Heavy never chains.** A weight-20+ card eats the whole budget (and
   size-2/3 spans end the stage outright), so big-hit boards keep their
   once-a-cycle rhythm.
