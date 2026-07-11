@@ -62,6 +62,8 @@ function consumeShields(c: CombatantState, property: Property, amount: number): 
 interface CastCtx {
   damageDealt: number;
   bonusPct: number;
+  /** Trample Mark: killing-blow overkill carries into the next living enemy. */
+  trample: boolean;
 }
 
 /** Resolved targeting for one cast (enchant overrides the card's default). */
@@ -88,7 +90,7 @@ export function dealDamage(
     crit?: boolean;
     bypassShields?: boolean;
     matchup?: Matchup;
-    source?: 'skill' | 'poison' | 'burn' | 'fatigue' | 'thorns' | 'curse';
+    source?: 'skill' | 'poison' | 'burn' | 'fatigue' | 'thorns' | 'curse' | 'blood';
   } = {},
 ): void {
   if (!victim.alive || amount <= 0) return;
@@ -156,6 +158,10 @@ function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number
   // Weaken (enemy "reduced effect" cards): this cast was jammed — its
   // damage lands weaker. Consumed after the cast completes.
   if (caster.nextCastWeakenPct > 0) base = Math.floor((base * (100 - caster.nextCastWeakenPct)) / 100);
+  // Empower (own sword-intent setup): this cast was charged — its damage
+  // lands harder. activeEmpowerPct is staged per-cast by doCast, so an
+  // Empower rider on this very card primes the NEXT cast, not itself.
+  if (caster.activeEmpowerPct > 0) base = Math.floor((base * (100 + caster.activeEmpowerPct)) / 100);
   // Deterministic crits — combat has NO randomness: each strike banks its
   // crit chance; at 100 the strike crits and spends the bank, so 50% crit
   // means exactly every 2nd strike. Clamped so >100% chance stays "always".
@@ -181,6 +187,15 @@ function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number
   const hpBefore = enemy.stats.hp;
   dealDamage(ctx, enemy, amount, property, { crit, matchup });
   cast.damageDealt += hpBefore - enemy.stats.hp;
+  // Trample: a killing blow's overkill (past the victim's HP) rolls into the
+  // next living enemy, once — no cascading tramples.
+  if (cast.trample && !enemy.alive) {
+    const overkill = amount - hpBefore;
+    if (overkill > 0) {
+      const next = livingFoes(ctx.state, caster)[0];
+      if (next) dealDamage(ctx, next, overkill, property, { crit });
+    }
+  }
   // Thorns: the defender pays back a cut of the incoming hit (pre-shield) as
   // TRUE damage. Iterate by index — statuses is an array, order is fixed.
   let thornsPct = 0;
@@ -510,6 +525,18 @@ function applyAction(
       // a guard stance must cover the window before your next action.
       addStatus(ctx, caster, { kind: 'guard', pct: action.pct, turnsLeft: action.turns, fresh: true });
       break;
+    case 'empower':
+      if (!caster.alive) break;
+      // Non-stacking max, spent by the caster's next cast (weakenNext's
+      // self-side mirror). Boosts the NEXT card — never this one.
+      caster.nextCastEmpowerPct = Math.max(caster.nextCastEmpowerPct, action.pct);
+      ctx.events.push({ turn: ctx.state.turn, kind: 'empowered', side: caster.side, unit: caster.unit, pct: caster.nextCastEmpowerPct });
+      break;
+    case 'bloodCost':
+      // The card's HP price: flat, true, unblockable — a cost, not an attack.
+      if (!caster.alive) break;
+      dealDamage(ctx, caster, action.amount, 'true', { bypassShields: true, source: 'blood' });
+      break;
   }
 }
 
@@ -539,7 +566,7 @@ export function applyCast(
     aoePct: enchant?.aoeDamagePct ?? 100,
     powerPct: enchant?.powerPct ?? 100,
   };
-  const cast: CastCtx = { damageDealt: 0, bonusPct: 0 };
+  const cast: CastCtx = { damageDealt: 0, bonusPct: 0, trample: enchant?.trample ?? false };
   // Dodge: a defender who acted FIRST slips the caster's whole PHYSICAL
   // action — one charge per card, covering its damage, every multi-hit and
   // its riders. You can sidestep a blade, not a storm: AoE ('all') and

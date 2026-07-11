@@ -81,6 +81,8 @@ export interface EnchantDef {
   chase?: boolean;
   /** Casts per battle for the marked piece (exhaust trade-offs). */
   uses?: number;
+  /** Damage strikes overflow: overkill on a killing blow carries into the next living enemy. */
+  trample?: boolean;
   text: string;
 }
 
@@ -167,7 +169,19 @@ type ActionBase =
    * global turns (multiplicative, applied after armor; total guard caps at
    * 75%). Magic, true damage and DoT ticks are not guarded.
    */
-  | { kind: 'guard'; pct: number; turns: number };
+  | { kind: 'guard'; pct: number; turns: number }
+  /**
+   * Sword-intent setup: the caster's NEXT card deals pct% MORE damage —
+   * spent by that cast whether or not it attacks (non-stacking max). The
+   * self-side mirror of weakenNext.
+   */
+  | { kind: 'empower'; pct: number }
+  /**
+   * Blood price: the caster pays a flat amount of HP (true, unblockable) to
+   * cast this card. Priced as a REFUND, buying a bigger kit. A card whose
+   * cost would kill its caster is skipped by rotation.
+   */
+  | { kind: 'bloodCost'; amount: number };
 
 /**
  * Speed-conditional effects: an action tagged `onlyIf` resolves only when

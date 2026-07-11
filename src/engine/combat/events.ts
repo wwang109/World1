@@ -58,7 +58,7 @@ export type CombatEvent =
       /** Element wheel / weapon triangle result for this hit. */
       matchup?: 'advantage' | 'disadvantage';
       hpAfter: number;
-      source: 'skill' | 'poison' | 'burn' | 'fatigue' | 'thorns' | 'curse';
+      source: 'skill' | 'poison' | 'burn' | 'fatigue' | 'thorns' | 'curse' | 'blood';
     }
   | { turn: number; kind: 'heal'; side: Side; unit: number; amount: number; flat: boolean; hpAfter: number }
   | { turn: number; kind: 'shieldGain'; side: Side; unit: number; property: Property; amount: number; wasted: number; totalAfter: number }
@@ -74,6 +74,8 @@ export type CombatEvent =
   | { turn: number; kind: 'slowedNext'; side: Side; unit: number; weight: number }
   | { turn: number; kind: 'quickenedNext'; side: Side; unit: number; weight: number }
   | { turn: number; kind: 'staggered'; side: Side; unit: number; amount: number; bankAfter: number }
+  /** The side's next cast is charged up (+pct% damage). */
+  | { turn: number; kind: 'empowered'; side: Side; unit: number; pct: number }
   /** A performer kept the stage: extra cast paid for with surplus initiative. */
   | { turn: number; kind: 'chained'; side: Side; unit: number; cost: number; budgetLeft: number }
   /** A single-target physical strike missed a dodging defender. */

@@ -1145,5 +1145,1222 @@
       }
     ],
     "text": "Gain +40% Speed for 3 turns \u2014 bank initiative faster, win more comparisons, feed your chains. The lasting cousin of Sidestep's one-action quicken. Spans 2 turns."
+  },
+  {
+    "id": "gather_intent",
+    "name": "Gather Intent",
+    "archetypes": [
+      "support",
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "empower",
+        "pct": 60
+      },
+      {
+        "kind": "quicken",
+        "weight": 16
+      }
+    ],
+    "text": "Channel sword intent: your NEXT card deals +60% damage, and your next action is 16 lighter. Setup for the perfect strike."
+  },
+  {
+    "id": "focused_edge",
+    "name": "Focused Edge",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "weapon": "sword",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 100
+      },
+      {
+        "kind": "empower",
+        "pct": 50
+      }
+    ],
+    "text": "Deal 100% Attack physical damage and sharpen your intent: your NEXT card deals +50% damage."
+  },
+  {
+    "id": "full_draw",
+    "name": "Full Draw",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "weapon": "bow",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 120
+      },
+      {
+        "kind": "empower",
+        "pct": 40
+      }
+    ],
+    "text": "Deal 120% Attack physical damage and steady your aim: your NEXT card deals +40% damage."
+  },
+  {
+    "id": "overcharge",
+    "name": "Overcharge",
+    "archetypes": [
+      "offense",
+      "support"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "lightning",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 60
+      },
+      {
+        "kind": "empower",
+        "pct": 70
+      }
+    ],
+    "text": "Deal 60% Magic Power magical damage and build a charge: your NEXT card deals +70% damage."
+  },
+  {
+    "id": "blood_rite",
+    "name": "Blood Rite",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "epic",
+    "tier": "bronze",
+    "element": "dark",
+    "effects": [
+      {
+        "kind": "bloodCost",
+        "amount": 16
+      },
+      {
+        "kind": "damage",
+        "power": 260
+      }
+    ],
+    "text": "Pay 16 HP (unblockable). Deal 260% Magic Power magical damage \u2014 power bought with your own blood."
+  },
+  {
+    "id": "reckless_cleave",
+    "name": "Reckless Cleave",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "weapon": "axe",
+    "effects": [
+      {
+        "kind": "bloodCost",
+        "amount": 10
+      },
+      {
+        "kind": "damage",
+        "power": 240
+      }
+    ],
+    "text": "Pay 10 HP. Deal 240% Attack physical damage \u2014 no thought of defense."
+  },
+  {
+    "id": "crimson_pact",
+    "name": "Crimson Pact",
+    "archetypes": [
+      "offense",
+      "healing"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "dark",
+    "effects": [
+      {
+        "kind": "bloodCost",
+        "amount": 12
+      },
+      {
+        "kind": "damage",
+        "power": 160
+      },
+      {
+        "kind": "lifesteal",
+        "pct": 66
+      }
+    ],
+    "text": "Pay 12 HP. Deal 160% Magic Power magical damage and drink back 66% of the damage dealt."
+  },
+  {
+    "id": "sacrificial_ward",
+    "name": "Sacrificial Ward",
+    "archetypes": [
+      "defensive"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "bloodCost",
+        "amount": 10
+      },
+      {
+        "kind": "shield",
+        "power": 240
+      }
+    ],
+    "text": "Pay 10 HP. Gain a Physical shield worth 240% Attack \u2014 flesh traded for iron."
+  },
+  {
+    "id": "lance_charge",
+    "name": "Lance Charge",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "physical",
+    "size": 2,
+    "speedWeight": 20,
+    "rarity": "common",
+    "tier": "bronze",
+    "weapon": "lance",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 300
+      }
+    ],
+    "text": "Deal 300% Attack physical damage. A committed charge \u2014 spans 2 turns."
+  },
+  {
+    "id": "pinning_volley",
+    "name": "Pinning Volley",
+    "archetypes": [
+      "offense",
+      "debuff"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "weapon": "bow",
+    "effects": [
+      {
+        "kind": "multiHit",
+        "power": 75,
+        "hits": 2
+      },
+      {
+        "kind": "slowNext",
+        "weight": 6
+      }
+    ],
+    "text": "Loose 2 arrows of 75% Attack each; the enemy's next action is +6 weight slower."
+  },
+  {
+    "id": "skewer",
+    "name": "Skewer",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "weapon": "lance",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 120
+      },
+      {
+        "kind": "execute",
+        "pct": 60,
+        "belowPct": 50
+      }
+    ],
+    "text": "Deal 120% Attack physical damage; +60% while the enemy is below half HP."
+  },
+  {
+    "id": "tail_sweep",
+    "name": "Tail Sweep",
+    "archetypes": [
+      "offense",
+      "debuff"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "weapon": "beast",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 160
+      },
+      {
+        "kind": "stagger",
+        "amount": 16
+      }
+    ],
+    "text": "Deal 160% Attack physical damage and knock 16 from the enemy's banked readiness."
+  },
+  {
+    "id": "longshot",
+    "name": "Longshot",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "weapon": "bow",
+    "targeting": "lowAggro",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 200
+      }
+    ],
+    "text": "Deal 200% Attack physical damage to the LOWEST-aggro enemy \u2014 pick off whoever hides in the back."
+  },
+  {
+    "id": "riposte",
+    "name": "Riposte",
+    "archetypes": [
+      "defensive",
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "weapon": "sword",
+    "effects": [
+      {
+        "kind": "guard",
+        "pct": 25,
+        "turns": 1
+      },
+      {
+        "kind": "damage",
+        "power": 100
+      }
+    ],
+    "text": "Guard (physical strikes \u221225% for 1 turn), then answer with 100% Attack physical damage."
+  },
+  {
+    "id": "halberd_sweep",
+    "name": "Halberd Sweep",
+    "archetypes": [
+      "offense",
+      "debuff"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "weapon": "lance",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 100
+      },
+      {
+        "kind": "slowNext",
+        "weight": 20
+      }
+    ],
+    "text": "Deal 100% Attack physical damage; the enemy's next action is +20 weight slower."
+  },
+  {
+    "id": "executioners_lunge",
+    "name": "Executioner's Lunge",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "weapon": "lance",
+    "targeting": "lowestHp",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 140
+      },
+      {
+        "kind": "execute",
+        "pct": 45,
+        "belowPct": 50
+      }
+    ],
+    "text": "Lunge at the WEAKEST enemy for 140% Attack physical damage; +45% while they are below half HP."
+  },
+  {
+    "id": "berserker_swing",
+    "name": "Berserker Swing",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "weapon": "axe",
+    "uses": 2,
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 240
+      }
+    ],
+    "text": "Deal 240% Attack physical damage. TWICE PER BATTLE \u2014 rage burns out fast."
+  },
+  {
+    "id": "alpha_roar",
+    "name": "Alpha's Roar",
+    "archetypes": [
+      "support",
+      "debuff"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "weapon": "beast",
+    "effects": [
+      {
+        "kind": "stagger",
+        "amount": 32
+      },
+      {
+        "kind": "buffStat",
+        "stat": "attack",
+        "pct": 24,
+        "turns": 2
+      }
+    ],
+    "text": "Roar: drain 32 from the enemy's banked readiness and gain +24% Attack for 2 turns."
+  },
+  {
+    "id": "flame_burst",
+    "name": "Flame Burst",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "element": "fire",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 160
+      },
+      {
+        "kind": "burn",
+        "amount": 4,
+        "turns": 2
+      }
+    ],
+    "text": "Deal 160% Magic Power magical damage and burn for 4 for 2 turns."
+  },
+  {
+    "id": "inferno",
+    "name": "Inferno",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "magical",
+    "size": 3,
+    "speedWeight": 30,
+    "rarity": "epic",
+    "tier": "bronze",
+    "element": "fire",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 300
+      },
+      {
+        "kind": "burn",
+        "amount": 10,
+        "turns": 2
+      }
+    ],
+    "text": "Deal 300% Magic Power magical damage and burn for 10 for 2 turns. Spans 3 turns \u2014 an unhurried catastrophe."
+  },
+  {
+    "id": "frost_lance",
+    "name": "Frost Lance",
+    "archetypes": [
+      "offense",
+      "debuff"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "element": "frost",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 160
+      },
+      {
+        "kind": "slowNext",
+        "weight": 8
+      }
+    ],
+    "text": "Deal 160% Magic Power magical damage; the enemy's next action is +8 weight slower."
+  },
+  {
+    "id": "glacial_prison",
+    "name": "Glacial Prison",
+    "archetypes": [
+      "debuff"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "epic",
+    "tier": "bronze",
+    "element": "frost",
+    "effects": [
+      {
+        "kind": "stun",
+        "turns": 1
+      },
+      {
+        "kind": "damage",
+        "power": 80
+      },
+      {
+        "kind": "weakenNext",
+        "pct": 20
+      }
+    ],
+    "text": "Freeze the enemy solid: stun their next performance, deal 80% Magic Power magical damage, and their next cast lands 20% weaker."
+  },
+  {
+    "id": "static_shock",
+    "name": "Static Shock",
+    "archetypes": [
+      "offense",
+      "debuff"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "element": "lightning",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 100
+      },
+      {
+        "kind": "stagger",
+        "amount": 40
+      }
+    ],
+    "text": "Deal 100% Magic Power magical damage and short out 40 of the enemy's banked readiness."
+  },
+  {
+    "id": "thunderstorm",
+    "name": "Thunderstorm",
+    "archetypes": [
+      "offense",
+      "debuff"
+    ],
+    "property": "magical",
+    "size": 2,
+    "speedWeight": 20,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "lightning",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 220
+      },
+      {
+        "kind": "stagger",
+        "amount": 32
+      }
+    ],
+    "text": "Deal 220% Magic Power magical damage and drain 32 banked readiness. Spans 2 turns."
+  },
+  {
+    "id": "verdant_grasp",
+    "name": "Verdant Grasp",
+    "archetypes": [
+      "debuff"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "element": "nature",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 100
+      },
+      {
+        "kind": "debuffStat",
+        "stat": "speed",
+        "pct": 20,
+        "turns": 2
+      }
+    ],
+    "text": "Roots seize the enemy: 100% Magic Power magical damage and \u221220% Speed for 2 turns."
+  },
+  {
+    "id": "lifebloom",
+    "name": "Lifebloom",
+    "archetypes": [
+      "healing"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "element": "nature",
+    "effects": [
+      {
+        "kind": "heal",
+        "power": 160
+      },
+      {
+        "kind": "regen",
+        "amount": 4,
+        "turns": 2
+      }
+    ],
+    "text": "Restore 160% Magic Power health, then regenerate 4 HP for 2 turns."
+  },
+  {
+    "id": "radiant_burst",
+    "name": "Radiant Burst",
+    "archetypes": [
+      "offense",
+      "healing"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "holy",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 140
+      },
+      {
+        "kind": "heal",
+        "power": 60
+      }
+    ],
+    "text": "Deal 140% Magic Power magical damage and restore 60% Magic Power health in the same flash."
+  },
+  {
+    "id": "consecrate",
+    "name": "Consecrate",
+    "archetypes": [
+      "offense",
+      "support"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "holy",
+    "effects": [
+      {
+        "kind": "purge"
+      },
+      {
+        "kind": "damage",
+        "power": 80
+      }
+    ],
+    "text": "Burn away the enemy's buffs, thorns and regeneration, then deal 80% Magic Power magical damage."
+  },
+  {
+    "id": "shadow_coil",
+    "name": "Shadow Coil",
+    "archetypes": [
+      "offense",
+      "debuff"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "element": "dark",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 120
+      },
+      {
+        "kind": "debuffStat",
+        "stat": "attack",
+        "pct": 16,
+        "turns": 2
+      }
+    ],
+    "text": "Deal 120% Magic Power magical damage and sap the enemy's Attack by 16% for 2 turns."
+  },
+  {
+    "id": "soul_siphon",
+    "name": "Soul Siphon",
+    "archetypes": [
+      "offense",
+      "healing"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "common",
+    "tier": "bronze",
+    "element": "dark",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 120
+      },
+      {
+        "kind": "lifesteal",
+        "pct": 60
+      }
+    ],
+    "text": "Deal 120% Magic Power magical damage and drink back 60% of the damage dealt."
+  },
+  {
+    "id": "field_dressing",
+    "name": "Field Dressing",
+    "archetypes": [
+      "healing",
+      "defensive"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "heal",
+        "power": 100
+      },
+      {
+        "kind": "guard",
+        "pct": 25,
+        "turns": 1
+      }
+    ],
+    "text": "Restore 100% Attack health and brace: physical strikes deal 25% less for 1 turn."
+  },
+  {
+    "id": "renewal",
+    "name": "Renewal",
+    "archetypes": [
+      "healing"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "nature",
+    "effects": [
+      {
+        "kind": "regen",
+        "amount": 8,
+        "turns": 4
+      },
+      {
+        "kind": "heal",
+        "power": 40
+      }
+    ],
+    "text": "Restore 40% Magic Power health and regenerate 8 HP for 4 turns \u2014 the slow cure."
+  },
+  {
+    "id": "divine_mercy",
+    "name": "Divine Mercy",
+    "archetypes": [
+      "healing",
+      "support"
+    ],
+    "property": "magical",
+    "size": 2,
+    "speedWeight": 20,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "holy",
+    "effects": [
+      {
+        "kind": "heal",
+        "power": 140
+      },
+      {
+        "kind": "cleanse"
+      }
+    ],
+    "text": "Restore 140% Magic Power health and remove your poisons, burns, stuns and debuffs. Spans 2 turns."
+  },
+  {
+    "id": "adrenal_surge",
+    "name": "Adrenal Surge",
+    "archetypes": [
+      "healing",
+      "support"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "heal",
+        "power": 120
+      },
+      {
+        "kind": "buffStat",
+        "stat": "speed",
+        "pct": 16,
+        "turns": 2
+      }
+    ],
+    "text": "Restore 120% Attack health and gain +16% Speed for 2 turns."
+  },
+  {
+    "id": "martyrs_light",
+    "name": "Martyr's Light",
+    "archetypes": [
+      "healing"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "holy",
+    "uses": 2,
+    "effects": [
+      {
+        "kind": "heal",
+        "power": 240
+      }
+    ],
+    "text": "Restore 240% Magic Power health. TWICE PER BATTLE \u2014 mercy this deep is rare."
+  },
+  {
+    "id": "sanctuary",
+    "name": "Sanctuary",
+    "archetypes": [
+      "healing"
+    ],
+    "property": "magical",
+    "size": 2,
+    "speedWeight": 20,
+    "rarity": "common",
+    "tier": "bronze",
+    "element": "holy",
+    "effects": [
+      {
+        "kind": "heal",
+        "power": 200
+      },
+      {
+        "kind": "regen",
+        "amount": 4,
+        "turns": 5
+      }
+    ],
+    "text": "Restore 200% Magic Power health, then regenerate 4 HP for 5 turns. Spans 2 turns."
+  },
+  {
+    "id": "tower_shield",
+    "name": "Tower Shield",
+    "archetypes": [
+      "defensive"
+    ],
+    "property": "physical",
+    "size": 2,
+    "speedWeight": 20,
+    "rarity": "common",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "shield",
+        "power": 240
+      },
+      {
+        "kind": "guard",
+        "pct": 15,
+        "turns": 1
+      }
+    ],
+    "text": "Gain a Physical shield worth 240% Attack and brace 15% for 1 turn. Spans 2 turns."
+  },
+  {
+    "id": "smoke_ward",
+    "name": "Smoke Ward",
+    "archetypes": [
+      "defensive",
+      "debuff"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "fire",
+    "effects": [
+      {
+        "kind": "shield",
+        "power": 120
+      },
+      {
+        "kind": "weakenNext",
+        "pct": 40
+      }
+    ],
+    "text": "Gain a Magical shield worth 120% Magic Power; smoke jams the enemy's NEXT cast 40% weaker."
+  },
+  {
+    "id": "spiked_bulwark",
+    "name": "Spiked Bulwark",
+    "archetypes": [
+      "defensive"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "nature",
+    "effects": [
+      {
+        "kind": "shield",
+        "power": 60
+      },
+      {
+        "kind": "thorns",
+        "pct": 35,
+        "turns": 2
+      }
+    ],
+    "text": "Gain a Magical shield worth 60% Magic Power; for 2 turns, skill hits taken reflect 35% back as TRUE damage."
+  },
+  {
+    "id": "last_stand",
+    "name": "Last Stand",
+    "archetypes": [
+      "defensive",
+      "healing"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "guard",
+        "pct": 40,
+        "turns": 1
+      },
+      {
+        "kind": "heal",
+        "power": 40
+      }
+    ],
+    "text": "Dig in: physical strikes deal 40% less for 1 turn and restore 40% Attack health."
+  },
+  {
+    "id": "phalanx_stance",
+    "name": "Phalanx Stance",
+    "archetypes": [
+      "defensive"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "uses": 2,
+    "effects": [
+      {
+        "kind": "guard",
+        "pct": 20,
+        "turns": 3
+      }
+    ],
+    "text": "Set the wall: physical strikes deal 20% less for 3 turns. TWICE PER BATTLE."
+  },
+  {
+    "id": "stone_wall",
+    "name": "Stone Wall",
+    "archetypes": [
+      "defensive"
+    ],
+    "property": "physical",
+    "size": 3,
+    "speedWeight": 30,
+    "rarity": "epic",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "shield",
+        "power": 320
+      },
+      {
+        "kind": "guard",
+        "pct": 20,
+        "turns": 1
+      }
+    ],
+    "text": "Gain a Physical shield worth 320% Attack and brace 20% for 1 turn. Spans 3 turns \u2014 patience made solid."
+  },
+  {
+    "id": "blur",
+    "name": "Blur",
+    "archetypes": [
+      "defensive"
+    ],
+    "property": "true",
+    "size": 1,
+    "speedWeight": 6,
+    "rarity": "epic",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "dodge",
+        "hits": 1
+      },
+      {
+        "kind": "quicken",
+        "weight": 8
+      }
+    ],
+    "text": "DODGE the next physical card played against you, and your next action is 8 lighter. Featherweight (6) \u2014 be first or be hit."
+  },
+  {
+    "id": "menders_totem",
+    "name": "Mender's Totem",
+    "archetypes": [
+      "support"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "nature",
+    "effects": [],
+    "text": "Passive: touching cards heal +25% more.",
+    "aura": {
+      "affects": "adjacent",
+      "mods": {
+        "healPct": 25
+      }
+    }
+  },
+  {
+    "id": "war_drums",
+    "name": "War Drums",
+    "archetypes": [
+      "support"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "epic",
+    "tier": "bronze",
+    "effects": [],
+    "text": "Passive: EVERY card on your board deals +12% damage.",
+    "aura": {
+      "affects": "allBoard",
+      "mods": {
+        "damagePct": 12
+      }
+    }
+  },
+  {
+    "id": "withering_hex",
+    "name": "Withering Hex",
+    "archetypes": [
+      "debuff"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "dark",
+    "effects": [
+      {
+        "kind": "debuffStat",
+        "stat": "attack",
+        "pct": 10,
+        "turns": 2
+      },
+      {
+        "kind": "debuffStat",
+        "stat": "magicPower",
+        "pct": 10,
+        "turns": 2
+      },
+      {
+        "kind": "debuffStat",
+        "stat": "speed",
+        "pct": 10,
+        "turns": 2
+      },
+      {
+        "kind": "damage",
+        "power": 50
+      }
+    ],
+    "text": "Wither everything at once: enemy Attack, Magic Power and Speed \u221210% for 2 turns, plus 50% Magic Power magical damage."
+  },
+  {
+    "id": "time_dilation",
+    "name": "Time Dilation",
+    "archetypes": [
+      "debuff"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "frost",
+    "effects": [
+      {
+        "kind": "slowNext",
+        "weight": 24
+      },
+      {
+        "kind": "weakenNext",
+        "pct": 40
+      }
+    ],
+    "text": "Stretch their seconds: the enemy's next action is +24 weight slower AND lands 40% weaker."
+  },
+  {
+    "id": "exposing_light",
+    "name": "Exposing Light",
+    "archetypes": [
+      "debuff",
+      "support"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "rarity": "rare",
+    "tier": "bronze",
+    "element": "holy",
+    "effects": [
+      {
+        "kind": "debuffStat",
+        "stat": "armor",
+        "pct": 20,
+        "turns": 2
+      },
+      {
+        "kind": "debuffStat",
+        "stat": "magicResist",
+        "pct": 20,
+        "turns": 2
+      }
+    ],
+    "text": "Strip the enemy bare: Armor AND Magic Resist \u221220% for 2 turns \u2014 every ally hits harder."
+  },
+  {
+    "id": "rallying_banner",
+    "name": "Rallying Banner",
+    "archetypes": [
+      "support"
+    ],
+    "property": "physical",
+    "size": 2,
+    "speedWeight": 20,
+    "rarity": "epic",
+    "tier": "bronze",
+    "effects": [
+      {
+        "kind": "buffStat",
+        "stat": "attack",
+        "pct": 20,
+        "turns": 2
+      }
+    ],
+    "text": "Plant the banner: gain +20% Attack for 2 turns. Passive: touching Offense cards deal +25% damage. Spans 2 turns.",
+    "aura": {
+      "affects": "adjacent",
+      "archetypeFilter": "offense",
+      "mods": {
+        "damagePct": 25
+      }
+    }
   }
 ]

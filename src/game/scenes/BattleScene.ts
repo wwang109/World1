@@ -360,6 +360,9 @@ export class BattleScene extends Phaser.Scene {
       case 'chained':
         this.log(`  ⚡ ${this.tagOf(e.side, e.unit)} acts AGAIN — chain (paid ${e.cost} initiative, ${e.budgetLeft} left)`);
         break;
+      case 'empowered':
+        this.log(`  ${this.tagOf(e.side, e.unit)} EMPOWERED — next card +${e.pct}% damage`);
+        break;
       case 'shieldBroken': {
         if (!view) break;
         view.shield = e.totalAfter;

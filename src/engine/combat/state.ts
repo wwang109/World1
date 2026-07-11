@@ -87,6 +87,10 @@ export interface CombatantState {
   momentumCasts: number;
   /** The caster's next cast deals this % less damage (enemy Weaken cards). */
   nextCastWeakenPct: number;
+  /** The caster's next cast deals this % MORE damage (own Empower cards). */
+  nextCastEmpowerPct: number;
+  /** Empower staged for the cast currently resolving (set/cleared by doCast). */
+  activeEmpowerPct: number;
   /**
    * True once staggered; cleared when this side next takes the stage. A side
    * can be staggered at most ONCE between its own actions — tempo theft is a
@@ -147,6 +151,8 @@ function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBoo
     staleCasts: 0,
     momentumCasts: 0,
     nextCastWeakenPct: 0,
+    nextCastEmpowerPct: 0,
+    activeEmpowerPct: 0,
     staggerGuard: false,
     elementAffinity: setup.elementAffinity,
     weaponAffinity: setup.weaponAffinity,

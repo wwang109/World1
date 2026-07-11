@@ -306,6 +306,30 @@ What this rewards and what keeps it honest:
   (one per victim action cycle, see Tempo Thief), and why Dodge exists:
   a chain of physical strikes walks into Sidestep charge by charge.
 
+## Borrowed mechanics — Yi Xian & MTG translations (100-card set)
+
+Three mechanics ported from the genre greats, each one sentence, all
+free-flow (any build can use them):
+
+- **Empower** (Yi Xian sword intent): "your NEXT card deals +X% damage" —
+  the self-side mirror of Weaken Next, spent by the next cast, non-stacking
+  max. Setup→payoff turns: Gather Intent (+60% & quicken) into Crushing
+  Blow is the nova archetype; its weakness is the telegraphed setup turn
+  (sim: still loses to the fast Bandit). Priced 1 PL per 10% like Weaken.
+- **Blood price** (Yi Xian injury / MTG pay-life): "pay X HP to cast" —
+  flat, true, unblockable, REFUNDS budget at the flat-true rate (5 HP =
+  1 PL), so blood cards carry oversized kits (Blood Rite: 16 HP for 260%).
+  Rotation skips a blood card its caster cannot survive. Pairs naturally
+  with lifesteal and heals (Crimson Pact drinks its price back).
+- **Trample Mark** (MTG trample, as an ENCHANT): overkill from killing
+  blows carries into the next enemy — strikes 10% weaker. The party-fight
+  mark: single-target damage stops evaporating on low-HP front-liners.
+
+Already native before this set: first strike (onlyIf faster), lifelink
+(lifesteal), haste (Haste/quicken), double strike (multiHit), exhaust
+(uses), strength/weak (buffs/Weaken), block (shields) — the research
+mostly confirmed the verb set covers the classics.
+
 ## Momentum & staleness — the variety axis
 
 BASE damage is sacred: no rotation pattern ever changes a card's printed

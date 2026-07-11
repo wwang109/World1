@@ -114,6 +114,9 @@ for (const e of events) {
     case 'chained':
       console.log(`${t} │  ${tag(e.side, 'unit' in e ? e.unit : 0)} ⚡ acts AGAIN (chain: paid ${e.cost}, ${e.budgetLeft} left)`);
       break;
+    case 'empowered':
+      console.log(`${t} │  ${tag(e.side, 'unit' in e ? e.unit : 0)} EMPOWERED — next card +${e.pct}%`);
+      break;
     case 'shieldBroken':
       console.log(`${t} │  ${tag(e.side, 'unit' in e ? e.unit : 0)} shield shattered −${e.amount} -> ${e.totalAfter}`);
       break;

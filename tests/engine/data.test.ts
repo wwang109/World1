@@ -43,6 +43,8 @@ const ACTION_SHAPES: Record<string, string[]> = {
   regen: ['amount', 'turns'],
   dodge: ['hits'],
   guard: ['pct', 'turns'],
+  empower: ['pct'],
+  bloodCost: ['amount'],
 };
 
 describe('skills.json integrity', () => {

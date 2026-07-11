@@ -128,6 +128,15 @@ export function powerLevelDeci(skill: SkillDef): number {
         // buff rate (2 deci per %-turn vs 5/4).
         add += action.pct * action.turns * 2;
         break;
+      case 'empower':
+        // Charges the NEXT cast +pct% damage: priced like weakenNext (its
+        // self-side mirror) — the payoff needs a setup turn and telegraphs.
+        add += action.pct;
+        break;
+      case 'bloodCost':
+        // An HP price REFUNDS budget at the flat-true rate (5 HP = 1 PL).
+        add -= action.amount * 2;
+        break;
     }
     // Speed-conditional effects (onlyIf faster/slower) price at 4/5 — the
     // condition is build-selected, so the discount stays conservative.

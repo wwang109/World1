@@ -207,7 +207,13 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     if (choice.piece.castsLeft !== undefined) choice.piece.castsLeft -= 1;
     if (!c.alive) return;
     const enchant = choice.piece.enchant !== undefined ? cfg.enchantBook?.[choice.piece.enchant] : undefined;
+    // Empower charges the cast that comes AFTER the card that granted it:
+    // stage the stored charge for this cast's strikes, spend it, and let any
+    // Empower rider cast now prime the next one.
+    c.activeEmpowerPct = c.nextCastEmpowerPct;
+    c.nextCastEmpowerPct = 0;
     applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, enchant, chased);
+    c.activeEmpowerPct = 0;
     // Weaken jams THIS cast and is spent by it.
     c.nextCastWeakenPct = 0;
     // Combo remembers this cast.

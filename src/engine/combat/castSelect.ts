@@ -16,6 +16,10 @@ export interface CastChoice {
  */
 function isUseful(c: CombatantState, skill: SkillDef): boolean {
   if (skill.special !== undefined) return true;
+  // A blood price the caster cannot survive makes the card uncastable.
+  for (const action of skill.effects) {
+    if (action.kind === 'bloodCost' && c.stats.hp <= action.amount) return false;
+  }
   for (const action of skill.effects) {
     switch (action.kind) {
       case 'damage':
@@ -49,11 +53,16 @@ function isUseful(c: CombatantState, skill: SkillDef): boolean {
         // this very performance) — skip until the guard is spent.
         if (!c.statuses.some((s) => s.kind === 'dodge')) return true;
         break;
+      case 'empower':
+        // Re-casting while charged would waste it (non-stacking max).
+        if (c.nextCastEmpowerPct <= 0) return true;
+        break;
 
       case 'lifesteal':
       case 'comboBonus':
       case 'execute':
       case 'quicken':
+      case 'bloodCost':
         // Pure riders — they don't make a card worth casting on their own
         // (quicken here keeps Sidestep gated by its dodge charges).
         break;
