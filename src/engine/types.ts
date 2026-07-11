@@ -153,9 +153,11 @@ export type Action =
   /** Heal the caster a flat amount at the start of each global turn. */
   | { kind: 'regen'; amount: number; turns: number }
   /**
-   * The next `hits` single-target PHYSICAL strikes against the caster miss.
-   * Expires when the caster next takes the stage — dodging rewards acting
-   * FIRST, and never carries past your own action. AoE and magic connect.
+   * The next `hits` single-target PHYSICAL cards cast at the caster miss
+   * WHOLESALE — the damage, every multi-hit and all hostile riders of each
+   * dodged card (its self effects still resolve). Expires when the caster
+   * next takes the stage — dodging rewards acting FIRST, and never carries
+   * past your own action. AoE and magic connect.
    */
   | { kind: 'dodge'; hits: number };
 

@@ -88,13 +88,16 @@ stun a delay, not a lock. MIX your verbs instead: stagger once per enemy
 action cycle, and cover the rest with Slow Next (Hamstring), Speed debuffs
 (Slowing Hex) and Weaken. Two-stagger boards waste half their riders.
 
-**Dodge (Sidestep) — the timing sidegrade:** DODGE charges make the next
-3 single-target PHYSICAL strikes miss, and unspent charges vanish when you
-next act — so the card is only worth its weight if you're FIRST (it's w8
-for exactly that reason). Magic, AoE (Storm Mark) and DoTs go straight
-through, purge strips it, and a pure dodge wall has no clock — sudden
-death eats it. Prime use: bosses and elites that swing big single-target
-physical hits (the Wolf King's entire kit).
+**Dodge (Sidestep) — the timing sidegrade:** each DODGE charge makes one
+whole single-target PHYSICAL card against you miss — its damage, every
+multi-hit AND its riders (a dodged Concussive Shot steals no tempo; the
+caster's own self effects still resolve). Unspent charges vanish when you
+next act, so the card is only worth its weight if you're FIRST (it's
+featherweight 6 for exactly that reason). Priced at stun parity (4 PL per
+charge, 2 charges). Magic, AoE (Storm Mark) and DoTs go straight through,
+purge strips it, and a pure dodge wall has no clock — sudden death eats
+it. Prime use: bosses and elites that swing big single-target physical
+hits (the Wolf King's entire kit).
 
 ## ⚰ 5. Executioner Burst — kill-window snowball
 

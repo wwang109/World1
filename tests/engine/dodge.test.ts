@@ -15,12 +15,12 @@ function playerDamage(events: Events) {
   return events.filter((e) => e.kind === 'damage' && e.side === 'player') as Extract<Events[number], { kind: 'damage' }>[];
 }
 
-describe('dodge (Sidestep)', () => {
-  it('negates single-target physical strikes, one charge per strike', () => {
-    // Hero casts Sidestep first (Speed 20 beats 10); the foe swings every
-    // turn and misses while charges last. Once spent, Sidestep reads as
-    // useful again and the hero re-guards — a pure dodge-tank loop that
-    // walls single-target physical (and ONLY that; magic/AoE/DoTs break it).
+describe('dodge (Sidestep) — one charge evades one whole physical card', () => {
+  it('negates entire physical actions, one charge per card', () => {
+    // Hero casts Sidestep first (Speed 20 beats 10); the foe's slashes whiff
+    // card by card. Once both charges are spent, Sidestep reads as useful
+    // again and the hero re-guards — a wall vs single-target physical ONLY
+    // (magic/AoE/DoTs break it, and it has no clock: sudden death wins).
     const c = cfg(
       tc('dancer', ['sidestep'], { speed: 20, maxHp: 500 }),
       tc('bruiser', ['sword_slash'], { attack: 10, speed: 10, maxHp: 500 }),
@@ -28,12 +28,50 @@ describe('dodge (Sidestep)', () => {
     );
     const { events } = simulate(c, 1);
     const d = dodges(events);
-    expect(d.length).toBeGreaterThanOrEqual(3);
-    expect(d.slice(0, 3).map((e) => e.hitsLeft)).toEqual([2, 1, 0]);
-    // Charges spent -> the guard was re-cast (visible as a second skillCast).
-    const recasts = events.filter((e) => e.kind === 'skillCast' && e.side === 'player');
-    expect(recasts.length).toBeGreaterThanOrEqual(2);
-    // The wall holds: no skill damage ever reaches the hero here.
+    expect(d.length).toBeGreaterThanOrEqual(2);
+    expect(d.slice(0, 2).map((e) => e.hitsLeft)).toEqual([1, 0]);
+    expect(playerDamage(events).some((e) => e.source === 'skill')).toBe(false);
+  });
+
+  it('one charge swallows ALL hits of a multi-hit card', () => {
+    // Flurry of Knives (3 strikes) against a dodger: a single charge dodges
+    // the whole card — zero strikes land, exactly one dodged event.
+    const c = cfg(
+      tc('dancer', ['sidestep'], { speed: 20, maxHp: 500 }),
+      tc('knifer', ['flurry_of_knives'], { attack: 10, speed: 10, maxHp: 500 }),
+      { ...NO_ENDGAME, maxTurns: 2 },
+    );
+    const { events } = simulate(c, 1);
+    expect(dodges(events)).toHaveLength(1);
+    expect(playerDamage(events).some((e) => e.source === 'skill')).toBe(false);
+  });
+
+  it('a dodged card loses its riders too', () => {
+    // Concussive Shot (damage + stagger) is dodged wholesale: no damage AND
+    // no stagger drains the dodger's bank.
+    const c = cfg(
+      tc('dancer', ['sidestep'], { speed: 20, maxHp: 500 }),
+      tc('archer', ['concussive_shot'], { attack: 10, speed: 10, maxHp: 500 }),
+      { ...NO_ENDGAME, maxTurns: 3 },
+    );
+    const { events } = simulate(c, 1);
+    expect(dodges(events).length).toBeGreaterThanOrEqual(1);
+    expect(events.some((e) => e.kind === 'staggered' && e.side === 'player')).toBe(false);
+    expect(playerDamage(events).some((e) => e.source === 'skill')).toBe(false);
+  });
+
+  it('a physical card with no hostile piece consumes no charge', () => {
+    // The foe's Iron Bulwark (physical property, self shield) is not an
+    // attack — the dodge guard must ignore it and stay armed for the slash.
+    const c = cfg(
+      tc('dancer', ['sidestep'], { speed: 20, maxHp: 500 }),
+      tc('turtle', ['iron_bulwark', 'sword_slash'], { attack: 10, speed: 10, maxHp: 500 }),
+      { ...NO_ENDGAME, maxTurns: 6 },
+    );
+    const { events } = simulate(c, 1);
+    // Bulwark still resolves (their shield appears), then the slash is dodged.
+    expect(events.some((e) => e.kind === 'shieldGain' && e.side === 'enemy')).toBe(true);
+    expect(dodges(events).length).toBeGreaterThanOrEqual(1);
     expect(playerDamage(events).some((e) => e.source === 'skill')).toBe(false);
   });
 
@@ -50,7 +88,7 @@ describe('dodge (Sidestep)', () => {
 
   it('AoE strikes cannot be dodged', () => {
     // The foe's slash carries Storm Mark: even against a lone dodging hero,
-    // the AoE strike connects (you cannot sidestep a storm).
+    // the AoE action connects (you cannot sidestep a storm).
     const c: CombatConfig = {
       player: tc('dancer', ['sidestep'], { speed: 20, maxHp: 500 }),
       enemy: {

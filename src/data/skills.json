@@ -1019,15 +1019,15 @@
     ],
     "property": "physical",
     "size": 1,
-    "speedWeight": 8,
+    "speedWeight": 6,
     "rarity": "rare",
     "tier": "bronze",
     "effects": [
       {
         "kind": "dodge",
-        "hits": 3
+        "hits": 2
       }
     ],
-    "text": "DODGE the next 3 single-target physical strikes against you \u2014 lost when you next act. Light (weight 8): move first, then slip the counterblow. Magic and AoE still connect."
+    "text": "DODGE the next 2 physical cards played against you \u2014 the whole action misses, damage and riders alike. Lost when you next act. Featherweight (6): move first, then slip the counterblow. Magic and AoE still connect."
   }
 ]

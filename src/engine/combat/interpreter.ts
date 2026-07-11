@@ -136,23 +136,8 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
 }
 
 /** One skill strike at a specific target: scaling, crit, mitigation, matchup, thorns payback. */
-function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number, mods: AuraMods, cast: CastCtx, enemy: CombatantState, aoe = false): void {
+function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number, mods: AuraMods, cast: CastCtx, enemy: CombatantState): void {
   const property = skill.property;
-  // Dodge: a defender who acted FIRST slips single-target physical strikes
-  // entirely — no damage, no crit-meter tick, no thorns. You can sidestep a
-  // blade; AoE and magic still connect.
-  if (property === 'physical' && !aoe) {
-    const dodge = enemy.statuses.find((s) => s.kind === 'dodge' && (s.amount ?? 0) > 0);
-    if (dodge) {
-      dodge.amount = (dodge.amount ?? 0) - 1;
-      if (dodge.amount <= 0) {
-        enemy.statuses = enemy.statuses.filter((s) => s !== dodge);
-        ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: enemy.side, unit: enemy.unit, status: 'dodge' });
-      }
-      ctx.events.push({ turn: ctx.state.turn, kind: 'dodged', side: enemy.side, unit: enemy.unit, hitsLeft: Math.max(0, dodge.amount) });
-      return;
-    }
-  }
   let base = Math.floor((scaleStat(caster, property) * power) / 100);
   // Staleness / momentum — BASE damage is never touched by either; only
   // BONUS effectiveness (aura boosts, combo/execute riders) flexes:
@@ -199,6 +184,12 @@ function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number
   }
 }
 
+/** Action kinds aimed at the foe — the ones a Dodge evades wholesale. */
+const HOSTILE_KINDS = new Set<Action['kind']>([
+  'damage', 'multiHit', 'poison', 'burn', 'stun', 'debuffStat', 'slowNext',
+  'weakenNext', 'curseCard', 'stagger', 'shieldBreak', 'purge', 'execute',
+]);
+
 function applyAction(
   ctx: Ctx,
   caster: CombatantState,
@@ -207,11 +198,15 @@ function applyAction(
   mods: AuraMods,
   cast: CastCtx,
   plan: TargetPlan,
+  dodgedTarget: CombatantState | null,
 ): void {
   // Non-damage hostile actions always pick ONE target by the plan's mode
   // (an assassin-marked poison lands on the backline); AoE spreads damage
   // strikes only.
   const enemy = pickTarget(ctx.state, caster, singleMode(plan));
+  // The target dodged this whole ACTION: every hostile piece of the card
+  // whiffs (damage, every multi-hit, riders). Self effects still resolve.
+  if (dodgedTarget !== null && enemy === dodgedTarget && HOSTILE_KINDS.has(action.kind)) return;
   const property = skill.property;
   switch (action.kind) {
     case 'damage': {
@@ -220,7 +215,7 @@ function applyAction(
         const aoePower = Math.floor((power * plan.aoePct) / 100);
         for (const foe of livingFoes(ctx.state, caster)) {
           if (!caster.alive) break;
-          strike(ctx, caster, skill, aoePower, mods, cast, foe, true);
+          strike(ctx, caster, skill, aoePower, mods, cast, foe);
         }
       } else {
         strike(ctx, caster, skill, power, mods, cast, enemy);
@@ -240,7 +235,7 @@ function applyAction(
           const aoePower = Math.floor((hitPower * plan.aoePct) / 100);
           for (const foe of foes) {
             if (!caster.alive || !foe.alive) continue;
-            strike(ctx, caster, skill, aoePower, mods, cast, foe, true);
+            strike(ctx, caster, skill, aoePower, mods, cast, foe);
           }
         } else {
           const target = pickTarget(ctx.state, caster, singleMode(plan));
@@ -527,8 +522,26 @@ export function applyCast(
     powerPct: enchant?.powerPct ?? 100,
   };
   const cast: CastCtx = { damageDealt: 0, bonusPct: 0 };
+  // Dodge: a defender who acted FIRST slips the caster's whole PHYSICAL
+  // action — one charge per card, covering its damage, every multi-hit and
+  // its riders. You can sidestep a blade, not a storm: AoE ('all') and
+  // magic/true cards connect. Cards with no hostile piece consume nothing.
+  let dodgedTarget: CombatantState | null = null;
+  if (skill.property === 'physical' && plan.mode !== 'all' && skill.effects.some((a) => HOSTILE_KINDS.has(a.kind))) {
+    const target = pickTarget(ctx.state, caster, singleMode(plan));
+    const dodge = target.statuses.find((s) => s.kind === 'dodge' && (s.amount ?? 0) > 0);
+    if (dodge) {
+      dodge.amount = (dodge.amount ?? 0) - 1;
+      if (dodge.amount <= 0) {
+        target.statuses = target.statuses.filter((s) => s !== dodge);
+        ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: target.side, unit: target.unit, status: 'dodge' });
+      }
+      ctx.events.push({ turn: ctx.state.turn, kind: 'dodged', side: target.side, unit: target.unit, hitsLeft: Math.max(0, dodge.amount ?? 0) });
+      dodgedTarget = target;
+    }
+  }
   for (const action of skill.effects) {
-    applyAction(ctx, caster, skill, action, mods, cast, plan);
+    applyAction(ctx, caster, skill, action, mods, cast, plan, dodgedTarget);
   }
   if (skill.special !== undefined) {
     getSpecial(skill.special)(ctx, caster, skill, slot, mods);

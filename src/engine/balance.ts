@@ -115,10 +115,11 @@ export function powerLevelDeci(skill: SkillDef): number {
         deci += Math.floor((action.amount * action.turns * 5) / 2); // HoT mirror of poison/burn
         break;
       case 'dodge':
-        // Evades one single-target physical strike per charge; narrower than
-        // a stun (40) — magic, AoE and riders still connect, and unspent
-        // charges vanish when the dodger next acts.
-        deci += action.hits * 30;
+        // Evades one whole single-target physical CARD per charge (damage,
+        // multi-hits and riders alike) — stun-parity action denial (40),
+        // narrowed by the physical/non-AoE condition but sharpened by
+        // choosing WHAT it denies; unspent charges vanish when you act.
+        deci += action.hits * 40;
         break;
     }
   }
