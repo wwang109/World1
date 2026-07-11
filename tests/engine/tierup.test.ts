@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isOnBudget, powerLevel } from '../../src/engine/balance';
-import { buildTierVariant, baseIdOf, TIER_NUMERAL } from '../../src/engine/tierUp';
+import { buildTierVariant, baseIdOf, TIER_NUMERAL, variantId } from '../../src/engine/tierUp';
 import { skillBook } from '../../src/data/skills';
 import { cardAtTier, fullBook, tiersOf } from '../../src/data/library';
 
@@ -42,5 +42,17 @@ describe('generated tier variants', () => {
     const a = buildTierVariant(skillBook['fireball']!, 'gold');
     const b = buildTierVariant(skillBook['fireball']!, 'gold');
     expect(a).toEqual(b);
+  });
+});
+
+describe('unique rarity — fixed rank', () => {
+  it('unique cards never generate tier variants (Bazaar-style)', () => {
+    const drums = skillBook['war_drums']!;
+    expect(drums.rarity).toBe('unique');
+    for (const tier of ['silver', 'gold', 'diamond'] as const) {
+      expect(buildTierVariant(drums, tier)).toBeNull();
+      expect(fullBook[variantId('war_drums', tier)]).toBeUndefined();
+    }
+    expect(tiersOf('war_drums')).toEqual(['bronze']);
   });
 });

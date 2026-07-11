@@ -101,6 +101,9 @@ function findKnob(def: SkillDef): Knob | null {
  */
 export function buildTierVariant(base: SkillDef, tier: SkillTier): SkillDef | null {
   if (tier === base.tier) return base;
+  // UNIQUE cards are fixed-rank (Bazaar-style): one-of-a-kind, never
+  // tier-upgraded — their printed form is their final form.
+  if (base.rarity === 'unique') return null;
   if (TIER_ORDER.indexOf(tier) < TIER_ORDER.indexOf(base.tier)) return null;
 
   const def = cloneDef(base);

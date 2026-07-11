@@ -100,7 +100,13 @@ export type WeaponType = 'sword' | 'axe' | 'lance' | 'bow' | 'beast';
 
 /** Tier = Power Level budget: bronze 10 · silver 15 · gold 20 · diamond 25. */
 export type SkillTier = 'bronze' | 'silver' | 'gold' | 'diamond';
-export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
+/**
+ * Rarity = ACQUISITION odds, never power. Tier is the strength axis (every
+ * card of a tier sums to the same PL budget); rarity only governs how often
+ * the run layer offers a card in drops/shops/drafts. 'unique' = one-of-a-kind:
+ * at most one copy can ever be held.
+ */
+export type Rarity = 'common' | 'rare' | 'epic' | 'legendary' | 'unique';
 
 export type BuffableStat = 'attack' | 'magicPower' | 'armor' | 'magicResist' | 'speed' | 'critPct' | 'resolve';
 

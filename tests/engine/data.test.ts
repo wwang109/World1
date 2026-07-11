@@ -13,7 +13,7 @@ const PROPERTIES = ['physical', 'magical', 'true'];
 const ELEMENTS = ['fire', 'frost', 'lightning', 'nature', 'holy', 'dark'];
 const WEAPONS = ['sword', 'axe', 'lance', 'bow', 'beast'];
 const TIERS = ['bronze', 'silver', 'gold', 'diamond'];
-const RARITIES = ['common', 'rare', 'epic', 'legendary'];
+const RARITIES = ['common', 'rare', 'epic', 'legendary', 'unique'];
 const TARGET_MODES = ['aggro', 'lowAggro', 'lowestHp', 'all'];
 const BUFFABLE = ['attack', 'magicPower', 'armor', 'magicResist', 'speed', 'critPct', 'resolve'];
 

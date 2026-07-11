@@ -390,6 +390,27 @@ detonation when their trapped card activates. Counterplay is rotation
 knowledge: the victim "walks into" the trap on schedule, so heavy
 must-cast cards (Rending Claws, Fireball) are the juiciest marks.
 
+## Tier vs rarity — two different axes
+
+Design law: **tier is strength, rarity is scarcity — they never mix.**
+
+- **Tier** (Bronze → Silver → Gold → Diamond) is the POWER axis: the PL
+  budget a card's kit sums to (10/15/20/25). Upgrading tiers is the
+  progression loop.
+- **Rarity** (common → rare → epic → legendary → unique) is the
+  ACQUISITION axis: how often the run layer offers the card in drops,
+  shops and drafts. It never changes a card's numbers — a common and an
+  epic of the same tier are exactly equal PL.
+- **Unique = one-of-a-kind AND fixed rank (Bazaar-style).** At most one
+  copy can ever be held, and the card NEVER tier-upgrades — its printed
+  form is its final form (`buildTierVariant` refuses uniques). First
+  unique: **War Drums** (the one battle standard — whole-board +12%
+  damage). Future build-arounds like the permanent-thorns Living Armor
+  land here.
+
+Rarity's drop-rate half is dormant until the run layer ships; the
+fixed-rank rule for uniques is live in the tier generator today.
+
 ## Possession cap — 10 board + 10 backpack
 
 A player holds at most 20 SLOTS of cards: the 10-slot board they fight

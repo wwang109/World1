@@ -2233,10 +2233,10 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "epic",
+    "rarity": "unique",
     "tier": "bronze",
     "effects": [],
-    "text": "Passive: EVERY card on your board deals +12% damage.",
+    "text": "UNIQUE \u2014 one copy, fixed rank (never upgrades). Passive: EVERY card on your board deals +12% damage.",
     "aura": {
       "affects": "allBoard",
       "mods": {
