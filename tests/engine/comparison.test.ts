@@ -16,11 +16,14 @@ function casts(events: Events, side: 'player' | 'enemy'): string[] {
 
 describe('initiative comparison (score = bank + Speed − weight)', () => {
   it('reproduces the worked Slash/Meteor vs Bite walkthrough', () => {
-    // Hero Speed 12: [Meteor w30 span3][Slash w10]. Enemy Speed 10: [Bite w10].
+    // Hero Speed 12: [Meteor w30 span3][Slash w10]. Enemy Speed 10: four
+    // distinct w10 bites (freshness-neutral, to keep the walkthrough pure).
+    const book: typeof MINI_BOOK = { ...MINI_BOOK };
+    for (const n of [1, 2, 3, 4]) book[`b${n}`] = { ...MINI_BOOK.bite!, id: `b${n}`, name: `B${n}` };
     const c = cfg(
-      tc('hero', ['meteor', 'slash'], { speed: 12, attack: 1, magicPower: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
-      tc('foe', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
-      { ...NO_ENDGAME, skillBook: MINI_BOOK, maxTurns: 6 },
+      tc('hero', ['meteor', 'slash'], { speed: 12, attack: 1, magicPower: 1, maxHp: 5000 }, { skillBook: book }),
+      tc('foe', ['b1', 'b2', 'b3', 'b4'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: book }),
+      { ...NO_ENDGAME, skillBook: book, maxTurns: 6 },
     );
     const { events } = simulate(c, 1);
     // T1: hero 12−30=−18 vs 0 → enemy. T2: 24−30 vs 0 → enemy. T3: 36−30=6 → HERO METEOR.

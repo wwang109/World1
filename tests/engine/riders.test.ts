@@ -24,10 +24,10 @@ describe('special ability riders', () => {
     const slowed = cmps.find((e) => e.enemy.state === 'ready' && e.enemy.weight === 26);
     expect(slowed).toBeDefined();
     // The penalty is consumed by the enemy's next performance — later
-    // comparisons show base weight again (plus the +4 freshness replay for
-    // a single-card board; the +16 slow itself is gone).
+    // comparisons show base weight again plus freshness for a single-card
+    // board (+4 windowed, +4 back-to-back = 18); the +16 slow itself is gone.
     const after = cmps.filter((e) => e.turn > slowed!.turn && e.enemy.state === 'ready');
-    expect(after.some((e) => e.enemy.weight === 14)).toBe(true);
+    expect(after.some((e) => e.enemy.weight === 18)).toBe(true);
   });
 
   it('stagger drains the enemy banked readiness', () => {

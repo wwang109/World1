@@ -97,10 +97,13 @@ export function selectCast(c: CombatantState, skillBook: SkillBook): CastChoice 
     if (!isUseful(c, skill)) continue;
     const mods = aurasOn(c, piece, skillBook);
     // FRESHNESS: a card replayed while still in the recent-cast window is
-    // +REPLAY_WEIGHT heavier per appearance. Boards rotating 4+ cards never
-    // pay it; thin fast-rotation boards trade tempo for their focus.
+    // +REPLAY_WEIGHT heavier per appearance — and the appearance counts
+    // DOUBLE when it was the very last cast, so back-to-back spam pays more
+    // than mere rotation overlap (+4 windowed · +8 first repeat · +16 deep
+    // spam). Boards rotating 4+ cards never pay anything.
     let replay = 0;
     for (const id of c.recentCasts) if (id === skill.id) replay += REPLAY_WEIGHT;
+    if (c.lastCastSkillId === skill.id) replay += REPLAY_WEIGHT;
     const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty - c.nextWeightBonus + replay);
     return { piece, skill, mods, weight };
   }

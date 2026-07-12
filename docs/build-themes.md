@@ -312,14 +312,15 @@ Sims showed a 2–3 card board of light attackers performs nearly as well
 as a full 10-slot board: act rate is pure speed/weight, so fielding less
 PL barely cost anything. The counter is a TEMPO tax, not a damage nerf
 (base damage stays sacred): **a card replayed while still in your last 3
-casts is +4 weight per recent appearance.** One sentence for players:
-*"cards get heavier when replayed too soon — a full rotation keeps them
-fresh."*
+casts is +4 weight per recent appearance — and that appearance counts
+DOUBLE if it was your very last cast.** One sentence for players: *"cards
+get heavier when replayed too soon — and heavier still back-to-back."*
 
 - Boards rotating **4+ active cards never pay it** — for normal decks the
   rule is invisible.
-- A two-card rotation pays +4 every cast; single-card spam pays up to
-  +12 — slower, never weaker.
+- The gradient distinguishes HOW you repeat: rotation overlap (the card
+  was merely recent) costs +4; the first back-to-back repeat costs +8;
+  deep same-card spam climbs to +16 — slower, never weaker.
 - It compounds with everything tempo: replayed cards cost more to chain,
   score lower in comparisons, and show their surcharge in the visible
   weight number.
