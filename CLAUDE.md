@@ -12,6 +12,10 @@ Claude acts as ORCHESTRATOR, not first-resort implementer:
    Haiku for mechanical/bulk data work, Opus only for hard engine surgery.
    Give each agent a precise brief and require a **summary of ≤400
    characters** describing what was done.
+   **Agents run in the BACKGROUND, always** — never block-waiting on one
+   (blocking drops the owner's incoming messages). Split large jobs into
+   smaller parallel agents; end the turn after launching and pick the
+   result up from the completion notification.
 3. **Verify, then confirm.** Read the summaries, then independently re-run
    `npx tsc --noEmit`, `npx vitest run`, and relevant `npm run battle` sims
    before reporting done. Summaries are claims, not proof.
