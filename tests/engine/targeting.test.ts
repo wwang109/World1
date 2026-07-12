@@ -126,6 +126,8 @@ describe('targeting enchantments', () => {
         pieces: [
           { skillId: 'sword_slash', slot: 0, enchant: 'overload_mark' },
           { skillId: 'savage_bite', slot: 1 },
+          { skillId: 'savage_bite', slot: 2 },
+          { skillId: 'savage_bite', slot: 3 },
         ],
         boardSize: 10,
       },

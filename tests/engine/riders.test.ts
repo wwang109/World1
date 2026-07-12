@@ -15,7 +15,7 @@ describe('special ability riders', () => {
     // Hamstring (+16 weight to enemy's next action). Enemy bite is w10.
     const c = cfg(
       tc('hero', ['hamstring'], { attack: 10, speed: 20, maxHp: 500 }),
-      tc('foe', ['sword_slash'], { attack: 1, speed: 10, maxHp: 500 }),
+      tc('foe', ['sword_slash', 'sword_slash', 'sword_slash'], { attack: 1, speed: 10, maxHp: 500 }),
       { ...NO_ENDGAME, maxTurns: 6 },
     );
     const { events } = simulate(c, 1);
@@ -24,10 +24,9 @@ describe('special ability riders', () => {
     const slowed = cmps.find((e) => e.enemy.state === 'ready' && e.enemy.weight === 26);
     expect(slowed).toBeDefined();
     // The penalty is consumed by the enemy's next performance — later
-    // comparisons show base weight again plus freshness for a single-card
-    // board (+4 windowed, +4 back-to-back = 18); the +16 slow itself is gone.
+    // comparisons show base weight again.
     const after = cmps.filter((e) => e.turn > slowed!.turn && e.enemy.state === 'ready');
-    expect(after.some((e) => e.enemy.weight === 18)).toBe(true);
+    expect(after.some((e) => e.enemy.weight === 10)).toBe(true);
   });
 
   it('stagger drains the enemy banked readiness', () => {

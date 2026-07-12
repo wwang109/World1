@@ -65,7 +65,7 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
   it('a busy (spanning) side sits out and the opponent acts freely', () => {
     const c = cfg(
       tc('hero', ['meteor'], { speed: 10, attack: 1, magicPower: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
-      tc('foe', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
+      tc('foe', ['bite', 'bite', 'bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
       { ...NO_ENDGAME, skillBook: MINI_BOOK, maxTurns: 8 },
     );
     const { events } = simulate(c, 1);
@@ -87,7 +87,7 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
   it('a passive-only board never performs; the opponent always does', () => {
     const c = cfg(
       tc('hero', ['war_banner'], { maxHp: 500 }),
-      tc('foe', ['sword_slash'], { attack: 1, maxHp: 500 }),
+      tc('foe', ['sword_slash', 'sword_slash', 'sword_slash'], { attack: 1, maxHp: 500 }),
       { ...NO_ENDGAME, maxTurns: 6 },
     );
     const { events } = simulate(c, 1);
@@ -131,13 +131,16 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
     const book: typeof MINI_BOOK = {
       ...MINI_BOOK,
       jab: { ...MINI_BOOK.slash!, id: 'jab', name: 'Jab', speedWeight: 8 },
+      jab2: { ...MINI_BOOK.slash!, id: 'jab2', name: 'Jab II', speedWeight: 8 },
     };
     const c = cfg(
-      tc('blur', ['jab', 'slash'], { speed: 100, attack: 1, maxHp: 5000 }, { skillBook: book }),
+      tc('blur', ['jab', 'slash', 'jab2'], { speed: 100, attack: 1, maxHp: 5000 }, { skillBook: book }),
       tc('slow', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: book }),
       { ...NO_ENDGAME, skillBook: book, maxTurns: 1 },
     );
-    expect(casts(simulate(c, 1).events, 'player')).toEqual(['jab', 'slash', 'jab']);
+    // A chained card RESTS like any cast, so the third play needs a third
+    // card — deep chains demand deep boards as well as deep Speed.
+    expect(casts(simulate(c, 1).events, 'player')).toEqual(['jab', 'slash', 'jab2']);
   });
 
   it('equal-weight parity never chains: the tie hands the stage over', () => {
@@ -157,7 +160,7 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
     // The foe's board is passive-only, so there is no runner-up score to
     // beat; a blindingly fast hero still plays exactly one card per turn.
     const c = cfg(
-      tc('blur', ['sword_slash', 'arcane_bolt'], { speed: 100, attack: 1, magicPower: 1, maxHp: 5000 }),
+      tc('blur', ['sword_slash', 'arcane_bolt', 'hunter_shot'], { speed: 100, attack: 1, magicPower: 1, maxHp: 5000 }),
       tc('idol', ['war_banner'], { maxHp: 5000 }),
       { ...NO_ENDGAME, maxTurns: 4 },
     );
@@ -198,7 +201,7 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
       },
     };
     const c = cfg(
-      tc('hero', ['heal_flat', 'slash'], { speed: 20, attack: 1, maxHp: 500 }, { skillBook: book }),
+      tc('hero', ['heal_flat', 'slash', 'slash', 'slash'], { speed: 20, attack: 1, maxHp: 500 }, { skillBook: book }),
       tc('dummy', [], { maxHp: 500, speed: 10 }, { skillBook: book }),
       { ...NO_ENDGAME, skillBook: book, maxTurns: 4 },
     );
@@ -208,38 +211,45 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
   });
 });
 
-describe('freshness — duplicates play by their own rule', () => {
-  // The three ways to repeat, measured at steady state (all cards w10,
-  // Speed 20 vs a passive wall):
-  //   varied pair  [slash][bite] : queued card was 1 of last 3 casts -> 10+4 = 14
-  //   duplicates [slash][slash]  : own copy once (+4), other copy twice at
-  //                                half rate (+2 each), other copy was last
-  //                                cast (+2) -> 10+4+4+2 = 20
-  //   mono spam  [slash] alone   : own copy fills the window (+12) and was
-  //                                the last cast (+4) -> 10+16 = 26
-  function steadyWeight(pieces: { skillId: string; slot: number }[]): number {
+describe('rest — a card sits out 2 turns after casting', () => {
+  function castTurns(pieces: { skillId: string; slot: number }[], maxTurns: number): number[] {
     const c = cfg(
       { ...tc('h', [], { speed: 20, attack: 1, maxHp: 5000 }), pieces, boardSize: 10 },
       tc('wall', ['war_banner'], { maxHp: 5000 }),
-      { ...NO_ENDGAME, maxTurns: 8 },
+      { ...NO_ENDGAME, maxTurns },
     );
     const { events } = simulate(c, 1);
-    const cmps = events.filter((e) => e.kind === 'comparison') as Extract<Events[number], { kind: 'comparison' }>[];
-    return cmps[cmps.length - 1]!.player.weight!;
+    return events.filter((e) => e.kind === 'skillCast' && e.side === 'player').map((e) => e.turn);
   }
 
-  it('same copy spam > duplicate copies > varied rotation', () => {
-    const mono = steadyWeight([{ skillId: 'sword_slash', slot: 0 }]);
-    const dupes = steadyWeight([
-      { skillId: 'sword_slash', slot: 0 },
-      { skillId: 'sword_slash', slot: 1 },
-    ]);
-    const varied = steadyWeight([
-      { skillId: 'sword_slash', slot: 0 },
-      { skillId: 'savage_bite', slot: 1 },
-    ]);
-    expect(mono).toBe(26);
-    expect(dupes).toBe(20);
-    expect(varied).toBe(14);
+  it('a lone copy casts on turns 1, 4, 7 — resting between', () => {
+    expect(castTurns([{ skillId: 'sword_slash', slot: 0 }], 8)).toEqual([1, 4, 7]);
+  });
+
+  it('two copies alternate then stall: turns 1, 2, 4, 5, 7', () => {
+    // Each COPY rests on its own — duplicates of one card behave like a
+    // 2-card rotation, not like single-copy spam.
+    expect(
+      castTurns(
+        [
+          { skillId: 'sword_slash', slot: 0 },
+          { skillId: 'sword_slash', slot: 1 },
+        ],
+        7,
+      ),
+    ).toEqual([1, 2, 4, 5, 7]);
+  });
+
+  it('three castable cards rotate seamlessly — the rule is invisible', () => {
+    expect(
+      castTurns(
+        [
+          { skillId: 'sword_slash', slot: 0 },
+          { skillId: 'savage_bite', slot: 1 },
+          { skillId: 'hunter_shot', slot: 2 },
+        ],
+        6,
+      ),
+    ).toEqual([1, 2, 3, 4, 5, 6]);
   });
 });

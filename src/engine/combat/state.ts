@@ -33,6 +33,12 @@ export interface PieceState {
   castsLeft?: number;
   /** Trap on this card: detonates on its next cast (baked at application). */
   curse?: { amount: number; property: Property };
+  /**
+   * REST: global turns before this copy can be cast again (set after each
+   * cast, ticked with every other duration). The rule that keeps thin
+   * boards honest, one copy at a time.
+   */
+  rest?: number;
 }
 
 export interface CombatantState {
@@ -91,13 +97,6 @@ export interface CombatantState {
   nextCastEmpowerPct: number;
   /** Empower staged for the cast currently resolving (set/cleared by doCast). */
   activeEmpowerPct: number;
-  /**
-   * The last few casts this side made (newest last, capped at the freshness
-   * window). Replaying the SAME COPY (slot) while it's in this list is
-   * heavier at the full rate; a DIFFERENT copy of the same card pays half —
-   * the tempo tax that keeps thin fast-rotation boards honest.
-   */
-  recentCasts: { slot: number; skillId: string }[];
   /**
    * True once staggered; cleared when this side next takes the stage. A side
    * can be staggered at most ONCE between its own actions — tempo theft is a
@@ -160,7 +159,6 @@ function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBoo
     nextCastWeakenPct: 0,
     nextCastEmpowerPct: 0,
     activeEmpowerPct: 0,
-    recentCasts: [],
     staggerGuard: false,
     elementAffinity: setup.elementAffinity,
     weaponAffinity: setup.weaponAffinity,

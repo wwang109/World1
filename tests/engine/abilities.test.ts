@@ -42,14 +42,13 @@ describe('ability catalog wave 2', () => {
     const c = cfg(
       tc('hero', ['windstep_jab'], { attack: 10, speed: 20, maxHp: 500 }),
       tc('wall', [], { maxHp: 500, speed: 1 }),
-      { ...NO_ENDGAME, maxTurns: 4 },
+      { ...NO_ENDGAME, maxTurns: 6 },
     );
     const { events } = simulate(c, 1);
     const ready = comparisons(events).filter((e) => e.player.state === 'ready');
     expect(ready[0]!.player.weight).toBe(10); // nothing pending yet
-    // Quickened −12, plus freshness (+4 windowed, +4 back-to-back for the
-    // same card again): max(1, 10−12+8) = 6.
-    expect(ready[1]!.player.weight).toBe(6);
+    // The copy rests 2 turns, then returns quickened: max(1, 10−12) = 1.
+    expect(ready[1]!.player.weight).toBe(1);
   });
 
   it('thorns reflects a cut of skill hits as TRUE damage to the attacker', () => {
@@ -57,7 +56,7 @@ describe('ability catalog wave 2', () => {
     // 20-damage slash pays 25% -> 5 TRUE back (staleness never touches base).
     const c = cfg(
       tc('hero', ['bramble_coat'], { magicPower: 10, speed: 12, maxHp: 500 }),
-      tc('foe', ['sword_slash'], { attack: 10, speed: 14, maxHp: 500 }),
+      tc('foe', ['sword_slash', 'sword_slash', 'sword_slash'], { attack: 10, speed: 14, maxHp: 500 }),
       { ...NO_ENDGAME, maxTurns: 3 },
     );
     const { events } = simulate(c, 1);
@@ -66,10 +65,12 @@ describe('ability catalog wave 2', () => {
   });
 
   it('staleness never reduces BASE damage — a plain card spams at full power', () => {
+    // A lone copy rests 2 turns between casts (turns 1,4,7,10,13) — the
+    // rhythm slows, the BASE damage never does.
     const spam = simulate(
       cfg(tc('hero', ['sword_slash'], { attack: 10, speed: 20, maxHp: 500 }), tc('wall', [], { maxHp: 500, speed: 1 }), {
         ...NO_ENDGAME,
-        maxTurns: 5,
+        maxTurns: 13,
       }),
       1,
     );
@@ -82,7 +83,8 @@ describe('ability catalog wave 2', () => {
     const c = cfg(
       tc('hero', [], { attack: 10, speed: 20, maxHp: 500 }, { boardSize: 10, pieces: [{ skillId: 'war_banner', slot: 0 }, { skillId: 'sword_slash', slot: 1 }] }),
       tc('wall', [], { maxHp: 500, speed: 1 }),
-      { ...NO_ENDGAME, maxTurns: 5 },
+      // Rest spreads the five casts over turns 1,4,7,10,13.
+      { ...NO_ENDGAME, maxTurns: 13 },
     );
     const { events } = simulate(c, 1);
     expect(damageEvents(events).map((e) => e.amount)).toEqual([25, 23, 22, 21, 20]);
@@ -102,7 +104,8 @@ describe('ability catalog wave 2', () => {
         ],
       }),
       tc('wall', [], { maxHp: 500, speed: 1 }),
-      { ...NO_ENDGAME, maxTurns: 5 },
+      // Two attackers + rest -> casts land on turns 1,2,4,5,7.
+      { ...NO_ENDGAME, maxTurns: 7 },
     );
     const { events } = simulate(c, 1);
     expect(damageEvents(events).map((e) => e.amount)).toEqual([25, 20, 27, 20, 28]);

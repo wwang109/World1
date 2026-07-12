@@ -305,67 +305,40 @@ What this rewards and what keeps it honest:
 - **Banked initiative is chain fuel** — which is why stagger is guarded
   (one per victim action cycle, see Tempo Thief), and why Dodge exists:
   a chain of physical strikes walks into Sidestep charge by charge.
+- **Rest limits chain depth too**: every cast in a chain rests afterward,
+  so a triple play needs three distinct ready cards.
 
-## Freshness — the thin-board tax
+## Rest — cards need two turns off
 
 Sims showed a 2–3 card board of light attackers performs nearly as well
 as a full 10-slot board: act rate is pure speed/weight, so fielding less
-PL barely cost anything. The counter is a TEMPO tax, not a damage nerf
-(base damage stays sacred). Player sentence: *"a card replayed too soon
-is heavier — worst back-to-back, milder for a duplicate copy, free once
-your rotation is 4 cards deep."*
+PL barely cost anything. The counter is ONE engine-native sentence:
 
-The mechanics: your last 3 casts are remembered per COPY (board slot).
-When you queue a card, it gains +4 weight for each time THIS COPY is in
-that memory, +2 for each time a DIFFERENT copy of the same card is, and
-whichever applied to your most recent cast counts double.
+**After a card casts, it rests for 2 turns.**
 
-Worked examples — the same Sword Slash (w10) on four boards, at steady
-state against a passive enemy:
+That's the whole rule. It rides the same clock as every other duration
+(buffs, DoTs), each COPY rests on its own, and a resting card simply
+isn't offered by the rotation — no new math anywhere.
 
-| Board | Play sequence | Queued Slash weighs | Why |
-|---|---|---|---|
-| `[Slash][Bite][Chop][Shot]` | S,B,C,H,S,… | **10** | by the time Slash returns it left the 3-cast memory — no tax |
-| `[Slash][Bite]` | S,B,S,B,… | **14** | Slash appears once in {B,S,B}: +4 |
-| `[Slash][Slash*]` (two copies) | S,S*,S,S*,… | **20** | own copy once (+4), other copy twice at half (+2+2), and the other copy was the LAST cast (+2) |
-| `[Slash]` alone | S,S,S,… | **26** | own copy fills the memory (+12) and was the last cast (+4) |
+What it does to each board shape:
 
-So the four ways to play a card each feel different: full rotation free,
-tight rotation lightly taxed, duplicate copies middling ("new card, same
-tired move"), single-copy spam heaviest. All of it is visible in the
-comparison weight number, compounds with chain costs, and never touches
-damage.
-
-- Situational cards (heals at full HP) skip the rotation, so your
-  EFFECTIVE rotation is what counts — a 6-card board that only ever
-  cycles 2 attackers is a 2-card board to this rule.
-- Thin boards keep an honest niche: DoT clocks (poison) barely care
-  about tempo — sim-confirmed the venom pair still beats most commons,
-  just slower and without its old elite upsets.
-
-## Borrowed mechanics — Yi Xian & MTG translations (100-card set)
-
-Three mechanics ported from the genre greats, each one sentence, all
-free-flow (any build can use them):
-
-- **Empower** (Yi Xian sword intent): "your NEXT card deals +X% damage" —
-  the self-side mirror of Weaken Next, spent by the next cast, non-stacking
-  max. Setup→payoff turns: Gather Intent (+60% & quicken) into Crushing
-  Blow is the nova archetype; its weakness is the telegraphed setup turn
-  (sim: still loses to the fast Bandit). Priced 1 PL per 10% like Weaken.
-- **Blood price** (Yi Xian injury / MTG pay-life): "pay X HP to cast" —
-  flat, true, unblockable, REFUNDS budget at the flat-true rate (5 HP =
-  1 PL), so blood cards carry oversized kits (Blood Rite: 16 HP for 260%).
-  Rotation skips a blood card its caster cannot survive. Pairs naturally
-  with lifesteal and heals (Crimson Pact drinks its price back).
-- **Trample Mark** (MTG trample, as an ENCHANT): overkill from killing
-  blows carries into the next enemy — strikes 10% weaker. The party-fight
-  mark: single-target damage stops evaporating on low-HP front-liners.
-
-Already native before this set: first strike (onlyIf faster), lifelink
-(lifesteal), haste (Haste/quicken), double strike (multiHit), exhaust
-(uses), strength/weak (buffs/Weaken), block (shields) — the research
-mostly confirmed the verb set covers the classics.
+- **3+ castable cards: the rule is invisible.** By the time your rotation
+  returns to a card, its rest is over. Normal decks never notice.
+- **Two cards (or two copies of one card): cast, cast, stall.** One idle
+  turn out of every three — the side banks initiative while it waits, so
+  the stall is a delay, not a loss.
+- **One card: cast, stall, stall.** A third of the actions, with big
+  banked bursts between.
+- **Duplicates just work.** Two copies of Sword Slash = a 2-card rotation
+  (each copy rests separately) — meaningfully better than one copy,
+  meaningfully worse than two different cards once staleness (bonus
+  fade for repeating the same MOVE) is counted.
+- **Chains respect it**: a chained cast rests like any other, so a triple
+  chain needs three distinct ready cards — deep chains demand deep
+  boards as well as deep Speed.
+- Display is free: a resting card shows a "resting" chip in battle, and
+  at build time the entire check is *"do I have 3+ castable cards?"* —
+  shown right on the Prep board line.
 
 ## Momentum & staleness — the variety axis
 

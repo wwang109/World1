@@ -1,9 +1,12 @@
 import { weightOf, type SkillBook, type SkillDef } from '../types';
 
-/** Freshness window: how many recent casts a card must clear to be light again. */
-export const REPLAY_WINDOW = 3;
-/** Extra weight per appearance of the queued card within the window. */
-export const REPLAY_WEIGHT = 4;
+/**
+ * REST: after casting, a copy rests this many GLOBAL turns before it can go
+ * again — the same clock every other duration uses. One sentence: boards
+ * with 3+ castable cards rotate seamlessly; thin boards wait (banking
+ * initiative) instead of machine-gunning one move.
+ */
+export const REST_TURNS = 2;
 import { aurasOn, type AuraMods } from './auras';
 import { isPositiveStatus, totalShield, type CombatantState, type PieceState } from './state';
 
@@ -94,25 +97,10 @@ export function selectCast(c: CombatantState, skillBook: SkillBook): CastChoice 
     if (!skill) continue;
     if (skill.effects.length === 0 && skill.special === undefined) continue;
     if (piece.castsLeft !== undefined && piece.castsLeft <= 0) continue; // exhausted
+    if ((piece.rest ?? 0) > 0) continue; // resting after its last cast
     if (!isUseful(c, skill)) continue;
     const mods = aurasOn(c, piece, skillBook);
-    // FRESHNESS: replaying too soon is heavier. The SAME COPY (this board
-    // slot) pays the full rate per appearance in the window; a DIFFERENT
-    // copy of the same card pays half ("new card, same tired move"). The
-    // most recent cast counts double at its rate, so back-to-back play is
-    // always the priciest form of repetition. Boards rotating 4+ distinct
-    // cards never pay anything.
-    let replay = 0;
-    for (const rc of c.recentCasts) {
-      if (rc.slot === piece.slot) replay += REPLAY_WEIGHT;
-      else if (rc.skillId === skill.id) replay += REPLAY_WEIGHT / 2;
-    }
-    const last = c.recentCasts[c.recentCasts.length - 1];
-    if (last !== undefined) {
-      if (last.slot === piece.slot) replay += REPLAY_WEIGHT;
-      else if (last.skillId === skill.id) replay += REPLAY_WEIGHT / 2;
-    }
-    const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty - c.nextWeightBonus + replay);
+    const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty - c.nextWeightBonus);
     return { piece, skill, mods, weight };
   }
   return null;
