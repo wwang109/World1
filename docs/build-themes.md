@@ -311,19 +311,31 @@ What this rewards and what keeps it honest:
 Sims showed a 2–3 card board of light attackers performs nearly as well
 as a full 10-slot board: act rate is pure speed/weight, so fielding less
 PL barely cost anything. The counter is a TEMPO tax, not a damage nerf
-(base damage stays sacred): **a card replayed while still in your last 3
-casts is +4 weight per recent appearance — and that appearance counts
-DOUBLE if it was your very last cast.** One sentence for players: *"cards
-get heavier when replayed too soon — and heavier still back-to-back."*
+(base damage stays sacred). Player sentence: *"a card replayed too soon
+is heavier — worst back-to-back, milder for a duplicate copy, free once
+your rotation is 4 cards deep."*
 
-- Boards rotating **4+ active cards never pay it** — for normal decks the
-  rule is invisible.
-- The gradient distinguishes HOW you repeat: rotation overlap (the card
-  was merely recent) costs +4; the first back-to-back repeat costs +8;
-  deep same-card spam climbs to +16 — slower, never weaker.
-- It compounds with everything tempo: replayed cards cost more to chain,
-  score lower in comparisons, and show their surcharge in the visible
-  weight number.
+The mechanics: your last 3 casts are remembered per COPY (board slot).
+When you queue a card, it gains +4 weight for each time THIS COPY is in
+that memory, +2 for each time a DIFFERENT copy of the same card is, and
+whichever applied to your most recent cast counts double.
+
+Worked examples — the same Sword Slash (w10) on four boards, at steady
+state against a passive enemy:
+
+| Board | Play sequence | Queued Slash weighs | Why |
+|---|---|---|---|
+| `[Slash][Bite][Chop][Shot]` | S,B,C,H,S,… | **10** | by the time Slash returns it left the 3-cast memory — no tax |
+| `[Slash][Bite]` | S,B,S,B,… | **14** | Slash appears once in {B,S,B}: +4 |
+| `[Slash][Slash*]` (two copies) | S,S*,S,S*,… | **20** | own copy once (+4), other copy twice at half (+2+2), and the other copy was the LAST cast (+2) |
+| `[Slash]` alone | S,S,S,… | **26** | own copy fills the memory (+12) and was the last cast (+4) |
+
+So the four ways to play a card each feel different: full rotation free,
+tight rotation lightly taxed, duplicate copies middling ("new card, same
+tired move"), single-copy spam heaviest. All of it is visible in the
+comparison weight number, compounds with chain costs, and never touches
+damage.
+
 - Situational cards (heals at full HP) skip the rotation, so your
   EFFECTIVE rotation is what counts — a 6-card board that only ever
   cycles 2 attackers is a 2-card board to this rule.

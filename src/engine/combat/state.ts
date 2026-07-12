@@ -92,11 +92,12 @@ export interface CombatantState {
   /** Empower staged for the cast currently resolving (set/cleared by doCast). */
   activeEmpowerPct: number;
   /**
-   * The last few skill ids this side cast (newest last, capped at the
-   * freshness window). A card replayed while still in this list is HEAVIER —
+   * The last few casts this side made (newest last, capped at the freshness
+   * window). Replaying the SAME COPY (slot) while it's in this list is
+   * heavier at the full rate; a DIFFERENT copy of the same card pays half —
    * the tempo tax that keeps thin fast-rotation boards honest.
    */
-  recentCasts: string[];
+  recentCasts: { slot: number; skillId: string }[];
   /**
    * True once staggered; cleared when this side next takes the stage. A side
    * can be staggered at most ONCE between its own actions — tempo theft is a

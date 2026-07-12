@@ -198,7 +198,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     }
     c.lastCastSkillId = choice.skill.id;
     // Freshness window: remember this cast so an early replay weighs more.
-    c.recentCasts.push(choice.skill.id);
+    c.recentCasts.push({ slot: choice.piece.slot, skillId: choice.skill.id });
     if (c.recentCasts.length > REPLAY_WINDOW) c.recentCasts.shift();
     // A cursed card detonates its trap as it activates; if the trap kills
     // the caster, the cast itself is lost.

@@ -96,14 +96,22 @@ export function selectCast(c: CombatantState, skillBook: SkillBook): CastChoice 
     if (piece.castsLeft !== undefined && piece.castsLeft <= 0) continue; // exhausted
     if (!isUseful(c, skill)) continue;
     const mods = aurasOn(c, piece, skillBook);
-    // FRESHNESS: a card replayed while still in the recent-cast window is
-    // +REPLAY_WEIGHT heavier per appearance — and the appearance counts
-    // DOUBLE when it was the very last cast, so back-to-back spam pays more
-    // than mere rotation overlap (+4 windowed · +8 first repeat · +16 deep
-    // spam). Boards rotating 4+ cards never pay anything.
+    // FRESHNESS: replaying too soon is heavier. The SAME COPY (this board
+    // slot) pays the full rate per appearance in the window; a DIFFERENT
+    // copy of the same card pays half ("new card, same tired move"). The
+    // most recent cast counts double at its rate, so back-to-back play is
+    // always the priciest form of repetition. Boards rotating 4+ distinct
+    // cards never pay anything.
     let replay = 0;
-    for (const id of c.recentCasts) if (id === skill.id) replay += REPLAY_WEIGHT;
-    if (c.lastCastSkillId === skill.id) replay += REPLAY_WEIGHT;
+    for (const rc of c.recentCasts) {
+      if (rc.slot === piece.slot) replay += REPLAY_WEIGHT;
+      else if (rc.skillId === skill.id) replay += REPLAY_WEIGHT / 2;
+    }
+    const last = c.recentCasts[c.recentCasts.length - 1];
+    if (last !== undefined) {
+      if (last.slot === piece.slot) replay += REPLAY_WEIGHT;
+      else if (last.skillId === skill.id) replay += REPLAY_WEIGHT / 2;
+    }
     const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty - c.nextWeightBonus + replay);
     return { piece, skill, mods, weight };
   }

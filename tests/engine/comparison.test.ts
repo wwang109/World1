@@ -207,3 +207,39 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
     expect(casts(events, 'player')).toEqual(['slash', 'slash', 'slash', 'slash']);
   });
 });
+
+describe('freshness — duplicates play by their own rule', () => {
+  // The three ways to repeat, measured at steady state (all cards w10,
+  // Speed 20 vs a passive wall):
+  //   varied pair  [slash][bite] : queued card was 1 of last 3 casts -> 10+4 = 14
+  //   duplicates [slash][slash]  : own copy once (+4), other copy twice at
+  //                                half rate (+2 each), other copy was last
+  //                                cast (+2) -> 10+4+4+2 = 20
+  //   mono spam  [slash] alone   : own copy fills the window (+12) and was
+  //                                the last cast (+4) -> 10+16 = 26
+  function steadyWeight(pieces: { skillId: string; slot: number }[]): number {
+    const c = cfg(
+      { ...tc('h', [], { speed: 20, attack: 1, maxHp: 5000 }), pieces, boardSize: 10 },
+      tc('wall', ['war_banner'], { maxHp: 5000 }),
+      { ...NO_ENDGAME, maxTurns: 8 },
+    );
+    const { events } = simulate(c, 1);
+    const cmps = events.filter((e) => e.kind === 'comparison') as Extract<Events[number], { kind: 'comparison' }>[];
+    return cmps[cmps.length - 1]!.player.weight!;
+  }
+
+  it('same copy spam > duplicate copies > varied rotation', () => {
+    const mono = steadyWeight([{ skillId: 'sword_slash', slot: 0 }]);
+    const dupes = steadyWeight([
+      { skillId: 'sword_slash', slot: 0 },
+      { skillId: 'sword_slash', slot: 1 },
+    ]);
+    const varied = steadyWeight([
+      { skillId: 'sword_slash', slot: 0 },
+      { skillId: 'savage_bite', slot: 1 },
+    ]);
+    expect(mono).toBe(26);
+    expect(dupes).toBe(20);
+    expect(varied).toBe(14);
+  });
+});
