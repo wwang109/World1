@@ -1,4 +1,4 @@
-// Generated tier variants: the same card at Silver/Gold/Diamond.
+// Generated tier variants: the same card at Rare/Epic/Legendary.
 //
 // A variant is ordinary data — the combat interpreter never knows about
 // tiers. We take the card's PRIMARY magnitude knob (its first scalable
@@ -15,18 +15,19 @@
 import { BUDGET_TOLERANCE_DECI, powerLevelDeci, TIER_BUDGET_DECI } from './balance';
 import type { SkillDef, SkillTier } from './types';
 
-export const TIER_ORDER: SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
+export const TIER_ORDER: SkillTier[] = ['common', 'rare', 'epic', 'legendary'];
 
 /** Rank numeral suffixed to a variant's name (base tier shows none). */
 export const TIER_NUMERAL: Record<SkillTier, string> = {
-  bronze: '',
-  silver: 'II',
-  gold: 'III',
-  diamond: 'IV',
+  common: '',
+  rare: 'II',
+  epic: 'III',
+  legendary: 'IV',
+  unique: '★',
 };
 
 /** Id of `baseId` at `tier` — the base id itself for the card's own tier. */
-export function variantId(baseId: string, tier: SkillTier, baseTier: SkillTier = 'bronze'): string {
+export function variantId(baseId: string, tier: SkillTier, baseTier: SkillTier = 'common'): string {
   return tier === baseTier ? baseId : `${baseId}__${tier}`;
 }
 
@@ -102,8 +103,8 @@ function findKnob(def: SkillDef): Knob | null {
 export function buildTierVariant(base: SkillDef, tier: SkillTier): SkillDef | null {
   if (tier === base.tier) return base;
   // UNIQUE cards are fixed-rank (Bazaar-style): one-of-a-kind, never
-  // tier-upgraded — their printed form is their final form.
-  if (base.rarity === 'unique') return null;
+  // upgraded — their printed form is their final form.
+  if (base.tier === 'unique') return null;
   if (TIER_ORDER.indexOf(tier) < TIER_ORDER.indexOf(base.tier)) return null;
 
   const def = cloneDef(base);

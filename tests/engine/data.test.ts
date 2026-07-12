@@ -12,8 +12,7 @@ const ARCHETYPES = ['offense', 'defensive', 'healing', 'support', 'debuff'];
 const PROPERTIES = ['physical', 'magical', 'true'];
 const ELEMENTS = ['fire', 'frost', 'lightning', 'nature', 'holy', 'dark'];
 const WEAPONS = ['sword', 'axe', 'lance', 'bow', 'beast'];
-const TIERS = ['bronze', 'silver', 'gold', 'diamond'];
-const RARITIES = ['common', 'rare', 'epic', 'legendary', 'unique'];
+const TIERS = ['common', 'rare', 'epic', 'legendary', 'unique'];
 const TARGET_MODES = ['aggro', 'lowAggro', 'lowestHp', 'all'];
 const BUFFABLE = ['attack', 'magicPower', 'armor', 'magicResist', 'speed', 'critPct', 'resolve'];
 
@@ -63,7 +62,6 @@ describe('skills.json integrity', () => {
     expect(PROPERTIES).toContain(c.property);
     expect([1, 2, 3]).toContain(c.size);
     expect(TIERS).toContain(c.tier);
-    expect(RARITIES).toContain(c.rarity);
     if (c.element !== undefined) expect(ELEMENTS).toContain(c.element);
     if (c.weapon !== undefined) expect(WEAPONS).toContain(c.weapon);
     if (c.targeting !== undefined) expect(TARGET_MODES).toContain(c.targeting);

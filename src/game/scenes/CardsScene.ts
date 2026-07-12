@@ -22,8 +22,8 @@ const INV_STRIP_Y = 620;
 /** Backpack capacity in SLOTS (size-weighted, like the board): 10 board + 10 backpack = 20 held. */
 const BACKPACK_SLOTS = 10;
 
-const TIER_LABEL: Record<SkillTier, string> = { bronze: 'BRONZE', silver: 'SILVER', gold: 'GOLD', diamond: 'DIAMOND' };
-const TIER_COLOR: Record<SkillTier, string> = { bronze: '#c08850', silver: '#b8c4d4', gold: '#ffd76a', diamond: '#8ee0ff' };
+const TIER_LABEL: Record<SkillTier, string> = { common: 'COMMON', rare: 'RARE', epic: 'EPIC', legendary: 'LEGENDARY', unique: 'UNIQUE ★' };
+const TIER_COLOR: Record<SkillTier, string> = { common: '#b8c4d4', rare: '#7fc4ff', epic: '#c58bff', legendary: '#ffd76a', unique: '#ff9d5c' };
 
 interface Selection {
   baseId: string;
@@ -183,7 +183,7 @@ export class CardsScene extends Phaser.Scene {
     });
 
     const meta = [
-      `PL ${powerLevel(skill)} · ${skill.rarity} · ${skill.archetypes.join(' + ')}`,
+      `PL ${powerLevel(skill)} · ${skill.tier} · ${skill.archetypes.join(' + ')}`,
       `${skill.property} · size ${skill.size} · weight ${skill.speedWeight ?? skill.size * 10}`,
     ].join('\n');
     this.detailObjs.push(this.add.text(PANEL_X + 16, 240, meta, { fontSize: '12px', color: UI.textDim, fontFamily: 'monospace', lineSpacing: 3 }));

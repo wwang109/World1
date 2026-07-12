@@ -20,10 +20,12 @@ for (const base of Object.values(skillBook)) {
 
 /** The card (base or variant) for a base id at a tier, if it exists. */
 export function cardAtTier(baseId: string, tier: SkillTier): SkillDef | undefined {
-  return fullBook[variantId(baseId, tier, skillBook[baseId]?.tier ?? 'bronze')];
+  return fullBook[variantId(baseId, tier, skillBook[baseId]?.tier ?? 'common')];
 }
 
 /** Tiers this base card is playable at (its own tier plus built variants). */
 export function tiersOf(baseId: string): SkillTier[] {
+  // Unique cards live outside the ladder: one fixed rank, no variants.
+  if (skillBook[baseId]?.tier === 'unique') return ['unique'];
   return TIER_ORDER.filter((t) => cardAtTier(baseId, t) !== undefined);
 }

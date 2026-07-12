@@ -8,8 +8,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "sword",
     "effects": [
       {
@@ -28,8 +27,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "beast",
     "effects": [
       {
@@ -48,8 +46,7 @@
     "property": "physical",
     "size": 3,
     "speedWeight": 30,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "beast",
     "effects": [
       {
@@ -68,8 +65,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "bow",
     "effects": [
       {
@@ -88,8 +84,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 8,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "lightning",
     "effects": [
       {
@@ -108,8 +103,7 @@
     "property": "physical",
     "size": 3,
     "speedWeight": 30,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "axe",
     "effects": [
       {
@@ -128,8 +122,7 @@
     "property": "magical",
     "size": 2,
     "speedWeight": 20,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "fire",
     "effects": [
       {
@@ -153,8 +146,7 @@
     "property": "true",
     "size": 2,
     "speedWeight": 26,
-    "rarity": "epic",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "damage",
@@ -173,8 +165,7 @@
     "property": "physical",
     "size": 2,
     "speedWeight": 20,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "lance",
     "effects": [
       {
@@ -200,8 +191,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 12,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "beast",
     "effects": [
       {
@@ -225,8 +215,7 @@
     "property": "physical",
     "size": 2,
     "speedWeight": 20,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "shield",
@@ -244,8 +233,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "frost",
     "effects": [
       {
@@ -264,8 +252,7 @@
     "property": "true",
     "size": 3,
     "speedWeight": 26,
-    "rarity": "epic",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "shield",
@@ -283,8 +270,7 @@
     "property": "magical",
     "size": 2,
     "speedWeight": 20,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "holy",
     "effects": [
       {
@@ -303,8 +289,7 @@
     "property": "true",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "heal",
@@ -322,8 +307,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [],
     "aura": {
       "affects": "adjacent",
@@ -343,8 +327,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "nature",
     "effects": [],
     "aura": {
@@ -365,8 +348,7 @@
     "property": "true",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [],
     "aura": {
       "affects": "adjacent",
@@ -385,8 +367,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "buffStat",
@@ -407,8 +388,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "lance",
     "effects": [
       {
@@ -432,8 +412,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 12,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "beast",
     "effects": [
       {
@@ -457,8 +436,7 @@
     "property": "physical",
     "size": 2,
     "speedWeight": 20,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "axe",
     "effects": [
       {
@@ -481,8 +459,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "sword",
     "effects": [
       {
@@ -506,8 +483,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "bow",
     "effects": [
       {
@@ -530,8 +506,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "axe",
     "effects": [
       {
@@ -555,8 +530,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "lance",
     "effects": [
       {
@@ -579,8 +553,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "nature",
     "effects": [
       {
@@ -604,8 +577,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 8,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "sword",
     "effects": [
       {
@@ -626,8 +598,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "bow",
     "effects": [
       {
@@ -649,8 +620,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "nature",
     "effects": [
       {
@@ -674,8 +644,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "frost",
     "effects": [
       {
@@ -698,8 +667,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "dark",
     "effects": [
       {
@@ -723,8 +691,7 @@
     "property": "true",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "buffStat",
@@ -744,8 +711,7 @@
     "property": "true",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "debuffStat",
@@ -765,8 +731,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 12,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "dark",
     "effects": [
       {
@@ -787,8 +752,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "debuffStat",
@@ -808,8 +772,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "frost",
     "effects": [
       {
@@ -835,8 +798,7 @@
     "property": "physical",
     "size": 2,
     "speedWeight": 24,
-    "rarity": "epic",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "axe",
     "effects": [
       {
@@ -860,8 +822,7 @@
     "property": "true",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "cleanse"
@@ -878,8 +839,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "holy",
     "effects": [
       {
@@ -899,8 +859,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "sword",
     "effects": [
       {
@@ -924,8 +883,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "heal",
@@ -950,8 +908,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "lightning",
     "effects": [
       {
@@ -974,8 +931,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "fire",
     "effects": [
       {
@@ -999,8 +955,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "buffStat",
@@ -1020,8 +975,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 8,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "dodge",
@@ -1043,8 +997,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "guard",
@@ -1063,8 +1016,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "guard",
@@ -1083,8 +1035,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "sword",
     "effects": [
       {
@@ -1108,8 +1059,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "axe",
     "effects": [
       {
@@ -1133,8 +1083,7 @@
     "property": "magical",
     "size": 2,
     "speedWeight": 20,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "lightning",
     "effects": [
       {
@@ -1156,8 +1105,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "empower",
@@ -1179,8 +1127,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "sword",
     "effects": [
       {
@@ -1203,8 +1150,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "bow",
     "effects": [
       {
@@ -1228,8 +1174,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "lightning",
     "effects": [
       {
@@ -1252,8 +1197,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "epic",
-    "tier": "bronze",
+    "tier": "common",
     "element": "dark",
     "effects": [
       {
@@ -1276,8 +1220,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "axe",
     "effects": [
       {
@@ -1301,8 +1244,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "dark",
     "effects": [
       {
@@ -1329,8 +1271,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "bloodCost",
@@ -1352,8 +1293,7 @@
     "property": "physical",
     "size": 2,
     "speedWeight": 20,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "lance",
     "effects": [
       {
@@ -1373,8 +1313,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "bow",
     "effects": [
       {
@@ -1398,8 +1337,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "lance",
     "effects": [
       {
@@ -1424,8 +1362,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "beast",
     "effects": [
       {
@@ -1448,8 +1385,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "bow",
     "targeting": "lowAggro",
     "effects": [
@@ -1470,8 +1406,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "sword",
     "effects": [
       {
@@ -1496,8 +1431,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "lance",
     "effects": [
       {
@@ -1520,8 +1454,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "lance",
     "targeting": "lowestHp",
     "effects": [
@@ -1546,8 +1479,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "axe",
     "uses": 2,
     "effects": [
@@ -1568,8 +1500,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "weapon": "beast",
     "effects": [
       {
@@ -1594,8 +1525,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "fire",
     "effects": [
       {
@@ -1619,8 +1549,7 @@
     "property": "magical",
     "size": 3,
     "speedWeight": 30,
-    "rarity": "epic",
-    "tier": "bronze",
+    "tier": "common",
     "element": "fire",
     "effects": [
       {
@@ -1645,8 +1574,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "frost",
     "effects": [
       {
@@ -1669,8 +1597,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "epic",
-    "tier": "bronze",
+    "tier": "common",
     "element": "frost",
     "effects": [
       {
@@ -1698,8 +1625,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "lightning",
     "effects": [
       {
@@ -1723,8 +1649,7 @@
     "property": "magical",
     "size": 2,
     "speedWeight": 20,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "lightning",
     "effects": [
       {
@@ -1747,8 +1672,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "nature",
     "effects": [
       {
@@ -1773,8 +1697,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "nature",
     "effects": [
       {
@@ -1799,8 +1722,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "holy",
     "effects": [
       {
@@ -1824,8 +1746,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "holy",
     "effects": [
       {
@@ -1848,8 +1769,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "dark",
     "effects": [
       {
@@ -1875,8 +1795,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "dark",
     "effects": [
       {
@@ -1900,8 +1819,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "heal",
@@ -1924,8 +1842,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "nature",
     "effects": [
       {
@@ -1950,8 +1867,7 @@
     "property": "magical",
     "size": 2,
     "speedWeight": 20,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "holy",
     "effects": [
       {
@@ -1974,8 +1890,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "heal",
@@ -1999,8 +1914,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "holy",
     "uses": 2,
     "effects": [
@@ -2020,8 +1934,7 @@
     "property": "magical",
     "size": 2,
     "speedWeight": 20,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "element": "holy",
     "effects": [
       {
@@ -2045,8 +1958,7 @@
     "property": "physical",
     "size": 2,
     "speedWeight": 20,
-    "rarity": "common",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "shield",
@@ -2070,8 +1982,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "fire",
     "effects": [
       {
@@ -2094,8 +2005,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "nature",
     "effects": [
       {
@@ -2120,8 +2030,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "guard",
@@ -2144,8 +2053,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "uses": 2,
     "effects": [
       {
@@ -2165,8 +2073,7 @@
     "property": "physical",
     "size": 3,
     "speedWeight": 30,
-    "rarity": "epic",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "shield",
@@ -2189,8 +2096,7 @@
     "property": "true",
     "size": 1,
     "speedWeight": 6,
-    "rarity": "epic",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "dodge",
@@ -2212,8 +2118,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "nature",
     "effects": [],
     "text": "Passive: touching cards heal +25% more.",
@@ -2233,8 +2138,7 @@
     "property": "physical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "unique",
-    "tier": "bronze",
+    "tier": "unique",
     "effects": [],
     "text": "UNIQUE \u2014 one copy, fixed rank (never upgrades). Passive: EVERY card on your board deals +12% damage.",
     "aura": {
@@ -2253,8 +2157,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "dark",
     "effects": [
       {
@@ -2291,8 +2194,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "frost",
     "effects": [
       {
@@ -2316,8 +2218,7 @@
     "property": "magical",
     "size": 1,
     "speedWeight": 10,
-    "rarity": "rare",
-    "tier": "bronze",
+    "tier": "common",
     "element": "holy",
     "effects": [
       {
@@ -2344,8 +2245,7 @@
     "property": "physical",
     "size": 2,
     "speedWeight": 20,
-    "rarity": "epic",
-    "tier": "bronze",
+    "tier": "common",
     "effects": [
       {
         "kind": "buffStat",

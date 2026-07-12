@@ -98,15 +98,13 @@ export type Element = 'fire' | 'frost' | 'lightning' | 'nature' | 'holy' | 'dark
  */
 export type WeaponType = 'sword' | 'axe' | 'lance' | 'bow' | 'beast';
 
-/** Tier = Power Level budget: bronze 10 · silver 15 · gold 20 · diamond 25. */
-export type SkillTier = 'bronze' | 'silver' | 'gold' | 'diamond';
 /**
- * Rarity = ACQUISITION odds, never power. Tier is the strength axis (every
- * card of a tier sums to the same PL budget); rarity only governs how often
- * the run layer offers a card in drops/shops/drafts. 'unique' = one-of-a-kind:
- * at most one copy can ever be held.
+ * The ONE card ladder — power and scarcity together, Bazaar-style:
+ * Common 10 · Rare 15 · Epic 20 · Legendary 25 PL, upgraded in place.
+ * UNIQUE sits outside the ladder: one-of-a-kind, fixed rank, never
+ * upgrades (audits at the Common budget — its edge is its effect).
  */
-export type Rarity = 'common' | 'rare' | 'epic' | 'legendary' | 'unique';
+export type SkillTier = 'common' | 'rare' | 'epic' | 'legendary' | 'unique';
 
 export type BuffableStat = 'attack' | 'magicPower' | 'armor' | 'magicResist' | 'speed' | 'critPct' | 'resolve';
 
@@ -225,7 +223,6 @@ export interface SkillDef {
    * A card CAN be big but quick (low weight, long span) or small but heavy.
    */
   speedWeight?: number;
-  rarity: Rarity;
   /** Power-level tier; the card's kit must sum to the tier's PL budget. */
   tier: SkillTier;
   /** Required on every Magical card (advantage wheel + synergy filters). */
@@ -257,7 +254,6 @@ export interface EquipmentDef {
   id: string;
   name: string;
   slot: EquipmentSlot;
-  rarity: Rarity;
   statMods: Partial<Omit<CombatantStats, 'hp'>>;
   tags: string[];
   text: string;

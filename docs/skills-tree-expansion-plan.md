@@ -12,7 +12,7 @@ draft perks, and so on. (Card tier-ups are a different track, see
 - `src/data/heroes.ts` — a single `BASE_HERO_STATS` (no classes) and
   `HERO_BOARD_SLOTS = 10`: the natural application point for stat and
   board-slot nodes at run start.
-- `src/data/enemies.ts` — every enemy already carries `goldReward` /
+- `src/data/enemies.ts` — every enemy already carries `epicReward` /
   `xpReward`, so coin-gain multipliers have something real to multiply.
 - The engine is pure and deterministic; meta effects must resolve **before**
   `simulate()` is called (baked into `CombatantSetup`), never inside it.
@@ -48,9 +48,9 @@ export type MetaEffect =
   // -- combat (applies to hero stats at run start) --
   | { kind: 'stat'; stat: BuffableStat | 'maxHp'; amount: number }      // flat, per rank
   // -- economy --
-  | { kind: 'goldPct'; pct: number }            // fight gold rewards
+  | { kind: 'epicPct'; pct: number }            // fight epic rewards
   | { kind: 'xpPct'; pct: number }              // fight xp rewards
-  | { kind: 'startingGold'; amount: number }
+  | { kind: 'startingEpic'; amount: number }
   | { kind: 'shopDiscountPct'; pct: number }    // consumed by future shop
   // -- events / map (consumed by future run layer) --
   | { kind: 'eventRatePct'; event: 'treasure' | 'campfire' | 'elite' | 'mystery'; pct: number }
@@ -58,7 +58,7 @@ export type MetaEffect =
   // -- draft / loadout --
   | { kind: 'draftChoices'; extra: number }     // see N+extra cards per draft
   | { kind: 'draftRerolls'; extra: number }
-  | { kind: 'startingCardPick'; tier: 'bronze' } // choose a known card at run start
+  | { kind: 'startingCardPick'; tier: 'common' } // choose a known card at run start
   | { kind: 'boardSlots'; extra: number }        // HERO_BOARD_SLOTS + extra
   | { kind: 'affinity'; slot: 'element' | 'weapon' } // unlock choosing a run affinity
   | { kind: 'revive'; charges: number };         // once per run, survive at 30% HP
@@ -96,7 +96,7 @@ export interface MetaProfile {
 // src/meta/modifiers.ts — the single output the rest of the game reads
 export interface RunModifiers {
   statMods: Partial<CombatantStats>;
-  goldPct: number; xpPct: number; startingGold: number; shopDiscountPct: number;
+  epicPct: number; xpPct: number; startingEpic: number; shopDiscountPct: number;
   eventRatePct: Partial<Record<EventKind, number>>;
   campfireHealPct: number;
   draftChoices: number; draftRerolls: number;
@@ -108,7 +108,7 @@ export function aggregate(profile: MetaProfile, book: TreeBook): RunModifiers;
 ```
 
 `aggregate()` is the one seam everything consumes: hero setup applies
-`statMods` + `extraBoardSlots`, fight rewards apply `goldPct`/`xpPct` today;
+`statMods` + `extraBoardSlots`, fight rewards apply `epicPct`/`xpPct` today;
 the future run layer reads event/shop/draft fields when it exists. The engine
 itself never changes — determinism untouched.
 
@@ -130,15 +130,15 @@ Requires-chains: Vitality is the root; Hide/Soul hang off it; Edge/Mind fork;
 Undying requires maxed Vitality. Speed is priced high in Focus — the
 initiative-comparison engine makes speed the strongest stat.
 
-### 💰 Fortune — coin collection & economy (gold/xp work TODAY)
+### 💰 Fortune — coin collection & economy (epic/xp work TODAY)
 | Node | Ranks | Per-rank effect | Focus |
 |---|---|---|---|
-| Keen Eye | 5 | +10% fight gold | 1 |
+| Keen Eye | 5 | +10% fight epic | 1 |
 | Scholar | 3 | +10% fight xp | 1 |
-| Seed Money | 3 | +15 starting gold | 1 |
+| Seed Money | 3 | +15 starting epic | 1 |
 | Haggler | 3 | −5% shop prices *(future shop)* | 1 |
 | Treasure Sense | 3 | +15% treasure-event rate *(future)* | 2 |
-| **Golden Touch** (capstone) | 1 | flawless win (no HP lost) pays double gold | 3 |
+| **Epicen Touch** (capstone) | 1 | flawless win (no HP lost) pays double epic | 3 |
 
 ### 🧭 Wayfarer — events & map shaping (activates WITH the run layer)
 | Node | Ranks | Per-rank effect | Focus |
@@ -158,7 +158,7 @@ the numbers.
 |---|---|---|---|
 | Broad Options | 2 | +1 card choice per draft *(future draft)* | 1 |
 | Second Look | 2 | +1 draft reroll *(future draft)* | 1 |
-| Heirloom | 1 | pick your starting Bronze card *(today: seeds demo board)* | 2 |
+| Heirloom | 1 | pick your starting Common card *(today: seeds demo board)* | 2 |
 | Elemental Rite | 1 | choose a run element affinity *(today: `CombatantSetup.elementAffinity`)* | 2 |
 | Weapon Oath | 1 | choose a run weapon affinity | 2 |
 | **Expanded Arsenal** (capstone) | 1 | +1 board slot (10 → 11) | 4 |
@@ -178,7 +178,7 @@ one" — this is that grant.
   refunding *Renown* not needed.
 - Balance guardrails as audits, not vibes: total equippable flat stats under
   any 16-Focus build must stay below ~35% of `BASE_HERO_STATS` power (keeps
-  Bronze enemies meaningful); event-rate stacks cap at +45%.
+  Common enemies meaningful); event-rate stacks cap at +45%.
 
 ## UI (`src/game/scenes/LoadoutScene.ts`)
 
@@ -198,14 +198,14 @@ New scene in the flow **Loadout → Prep → Battle**:
   field, boundary-checker coverage. Audit tests: unique ids, `requires`
   resolve + acyclic, cost arrays match `ranks`, per-branch Focus totals,
   balance guardrails. Wire the four "works today" surfaces: hero stats,
-  board slots, gold/xp multipliers, affinity picks.
+  board slots, epic/xp multipliers, affinity picks.
 - **P1 — LoadoutScene**: tree rendering, buy/equip/presets, dev cheat to
   grant Renown for playtesting.
 - **P2 — run-layer hookup**: as the roguelite map/draft/shop lands, consume
   `eventRatePct`, `draftChoices/Rerolls`, `shopDiscountPct`,
   `campfireHealPct`, `startingCardPick` from `RunModifiers` (the seam already
   exists, so this is consumption, not redesign).
-- **P3 — depth**: milestone-based Focus growth, capstone specials (Golden
+- **P3 — depth**: milestone-based Focus growth, capstone specials (Epicen
   Touch, Cartographer), a fifth prestige branch once win-rates justify it.
 
 Estimated new tests: ~30 (tree audits, aggregation math incl. stacking caps,

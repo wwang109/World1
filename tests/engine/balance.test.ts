@@ -4,8 +4,8 @@ import { skillBook } from '../../src/data/skills';
 import type { SkillDef } from '../../src/engine/types';
 
 describe('Power Level budgets', () => {
-  it('tier budgets are Bronze 10 / Silver 15 / Gold 20 / Diamond 25', () => {
-    expect(TIER_BUDGET_DECI).toEqual({ bronze: 100, silver: 150, gold: 200, diamond: 250 });
+  it('tier budgets are Common 10 / Rare 15 / Epic 20 / Legendary 25', () => {
+    expect(TIER_BUDGET_DECI).toEqual({ common: 100, rare: 150, epic: 200, legendary: 250, unique: 100 });
   });
 
   it('BALANCE AUDIT: every card in the data matches its tier budget (±0.5 PL)', () => {
@@ -27,8 +27,7 @@ describe('Power Level budgets', () => {
       archetypes: ['offense'],
       property: 'physical',
       size: 1,
-      rarity: 'common',
-      tier: 'bronze',
+      tier: 'common',
       effects: [{ kind: 'damage', power: 200 }],
       text: '',
     };
@@ -44,8 +43,7 @@ describe('Power Level budgets', () => {
       archetypes: ['offense'],
       property: 'physical',
       size,
-      rarity: 'common',
-      tier: 'bronze',
+      tier: 'common',
       effects: [{ kind: 'damage', power: 200 }],
       text: '',
     });
@@ -61,8 +59,7 @@ describe('Power Level budgets', () => {
       archetypes: ['healing'],
       property: 'true',
       size: 1,
-      rarity: 'common',
-      tier: 'bronze',
+      tier: 'common',
       effects: [{ kind: 'heal', power: 40 }],
       text: '',
     };
@@ -77,7 +74,7 @@ describe('Power Level budgets', () => {
 
   it('powerLevel() reports decimal-precise PL and all demo cards sit on budget', () => {
     for (const skill of Object.values(skillBook)) {
-      // All demo cards are Bronze (budget 10, tolerance ±0.5 PL).
+      // All demo cards are Common (budget 10, tolerance ±0.5 PL).
       expect(Math.abs(powerLevel(skill) - 10), skill.id).toBeLessThanOrEqual(0.5);
       expect(isOnBudget(skill)).toBe(true);
     }

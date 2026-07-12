@@ -4,12 +4,12 @@
 // table across every preset instead.
 //
 //   npm run battle -- --hero "war_banner,sword_slash,crippling_strike" --enemy bandit_duelist
-//   npm run battle -- --hero "bramble_coat@silver,venom_fang+assassin_mark" --enemy giant_rat,wolf_king
+//   npm run battle -- --hero "bramble_coat@rare,venom_fang+assassin_mark" --enemy giant_rat,wolf_king
 //   npm run battle -- --hero "..." --enemy all                          (matchup table, no log)
 //   npm run battle -- --hero "..." --mpw 20 --hp 200 --enemy ember_imp  (stat overrides)
 //
 // Card token: id[@tier][+enchant][:slot] — slots auto-pack left→right when
-// omitted. Tiers use generated variants (silver/gold/diamond); enchants are
+// omitted. Ranks use generated variants (rare/epic/legendary); enchants are
 // storm_mark / assassin_mark / executioner_mark.
 import { simulate } from '../src/engine/combat/simulate';
 import { powerLevel } from '../src/engine/balance';
@@ -47,10 +47,10 @@ function parseBoard(spec: string): BoardPiece[] {
   for (const raw of spec.split(',')) {
     const token = raw.trim();
     if (!token) continue;
-    const m = token.match(/^(\w+?)(?:@(bronze|silver|gold|diamond))?(?:\+(\w+))?(?::(\d+))?$/);
+    const m = token.match(/^(\w+?)(?:@(common|rare|epic|legendary))?(?:\+(\w+))?(?::(\d+))?$/);
     if (!m) die(`bad card token '${token}' (want id[@tier][+enchant][:slot])`);
     const [, base, tier, enchant, slotStr] = m;
-    const id = tier ? variantId(base!, tier as SkillTier, fullBook[base!]?.tier ?? 'bronze') : base!;
+    const id = tier ? variantId(base!, tier as SkillTier, fullBook[base!]?.tier ?? 'common') : base!;
     const skill = fullBook[id];
     if (!skill) {
       if (!fullBook[base!]) die(`unknown skill '${base}'. Options: ${Object.keys(fullBook).filter((k) => !k.includes('__')).sort().join(', ')}`);

@@ -338,7 +338,7 @@ export class PrepScene extends Phaser.Scene {
       const sk = card.skill;
       const kind = sk.element ? ` · ${sk.element}` : sk.weapon ? ` · ${sk.weapon}` : '';
       const lines = [
-        `${sk.name}  [${sk.rarity}] · ${sk.tier.toUpperCase()} PL${powerLevel(sk)}`,
+        `${sk.name}  [${sk.tier.toUpperCase()}] · PL${powerLevel(sk)}`,
         `${sk.archetypes.join(' + ')} · ${sk.property}${kind} · size ${sk.size} · weight ${sk.speedWeight ?? sk.size * 10}`,
         sk.size > 1 ? `spans ${sk.size} turns when cast` : 'spans 1 turn',
         '',

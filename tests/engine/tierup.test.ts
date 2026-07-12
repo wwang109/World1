@@ -14,7 +14,7 @@ describe('generated tier variants', () => {
 
   it('variants keep the base identity: id/name suffix, same shape, bigger kit', () => {
     for (const base of Object.values(skillBook)) {
-      for (const tier of ['silver', 'gold', 'diamond'] as const) {
+      for (const tier of ['rare', 'epic', 'legendary'] as const) {
         const v = cardAtTier(base.id, tier);
         if (!v) continue;
         expect(baseIdOf(v.id)).toBe(base.id);
@@ -30,29 +30,29 @@ describe('generated tier variants', () => {
   });
 
   it('most cards reach diamond; knobless cards stay bronze-only', () => {
-    expect(tiersOf('fireball')).toEqual(['bronze', 'silver', 'gold', 'diamond']);
-    expect(tiersOf('flurry_of_knives')).toEqual(['bronze', 'silver', 'gold', 'diamond']);
-    expect(tiersOf('war_banner')).toEqual(['bronze', 'silver', 'gold', 'diamond']);
+    expect(tiersOf('fireball')).toEqual(['common', 'rare', 'epic', 'legendary']);
+    expect(tiersOf('flurry_of_knives')).toEqual(['common', 'rare', 'epic', 'legendary']);
+    expect(tiersOf('war_banner')).toEqual(['common', 'rare', 'epic', 'legendary']);
     // Purify is cleanse-only, Time Crystal's weight aura is too coarsely priced.
-    expect(tiersOf('purify')).toEqual(['bronze']);
-    expect(tiersOf('time_crystal')).toEqual(['bronze']);
+    expect(tiersOf('purify')).toEqual(['common']);
+    expect(tiersOf('time_crystal')).toEqual(['common']);
   });
 
   it('generation is deterministic', () => {
-    const a = buildTierVariant(skillBook['fireball']!, 'gold');
-    const b = buildTierVariant(skillBook['fireball']!, 'gold');
+    const a = buildTierVariant(skillBook['fireball']!, 'epic');
+    const b = buildTierVariant(skillBook['fireball']!, 'epic');
     expect(a).toEqual(b);
   });
 });
 
 describe('unique rarity — fixed rank', () => {
-  it('unique cards never generate tier variants (Bazaar-style)', () => {
+  it('unique cards are their own rank and never generate upgrades (Bazaar-style)', () => {
     const drums = skillBook['war_drums']!;
-    expect(drums.rarity).toBe('unique');
-    for (const tier of ['silver', 'gold', 'diamond'] as const) {
+    expect(drums.tier).toBe('unique');
+    for (const tier of ['rare', 'epic', 'legendary'] as const) {
       expect(buildTierVariant(drums, tier)).toBeNull();
       expect(fullBook[variantId('war_drums', tier)]).toBeUndefined();
     }
-    expect(tiersOf('war_drums')).toEqual(['bronze']);
+    expect(tiersOf('war_drums')).toEqual(['unique']);
   });
 });

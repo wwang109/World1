@@ -21,7 +21,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const ARCH_ICON: Record<string, string> = { offense: '⚔', defensive: '🛡', healing: '✚', support: '♦', debuff: '☠' };
 const ELEM_ICON: Record<string, string> = { fire: '🔥', frost: '❄', lightning: '⚡', nature: '🌿', holy: '☀', dark: '🌑' };
 const WEAP_ICON: Record<string, string> = { sword: '🗡', axe: '🪓', lance: '🔱', bow: '🏹', beast: '🐾' };
-const TIERS: SkillTier[] = ['silver', 'gold', 'diamond'];
+const TIERS: SkillTier[] = ['rare', 'epic', 'legendary'];
 const TARGET_LABEL: Record<string, string> = { all: 'AOE — every foe', lowAggro: 'lowest aggro', lowestHp: 'lowest HP', aggro: 'default' };
 
 function deltaOf(v: SkillDef): string {
@@ -39,7 +39,11 @@ function cardFace(s: SkillDef): string {
 }
 
 function tierTrack(s: SkillDef): string {
-  const cells = [`<div class="tier t-bronze on"><span class="t-label">BRONZE</span><span class="t-pl">${powerLevel(s)} PL</span><span class="t-delta">base kit</span></div>`];
+  // Uniques live outside the ladder: one fixed-rank cell, no upgrade row.
+  if (s.tier === 'unique') {
+    return `<div class="track"><div class="tier t-unique on"><span class="t-label">UNIQUE ★</span><span class="t-pl">${powerLevel(s)} PL</span><span class="t-delta">fixed rank — never upgrades</span></div></div>`;
+  }
+  const cells = [`<div class="tier t-common on"><span class="t-label">COMMON</span><span class="t-pl">${powerLevel(s)} PL</span><span class="t-delta">base kit</span></div>`];
   for (const t of TIERS) {
     const v = cardAtTier(s.id, t);
     if (v) {
@@ -122,7 +126,7 @@ for (const [title, sub, pred] of groups) {
     .map(
       (s) => `<article class="row">
     ${cardFace(s)}
-    <div class="kit"><div class="kit-meta">${esc(s.rarity)} · size ${s.size}${s.uses ? ` · ${s.uses} use${s.uses > 1 ? 's' : ''}/battle` : ''}</div><p>${esc(s.text)}</p></div>
+    <div class="kit"><div class="kit-meta">${esc(s.tier)} · size ${s.size}${s.uses ? ` · ${s.uses} use${s.uses > 1 ? 's' : ''}/battle` : ''}</div><p>${esc(s.text)}</p></div>
     ${tierTrack(s)}
   </article>`,
     )
@@ -146,26 +150,26 @@ const html = `<title>World1 Card Codex</title>
   --bg:#eeeef2; --panel:#ffffff; --panel2:#e4e4ea; --line:#c9c9d4;
   --ink:#1a1a22; --dim:#5c5c6e;
   --phys:#a5661f; --mag:#3a66c9; --true:#8a6d1d;
-  --bronze:#9a6a38; --silver:#5f6d7e; --gold:#a07d1a; --diamond:#2a7fa5;
+  --c-common:#9a6a38; --c-rare:#5f6d7e; --c-epic:#a07d1a; --c-legendary:#2a7fa5; --c-unique:#b5541e;
   --card-bg:#14141c; --card-ink:#e8e8f0;
 }
 @media (prefers-color-scheme: dark){:root{
   --bg:#0e0e12; --panel:#14141c; --panel2:#1c1c26; --line:#2a2a36;
   --ink:#e8e8f0; --dim:#8a8a9a;
   --phys:#d98a3d; --mag:#5a8dee; --true:#e8d5a0;
-  --bronze:#c08850; --silver:#b8c4d4; --gold:#ffd76a; --diamond:#8ee0ff;
+  --c-common:#c08850; --c-rare:#b8c4d4; --c-epic:#ffd76a; --c-legendary:#8ee0ff; --c-unique:#ff9d5c;
 }}
 :root[data-theme="dark"]{
   --bg:#0e0e12; --panel:#14141c; --panel2:#1c1c26; --line:#2a2a36;
   --ink:#e8e8f0; --dim:#8a8a9a;
   --phys:#d98a3d; --mag:#5a8dee; --true:#e8d5a0;
-  --bronze:#c08850; --silver:#b8c4d4; --gold:#ffd76a; --diamond:#8ee0ff;
+  --c-common:#c08850; --c-rare:#b8c4d4; --c-epic:#ffd76a; --c-legendary:#8ee0ff; --c-unique:#ff9d5c;
 }
 :root[data-theme="light"]{
   --bg:#eeeef2; --panel:#ffffff; --panel2:#e4e4ea; --line:#c9c9d4;
   --ink:#1a1a22; --dim:#5c5c6e;
   --phys:#a5661f; --mag:#3a66c9; --true:#8a6d1d;
-  --bronze:#9a6a38; --silver:#5f6d7e; --gold:#a07d1a; --diamond:#2a7fa5;
+  --c-common:#9a6a38; --c-rare:#5f6d7e; --c-epic:#a07d1a; --c-legendary:#2a7fa5; --c-unique:#b5541e;
 }
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
@@ -178,7 +182,7 @@ header .sub{color:var(--dim);max-width:64ch}
 .section-sub{color:var(--dim);margin:0 0 18px;font-size:13px}
 .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:22px;font-size:12px;color:var(--dim)}
 .legend b{font-weight:700}
-.lg-bronze b{color:var(--bronze)}.lg-silver b{color:var(--silver)}.lg-gold b{color:var(--gold)}.lg-diamond b{color:var(--diamond)}
+.lg-common b{color:var(--c-common)}.lg-rare b{color:var(--c-rare)}.lg-epic b{color:var(--c-epic)}.lg-legendary b{color:var(--c-legendary)}
 .row{display:grid;grid-template-columns:150px minmax(200px,1fr) 340px;gap:16px;align-items:start;
   background:var(--panel);border:1px solid var(--line);padding:14px;margin-bottom:10px}
 .face{background:var(--card-bg);color:var(--card-ink);border:2px solid;height:96px;padding:8px 7px 6px;
@@ -194,8 +198,9 @@ header .sub{color:var(--dim);max-width:64ch}
 .tier{border:1px solid var(--line);padding:7px 8px;min-height:86px;display:flex;flex-direction:column;gap:3px;opacity:.45}
 .tier.on{opacity:1}
 .t-label{font-size:10px;letter-spacing:.14em;font-weight:700}
-.t-bronze .t-label{color:var(--bronze)}.t-silver .t-label{color:var(--silver)}
-.t-gold .t-label{color:var(--gold)}.t-diamond .t-label{color:var(--diamond)}
+.t-common .t-label{color:var(--c-common)}.t-rare .t-label{color:var(--c-rare)}
+.t-epic .t-label{color:var(--c-epic)}.t-legendary .t-label{color:var(--c-legendary)}
+.t-unique .t-label{color:var(--c-unique)}
 .t-pl{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
 .t-delta{font-size:11px;line-height:1.4}
 .marks{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
@@ -215,11 +220,11 @@ header .sub{color:var(--dim);max-width:64ch}
 .beast-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
 .beast-name{font-weight:700;font-size:15px}
 .badge{font-size:10px;letter-spacing:.14em;padding:2px 7px;border:1px solid}
-.badge.elite{color:var(--gold);border-color:var(--gold)}
+.badge.elite{color:var(--c-epic);border-color:var(--c-epic)}
 .badge.boss{color:var(--phys);border-color:var(--phys)}
 .beast-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px}
 .blabel{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
-.weakchip{outline:1px solid var(--gold)}
+.weakchip{outline:1px solid var(--c-epic)}
 .beast-stats{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
 .beast-kit{font-size:12px;color:var(--dim);margin-top:3px}
 @media (max-width:820px){.beast-grid{grid-template-columns:1fr}}
@@ -241,10 +246,11 @@ footer{margin-top:64px;color:var(--dim);font-size:12px;border-top:1px solid var(
   <p class="sub">Every playable card and its tier progression, generated from the live game data.
   Each tier is a fixed Power-Level budget the whole kit must sum to — upgrades never break math, they spend it.</p>
   <div class="legend">
-    <span class="lg-bronze"><b>Bronze</b> 10 PL</span>
-    <span class="lg-silver"><b>Silver</b> 15 PL</span>
-    <span class="lg-gold"><b>Gold</b> 20 PL</span>
-    <span class="lg-diamond"><b>Diamond</b> 25 PL</span>
+    <span class="lg-common"><b>Common</b> 10 PL</span>
+    <span class="lg-rare"><b>Rare</b> 15 PL</span>
+    <span class="lg-epic"><b>Epic</b> 20 PL</span>
+    <span class="lg-legendary"><b>Legendary</b> 25 PL</span>
+    <span style="color:var(--c-unique)"><b>Unique ★</b> fixed rank</span>
     <span>${all.length} cards · ${Object.keys(enemies).length} creatures · ${Object.keys(enchantBook).length} enchant marks · deterministic combat, no dice</span>
   </div>
 </header>
@@ -268,44 +274,44 @@ ${sections}
   <p class="section-sub">special effects on tier-up instead of stat boosts</p>
   <div class="note">
     <h3>The current tracks above are generated stat knobs — placeholders, not the destination.</h3>
-    <p>Today's Silver/Gold/Diamond variants raise one magnitude until the kit fills the tier budget
+    <p>Today's Rare/Epic/Legendary variants raise one magnitude until the kit fills the tier budget
     (damage 200% → 300% → …). It's balanced and automatic, but upgrades read as bigger numbers, not new decisions.</p>
-    <p>The Bazaar model, on a two-tier cadence: <b>a new ability every SECOND tier — Silver and
-    Diamond — with Gold as the pure numbers step.</b> Each card gains exactly two abilities across
-    its whole track (not three), so Diamond kits stay readable: base identity + two learned tricks.
+    <p>The Bazaar model, on a two-tier cadence: <b>a new ability every SECOND tier — Rare and
+    Legendary — with Epic as the pure numbers step.</b> Each card gains exactly two abilities across
+    its whole track (not three), so Legendary kits stay readable: base identity + two learned tricks.
     The balance table already prices every action and every tier grants exactly +5 PL, so each step
     below spends precisely that. Authored variants replace generated ones id-for-id; the audit keeps
     them honest either way:</p>
 
     <div class="tablewrap"><table class="ledger">
       <tr><th>Sword Slash</th><th>Step</th><th>Kit</th><th class="pl">PL</th></tr>
-      <tr><td><span class="tag">Bronze</span></td><td>base</td><td>Deal 200% Attack damage.</td><td class="pl">10.0</td></tr>
-      <tr><td><span class="tag">Silver</span></td><td><b>ability</b></td><td>+ <b>Combo</b>: +75% if your previous cast was Offense <i>(learns to chain)</i></td><td class="pl">15.0</td></tr>
-      <tr><td><span class="tag">Gold</span></td><td>numbers</td><td>damage 200% → 300%</td><td class="pl">20.0</td></tr>
-      <tr><td><span class="tag">Diamond</span></td><td><b>ability</b></td><td>+ <b>Execute</b>: +75% while the enemy is below half HP <i>(the finisher)</i></td><td class="pl">25.0</td></tr>
+      <tr><td><span class="tag">Common</span></td><td>base</td><td>Deal 200% Attack damage.</td><td class="pl">10.0</td></tr>
+      <tr><td><span class="tag">Rare</span></td><td><b>ability</b></td><td>+ <b>Combo</b>: +75% if your previous cast was Offense <i>(learns to chain)</i></td><td class="pl">15.0</td></tr>
+      <tr><td><span class="tag">Epic</span></td><td>numbers</td><td>damage 200% → 300%</td><td class="pl">20.0</td></tr>
+      <tr><td><span class="tag">Legendary</span></td><td><b>ability</b></td><td>+ <b>Execute</b>: +75% while the enemy is below half HP <i>(the finisher)</i></td><td class="pl">25.0</td></tr>
     </table></div>
 
     <div class="tablewrap"><table class="ledger">
       <tr><th>Fireball</th><th>Step</th><th>Kit</th><th class="pl">PL</th></tr>
-      <tr><td><span class="tag">Bronze</span></td><td>base</td><td>220% damage + burn 5 for 3 turns.</td><td class="pl">10.0</td></tr>
-      <tr><td><span class="tag">Silver</span></td><td><b>ability</b></td><td>+ <b>Jam 40%</b>: the scorch weakens their next cast + damage 240%</td><td class="pl">15.0</td></tr>
-      <tr><td><span class="tag">Gold</span></td><td>numbers</td><td>damage 240% → 340%</td><td class="pl">20.0</td></tr>
-      <tr><td><span class="tag">Diamond</span></td><td><b>ability</b></td><td>+ <b>Fire Rune</b>: curse their queued card for a 125% detonation</td><td class="pl">25.0</td></tr>
+      <tr><td><span class="tag">Common</span></td><td>base</td><td>220% damage + burn 5 for 3 turns.</td><td class="pl">10.0</td></tr>
+      <tr><td><span class="tag">Rare</span></td><td><b>ability</b></td><td>+ <b>Jam 40%</b>: the scorch weakens their next cast + damage 240%</td><td class="pl">15.0</td></tr>
+      <tr><td><span class="tag">Epic</span></td><td>numbers</td><td>damage 240% → 340%</td><td class="pl">20.0</td></tr>
+      <tr><td><span class="tag">Legendary</span></td><td><b>ability</b></td><td>+ <b>Fire Rune</b>: curse their queued card for a 125% detonation</td><td class="pl">25.0</td></tr>
     </table></div>
 
     <div class="tablewrap"><table class="ledger">
       <tr><th>Venom Fang</th><th>Step</th><th>Kit</th><th class="pl">PL</th></tr>
-      <tr><td><span class="tag">Bronze</span></td><td>base</td><td>140% damage + poison 5 for 3 turns.</td><td class="pl">10.0</td></tr>
-      <tr><td><span class="tag">Silver</span></td><td><b>ability</b></td><td>+ <b>Feed</b>: lifesteal 75% of damage dealt <i>(the venom feeds you)</i></td><td class="pl">15.0</td></tr>
-      <tr><td><span class="tag">Gold</span></td><td>numbers</td><td>damage 140% → 240%</td><td class="pl">20.0</td></tr>
-      <tr><td><span class="tag">Diamond</span></td><td><b>ability</b></td><td>+ <b>Expose</b>: −20 Resolve for 2 turns <i>(their body rejects cures)</i></td><td class="pl">25.0</td></tr>
+      <tr><td><span class="tag">Common</span></td><td>base</td><td>140% damage + poison 5 for 3 turns.</td><td class="pl">10.0</td></tr>
+      <tr><td><span class="tag">Rare</span></td><td><b>ability</b></td><td>+ <b>Feed</b>: lifesteal 75% of damage dealt <i>(the venom feeds you)</i></td><td class="pl">15.0</td></tr>
+      <tr><td><span class="tag">Epic</span></td><td>numbers</td><td>damage 140% → 240%</td><td class="pl">20.0</td></tr>
+      <tr><td><span class="tag">Legendary</span></td><td><b>ability</b></td><td>+ <b>Expose</b>: −20 Resolve for 2 turns <i>(their body rejects cures)</i></td><td class="pl">25.0</td></tr>
     </table></div>
 
-    <p>Design rules that fall out: two abilities per track keeps Diamond kits readable (base + two
-    learned tricks, never a five-effect wall of text); the Gold numbers step makes mid-run tiering
+    <p>Design rules that fall out: two abilities per track keeps Legendary kits readable (base + two
+    learned tricks, never a five-effect wall of text); the Epic numbers step makes mid-run tiering
     feel like growth without new rules to learn; every added effect must already exist in the priced
     DSL (programmable, auditable by the same balance test); and cards with no cheap knob (Purify,
-    Time Crystal) stop being bronze-locked the moment their Silver buys an ability instead.</p>
+    Time Crystal) stop being common-locked the moment their Rare buys an ability instead.</p>
   </div>
 </section>
 

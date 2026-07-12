@@ -1,10 +1,10 @@
 # Skills Tree Expansion Plan
 
-State of the catalog today (`src/data/skills.ts`): **29 cards, all Bronze tier**,
+State of the catalog today (`src/data/skills.ts`): **29 cards, all Common tier**,
 every kit audited against the Power-Level budget table in `src/engine/balance.ts`
-(Bronze 10 · Silver 15 · Gold 20 · Diamond 25 PL). The type system already
-declares Silver/Gold/Diamond tiers and a `legendary` rarity, but zero cards use
-them. This plan turns the flat Bronze card list into an actual *tree*: authored
+(Common 10 · Rare 15 · Epic 20 · Legendary 25 PL). The type system already
+declares Rare/Epic/Legendary tiers and a `legendary` rarity, but zero cards use
+them. This plan turns the flat Common card list into an actual *tree*: authored
 upgrade paths per card, new priced DSL actions to build them from, and content
 to fill the matrix gaps the current set leaves open.
 
@@ -12,7 +12,7 @@ to fill the matrix gaps the current set leaves open.
 
 | Axis | Declared | Actually used | Gap |
 |---|---|---|---|
-| Tiers | bronze/silver/gold/diamond | bronze only | 3 empty tiers; no upgrade data structure at all |
+| Tiers | common/rare/epic/legendary | common only | 3 empty tiers; no upgrade data structure at all |
 | Rarity | common/rare/epic/legendary | common/rare/epic | no legendary cards |
 | Aura reach | adjacent/left/right/allBoard | adjacent only | directional and board-wide auras unused |
 | Elements | 6 | 1–2 cards each | frost/nature/dark have no direct-damage identity |
@@ -41,12 +41,12 @@ helper swaps the board piece's `skillId` in place (same size ⇒ same slots; if 
 branch grows in size, the Prep scene re-validates placement with `canPlace`).
 
 **Upgrade cadence (design decision, 2026-07): a new ABILITY every second
-tier — Silver and Diamond — with Gold as the pure numbers step.** Each card
-gains exactly two abilities across its whole track, so Diamond kits stay
+tier — Rare and Legendary — with Epic as the pure numbers step.** Each card
+gains exactly two abilities across its whole track, so Legendary kits stay
 readable: base identity + two learned tricks. Worked, priced examples live
 in the Card Codex artifact (scripts/codex.ts).
 
-**Branching rule** — every Bronze card gets **two** Silver branches that spend
+**Branching rule** — every Common card gets **two** Rare branches that spend
 the +5 PL differently, so the tree forks meaningfully:
 
 - *Magnitude branch*: bigger numbers, same feel (Fireball → **Greater Fireball**:
@@ -54,23 +54,23 @@ the +5 PL differently, so the tree forks meaningfully:
 - *Identity branch*: the +5 PL buys a new rider or shape (Fireball → **Fire
   Lance**: 200% + burn 5×3 but weight −10, becoming a tempo card).
 
-Silver → Gold converges (one authored Gold per pair), Gold → Diamond is the
+Rare → Epic converges (one authored Epic per pair), Epic → Legendary is the
 capstone (epic/legendary rarity, allowed a `special` if the DSL can't express
-it). Full tree for 29 Bronze roots ≈ 29×2 Silver + 29 Gold + ~10 Diamond
+it). Full tree for 29 Common roots ≈ 29×2 Rare + 29 Epic + ~10 Legendary
 capstones ≈ **~100 new card defs**, authored in waves (start with the 8 pure
 Offense cards + the 5 rider showcases).
 
 **Audit extensions** (`tests/engine/balance.test.ts`):
 - every card in an `upgradesTo` list exists and is exactly one tier up;
 - upgrades preserve weapon/element family (a sword line stays a sword line);
-- every non-Diamond card has at least one upgrade path; no cycles;
+- every non-Legendary card has at least one upgrade path; no cycles;
 - all nodes on budget (already enforced, now covers new tiers).
 
 ## P1 — New priced DSL actions (the "remaining catalog") — ✅ SHIPPED
 
 Shipped as "ability catalog wave 2": all six actions below are live in the
 `Action` union, interpreter, pricing switch, and both combat logs, each with a
-Bronze showcase card and engine tests (`tests/engine/abilities.test.ts`):
+Common showcase card and engine tests (`tests/engine/abilities.test.ts`):
 
 | Action | Shape | Price (deci-PL) |
 |---|---|---|
@@ -82,19 +82,19 @@ Bronze showcase card and engine tests (`tests/engine/abilities.test.ts`):
 
 Plus one free win: `regen` (`{ amount; turns }`, heal-over-time ticking like a
 reversed burn, priced `amount × turns × 2`) — completes the DoT/HoT symmetry
-and gives Healing lines a Silver branch identity.
+and gives Healing lines a Rare branch identity.
 
 Each action lands with: interpreter case, combat-log event + BattleScene/ASCII
 narration, pricing case, and a rider test in `tests/engine/riders.test.ts`
 (the multi-hit test must pin RNG order — one crit roll per hit, fixed sequence,
 per the determinism rules in `types.ts`).
 
-Showcase Bronze cards to prove each rider (audited at 10 PL): **Executioner's
+Showcase Common cards to prove each rider (audited at 10 PL): **Executioner's
 Chop** (axe, execute), **Windstep Jab** (lance, quicken), **Bramble Coat**
 (nature, thorns), **Flurry of Knives** (sword, multiHit), **Dispelling Arrow**
 (bow, purge), **Soothing Spores** (nature, regen).
 
-## P2 — Fill the matrix gaps with new Bronze roots
+## P2 — Fill the matrix gaps with new Common roots
 
 ~10 new cards so every element/weapon has a playable line and the unused aura
 reaches get exercised:
@@ -107,7 +107,7 @@ reaches get exercised:
   puzzle, not just adjacency.
 - **allBoard aura** at its doubled price: e.g. **Chronoshard** (allBoard
   weightDelta −2) as an epic support.
-- **Legendary rarity debut**: 1–2 Diamond-tier drop-only cards using the
+- **Legendary rarity debut**: 1–2 Legendary-tier drop-only cards using the
   `special` registry (first real `registerSpecial` use), e.g. **Mirror of
   Fates** — copies the enemy's last cast. Registry stays in-engine per the
   existing rule: promote to DSL when a third card needs the behavior.
@@ -116,20 +116,20 @@ reaches get exercised:
 
 Without these the tree exists but can't be climbed:
 
-- **Upgrade economy**: spend the gold that enemies already drop (`goldReward`
-  is dead currency today) — Silver ~25g, Gold ~60g, Diamond ~150g, elite/boss
-  fights gate Gold+.
+- **Upgrade economy**: spend the epic that enemies already drop (`epicReward`
+  is dead currency today) — Rare ~25g, Epic ~60g, Legendary ~150g, elite/boss
+  fights gate Epic+.
 - **PrepScene tree view**: tapping a board card shows its upgrade fork
   (two branch previews with PL-diff highlights), buy → swap in place.
-- **Enemy tiers**: depth-2+ presets in `src/data/enemies.ts` carrying Silver
+- **Enemy tiers**: depth-2+ presets in `src/data/enemies.ts` carrying Rare
   boards so upgraded heroes meet upgraded enemies (the file already notes
   "the run layer will scale by depth later").
 
 ## Suggested sequencing
 
 1. **P0 schema + audits** with ONE fully-authored tree (Fireball line to
-   Diamond) as the reference implementation.
-2. **P1 actions** — they're prerequisites for interesting Silver identity
+   Legendary) as the reference implementation.
+2. **P1 actions** — they're prerequisites for interesting Rare identity
    branches.
 3. **P0 content waves**: Offense lines → rider showcases → support/heal/debuff.
 4. **P2 new roots**, then **P3 economy/UI** once there's a tree worth buying.

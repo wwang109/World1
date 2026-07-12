@@ -114,7 +114,7 @@ and adds `contenders: ComparisonUnit[]` for full multi-side display.
 
 ### Tests (the real work)
 
-- 1v1 golden-master: simulate the existing demo matchups before/after the
+- 1v1 epicen-master: simulate the existing demo matchups before/after the
   refactor — event streams must be BYTE-IDENTICAL (this proves the
   generalization changed nothing for current content).
 - Scheduling: 2v1 — the pair performs ~2× as often; per-unit pacing by
@@ -138,7 +138,7 @@ Smallest UI that shows the feature: one hero versus an enemy PARTY.
   panels (name, HP/shield bar, statuses, queued-card line) once N > 1 —
   full enemy board rendering stays for 1v1. Kill order left→right makes
   front-line targeting legible.
-- Reward preview sums the party's gold/xp.
+- Reward preview sums the party's epic/xp.
 
 ## Phase C — party prep (2v2+) and multiplayer co-op
 

@@ -4,7 +4,7 @@
 // the card has a PL price; a card's whole kit must sum to its tier's budget.
 // Prices are computed in deci-PL (PL × 10) so all math stays in integers.
 //
-//   Bronze 10 · Silver 15 · Gold 20 · Diamond 25
+//   Common 10 · Rare 15 · Epic 20 · Legendary 25
 //
 // Price list (deci-PL):
 // - scaling magnitude (damage/heal/shield %): power / 2      (20% = 1 PL)
@@ -29,10 +29,13 @@
 import { weightOf, type SkillDef, type SkillTier } from './types';
 
 export const TIER_BUDGET_DECI: Record<SkillTier, number> = {
-  bronze: 100,
-  silver: 150,
-  gold: 200,
-  diamond: 250,
+  common: 100,
+  rare: 150,
+  epic: 200,
+  legendary: 250,
+  // Fixed-rank one-of-a-kinds audit at the Common budget: their edge is the
+  // effect design, never raw PL.
+  unique: 100,
 };
 
 /** Audit tolerance: half a power level. */

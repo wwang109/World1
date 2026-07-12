@@ -189,8 +189,8 @@ matchup; run these yourself with `npm run battle -- --hero ... --enemy all`):
 | Version | Rat | Beetle | Imp | Bandit (elite) | Wolf King (boss) |
 |---|---|---|---|---|---|
 | Pure sustain, no offense | L | W | L | L | L |
-| + venom/leech clock (Bronze) | W | W | W | L | L |
-| Silver core (coat/spores/mending/fangs) | W (42 hp) | W (150 hp) | W (98 hp) | **L** | W (0 hp — tie, player wins) |
+| + venom/leech clock (Common) | W | W | W | L | L |
+| Rare core (coat/spores/mending/fangs) | W (42 hp) | W (150 hp) | W (98 hp) | **L** | W (0 hp — tie, player wins) |
 
 The first row is the design lesson: **sudden death exists to kill turtles**
 — with zero offense the enemy's +30%/turn ramp always outgrows heal
@@ -222,7 +222,7 @@ fight.
 Thorns instances DO stack (the reflect sums every active instance), but
 each expires after its `turns`, so under current rules the stack plateaus.
 Sim: triple-Bramble-Coat spam board vs never-expiring thorns (same card,
-999-turn duration), base Bronze stats:
+999-turn duration), base Common stats:
 
 | Rules | Peak stacks | Rat | Beetle | Imp | Bandit | Wolf King |
 |---|---|---|---|---|---|---|
@@ -232,12 +232,12 @@ Sim: triple-Bramble-Coat spam board vs never-expiring thorns (same card,
 Permanent stacking is spectacular — past ~4 stacks (100%) the enemy kills
 itself, and sudden death's +30%/turn enemy ramp flips into the TURTLE'S
 win condition (bigger hits = bigger reflects). That inversion is elegant,
-but as a spammable Bronze mechanic it's degenerate: a clean sweep of every
+but as a spammable Common mechanic it's degenerate: a clean sweep of every
 preset including elite and boss with zero offense, zero tier investment,
 and no enemy in the roster carries purge to answer it.
 
 Recommendation: keep baseline thorns timed, and ship permanence as SCARCE:
-- a Diamond/legendary authored card ("Living Armor" — thorns you apply
+- a Legendary/legendary authored card ("Living Armor" — thorns you apply
   never expire), priced far above the pct×turns table entry, and/or
 - a total-reflect cap (~100%) if stacking cards multiply, and
 - purge in elite/boss enemy kits BEFORE any permanent thorns ships — the
@@ -385,31 +385,25 @@ Debuffs can now land on a specific enemy CARD instead of the enemy's
 stats: `curseCard` traps the enemy's QUEUED card, and when they next cast
 that piece the trap detonates (damage baked at application from the
 curser's stat, matchup and the victim's resolve — fully deterministic).
-Showcase: **Hex Trap** (dark, Bronze 10) — 100% damage now, 125%
+Showcase: **Hex Trap** (dark, Common 10) — 100% damage now, 125%
 detonation when their trapped card activates. Counterplay is rotation
 knowledge: the victim "walks into" the trap on schedule, so heavy
 must-cast cards (Rending Claws, Fireball) are the juiciest marks.
 
-## Tier vs rarity — two different axes
+## The card ladder — one axis, Bazaar-style
 
-Design law: **tier is strength, rarity is scarcity — they never mix.**
+Design law: there is ONE ladder, not separate tier and rarity axes.
 
-- **Tier** (Bronze → Silver → Gold → Diamond) is the POWER axis: the PL
-  budget a card's kit sums to (10/15/20/25). Upgrading tiers is the
-  progression loop.
-- **Rarity** (common → rare → epic → legendary → unique) is the
-  ACQUISITION axis: how often the run layer offers the card in drops,
-  shops and drafts. It never changes a card's numbers — a common and an
-  epic of the same tier are exactly equal PL.
-- **Unique = one-of-a-kind AND fixed rank (Bazaar-style).** At most one
-  copy can ever be held, and the card NEVER tier-upgrades — its printed
-  form is its final form (`buildTierVariant` refuses uniques). First
+- **Common → Rare → Epic → Legendary** is the ladder: the PL budget a
+  card's kit sums to (10 / 15 / 20 / 25), upgraded in place. A card's
+  rank IS its power — nothing else grades cards.
+- **Unique** sits outside the ladder: a different kind of skill —
+  one-of-a-kind (at most one copy held) and FIXED RANK: it never
+  upgrades; its printed form is its final form. Uniques audit at the
+  Common budget — their edge is the effect design, not raw PL. First
   unique: **War Drums** (the one battle standard — whole-board +12%
   damage). Future build-arounds like the permanent-thorns Living Armor
   land here.
-
-Rarity's drop-rate half is dormant until the run layer ships; the
-fixed-rank rule for uniques is live in the tier generator today.
 
 ## Possession cap — 10 board + 10 backpack
 
@@ -499,7 +493,7 @@ else is optional depth. Rules that protect this:
 3. **Verb freeze.** The action DSL (~20 verbs) is enough for years of
    content — new cards RECOMBINE existing verbs; adding a verb needs a
    reason recombination can't serve. Enchant marks cap at a handful.
-4. **Progressive disclosure via the tier cadence.** Bronze cards early in a
+4. **Progressive disclosure via the tier cadence.** Common cards early in a
    run use core verbs (damage/heal/shield/poison); richer verbs arrive on
    upgrades and later drops — the ability-every-2nd-tier cadence IS the
    tutorial pacing.
