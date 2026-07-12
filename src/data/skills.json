@@ -2393,5 +2393,114 @@
       }
     ],
     "text": "Deal 240% Attack physical damage and trample 16 from the enemy's banked readiness. Three slots but light (18) \u2014 the herd starts moving early. Spans 3 turns."
+  },
+  {
+    "id": "living_armor",
+    "name": "Living Armor",
+    "archetypes": [
+      "defensive"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "tier": "unique",
+    "element": "nature",
+    "effects": [
+      {
+        "kind": "thorns",
+        "pct": 25,
+        "turns": 4
+      }
+    ],
+    "text": "UNIQUE \u2014 one copy, fixed rank. The armor fights back: for 4 turns, skill hits taken reflect 25% as TRUE damage. The thorn build's beating heart \u2014 purge tears it off."
+  },
+  {
+    "id": "chronolith",
+    "name": "Chronolith",
+    "archetypes": [
+      "support"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "tier": "unique",
+    "element": "frost",
+    "effects": [
+      {
+        "kind": "quicken",
+        "weight": 8
+      }
+    ],
+    "aura": {
+      "affects": "allBoard",
+      "mods": {
+        "weightDelta": -2
+      }
+    },
+    "text": "UNIQUE \u2014 one copy, fixed rank. Passive: EVERY card on your board is 2 lighter. Casting it quickens your next action by 8. The speed build's cornerstone."
+  },
+  {
+    "id": "blood_altar",
+    "name": "Blood Altar",
+    "archetypes": [
+      "support",
+      "offense"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "tier": "unique",
+    "element": "dark",
+    "effects": [
+      {
+        "kind": "bloodCost",
+        "amount": 15
+      },
+      {
+        "kind": "empower",
+        "pct": 130
+      }
+    ],
+    "text": "UNIQUE \u2014 one copy, fixed rank. Pay 15 HP: your NEXT card deals +130% damage. The nova build's altar \u2014 feed it, then swing something enormous."
+  },
+  {
+    "id": "executioners_sigil",
+    "name": "Executioner's Sigil",
+    "archetypes": [
+      "support"
+    ],
+    "property": "true",
+    "size": 1,
+    "speedWeight": 10,
+    "tier": "unique",
+    "effects": [],
+    "aura": {
+      "affects": "allBoard",
+      "mods": {
+        "critPctDelta": 10
+      }
+    },
+    "text": "UNIQUE \u2014 one copy, fixed rank. Passive: EVERY card on your board gains +10% crit \u2014 the crit meter on your whole rotation fills faster."
+  },
+  {
+    "id": "menders_heart",
+    "name": "Mender's Heart",
+    "archetypes": [
+      "support",
+      "healing"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 10,
+    "tier": "unique",
+    "element": "holy",
+    "effects": [],
+    "aura": {
+      "affects": "allBoard",
+      "mods": {
+        "healPct": 12
+      }
+    },
+    "text": "UNIQUE \u2014 one copy, fixed rank. Passive: EVERY heal on your board is 12% stronger. The sustain build's heartbeat."
   }
 ]

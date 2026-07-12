@@ -308,6 +308,28 @@ What this rewards and what keeps it honest:
 - **Rest limits chain depth too**: every cast in a chain rests afterward,
   so a triple play needs three distinct ready cards.
 
+## Guided builds — unique anchors
+
+Six UNIQUE cards (one copy, fixed rank, never upgrade) each anchor a
+build: find the unique, and the rest of the board plans itself around
+it. All of them are pure recombinations of existing engine pieces.
+
+| Unique | What it warps | The guided build around it |
+|---|---|---|
+| **War Drums** (passive) | whole board +12% damage | any damage board — the generalist anchor |
+| **Chronolith** (passive + cast) | whole board 2 lighter; casting quickens 8 | the SPEED build: light cards, Haste, chains |
+| **Blood Altar** | pay 15 HP → next card +130% | the NOVA build: altar into Meteor Shard / Crushing Blow; lifesteal refunds the price |
+| **Executioner's Sigil** (passive) | whole board +10% crit | the CRIT build: multi-hits (Flurry, Pinning Volley) fill meters fastest |
+| **Mender's Heart** (passive) | all heals +12% | the SUSTAIN build: heal-tank with a DoT clock |
+| **Living Armor** | thorns 25% for 4 turns | the THORN build: reflect engine + Spiked Bulwark; purge tears it off |
+
+Sim notes (base stats, common cards around each anchor): the Nova build
+is the scariest — it deletes slow enemies (Ember Imp turn 3, Runewall
+crushed) but loses to fast elites and edges Bandit by 4 HP; Sigil crit
+gives a brand-new Feral Alpha answer; sustain still has no clock and
+loses long (as designed). One copy each: an anchor is a run-defining
+FIND, not a list you complete.
+
 ## Rest — cards need two turns off
 
 Sims showed a 2–3 card board of light attackers performs nearly as well
