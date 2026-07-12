@@ -65,6 +65,15 @@ tests/        vitest suites
   table, rationale, and socket/gem PL accounting:
   [`docs/power-level-reference.md`](docs/power-level-reference.md) (single
   source of truth is `PRICE` in `src/engine/balance.ts`).
+- **Balance philosophy (locked): PL is the balance unit — not winrate.**
+  Balance = making card PRICES honest so PL is a fair power currency; the
+  audited priced table is the authority. A single build's winrate is a
+  property of the (build, enemy) pair, NOT a balance metric — the same-PL
+  build can win 1% or 100% depending on synergy/counters, and that variance
+  IS the game. So: never tune content to a fixed board's winrate. Enemies are
+  defined by a **PL budget + stat/HP budget** per depth, and the outcome is
+  emergent. `scripts/balance.ts` (`npm run sim`) is a **manual exploration
+  tool only**, never a balance target.
 - **Elements** (magical): Fire→Nature→Lightning→Frost→Fire, Holy↔Dark. **Weapon
   triangle** (physical): Sword→Axe→Lance→Sword; Beast (monster attacks) and Bow
   outside it, Bow beats Beast. Matchups ±50%/−25%, PL-neutral.
