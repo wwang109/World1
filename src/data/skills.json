@@ -2262,5 +2262,136 @@
         "damagePct": 25
       }
     }
+  },
+  {
+    "id": "guillotine",
+    "name": "Guillotine",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "physical",
+    "size": 1,
+    "speedWeight": 26,
+    "tier": "common",
+    "weapon": "axe",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 280
+      },
+      {
+        "kind": "execute",
+        "pct": 60,
+        "belowPct": 50
+      }
+    ],
+    "text": "Deal 280% Attack physical damage; +60% while the enemy is below half HP. One slot, but VERY heavy (26) \u2014 the blade falls slowly."
+  },
+  {
+    "id": "meteor_shard",
+    "name": "Meteor Shard",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 24,
+    "tier": "common",
+    "element": "fire",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 340
+      }
+    ],
+    "text": "Deal 340% Magic Power magical damage. One slot, heavy (24) \u2014 a falling star takes its time."
+  },
+  {
+    "id": "deep_mend",
+    "name": "Deep Mend",
+    "archetypes": [
+      "healing"
+    ],
+    "property": "magical",
+    "size": 1,
+    "speedWeight": 20,
+    "tier": "common",
+    "element": "nature",
+    "effects": [
+      {
+        "kind": "heal",
+        "power": 300
+      }
+    ],
+    "text": "Restore 300% Magic Power health. One slot, heavy (20) \u2014 slow hands, deep cure."
+  },
+  {
+    "id": "twin_comets",
+    "name": "Twin Comets",
+    "archetypes": [
+      "offense"
+    ],
+    "property": "magical",
+    "size": 2,
+    "speedWeight": 12,
+    "tier": "common",
+    "element": "lightning",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 180
+      },
+      {
+        "kind": "quicken",
+        "weight": 8
+      }
+    ],
+    "text": "Deal 180% Magic Power magical damage; your next action is 8 lighter. Two slots but LIGHT (12) \u2014 it arrives fast. Spans 2 turns."
+  },
+  {
+    "id": "vaulting_wall",
+    "name": "Vaulting Wall",
+    "archetypes": [
+      "defensive"
+    ],
+    "property": "physical",
+    "size": 2,
+    "speedWeight": 10,
+    "tier": "common",
+    "effects": [
+      {
+        "kind": "shield",
+        "power": 160
+      },
+      {
+        "kind": "quicken",
+        "weight": 8
+      }
+    ],
+    "text": "Gain a Physical shield worth 160% Attack; your next action is 8 lighter. Two slots but featherlight (10) \u2014 the wall snaps up instantly. Spans 2 turns."
+  },
+  {
+    "id": "stampede",
+    "name": "Stampede",
+    "archetypes": [
+      "offense",
+      "debuff"
+    ],
+    "property": "physical",
+    "size": 3,
+    "speedWeight": 18,
+    "tier": "common",
+    "weapon": "beast",
+    "effects": [
+      {
+        "kind": "damage",
+        "power": 240
+      },
+      {
+        "kind": "stagger",
+        "amount": 16
+      }
+    ],
+    "text": "Deal 240% Attack physical damage and trample 16 from the enemy's banked readiness. Three slots but light (18) \u2014 the herd starts moving early. Spans 3 turns."
   }
 ]
