@@ -47,7 +47,8 @@ describe('ability catalog wave 2', () => {
     const { events } = simulate(c, 1);
     const ready = comparisons(events).filter((e) => e.player.state === 'ready');
     expect(ready[0]!.player.weight).toBe(10); // nothing pending yet
-    expect(ready[1]!.player.weight).toBe(1); // quickened
+    // Quickened −12, plus the +4 freshness replay (same card again): max(1, 10−12+4) = 2.
+    expect(ready[1]!.player.weight).toBe(2);
   });
 
   it('thorns reflects a cut of skill hits as TRUE damage to the attacker', () => {

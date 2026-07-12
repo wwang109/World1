@@ -92,6 +92,12 @@ export interface CombatantState {
   /** Empower staged for the cast currently resolving (set/cleared by doCast). */
   activeEmpowerPct: number;
   /**
+   * The last few skill ids this side cast (newest last, capped at the
+   * freshness window). A card replayed while still in this list is HEAVIER —
+   * the tempo tax that keeps thin fast-rotation boards honest.
+   */
+  recentCasts: string[];
+  /**
    * True once staggered; cleared when this side next takes the stage. A side
    * can be staggered at most ONCE between its own actions — tempo theft is a
    * setback, never a permanent lock (the same rule that keeps stun honest).
@@ -153,6 +159,7 @@ function initCombatant(side: Side, unit: number, setup: CombatantSetup, skillBoo
     nextCastWeakenPct: 0,
     nextCastEmpowerPct: 0,
     activeEmpowerPct: 0,
+    recentCasts: [],
     staggerGuard: false,
     elementAffinity: setup.elementAffinity,
     weaponAffinity: setup.weaponAffinity,

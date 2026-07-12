@@ -40,10 +40,17 @@ describe('initiative comparison (score = bank + Speed − weight)', () => {
   });
 
   it('double Speed yields a 2:1 performance rhythm', () => {
+    // Four distinct w10 clones per side keep the freshness tax out of a
+    // pure-Speed measurement.
+    const book: typeof MINI_BOOK = { ...MINI_BOOK };
+    for (const n of [1, 2, 3, 4]) {
+      book[`s${n}`] = { ...MINI_BOOK.slash!, id: `s${n}`, name: `S${n}` };
+      book[`b${n}`] = { ...MINI_BOOK.bite!, id: `b${n}`, name: `B${n}` };
+    }
     const c = cfg(
-      tc('fast', ['slash'], { speed: 20, attack: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
-      tc('slow', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
-      { ...NO_ENDGAME, skillBook: MINI_BOOK, maxTurns: 30 },
+      tc('fast', ['s1', 's2', 's3', 's4'], { speed: 20, attack: 1, maxHp: 5000 }, { skillBook: book }),
+      tc('slow', ['b1', 'b2', 'b3', 'b4'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: book }),
+      { ...NO_ENDGAME, skillBook: book, maxTurns: 30 },
     );
     const { events } = simulate(c, 1);
     const p = performers(events);

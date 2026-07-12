@@ -1,4 +1,9 @@
 import { weightOf, type SkillBook, type SkillDef } from '../types';
+
+/** Freshness window: how many recent casts a card must clear to be light again. */
+export const REPLAY_WINDOW = 3;
+/** Extra weight per appearance of the queued card within the window. */
+export const REPLAY_WEIGHT = 4;
 import { aurasOn, type AuraMods } from './auras';
 import { isPositiveStatus, totalShield, type CombatantState, type PieceState } from './state';
 
@@ -91,7 +96,12 @@ export function selectCast(c: CombatantState, skillBook: SkillBook): CastChoice 
     if (piece.castsLeft !== undefined && piece.castsLeft <= 0) continue; // exhausted
     if (!isUseful(c, skill)) continue;
     const mods = aurasOn(c, piece, skillBook);
-    const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty - c.nextWeightBonus);
+    // FRESHNESS: a card replayed while still in the recent-cast window is
+    // +REPLAY_WEIGHT heavier per appearance. Boards rotating 4+ cards never
+    // pay it; thin fast-rotation boards trade tempo for their focus.
+    let replay = 0;
+    for (const id of c.recentCasts) if (id === skill.id) replay += REPLAY_WEIGHT;
+    const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty - c.nextWeightBonus + replay);
     return { piece, skill, mods, weight };
   }
   return null;

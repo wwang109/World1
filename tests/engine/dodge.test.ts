@@ -109,10 +109,14 @@ describe('dodge (Sidestep) — one charge evades one whole physical card', () =>
   it('unspent charges drop when the dodger next acts — dodge rewards going first', () => {
     // [Sidestep][Sword Slash]: the hero casts Sidestep, then its own slash
     // next turn wipes the guard before the slow foe ever swings.
+    // Foe at Speed 12: brisk enough that the hero cannot chain at T1 (the
+    // runner-up bar blocks it) yet still second to the hero's own T2 slash.
     const c = cfg(
       tc('dancer', ['sidestep', 'sword_slash'], { attack: 10, speed: 20, maxHp: 500 }),
-      tc('bruiser', ['sword_slash'], { attack: 10, speed: 10, maxHp: 500 }),
-      { ...NO_ENDGAME, maxTurns: 6 },
+      tc('bruiser', ['sword_slash'], { attack: 10, speed: 12, maxHp: 500 }),
+      // Three turns: guard up, guard dropped by the hero's own slash, foe's
+      // hit lands clean. (Later turns would legitimately re-guard.)
+      { ...NO_ENDGAME, maxTurns: 3 },
     );
     const { events } = simulate(c, 1);
     expect(events.some((e) => e.kind === 'statusExpired' && (e as { status?: string }).status === 'dodge' && e.side === 'player')).toBe(true);

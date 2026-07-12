@@ -2,7 +2,7 @@ import { Rng } from '../rng';
 import type { CombatConfig, CombatOutcome, Side } from '../types';
 import type { CombatEvent, ComparisonSide, ComparisonUnit } from './events';
 import { effSpeed, initCombatState, sideDefeated, type CombatState, type CombatantState } from './state';
-import { selectCast, type CastChoice } from './castSelect';
+import { REPLAY_WINDOW, selectCast, type CastChoice } from './castSelect';
 import { applyCast, dealDamage, type Ctx } from './interpreter';
 
 export interface CombatResult {
@@ -197,6 +197,9 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
       c.momentumCasts = c.lastCastSkillId === null ? 0 : c.momentumCasts + 1;
     }
     c.lastCastSkillId = choice.skill.id;
+    // Freshness window: remember this cast so an early replay weighs more.
+    c.recentCasts.push(choice.skill.id);
+    if (c.recentCasts.length > REPLAY_WINDOW) c.recentCasts.shift();
     // A cursed card detonates its trap as it activates; if the trap kills
     // the caster, the cast itself is lost.
     if (choice.piece.curse) {

@@ -306,6 +306,30 @@ What this rewards and what keeps it honest:
   (one per victim action cycle, see Tempo Thief), and why Dodge exists:
   a chain of physical strikes walks into Sidestep charge by charge.
 
+## Freshness — the thin-board tax
+
+Sims showed a 2–3 card board of light attackers performs nearly as well
+as a full 10-slot board: act rate is pure speed/weight, so fielding less
+PL barely cost anything. The counter is a TEMPO tax, not a damage nerf
+(base damage stays sacred): **a card replayed while still in your last 3
+casts is +4 weight per recent appearance.** One sentence for players:
+*"cards get heavier when replayed too soon — a full rotation keeps them
+fresh."*
+
+- Boards rotating **4+ active cards never pay it** — for normal decks the
+  rule is invisible.
+- A two-card rotation pays +4 every cast; single-card spam pays up to
+  +12 — slower, never weaker.
+- It compounds with everything tempo: replayed cards cost more to chain,
+  score lower in comparisons, and show their surcharge in the visible
+  weight number.
+- Situational cards (heals at full HP) skip the rotation, so your
+  EFFECTIVE rotation is what counts — a 6-card board that only ever
+  cycles 2 attackers is a 2-card board to this rule.
+- Thin boards keep an honest niche: DoT clocks (poison) barely care
+  about tempo — sim-confirmed the venom pair still beats most commons,
+  just slower and without its old elite upsets.
+
 ## Borrowed mechanics — Yi Xian & MTG translations (100-card set)
 
 Three mechanics ported from the genre greats, each one sentence, all
