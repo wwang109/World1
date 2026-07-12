@@ -31,7 +31,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     weapon: 'beast',
     effects: [{ kind: 'damage', power: 200 }],
-    text: 'Deal 200% Attack physical damage with fang and claw.',
+    text: 'Deal 200% Attack physical damage — with fang and claw.',
   },
   {
     id: 'rending_claws',
@@ -106,8 +106,8 @@ const defs: SkillDef[] = [
     speedWeight: 26,
     rarity: 'epic',
     tier: 'bronze',
-    effects: [{ kind: 'damage', power: 280 }],
-    text: 'Deal 280% of your higher power stat as TRUE damage — ignores Armor and Magic Resist. Heavy (weight 26).',
+    effects: [{ kind: 'damage', power: 300 }],
+    text: 'Deal 300% of your higher power stat as TRUE damage — ignores Armor and Magic Resist. Heavy (weight 26).',
   },
 
   // ---- Offense + Debuff (multi-archetype) ----
@@ -176,8 +176,32 @@ const defs: SkillDef[] = [
     speedWeight: 26,
     rarity: 'epic',
     tier: 'bronze',
-    effects: [{ kind: 'shield', power: 60 }],
-    text: 'Gain a 60-point TRUE shield — blocks ALL damage types. Spans 3 turns.',
+    effects: [{ kind: 'shield', power: 65 }],
+    text: 'Gain a 65-point TRUE shield — blocks ALL damage types. Spans 3 turns.',
+  },
+  {
+    id: 'frost_ward',
+    name: 'Frost Ward',
+    archetypes: ['defensive'],
+    property: 'magical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'frost',
+    effects: [{ kind: 'guard', property: 'magical', pct: 40, turns: 2 }],
+    text: "Reduce incoming magical damage by 40% for 2 turns.",
+  },
+  {
+    id: 'ward_of_silence',
+    name: 'Ward of Silence',
+    archetypes: ['defensive'],
+    property: 'magical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'holy',
+    effects: [{ kind: 'negate', property: 'magical', charges: 2 }],
+    text: 'Negate the next 2 magical attacks.',
   },
 
   // ---- Healing ----
@@ -201,8 +225,8 @@ const defs: SkillDef[] = [
     size: 1,
     rarity: 'rare',
     tier: 'bronze',
-    effects: [{ kind: 'heal', power: 40 }],
-    text: 'Restore a flat 40 HP — no scaling, no reductions, always 40.',
+    effects: [{ kind: 'heal', power: 45 }],
+    text: 'Restore a flat 45 HP — no scaling, no reductions, always 45.',
   },
 
   // ---- Support (passive auras + active buffs) ----
@@ -312,10 +336,10 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     weapon: 'sword',
     effects: [
-      { kind: 'comboBonus', pct: 75 },
+      { kind: 'comboBonus', pct: 150 },
       { kind: 'damage', power: 100 },
     ],
-    text: 'Deal 100% Attack physical damage; +75% if your previous cast was also an Offense card.',
+    text: 'Deal 100% Attack physical damage; +150% if your previous cast was also an Offense card.',
   },
   {
     id: 'concussive_shot',

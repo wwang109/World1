@@ -1,13 +1,13 @@
 import Phaser from 'phaser';
 import { simulate, type CombatResult } from '../../engine/combat/simulate';
 import type { CombatEvent, ComparisonSide } from '../../engine/combat/events';
-import type { Side } from '../../engine/types';
+import type { Side, Property } from '../../engine/types';
 import { skillBook } from '../../data/skills';
 import { enemies } from '../../data/enemies';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../data/heroes';
 import { demoState } from '../demoState';
 import { CardView, SLOT_W } from '../ui/CardView';
-import { UI, PROPERTY_COLOR, ELEMENT_ICON, WEAPON_ICON } from '../theme';
+import { UI, PROPERTY_COLOR, ELEMENT_ICON, WEAPON_ICON, STATUS_ICON } from '../theme';
 
 interface SideView {
   name: string;
@@ -19,7 +19,7 @@ interface SideView {
   hpText: Phaser.GameObjects.Text;
   statusText: Phaser.GameObjects.Text;
   scoreText: Phaser.GameObjects.Text;
-  statuses: { status: string; turns: number }[];
+  statuses: { status: string; turns: number; property?: Property; charges?: number }[];
   cards: Map<number, CardView>;
   barY: number;
   boardY: number;
@@ -34,6 +34,7 @@ const DELAYS: Record<string, number> = {
   shieldGain: 320,
   statusApplied: 250,
   statusExpired: 160,
+  negated: 380,
   cleansed: 250,
   performSkipped: 400,
   suddenDeathStart: 900,
@@ -210,9 +211,14 @@ export class BattleScene extends Phaser.Scene {
         const dealt = e.amount - e.blocked;
         const label = e.source === 'skill' ? '' : ` ${e.source}`;
         const match = e.matchup === 'advantage' ? ' ▲ super effective!' : e.matchup === 'disadvantage' ? ' ▼ resisted' : '';
-        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} −${dealt}${e.blocked ? ` (${e.blocked} blocked)` : ''}${e.crit ? ' CRIT' : ''}${label}${match}`);
+        const guardedNote = e.guarded ? ` (${e.guarded} guarded)` : '';
+        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} −${dealt}${e.blocked ? ` (${e.blocked} blocked)` : ''}${guardedNote}${e.crit ? ' CRIT' : ''}${label}${match}`);
         if (!instant) {
-          this.floatText(view, `−${dealt}${e.crit ? '!' : ''}${e.matchup === 'advantage' ? ' ▲' : e.matchup === 'disadvantage' ? ' ▼' : ''}`, PROPERTY_COLOR[e.property]);
+          this.floatText(
+            view,
+            `−${dealt}${e.crit ? '!' : ''}${e.matchup === 'advantage' ? ' ▲' : e.matchup === 'disadvantage' ? ' ▼' : ''}${e.guarded ? ` ${STATUS_ICON.guard}${e.guarded}` : ''}`,
+            PROPERTY_COLOR[e.property],
+          );
         }
         break;
       }
@@ -232,17 +238,47 @@ export class BattleScene extends Phaser.Scene {
         if (!instant) this.floatText(view, `+${e.amount}🛡`, 0xbbbbdd);
         break;
       }
-      case 'statusApplied':
+      case 'statusApplied': {
         if (!view) break;
-        view.statuses.push({ status: e.status, turns: e.turns });
+        if (e.status === 'negate') {
+          // The engine now reports the exact (clamped) charge count on the
+          // event itself; use it directly rather than tallying grants. Each
+          // 'negated' event still decrements it, removing the indicator at 0.
+          const negateCharges = e.charges ?? 1;
+          const existing = view.statuses.find((s) => s.status === 'negate' && s.property === e.property);
+          if (existing) existing.charges = negateCharges;
+          else view.statuses.push({ status: 'negate', turns: 0, property: e.property, charges: negateCharges });
+        } else {
+          view.statuses.push({ status: e.status, turns: e.turns, property: e.property });
+        }
         this.refreshStatuses(e.side as Side);
-        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} gains ${e.status} (${e.turns}t)`);
+        const turnsLabel = e.status === 'negate' ? '' : ` (${e.turns}t)`;
+        this.log(`  ${e.side === 'player' ? 'YOU' : 'FOE'} gains ${e.status}${turnsLabel}`);
         break;
+      }
       case 'statusExpired': {
         if (!view) break;
         const idx = view.statuses.findIndex((s) => s.status === e.status);
         if (idx >= 0) view.statuses.splice(idx, 1);
         this.refreshStatuses(e.side as Side);
+        break;
+      }
+      case 'negated': {
+        if (!view) break;
+        const entry = view.statuses.find((s) => s.status === 'negate' && s.property === e.property);
+        if (entry) {
+          entry.charges = Math.max(0, (entry.charges ?? 1) - 1);
+          if (entry.charges <= 0) {
+            const idx = view.statuses.indexOf(entry);
+            if (idx >= 0) view.statuses.splice(idx, 1);
+          }
+        }
+        this.refreshStatuses(e.side as Side);
+        const victimLabel = e.side === 'player' ? 'YOU' : 'FOE';
+        const attackerLabel = e.side === 'player' ? "FOE's" : 'YOUR';
+        const verb = e.side === 'player' ? 'negate' : 'negates';
+        this.log(`  ${victimLabel} ${verb} ${attackerLabel} ${e.property} attack`);
+        if (!instant) this.floatText(view, 'NEGATED', 0x8fd6ff);
         break;
       }
       case 'cleansed':
@@ -293,7 +329,8 @@ export class BattleScene extends Phaser.Scene {
     if (e.kind === 'comparison') {
       for (const side of ['player', 'enemy'] as Side[]) {
         for (const s of this.views[side].statuses) {
-          if (s.status !== 'stun') s.turns = Math.max(0, s.turns - (e.turn > 1 ? 1 : 0));
+          // Negate is charge-based, not turn-based — see StatusInstance.turnsLeft in the engine.
+          if (s.status !== 'stun' && s.status !== 'negate') s.turns = Math.max(0, s.turns - (e.turn > 1 ? 1 : 0));
         }
         this.refreshStatuses(side);
       }
@@ -309,8 +346,15 @@ export class BattleScene extends Phaser.Scene {
 
   private refreshStatuses(side: Side): void {
     const v = this.views[side];
-    const icons: Record<string, string> = { poison: '☠', burn: '🔥', stun: '💫', buff: '▲', debuff: '▼' };
-    v.statusText.setText(v.statuses.map((s) => `${icons[s.status] ?? s.status}${s.turns > 0 ? s.turns : ''}`).join(' '));
+    v.statusText.setText(
+      v.statuses
+        .map((s) => {
+          const icon = STATUS_ICON[s.status] ?? s.status;
+          if (s.status === 'negate') return `${icon}×${s.charges ?? 0}`;
+          return `${icon}${s.turns > 0 ? s.turns : ''}`;
+        })
+        .join(' '),
+    );
   }
 
   private floatText(view: SideView, text: string, color: number): void {

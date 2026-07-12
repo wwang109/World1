@@ -88,7 +88,23 @@ export type Action =
   /** Shatter enemy shields before the hit (place before damage). */
   | { kind: 'shieldBreak'; amount: number }
   /** +pct% damage this cast if the previous cast shared an archetype (place first). */
-  | { kind: 'comboBonus'; pct: number };
+  | { kind: 'comboBonus'; pct: number }
+  // ---- Property-generic defensive keywords ----
+  /**
+   * Magical Guard: while active, incoming damage of the matching `property` is
+   * reduced multiplicatively by `pct`% (floored, min 1) for `turns` global
+   * turns. Applied on the caster (self). `pct` is clamped to <=60 at apply time.
+   * True damage bypasses (no cross-property match); matching-property DoTs are
+   * covered on purpose.
+   */
+  | { kind: 'guard'; property: Property; pct: number; turns: number }
+  /**
+   * Magical Negate: grants `charges` counter-charges on the caster (self) that
+   * fully nullify the next direct skill hits of the matching `property`. DoT
+   * ticks and fatigue never spend a charge. Persists until charges run out (no
+   * turn expiry). Total charges of a property are clamped to <=3 at apply time.
+   */
+  | { kind: 'negate'; property: Property; charges: number };
 
 /** Positional modifiers a (usually Support/passive) card projects onto board neighbors. */
 export interface AuraDef {

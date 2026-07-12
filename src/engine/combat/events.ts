@@ -1,7 +1,7 @@
 import type { CombatOutcome, Property, Side } from '../types';
 
 
-export type StatusName = 'poison' | 'burn' | 'stun' | 'buff' | 'debuff';
+export type StatusName = 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate';
 
 /** One side's numbers in a turn's initiative comparison. */
 export interface ComparisonSide {
@@ -33,17 +33,21 @@ export type CombatEvent =
       crit: boolean;
       /** Element wheel / weapon triangle result for this hit. */
       matchup?: 'advantage' | 'disadvantage';
+      /** Amount removed by Magical Guard (present only when a guard fired). */
+      guarded?: number;
       hpAfter: number;
       source: 'skill' | 'poison' | 'burn' | 'fatigue';
     }
   | { turn: number; kind: 'heal'; side: Side; amount: number; flat: boolean; hpAfter: number }
   | { turn: number; kind: 'shieldGain'; side: Side; property: Property; amount: number; wasted: number; totalAfter: number }
-  | { turn: number; kind: 'statusApplied'; side: Side; status: StatusName; property?: Property; turns: number }
+  | { turn: number; kind: 'statusApplied'; side: Side; status: StatusName; property?: Property; turns: number; charges?: number }
   | { turn: number; kind: 'statusExpired'; side: Side; status: StatusName }
   | { turn: number; kind: 'cleansed'; side: Side; removed: number }
   | { turn: number; kind: 'slowedNext'; side: Side; weight: number }
   | { turn: number; kind: 'staggered'; side: Side; amount: number; bankAfter: number }
   | { turn: number; kind: 'shieldBroken'; side: Side; amount: number; totalAfter: number }
+  /** A Magical Negate charge nullified a direct skill hit on `side`. */
+  | { turn: number; kind: 'negated'; side: Side; property: Property }
   | { turn: number; kind: 'suddenDeathStart' }
   | { turn: number; kind: 'fatigueStart' }
   | { turn: number; kind: 'died'; side: Side }

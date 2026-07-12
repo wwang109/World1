@@ -34,8 +34,8 @@ describe('property scaling and mitigation', () => {
       tc('wall', [], { armor: 99, magicResist: 99, speed: 10 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    // 280% of max(5,20)=20 -> 56, no mitigation.
-    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 56, property: 'true' });
+    // 300% of max(5,20)=20 -> 60, no mitigation.
+    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 60, property: 'true' });
   });
 
   it('crits multiply by 1.5 (floored) at 100% crit', () => {
@@ -148,7 +148,7 @@ describe('healing', () => {
       { ...NO_ENDGAME, maxTurns: 1 },
     );
     const { events } = simulate(c, 1);
-    expect(events.find((e) => e.kind === 'heal')).toMatchObject({ amount: 40, flat: true, hpAfter: 90 });
+    expect(events.find((e) => e.kind === 'heal')).toMatchObject({ amount: 45, flat: true, hpAfter: 95 });
   });
 });
 

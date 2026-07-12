@@ -75,20 +75,50 @@ export function dealDamage(
   } = {},
 ): void {
   if (!victim.alive || amount <= 0) return;
-  const blocked = opts.bypassShields ? 0 : consumeShields(victim, property, amount);
-  const remaining = amount - blocked;
+  const source = opts.source ?? 'skill';
+
+  // Magical Negate: a direct skill hit whose property matches an available
+  // negate charge is fully nullified and spends one charge. DoT ticks and
+  // fatigue never consume a charge; negation happens before any guard, shield
+  // or HP math and returns immediately.
+  if (source === 'skill') {
+    const neg = victim.statuses.find((s) => s.kind === 'negate' && s.property === property && (s.charges ?? 0) > 0);
+    if (neg) {
+      neg.charges = (neg.charges ?? 0) - 1;
+      if ((neg.charges ?? 0) <= 0) victim.statuses = victim.statuses.filter((s) => s !== neg);
+      ctx.events.push({ turn: ctx.state.turn, kind: 'negated', side: victim.side, property });
+      return;
+    }
+  }
+
+  // Magical Guard: multiplicative %-reduction per matching-property guard,
+  // applied in statuses-array order (deterministic), floored, min 1 each.
+  // Runs AFTER the caller's flat-MR/matchup/SD math and BEFORE shields. True
+  // damage never matches a typed guard; matching-property DoTs are covered.
+  let reduced = amount;
+  let guarded = 0;
+  for (const s of victim.statuses) {
+    if (s.kind !== 'guard' || s.property !== property) continue;
+    const after = Math.max(1, Math.floor((reduced * (100 - (s.pct ?? 0))) / 100));
+    guarded += reduced - after;
+    reduced = after;
+  }
+
+  const blocked = opts.bypassShields ? 0 : consumeShields(victim, property, reduced);
+  const remaining = reduced - blocked;
   victim.stats.hp = Math.max(0, victim.stats.hp - remaining);
   ctx.events.push({
     turn: ctx.state.turn,
     kind: 'damage',
     side: victim.side,
-    amount,
+    amount: reduced,
     property,
     blocked,
     crit: opts.crit ?? false,
     matchup: opts.matchup === 'advantage' || opts.matchup === 'disadvantage' ? opts.matchup : undefined,
+    guarded: guarded > 0 ? guarded : undefined,
     hpAfter: victim.stats.hp,
-    source: opts.source ?? 'skill',
+    source,
   });
   if (victim.stats.hp === 0) {
     victim.alive = false;
@@ -113,6 +143,7 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
     status: status.kind,
     property: status.property,
     turns: status.turnsLeft,
+    charges: status.charges,
   });
 }
 
@@ -268,6 +299,24 @@ function applyAction(
         cast.bonusPct += action.pct;
       }
       break;
+    case 'guard': {
+      // Defensive: applies to the caster. Single-instance pct clamped to <=60.
+      if (!caster.alive) break;
+      const pct = Math.max(0, Math.min(60, action.pct));
+      addStatus(ctx, caster, { kind: 'guard', property: action.property, pct, turnsLeft: action.turns, fresh: true });
+      break;
+    }
+    case 'negate': {
+      // Defensive: applies to the caster. Total charges of a property clamped to <=3.
+      if (!caster.alive) break;
+      const existing = caster.statuses
+        .filter((s) => s.kind === 'negate' && s.property === action.property)
+        .reduce((sum, s) => sum + (s.charges ?? 0), 0);
+      const charges = Math.max(0, Math.min(action.charges, 3 - existing));
+      if (charges <= 0) break;
+      addStatus(ctx, caster, { kind: 'negate', property: action.property, charges, turnsLeft: 0, fresh: true });
+      break;
+    }
   }
 }
 

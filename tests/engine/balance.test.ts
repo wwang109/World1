@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUDGET_TOLERANCE_DECI, isOnBudget, powerLevel, powerLevelDeci, TIER_BUDGET_DECI } from '../../src/engine/balance';
+import { BUDGET_TOLERANCE_DECI, isOnBudget, PRICE, powerLevel, powerLevelDeci, TIER_BUDGET_DECI } from '../../src/engine/balance';
 import { skillBook } from '../../src/data/skills';
 import type { SkillDef } from '../../src/engine/types';
 
@@ -70,8 +70,8 @@ describe('Power Level budgets', () => {
       effects: [],
       aura: { affects: 'adjacent', mods: { critPctDelta: 20 } },
     };
-    expect(powerLevelDeci(casting)).toBe(40 * 2 + 20); // flat heal + premium
-    expect(powerLevelDeci(passive)).toBe(20 * 5); // aura only, no premium
+    expect(powerLevelDeci(casting)).toBe(40 * PRICE.flatTruePerPoint + PRICE.truePremium); // flat heal + premium
+    expect(powerLevelDeci(passive)).toBe(20 * PRICE.auraCritPct); // aura only, no premium
   });
 
   it('powerLevel() reports decimal-precise PL and all demo cards sit on budget', () => {
@@ -80,5 +80,40 @@ describe('Power Level budgets', () => {
       expect(Math.abs(powerLevel(skill) - 10), skill.id).toBeLessThanOrEqual(0.5);
       expect(isOnBudget(skill)).toBe(true);
     }
+  });
+
+  it('guard is priced at a premium over the plain stat-buff rate (pct * turns)', () => {
+    const guardCard: SkillDef = {
+      id: 'x',
+      name: 'x',
+      archetypes: ['defensive'],
+      property: 'magical',
+      size: 1,
+      rarity: 'common',
+      tier: 'bronze',
+      effects: [{ kind: 'guard', property: 'magical', pct: 40, turns: 2 }],
+      text: '',
+    };
+    // 40 * 2 * (5/4) = 100 deci = Bronze exactly, and strictly pricier per
+    // pct-turn than a plain buffStat of the same magnitude (statPctTurn = 1x).
+    expect(powerLevelDeci(guardCard)).toBe(100);
+    expect(PRICE.guardPerPctTurnNum / PRICE.guardPerPctTurnDen).toBeGreaterThan(PRICE.statPctTurn);
+  });
+
+  it('negate is priced per charge; the apply-time max (3) lands on Silver', () => {
+    const mk = (charges: number): SkillDef => ({
+      id: 'x',
+      name: 'x',
+      archetypes: ['defensive'],
+      property: 'magical',
+      size: 1,
+      rarity: 'common',
+      tier: 'bronze',
+      effects: [{ kind: 'negate', property: 'magical', charges }],
+      text: '',
+    });
+    expect(powerLevelDeci(mk(1))).toBe(PRICE.negatePerCharge);
+    expect(powerLevelDeci(mk(2))).toBe(TIER_BUDGET_DECI.bronze);
+    expect(powerLevelDeci(mk(3))).toBe(TIER_BUDGET_DECI.silver);
   });
 });

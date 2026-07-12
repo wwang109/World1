@@ -61,7 +61,10 @@ tests/        vitest suites
   Resist, scale off Attack/Magic Power) vs true (ignores defenses). Typed shield
   pools stack, carry over, cap at max HP. True heals are flat.
 - **Power Level budgets**: Bronze 10 · Silver 15 · Gold 20 · Diamond 25 PL. Every
-  modifier is priced per unit; the balance audit test enforces it.
+  modifier is priced per unit; the balance audit test enforces it. Full priced
+  table, rationale, and socket/gem PL accounting:
+  [`docs/power-level-reference.md`](docs/power-level-reference.md) (single
+  source of truth is `PRICE` in `src/engine/balance.ts`).
 - **Elements** (magical): Fire→Nature→Lightning→Frost→Fire, Holy↔Dark. **Weapon
   triangle** (physical): Sword→Axe→Lance→Sword; Beast (monster attacks) and Bow
   outside it, Bow beats Beast. Matchups ±50%/−25%, PL-neutral.

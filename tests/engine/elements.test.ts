@@ -124,7 +124,7 @@ describe('matchups in combat', () => {
     );
     const { events } = simulate(c, 1);
     const hit = events.find((e) => e.kind === 'damage');
-    expect(hit).toMatchObject({ amount: 28 }); // 280% of 10, no matchup
+    expect(hit).toMatchObject({ amount: 30 }); // 300% of 10, no matchup
     expect((hit as { matchup?: string }).matchup).toBeUndefined();
   });
 });

@@ -45,6 +45,17 @@ export const ARCHETYPE_COLOR: Record<Archetype, number> = {
   debuff: 0x9b59b6,
 };
 
+/** Combat-log/status-bar glyphs for buffs/debuffs/DoTs and the defensive keywords. */
+export const STATUS_ICON: Record<string, string> = {
+  poison: '☠',
+  burn: '🔥',
+  stun: '💫',
+  buff: '▲',
+  debuff: '▼',
+  guard: '⛨',
+  negate: '⦵',
+};
+
 export const UI = {
   bg: 0x0e0e12,
   panel: 0x1a1a22,

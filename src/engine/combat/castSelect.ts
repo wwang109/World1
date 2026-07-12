@@ -27,6 +27,8 @@ function isUseful(c: CombatantState, skill: SkillDef): boolean {
       case 'slowNext':
       case 'stagger':
       case 'shieldBreak':
+      case 'guard':
+      case 'negate':
         return true;
       case 'shield':
         if (totalShield(c) < c.stats.maxHp) return true;

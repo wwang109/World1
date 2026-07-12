@@ -1,13 +1,15 @@
 import type { Archetype, BuffableStat, CombatConfig, CombatantStats, Element, Property, Side, SkillBook, WeaponType } from '../types';
 
 export interface StatusInstance {
-  kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff';
-  /** DoT mitigation/synergy typing (inherited from the card). */
+  kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate';
+  /** DoT mitigation/synergy typing (inherited from the card); guard/negate match property. */
   property?: Property;
   stat?: BuffableStat;
   pct?: number;
   amount?: number;
-  /** Remaining GLOBAL turns (stun: remaining performances). */
+  /** Remaining negate counter-charges (negate only; not turn-decremented). */
+  charges?: number;
+  /** Remaining GLOBAL turns (stun: remaining performances; negate: unused/0). */
   turnsLeft: number;
   /** Newly applied this turn: skip the first end-of-turn decrement. */
   fresh?: boolean;
