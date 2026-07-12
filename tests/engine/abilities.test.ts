@@ -52,17 +52,17 @@ describe('ability catalog wave 2', () => {
   });
 
   it('thorns reflects a flat amount as TRUE damage to the attacker, per hit landed', () => {
-    // Turn 1 foe slashes (no thorns yet), turn 2 hero coats (Bramble Coat:
-    // flat 10 TRUE per hit taken), turn 3 the foe's slash lands and pays
-    // back a flat 10 regardless of the 20-damage hit size.
+    // Turn 1 foe slashes (no thorns yet), turn 2 hero coats (Spiked Bulwark:
+    // flat 14 TRUE per hit taken), turn 3 the foe's slash lands and pays
+    // back a flat 14 regardless of the 20-damage hit size.
     const c = cfg(
-      tc('hero', ['bramble_coat'], { magicPower: 10, speed: 12, maxHp: 500 }),
+      tc('hero', ['spiked_bulwark'], { magicPower: 10, speed: 12, maxHp: 500 }),
       tc('foe', ['sword_slash', 'sword_slash', 'sword_slash'], { attack: 10, speed: 14, maxHp: 500 }),
       { ...NO_ENDGAME, maxTurns: 3 },
     );
     const { events } = simulate(c, 1);
     const reflected = damageEvents(events).find((e) => e.source === 'thorns');
-    expect(reflected).toMatchObject({ side: 'enemy', amount: 10, property: 'true' });
+    expect(reflected).toMatchObject({ side: 'enemy', amount: 14, property: 'true' });
   });
 
   it('staleness never reduces BASE damage — a plain card spams at full power', () => {
@@ -129,7 +129,7 @@ describe('ability catalog wave 2', () => {
 
   it('thorns expires after its duration like other timed statuses', () => {
     const c = cfg(
-      tc('hero', ['bramble_coat'], { magicPower: 10, speed: 30, maxHp: 500 }),
+      tc('hero', ['spiked_bulwark'], { magicPower: 10, speed: 30, maxHp: 500 }),
       tc('wall', [], { maxHp: 500, speed: 1 }),
       { ...NO_ENDGAME, maxTurns: 8 },
     );
@@ -176,10 +176,10 @@ describe('ability catalog wave 2', () => {
   });
 
   it('cleanse keeps its own thorns (positive status), stripping only harm', () => {
-    // Foe poisons t1, hero coats t2 (thorns 3t), foe poisons t3, hero
-    // purifies t4 — poison goes, thorns survives to expire naturally on t5.
+    // Foe poisons t1, hero coats t2 (Spiked Bulwark: thorns 2t), hero
+    // purifies t3 — poison goes, thorns survives to expire naturally later.
     const c = cfg(
-      tc('hero', ['bramble_coat', 'purify'], { magicPower: 10, speed: 30, maxHp: 500 }),
+      tc('hero', ['spiked_bulwark', 'purify'], { magicPower: 10, speed: 30, maxHp: 500 }),
       tc('foe', ['venom_fang'], { attack: 10, speed: 35, maxHp: 500 }),
       { ...NO_ENDGAME, maxTurns: 5 },
     );

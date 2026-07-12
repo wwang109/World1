@@ -147,13 +147,14 @@
     "size": 2,
     "speedWeight": 26,
     "tier": "common",
+    "element": "dark",
     "effects": [
       {
         "kind": "damage",
         "power": 320
       }
     ],
-    "text": "Deal 320% of your higher power stat as TRUE damage \u2014 ignores Armor and Magic Resist. Heavy (weight 26)."
+    "text": "Deal 320% of your higher power stat as TRUE damage — ignores Armor and Magic Resist. Heavy (weight 26)."
   },
   {
     "id": "crippling_strike",
@@ -234,7 +235,6 @@
     "size": 1,
     "speedWeight": 10,
     "tier": "common",
-    "element": "frost",
     "effects": [
       {
         "kind": "shield",
@@ -259,7 +259,7 @@
         "power": 80
       }
     ],
-    "text": "Gain an 80-point TRUE shield \u2014 blocks ALL damage types. Spans 3 turns."
+    "text": "Gain an 80-point TRUE shield — blocks ALL damage types. Spans 3 turns."
   },
   {
     "id": "mending_light",
@@ -290,13 +290,14 @@
     "size": 1,
     "speedWeight": 10,
     "tier": "common",
+    "element": "holy",
     "effects": [
       {
         "kind": "heal",
         "power": 40
       }
     ],
-    "text": "Restore a flat 40 HP \u2014 no scaling, no reductions, always 40."
+    "text": "Restore a flat 40 HP — no scaling, no reductions, always 40."
   },
   {
     "id": "war_banner",
@@ -328,7 +329,6 @@
     "size": 1,
     "speedWeight": 10,
     "tier": "common",
-    "element": "nature",
     "effects": [],
     "aura": {
       "affects": "adjacent",
@@ -545,30 +545,6 @@
     "text": "Deal 140% Attack physical damage; your next action is 12 weight lighter (comes out sooner)."
   },
   {
-    "id": "bramble_coat",
-    "name": "Bramble Coat",
-    "archetypes": [
-      "defensive"
-    ],
-    "property": "magical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "element": "nature",
-    "effects": [
-      {
-        "kind": "shield",
-        "power": 50
-      },
-      {
-        "kind": "thorns",
-        "amount": 10,
-        "turns": 3
-      }
-    ],
-    "text": "Gain a Magical shield worth 50% Magic Power; for 3 turns, attackers take 10 TRUE damage per hit they land on you."
-  },
-  {
     "id": "flurry_of_knives",
     "name": "Flurry of Knives",
     "archetypes": [
@@ -586,7 +562,7 @@
         "hits": 3
       }
     ],
-    "text": "Strike 3 times for 50% Attack physical damage each \u2014 every hit rolls its own crit and armor. Light (weight 8)."
+    "text": "Strike 3 times for 50% Attack physical damage each — every hit rolls its own crit and armor. Light (weight 8)."
   },
   {
     "id": "dispelling_arrow",
@@ -656,7 +632,7 @@
         "pct": 40
       }
     ],
-    "text": "Deal 120% Magic Power magical damage and jam the enemy's NEXT cast \u2014 it lands 40% weaker."
+    "text": "Deal 120% Magic Power magical damage and jam the enemy's NEXT cast — it lands 40% weaker."
   },
   {
     "id": "hex_trap",
@@ -700,7 +676,7 @@
         "turns": 2
       }
     ],
-    "text": "Gain +32 Resolve for 2 turns \u2014 hostile poisons, burns, debuffs, slows and staggers land 32% weaker on you."
+    "text": "Gain +32 Resolve for 2 turns — hostile poisons, burns, debuffs, slows and staggers land 32% weaker on you."
   },
   {
     "id": "expose_weakness",
@@ -720,7 +696,7 @@
         "turns": 3
       }
     ],
-    "text": "Reduce the enemy's Resolve by 20 for 3 turns \u2014 your lingering effects on them land 20% STRONGER."
+    "text": "Reduce the enemy's Resolve by 20 for 3 turns — your lingering effects on them land 20% STRONGER."
   },
   {
     "id": "hex_of_frailty",
@@ -789,30 +765,6 @@
     "text": "Deal 50% Magic Power magical damage and reduce the enemy's Speed by 30% for 2 turns."
   },
   {
-    "id": "stunning_smash",
-    "name": "Stunning Smash",
-    "archetypes": [
-      "offense",
-      "debuff"
-    ],
-    "property": "physical",
-    "size": 2,
-    "speedWeight": 24,
-    "tier": "common",
-    "weapon": "axe",
-    "effects": [
-      {
-        "kind": "damage",
-        "power": 260
-      },
-      {
-        "kind": "stun",
-        "turns": 1
-      }
-    ],
-    "text": "Deal 260% Attack physical damage and stun \u2014 the enemy's next performance is consumed. Heavy (weight 24)."
-  },
-  {
     "id": "purify",
     "name": "Purify",
     "archetypes": [
@@ -848,30 +800,6 @@
       }
     ],
     "text": "Deal 200% Magic Power magical damage. Holy scorches Dark creatures."
-  },
-  {
-    "id": "shield_bash",
-    "name": "Shield Bash",
-    "archetypes": [
-      "defensive",
-      "offense"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "weapon": "sword",
-    "effects": [
-      {
-        "kind": "shield",
-        "power": 120
-      },
-      {
-        "kind": "damage",
-        "power": 80
-      }
-    ],
-    "text": "Gain a Physical shield worth 120% Attack, then deal 80% Attack physical damage."
   },
   {
     "id": "rallying_cry",
@@ -928,7 +856,7 @@
     "archetypes": [
       "offense"
     ],
-    "property": "magical",
+    "property": "physical",
     "size": 1,
     "speedWeight": 10,
     "tier": "common",
@@ -944,27 +872,7 @@
         "turns": 5
       }
     ],
-    "text": "Deal 100% Magic Power magical damage and brand the target: burn 4 for 5 turns."
-  },
-  {
-    "id": "stone_skin",
-    "name": "Stone Skin",
-    "archetypes": [
-      "defensive"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "effects": [
-      {
-        "kind": "buffStat",
-        "stat": "armor",
-        "pct": 40,
-        "turns": 2
-      }
-    ],
-    "text": "Gain +40% Armor for 2 turns."
+    "text": "Deal 100% Attack physical damage and brand the target: burn 4 for 5 turns."
   },
   {
     "id": "sidestep",
@@ -986,7 +894,7 @@
         "weight": 5
       }
     ],
-    "text": "DODGE the next 2 physical cards played against you \u2014 the whole action misses. Lost when you next act. Your next action is 5 lighter (+5 in the speed check). Magic and AoE still connect."
+    "text": "DODGE the next 2 physical cards played against you — the whole action misses. Lost when you next act. Your next action is 5 lighter (+5 in the speed check). Magic and AoE still connect."
   },
   {
     "id": "brace",
@@ -1024,7 +932,7 @@
         "turns": 1
       }
     ],
-    "text": "Read the blow: physical strikes against you deal 50% less damage for 1 turn. Timing is everything \u2014 raise it BEFORE the hit."
+    "text": "Read the blow: physical strikes against you deal 50% less damage for 1 turn. Timing is everything — raise it BEFORE the hit."
   },
   {
     "id": "swift_strike",
@@ -1051,30 +959,6 @@
     "text": "Deal 120% Attack physical damage; if you are FASTER than the target, strike again for 100%."
   },
   {
-    "id": "underdog_crush",
-    "name": "Underdog Crush",
-    "archetypes": [
-      "offense"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "weapon": "axe",
-    "effects": [
-      {
-        "kind": "damage",
-        "power": 80
-      },
-      {
-        "kind": "damage",
-        "power": 150,
-        "onlyIf": "slower"
-      }
-    ],
-    "text": "Deal 80% Attack physical damage; if you are SLOWER than the target, add a crushing 150% follow-through."
-  },
-  {
     "id": "haste",
     "name": "Haste",
     "archetypes": [
@@ -1093,7 +977,7 @@
         "turns": 3
       }
     ],
-    "text": "Gain +40% Speed for 3 turns \u2014 bank initiative faster, win more comparisons, feed your chains. The lasting cousin of Sidestep's one-action quicken. Spans 2 turns."
+    "text": "Gain +40% Speed for 3 turns — bank initiative faster, win more comparisons, feed your chains. The lasting cousin of Sidestep's one-action quicken. Spans 2 turns."
   },
   {
     "id": "gather_intent",
@@ -1119,76 +1003,6 @@
     "text": "Channel sword intent: your NEXT card deals +60% damage, and your next action is 16 lighter. Setup for the perfect strike."
   },
   {
-    "id": "focused_edge",
-    "name": "Focused Edge",
-    "archetypes": [
-      "offense"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "weapon": "sword",
-    "effects": [
-      {
-        "kind": "damage",
-        "power": 100
-      },
-      {
-        "kind": "empower",
-        "pct": 50
-      }
-    ],
-    "text": "Deal 100% Attack physical damage and sharpen your intent: your NEXT card deals +50% damage."
-  },
-  {
-    "id": "full_draw",
-    "name": "Full Draw",
-    "archetypes": [
-      "offense"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "weapon": "bow",
-    "effects": [
-      {
-        "kind": "damage",
-        "power": 120
-      },
-      {
-        "kind": "empower",
-        "pct": 40
-      }
-    ],
-    "text": "Deal 120% Attack physical damage and steady your aim: your NEXT card deals +40% damage."
-  },
-  {
-    "id": "overcharge",
-    "name": "Overcharge",
-    "archetypes": [
-      "offense",
-      "support"
-    ],
-    "property": "magical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "element": "lightning",
-    "effects": [
-      {
-        "kind": "damage",
-        "power": 60
-      },
-      {
-        "kind": "empower",
-        "pct": 70
-      }
-    ],
-    "text": "Deal 60% Magic Power magical damage and build a charge: your NEXT card deals +70% damage."
-  },
-  {
     "id": "blood_rite",
     "name": "Blood Rite",
     "archetypes": [
@@ -1209,80 +1023,7 @@
         "power": 260
       }
     ],
-    "text": "Pay 16 HP (unblockable). Deal 260% Magic Power magical damage \u2014 power bought with your own blood."
-  },
-  {
-    "id": "reckless_cleave",
-    "name": "Reckless Cleave",
-    "archetypes": [
-      "offense"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "weapon": "axe",
-    "effects": [
-      {
-        "kind": "bloodCost",
-        "amount": 10
-      },
-      {
-        "kind": "damage",
-        "power": 240
-      }
-    ],
-    "text": "Pay 10 HP. Deal 240% Attack physical damage \u2014 no thought of defense."
-  },
-  {
-    "id": "crimson_pact",
-    "name": "Crimson Pact",
-    "archetypes": [
-      "offense",
-      "healing"
-    ],
-    "property": "magical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "element": "dark",
-    "effects": [
-      {
-        "kind": "bloodCost",
-        "amount": 12
-      },
-      {
-        "kind": "damage",
-        "power": 160
-      },
-      {
-        "kind": "lifesteal",
-        "pct": 66
-      }
-    ],
-    "text": "Pay 12 HP. Deal 160% Magic Power magical damage and drink back 66% of the damage dealt."
-  },
-  {
-    "id": "sacrificial_ward",
-    "name": "Sacrificial Ward",
-    "archetypes": [
-      "defensive"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "effects": [
-      {
-        "kind": "bloodCost",
-        "amount": 10
-      },
-      {
-        "kind": "shield",
-        "power": 240
-      }
-    ],
-    "text": "Pay 10 HP. Gain a Physical shield worth 240% Attack \u2014 flesh traded for iron."
+    "text": "Pay 16 HP (unblockable). Deal 260% Magic Power magical damage — power bought with your own blood."
   },
   {
     "id": "lance_charge",
@@ -1301,7 +1042,7 @@
         "power": 300
       }
     ],
-    "text": "Deal 300% Attack physical damage. A committed charge \u2014 spans 2 turns."
+    "text": "Deal 300% Attack physical damage. A committed charge — spans 2 turns."
   },
   {
     "id": "pinning_volley",
@@ -1394,7 +1135,7 @@
         "power": 200
       }
     ],
-    "text": "Deal 200% Attack physical damage to the LOWEST-aggro enemy \u2014 pick off whoever hides in the back."
+    "text": "Deal 200% Attack physical damage to the LOWEST-aggro enemy — pick off whoever hides in the back."
   },
   {
     "id": "riposte",
@@ -1419,56 +1160,7 @@
         "power": 100
       }
     ],
-    "text": "Guard (physical strikes \u221225% for 1 turn), then answer with 100% Attack physical damage."
-  },
-  {
-    "id": "halberd_sweep",
-    "name": "Halberd Sweep",
-    "archetypes": [
-      "offense",
-      "debuff"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "weapon": "lance",
-    "effects": [
-      {
-        "kind": "damage",
-        "power": 100
-      },
-      {
-        "kind": "slowNext",
-        "weight": 20
-      }
-    ],
-    "text": "Deal 100% Attack physical damage; the enemy's next action is +20 weight slower."
-  },
-  {
-    "id": "executioners_lunge",
-    "name": "Executioner's Lunge",
-    "archetypes": [
-      "offense"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "weapon": "lance",
-    "targeting": "lowestHp",
-    "effects": [
-      {
-        "kind": "damage",
-        "power": 140
-      },
-      {
-        "kind": "execute",
-        "pct": 45,
-        "belowPct": 50
-      }
-    ],
-    "text": "Lunge at the WEAKEST enemy for 140% Attack physical damage; +45% while they are below half HP."
+    "text": "Guard (physical strikes −25% for 1 turn), then answer with 100% Attack physical damage."
   },
   {
     "id": "berserker_swing",
@@ -1488,7 +1180,7 @@
         "power": 240
       }
     ],
-    "text": "Deal 240% Attack physical damage. TWICE PER BATTLE \u2014 rage burns out fast."
+    "text": "Deal 240% Attack physical damage. TWICE PER BATTLE — rage burns out fast."
   },
   {
     "id": "alpha_roar",
@@ -1562,7 +1254,7 @@
         "turns": 2
       }
     ],
-    "text": "Deal 300% Magic Power magical damage and burn for 10 for 2 turns. Spans 3 turns \u2014 an unhurried catastrophe."
+    "text": "Deal 300% Magic Power magical damage and burn for 10 for 2 turns. Spans 3 turns — an unhurried catastrophe."
   },
   {
     "id": "frost_lance",
@@ -1686,7 +1378,7 @@
         "turns": 2
       }
     ],
-    "text": "Roots seize the enemy: 100% Magic Power magical damage and \u221220% Speed for 2 turns."
+    "text": "Roots seize the enemy: 100% Magic Power magical damage and −20% Speed for 2 turns."
   },
   {
     "id": "lifebloom",
@@ -1760,32 +1452,6 @@
     "text": "Burn away the enemy's buffs, thorns and regeneration, then deal 80% Magic Power magical damage."
   },
   {
-    "id": "shadow_coil",
-    "name": "Shadow Coil",
-    "archetypes": [
-      "offense",
-      "debuff"
-    ],
-    "property": "magical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "element": "dark",
-    "effects": [
-      {
-        "kind": "damage",
-        "power": 120
-      },
-      {
-        "kind": "debuffStat",
-        "stat": "attack",
-        "pct": 16,
-        "turns": 2
-      }
-    ],
-    "text": "Deal 120% Magic Power magical damage and sap the enemy's Attack by 16% for 2 turns."
-  },
-  {
     "id": "soul_siphon",
     "name": "Soul Siphon",
     "archetypes": [
@@ -1810,30 +1476,6 @@
     "text": "Deal 120% Magic Power magical damage and drink back 60% of the damage dealt."
   },
   {
-    "id": "field_dressing",
-    "name": "Field Dressing",
-    "archetypes": [
-      "healing",
-      "defensive"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "effects": [
-      {
-        "kind": "heal",
-        "power": 100
-      },
-      {
-        "kind": "guard",
-        "pct": 25,
-        "turns": 1
-      }
-    ],
-    "text": "Restore 100% Attack health and brace: physical strikes deal 25% less for 1 turn."
-  },
-  {
     "id": "renewal",
     "name": "Renewal",
     "archetypes": [
@@ -1855,99 +1497,7 @@
         "power": 40
       }
     ],
-    "text": "Restore 40% Magic Power health and regenerate 8 HP for 4 turns \u2014 the slow cure."
-  },
-  {
-    "id": "divine_mercy",
-    "name": "Divine Mercy",
-    "archetypes": [
-      "healing",
-      "support"
-    ],
-    "property": "magical",
-    "size": 2,
-    "speedWeight": 20,
-    "tier": "common",
-    "element": "holy",
-    "effects": [
-      {
-        "kind": "heal",
-        "power": 140
-      },
-      {
-        "kind": "cleanse"
-      }
-    ],
-    "text": "Restore 140% Magic Power health and remove your poisons, burns, stuns and debuffs. Spans 2 turns."
-  },
-  {
-    "id": "adrenal_surge",
-    "name": "Adrenal Surge",
-    "archetypes": [
-      "healing",
-      "support"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "effects": [
-      {
-        "kind": "heal",
-        "power": 120
-      },
-      {
-        "kind": "buffStat",
-        "stat": "speed",
-        "pct": 16,
-        "turns": 2
-      }
-    ],
-    "text": "Restore 120% Attack health and gain +16% Speed for 2 turns."
-  },
-  {
-    "id": "martyrs_light",
-    "name": "Martyr's Light",
-    "archetypes": [
-      "healing"
-    ],
-    "property": "magical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "element": "holy",
-    "uses": 2,
-    "effects": [
-      {
-        "kind": "heal",
-        "power": 240
-      }
-    ],
-    "text": "Restore 240% Magic Power health. TWICE PER BATTLE \u2014 mercy this deep is rare."
-  },
-  {
-    "id": "sanctuary",
-    "name": "Sanctuary",
-    "archetypes": [
-      "healing"
-    ],
-    "property": "magical",
-    "size": 2,
-    "speedWeight": 20,
-    "tier": "common",
-    "element": "holy",
-    "effects": [
-      {
-        "kind": "heal",
-        "power": 200
-      },
-      {
-        "kind": "regen",
-        "amount": 4,
-        "turns": 5
-      }
-    ],
-    "text": "Restore 200% Magic Power health, then regenerate 4 HP for 5 turns. Spans 2 turns."
+    "text": "Restore 40% Magic Power health and regenerate 8 HP for 4 turns — the slow cure."
   },
   {
     "id": "tower_shield",
@@ -1971,30 +1521,6 @@
       }
     ],
     "text": "Gain a Physical shield worth 240% Attack and brace 15% for 1 turn. Spans 2 turns."
-  },
-  {
-    "id": "smoke_ward",
-    "name": "Smoke Ward",
-    "archetypes": [
-      "defensive",
-      "debuff"
-    ],
-    "property": "magical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "element": "fire",
-    "effects": [
-      {
-        "kind": "shield",
-        "power": 120
-      },
-      {
-        "kind": "weakenNext",
-        "pct": 40
-      }
-    ],
-    "text": "Gain a Magical shield worth 120% Magic Power; smoke jams the enemy's NEXT cast 40% weaker."
   },
   {
     "id": "spiked_bulwark",
@@ -2021,73 +1547,6 @@
     "text": "Gain a Magical shield worth 60% Magic Power; for 2 turns, attackers take 14 TRUE damage per hit they land on you."
   },
   {
-    "id": "last_stand",
-    "name": "Last Stand",
-    "archetypes": [
-      "defensive",
-      "healing"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "effects": [
-      {
-        "kind": "guard",
-        "pct": 40,
-        "turns": 1
-      },
-      {
-        "kind": "heal",
-        "power": 40
-      }
-    ],
-    "text": "Dig in: physical strikes deal 40% less for 1 turn and restore 40% Attack health."
-  },
-  {
-    "id": "phalanx_stance",
-    "name": "Phalanx Stance",
-    "archetypes": [
-      "defensive"
-    ],
-    "property": "physical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "uses": 2,
-    "effects": [
-      {
-        "kind": "guard",
-        "pct": 20,
-        "turns": 3
-      }
-    ],
-    "text": "Set the wall: physical strikes deal 20% less for 3 turns. TWICE PER BATTLE."
-  },
-  {
-    "id": "stone_wall",
-    "name": "Stone Wall",
-    "archetypes": [
-      "defensive"
-    ],
-    "property": "physical",
-    "size": 3,
-    "speedWeight": 30,
-    "tier": "common",
-    "effects": [
-      {
-        "kind": "shield",
-        "power": 320
-      },
-      {
-        "kind": "guard",
-        "pct": 20,
-        "turns": 1
-      }
-    ],
-    "text": "Gain a Physical shield worth 320% Attack and brace 20% for 1 turn. Spans 3 turns \u2014 patience made solid."
-  },
-  {
     "id": "blur",
     "name": "Blur",
     "archetypes": [
@@ -2107,27 +1566,7 @@
         "weight": 8
       }
     ],
-    "text": "DODGE the next physical card played against you, and your next action is 8 lighter. Featherweight (6) \u2014 be first or be hit."
-  },
-  {
-    "id": "menders_totem",
-    "name": "Mender's Totem",
-    "archetypes": [
-      "support"
-    ],
-    "property": "magical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "element": "nature",
-    "effects": [],
-    "text": "Passive: touching cards heal +25% more.",
-    "aura": {
-      "affects": "adjacent",
-      "mods": {
-        "healPct": 25
-      }
-    }
+    "text": "DODGE the next physical card played against you, and your next action is 8 lighter. Featherweight (6) — be first or be hit."
   },
   {
     "id": "war_drums",
@@ -2140,50 +1579,13 @@
     "speedWeight": 10,
     "tier": "unique",
     "effects": [],
-    "text": "UNIQUE \u2014 one copy, fixed rank (never upgrades). Passive: EVERY card on your board deals +12% damage.",
+    "text": "UNIQUE — one copy, fixed rank (never upgrades). Passive: EVERY card on your board deals +12% damage.",
     "aura": {
       "affects": "allBoard",
       "mods": {
         "damagePct": 12
       }
     }
-  },
-  {
-    "id": "withering_hex",
-    "name": "Withering Hex",
-    "archetypes": [
-      "debuff"
-    ],
-    "property": "magical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "element": "dark",
-    "effects": [
-      {
-        "kind": "debuffStat",
-        "stat": "attack",
-        "pct": 10,
-        "turns": 2
-      },
-      {
-        "kind": "debuffStat",
-        "stat": "magicPower",
-        "pct": 10,
-        "turns": 2
-      },
-      {
-        "kind": "debuffStat",
-        "stat": "speed",
-        "pct": 10,
-        "turns": 2
-      },
-      {
-        "kind": "damage",
-        "power": 50
-      }
-    ],
-    "text": "Wither everything at once: enemy Attack, Magic Power and Speed \u221210% for 2 turns, plus 50% Magic Power magical damage."
   },
   {
     "id": "time_dilation",
@@ -2209,61 +1611,6 @@
     "text": "Stretch their seconds: the enemy's next action is +24 weight slower AND lands 40% weaker."
   },
   {
-    "id": "exposing_light",
-    "name": "Exposing Light",
-    "archetypes": [
-      "debuff",
-      "support"
-    ],
-    "property": "magical",
-    "size": 1,
-    "speedWeight": 10,
-    "tier": "common",
-    "element": "holy",
-    "effects": [
-      {
-        "kind": "debuffStat",
-        "stat": "armor",
-        "pct": 20,
-        "turns": 2
-      },
-      {
-        "kind": "debuffStat",
-        "stat": "magicResist",
-        "pct": 20,
-        "turns": 2
-      }
-    ],
-    "text": "Strip the enemy bare: Armor AND Magic Resist \u221220% for 2 turns \u2014 every ally hits harder."
-  },
-  {
-    "id": "rallying_banner",
-    "name": "Rallying Banner",
-    "archetypes": [
-      "support"
-    ],
-    "property": "physical",
-    "size": 2,
-    "speedWeight": 20,
-    "tier": "common",
-    "effects": [
-      {
-        "kind": "buffStat",
-        "stat": "attack",
-        "pct": 20,
-        "turns": 2
-      }
-    ],
-    "text": "Plant the banner: gain +20% Attack for 2 turns. Passive: touching Offense cards deal +25% damage. Spans 2 turns.",
-    "aura": {
-      "affects": "adjacent",
-      "archetypeFilter": "offense",
-      "mods": {
-        "damagePct": 25
-      }
-    }
-  },
-  {
     "id": "guillotine",
     "name": "Guillotine",
     "archetypes": [
@@ -2285,7 +1632,7 @@
         "belowPct": 50
       }
     ],
-    "text": "Deal 280% Attack physical damage; +60% while the enemy is below half HP. One slot, but VERY heavy (26) \u2014 the blade falls slowly."
+    "text": "Deal 280% Attack physical damage; +60% while the enemy is below half HP. One slot, but VERY heavy (26) — the blade falls slowly."
   },
   {
     "id": "meteor_shard",
@@ -2304,71 +1651,7 @@
         "power": 340
       }
     ],
-    "text": "Deal 340% Magic Power magical damage. One slot, heavy (24) \u2014 a falling star takes its time."
-  },
-  {
-    "id": "deep_mend",
-    "name": "Deep Mend",
-    "archetypes": [
-      "healing"
-    ],
-    "property": "magical",
-    "size": 1,
-    "speedWeight": 20,
-    "tier": "common",
-    "element": "nature",
-    "effects": [
-      {
-        "kind": "heal",
-        "power": 300
-      }
-    ],
-    "text": "Restore 300% Magic Power health. One slot, heavy (20) \u2014 slow hands, deep cure."
-  },
-  {
-    "id": "twin_comets",
-    "name": "Twin Comets",
-    "archetypes": [
-      "offense"
-    ],
-    "property": "magical",
-    "size": 2,
-    "speedWeight": 12,
-    "tier": "common",
-    "element": "lightning",
-    "effects": [
-      {
-        "kind": "damage",
-        "power": 180
-      },
-      {
-        "kind": "quicken",
-        "weight": 8
-      }
-    ],
-    "text": "Deal 180% Magic Power magical damage; your next action is 8 lighter. Two slots but LIGHT (12) \u2014 it arrives fast. Spans 2 turns."
-  },
-  {
-    "id": "vaulting_wall",
-    "name": "Vaulting Wall",
-    "archetypes": [
-      "defensive"
-    ],
-    "property": "physical",
-    "size": 2,
-    "speedWeight": 10,
-    "tier": "common",
-    "effects": [
-      {
-        "kind": "shield",
-        "power": 160
-      },
-      {
-        "kind": "quicken",
-        "weight": 8
-      }
-    ],
-    "text": "Gain a Physical shield worth 160% Attack; your next action is 8 lighter. Two slots but featherlight (10) \u2014 the wall snaps up instantly. Spans 2 turns."
+    "text": "Deal 340% Magic Power magical damage. One slot, heavy (24) — a falling star takes its time."
   },
   {
     "id": "stampede",
@@ -2392,7 +1675,7 @@
         "amount": 16
       }
     ],
-    "text": "Deal 240% Attack physical damage and trample 16 from the enemy's banked readiness. Three slots but light (18) \u2014 the herd starts moving early. Spans 3 turns."
+    "text": "Deal 240% Attack physical damage and trample 16 from the enemy's banked readiness. Three slots but light (18) — the herd starts moving early. Spans 3 turns."
   },
   {
     "id": "living_armor",
@@ -2412,7 +1695,7 @@
         "turns": 4
       }
     ],
-    "text": "UNIQUE \u2014 one copy, fixed rank. The armor fights back: for 4 turns, attackers take 10 TRUE damage per hit they land on you. The thorn build's beating heart \u2014 purge tears it off."
+    "text": "UNIQUE — one copy, fixed rank. The armor fights back: for 4 turns, attackers take 10 TRUE damage per hit they land on you. The thorn build's beating heart — purge tears it off."
   },
   {
     "id": "chronolith",
@@ -2437,7 +1720,7 @@
         "weightDelta": -2
       }
     },
-    "text": "UNIQUE \u2014 one copy, fixed rank. Passive: EVERY card on your board is 2 lighter. Casting it quickens your next action by 8. The speed build's cornerstone."
+    "text": "UNIQUE — one copy, fixed rank. Passive: EVERY card on your board is 2 lighter. Casting it quickens your next action by 8. The speed build's cornerstone."
   },
   {
     "id": "blood_altar",
@@ -2461,7 +1744,7 @@
         "pct": 130
       }
     ],
-    "text": "UNIQUE \u2014 one copy, fixed rank. Pay 15 HP: your NEXT card deals +130% damage. The nova build's altar \u2014 feed it, then swing something enormous."
+    "text": "UNIQUE — one copy, fixed rank. Pay 15 HP: your NEXT card deals +130% damage. The nova build's altar — feed it, then swing something enormous."
   },
   {
     "id": "executioners_sigil",
@@ -2480,7 +1763,7 @@
         "critPctDelta": 10
       }
     },
-    "text": "UNIQUE \u2014 one copy, fixed rank. Passive: EVERY card on your board gains +10% crit \u2014 the crit meter on your whole rotation fills faster."
+    "text": "UNIQUE — one copy, fixed rank. Passive: EVERY card on your board gains +10% crit — the crit meter on your whole rotation fills faster."
   },
   {
     "id": "menders_heart",
@@ -2501,6 +1784,6 @@
         "healPct": 12
       }
     },
-    "text": "UNIQUE \u2014 one copy, fixed rank. Passive: EVERY heal on your board is 12% stronger. The sustain build's heartbeat."
+    "text": "UNIQUE — one copy, fixed rank. Passive: EVERY heal on your board is 12% stronger. The sustain build's heartbeat."
   }
 ]

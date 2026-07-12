@@ -25,7 +25,7 @@ describe('resolve — the effect resistance/potency check', () => {
   it('fully resists a 1-turn stun past 50 resolve', () => {
     const c = cfg(
       tc('hero', ['sword_slash'], { attack: 1, speed: 5, maxHp: 500, resolve: 60 }),
-      tc('smasher', ['stunning_smash'], { attack: 10, speed: 30, maxHp: 500 }),
+      tc('smasher', ['glacial_prison'], { attack: 10, speed: 30, maxHp: 500 }),
       { ...NO_ENDGAME, maxTurns: 3 },
     );
     const { events } = simulate(c, 1);

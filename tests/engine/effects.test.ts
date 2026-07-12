@@ -258,7 +258,7 @@ describe('damage over time (global-turn durations)', () => {
 describe('stun', () => {
   it("consumes the victim's next performance", () => {
     const c = cfg(
-      tc('hero', ['stunning_smash'], { attack: 10, speed: 20, maxHp: 500 }),
+      tc('hero', ['glacial_prison'], { attack: 10, speed: 20, maxHp: 500 }),
       tc('victim', ['sword_slash'], { attack: 10, speed: 10, maxHp: 500 }),
       { ...NO_ENDGAME, maxTurns: 8 },
     );
@@ -267,12 +267,12 @@ describe('stun', () => {
   });
 
   it('is a delay, not a stagger: the kept bank breaks perma-stun locks', () => {
-    // A fast hero recasting Stunning Smash every rotation. Under bank-zeroing
+    // A fast hero recasting Glacial Prison every rotation. Under bank-zeroing
     // stun this was an infinite lock (the victim could never outrace the next
-    // smash); with the bank kept, skipped turns still accumulate tempo and
+    // freeze); with the bank kept, skipped turns still accumulate tempo and
     // the victim forces its way to a real cast.
     const c = cfg(
-      tc('hero', ['stunning_smash'], { attack: 10, speed: 20, maxHp: 500 }),
+      tc('hero', ['glacial_prison'], { attack: 10, speed: 20, maxHp: 500 }),
       tc('victim', ['sword_slash'], { attack: 10, speed: 10, maxHp: 500 }),
       { ...NO_ENDGAME, maxTurns: 12 },
     );

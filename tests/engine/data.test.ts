@@ -64,6 +64,8 @@ describe('skills.json integrity', () => {
     expect(TIERS).toContain(c.tier);
     if (c.element !== undefined) expect(ELEMENTS).toContain(c.element);
     if (c.weapon !== undefined) expect(WEAPONS).toContain(c.weapon);
+    // Tag XOR rule: a card is element-tagged, weapon-tagged, or neither — never both.
+    expect(c.element === undefined || c.weapon === undefined).toBe(true);
     if (c.targeting !== undefined) expect(TARGET_MODES).toContain(c.targeting);
     // Minimum weight 5: keeps the chain rule's doubling cost honest.
     if (c.speedWeight !== undefined) expect(c.speedWeight).toBeGreaterThanOrEqual(5);

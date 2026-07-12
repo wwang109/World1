@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { elementMatchup, matchupPct, weaponMatchup } from '../../src/engine/elements';
 import { simulate } from '../../src/engine/combat/simulate';
 import { skillBook } from '../../src/data/skills';
+import type { SkillBook } from '../../src/engine/types';
 import { cfg, tc, NO_ENDGAME } from '../helpers';
 
 describe('element wheel', () => {
@@ -130,19 +131,54 @@ describe('matchups in combat', () => {
 });
 
 describe('data completeness', () => {
-  it('every magical card has an element; physical damage cards have a weapon; true cards have neither', () => {
+  it('every card carries at most one matchup tag; weapon tags are always physical', () => {
     for (const skill of Object.values(skillBook)) {
-      if (skill.property === 'magical') {
-        expect(skill.element, `${skill.id} needs an element`).toBeDefined();
-        expect(skill.weapon).toBeUndefined();
-      } else if (skill.property === 'physical') {
-        const dealsDamage = skill.effects.some((e) => e.kind === 'damage');
-        if (dealsDamage) expect(skill.weapon, `${skill.id} needs a weapon`).toBeDefined();
-        expect(skill.element).toBeUndefined();
-      } else {
-        expect(skill.element).toBeUndefined();
-        expect(skill.weapon).toBeUndefined();
+      expect(
+        skill.element === undefined || skill.weapon === undefined,
+        `${skill.id} carries both an element and a weapon tag — a card must be element-tagged, weapon-tagged, or neither`,
+      ).toBe(true);
+      if (skill.weapon !== undefined) {
+        expect(skill.property, `${skill.id} is weapon-tagged but not physical`).toBe('physical');
       }
     }
+  });
+});
+
+describe('tag-driven matchup (decoupled from property)', () => {
+  it('a PHYSICAL card with an element tag uses the element wheel, not the weapon triangle', () => {
+    const book: SkillBook = {
+      fire_brand: {
+        id: 'fire_brand',
+        name: 'Fire Brand',
+        archetypes: ['offense'],
+        property: 'physical',
+        element: 'fire',
+        size: 1,
+        speedWeight: 10,
+        tier: 'common',
+        effects: [{ kind: 'damage', power: 200 }],
+        text: '',
+      },
+    };
+    // vs fire-weak affinity (frost beats fire -> a fire attack has advantage vs frost? no:
+    // ELEMENT_BEATS.fire = 'nature', so fire beats a nature-affinity defender): advantage.
+    const advCfg = cfg(
+      tc('hero', ['fire_brand'], { attack: 10, speed: 20 }, { skillBook: book }),
+      { ...tc('sprite', [], { speed: 10, maxHp: 200 }), elementAffinity: 'nature' },
+      { ...NO_ENDGAME, maxTurns: 1, skillBook: book },
+    );
+    const { events } = simulate(advCfg, 1);
+    // 200% of attack 10 = 20, no armor -> 20, x1.5 = 30.
+    expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 30, matchup: 'advantage' });
+
+    // vs frost affinity (frost beats fire): disadvantage, even though the card is physical.
+    const disCfg = cfg(
+      tc('hero', ['fire_brand'], { attack: 10, speed: 20 }, { skillBook: book }),
+      { ...tc('yeti', [], { speed: 10, maxHp: 200 }), elementAffinity: 'frost' },
+      { ...NO_ENDGAME, maxTurns: 1, skillBook: book },
+    );
+    const { events: disEvents } = simulate(disCfg, 1);
+    // 200% of attack 10 = 20, x0.75 = 15.
+    expect(disEvents.find((e) => e.kind === 'damage')).toMatchObject({ amount: 15, matchup: 'disadvantage' });
   });
 });

@@ -116,10 +116,10 @@ export function dealDamage(
   }
 }
 
-/** Element wheel (magical) / weapon triangle (physical) result for a card vs a defender. */
+/** Element wheel / weapon triangle result for a card vs a defender, dispatched by the card's TAG (not its property). */
 export function cardMatchup(skill: SkillDef, defender: CombatantState): Matchup {
-  if (skill.property === 'magical') return elementMatchup(skill.element, defender.elementAffinity);
-  if (skill.property === 'physical') return weaponMatchup(skill.weapon, defender.weaponAffinity);
+  if (skill.element !== undefined) return elementMatchup(skill.element, defender.elementAffinity);
+  if (skill.weapon !== undefined) return weaponMatchup(skill.weapon, defender.weaponAffinity);
   return 'neutral';
 }
 

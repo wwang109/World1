@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { simulate } from '../../src/engine/combat/simulate';
-import { cfg, tc, NO_ENDGAME } from '../helpers';
+import type { SkillBook } from '../../src/engine/types';
+import { cfg, tc, MINI_BOOK, NO_ENDGAME } from '../helpers';
 
 type Events = ReturnType<typeof simulate>['events'];
 
@@ -86,19 +87,40 @@ describe('speed-conditional effects (onlyIf faster/slower)', () => {
     expect(damageTo(simulate(equal, 1).events, 'enemy')).toHaveLength(1);
   });
 
-  it('Underdog Crush pays off only while slower than the target', () => {
+  it("onlyIf:'slower' pays off only while slower than the target (Underdog Crush's dead card, verb re-tested on a synthetic)", () => {
+    // underdog_crush (the only card carrying onlyIf:'slower') was culled
+    // from the pool; the engine verb still needs coverage, so a
+    // test-local card recreates its shape: 80% always + 150% follow-through
+    // only while slower than the target.
+    const slowerBook: SkillBook = {
+      ...MINI_BOOK,
+      underdog_strike: {
+        id: 'underdog_strike',
+        name: 'Underdog Strike (test)',
+        archetypes: ['offense'],
+        property: 'physical',
+        size: 1,
+        speedWeight: 10,
+        tier: 'common',
+        effects: [
+          { kind: 'damage', power: 80 },
+          { kind: 'damage', power: 150, onlyIf: 'slower' },
+        ],
+        text: '',
+      },
+    };
     const slow = cfg(
-      tc('underdog', ['underdog_crush'], { attack: 10, speed: 10, maxHp: 5000 }),
-      tc('hare', ['sword_slash'], { attack: 1, speed: 20, maxHp: 500 }),
-      { ...NO_ENDGAME, maxTurns: 3 },
+      tc('underdog', ['underdog_strike'], { attack: 10, speed: 10, maxHp: 5000 }, { skillBook: slowerBook }),
+      tc('hare', ['slash'], { attack: 1, speed: 20, maxHp: 500 }, { skillBook: slowerBook }),
+      { ...NO_ENDGAME, skillBook: slowerBook, maxTurns: 3 },
     );
     const slowHits = damageTo(simulate(slow, 1).events, 'enemy').filter((e) => e.turn <= 3);
     expect(slowHits.length).toBeGreaterThanOrEqual(2);
 
     const fast = cfg(
-      tc('favorite', ['underdog_crush'], { attack: 10, speed: 20, maxHp: 500 }),
-      tc('slug', ['sword_slash'], { attack: 1, speed: 10, maxHp: 500 }),
-      { ...NO_ENDGAME, maxTurns: 1 },
+      tc('favorite', ['underdog_strike'], { attack: 10, speed: 20, maxHp: 500 }, { skillBook: slowerBook }),
+      tc('slug', ['slash'], { attack: 1, speed: 10, maxHp: 500 }, { skillBook: slowerBook }),
+      { ...NO_ENDGAME, skillBook: slowerBook, maxTurns: 1 },
     );
     expect(damageTo(simulate(fast, 1).events, 'enemy')).toHaveLength(1);
   });

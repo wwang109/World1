@@ -225,9 +225,9 @@ export interface SkillDef {
   speedWeight?: number;
   /** Power-level tier; the card's kit must sum to the tier's PL budget. */
   tier: SkillTier;
-  /** Required on every Magical card (advantage wheel + synergy filters). */
+  /** Matchup tag: element wheel. Independent of `property` — a card is element-tagged OR weapon-tagged OR neither, never both. */
   element?: Element;
-  /** Required on Physical cards that deal damage (weapon triangle). */
+  /** Matchup tag: weapon triangle. Weapon-tagged cards are always `property: 'physical'`. */
   weapon?: WeaponType;
   /** Hostile-action targeting; default 'aggro'. Enchants override per piece. */
   targeting?: TargetMode;

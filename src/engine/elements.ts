@@ -1,7 +1,7 @@
 import type { Element, WeaponType } from './types';
 
 /**
- * Elemental wheel (Magical cards):
+ * Elemental wheel (element-tagged cards, any property):
  *   Fire → Nature → Lightning → Frost → Fire
  * plus Holy ↔ Dark, mutually strong against each other.
  */
@@ -15,7 +15,7 @@ export const ELEMENT_BEATS: Record<Element, Element> = {
 };
 
 /**
- * Weapon triangle (Physical damage cards):
+ * Weapon triangle (weapon-tagged cards; weapon tags are always physical):
  *   Sword → Axe → Lance → Sword
  * Beast (fangs/claws/monster attacks) and Bow sit outside the triangle,
  * but Bow beats Beast — the hunter's niche.
@@ -29,7 +29,7 @@ export const WEAPON_BEATS: Partial<Record<WeaponType, WeaponType>> = {
 
 export type Matchup = 'advantage' | 'disadvantage' | 'neutral';
 
-/** Attacker's card element vs the defender's elemental affinity. */
+/** Attacker's card element (tag) vs the defender's elemental affinity. */
 export function elementMatchup(attack: Element | undefined, affinity: Element | undefined): Matchup {
   if (!attack || !affinity) return 'neutral';
   if (ELEMENT_BEATS[attack] === affinity) return 'advantage';
@@ -37,7 +37,7 @@ export function elementMatchup(attack: Element | undefined, affinity: Element | 
   return 'neutral';
 }
 
-/** Attacker's weapon type vs the defender's weapon affinity. Bows are always neutral. */
+/** Attacker's weapon type (tag) vs the defender's weapon affinity. Bows are always neutral. */
 export function weaponMatchup(attack: WeaponType | undefined, affinity: WeaponType | undefined): Matchup {
   if (!attack || !affinity) return 'neutral';
   if (WEAPON_BEATS[attack] === affinity) return 'advantage';

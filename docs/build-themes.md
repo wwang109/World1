@@ -54,14 +54,14 @@ before the clocks pay.
 **Identity:** make hitting you the enemy's mistake; sudden death favors you
 (+10%/turn vs their +30% never matters if they're dead to payback).
 
-**Board:** `[Bramble Coat][Iron Bulwark·][Mana Ward][Prism Barrier··][Second Wind][Purify] ·`
+**Board:** `[Spiked Bulwark][Iron Bulwark·][Mana Ward][Prism Barrier··][Second Wind][Purify] ·`
 
-- Typed shields absorb; thorns pays back a flat 10 TRUE damage per skill
+- Typed shields absorb; thorns pays back a flat 14 TRUE damage per skill
   hit landed, ignoring their armor.
 - Purify strips stuns/poisons but KEEPS your thorns and regen (positive
   statuses survive cleanse).
 
-**Tier priority:** Bramble Coat (thorns knob), Prism Barrier. **Enchant:**
+**Tier priority:** Spiked Bulwark (thorns knob), Prism Barrier. **Enchant:**
 none needed. **Weak to:** Shield Splitter-style shieldBreak, poison (bypasses
 the pools), and Concussive Shot draining the bank you build while turtling.
 
@@ -113,21 +113,26 @@ gated on the speed check — it resolves only if your effective Speed is
 strictly higher ('faster') or lower ('slower') than the target's at cast
 time, and it reads EFFECTIVE speed, so Slowing Hex flips the check on.
 Priced at a 20% discount (build-selected conditions stay conservative).
-Shipped pair: Swift Strike (120% + 100% more while faster — the fast
-build's payoff) and Underdog Crush (80% + 150% more while slower — the
-heavy build's answer to fast elites).
+Shipped: Swift Strike (120% + 100% more while faster — the fast build's
+payoff). The 'slower' side is currently an OPEN design slot — no card in
+the pool claims it yet, but the verb itself is live and tested (a
+synthetic onlyIf:'slower' card in the engine test suite). The heavy
+build's answer to fast elites is a catalog gap, not an engine gap.
 
 ## ⚰ 5. Executioner Burst — kill-window snowball
 
 **Identity:** get the enemy under 50%, then everything hits like a truck.
 
-**Board:** `[War Banner][Crushing Blow··][Executioner's Chop][Soul Rend··][Stunning Smash··] ·`
+**Board:** `[War Banner][Crushing Blow··][Executioner's Chop][Soul Rend··][Glacial Prison] · ·`
 
 - Crushing Blow opens (400%), Chop follows: past half HP it's 120%+60%.
-- Soul Rend's TRUE damage ignores the armor that walls the others; Stunning
-  Smash eats the enemy's comeback performance.
-- All-heavy board = you bank huge Speed during spans — the smash arrives
-  loaded.
+- Soul Rend's TRUE damage ignores the armor that walls the others; Glacial
+  Prison's stun is the point here — it eats the enemy's comeback turn
+  outright. The 80% Magic Power hit and the 20% weakenNext are gravy on an
+  Attack-stat board; the stun is what you're paying for.
+- All-heavy board = you bank huge Speed during spans, and Glacial Prison
+  frees a slot Stunning Smash used to eat (Smash was size 2, Prison is
+  size 1) — the smash arrives loaded with a spare slot to spend.
 
 **Tier priority:** Executioner's Chop (its execute window pays double per
 tier), Soul Rend. **Enchant:** Executioner's Mark in parties — always swing
@@ -170,13 +175,13 @@ ignore the wall, delete the threat.
 **Identity:** a magic-power sustain core (shields, heals, regen, thorns all
 scale MP or care only about surviving) wrapped around a poison clock. The
 skip-aware rotation is the engine of the build: heals are SKIPPED at full
-HP, so the rotation auto-plays — coat and fangs while healthy, healing
-exactly when hurt — and Bramble Coat's re-casts keep thorns at near-100%
-uptime.
+HP, so the rotation auto-plays — bulwark and fangs while healthy, healing
+exactly when hurt — and Spiked Bulwark's re-casts keep thorns at near-100%
+uptime (thorns 14×2 recast every 3rd turn under the rest rule).
 
-**Board:** `[Bramble Coat][Time Crystal][Soothing Spores][Mending Light··][Venom Fang][Purify][Leeching Fang] · ·`
+**Board:** `[Spiked Bulwark][Time Crystal][Soothing Spores][Mending Light··][Venom Fang][Purify][Leeching Fang] · ·`
 
-- Time Crystal touches Coat AND Spores (both magical → −5 weight each).
+- Time Crystal touches Bulwark AND Spores (both magical → −5 weight each).
 - Venom Fang is the clock: poison bypasses shields and ticks every global
   turn — the longer the fight (and this build makes fights long), the more
   total damage each application buys. Re-casts stack fresh instances.
@@ -190,22 +195,23 @@ matchup; run these yourself with `npm run battle -- --hero ... --enemy all`):
 |---|---|---|---|---|---|
 | Pure sustain, no offense | L | W | L | L | L |
 | + venom/leech clock (Common) | W | W | W | L | L |
-| Rare core (coat/spores/mending/fangs) | W (42 hp) | W (150 hp) | W (98 hp) | **L** | W (0 hp — tie, player wins) |
+| Current (spiked_bulwark,time_crystal,soothing_spores,mending_light,venom_fang,purify,leeching_fang) | W (75 hp) | W (107 hp) | W (87 hp) | **L** (foe 65/140) | **L** (foe 170/280) |
 
 The first row is the design lesson: **sudden death exists to kill turtles**
 — with zero offense the enemy's +30%/turn ramp always outgrows heal
 throughput, and thorns alone (a flat per-hit reflect) can't race it. A heal-tank
 NEEDS a clock; poison is the right one because it loves exactly the long
-fights this build creates. The Wolf King win is a literal simultaneous
-wipe decided by the player-wins-ties rule — zero margin — while the
-size-grant rebalance (big cards +5 PL/extra slot) buffed the elite
-Bandit's Crippling Strike into a wall this build can't yet out-sustain:
-its next tier-up or a weapon-matchup swap is the answer.
+fights this build creates. Both elite and boss now come back as clean
+losses, not ties: the Bandit's Crippling Strike and the Wolf King's
+Rending Claws each land one hit bigger than this kit can out-heal (foe
+left standing at 65/140 and 170/280 respectively) — this build's next
+tier-up or a weapon-matchup swap is the answer, not a tuning nudge.
 
 **Tier priority:** Venom Fang first (the clock decides elite/boss fights),
-then Bramble Coat. Note the generated Coat tiers grow the SHIELD knob —
-a hand-authored "identity branch" that grows the thorns amount instead is the
-kind of upgrade the card-tier plan reserves for authored paths.
+then Spiked Bulwark. Note the generated Bulwark tiers grow the SHIELD
+knob — a hand-authored "identity branch" that grows the thorns amount
+instead is the kind of upgrade the card-tier plan reserves for authored
+paths.
 
 **Enchant:** Assassin's Mark on Venom Fang in party fights — the tank holds
 the front while the poison finds the healer. **Party role:** this is the
@@ -460,9 +466,25 @@ Cards page enforces it today.
 - **Span banking:** a size-3 card leaves you busy 2 turns — you bank Speed
   the whole time, so follow a span with your heaviest hitter, not your
   lightest.
-- **Against affinities:** every enemy preset telegraphs its weakness in
-  Prep (e.g. Wolf King 🐾 → bows; Ember Imp 🔥 → frost). One matchup swap
-  is worth ~1.75× on that card — more than a tier-up.
+- **Against affinities — the matchup follows the TAG, not the property:**
+  an element-tagged card rides the element wheel (Fire→Nature→Lightning→
+  Frost→Fire, plus Holy↔Dark), a weapon-tagged card rides the weapon
+  triangle (Sword→Axe→Lance→Sword, Bow beats Beast), and a card with
+  neither tag is neutral to every affinity. A card carries AT MOST ONE
+  tag, and the tag is independent of the card's physical/magical/true
+  property — Searing Brand is a PHYSICAL fire card that rides the fire
+  wheel, Second Wind is TRUE holy, Soul Rend is TRUE dark. Every enemy
+  preset telegraphs its weakness in Prep (e.g. Wolf King 🐾 → bows; Ember
+  Imp 🔥 → frost). One matchup swap is a 2× swing on that card (75%
+  disadvantage to 150% advantage) — more than a tier-up.
+- **Pool shape:** each of the 4 weapons (sword/axe/lance/bow) and each of
+  the 6 elements (fire/frost/lightning/nature/holy/dark) keeps exactly 5
+  specialty cards — 20 + 30 = 50. Two groups sit outside that norm on
+  purpose: BEAST (7 — the monster grab-bag, mirrors the beast enemies,
+  random varieties by design, no matchup wheel of its own beyond losing
+  to Bow) and UNIQUES (6, one-of-a-kind, fixed rank, outside the ladder
+  entirely). The neutral pool rounds it out: 10 physical + 8 tagless
+  utility. 50 + 7 + 6 + 10 + 8 = 81 cards total (culled from 111).
 
 ## Future theme hooks (planned, not built)
 
@@ -489,7 +511,7 @@ wins:
 |---|---|---|
 | **Runewall Sentinel** | shields cycling behind armor 6 + resolve 25 | poison (bypasses shields), Shield Splitter, true damage — or patient tempo+sustain |
 | **Feral Alpha** | Battle Howl into hard, varied beast attacks at speed 14 | Dispelling Arrow (purge the howl) + bows (beast matchup) + Concussive Shot + Hamstring — purge, matchup and BOTH tempo verbs together |
-| **Grave Chanter** | 45-point heals behind hexes and slows | Stunning Smash to EAT the heal cast + Crushing Blow to punish the window — burst or stun alone is not enough |
+| **Grave Chanter** | 45-point heals behind hexes and slows | Glacial Prison to EAT the heal cast + holy burst riding the dark affinity for +50% under the tag rule — sim-verified: `smite,radiant_burst,glacial_prison,second_wind` wins, hero 50/150 |
 | **Spellward Wraith** | Magic Resist 9, armor 0 — gates MAGE boards (a hex deck bounces off) | physical decks, true damage |
 | **Twinblade Marauder** | mixed physical AND magical damage — gates single-typed WALLS (a double-Bulwark turtle dies) | true shields, layered defense, or the lance matchup vs his sword affinity |
 
