@@ -51,9 +51,10 @@ describe('ability catalog wave 2', () => {
     expect(ready[1]!.player.weight).toBe(1);
   });
 
-  it('thorns reflects a cut of skill hits as TRUE damage to the attacker', () => {
-    // Turn 1 foe slashes (no thorns yet), turn 2 hero coats, turn 3 the foe's
-    // 20-damage slash pays 25% -> 5 TRUE back (staleness never touches base).
+  it('thorns reflects a flat amount as TRUE damage to the attacker, per hit landed', () => {
+    // Turn 1 foe slashes (no thorns yet), turn 2 hero coats (Bramble Coat:
+    // flat 10 TRUE per hit taken), turn 3 the foe's slash lands and pays
+    // back a flat 10 regardless of the 20-damage hit size.
     const c = cfg(
       tc('hero', ['bramble_coat'], { magicPower: 10, speed: 12, maxHp: 500 }),
       tc('foe', ['sword_slash', 'sword_slash', 'sword_slash'], { attack: 10, speed: 14, maxHp: 500 }),
@@ -61,7 +62,7 @@ describe('ability catalog wave 2', () => {
     );
     const { events } = simulate(c, 1);
     const reflected = damageEvents(events).find((e) => e.source === 'thorns');
-    expect(reflected).toMatchObject({ side: 'enemy', amount: 5, property: 'true' });
+    expect(reflected).toMatchObject({ side: 'enemy', amount: 10, property: 'true' });
   });
 
   it('staleness never reduces BASE damage — a plain card spams at full power', () => {

@@ -196,16 +196,14 @@ function strike(ctx: Ctx, caster: CombatantState, skill: SkillDef, power: number
       if (next) dealDamage(ctx, next, overkill, property, { crit });
     }
   }
-  // Thorns: the defender pays back a cut of the incoming hit (pre-shield) as
-  // TRUE damage. Iterate by index — statuses is an array, order is fixed.
-  let thornsPct = 0;
+  // Thorns: the defender pays back a flat amount per landed hit as TRUE
+  // damage, summed across every active thorns instance. Iterate by index —
+  // statuses is an array, order is fixed.
+  let reflect = 0;
   for (const s of enemy.statuses) {
-    if (s.kind === 'thorns') thornsPct += s.pct ?? 0;
+    if (s.kind === 'thorns') reflect += s.amount ?? 0;
   }
-  if (thornsPct > 0) {
-    const reflect = Math.floor((amount * thornsPct) / 100);
-    if (reflect > 0) dealDamage(ctx, caster, reflect, 'true', { source: 'thorns' });
-  }
+  if (reflect > 0) dealDamage(ctx, caster, reflect, 'true', { source: 'thorns' });
 }
 
 /** Action kinds aimed at the foe — the ones a Dodge evades wholesale. */
@@ -509,7 +507,7 @@ function applyAction(
       ctx.events.push({ turn: ctx.state.turn, kind: 'quickenedNext', side: caster.side, unit: caster.unit, weight: action.weight });
       break;
     case 'thorns':
-      addStatus(ctx, caster, { kind: 'thorns', pct: action.pct, turnsLeft: action.turns, fresh: true });
+      addStatus(ctx, caster, { kind: 'thorns', amount: action.amount, turnsLeft: action.turns, fresh: true });
       break;
     case 'regen':
       addStatus(ctx, caster, { kind: 'regen', amount: action.amount, turnsLeft: action.turns, fresh: true });

@@ -56,8 +56,8 @@ before the clocks pay.
 
 **Board:** `[Bramble Coat][Iron Bulwark·][Mana Ward][Prism Barrier··][Second Wind][Purify] ·`
 
-- Typed shields absorb; thorns pays 25% of every skill hit back as TRUE
-  damage that ignores their armor.
+- Typed shields absorb; thorns pays back a flat 10 TRUE damage per skill
+  hit landed, ignoring their armor.
 - Purify strips stuns/poisons but KEEPS your thorns and regen (positive
   statuses survive cleanse).
 
@@ -194,7 +194,7 @@ matchup; run these yourself with `npm run battle -- --hero ... --enemy all`):
 
 The first row is the design lesson: **sudden death exists to kill turtles**
 — with zero offense the enemy's +30%/turn ramp always outgrows heal
-throughput, and thorns alone (25% of incoming) can't race it. A heal-tank
+throughput, and thorns alone (a flat per-hit reflect) can't race it. A heal-tank
 NEEDS a clock; poison is the right one because it loves exactly the long
 fights this build creates. The Wolf King win is a literal simultaneous
 wipe decided by the player-wins-ties rule — zero margin — while the
@@ -204,7 +204,7 @@ its next tier-up or a weapon-matchup swap is the answer.
 
 **Tier priority:** Venom Fang first (the clock decides elite/boss fights),
 then Bramble Coat. Note the generated Coat tiers grow the SHIELD knob —
-a hand-authored "identity branch" that grows the thorns % instead is the
+a hand-authored "identity branch" that grows the thorns amount instead is the
 kind of upgrade the card-tier plan reserves for authored paths.
 
 **Enchant:** Assassin's Mark on Venom Fang in party fights — the tank holds
@@ -226,20 +226,20 @@ Sim: triple-Bramble-Coat spam board vs never-expiring thorns (same card,
 
 | Rules | Peak stacks | Rat | Beetle | Imp | Bandit | Wolf King |
 |---|---|---|---|---|---|---|
-| Current (3-turn instances) | 2–3 (50–75%) | L | W | W | L | L |
-| Never-expiring (purge = only counter) | 4–13 (100–325%) | W | W | W | W | W |
+| Current (3-turn instances) | 2–3 (20–30 flat) | L | W | W | L | L |
+| Never-expiring (purge = only counter) | 4–13 (40–130 flat) | W | W | W | W | W |
 
-Permanent stacking is spectacular — past ~4 stacks (100%) the enemy kills
+Permanent stacking is spectacular — past ~4 stacks (40 flat) the enemy kills
 itself, and sudden death's +30%/turn enemy ramp flips into the TURTLE'S
-win condition (bigger hits = bigger reflects). That inversion is elegant,
-but as a spammable Common mechanic it's degenerate: a clean sweep of every
-preset including elite and boss with zero offense, zero tier investment,
-and no enemy in the roster carries purge to answer it.
+win condition (more hits landed = more flat reflects piling up). That
+inversion is elegant, but as a spammable Common mechanic it's degenerate:
+a clean sweep of every preset including elite and boss with zero offense,
+zero tier investment, and no enemy in the roster carries purge to answer it.
 
 Recommendation: keep baseline thorns timed, and ship permanence as SCARCE:
 - a Legendary/legendary authored card ("Living Armor" — thorns you apply
-  never expire), priced far above the pct×turns table entry, and/or
-- a total-reflect cap (~100%) if stacking cards multiply, and
+  never expire), priced far above the amount×turns table entry, and/or
+- a total-reflect cap (~40 flat) if stacking cards multiply, and
 - purge in elite/boss enemy kits BEFORE any permanent thorns ships — the
   counterplay must exist in the world first.
 
@@ -321,7 +321,7 @@ it. All of them are pure recombinations of existing engine pieces.
 | **Blood Altar** | pay 15 HP → next card +130% | the NOVA build: altar into Meteor Shard / Crushing Blow; lifesteal refunds the price |
 | **Executioner's Sigil** (passive) | whole board +10% crit | the CRIT build: multi-hits (Flurry, Pinning Volley) fill meters fastest |
 | **Mender's Heart** (passive) | all heals +12% | the SUSTAIN build: heal-tank with a DoT clock |
-| **Living Armor** | thorns 25% for 4 turns | the THORN build: reflect engine + Spiked Bulwark; purge tears it off |
+| **Living Armor** | thorns 10 flat for 4 turns | the THORN build: reflect engine + Spiked Bulwark; purge tears it off |
 
 Sim notes (base stats, common cards around each anchor): the Nova build
 is the scariest — it deletes slow enemies (Ember Imp turn 3, Runewall

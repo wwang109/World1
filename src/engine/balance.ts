@@ -106,7 +106,7 @@ export function powerLevelDeci(skill: SkillDef): number {
         add += Math.floor((action.weight * 5) / 2); // mirror of slowNext: 1 PL per 4 weight
         break;
       case 'thorns':
-        add += action.pct * action.turns; // 10%-turn = 1 PL, like buffs
+        add += Math.floor((action.amount * action.turns * 5) / 2); // flat TRUE reflect per hit taken — DoT-rate pricing (mirror of poison/burn)
         break;
       case 'multiHit':
         // Total magnitude plus a per-hit premium (per-hit crits chew shields).

@@ -562,11 +562,11 @@
       },
       {
         "kind": "thorns",
-        "pct": 25,
+        "amount": 10,
         "turns": 3
       }
     ],
-    "text": "Gain a Magical shield worth 50% Magic Power; for 3 turns, skill hits taken reflect 25% back as TRUE damage."
+    "text": "Gain a Magical shield worth 50% Magic Power; for 3 turns, attackers take 10 TRUE damage per hit they land on you."
   },
   {
     "id": "flurry_of_knives",
@@ -2014,11 +2014,11 @@
       },
       {
         "kind": "thorns",
-        "pct": 35,
+        "amount": 14,
         "turns": 2
       }
     ],
-    "text": "Gain a Magical shield worth 60% Magic Power; for 2 turns, skill hits taken reflect 35% back as TRUE damage."
+    "text": "Gain a Magical shield worth 60% Magic Power; for 2 turns, attackers take 14 TRUE damage per hit they land on you."
   },
   {
     "id": "last_stand",
@@ -2408,11 +2408,11 @@
     "effects": [
       {
         "kind": "thorns",
-        "pct": 25,
+        "amount": 10,
         "turns": 4
       }
     ],
-    "text": "UNIQUE \u2014 one copy, fixed rank. The armor fights back: for 4 turns, skill hits taken reflect 25% as TRUE damage. The thorn build's beating heart \u2014 purge tears it off."
+    "text": "UNIQUE \u2014 one copy, fixed rank. The armor fights back: for 4 turns, attackers take 10 TRUE damage per hit they land on you. The thorn build's beating heart \u2014 purge tears it off."
   },
   {
     "id": "chronolith",

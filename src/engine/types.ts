@@ -152,8 +152,8 @@ type ActionBase =
   | { kind: 'execute'; pct: number; belowPct: number }
   /** The caster's NEXT action is this much lighter (comes out sooner). */
   | { kind: 'quicken'; weight: number }
-  /** Reflect pct% of skill hits taken back at the attacker as TRUE damage. */
-  | { kind: 'thorns'; pct: number; turns: number }
+  /** Attackers take back a flat `amount` of TRUE damage per skill hit they land, for `turns`. */
+  | { kind: 'thorns'; amount: number; turns: number }
   /** `hits` separate strikes of power% each; crit and mitigation roll per hit. */
   | { kind: 'multiHit'; power: number; hits: number }
   /** Strip the ENEMY's positive statuses (buffs, thorns, regen). */

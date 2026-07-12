@@ -36,7 +36,7 @@ const ACTION_SHAPES: Record<string, string[]> = {
   comboBonus: ['pct'],
   execute: ['pct', 'belowPct'],
   quicken: ['weight'],
-  thorns: ['pct', 'turns'],
+  thorns: ['amount', 'turns'],
   multiHit: ['power', 'hits'],
   purge: [],
   regen: ['amount', 'turns'],

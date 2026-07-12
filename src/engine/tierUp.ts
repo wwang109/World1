@@ -74,7 +74,7 @@ function findKnob(def: SkillDef): Knob | null {
       case 'regen':
         return { label: `${e.kind}/turn`, unit: '', step: 1, get: () => e.amount, bump: () => (e.amount += 1) };
       case 'thorns':
-        return { label: 'thorns', unit: '%', step: 1, get: () => e.pct, bump: () => (e.pct += 1) };
+        return { label: 'thorns/hit', unit: '', step: 1, get: () => e.amount, bump: () => (e.amount += 1) };
       case 'buffStat':
         return { label: `${e.stat} buff`, unit: '%', step: 1, get: () => e.pct, bump: () => (e.pct += 1) };
       case 'debuffStat':
