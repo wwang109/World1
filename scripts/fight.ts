@@ -1,7 +1,7 @@
 // ASCII combat log for eyeballing engine behavior:
 //   npm run fight            (hero vs bandit_duelist)
 //   npm run fight -- ember_imp 42
-import { simulate } from '../src/engine/combat/simulate';
+import { simulate1v1 } from '../src/engine/combat/simulate';
 import { hashSeed } from '../src/engine/rng';
 import { skillBook } from '../src/data/skills';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../src/data/heroes';
@@ -18,30 +18,28 @@ if (!enemy) {
 
 // A plausible drafted starter board.
 const heroName = 'Hero';
-const { result, turns, events, finalState } = simulate(
+const { result, turns, events, finalState } = simulate1v1(
   {
-    player: {
-      name: heroName,
-      stats: { ...BASE_HERO_STATS },
-      boardSize: HERO_BOARD_SLOTS,
-      pieces: [
-        { skillId: 'war_banner', slot: 0 },
-        { skillId: 'sword_slash', slot: 1 },
-        { skillId: 'crushing_blow', slot: 2 },
-        { skillId: 'iron_bulwark', slot: 5 },
-        { skillId: 'second_wind', slot: 7 },
-      ],
-    },
-    enemy: {
-      name: enemy.name,
-      stats: { ...enemy.stats },
-      boardSize: enemy.boardSize,
-      pieces: [...enemy.pieces],
-      elementAffinity: enemy.elementAffinity,
-      weaponAffinity: enemy.weaponAffinity,
-    },
-    skillBook,
+    name: heroName,
+    stats: { ...BASE_HERO_STATS },
+    boardSize: HERO_BOARD_SLOTS,
+    pieces: [
+      { skillId: 'war_banner', slot: 0 },
+      { skillId: 'sword_slash', slot: 1 },
+      { skillId: 'crushing_blow', slot: 2 },
+      { skillId: 'iron_bulwark', slot: 5 },
+      { skillId: 'second_wind', slot: 7 },
+    ],
   },
+  {
+    name: enemy.name,
+    stats: { ...enemy.stats },
+    boardSize: enemy.boardSize,
+    pieces: [...enemy.pieces],
+    elementAffinity: enemy.elementAffinity,
+    weaponAffinity: enemy.weaponAffinity,
+  },
+  { skillBook },
   seed,
 );
 

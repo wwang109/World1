@@ -1,4 +1,4 @@
-import type { Archetype, BuffableStat, CombatConfig, CombatantStats, Element, Property, Side, SkillBook, SkillDef, WeaponType } from '../types';
+import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantStats, Element, Property, Side, SkillBook, SkillDef, WeaponType } from '../types';
 import type { AuraMods } from './auras';
 import { applyHeroGems, gemCardMods, gemHeroStats, resolveEffectiveSkill } from '../cards';
 
@@ -86,8 +86,7 @@ export interface CombatState {
   enemy: CombatantState;
 }
 
-function initCombatant(side: Side, index: number, cfg: CombatConfig, skillBook: SkillBook): CombatantState {
-  const setup = side === 'player' ? cfg.player : cfg.enemy;
+function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBook: SkillBook): CombatantState {
   const occupied = new Array<boolean>(setup.boardSize).fill(false);
   const pieces: PieceState[] = [];
   for (const piece of setup.pieces) {
@@ -126,17 +125,46 @@ function initCombatant(side: Side, index: number, cfg: CombatConfig, skillBook: 
   };
 }
 
+/**
+ * Resolve the two side rosters from a config. Teams XOR legacy: exactly one of
+ * (`playerTeam`/`enemyTeam`) or (`player`/`enemy`) must be supplied. Legacy
+ * single setups wrap to 1-element teams. Throws with a clear message otherwise.
+ */
+export function rostersFromConfig(cfg: CombatConfig): { playerSetups: CombatantSetup[]; enemySetups: CombatantSetup[] } {
+  const hasTeams = cfg.playerTeam !== undefined || cfg.enemyTeam !== undefined;
+  const hasLegacy = cfg.player !== undefined || cfg.enemy !== undefined;
+  if (hasTeams && hasLegacy) {
+    throw new Error('CombatConfig: provide teams (playerTeam/enemyTeam) XOR legacy (player/enemy), not both.');
+  }
+  if (!hasTeams && !hasLegacy) {
+    throw new Error('CombatConfig: no combatants — supply playerTeam/enemyTeam (or legacy player/enemy).');
+  }
+  if (hasTeams) {
+    const playerSetups = cfg.playerTeam ?? [];
+    const enemySetups = cfg.enemyTeam ?? [];
+    if (playerSetups.length === 0) throw new Error('CombatConfig: playerTeam must have at least one unit.');
+    if (enemySetups.length === 0) throw new Error('CombatConfig: enemyTeam must have at least one unit.');
+    return { playerSetups, enemySetups };
+  }
+  if (!cfg.player || !cfg.enemy) {
+    throw new Error('CombatConfig: legacy config requires both player and enemy setups.');
+  }
+  return { playerSetups: [cfg.player], enemySetups: [cfg.enemy] };
+}
+
 export function initCombatState(cfg: CombatConfig): CombatState {
-  // WAVE 1: single setup per side, wrapped in a 1-element team array. `player`
-  // / `enemy` alias the same objects (index 0) for the frozen external API.
-  const player = initCombatant('player', 0, cfg, cfg.skillBook);
-  const enemy = initCombatant('enemy', 0, cfg, cfg.skillBook);
+  // Teams are the source of truth; legacy single setups wrap to 1-element
+  // teams. Each unit gets a 0-based per-side index. `player` / `enemy` alias
+  // index 0 on each side for the frozen external 1v1 API.
+  const { playerSetups, enemySetups } = rostersFromConfig(cfg);
+  const playerTeam = playerSetups.map((setup, i) => initCombatant('player', i, setup, cfg.skillBook));
+  const enemyTeam = enemySetups.map((setup, i) => initCombatant('enemy', i, setup, cfg.skillBook));
   return {
     turn: 0,
-    playerTeam: [player],
-    enemyTeam: [enemy],
-    player,
-    enemy,
+    playerTeam,
+    enemyTeam,
+    player: playerTeam[0]!,
+    enemy: enemyTeam[0]!,
   };
 }
 

@@ -53,11 +53,13 @@ export function tc(
 export function cfg(
   player: CombatantSetup,
   enemy: CombatantSetup,
-  extra: Partial<Omit<CombatConfig, 'player' | 'enemy'>> = {},
+  extra: Partial<Omit<CombatConfig, 'player' | 'enemy' | 'playerTeam' | 'enemyTeam'>> = {},
 ): CombatConfig {
+  // Route through the team-shaped config (Wave 2). Behavior is byte-identical
+  // to the old legacy `{ player, enemy }` for the same 1v1 input.
   return {
-    player,
-    enemy,
+    playerTeam: [player],
+    enemyTeam: [enemy],
     skillBook: extra.skillBook ?? dataSkillBook,
     suddenDeathRound: extra.suddenDeathRound ?? 5,
     fatigueTurn: extra.fatigueTurn ?? 40,

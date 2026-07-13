@@ -1,5 +1,5 @@
 import { Rng } from '../rng';
-import type { CombatConfig, CombatOutcome, Side } from '../types';
+import type { CombatConfig, CombatantSetup, CombatOutcome, Side } from '../types';
 import type { CombatEvent, ComparisonSide } from './events';
 import { effStat, initCombatState, type CombatState, type CombatantState } from './state';
 import { selectCast, type CastChoice } from './castSelect';
@@ -232,4 +232,23 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
   }
 
   return finish('draw');
+}
+
+/** Config knobs for a 1v1 fight (everything on CombatConfig except the rosters). */
+export type Sim1v1Opts = Omit<CombatConfig, 'player' | 'enemy' | 'playerTeam' | 'enemyTeam' | 'skillBook'> & {
+  skillBook: CombatConfig['skillBook'];
+};
+
+/**
+ * PERMANENT first-class 1v1 entry point. Wraps a single player/enemy setup into
+ * 1-element teams and runs the shared team-shaped simulate(). Byte-identical to
+ * a `{ playerTeam: [player], enemyTeam: [enemy] }` config for the same seed.
+ */
+export function simulate1v1(
+  player: CombatantSetup,
+  enemy: CombatantSetup,
+  opts: Sim1v1Opts,
+  seed: number,
+): CombatResult {
+  return simulate({ ...opts, playerTeam: [player], enemyTeam: [enemy] }, seed);
 }

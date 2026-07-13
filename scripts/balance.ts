@@ -6,7 +6,7 @@
 //   npm run sim -- demo [n]            (PL-vs-PL demonstration: synergy/counter-pick beats
 //                                        a higher-board-PL "fair" opponent; naive equal-PL
 //                                        board does worse against the same opponent)
-import { simulate } from '../src/engine/combat/simulate';
+import { simulate1v1 } from '../src/engine/combat/simulate';
 import { hashSeed } from '../src/engine/rng';
 import { powerLevel } from '../src/engine/balance';
 import { skillBook } from '../src/data/skills';
@@ -169,8 +169,10 @@ export function runMatchup(
   const stats = emptyMatchupStats();
 
   for (const seed of seeds) {
-    const { result, turns, events, finalState } = simulate(
-      { player: playerSetup, enemy: enemySetup, skillBook },
+    const { result, turns, events, finalState } = simulate1v1(
+      playerSetup,
+      enemySetup,
+      { skillBook },
       seed,
     );
 

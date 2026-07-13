@@ -210,8 +210,21 @@ export interface CombatantSetup {
 }
 
 export interface CombatConfig {
-  player: CombatantSetup;
-  enemy: CombatantSetup;
+  /** Player-side units, canonical (index-ascending) order. 1-element = 1v1. */
+  playerTeam?: CombatantSetup[];
+  /** Enemy-side units, canonical order. */
+  enemyTeam?: CombatantSetup[];
+  /**
+   * @deprecated Use `playerTeam` (or the `simulate1v1` adapter). Legacy single
+   * setup is still accepted for the pre-team UI (Wave-4 migration) and wraps to
+   * a 1-element `playerTeam`. Teams XOR legacy: providing both throws.
+   */
+  player?: CombatantSetup;
+  /**
+   * @deprecated Use `enemyTeam` (or `simulate1v1`). Wraps to a 1-element
+   * `enemyTeam`. Teams XOR legacy.
+   */
+  enemy?: CombatantSetup;
   skillBook: SkillBook;
   /**
    * Rounds (both sides have performed N times) before sudden death: damage
