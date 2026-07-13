@@ -3,13 +3,26 @@ import type { Action, Property, SkillDef } from '../types';
 import type { CombatEvent } from './events';
 import type { AuraMods } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
-import { effStat, opponentOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
+import { effStat, foesOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 
 export interface Ctx {
   state: CombatState;
   rng: Rng;
   events: CombatEvent[];
+}
+
+/**
+ * Resolve the targets of a cast. WAVE 1 (1v1): offensive actions hit the single
+ * opposing unit; supportive actions apply to the caster. Byte-identical to the
+ * old `opponentOf(state, caster)`; the split names give team-combat waves a
+ * single place to widen offensive targeting.
+ */
+export function resolveTargets(
+  state: CombatState,
+  caster: CombatantState,
+): { offensive: CombatantState; support: CombatantState } {
+  return { offensive: foesOf(state, caster)[0]!, support: caster };
 }
 
 /** Scaling stat for a property: Attack / Magic Power / higher of the two. */
@@ -86,7 +99,7 @@ export function dealDamage(
     if (neg) {
       neg.charges = (neg.charges ?? 0) - 1;
       if ((neg.charges ?? 0) <= 0) victim.statuses = victim.statuses.filter((s) => s !== neg);
-      ctx.events.push({ turn: ctx.state.turn, kind: 'negated', side: victim.side, property });
+      ctx.events.push({ turn: ctx.state.turn, kind: 'negated', side: victim.side, unit: victim.index, property });
       return;
     }
   }
@@ -111,6 +124,7 @@ export function dealDamage(
     turn: ctx.state.turn,
     kind: 'damage',
     side: victim.side,
+    unit: victim.index,
     amount: reduced,
     property,
     blocked,
@@ -122,7 +136,7 @@ export function dealDamage(
   });
   if (victim.stats.hp === 0) {
     victim.alive = false;
-    ctx.events.push({ turn: ctx.state.turn, kind: 'died', side: victim.side });
+    ctx.events.push({ turn: ctx.state.turn, kind: 'died', side: victim.side, unit: victim.index });
   }
 }
 
@@ -140,6 +154,7 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
     turn: ctx.state.turn,
     kind: 'statusApplied',
     side: target.side,
+    unit: target.index,
     status: status.kind,
     property: status.property,
     turns: status.turnsLeft,
@@ -155,7 +170,7 @@ function applyAction(
   mods: AuraMods,
   cast: CastCtx,
 ): void {
-  const enemy = opponentOf(ctx.state, caster);
+  const { offensive: enemy } = resolveTargets(ctx.state, caster);
   const property = skill.property;
   switch (action.kind) {
     case 'damage': {
@@ -189,7 +204,7 @@ function applyAction(
       caster.stats.hp = Math.min(caster.stats.maxHp, caster.stats.hp + amount);
       const healed = caster.stats.hp - before;
       if (healed > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, amount: healed, flat, hpAfter: caster.stats.hp });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, unit: caster.index, amount: healed, flat, hpAfter: caster.stats.hp });
       }
       break;
     }
@@ -205,6 +220,7 @@ function applyAction(
         turn: ctx.state.turn,
         kind: 'shieldGain',
         side: caster.side,
+        unit: caster.index,
         property,
         amount: gain,
         wasted,
@@ -247,7 +263,7 @@ function applyAction(
       caster.statuses = caster.statuses.filter((s) => s.kind === 'buff');
       const removed = before - caster.statuses.length;
       if (removed > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'cleansed', side: caster.side, removed });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'cleansed', side: caster.side, unit: caster.index, removed });
       }
       break;
     }
@@ -256,13 +272,13 @@ function applyAction(
       // the strongest pending slow applies until the enemy next performs.
       if (!enemy.alive) break;
       enemy.nextWeightPenalty = Math.max(enemy.nextWeightPenalty, action.weight);
-      ctx.events.push({ turn: ctx.state.turn, kind: 'slowedNext', side: enemy.side, weight: action.weight });
+      ctx.events.push({ turn: ctx.state.turn, kind: 'slowedNext', side: enemy.side, unit: enemy.index, weight: action.weight });
       break;
     case 'stagger': {
       if (!enemy.alive) break;
       const drained = Math.min(enemy.bank, action.amount);
       enemy.bank -= drained;
-      ctx.events.push({ turn: ctx.state.turn, kind: 'staggered', side: enemy.side, amount: drained, bankAfter: enemy.bank });
+      ctx.events.push({ turn: ctx.state.turn, kind: 'staggered', side: enemy.side, unit: enemy.index, amount: drained, bankAfter: enemy.bank });
       break;
     }
     case 'lifesteal': {
@@ -273,7 +289,7 @@ function applyAction(
       caster.stats.hp = Math.min(caster.stats.maxHp, caster.stats.hp + amount);
       const healed = caster.stats.hp - before;
       if (healed > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, amount: healed, flat: false, hpAfter: caster.stats.hp });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, unit: caster.index, amount: healed, flat: false, hpAfter: caster.stats.hp });
       }
       break;
     }
@@ -290,7 +306,7 @@ function applyAction(
       }
       const broken = action.amount - remaining;
       if (broken > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'shieldBroken', side: enemy.side, amount: broken, totalAfter: totalShield(enemy) });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'shieldBroken', side: enemy.side, unit: enemy.index, amount: broken, totalAfter: totalShield(enemy) });
       }
       break;
     }
@@ -332,6 +348,7 @@ export function applyCast(
     turn: ctx.state.turn,
     kind: 'skillCast',
     side: caster.side,
+    unit: caster.index,
     slot,
     skillId: skill.id,
     span: skill.size,

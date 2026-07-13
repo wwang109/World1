@@ -38,6 +38,8 @@ export interface PieceState {
 
 export interface CombatantState {
   side: Side;
+  /** 0-based position within its own side (always 0 at 1v1). */
+  index: number;
   name: string;
   stats: CombatantStats;
   shields: ShieldPools;
@@ -67,11 +69,24 @@ export interface CombatantState {
 export interface CombatState {
   /** Global turn counter (one comparison+performance step per turn). */
   turn: number;
+  /**
+   * Team-shaped source of truth. WAVE 1 keeps exactly one unit per side, so
+   * each team is a 1-element array. The engine loop iterates the flattened,
+   * canonically-ordered pool `[...playerTeam, ...enemyTeam]`.
+   */
+  playerTeam: CombatantState[];
+  enemyTeam: CombatantState[];
+  /**
+   * FROZEN external accessors: `player === playerTeam[0]`, `enemy ===
+   * enemyTeam[0]` (same object references). Kept so `finalState.player` /
+   * `finalState.enemy` stay object-shaped for existing consumers (tests, UI,
+   * scripts) — the external API is unchanged this wave.
+   */
   player: CombatantState;
   enemy: CombatantState;
 }
 
-function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): CombatantState {
+function initCombatant(side: Side, index: number, cfg: CombatConfig, skillBook: SkillBook): CombatantState {
   const setup = side === 'player' ? cfg.player : cfg.enemy;
   const occupied = new Array<boolean>(setup.boardSize).fill(false);
   const pieces: PieceState[] = [];
@@ -91,6 +106,7 @@ function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): Com
   pieces.sort((a, b) => a.slot - b.slot);
   return {
     side,
+    index,
     name: setup.name,
     stats: applyHeroGems({ ...setup.stats }, gemHeroStats(setup.pieces)),
     shields: { physical: 0, magical: 0, true: 0 },
@@ -111,15 +127,35 @@ function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): Com
 }
 
 export function initCombatState(cfg: CombatConfig): CombatState {
+  // WAVE 1: single setup per side, wrapped in a 1-element team array. `player`
+  // / `enemy` alias the same objects (index 0) for the frozen external API.
+  const player = initCombatant('player', 0, cfg, cfg.skillBook);
+  const enemy = initCombatant('enemy', 0, cfg, cfg.skillBook);
   return {
     turn: 0,
-    player: initCombatant('player', cfg, cfg.skillBook),
-    enemy: initCombatant('enemy', cfg, cfg.skillBook),
+    playerTeam: [player],
+    enemyTeam: [enemy],
+    player,
+    enemy,
   };
 }
 
+/** All units on `side`, canonical (index-ascending) order. */
+export function teamOf(state: CombatState, side: Side): CombatantState[] {
+  return side === 'player' ? state.playerTeam : state.enemyTeam;
+}
+
+/** The opposing team of `c`, canonical order. */
+export function foesOf(state: CombatState, c: CombatantState): CombatantState[] {
+  return c.side === 'player' ? state.enemyTeam : state.playerTeam;
+}
+
+/**
+ * WAVE 1 targeting: the single opposing unit. Identical to the old 1v1
+ * `opponentOf`; kept as a distinct name so team-combat waves can widen it.
+ */
 export function opponentOf(state: CombatState, c: CombatantState): CombatantState {
-  return c.side === 'player' ? state.enemy : state.player;
+  return foesOf(state, c)[0]!;
 }
 
 /** Effective stat after buff/debuff percentages (and flat amounts). Never below 0. */

@@ -21,11 +21,16 @@ const SD_PLAYER_AMP = 10;
 const SD_ENEMY_AMP = 30;
 const FATIGUE_BASE = 5;
 
-/** null while combat continues. The player wins simultaneous deaths. */
+/** null while combat continues. A side is dead when every unit is not alive. The player wins simultaneous deaths. */
 function checkEnd(state: CombatState): CombatOutcome | null {
-  if (!state.enemy.alive) return 'win';
-  if (!state.player.alive) return 'loss';
+  if (state.enemyTeam.every((u) => !u.alive)) return 'win';
+  if (state.playerTeam.every((u) => !u.alive)) return 'loss';
   return null;
+}
+
+/** Flattened, canonically-ordered performance pool: player-side first, then by index. */
+function pool(state: CombatState): CombatantState[] {
+  return [...state.playerTeam, ...state.enemyTeam];
 }
 
 /**
@@ -50,7 +55,7 @@ function tickDots(ctx: Ctx, c: CombatantState): void {
     if (status.turnsLeft > 0) {
       remaining.push(status);
     } else {
-      ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: c.side, status: status.kind });
+      ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: c.side, unit: c.index, status: status.kind });
     }
   }
   c.statuses = remaining;
@@ -75,7 +80,7 @@ function expireStatuses(ctx: Ctx, c: CombatantState): void {
     if (status.turnsLeft > 0) {
       remaining.push(status);
     } else {
-      ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: c.side, status: status.kind });
+      ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: c.side, unit: c.index, status: status.kind });
     }
   }
   c.statuses = remaining;
@@ -133,42 +138,50 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
   while (state.turn < maxTurns) {
     state.turn += 1;
 
-    // 1. DoT phase (player first for determinism).
-    tickDots(ctx, state.player);
-    tickDots(ctx, state.enemy);
+    // Canonical performance pool for this turn: player-side first, then by index.
+    const units = pool(state);
+
+    // 1. DoT phase (canonical order for determinism).
+    for (const c of units) tickDots(ctx, c);
     outcome = checkEnd(state);
     if (outcome !== null) return finish(outcome);
 
-    // 2. Queue cards and compare initiative.
-    const pChoice = state.player.busyTurns > 0 ? null : selectCast(state.player, cfg.skillBook);
-    const eChoice = state.enemy.busyTurns > 0 ? null : selectCast(state.enemy, cfg.skillBook);
-    const pSide = comparisonSide(state.player, pChoice);
-    const eSide = comparisonSide(state.enemy, eChoice);
+    // 2. Queue cards and compare initiative across the pool. Performer = highest
+    //    ready score; ties break to canonical order (player before enemy, lowest
+    //    index) — reproducing the old "player wins ties" rule at 1v1.
+    const queued = units.map((c) => {
+      const choice = c.busyTurns > 0 ? null : selectCast(c, cfg.skillBook);
+      return { unit: c, choice, comp: comparisonSide(c, choice) };
+    });
 
-    let performer: Side | null = null;
-    if (pSide.state === 'ready' && eSide.state === 'ready') {
-      performer = pSide.score! >= eSide.score! ? 'player' : 'enemy';
-    } else if (pSide.state === 'ready') {
-      performer = 'player';
-    } else if (eSide.state === 'ready') {
-      performer = 'enemy';
+    let performerEntry: (typeof queued)[number] | null = null;
+    for (const q of queued) {
+      if (q.comp.state !== 'ready') continue;
+      if (performerEntry === null || q.comp.score! > performerEntry.comp.score!) {
+        performerEntry = q;
+      }
     }
+    const performer: Side | null = performerEntry ? performerEntry.unit.side : null;
+
+    // The `comparison` event keeps its 1v1 shape (player/enemy singletons).
+    const pSide = queued.find((q) => q.unit === state.player)!.comp;
+    const eSide = queued.find((q) => q.unit === state.enemy)!.comp;
     events.push({ turn: state.turn, kind: 'comparison', player: pSide, enemy: eSide, performer });
 
-    // 3. Perform (or pass) and bank the waiters.
-    for (const c of [state.player, state.enemy]) {
-      if (performer === c.side) continue;
+    // 3. Perform (or pass) and bank the waiters (canonical order).
+    for (const c of units) {
+      if (performerEntry !== null && c === performerEntry.unit) continue;
       c.bank += effStat(c, 'speed');
       if (c.busyTurns > 0) c.busyTurns -= 1;
     }
 
-    if (performer === null) {
+    if (performerEntry === null) {
       events.push({ turn: state.turn, kind: 'noPerformer' });
     } else {
-      const c = performer === 'player' ? state.player : state.enemy;
-      const choice = performer === 'player' ? pChoice! : eChoice!;
+      const c = performerEntry.unit;
+      const choice = performerEntry.choice!;
       c.performs += 1;
-      events.push({ turn: state.turn, kind: 'performStart', side: c.side, performs: c.performs });
+      events.push({ turn: state.turn, kind: 'performStart', side: c.side, unit: c.index, performs: c.performs });
 
       // Sudden death: active once both sides have performed `suddenDeathRound` times.
       if (Math.min(state.player.performs, state.enemy.performs) >= suddenDeathRound) {
@@ -185,9 +198,9 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         stun.turnsLeft -= 1;
         if (stun.turnsLeft <= 0) {
           c.statuses.splice(stunIdx, 1);
-          events.push({ turn: state.turn, kind: 'statusExpired', side: c.side, status: 'stun' });
+          events.push({ turn: state.turn, kind: 'statusExpired', side: c.side, unit: c.index, status: 'stun' });
         }
-        events.push({ turn: state.turn, kind: 'performSkipped', side: c.side, reason: 'stunned' });
+        events.push({ turn: state.turn, kind: 'performSkipped', side: c.side, unit: c.index, reason: 'stunned' });
         c.bank = 0;
       } else {
         c.bank = 0;
@@ -202,22 +215,20 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
       if (outcome !== null) return finish(outcome);
     }
 
-    // 4. Fatigue backstop (both sides, player first — ties go to the player).
+    // 4. Fatigue backstop (whole pool, canonical order — ties go to the player).
     if (state.turn >= fatigueTurn) {
       if (!fatigueAnnounced) {
         fatigueAnnounced = true;
         events.push({ turn: state.turn, kind: 'fatigueStart' });
       }
       const amount = FATIGUE_BASE + (state.turn - fatigueTurn);
-      dealDamage(ctx, state.player, amount, 'true', { bypassShields: true, source: 'fatigue' });
-      dealDamage(ctx, state.enemy, amount, 'true', { bypassShields: true, source: 'fatigue' });
+      for (const c of units) dealDamage(ctx, c, amount, 'true', { bypassShields: true, source: 'fatigue' });
       outcome = checkEnd(state);
       if (outcome !== null) return finish(outcome);
     }
 
-    // 5. Durations decrement at global turn end.
-    expireStatuses(ctx, state.player);
-    expireStatuses(ctx, state.enemy);
+    // 5. Durations decrement at global turn end (canonical order).
+    for (const c of units) expireStatuses(ctx, c);
   }
 
   return finish('draw');
