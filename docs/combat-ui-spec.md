@@ -70,6 +70,25 @@ Round-summary (optional, for the round view): a one-line roll-up per round (e.g.
 "R3: Hero cast Crushing Blow (36 dmg); Bandit banked to 24") with the turns
 expandable underneath.
 
+### 3b. Speed-bank continuity (required)
+
+Each turn box shows, per combatant, its **starting bank → ending bank**, and the
+next box's start MUST equal this box's end (a readable chain), unless a skill
+changed it mid-turn — then the box shows why.
+
+- **Starting bank** = `bank` on THIS turn's `comparison` event (per side).
+- **Ending bank**, derived (no recomputation — these ARE the engine rules):
+  - the **performer** ends at **0** (bank resets on performing; a stunned
+    `performSkipped` also consumes the performance → 0);
+  - every **non-performer** ends at `bank + speed` (it banked its Speed);
+  - if a **`staggered`** event hits a combatant this turn, its bank was drained —
+    the event's **`bankAfter`** is authoritative for the end value.
+- Cross-check: the NEXT `comparison`'s `bank` for that combatant equals your
+  computed end value. If you ever disagree, trust the events and flag it in the
+  handoff ledger.
+- Suggested display per side in the box: `bank 24 → 0 (performed)` ·
+  `bank 12 → 24 (+12 banked)` · `bank 24 → 4 (staggered −20)`.
+
 ---
 
 ## 4. Which event fields to read

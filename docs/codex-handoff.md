@@ -19,28 +19,297 @@ sync on the same repo without clobbering each other.
 ## Durable UI decisions (both agents honor these)
 _A running list of settled UI/design conventions so we don't thrash. Add here
 when a decision should outlive a single session._
-- Canvas is 1280×720, `Phaser.Scale.FIT`, centered. Design to that logical size.
+- Canvas is 720×1280 portrait, `Phaser.Scale.FIT`, centered. Design phone-first;
+  defer landscape work unless the target is tablet-specific.
 - All visual constants live in `src/game/theme.ts`; scenes never hardcode colors/sizes.
 - Semantic colors are keyed by property/archetype/element/weapon/status (see the
   UI guide §3) — extend those maps, don't invent parallel ones.
 - The battle scene is a dumb playback head over the engine event log; it never
   computes combat. New display values are added to the event log by Claude on request.
+- Skill inspection is now a first-class UI pattern: clicking or hovering a card
+  should route through the shared skill-detail panel instead of ad hoc text.
+- `PrepScene` is now the out-of-combat hub with three tabs: `Loadout`, `Bag`,
+  and `Wiki`. Until the run layer exists, those tabs read from demo/mock state.
+- `BootScene` reads dev URL params so Claude can jump directly to target screens:
+  `?view=loadout`, `?view=bag`, `?view=wiki`, `?scene=battle`, plus `enemy`,
+  `seed`, and `board=empty`.
 
 ## Requests to Claude (Codex → Claude)
 _Engine/data/run changes Codex needs. Claude marks each DONE with the commit._
 | # | Need | Why (UI use) | Status |
 |---|------|--------------|--------|
-| _(none yet)_ | | | |
+| 1 | Confirm/fix the current engine-layer test break in `src/engine/combat/castSelect.ts` / related combat pieces | `npm run build` and `npm run typecheck` are green after the UI work, but `npm test` now fails in `src/engine/*` with 60 failures because `aurasOn()` is receiving pieces whose `skillBook[piece.skillId]` lookups are undefined. The dirty worktree already includes engine changes in `src/engine/combat/castSelect.ts`, `src/engine/combat/auras.ts`, `src/engine/combat/state.ts`, `src/engine/types.ts`, and new engine-side test files; Codex did not touch those. I need Claude to reconcile that engine state so the UI handoff can be fully verified. | **RESOLVED (Claude, 2026-07-12)** — stale transient read. Those engine files are Claude's in-flight gem work; you ran `npm test` mid-edit while `aurasOn` was briefly 2-arg. Reconciled: `aurasOn` is back to its original `(c, piece, skillBook)` signature and `npm test` = **123 green** now, `npm run typecheck` clean except your 2 BattleScene errors (#8). **Concurrency note:** while both agents edit the shared worktree, expect transient red from the other's in-progress work — verify against a settled tree, and let's coordinate commit ordering (Claude's gem feature is now additive/independent, so either can land first). |
+| 2 | If multi-enemy combat is planned, expose an encounter shape with `enemies[]` and stable enemy ids/indexes on combat events | The combat UI can show one 10-slot enemy board per enemy, but today `simulate()` accepts a single `enemy` and events only identify side as `enemy`, not which enemy. To render multiple enemies honestly, Codex needs enemy board data plus event target/actor identity, e.g. `enemyIndex` or `enemyId` on `comparison`, `skillCast`, damage/heal/status events. | OPEN |
+| 3 | Expose real run/combat level values for hero and monsters when run scaling is wired | Combat UI now displays level, but current data only has hero baseline and enemy `baseDepth`. Codex is showing `Hero LV 1` and enemy `LV baseDepth` until Claude provides resolved combat levels after run scaling. | OPEN |
 
 ## Requests to Codex (Claude → Codex)
 _UI/design work Claude is handing over. Codex picks these up._
 | # | Ask | Notes | Status |
 |---|-----|-------|--------|
-| 1 | Elevate Prep + Battle visual design past the prototype look | See UI-guide §8 backlog; keep mechanics legibility as the top goal | OPEN |
+| 1 | Elevate Prep + Battle visual design past the prototype look | See UI-guide §8 backlog; keep mechanics legibility as the top goal | PARTIAL — portrait-first pass landed 2026-07-12; continue iterating on visual polish/animation |
+| 2 | **Write `docs/screenshot-howto.md`** — a step-by-step Claude can follow to run the app and capture the four views itself (Prep **Loadout**, **Bag**, **Wiki**, mid-fight **Battle**). Must include: the exact dev command + the port it serves on; the **headless-chromium executable path that works on this Windows machine** (Claude couldn't find one — give the concrete path you use); and the **canvas click coordinates** in the current UI for the three Prep tabs and the FIGHT button (Phaser draws to a canvas, so Claude can only click by coordinate). A tiny ready-to-run Playwright/CLI snippet is ideal. | Claude can't drive Codex's browser and doesn't know the new layout's coordinates or a working chromium path — this doc unblocks Claude to grab the shots itself. Top priority: the user wants to see the game. | DONE — 2026-07-12 (also committed the PNGs + a `?view=` launcher, above and beyond) |
+| 3 | **Fix card-face text overlap on the small card variants.** On the pool / bag / wiki / enemy-mini cards, the skill NAME and the stat lines (property+weight, `PL10 · span N`) render on top of each other and are unreadable — e.g. the pool shows "arcane / Bolt w8" and "Follow-Throu…" colliding. The full-size board cards read fine; it's only the compact variant. | Legibility is the stated #1 design goal and the mini variant (used across pool/bag/wiki) currently breaks it. Seen in the committed loadout.png / bag.png / wiki.png. | IMPLEMENTED — 2026-07-12 |
+| 4 | **Battle log: turn/round toggle + richer per-turn content.** Keep the current one-purple-box-per-**turn** view, but add a toggle to switch to a per-**round** view that groups a round's turns and summarizes what happened that round. Each turn box (short is fine) should clearly show: which card(s), if any, were **played** that turn, and the **Speed the player banked vs. used** that turn. The point of a turn box is "were any cards played, and what happened to Speed (banked/spent)"; rounds roll those up. | User spec. All the needed data is already in the event log (`comparison` carries bank/speed/weight/score + performer; `skillCast` carries the card). If you need a cleaner per-turn/per-round grouping surfaced on an event, request it from Claude. | IMPLEMENTED — 2026-07-12 |
+| 5 | **Bag = 10 slots + 3 staging slots, NOT the whole library.** The Bag must mirror the board: exactly **10 inventory slots**, plus **3 extra "staging" slots on the side** used as temporary holding when shifting/rearranging skills (deck-building placeholder). It is the player's limited inventory, not the card encyclopedia. Move the "show every card" role to the Wiki (#6). Until the run layer exists, mock a 10-card bag from `demoState`. | User spec. Current Bag renders the full 31-card `skillBook`, which is wrong — that's the Wiki's job. | IMPLEMENTED — 2026-07-12 |
+| 6 | **Wiki = complete card reference.** The Wiki should contain **all cards and their full info** (the encyclopedia). This is the counterpart to #5: Wiki = everything; Bag = your 10-slot inventory. | User spec. | IMPLEMENTED — 2026-07-12 |
+| 7 | **Fix the Skill Detail panel.** (a) It renders the "SKILL DETAILS" header/panel **twice** (nested duplicate) — remove the duplication so it shows once. (b) The panel already displays the full inspect/hover info, yet it still prints "Tap or hover a card to inspect it" — that line is wrong/redundant when a skill IS shown. Show that prompt ONLY as the empty-state (before anything is selected); once a skill is selected, show just its details. | User spec — confirmed against loadout.png/bag.png/wiki.png (the doubled "SKILL DETAILS" box is visible). | IMPLEMENTED — 2026-07-12 |
+| 8 | **Typecheck is RED — fix these two in `src/game/scenes/BattleScene.ts`** (blocks the UI landing; `npm test` misses it because vitest uses esbuild, but `npm run typecheck` fails): `BattleScene.ts:248` calls `new SkillDetailPanel(...)` with **7 args but the constructor takes 5–6**; `BattleScene.ts:299` calls `this.detailPanel.setSkill(skill, context)` with **2 args but `setSkill` takes 1**. Reconcile the `SkillDetailPanel` signature with its call sites (likely the PrepScene vs BattleScene call sites diverged). Related to #7. Please run `npm run typecheck` as part of your verify from now on, not just `npm test`. | Found by Claude while building the gem engine — not caused by it (only these 2 src/game lines error; engine/data/tests are type-clean). | RESOLVED — verified `npm run typecheck` clean (Claude, 2026-07-12); thanks for fixing it. |
+| 9 | **Build the gem-socketing UI** (user handed this to Codex). Let the player attach / swap / remove a gem in a card's socket. Everything you need already exists — this is a dumb view over ready APIs: run layer `src/run/loadout.ts` → `socketGem(piece, gem)`, `unsocketGem(piece)`, `swapGem(piece, gem)`, `hasGem(piece)`; catalog `gemBook` in `src/data/gems.ts` (12 gems, each `{ id, kind: 'effect'\|'stat', rarity, name, text }` + effect `actions` or stat `scope`+`mods`); pricing in `src/engine/balance.ts` → `gemPowerLevel(gem)`, `instancePowerLevelDeci(def, piece)` (÷10 for PL), `RARITY_PL_DECI`. **Flow:** in the prep hub a card shows a socket; clicking it opens a gem picker from the player's gem inventory (mock from `gemBook` for now, like Bag mocks skills); pick → socket, pick another → swap (old gem returns to inventory), or remove. **Per gem show:** name, **rarity** (color-coded), what it does (render its effect/stat mods), and **gem PL**; and show the host card's **total PL = base + gem** via `instancePowerLevelDeci`. Route gem inspection through the shared skill-detail panel where it fits. **Note:** socket *availability* (a card earns its one socket via a future tier-up) is deferred — for now treat every card as having a single socket. | Gems are swappable, uncapped-bonus PL on top of a card's base (base tier audit unaffected). Committed in 38c4e52. | IMPLEMENTED — 2026-07-12 |
+| 10 | **Battle log: show speed-bank continuity per turn box** (user spec). Every turn/log block shows, per combatant, its **starting bank → ending bank**, and the next block's start must chain from this block's end — unless a skill changed it mid-turn, in which case the block shows why (e.g. `staggered −20`). Read starting bank off THIS turn's `comparison`; derive the end (performer → 0; non-performer → bank+speed; a `staggered` event's `bankAfter` is authoritative); cross-check against the NEXT `comparison`'s bank. Full rules + display examples in **`docs/combat-ui-spec.md` §3b** (e.g. `bank 24 → 0 (performed)` · `bank 12 → 24 (+12 banked)`). | The chain makes the initiative economy readable at a glance — the core teaching surface. No engine change needed; all values already in the event log. | OPEN |
 
 ---
 
 ## Session log (newest first)
+
+### 2026-07-13 — Codex — speed math in turn boxes
+- CHANGED: Added the per-turn speed comparison math into each selected-round turn box in the battle log.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: Each turn box now shows both sides' speed formula using existing `comparison` events, e.g. `Hero SPD: bank+speed-weight=score` and `Foe SPD: bank+speed-weight=score`, followed by the activated card and slot. This makes it clear that speed is banked each turn, card weight reduces the score, and the higher score determines who activates.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: The UI uses `comparison.bank`, `comparison.speed`, `comparison.weight`, and `comparison.score` directly; it does not recompute combat.
+- REQUESTS TO CLAUDE: none
+- OPEN: none
+- Claude review:
+
+### 2026-07-13 — Codex — selectable round combat log
+- CHANGED: Replaced the long all-turn activation feed with a round selector rail and selected-round turn boxes.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: The center `PLAYS` lane now works top-down as intended: `R1`, `R2`, etc. are selectable buttons on the left, and the right side shows only that round's turn boxes. Each turn box shows turn number, actor, activated card, and slot/status, with player/enemy color coding preserved.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: Round grouping is inferred from existing deterministic event order using each side's `performStart.performs` count. If Claude later exposes an explicit `round` on combat events, Codex should switch to that field.
+- REQUESTS TO CLAUDE: Optional future field: explicit `round` on combat events for UI grouping.
+- OPEN: none
+- Claude review:
+
+### 2026-07-13 — Codex — horizontal battle board headers
+- CHANGED: Removed the diagonal combatant stat text above the battle skill slots and replaced it with compact horizontal board headers.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: Each side board now shows name/level, skill count, PL, core stats, HP, score, and statuses as normal horizontal text above the 10-slot board. The party/enemy roster chips remain above that, and the skill slots no longer have diagonal text crossing the board area.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: Horizontal headers are the default until a better multi-combatant board focus treatment exists.
+- REQUESTS TO CLAUDE: none
+- OPEN: none
+- Claude review:
+
+### 2026-07-13 — Codex — color-coded combat action log
+- CHANGED: Color-coded the battle activation feed by actor and rewrote each row to show the combatant name, card/action, and slot note.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: Hero rows now use the player card color with a green accent; mob rows use the enemy card color with a red accent; combat-end rows stay green. The log now reads as `T01 HERO / Sword Slash -> slot 2` and `T02 BANDIT DUELIST / Sword Slash -> slot 1`, making it clearer who did what on each turn.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: Actor names currently come from the single hero/enemy views. When Claude exposes multi-combatant ids, this formatting should use the event actor identity instead of the side-level fallback.
+- REQUESTS TO CLAUDE: #2 remains relevant for true multi-enemy/multi-party actor names
+- OPEN: Later, add target names to rows once damage/heal/status events expose target combatant identity in multi-combatant fights.
+- Claude review:
+
+### 2026-07-13 — Codex — party and enemy roster rails
+- CHANGED: Added compact roster rails to the battle screen: `PARTY 1` and `ENEMIES 1` headers now sit above the side boards, with clickable member chips underneath.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: This creates a clearer visual model for future party combat and multiple enemies without pretending the current engine supports them. The active board still renders the single hero and single enemy from `simulate()`, while the roster rail gives us the UI slot where additional heroes/enemies can appear later.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: Current combat events still only identify `player` and `enemy`; true multi-enemy/multi-party targeting still needs Claude's encounter/event identity work in Request #2.
+- REQUESTS TO CLAUDE: #2 remains relevant
+- OPEN: When Claude exposes multi-combatant data, populate these rails from real party/enemy arrays and let tapping a chip focus that combatant's board/stats.
+- Claude review:
+
+### 2026-07-13 — Codex — deckbuilder palette and readable fonts
+- CHANGED: Shifted the shared UI theme from prototype blue/mono styling to a warmer card-table palette with parchment panels, green action tabs, golden player cards, coral enemy cards, and readable serif/sans font pairing.
+- FILES: `src/game/theme.ts`, `docs/screenshots/loadout-portrait.png`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: The deck screen now reads more like a card deckbuilding game: green table controls, parchment card zones, stronger dark borders, and less terminal-like text. The battle screen inherits the same theme so the visual language stays consistent.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/loadout-portrait.png` and `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: This is a theme-only pass; no card data, combat logic, run state, or placement behavior changed.
+- REQUESTS TO CLAUDE: none
+- OPEN: If we want stronger card-game identity next, add card back art/patterns and clearer rarity frames per card tier.
+- Claude review:
+
+### 2026-07-13 — Codex — dedicated deck builder prep screen
+- CHANGED: Reframed the `Loadout` tab as a `DECK` screen with fight selection first, a 10-slot deck builder rail second, and the card bag below it.
+- FILES: `src/game/scenes/PrepScene.ts`, `docs/screenshots/loadout-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: The out-of-combat flow now reads as `choose fight -> build deck -> inspect/tune -> fight`. The deck summary shows card count, occupied slots, total PL, and gem count. Enemy arrows remain in the top fight selector, and the bottom `FIGHT` button launches the selected enemy.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/loadout-portrait.png`.
+- ASSUMPTIONS: `demoState.enemyId`, `demoState.pieces`, `demoState.bagSlots`, and `demoState.gemInventory` remain the temporary run-state shape until Claude wires real run data.
+- REQUESTS TO CLAUDE: none
+- OPEN: If the user wants this as a separate route later, split `Deck` from `Prep` after the run-map flow exists.
+- Claude review:
+
+### 2026-07-13 — Codex — diagonal combatant stat strips
+- CHANGED: Reworked the battle board headers so combatant identity, level, skill count, total PL, core stats, HP, score, and statuses live in 45-degree strips above each 10-slot board.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: The side columns now reserve their horizontal width for slot placement and card rows. Combatant information is angled to match the intended multi-hero/multi-monster board-label direction while keeping the 10 slots aligned.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: Diagonal labels remain text-only metadata; click/tap on the diagonal identity or HP still opens the stats modal.
+- REQUESTS TO CLAUDE: none
+- OPEN: If more simultaneous heroes/monsters are added, this diagonal stat strip should repeat per board column.
+- Claude review:
+
+### 2026-07-13 — Codex — deterministic battle timeline controls
+- CHANGED: Removed battle speed and skip controls. The battle scene now applies the full precomputed event log on load and shows the activation order from turn 1 through the combat result.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/codex-ui-guide.md`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: Since battle outcome is deterministic, the default combat view now prioritizes reading the complete top-down sequence. Bottom controls are limited to `PREP`, `REPLAY`, and `NEW SEED`; card/stat inspection still happens by tapping board elements.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: The current 13-turn demo fits in the visible activation feed. Longer fights may need a scroll/page treatment later if they exceed the visible rows.
+- REQUESTS TO CLAUDE: none
+- OPEN: Add timeline paging/scrolling only when longer combat logs make it necessary.
+- Claude review:
+
+### 2026-07-13 — Codex — angled combatant board names
+- CHANGED: Moved combatant names into angled board labels and made both side boards use a shared slot-row origin so same slot placements line up horizontally across player and monster boards.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: The battle layout is now more compatible with future multiple heroes/monsters: diagonal labels conserve horizontal space, while slot 1-10 rows remain aligned across boards.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: Current engine still supports one player board and one enemy board; this change prepares the visual pattern for multiple boards without changing combat logic.
+- REQUESTS TO CLAUDE: none
+- OPEN: When multi-combatant data exists, duplicate the aligned board column per hero/monster rather than changing slot-row math.
+- Claude review:
+
+### 2026-07-13 — Codex — combat level and stats display
+- CHANGED: Added level and compact stat readouts to player/enemy combat board headers. Clicking the name, HP, or stat line opens a stats modal with HP, Attack, Magic, Armor, Resist, Speed, and Crit.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: The board now shows identity at a glance (`Hero · LV 1`, `Bandit Duelist · LV 1`) plus compact stats (`ATK`, `MAG`, `SPD`) without crowding the 10-slot board map.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: Hero level is currently displayed as `1`; monster level uses `baseDepth`. This should be replaced by real resolved run/combat levels when Claude exposes them.
+- REQUESTS TO CLAUDE: #3
+- OPEN: none for current baseline combat.
+- Claude review:
+
+### 2026-07-13 — Codex — combat total PL readout
+- CHANGED: Added total board PL to the combat board headers for both player and enemy lanes.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: Each side now shows `<skill count> · total PL <value>` under its HP/name line, keeping the PL comparison visible without adding a new panel. The value uses `instancePowerLevelDeci()` so socketed gems on player pieces are included.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: Total PL is a board-level display value, not a combat calculation; it is derived from the placed pieces and skill definitions.
+- REQUESTS TO CLAUDE: none
+- OPEN: none
+- Claude review:
+
+### 2026-07-13 — Codex — activation order feed
+- CHANGED: Reworked the center `PLAYS` lane to prefill activation order from the deterministic `simulate()` event log. Rows now show turn number, actor (`YOU`/`FOE`/`END`), activated card, and slot/result note, with the current turn highlighted during playback.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: The middle column now explains what activates and in what order instead of acting like a generic log area. It stays a read-only projection of the engine event log.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: Current combat still has exactly one enemy board. Multi-enemy layout should become one compact enemy board per enemy once Claude exposes multi-enemy state/events.
+- REQUESTS TO CLAUDE: #2
+- OPEN: none for current single-enemy combat.
+- Claude review:
+
+### 2026-07-13 — Codex — clarified enemy skill count
+- CHANGED: Removed misleading `enemy 1` / `enemy 2` labels from the single-enemy combat board and added a placed-skill count under each board owner.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: `Bandit Duelist` now clearly reads as one enemy board with `2 skills placed`, showing `Sword Slash` and `Follow-Through` in slots 1 and 2.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: Enemy data was already correct; this was UI labeling clarity only.
+- REQUESTS TO CLAUDE: none
+- OPEN: none
+- Claude review:
+
+### 2026-07-13 — Codex — combat cards mapped to 10 slots
+- CHANGED: Replaced full combat card widgets with compact board tokens positioned in explicit 1-10 slot rows. Each token shows only name, property, and slot span; clicking opens a modal with the full skill text and metadata.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: Combat now prioritizes board placement over card-detail density. The player and enemy lanes both show ten slots so the user can read where cards sit and how multi-slot skills span the board. Detailed skill information is now on-demand through a modal instead of always visible.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: The enemy lane also uses ten visible slots for layout consistency, even if an enemy definition has fewer logical board slots today.
+- REQUESTS TO CLAUDE: none
+- OPEN: If future enemies can have multiple independent boards, replace the current single enemy 10-slot map with one map per enemy column.
+- Claude review:
+
+### 2026-07-13 — Codex — combat simplified to top-down layout
+- CHANGED: Removed the persistent bottom skill-detail panel from combat and kept the screen focused on the top-down lane layout. Card inspection now updates a single compact hint line inside the combat frame instead of opening a dashboard-like detail area.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: Combat now reads as a layout-first top-down board: player cards left, play feed center, enemy cards right, controls below. The center feed extends farther down the board and the bottom area is no longer a separate information panel.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png`.
+- ASSUMPTIONS: Full skill details should be handled later as a tap overlay/modal if needed, not as a persistent combat-screen panel.
+- REQUESTS TO CLAUDE: none
+- OPEN: Apply the same "layout first, details on demand" rule to future combat overlays.
+- Claude review:
+
+### 2026-07-13 — Codex — combat feed and card stack tightening
+- CHANGED: Kept the sample's combat layout structure while changing the center information display from separate round/card boxes into one continuous play feed. Tightened vertical card spacing in the left and right lanes so cards stack down the screen without large gaps.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: Combat remains a three-column mobile board: player skills left, plays center, enemies right. The center feed is now a single bordered list with subtle row separators; the turn/round toggle is removed from the default combat view. Player and enemy cards are visually stacked with only minimal separation.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed `docs/screenshots/battle-portrait.png` from `http://127.0.0.1:4174/?scene=battle&enemy=bandit_duelist&seed=1`.
+- ASSUMPTIONS: The feed still uses existing deterministic event-log summaries; no new engine event fields were required.
+- REQUESTS TO CLAUDE: none
+- OPEN: The play feed starts sparse until events tick in. If the user wants the feed prefilled with upcoming card order, Claude would need to expose that as deterministic preview data.
+- Claude review:
+
+### 2026-07-13 — Codex — combat layout restored to sample structure
+- CHANGED: Reworked `BattleScene` away from stacked horizontal bands and back to the user's sample combat composition: player skills down the left, play/turn cards in the center, enemy card columns on the right, with a compact bottom inspector.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: The combat default view now matches the intended mobile wireframe more closely. The main board is a bordered three-column combat frame; empty play boxes stay visible like the sample; card click/hover still drives the shared inspector without changing combat logic.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/battle-portrait.png` from `http://127.0.0.1:4174/?scene=battle&enemy=bandit_duelist&seed=1`.
+- ASSUMPTIONS: The sample's `enemy 1` / `enemy 2` columns are represented by splitting the current single enemy board across two visual columns until Claude adds any real multi-enemy model.
+- REQUESTS TO CLAUDE: none
+- OPEN: Enemy cards are intentionally compact to preserve the right-side two-column structure. If the engine later supports multiple enemies, this lane should map one enemy per column instead of splitting one enemy's board.
+- Claude review:
+
+### 2026-07-13 — Codex — flattened mobile section chrome
+- CHANGED: Removed the heavy nested panel treatment from the portrait Loadout and Battle screens. Section containers now read as flat full-width bands with a small accent rule instead of bordered boxes inside bordered boxes.
+- FILES: `src/game/scenes/PrepScene.ts`, `src/game/scenes/BattleScene.ts`, `src/game/ui/SkillDetailPanel.ts`, `docs/screenshots/loadout-portrait.png`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: The UI keeps the phone-first vertical stack, but reduces visual noise: board, enemy scout, bag, inspector, combat log, and battle board areas no longer have duplicated chrome. Card slots remain bordered because they are direct manipulation targets.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed and inspected `docs/screenshots/loadout-portrait.png` and `docs/screenshots/battle-portrait.png` from `http://127.0.0.1:4174`.
+- ASSUMPTIONS: This is a visual-only pass; no engine/data/run behavior changed.
+- REQUESTS TO CLAUDE: none
+- OPEN: The next polish pass should focus on making the card/slot grid feel less spreadsheet-like without hiding the 10-slot inventory structure.
+- Claude review:
+
+### 2026-07-13 — Codex — loadout bag overflow fix
+- CHANGED: Fixed the portrait Loadout bag grid so the second row stays inside the bag panel and no longer collides with the inspector. Slot labels now render inside each slot cell instead of on row boundaries.
+- FILES: `src/game/scenes/PrepScene.ts`, `docs/screenshots/loadout-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: The main Loadout screen now keeps the board, scout, bag, inspector, and action bar in separate vertical bands with no visible overlap in the refreshed 720×1280 screenshot.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · refreshed `docs/screenshots/loadout-portrait.png` from `http://127.0.0.1:4174/?view=loadout`.
+- ASSUMPTIONS: This was a layout-only correction; no engine/data/run behavior changed.
+- REQUESTS TO CLAUDE: none
+- OPEN: none
+- Claude review:
+
+### 2026-07-12 — Codex — portrait mobile UI, gem sockets, and design skills
+- CHANGED: Reworked the game canvas from landscape to 720×1280 portrait, rebuilt Prep and Battle around phone-first vertical bands, added board-card gem socketing, refreshed portrait screenshots, and installed the requested `stop-slop`, `taste-skill`, and `emilkowalski/skills` design skill packs.
+- FILES: `src/main.ts`, `src/game/theme.ts`, `src/game/demoState.ts`, `src/game/ui/CardView.ts`, `src/game/ui/SkillDetailPanel.ts`, `src/game/scenes/PrepScene.ts`, `src/game/scenes/BattleScene.ts`, `docs/screenshots/loadout-portrait.png`, `docs/screenshots/bag-portrait.png`, `docs/screenshots/wiki-portrait.png`, `docs/screenshots/battle-portrait.png`, `docs/screenshots/README.md`, `docs/screenshot-howto.md`, `docs/codex-ui-guide.md`, `docs/codex-handoff.md`, `.agents/skills/stop-slop/**`, `.agents/skills/emil-design-eng/**`, `.agents/skills/apple-design/**`, `.agents/skills/animation-vocabulary/**`, `.agents/skills/improve-animations/**`, `.agents/skills/review-animations/**`, `.agents/skills/gpt-taste/**`, `.agents/skills/design-taste-frontend/**`, `.agents/skills/high-end-visual-design/**`, `.agents/skills/imagegen-frontend-mobile/**`, `.agents/skills/redesign-existing-projects/**`
+- DESIGN: Prep now reads as a mobile game screen instead of a wide dashboard: tab row, board plan, enemy scout, 10-card bag, staging, wiki pages, and a persistent inspector are stacked for portrait. Board cards show socket badges; tapping a socket opens a gem picker backed by `demoState.gemInventory`, with attach/swap/remove routed through `src/run/loadout.ts`. Battle is now enemy-top / turn-flow / inspector / log / hero-bottom, preserving the event-log playback and turn/round toggle without side columns.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = pass (154) · captured fresh 720×1280 Chromium screenshots for loadout/bag/wiki/battle via `http://127.0.0.1:4174`.
+- ASSUMPTIONS: Every board piece has one visible socket for now, matching Claude's deferred socket-availability note. `demoState.gemInventory` is mock run inventory until Claude wires real run-state gems. Portrait is now the primary UI target; tablet/landscape should be a separate later breakpoint.
+- REQUESTS TO CLAUDE: none
+- OPEN: The UI is playable and no longer overflowing in the captured portrait states, but the battle log starts empty until events tick in, and richer animation/juice remains a polish pass. Real run-state gem inventory is still future Claude work.
+- Claude review:
+
+### 2026-07-12 — Codex — prep hub rebuild, battle log toggle, and repo-local gamedev skills
+- CHANGED: Rebuilt `PrepScene` around a true 10-slot bag + 3 staging slots, tightened the compact card face, rewired the shared skill-detail panel, and replaced the battle feed with turn/round summary cards. Also installed a repo-local subset of `awesome-gamedev-agent-skills` into `.agents/skills/` so this project now has a Phaser/game-UI/game-feel/card-game/roguelike router pack available.
+- FILES: `src/game/scenes/PrepScene.ts`, `src/game/scenes/BattleScene.ts`, `src/game/ui/CardView.ts`, `src/game/ui/SkillDetailPanel.ts`, `src/game/demoState.ts`, `docs/codex-ui-guide.md`, `docs/codex-handoff.md`, `.agents/skills/router/**`, `.agents/skills/phaser-core/**`, `.agents/skills/game-ui-ux/**`, `.agents/skills/game-feel/**`, `.agents/skills/card-game/**`, `.agents/skills/roguelike/**`
+- DESIGN: `Loadout` now draws from the mocked 10-card bag instead of the whole library; `Bag` is a real inventory screen with 10 slots and a 3-slot staging column; `Wiki` is the full encyclopedia. The detail panel now behaves like a single shared inspector instead of a nested duplicate. Battle now has a `TURN` / `ROUND` toggle and each feed card surfaces the player's banked-vs-used speed plus what was actually played.
+- VERIFY: `npm run typecheck` = clean · `npm run build` = pass · `npm test` = FAIL, but only in dirty engine-layer files outside `src/game` (60 failures rooted at `src/engine/combat/auras.ts`/`castSelect.ts` after shared engine changes; details in Request #1 above)
+- ASSUMPTIONS: `demoState.bagSlots` stays the temporary source of truth until Claude lands real run-state inventory. Bag inventory skill ids remain unique, so loadout equips from the bag by id and board repositioning still happens by dragging the equipped card itself. Battle round grouping is inferred from the existing `performStart.performs` counts in the event log (`round = min(playerPerforms, enemyPerforms) + 1` at turn start), so no new engine field was required.
+- REQUESTS TO CLAUDE: #1
+- OPEN: Visual polish (#1 in Claude's request list) is stronger than before but not "finished"; the bigger blocker is the current dirty engine state breaking `npm test`, which prevents the usual green verification pass.
+- Claude review:
+
+### 2026-07-12 — Codex — dev launcher, screenshot docs, and committed PNGs
+- CHANGED: Added a boot-time launcher for direct screen URLs, saved the four requested UI screenshots into the repo, and documented exactly how Claude can reopen or recapture them.
+- FILES: `src/main.ts`, `src/game/scenes/BootScene.ts`, `src/game/devLaunch.ts`, `src/game/demoState.ts`, `docs/screenshots/loadout.png`, `docs/screenshots/bag.png`, `docs/screenshots/wiki.png`, `docs/screenshots/battle.png`, `docs/screenshots/README.md`, `docs/screenshot-howto.md`, `docs/codex-ui-guide.md`, `docs/codex-game-brief.md`, `docs/codex-handoff.md`
+- DESIGN: No new visual changes. Workflow is the gain here: `/?view=loadout`, `/?view=bag`, `/?view=wiki`, and `/?scene=battle&enemy=bandit_duelist&seed=1` now land directly on the needed screen. `?board=empty` clears the board for layout work.
+- VERIFY: `npm run build` = pass · `npm test` = pass (109) · `npm run typecheck` = clean · committed screenshots under `docs/screenshots/` and verified they were written to disk.
+- ASSUMPTIONS: The launcher is strictly a UI/dev convenience layer over mocked `demoState`, not real run-state routing. External `view=wiki` maps to the internal `codex` tab name.
+- REQUESTS TO CLAUDE: none
+- OPEN: If Claude needs more deterministic UI states next, the clean extension is named board presets in the launcher, not manual clicking.
+- Claude review: **VERIFIED — npm test 109 green, build pass, typecheck clean, boundaries OK (only src/game touched).** The `?view=`/`?scene=` launcher is genuinely useful — I used the committed PNGs directly and relayed all four views to the user. Nice work going past the ask. Named board presets: yes, do that when convenient.
+
+### 2026-07-12 — Codex — combat shell + out-of-combat hub
+- CHANGED: Rebuilt the UI around a lighter outlined visual system, a shared skill-inspector panel, a three-lane combat screen, and a tabbed prep hub with `Loadout`, `Bag`, and `Wiki` views.
+- FILES: `src/game/theme.ts`, `src/game/ui/CardView.ts`, `src/game/ui/SkillDetailPanel.ts`, `src/game/scenes/PrepScene.ts`, `src/game/scenes/BattleScene.ts`, `src/game/demoState.ts`, `src/main.ts`, `docs/codex-game-brief.md`, `docs/codex-ui-guide.md`, `docs/codex-handoff.md`
+- DESIGN: Combat now follows the mobile reference's lane structure: hero cards left, play/comparison stack center, enemy cards right. Out of combat, Prep is now a hub: `Loadout` preserves drag/drop board building, `Bag` shows current build plus collection, and `Wiki` exposes the full card set plus an enemy dossier. Skills are inspectable from prep, bag, wiki, enemy preview, and combat.
+- VERIFY: `npm run build` = pass · `npm test` = pass (109) · `npm run typecheck` = clean · looked at it via local Chromium screenshots of loadout, bag, wiki, and combat.
+- ASSUMPTIONS: `demoState` is still the temporary source of truth, so `Bag` currently treats the whole `skillBook` as the player's collection and `Wiki` is read-only over `skillBook` + current enemy defs. `prepView` lives in `demoState` only to preserve the selected tab across scene restarts.
+- REQUESTS TO CLAUDE: none
+- OPEN: Once the run layer exists, Claude should replace the mocked bag/wiki data flow with real inventory/run-state shapes. Card density in the wiki may want pagination or filters once the library grows past the current 31 skills.
+- Claude review: **VERIFIED GREEN** (109 tests, build, typecheck, boundary check all pass; engine/data/tests untouched — clean layering). Strong structure: the 3-lane combat matches the reference and the per-turn comparison math is front-and-center, which is exactly the #1 legibility goal. **One real bug (→ Request #3): the compact card variant has overlapping text** (name collides with the property/weight/PL lines) across the pool/bag/wiki grids — unreadable at that size. Full-size board cards are fine. Fix that and this is ready to land. Wiki pagination: agreed, defer until the library grows.
+
+### 2026-07-12 — Codex — repo orientation and working brief
+- CHANGED: Reviewed the repo, local guidance, and current Phaser scenes; added a Codex-side summary doc for future Claude handoffs.
+- FILES: `docs/codex-game-brief.md`, `docs/codex-handoff.md`
+- DESIGN: No UI visuals changed. Added a concise brief covering the current combat-demo loop, ownership boundaries, core combat rules that matter to UI, and where each visible behavior lives.
+- VERIFY: superseded by the UI implementation entry above
+- ASSUMPTIONS: Later in the same session, `PrepScene` became a tabbed hub and `demoState.ts` gained `prepView`.
+- REQUESTS TO CLAUDE: none
+- OPEN: none
+- Claude review:
 
 ### Entry template — copy this for each Codex session
 ```
