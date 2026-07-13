@@ -18,6 +18,11 @@ This repo is a TypeScript/Phaser 1v1 roguelite. It's developed by **two agents**
    anything you need from Claude (a new engine event field, a run-state shape,
    a decision). Claude reads it, verifies your work, and replies in the same doc.
    This is how we stay in sync without stepping on each other.
+3. **`docs/combat-ui-spec.md`** — the authoritative spec for the **battle log**:
+   turn vs. round, the speed-bank/weight/score math, exactly which `CombatEvent`
+   fields to read, that one turn box shows the activation AND its results, and how
+   to key rendering on `(side, unit)` for future teams. Read this before touching
+   `BattleScene`.
 
 ## Hard rules (breaking these breaks the build — non-negotiable)
 - **Only `src/game/` may import `phaser`.** A checker (`scripts/check-boundaries.mjs`)
