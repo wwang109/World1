@@ -40,6 +40,16 @@ export type Property = 'physical' | 'magical' | 'true';
 /** Board slots occupied AND turn span: a size-3 card busies its caster 2 extra turns. */
 export type SkillSize = 1 | 2 | 3;
 
+/**
+ * Default per-card reuse cooldown, in GLOBAL turns, when a card does not set
+ * its own `cooldownTurns`. A second pacing dial alongside weight (see
+ * `SkillDef.cooldownTurns`). Lives here (rather than `combat/castSelect.ts`,
+ * which re-exports it) so both the resolver (`cards.ts`) and the pricing
+ * table (`balance.ts`) can read it without creating an import cycle through
+ * `combat/state.ts`.
+ */
+export const BASELINE_COOLDOWN = 3;
+
 /** Elements for Magical cards (wheel + Holy↔Dark pair). */
 export type Element = 'fire' | 'frost' | 'lightning' | 'nature' | 'holy' | 'dark';
 
@@ -208,7 +218,19 @@ export interface EquipmentDef {
  *           hero-scoped (added to the combatant's base stats at setup).
  */
 export type Gem =
-  | { kind: 'effect'; id: string; rarity: Rarity; actions: Action[] }
+  | {
+      kind: 'effect';
+      id: string;
+      rarity: Rarity;
+      actions: Action[];
+      /**
+       * Turns shaved off the host card's effective cooldown (additive,
+       * floored at 0 turns — never negative/never lengthens). Priced by
+       * `PRICE.cooldownPerTurn` in `balance.ts`, folded into the effective
+       * skill by `resolveEffectiveSkill` in `cards.ts`.
+       */
+      cooldownReduction?: number;
+    }
   | { kind: 'stat'; id: string; rarity: Rarity; scope: 'card' | 'hero'; mods: StatGemMods };
 
 export interface StatGemMods {

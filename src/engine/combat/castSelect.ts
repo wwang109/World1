@@ -1,12 +1,11 @@
-import { weightOf, type SkillBook, type SkillDef } from '../types';
+import { BASELINE_COOLDOWN, weightOf, type SkillBook, type SkillDef } from '../types';
 import { aurasOn, type AuraMods } from './auras';
 import { totalShield, type CombatantState, type PieceState } from './state';
 
-/**
- * Default per-card reuse cooldown, in GLOBAL turns, when a card does not set its
- * own `cooldownTurns`. A second pacing dial alongside weight (see `SkillDef`).
- */
-export const BASELINE_COOLDOWN = 3;
+// Re-exported for existing callers (e.g. tests) that import it from here;
+// the canonical definition now lives in `../types` (see its doc comment) so
+// `cards.ts`/`balance.ts` can read it without an import cycle through `state.ts`.
+export { BASELINE_COOLDOWN };
 
 /** Effective reuse cooldown for a card: its own `cooldownTurns`, else the baseline. */
 export function effectiveCooldown(skill: SkillDef): number {

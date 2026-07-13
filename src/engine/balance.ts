@@ -11,7 +11,7 @@
 // docs/power-level-reference.md, sourced from these exact constants. Do not
 // hand-copy numbers elsewhere — read PRICE.
 
-import { weightOf, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
+import { BASELINE_COOLDOWN, weightOf, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
 
 export const TIER_BUDGET_DECI: Record<SkillTier, number> = {
   bronze: 100,
@@ -70,6 +70,24 @@ export const PRICE = {
    * budget (big cards pay in board space and span turns). */
   sizeGrant2: 30,
   sizeGrant3: 60,
+
+  /**
+   * cooldown: (BASELINE_COOLDOWN − cooldownTurns) * cooldownPerTurn — a
+   * SHORTER cooldown fires more often (stronger, costs MORE PL); a LONGER
+   * cooldown fires less often (weaker, REFUNDS PL). Baseline (3, the default
+   * when `cooldownTurns` is omitted) is free — deviation 0 → +0 PL, so every
+   * existing (baseline) card is unaffected.
+   *
+   * Priced steeper than `weightPer` (5 deci per 1 weight unit, i.e. 10 deci
+   * per the "every 2 weight" step the user anchors on) on purpose: cooldown
+   * doesn't just reorder a turn like weight does, it GATES whether the card
+   * is castable at all for that stretch of turns — a full extra cast over
+   * the course of a fight, not a tie-break. 20 deci/turn (2 PL/turn) is 2x
+   * the per-weight-step rate: e.g. cooldownTurns 2 (−1 from baseline) = +20
+   * deci (+2 PL); cooldownTurns 1 (−2) = +40 deci (+4 PL); cooldownTurns 5
+   * (+2 longer) = −40 deci (−4 PL refund).
+   */
+  cooldownPerTurn: 20,
 
   /** slowNext: weight * (slowNextPerWeightNum/Den) — 1 PL per +4 weight. */
   slowNextPerWeightNum: 5,
@@ -236,6 +254,11 @@ export function powerLevelDeci(skill: SkillDef): number {
   // Size grant.
   deci -= skill.size === 2 ? PRICE.sizeGrant2 : skill.size === 3 ? PRICE.sizeGrant3 : 0;
 
+  // Cooldown: shorter than baseline costs, longer than baseline refunds.
+  // Baseline cards (cooldownTurns omitted) price at exactly +0.
+  const cooldown = skill.cooldownTurns ?? BASELINE_COOLDOWN;
+  deci += (BASELINE_COOLDOWN - cooldown) * PRICE.cooldownPerTurn;
+
   return deci;
 }
 
@@ -285,7 +308,11 @@ export const GEM_CANONICAL_PROPERTY: Property = 'physical';
  */
 export function gemPowerLevelDeci(gem: Gem): number {
   if (gem.kind === 'effect') {
-    return actionsPriceDeci(gem.actions, GEM_CANONICAL_PROPERTY);
+    // A cooldown-reduction rider prices at the SAME rate as a card's own
+    // cooldownTurns deviation (PRICE.cooldownPerTurn per turn shaved) — a
+    // gem that shortens the host's cooldown by N turns is worth exactly what
+    // a card baked with that same N-turn-shorter cooldown would cost.
+    return actionsPriceDeci(gem.actions, GEM_CANONICAL_PROPERTY) + (gem.cooldownReduction ?? 0) * PRICE.cooldownPerTurn;
   }
 
   // Stat gem.

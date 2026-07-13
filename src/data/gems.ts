@@ -40,6 +40,16 @@ export const gemBook: Record<string, GemDef> = {
     mods: { hero: { speed: 4 } },
     text: '+4 Speed, permanent.',
   },
+  quickening_sliver: {
+    // −1 cooldown turn: 1 * PRICE.cooldownPerTurn(20) = 20 deci = Common exactly.
+    id: 'quickening_sliver',
+    name: 'Quickening Sliver',
+    kind: 'effect',
+    rarity: 'common',
+    actions: [],
+    cooldownReduction: 1,
+    text: 'This card’s cooldown is 1 turn shorter (it can be reused sooner).',
+  },
 
   // ---- Echo gems (one per skill, weaker versions of the skill's signature
   // effect) — Common band, 20 deci each. Grouped in skillBook order. ----
@@ -242,6 +252,16 @@ export const gemBook: Record<string, GemDef> = {
     scope: 'hero',
     mods: { hero: { attack: 5 } },
     text: '+5 Attack, permanent.',
+  },
+  quickening_core: {
+    // −2 cooldown turns: 2 * PRICE.cooldownPerTurn(20) = 40 deci = Rare exactly.
+    id: 'quickening_core',
+    name: 'Quickening Core',
+    kind: 'effect',
+    rarity: 'rare',
+    actions: [],
+    cooldownReduction: 2,
+    text: 'This card’s cooldown is 2 turns shorter (it can be reused much sooner).',
   },
 
   // ---- Rare echo gems (40 deci each) ----

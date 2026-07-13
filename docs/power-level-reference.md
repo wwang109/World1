@@ -45,6 +45,7 @@ all division is `Math.floor`'d immediately (integer deci-PL, no floats persist).
 | aura `|weightDelta|` | `abs(weightDelta) * auraWeightDelta * reach` | `PRICE.auraWeightDelta` (20) | |
 | weight | `(baseline − weight) * weightPer` | `PRICE.weightPer` (5), baseline = `size * 10` | Every 2 lighter costs 1 PL; every 2 heavier REFUNDS 1 PL |
 | size grant | `−sizeGrant2` (size 2), `−sizeGrant3` (size 3) | `PRICE.sizeGrant2` (30), `PRICE.sizeGrant3` (60) | Big cards get extra kit budget for board space + turn span |
+| cooldown (`cooldownTurns`) | `(BASELINE_COOLDOWN − cooldownTurns) * cooldownPerTurn` | `PRICE.cooldownPerTurn` (**20**), `BASELINE_COOLDOWN` (3, `src/engine/types.ts`) | Shorter than baseline COSTS PL, longer REFUNDS — see rationale below |
 
 ## `guard` pricing rationale
 
@@ -72,6 +73,34 @@ so it's priced as a **flat deci-PL per charge** rather than a scaling rate:
 - 2 charges = 100 deci (= Bronze exactly).
 - 3 charges (the apply-time clamp max, "total charges of a property ≤3") =
   150 deci (= Silver exactly).
+
+## `cooldown` pricing rationale
+
+Cooldown (`SkillDef.cooldownTurns`, `BASELINE_COOLDOWN = 3` global turns, see
+`src/engine/types.ts` and `src/engine/combat/castSelect.ts`) is a SECOND
+pacing dial alongside weight: weight orders which eligible card fires,
+cooldown decides which cards are even eligible. A card cast on turn T is
+unavailable T+1..T+cooldown and eligible again at T+cooldown+1 — a lone card
+fires with stride `cooldown + 1` (baseline 3 → every 4th turn).
+
+Pricing anchor: the user's own rule is "every 2 [weight] lighter = +1 PL,
+every 2 heavier = −1 PL" (`weightPer = 5` deci per 1 weight unit, i.e. 10 deci
+per that 2-unit step). Cooldown is priced **steeper** than that step on
+purpose — deviating a weight unit only reorders a turn (a tie-break), while
+deviating a cooldown turn gates castability outright and can mean a whole
+extra cast over a fight. `cooldownPerTurn = 20` deci/turn (2 PL/turn) is 2×
+the per-weight-step rate:
+
+`deci += (BASELINE_COOLDOWN − cooldownTurns) * cooldownPerTurn`
+
+- `cooldownTurns` 2 (−1 from baseline 3) → **+20 deci (+2 PL)**: fires every
+  3rd turn instead of every 4th.
+- `cooldownTurns` 1 (−2) → **+40 deci (+4 PL)**: fires every other turn.
+- `cooldownTurns` 5 (+2 longer) → **−40 deci (−4 PL refund)**: fires every 6th
+  turn instead of every 4th.
+- `cooldownTurns` omitted (baseline 3) → **+0 PL**. No card in the shipped
+  catalog currently overrides `cooldownTurns`, so every existing card is
+  unaffected by this price (deviation 0).
 
 ## Socket / Gem PL accounting
 
@@ -143,6 +172,24 @@ same 2 PL whether it lands on a physical, magical, or TRUE card) — but
 - The **TRUE premium never applies to gems** — it's a card-level charge for
   *casting cards* (`hasCast && skill.property === 'true'`) applied by
   `powerLevelDeci` outside of `actionsPriceDeci`; gems never see it.
+
+### Cooldown-reduction rider (effect gems)
+
+An effect gem may carry `cooldownReduction?: number` — turns shaved off the
+host card's effective cooldown (additive, floored at 0; never lengthens).
+It's folded into the effective skill by `resolveEffectiveSkill` (`src/engine/
+cards.ts`), so `castSelect`'s `effectiveCooldown()` sees the shortened value
+with no change to the core loop's function signatures.
+
+Priced at the **same rate as a card's own `cooldownTurns` deviation**
+(`PRICE.cooldownPerTurn` = 20 deci/turn) — a −1-cooldown gem effect must be
+worth exactly what a card baked with a −1-shorter cooldown would cost:
+
+`gemPowerLevelDeci = actionsPriceDeci(gem.actions, ...) + cooldownReduction * cooldownPerTurn`
+
+Catalog examples (`src/data/gems.ts`): `quickening_sliver` (Common, −1 turn,
+no other actions) = `1 * 20 = 20` deci = Common exactly; `quickening_core`
+(Rare, −2 turns) = `2 * 20 = 40` deci = Rare exactly.
 
 ### Card-scope stat gems
 

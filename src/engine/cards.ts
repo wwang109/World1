@@ -7,20 +7,30 @@
 // so behavior and the event log are byte-identical.
 
 import type { AuraMods } from './combat/auras';
-import type { BoardPiece, BuffableStat, CombatantStats, Gem, SkillDef } from './types';
+import { BASELINE_COOLDOWN, type BoardPiece, type BuffableStat, type CombatantStats, type Gem, type SkillDef } from './types';
 
 /** Fixed order for deterministic hero-stat folding (sums are commutative regardless). */
 const HERO_STATS: readonly BuffableStat[] = ['attack', 'magicPower', 'armor', 'magicResist', 'speed', 'critPct'];
 
 /**
  * The skill actually cast from this piece. An effect gem appends its actions
- * AFTER the base effects (fixed order: base first, gem after). Any other case
- * (no gem / stat gem) returns the original def unchanged (same reference).
+ * AFTER the base effects (fixed order: base first, gem after), and — if it
+ * carries `cooldownReduction` — shortens the card's effective cooldown by
+ * that many turns (floored at 0). Any other case (no gem / stat gem / an
+ * effect gem with neither actions nor a cooldown reduction) returns the
+ * original def unchanged (same reference).
  */
 export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece): SkillDef {
   const gem = piece.gem;
   if (!gem || gem.kind !== 'effect') return def;
-  return { ...def, effects: [...def.effects, ...gem.actions] };
+  const cooldownReduction = gem.cooldownReduction ?? 0;
+  if (gem.actions.length === 0 && cooldownReduction === 0) return def;
+
+  const effects = gem.actions.length > 0 ? [...def.effects, ...gem.actions] : def.effects;
+  if (cooldownReduction === 0) return { ...def, effects };
+
+  const baseCooldown = def.cooldownTurns ?? BASELINE_COOLDOWN;
+  return { ...def, effects, cooldownTurns: Math.max(0, baseCooldown - cooldownReduction) };
 }
 
 /** A card-scope stat gem's card mods as an AuraMods-shaped bundle; `{}` otherwise. */
