@@ -1,6 +1,7 @@
-import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantStats, Element, Property, Side, SkillBook, SkillDef, WeaponType } from '../types';
+import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantStats, Element, Property, Side, SkillBook, SkillDef, TargetPolicy, WeaponType } from '../types';
 import type { AuraMods } from './auras';
 import { applyHeroGems, gemCardMods, gemHeroStats, resolveEffectiveSkill } from '../cards';
+import { powerLevelDeci } from '../balance';
 
 export interface StatusInstance {
   kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate';
@@ -62,6 +63,12 @@ export interface CombatantState {
   lastCastArchetypes: Archetype[];
   elementAffinity?: Element;
   weaponAffinity?: WeaponType;
+  /** Single-target offensive targeting rule among living foes. Default `aggro`. */
+  targetPolicy: TargetPolicy;
+  /** Opposing lineup index this unit focuses (overrides policy when living). */
+  focus?: number;
+  /** Threat level; the default `aggro` policy targets the highest-aggro foe. */
+  aggro: number;
   statuses: StatusInstance[];
   alive: boolean;
 }
@@ -120,9 +127,24 @@ function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBo
     lastCastArchetypes: [],
     elementAffinity: setup.elementAffinity,
     weaponAffinity: setup.weaponAffinity,
+    targetPolicy: setup.targetPolicy ?? 'aggro',
+    focus: setup.focus,
+    aggro: setup.baseAggro ?? 0,
     statuses: [],
     alive: setup.stats.hp > 0,
   };
+}
+
+/**
+ * Board Power Level of a unit: the sum of its pieces' effective-skill PL
+ * (deci-PL, integer). Used by the `highestThreat` targeting policy. Purely a
+ * function of the placed cards, so it's constant across the fight and
+ * deterministic.
+ */
+export function boardPowerLevel(c: CombatantState): number {
+  let total = 0;
+  for (const piece of c.pieces) total += powerLevelDeci(piece.skill);
+  return total;
 }
 
 /**

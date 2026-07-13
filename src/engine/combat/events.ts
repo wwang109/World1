@@ -22,12 +22,63 @@ export interface ComparisonSide {
  * combatant within its side (always 0 at 1v1; the team-combat migration lets it
  * range across a side's units). The `comparison` event keeps its 1v1 shape.
  */
+/** A combatant's comparison numbers tagged with its `(side, unit)` identity. */
+export interface ComparisonEntry extends ComparisonSide {
+  side: Side;
+  unit: number;
+}
+
 export type CombatEvent =
-  | { turn: number; kind: 'comparison'; player: ComparisonSide; enemy: ComparisonSide; performer: Side | null }
+  | {
+      turn: number;
+      kind: 'comparison';
+      /**
+       * @deprecated Legacy 1v1 fields, populated from each side's index-0 unit.
+       * Kept so the pre-team UI keeps compiling until the Wave-4 migration;
+       * team-aware consumers should read `entries` / `performerUnit` instead.
+       */
+      player: ComparisonSide;
+      /** @deprecated see `player`. */
+      enemy: ComparisonSide;
+      /** @deprecated performing side; use `performer` + `performerUnit` together. */
+      performer: Side | null;
+      /**
+       * Every living combatant's numbers this turn, in canonical order (player
+       * side first, then by unit index). The team-combat source of truth.
+       */
+      entries: ComparisonEntry[];
+      /** Performing unit's index within its `performer` side; null when nobody acts. */
+      performerUnit: number | null;
+    }
   | { turn: number; kind: 'performStart'; side: Side; unit: number; performs: number }
   | { turn: number; kind: 'performSkipped'; side: Side; unit: number; reason: 'stunned' }
   | { turn: number; kind: 'noPerformer' }
-  | { turn: number; kind: 'skillCast'; side: Side; unit: number; slot: number; skillId: string; span: number }
+  | {
+      turn: number;
+      kind: 'skillCast';
+      side: Side;
+      unit: number;
+      slot: number;
+      skillId: string;
+      span: number;
+      // ---- Targeting decision (additive; recorded at cast start, no RNG) ----
+      /** Chosen opposing unit index for a single-target offensive cast. */
+      targetUnit?: number;
+      /**
+       * What decided the single target: the caster's policy, or `focus` when an
+       * explicit override won. Omitted for support/self casts and AoE.
+       */
+      targetPolicy?: 'aggro' | 'first' | 'lowestHp' | 'highestThreat' | 'focus';
+      /**
+       * The deciding metric: target `aggro` (aggro), current `hp` (lowestHp), or
+       * board PL in deci-PL (highestThreat). Omitted for `first` / `focus`.
+       */
+      targetValue?: number;
+      /** True when this is an AoE cast (`scope: 'all'`); see `targets`. */
+      aoe?: boolean;
+      /** All struck opposing unit indices for an AoE cast, ascending. */
+      targets?: number[];
+    }
   | {
       turn: number;
       kind: 'damage';
@@ -49,6 +100,8 @@ export type CombatEvent =
   | { turn: number; kind: 'statusApplied'; side: Side; unit: number; status: StatusName; property?: Property; turns: number; charges?: number }
   | { turn: number; kind: 'statusExpired'; side: Side; unit: number; status: StatusName }
   | { turn: number; kind: 'cleansed'; side: Side; unit: number; removed: number }
+  /** A unit's threat changed (e.g. taunt); `aggro` is the new total. */
+  | { turn: number; kind: 'aggroChanged'; side: Side; unit: number; aggro: number }
   | { turn: number; kind: 'slowedNext'; side: Side; unit: number; weight: number }
   | { turn: number; kind: 'staggered'; side: Side; unit: number; amount: number; bankAfter: number }
   | { turn: number; kind: 'shieldBroken'; side: Side; unit: number; amount: number; totalAfter: number }

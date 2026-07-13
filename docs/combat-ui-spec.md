@@ -99,8 +99,9 @@ party/multi-enemy works later, see §6).
 
 | You want… | Event `kind` | Fields |
 |---|---|---|
-| **Speed math / who performs** | `comparison` | `player`, `enemy` (each a `ComparisonSide`: `bank`, `speed`, `weight`, `score`, `state`, `queuedSkillId`, `queuedSlot`), `performer` (`'player'\|'enemy'\|null`) |
-| **Actor + card cast** | `skillCast` | `side`, `unit`, `slot`, `skillId`, `span` |
+| **Speed math / who performs** | `comparison` | `entries` (per-unit `ComparisonEntry[]`: each `{side,unit}` + `bank`,`speed`,`weight`,`score`,`state`,`queuedSkillId`,`queuedSlot`), `performer` (`'player'\|'enemy'\|null`) + `performerUnit`. *Deprecated 1v1 aliases:* `player`, `enemy` (each a `ComparisonSide`, from index-0). |
+| **Actor + card cast** | `skillCast` | `side`, `unit`, `slot`, `skillId`, `span`. **Targeting (additive):** `targetUnit?` (chosen foe index, single-target), `targetPolicy?` (`'aggro'\|'first'\|'lowestHp'\|'highestThreat'\|'focus'` — what decided it), `targetValue?` (deciding metric: aggro / hp / board-PL-in-deci; omitted for `first`/`focus`), or `aoe:true` + `targets:number[]` for an AoE cast. Support/self casts carry none. |
+| **Threat / aggro** | `aggroChanged` | `side`, `unit`, `aggro` (new total after e.g. a taunt) |
 | **Performance start / stun** | `performStart` (`side`,`unit`,`performs`) · `performSkipped` (`side`,`unit`,`reason:'stunned'`) · `noPerformer` |
 | **Damage** | `damage` | `side` (victim), `unit`, `amount`, `blocked`, `crit`, `property`, `matchup?` (`'advantage'\|'disadvantage'`), `guarded?`, `hpAfter`, `source` (`'skill'\|'poison'\|'burn'\|'fatigue'`). **HP lost = `amount − blocked`.** `guarded` = amount a Magical Guard reduced. |
 | **Heal** | `heal` | `side`, `unit`, `amount`, `flat`, `hpAfter` |
@@ -138,11 +139,20 @@ combatants). Design the log for it now so nothing breaks later:
   rendering on `(side, unit)` now** and multi-unit works for free.
 - **AoE** = several `damage` events with the same `turn`, one per victim `unit`, in
   ascending unit order — render them as multiple result lines under the one
-  activation.
-- The `comparison` event will later generalize from `{ player, enemy }` to a
-  per-combatant `entries` list, each entry an actor `(side, unit)` with the same
-  `ComparisonSide` numbers, plus `performer: { side, unit }`. Until then it stays
-  1v1-shaped. Read `performer`/entries defensively so the switch is additive.
+  activation. The `skillCast` marks it with `aoe:true` + `targets:number[]`.
+- **Why a target was chosen** = read it straight off `skillCast`: for a
+  single-target offensive cast, `targetUnit` is the struck foe and `targetPolicy`
+  says what decided it (`aggro`/`lowestHp`/`highestThreat`/`focus`, default
+  `aggro`), with `targetValue` the deciding number. Render e.g. "Hero → Bandit
+  (highest aggro 12)", "Mage → Slime (lowest HP 8)", or just "Hero → Bandit" for
+  `first`/`focus`. `aggroChanged` events explain aggro swings (a tank taunting).
+- The `comparison` event now carries, ADDITIVELY, `entries: ComparisonEntry[]`
+  (every living combatant's `ComparisonSide` numbers tagged with its `(side,
+  unit)`, canonical order) and `performerUnit: number | null` (the performing
+  unit's index within `performer`). The legacy `player` / `enemy` / `performer`
+  fields remain (populated from each side's index-0 unit) and are deprecated —
+  team-aware UI should read `entries` + (`performer`, `performerUnit`). Read them
+  defensively; the 1v1 fields stay until the Wave-4 UI migration.
 - **Ordering within a turn is canonical:** side `player` before `enemy`, then by
   `unit` index — safe to rely on for stable display order.
 

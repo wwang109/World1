@@ -57,6 +57,17 @@ export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 export type BuffableStat = 'attack' | 'magicPower' | 'armor' | 'magicResist' | 'speed' | 'critPct';
 
 /**
+ * How a unit picks its single offensive target among living foes (deterministic,
+ * no RNG, no interactivity):
+ * - `aggro`: max current `aggro` (default; tanks pull focus via `taunt`).
+ * - `first`: lowest living lineup index (== old 1v1 behavior).
+ * - `lowestHp`: min current hp, ties broken to the lowest index.
+ * - `highestThreat`: max board Power Level (sum of piece PL), ties → lowest index.
+ * All ties break to the lowest living index. `focus` overrides any policy.
+ */
+export type TargetPolicy = 'aggro' | 'first' | 'lowestHp' | 'highestThreat';
+
+/**
  * Cast actions. Targets are implicit in 1v1: offensive actions hit the enemy,
  * supportive ones apply to the caster.
  *
@@ -78,6 +89,12 @@ export type Action =
   | { kind: 'debuffStat'; stat: BuffableStat; pct: number; turns: number }
   /** Remove the caster's poisons, burns, stuns and debuffs. */
   | { kind: 'cleanse' }
+  /**
+   * Raise the CASTER's own `aggro` by `amount` for the rest of the fight
+   * (permanent, not turn-decremented). Under the default `aggro` target policy
+   * this makes a tank the main target and shields squishier allies.
+   */
+  | { kind: 'taunt'; amount: number }
   // ---- Special ability riders (combined-archetype cards) ----
   /** The enemy's NEXT action is this much heavier (their attack comes later). */
   | { kind: 'slowNext'; weight: number }
@@ -143,6 +160,13 @@ export interface SkillDef {
   weapon?: WeaponType;
   /** Cast effects. Empty for pure passives (skipped by the rotation). */
   effects: Action[];
+  /**
+   * Offensive target scope. `one` (default) = a single foe chosen by the
+   * caster's `targetPolicy`; `all` = every living foe (ascending index). Support
+   * actions ignore scope (they hit the caster). Un-flagged cards stay
+   * single-target and byte-identical.
+   */
+  scope?: 'one' | 'all';
   /** Positional effect projected onto neighboring board cards. */
   aura?: AuraDef;
   /** Registry key for hand-coded behavior the DSL can't express. */
@@ -203,6 +227,16 @@ export interface CombatantSetup {
   boardSize: number;
   /** Placed cards; sizes come from the skill book. Must not overlap. */
   pieces: BoardPiece[];
+  /** How this unit picks its single offensive target among living foes. Default `aggro`. */
+  targetPolicy?: TargetPolicy;
+  /** Starting aggro (threat) this unit carries into the fight. Default 0. */
+  baseAggro?: number;
+  /**
+   * Explicit target override: the opposing lineup index this unit focuses.
+   * When set and that foe is living, it wins over `targetPolicy`; otherwise the
+   * policy applies. Ignored by AoE (`scope: 'all'`) cards.
+   */
+  focus?: number;
   /** Takes +50% from the element that beats this, −25% from the one it beats. */
   elementAffinity?: Element;
   /** Same rule against the weapon triangle. */

@@ -71,6 +71,55 @@ describe('simulate determinism', () => {
     }
   });
 
+  it('team fixtures: identical events + finalState across two runs, all terminate', () => {
+    // Fixed multi-unit shapes: 1×1 (regression), 1×3, 3×3, asymmetric 2×4.
+    const team = (rng: Rng, n: number, tag: string): CombatantSetup[] =>
+      Array.from({ length: n }, (_, i) => randomCombatant(rng, `${tag}${i}`));
+
+    const shapes: Array<[number, number]> = [
+      [1, 1],
+      [1, 3],
+      [3, 3],
+      [2, 4],
+    ];
+    const metaRng = new Rng(0xa11ce);
+    for (const [np, ne] of shapes) {
+      for (let rep = 0; rep < 8; rep++) {
+        const config: CombatConfig = {
+          playerTeam: team(metaRng, np, 'p'),
+          enemyTeam: team(metaRng, ne, 'e'),
+          skillBook,
+        };
+        const seed = metaRng.int(2 ** 31);
+        const a = simulate(structuredClone(config), seed);
+        const b = simulate(structuredClone(config), seed);
+        expect(a.events).toEqual(b.events);
+        expect(a.result).toBe(b.result);
+        expect(a.finalState).toEqual(b.finalState);
+        expect(a.result === 'win' || a.result === 'loss').toBe(true);
+      }
+    }
+  });
+
+  it('random teams (1–4 per side) are deterministic and terminate (60 configs)', () => {
+    const metaRng = new Rng(0x7ea115);
+    for (let i = 0; i < 60; i++) {
+      const np = 1 + metaRng.int(4);
+      const ne = 1 + metaRng.int(4);
+      const config: CombatConfig = {
+        playerTeam: Array.from({ length: np }, (_, k) => randomCombatant(metaRng, `p${k}`)),
+        enemyTeam: Array.from({ length: ne }, (_, k) => randomCombatant(metaRng, `e${k}`)),
+        skillBook,
+      };
+      const seed = metaRng.int(2 ** 31);
+      const a = simulate(structuredClone(config), seed);
+      const b = simulate(structuredClone(config), seed);
+      expect(a.events).toEqual(b.events);
+      expect(a.finalState).toEqual(b.finalState);
+      expect(a.result === 'win' || a.result === 'loss').toBe(true);
+    }
+  });
+
   it('different seeds can diverge (crit rolls consume RNG)', () => {
     const make = (): CombatantSetup => ({
       name: 'x',

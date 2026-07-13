@@ -1,7 +1,7 @@
 import { Rng } from '../rng';
 import type { CombatConfig, CombatantSetup, CombatOutcome, Side } from '../types';
-import type { CombatEvent, ComparisonSide } from './events';
-import { effStat, initCombatState, type CombatState, type CombatantState } from './state';
+import type { CombatEvent, ComparisonEntry, ComparisonSide } from './events';
+import { effStat, initCombatState, teamOf, type CombatState, type CombatantState } from './state';
 import { selectCast, type CastChoice } from './castSelect';
 import { applyCast, dealDamage, type Ctx } from './interpreter';
 
@@ -150,7 +150,9 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     //    ready score; ties break to canonical order (player before enemy, lowest
     //    index) — reproducing the old "player wins ties" rule at 1v1.
     const queued = units.map((c) => {
-      const choice = c.busyTurns > 0 ? null : selectCast(c, cfg.skillBook);
+      // Dead units never queue (in 1v1 death ends the fight, so this is a
+      // no-op there); a busy unit is finishing a span and cannot compete.
+      const choice = c.busyTurns > 0 || !c.alive ? null : selectCast(c, cfg.skillBook);
       return { unit: c, choice, comp: comparisonSide(c, choice) };
     });
 
@@ -162,11 +164,17 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
       }
     }
     const performer: Side | null = performerEntry ? performerEntry.unit.side : null;
+    const performerUnit: number | null = performerEntry ? performerEntry.unit.index : null;
 
-    // The `comparison` event keeps its 1v1 shape (player/enemy singletons).
+    // Team-shaped source of truth: every living combatant's numbers, canonical
+    // order (already the `pool` order). Legacy player/enemy singletons are kept
+    // (from each side's index-0 unit) for the pre-team UI until Wave 4.
+    const entries: ComparisonEntry[] = queued
+      .filter((q) => q.unit.alive)
+      .map((q) => ({ side: q.unit.side, unit: q.unit.index, ...q.comp }));
     const pSide = queued.find((q) => q.unit === state.player)!.comp;
     const eSide = queued.find((q) => q.unit === state.enemy)!.comp;
-    events.push({ turn: state.turn, kind: 'comparison', player: pSide, enemy: eSide, performer });
+    events.push({ turn: state.turn, kind: 'comparison', player: pSide, enemy: eSide, performer, entries, performerUnit });
 
     // 3. Perform (or pass) and bank the waiters (canonical order).
     for (const c of units) {
@@ -183,8 +191,13 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
       c.performs += 1;
       events.push({ turn: state.turn, kind: 'performStart', side: c.side, unit: c.index, performs: c.performs });
 
-      // Sudden death: active once both sides have performed `suddenDeathRound` times.
-      if (Math.min(state.player.performs, state.enemy.performs) >= suddenDeathRound) {
+      // Sudden death: keyed on side-level perform counters — any unit's
+      // performance advances its side's counter, so this is the SUM of the
+      // side's units' `performs` (== index-0's performs at 1v1). Active once
+      // both sides' counters reach `suddenDeathRound`; the amp lands on the
+      // performing unit's `sdStacks`, scaled by side.
+      const sidePerforms = (side: Side): number => teamOf(state, side).reduce((sum, u) => sum + u.performs, 0);
+      if (Math.min(sidePerforms('player'), sidePerforms('enemy')) >= suddenDeathRound) {
         if (!sdAnnounced) {
           sdAnnounced = true;
           events.push({ turn: state.turn, kind: 'suddenDeathStart' });
