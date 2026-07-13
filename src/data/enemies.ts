@@ -1,19 +1,22 @@
 import type { EnemyDef } from '../engine/types';
 
-// Demo enemy presets (depth-1 stats; the run layer will scale by depth later).
+// Demo enemy presets, authored at a Bronze / lowest-level FLOOR: every card
+// here is Bronze, every board is small (2-3 cards, no gems, no tier
+// overrides), and every statline is each monster's own modest default — not
+// an inflated "elite" or "boss" version. Tier/board/HP difficulty (bigger
+// boards, tier-ups, HP/stat multipliers) is a run-layer SCALING concern,
+// applied later by depth/level — it is deliberately NOT baked into these
+// depth-1 definitions. See docs/enemy-design.md for the full rule. Do NOT
+// retune these numbers against simulated fight outcomes — the fight result
+// is emergent and depends on the player's own build; that's intended.
 //
-// Design-by-principle, not by winrate: board PL (10 PL × Bronze card count)
-// is set as a multiple of the hero's starter board PL (50 PL = 5 cards), per
-// tier. See docs/enemy-design.md for the full rule. Do NOT retune these
-// numbers against simulated fight outcomes — the fight result is emergent
-// and depends on the player's own build; that's intended.
-//
-//   Basic  (~0.4x hero board = 20 PL) -> 2 cards, stats at/below hero baseline.
-//   Elite  (~1.0x hero board = 50 PL) -> 5 cards, HP ~175, trimmed crit variance.
-//   Boss   (~1.4x hero board = 70 PL) -> 7 cards, HP ~250 (partial wall), stats
-//          modestly above hero baseline.
+// `isElite`/`isBoss` are identity/encounter-role tags (used by the run layer
+// to place the monster), not stat multipliers — an elite or boss at the
+// floor still has a small 2-3 card board and a modest statline; its
+// intended extra difficulty comes from future depth-scaling, not from
+// hand-inflated numbers here.
 export const enemies: Record<string, EnemyDef> = {
-  // --- Basic: 2 cards = 20 PL (~0.4x hero board). One mechanic each. ---
+  // --- Basic floor: 2-3 Bronze cards, one mechanic each. ---
   giant_rat: {
     id: 'giant_rat',
     name: 'Giant Rat',
@@ -58,45 +61,40 @@ export const enemies: Record<string, EnemyDef> = {
     xpReward: 12,
   },
 
-  // --- Elite: 5 cards = 50 PL (~1.0x hero board). A scoutable sword-duelist. ---
+  // --- Elite floor: a balanced human sword-duelist, hero-baseline statline,
+  // 2-card basic board (its "elite" encounter role is a run-layer concern). ---
   bandit_duelist: {
     id: 'bandit_duelist',
     name: 'Bandit Duelist',
     baseDepth: 1,
     isElite: true,
-    stats: { maxHp: 175, hp: 175, attack: 14, magicPower: 0, armor: 2, magicResist: 1, speed: 12, critPct: 12 },
+    stats: { maxHp: 120, hp: 120, attack: 12, magicPower: 0, armor: 2, magicResist: 1, speed: 12, critPct: 8 },
     weaponAffinity: 'sword',
-    boardSize: 6,
+    boardSize: 2,
     pieces: [
-      { skillId: 'war_banner', slot: 0 },
-      { skillId: 'sword_slash', slot: 1 },
-      { skillId: 'crippling_strike', slot: 2 },
-      { skillId: 'follow_through', slot: 4 },
-      { skillId: 'hamstring', slot: 5 },
+      { skillId: 'sword_slash', slot: 0 },
+      { skillId: 'follow_through', slot: 1 },
     ],
     goldReward: 30,
     xpReward: 20,
   },
 
-  // --- Boss: 7 cards = 70 PL (~1.4x hero board). A rich beast board — a
-  // fire/bow counter-pick is the intended way in via the weapon/element
-  // triangle. ---
+  // --- Boss floor: a beast, modestly tougher than the basics but not a
+  // wall — a bow counter-pick is the intended way in via the weapon
+  // triangle. Its "boss" difficulty is future depth-scaling, not baked in
+  // here. ---
   wolf_king: {
     id: 'wolf_king',
     name: 'The Wolf King',
     baseDepth: 1,
     isBoss: true,
-    stats: { maxHp: 250, hp: 250, attack: 17, magicPower: 0, armor: 4, magicResist: 3, speed: 14, critPct: 12 },
+    stats: { maxHp: 160, hp: 160, attack: 13, magicPower: 0, armor: 2, magicResist: 1, speed: 13, critPct: 8 },
     weaponAffinity: 'beast',
-    boardSize: 9,
+    boardSize: 3,
     pieces: [
-      { skillId: 'battle_howl', slot: 0 },
-      { skillId: 'rending_claws', slot: 1 },
-      { skillId: 'savage_bite', slot: 4 },
-      { skillId: 'venom_fang', slot: 5 },
-      { skillId: 'leeching_fang', slot: 6 },
-      { skillId: 'lucky_charm', slot: 7 },
-      { skillId: 'armor_break', slot: 8 },
+      { skillId: 'savage_bite', slot: 0 },
+      { skillId: 'venom_fang', slot: 1 },
+      { skillId: 'leeching_fang', slot: 2 },
     ],
     goldReward: 60,
     xpReward: 40,
