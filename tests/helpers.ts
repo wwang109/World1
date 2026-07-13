@@ -64,6 +64,10 @@ export function cfg(
     suddenDeathRound: extra.suddenDeathRound ?? 5,
     fatigueTurn: extra.fatigueTurn ?? 40,
     maxTurns: extra.maxTurns ?? 200,
+    // Cooldowns default ON in real play; the TEST path defaults them OFF so the
+    // existing mechanic tests stay byte-identical to the pre-cooldown engine. A
+    // cooldown test opts in explicitly with `{ cooldownsEnabled: true }`.
+    cooldownsEnabled: extra.cooldownsEnabled ?? false,
   };
 }
 

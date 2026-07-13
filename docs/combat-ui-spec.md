@@ -52,6 +52,30 @@ score = bank + effectiveSpeed − queuedCardWeight
 Read all of this off the `comparison` event (see §4). Show both sides'
 `bank + speed − weight = score` so the math is legible — that's the game's core.
 
+### 2b. Cooldowns — the second pacing dial (weight = order, cooldown = availability)
+
+Weight and cooldown are **orthogonal** and **coexist**: weight decides the firing
+ORDER among the cards that are eligible this turn, while a per-card **cooldown**
+decides which cards are eligible **at all**.
+
+- After a card performs on global turn **T** it is **unavailable** on turns
+  **T+1 … T+cooldown** and **eligible again at T+cooldown+1**. The rotation
+  (`selectCast`) **skips a cooling card** exactly as it skips empty slots,
+  pure-passives, and not-currently-useful cards.
+- Effective cooldown = `skill.cooldownTurns ?? 3` (the baseline; `BASELINE_COOLDOWN`).
+- **Anti-small-deck:** if EVERY card is cooling (or otherwise unusable) the
+  combatant has nothing to perform — its `comparison` `state` is
+  **`nothingUsable`**, and (cooldowns on) that turn is a true **waste: it does NOT
+  bank Speed**. A 1–2 card deck therefore idles between casts instead of looping
+  every turn and cannot hoard readiness while its cards cool. A `ready` loser and a
+  `busy` spanner still bank normally.
+
+**Computing "cooldown remaining" for a slot (no dedicated event):** find that
+slot's most recent `skillCast` (`side`,`unit`,`slot`), let `last` be its `turn`
+and `cd = skill.cooldownTurns ?? 3`; then
+`remaining = max(0, last + cd + 1 − currentTurn)` (0 = available now). A slot with
+no prior `skillCast` has never fired and is available.
+
 ---
 
 ## 3. What the battle log shows for a selected round
@@ -80,7 +104,9 @@ changed it mid-turn — then the box shows why.
 - **Ending bank**, derived (no recomputation — these ARE the engine rules):
   - the **performer** ends at **0** (bank resets on performing; a stunned
     `performSkipped` also consumes the performance → 0);
-  - every **non-performer** ends at `bank + speed` (it banked its Speed);
+  - every **non-performer** ends at `bank + speed` (it banked its Speed) — EXCEPT
+    (cooldowns on) a **`nothingUsable`** combatant, whose turn is a waste: it banks
+    nothing and ends at its unchanged `bank` (see §2b);
   - if a **`staggered`** event hits a combatant this turn, its bank was drained —
     the event's **`bankAfter`** is authoritative for the end value.
 - Cross-check: the NEXT `comparison`'s `bank` for that combatant equals your
@@ -100,7 +126,7 @@ party/multi-enemy works later, see §6).
 | You want… | Event `kind` | Fields |
 |---|---|---|
 | **Speed math / who performs** | `comparison` | `entries` (per-unit `ComparisonEntry[]`: each `{side,unit}` + `bank`,`speed`,`weight`,`score`,`state`,`queuedSkillId`,`queuedSlot`), `performer` (`'player'\|'enemy'\|null`) + `performerUnit`. *Deprecated 1v1 aliases:* `player`, `enemy` (each a `ComparisonSide`, from index-0). |
-| **Actor + card cast** | `skillCast` | `side`, `unit`, `slot`, `skillId`, `span`. **Targeting (additive):** `targetUnit?` (chosen foe index, single-target), `targetPolicy?` (`'aggro'\|'first'\|'lowestHp'\|'highestThreat'\|'focus'` — what decided it), `targetValue?` (deciding metric: aggro / hp / board-PL-in-deci; omitted for `first`/`focus`), or `aoe:true` + `targets:number[]` for an AoE cast. Support/self casts carry none. |
+| **Actor + card cast** | `skillCast` | `side`, `unit`, `slot`, `skillId`, `span`, `cursorBefore`/`cursorAfter` (the performer's cast-cursor pointer before/after this cast advanced it; `cursorBefore` is the raw pointer and MAY point past the last card, in which case the scan wrapped to `slot`). **Targeting (additive):** `targetUnit?` (chosen foe index, single-target), `targetPolicy?` (`'aggro'\|'first'\|'lowestHp'\|'highestThreat'\|'focus'` — what decided it), `targetValue?` (deciding metric: aggro / hp / board-PL-in-deci; omitted for `first`/`focus`), or `aoe:true` + `targets:number[]` for an AoE cast. Support/self casts carry none. |
 | **Threat / aggro** | `aggroChanged` | `side`, `unit`, `aggro` (new total after e.g. a taunt) |
 | **Performance start / stun** | `performStart` (`side`,`unit`,`performs`) · `performSkipped` (`side`,`unit`,`reason:'stunned'`) · `noPerformer` |
 | **Damage** | `damage` | `side` (victim), `unit`, `amount`, `blocked`, `crit`, `property`, `matchup?` (`'advantage'\|'disadvantage'`), `guarded?`, `hpAfter`, `source` (`'skill'\|'poison'\|'burn'\|'fatigue'`). **HP lost = `amount − blocked`.** `guarded` = amount a Magical Guard reduced. |
@@ -223,7 +249,7 @@ chain (§3b).
 Turn 3, Hero casts Crushing Blow (slot 2, span 3) for 36:
 - `comparison` → `player {bank:24, speed:12, weight:30, score:6, state:'ready', queuedSkillId:'crushing_blow', queuedSlot:2}`, `enemy {…score:2…}`, `performer:'player'`.
 - `performStart {side:'player', unit:0, performs:2}`
-- `skillCast {side:'player', unit:0, slot:2, skillId:'crushing_blow', span:3}`
+- `skillCast {side:'player', unit:0, slot:2, skillId:'crushing_blow', span:3, cursorBefore:2, cursorAfter:5}`
 - `damage {side:'enemy', unit:0, amount:36, blocked:0, crit:false, property:'physical', hpAfter:41, source:'skill'}`
 
 → one turn box: header "YOU 24+12−30=6 vs FOE 0+12−10=2 → HERO", activation

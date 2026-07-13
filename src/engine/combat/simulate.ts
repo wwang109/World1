@@ -112,7 +112,10 @@ function comparisonSide(c: CombatantState, choice: CastChoice | null): Compariso
  * left→right rotation) → initiative comparison (bank + Speed − weight; higher
  * performs, tie → player) → the performer casts (or a stun consumes the
  * performance); everyone else banks their Speed. A cast of size N keeps its
- * caster busy for N−1 further turns. Sudden death after both sides have
+ * caster busy for N−1 further turns. With `cooldownsEnabled` (default on), a
+ * card that recently performed is skipped by the rotation until its reuse
+ * cooldown elapses (weight still orders whatever IS eligible); a combatant with
+ * nothing eligible wastes the turn and does NOT bank Speed. Sudden death after both sides have
  * performed 5 times ramps damage (+10%/turn player, +30%/turn enemy); a flat
  * fatigue backstop from global turn `fatigueTurn` guarantees termination.
  */
@@ -124,6 +127,9 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
   const suddenDeathRound = cfg.suddenDeathRound ?? DEFAULT_SUDDEN_DEATH_ROUND;
   const fatigueTurn = cfg.fatigueTurn ?? DEFAULT_FATIGUE_TURN;
   const maxTurns = cfg.maxTurns ?? DEFAULT_MAX_TURNS;
+  // Second pacing dial: per-card reuse cooldowns. ON for real play; tests pass
+  // false to stay byte-identical to the pre-cooldown engine.
+  const cooldownsEnabled = cfg.cooldownsEnabled ?? true;
   let sdAnnounced = false;
   let fatigueAnnounced = false;
 
@@ -155,7 +161,10 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
       const choice =
         c.busyTurns > 0 || !c.alive
           ? null
-          : selectCast(c, cfg.skillBook, teamOf(state, c.side).filter((u) => u.alive));
+          : selectCast(c, cfg.skillBook, teamOf(state, c.side).filter((u) => u.alive), {
+              currentTurn: state.turn,
+              cooldownsEnabled,
+            });
       return { unit: c, choice, comp: comparisonSide(c, choice) };
     });
 
@@ -180,8 +189,15 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     events.push({ turn: state.turn, kind: 'comparison', player: pSide, enemy: eSide, performer, entries, performerUnit });
 
     // 3. Perform (or pass) and bank the waiters (canonical order).
-    for (const c of units) {
+    //    A waiter banks its Speed EXCEPT — with cooldowns on — one that has
+    //    NOTHING eligible (`nothingUsable`): its turn is a true waste, no bank.
+    //    This stops a tiny deck from hoarding readiness while its cards cool and
+    //    then unleashing the instant they come off cooldown. A `ready` loser
+    //    (has a card, lost the comparison) and a `busy` spanner still bank.
+    for (const q of queued) {
+      const c = q.unit;
       if (performerEntry !== null && c === performerEntry.unit) continue;
+      if (cooldownsEnabled && q.comp.state === 'nothingUsable') continue;
       c.bank += effStat(c, 'speed');
       if (c.busyTurns > 0) c.busyTurns -= 1;
     }
@@ -220,9 +236,13 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         c.bank = 0;
       } else {
         c.bank = 0;
-        c.castCursor = (choice.piece.slot + choice.piece.size) % c.boardSize;
+        const cursorBefore = c.castCursor;
+        const cursorAfter = (choice.piece.slot + choice.piece.size) % c.boardSize;
+        c.castCursor = cursorAfter;
         c.busyTurns = choice.piece.size - 1;
-        applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods);
+        // This piece has now performed: stamp the reuse-cooldown clock.
+        choice.piece.lastCastTurn = state.turn;
+        applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, { before: cursorBefore, after: cursorAfter });
         // Slow Next is consumed by this action; Combo remembers this cast.
         c.nextWeightPenalty = 0;
         c.lastCastArchetypes = choice.skill.archetypes;

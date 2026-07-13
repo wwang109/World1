@@ -151,6 +151,15 @@ export interface SkillDef {
    * A card CAN be big but quick (low weight, long span) or small but heavy.
    */
   speedWeight?: number;
+  /**
+   * Reuse lockout in GLOBAL turns — a SECOND pacing dial, orthogonal to
+   * `speedWeight`: weight decides firing ORDER among eligible cards, cooldown
+   * decides card AVAILABILITY. After this card performs on turn T it is
+   * unavailable (skipped by `selectCast`) on turns T+1..T+cooldown and eligible
+   * again at T+cooldown+1. Defaults to `BASELINE_COOLDOWN` (3) when omitted.
+   * Only consulted when `CombatConfig.cooldownsEnabled` is on.
+   */
+  cooldownTurns?: number;
   rarity: Rarity;
   /** Power-level tier; the card's kit must sum to the tier's PL budget. */
   tier: SkillTier;
@@ -269,6 +278,16 @@ export interface CombatConfig {
   fatigueTurn?: number;
   /** Hard global-turn guard; sudden death ends fights long before this. */
   maxTurns?: number;
+  /**
+   * Per-card reuse cooldowns (see `SkillDef.cooldownTurns`). A SECOND pacing
+   * dial that COEXISTS with the weight/bank/spans system: weight orders which
+   * eligible card fires, cooldown gates which cards are eligible at all. When
+   * on, `selectCast` skips any card still cooling; a tiny (1–2 card) deck then
+   * idles between casts (banks Speed) instead of looping every turn — the
+   * anti-small-deck effect. DEFAULT true (real play). Tests set it false to
+   * stay byte-identical to the pre-cooldown engine.
+   */
+  cooldownsEnabled?: boolean;
 }
 
 export type CombatOutcome = 'win' | 'loss' | 'draw';

@@ -61,6 +61,16 @@ export type CombatEvent =
       slot: number;
       skillId: string;
       span: number;
+      /**
+       * Performer's cast cursor BEFORE this cast advanced it (the board slot the
+       * rotation scan started from). Additive, deterministic.
+       */
+      cursorBefore: number;
+      /**
+       * Performer's cast cursor AFTER this cast: `(slot + span) % boardSize`, the
+       * slot the next rotation scan starts from. Additive, deterministic.
+       */
+      cursorAfter: number;
       // ---- Targeting decision (additive; recorded at cast start, no RNG) ----
       /** Chosen opposing unit index for a single-target offensive cast. */
       targetUnit?: number;

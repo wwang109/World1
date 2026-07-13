@@ -35,6 +35,13 @@ export interface PieceState {
   skill: SkillDef;
   /** Card-scope stat-gem modifiers, folded into this card's aura bundle. */
   gemMods: Partial<AuraMods>;
+  /**
+   * Global turn this piece last PERFORMED a cast (undefined = never cast, so
+   * always available). Drives the reuse cooldown: `selectCast` skips this piece
+   * while `currentTurn - lastCastTurn <= effectiveCooldown(skill)`. Integer,
+   * so persisted state stays float-free and deterministic.
+   */
+  lastCastTurn?: number;
 }
 
 export interface CombatantState {

@@ -160,7 +160,7 @@ describe('ally-target support auto-policies', () => {
     const healer = tc('cleric', ['healTrue'], { speed: 40, maxHp: 100 }, { skillBook: BOOK }); // full HP
     const ally = tc('ally', [], { speed: 1, maxHp: 100, hp: 40 }, { skillBook: BOOK }); // hurt
     const foe = tc('foe', ['strike'], { speed: 1, attack: 1, maxHp: 500 }, { skillBook: BOOK });
-    const config: CombatConfig = { playerTeam: [healer, ally], enemyTeam: [foe], skillBook: BOOK, ...NO_ENDGAME };
+    const config: CombatConfig = { playerTeam: [healer, ally], enemyTeam: [foe], skillBook: BOOK, ...NO_ENDGAME, cooldownsEnabled: false };
     const { events } = simulate(config, 1);
 
     const heal = events.find((e) => e.kind === 'heal') as { side: string; unit: number; amount: number; hpAfter: number };
@@ -174,7 +174,7 @@ describe('ally-target support auto-policies', () => {
   it('end-to-end 1v1: a hurt solo hero self-heals; the heal event is (player,0)', () => {
     const hero = tc('hero', ['healTrue'], { speed: 40, maxHp: 100, hp: 40 }, { skillBook: BOOK });
     const foe = tc('foe', ['strike'], { speed: 1, attack: 1, maxHp: 500 }, { skillBook: BOOK });
-    const config: CombatConfig = { playerTeam: [hero], enemyTeam: [foe], skillBook: BOOK, ...NO_ENDGAME };
+    const config: CombatConfig = { playerTeam: [hero], enemyTeam: [foe], skillBook: BOOK, ...NO_ENDGAME, cooldownsEnabled: false };
     const { events } = simulate(config, 1);
     const heal = events.find((e) => e.kind === 'heal') as { side: string; unit: number };
     expect(heal).toMatchObject({ side: 'player', unit: 0 });

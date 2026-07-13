@@ -2,12 +2,42 @@ import { weightOf, type SkillBook, type SkillDef } from '../types';
 import { aurasOn, type AuraMods } from './auras';
 import { totalShield, type CombatantState, type PieceState } from './state';
 
+/**
+ * Default per-card reuse cooldown, in GLOBAL turns, when a card does not set its
+ * own `cooldownTurns`. A second pacing dial alongside weight (see `SkillDef`).
+ */
+export const BASELINE_COOLDOWN = 3;
+
+/** Effective reuse cooldown for a card: its own `cooldownTurns`, else the baseline. */
+export function effectiveCooldown(skill: SkillDef): number {
+  return skill.cooldownTurns ?? BASELINE_COOLDOWN;
+}
+
+/**
+ * A piece is ON COOLDOWN (not eligible to be queued) when it cast recently:
+ * `currentTurn - lastCastTurn <= effectiveCooldown`. Never-cast pieces
+ * (`lastCastTurn === undefined`) are always available. Cast on turn T →
+ * unavailable T+1..T+cooldown → eligible at T+cooldown+1.
+ */
+function onCooldown(piece: PieceState, currentTurn: number): boolean {
+  if (piece.lastCastTurn === undefined) return false;
+  return currentTurn - piece.lastCastTurn <= effectiveCooldown(piece.skill);
+}
+
 export interface CastChoice {
   piece: PieceState;
   skill: SkillDef;
   mods: AuraMods;
   /** Effective initiative weight after auras, never below 1. */
   weight: number;
+}
+
+/** Optional gating for `selectCast`. Cooldowns are OFF unless a caller opts in. */
+export interface SelectOpts {
+  /** Current global turn (needed to evaluate cooldowns). */
+  currentTurn: number;
+  /** When true, cards still within their reuse cooldown are skipped. */
+  cooldownsEnabled: boolean;
 }
 
 /**
@@ -64,7 +94,12 @@ function isUseful(c: CombatantState, skill: SkillDef, allies: CombatantState[]):
  * casts could target; passing the whole living team lets a healer/cleanser fire
  * for an ally. Defaulting to `[c]` keeps 1v1/solo byte-identical.
  */
-export function selectCast(c: CombatantState, skillBook: SkillBook, allies: CombatantState[] = [c]): CastChoice | null {
+export function selectCast(
+  c: CombatantState,
+  skillBook: SkillBook,
+  allies: CombatantState[] = [c],
+  opts?: SelectOpts,
+): CastChoice | null {
   const n = c.pieces.length;
   if (n === 0) return null;
 
@@ -75,6 +110,9 @@ export function selectCast(c: CombatantState, skillBook: SkillBook, allies: Comb
     const piece = c.pieces[(start + i) % n]!;
     const skill = piece.skill;
     if (skill.effects.length === 0 && skill.special === undefined) continue;
+    // Cooldown gate: a card still cooling from a recent cast is not eligible.
+    // Orthogonal to weight — weight only orders whatever IS eligible.
+    if (opts?.cooldownsEnabled && onCooldown(piece, opts.currentTurn)) continue;
     if (!isUseful(c, skill, allies)) continue;
     const mods = aurasOn(c, piece, skillBook);
     const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty);

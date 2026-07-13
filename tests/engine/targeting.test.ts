@@ -90,6 +90,7 @@ function run(player: CombatantSetup, enemyTeam: CombatantSetup[]): ReturnType<ty
     enemyTeam,
     skillBook: BOOK,
     ...NO_ENDGAME,
+    cooldownsEnabled: false, // byte-identical to the pre-cooldown engine
   };
   return simulate(config, 1);
 }

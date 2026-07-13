@@ -559,6 +559,7 @@ export function applyCast(
   skill: SkillDef,
   slot: number,
   mods: AuraMods,
+  cursor: { before: number; after: number },
 ): void {
   ctx.events.push({
     turn: ctx.state.turn,
@@ -568,6 +569,8 @@ export function applyCast(
     slot,
     skillId: skill.id,
     span: skill.size,
+    cursorBefore: cursor.before,
+    cursorAfter: cursor.after,
     ...targetInfoForCast(ctx, caster, skill),
   });
   const cast: CastCtx = { damageDealt: 0, bonusPct: 0 };
