@@ -168,10 +168,31 @@ export interface EquipmentDef {
   text: string;
 }
 
+/**
+ * A gem socketed into a board card.
+ * - effect: appends extra cast Actions (post-hit/independent riders) to the card.
+ * - stat:   flat modifiers, either card-scoped (ride the card's aura bundle) or
+ *           hero-scoped (added to the combatant's base stats at setup).
+ */
+export type Gem =
+  | { kind: 'effect'; id: string; rarity: Rarity; actions: Action[] }
+  | { kind: 'stat'; id: string; rarity: Rarity; scope: 'card' | 'hero'; mods: StatGemMods };
+
+export interface StatGemMods {
+  /** Hero-scope: flat integer stat adds folded into base stats. */
+  hero?: Partial<Record<BuffableStat, number>>;
+  /** Card-scope: modifiers applied to the socketed card only (AuraMods-shaped). */
+  card?: { damagePct?: number; healPct?: number; weightDelta?: number; critPctDelta?: number };
+}
+
 /** A card placed on a board; `slot` is its leftmost occupied slot. */
 export interface BoardPiece {
   skillId: string;
   slot: number;
+  /** Optional per-piece skill tier override. */
+  tier?: SkillTier;
+  /** Optional socketed gem. */
+  gem?: Gem | null;
 }
 
 /** A fully resolved combatant fed into simulate(). */

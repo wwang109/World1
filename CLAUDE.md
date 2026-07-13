@@ -42,6 +42,17 @@ scripts/      fight.ts, balance.ts, check-boundaries.mjs
 tests/        vitest suites
 ```
 
+### Additive features — the resolver seam (design principle)
+
+Add features WITHOUT editing the core combat loop. All per-instance modifiers
+(gems now; tiers, enchantments, gear later) fold into an **effective** card +
+combatant in `src/engine/cards.ts` (`resolveEffectiveSkill` + gem/stat folding).
+The core loop — `simulate`, `interpreter`, `castSelect`, `aurasOn` — consumes ONLY
+the resolved form and stays feature-agnostic. Adding a feature = extend the
+resolver + add its data; do NOT change core function signatures or add
+feature-specific branches to the loop. Un-featured input must resolve to
+byte-identical behavior (the determinism + audit tests prove it).
+
 ### Determinism invariants (do not break)
 
 - `simulate(config, seed)` is a **pure function** — same input, same event log.

@@ -62,8 +62,7 @@ export function selectCast(c: CombatantState, skillBook: SkillBook): CastChoice 
 
   for (let i = 0; i < n; i++) {
     const piece = c.pieces[(start + i) % n]!;
-    const skill = skillBook[piece.skillId];
-    if (!skill) continue;
+    const skill = piece.skill;
     if (skill.effects.length === 0 && skill.special === undefined) continue;
     if (!isUseful(c, skill)) continue;
     const mods = aurasOn(c, piece, skillBook);

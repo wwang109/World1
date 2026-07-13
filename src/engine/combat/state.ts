@@ -1,4 +1,6 @@
-import type { Archetype, BuffableStat, CombatConfig, CombatantStats, Element, Property, Side, SkillBook, WeaponType } from '../types';
+import type { Archetype, BuffableStat, CombatConfig, CombatantStats, Element, Property, Side, SkillBook, SkillDef, WeaponType } from '../types';
+import type { AuraMods } from './auras';
+import { applyHeroGems, gemCardMods, gemHeroStats, resolveEffectiveSkill } from '../cards';
 
 export interface StatusInstance {
   kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate';
@@ -28,6 +30,10 @@ export interface PieceState {
   /** Leftmost occupied slot. */
   slot: number;
   size: number;
+  /** Effective skill after gem resolution (effect-gem actions appended). */
+  skill: SkillDef;
+  /** Card-scope stat-gem modifiers, folded into this card's aura bundle. */
+  gemMods: Partial<AuraMods>;
 }
 
 export interface CombatantState {
@@ -72,20 +78,21 @@ function initCombatant(side: Side, cfg: CombatConfig, skillBook: SkillBook): Com
   for (const piece of setup.pieces) {
     const def = skillBook[piece.skillId];
     if (!def) throw new Error(`Unknown skill on board: ${piece.skillId}`);
-    if (piece.slot < 0 || piece.slot + def.size > setup.boardSize) {
+    const skill = resolveEffectiveSkill(def, piece);
+    if (piece.slot < 0 || piece.slot + skill.size > setup.boardSize) {
       throw new Error(`Skill ${piece.skillId} at slot ${piece.slot} exceeds board of ${setup.boardSize}`);
     }
-    for (let s = piece.slot; s < piece.slot + def.size; s++) {
+    for (let s = piece.slot; s < piece.slot + skill.size; s++) {
       if (occupied[s]) throw new Error(`Board overlap at slot ${s} (${piece.skillId})`);
       occupied[s] = true;
     }
-    pieces.push({ skillId: piece.skillId, slot: piece.slot, size: def.size });
+    pieces.push({ skillId: piece.skillId, slot: piece.slot, size: skill.size, skill, gemMods: gemCardMods(piece.gem) });
   }
   pieces.sort((a, b) => a.slot - b.slot);
   return {
     side,
     name: setup.name,
-    stats: { ...setup.stats },
+    stats: applyHeroGems({ ...setup.stats }, gemHeroStats(setup.pieces)),
     shields: { physical: 0, magical: 0, true: 0 },
     boardSize: setup.boardSize,
     pieces,

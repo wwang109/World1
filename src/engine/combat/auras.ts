@@ -36,8 +36,8 @@ function covers(source: PieceState, target: PieceState, affects: 'adjacent' | 'l
 
 /**
  * Sum every aura on this combatant's board that reaches `piece` and whose
- * filters match the card sitting there. Recomputed at cast time so board
- * state changes are always reflected.
+ * filters match the card sitting there, then fold in the piece's own card-scope
+ * stat-gem mods. Recomputed at cast time so board state changes are reflected.
  */
 export function aurasOn(c: CombatantState, piece: PieceState, skillBook: SkillBook): AuraMods {
   const targetDef = skillBook[piece.skillId];
@@ -57,5 +57,11 @@ export function aurasOn(c: CombatantState, piece: PieceState, skillBook: SkillBo
     mods.weightDelta += aura.mods.weightDelta ?? 0;
     mods.critPctDelta += aura.mods.critPctDelta ?? 0;
   }
+  // Card-scope stat gem rides the same bundle.
+  const g = piece.gemMods;
+  mods.damagePct += g.damagePct ?? 0;
+  mods.healPct += g.healPct ?? 0;
+  mods.weightDelta += g.weightDelta ?? 0;
+  mods.critPctDelta += g.critPctDelta ?? 0;
   return mods;
 }

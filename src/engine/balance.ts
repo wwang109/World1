@@ -11,7 +11,7 @@
 // docs/power-level-reference.md, sourced from these exact constants. Do not
 // hand-copy numbers elsewhere — read PRICE.
 
-import { weightOf, type SkillDef, type SkillTier } from './types';
+import { weightOf, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
 
 export const TIER_BUDGET_DECI: Record<SkillTier, number> = {
   bronze: 100,
@@ -126,26 +126,44 @@ export const PRICE = {
   auraHealPct: 4,
   auraCritPct: 5,
   auraWeightDelta: 20,
+
+  /**
+   * Hero-scope gem stat mods: flat integer points folded into base
+   * `CombatantStats` for the whole run (permanent, every card, every turn) —
+   * see "Gem pricing" in docs/power-level-reference.md for the anchoring
+   * rationale per stat. First-pass rates; re-tune with sim data once
+   * content-designer's gem catalog exists.
+   */
+  heroStatPerPoint: {
+    attack: 8,
+    magicPower: 8,
+    armor: 10,
+    magicResist: 10,
+    speed: 5,
+    critPct: 5,
+  } as Record<BuffableStat, number>,
 } as const;
 
-/** Total deci-PL of a card's kit. */
-export function powerLevelDeci(skill: SkillDef): number {
+/**
+ * Pure pricing switch over a bare Action[] against a given `property`. This
+ * is the per-unit rate table applied without any card-level context (size,
+ * weight, aura, TRUE premium) — `powerLevelDeci` layers those on top for a
+ * full `SkillDef`; `gemPowerLevelDeci` uses this directly for effect gems.
+ */
+export function actionsPriceDeci(actions: readonly Action[], property: Property): number {
   let deci = 0;
-  let hasCast = false;
-
-  for (const action of skill.effects) {
-    hasCast = true;
+  for (const action of actions) {
     switch (action.kind) {
       case 'damage':
         // True damage still scales (off the higher stat); its edge is priced
-        // by the TRUE premium below.
+        // by the TRUE premium (card-level only, not applied here).
         deci += Math.floor((action.power * PRICE.damagePerPctNum) / PRICE.damagePerPctDen);
         break;
       case 'heal':
       case 'shield':
         // True heals/shields are FLAT amounts.
         deci +=
-          skill.property === 'true'
+          property === 'true'
             ? action.power * PRICE.flatTruePerPoint
             : Math.floor((action.power * PRICE.damagePerPctNum) / PRICE.damagePerPctDen);
         break;
@@ -188,6 +206,13 @@ export function powerLevelDeci(skill: SkillDef): number {
         break;
     }
   }
+  return deci;
+}
+
+/** Total deci-PL of a card's kit. */
+export function powerLevelDeci(skill: SkillDef): number {
+  const hasCast = skill.effects.length > 0;
+  let deci = actionsPriceDeci(skill.effects, skill.property);
 
   if (skill.aura) {
     const reach = skill.aura.affects === 'allBoard' ? 2 : 1;
@@ -222,4 +247,91 @@ export function powerLevel(skill: SkillDef): number {
 /** Whether the card's kit matches its tier budget within tolerance. */
 export function isOnBudget(skill: SkillDef): boolean {
   return Math.abs(powerLevelDeci(skill) - TIER_BUDGET_DECI[skill.tier]) <= BUDGET_TOLERANCE_DECI;
+}
+
+/**
+ * Rarity -> PL band (deci-PL) a gem's OWN price should land on. Gems add
+ * UNCAPPED bonus PL on top of a card's base kit; rarity fixes how much bonus
+ * a given gem is worth, not a budget the base-card audit ever sees.
+ *   Common 2 PL (20 deci) · Rare 4 PL (40) · Epic 6 PL (60) · Legendary 8 PL (80).
+ */
+export const RARITY_PL_DECI: Record<Rarity, number> = {
+  common: 20,
+  rare: 40,
+  epic: 60,
+  legendary: 80,
+};
+
+/**
+ * Canonical property used to price EFFECT gems, independent of whichever
+ * card they end up socketed into: `physical`. Effect-gem actions in practice
+ * are riders (poison/stagger/lifesteal/buffStat/etc.) whose price doesn't
+ * depend on property; the one case that DOES read `property` is a raw
+ * `damage`/`heal`/`shield` action, which would otherwise price differently
+ * (flat vs %) depending on the host's property and break the "gem PL is
+ * fixed, not host-dependent" rule. `physical` is picked over `true` for this
+ * specifically: it prices those actions with the ordinary %-of-power
+ * formula rather than the flat-TRUE one, and the TRUE premium (a card-level,
+ * casting-property charge) never applies to gems at all — `actionsPriceDeci`
+ * doesn't add it.
+ */
+export const GEM_CANONICAL_PROPERTY: Property = 'physical';
+
+/**
+ * Total deci-PL of a single gem, priced independent of the card it's
+ * socketed into (see `GEM_CANONICAL_PROPERTY` for the effect-gem case).
+ * This is NOT part of the base-card budget audit — it's the gem's own PL,
+ * checked against its rarity band by `isGemOnBudget`.
+ */
+export function gemPowerLevelDeci(gem: Gem): number {
+  if (gem.kind === 'effect') {
+    return actionsPriceDeci(gem.actions, GEM_CANONICAL_PROPERTY);
+  }
+
+  // Stat gem.
+  if (gem.scope === 'card') {
+    const card = gem.mods.card;
+    if (!card) return 0;
+    return (
+      (card.damagePct ?? 0) * PRICE.auraDamagePct +
+      (card.healPct ?? 0) * PRICE.auraHealPct +
+      (card.critPctDelta ?? 0) * PRICE.auraCritPct +
+      Math.abs(card.weightDelta ?? 0) * PRICE.auraWeightDelta
+    );
+  }
+
+  // Hero scope.
+  const hero = gem.mods.hero;
+  if (!hero) return 0;
+  let deci = 0;
+  for (const stat of Object.keys(PRICE.heroStatPerPoint) as BuffableStat[]) {
+    const v = hero[stat];
+    if (v === undefined) continue;
+    deci += v * PRICE.heroStatPerPoint[stat];
+  }
+  return deci;
+}
+
+/** Display power level with one-decimal precision, e.g. 6 or 4.5. */
+export function gemPowerLevel(gem: Gem): number {
+  return gemPowerLevelDeci(gem) / 10;
+}
+
+/**
+ * Whether a gem's own PL sits within its rarity's band (±0.5 PL) — the gem
+ * analog of `isOnBudget`. NOTE: the audit test that iterates a real gem
+ * catalog belongs to content-designer once that catalog exists; this is
+ * just the checking primitive.
+ */
+export function isGemOnBudget(gem: Gem): boolean {
+  return Math.abs(gemPowerLevelDeci(gem) - RARITY_PL_DECI[gem.rarity]) <= BUDGET_TOLERANCE_DECI;
+}
+
+/**
+ * Display/run-power readout for a socketed piece: base card PL (audited,
+ * tier-budgeted) plus the gem's own uncapped bonus PL. Never fed back into
+ * `isOnBudget` — the base-tier audit must stay gem-blind.
+ */
+export function instancePowerLevelDeci(def: SkillDef, piece: { gem?: Gem | null }): number {
+  return powerLevelDeci(def) + (piece.gem ? gemPowerLevelDeci(piece.gem) : 0);
 }

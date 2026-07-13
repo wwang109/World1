@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { BUDGET_TOLERANCE_DECI, isOnBudget, PRICE, powerLevel, powerLevelDeci, TIER_BUDGET_DECI } from '../../src/engine/balance';
+import {
+  BUDGET_TOLERANCE_DECI,
+  gemPowerLevelDeci,
+  isGemOnBudget,
+  isOnBudget,
+  PRICE,
+  powerLevel,
+  powerLevelDeci,
+  RARITY_PL_DECI,
+  TIER_BUDGET_DECI,
+} from '../../src/engine/balance';
 import { skillBook } from '../../src/data/skills';
-import type { SkillDef } from '../../src/engine/types';
+import type { Gem, SkillDef } from '../../src/engine/types';
 
 describe('Power Level budgets', () => {
   it('tier budgets are Bronze 10 / Silver 15 / Gold 20 / Diamond 25', () => {
@@ -115,5 +125,50 @@ describe('Power Level budgets', () => {
     expect(powerLevelDeci(mk(1))).toBe(PRICE.negatePerCharge);
     expect(powerLevelDeci(mk(2))).toBe(TIER_BUDGET_DECI.bronze);
     expect(powerLevelDeci(mk(3))).toBe(TIER_BUDGET_DECI.silver);
+  });
+});
+
+describe('Gem Power Level', () => {
+  it('rarity bands: Common 20 / Rare 40 / Epic 60 / Legendary 80 deci-PL', () => {
+    expect(RARITY_PL_DECI).toEqual({ common: 20, rare: 40, epic: 60, legendary: 80 });
+  });
+
+  it('effect gem: priced via actionsPriceDeci over the canonical (physical) property', () => {
+    // stagger 16 -> floor(16 * 5/4) = 20 deci; lands on the Common band.
+    const gem: Gem = { kind: 'effect', id: 'g1', rarity: 'common', actions: [{ kind: 'stagger', amount: 16 }] };
+    expect(gemPowerLevelDeci(gem)).toBe(Math.floor((16 * PRICE.staggerPerPointNum) / PRICE.staggerPerPointDen));
+    expect(gemPowerLevelDeci(gem)).toBe(20);
+    expect(isGemOnBudget(gem)).toBe(true);
+  });
+
+  it('card-scope stat gem: reuses the aura per-point rates, no reach multiplier', () => {
+    const gem: Gem = {
+      kind: 'stat',
+      id: 'g2',
+      rarity: 'rare',
+      scope: 'card',
+      mods: { card: { damagePct: 10 } }, // 10 * auraDamagePct(4) = 40 deci
+    };
+    expect(gemPowerLevelDeci(gem)).toBe(10 * PRICE.auraDamagePct);
+    expect(gemPowerLevelDeci(gem)).toBe(40);
+    expect(isGemOnBudget(gem)).toBe(true);
+  });
+
+  it('hero-scope stat gem: flat points priced via PRICE.heroStatPerPoint', () => {
+    const gem: Gem = {
+      kind: 'stat',
+      id: 'g3',
+      rarity: 'epic',
+      scope: 'hero',
+      mods: { hero: { attack: 5, speed: 4 } }, // 5*8 + 4*5 = 60 deci
+    };
+    expect(gemPowerLevelDeci(gem)).toBe(5 * PRICE.heroStatPerPoint.attack + 4 * PRICE.heroStatPerPoint.speed);
+    expect(gemPowerLevelDeci(gem)).toBe(60);
+    expect(isGemOnBudget(gem)).toBe(true);
+  });
+
+  it('isGemOnBudget flags a gem outside its rarity band', () => {
+    const cheapCommon: Gem = { kind: 'effect', id: 'g4', rarity: 'common', actions: [{ kind: 'stagger', amount: 4 }] };
+    expect(isGemOnBudget(cheapCommon)).toBe(false);
   });
 });
