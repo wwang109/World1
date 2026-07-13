@@ -64,6 +64,14 @@ wasted or ambiguous slack.
 | Ember Imp | Basic | 2 | 85 | mp 13, crit 10 (magic glass cannon) | element: fire |
 | Bandit Duelist | Elite (tag only) | 2 | 120 | atk 12, armor 2, crit 8 (balanced human duelist, ~hero baseline) | weapon: sword |
 | The Wolf King | Boss (tag only) | 3 | 160 | atk 13, armor 2, spd 13, crit 8 (modest beast, not a wall) | weapon: beast |
+| Seraph | Basic | 2 | 110 | mp 12, magicResist 4 (holy caster-support) | element: holy |
+| Knight | Basic | 2 | 170 | atk 10, armor 6, spd 9 (sturdy defender) | weapon: sword |
+| Mage | Basic | 2 | 80 | mp 14, crit 12 (arcane/fire glass cannon) | element: fire |
+| Hunter | Basic | 2 | 95 | atk 11, spd 15 (nimble archer) | weapon: bow |
+| Rogue | Basic | 2 | 90 | atk 10, spd 14, crit 18 (poison + crit assassin) | weapon: beast |
+| Berserker | Basic | 2 | 140 | atk 14, armor 1 (axe brute) | weapon: axe |
+| Necromancer | Basic | 2 | 90 | mp 12, magicResist 3 (dark debuffer) | element: dark |
+| Cleric | Basic | 3 | 130 | atk 6, mp 9, armor 2 (healer w/ small attack) | element: holy |
 
 Source of truth for exact numbers is always `src/data/enemies.ts` — this
 table is a snapshot for quick reference and should be kept in sync when the
