@@ -158,6 +158,54 @@ combatants). Design the log for it now so nothing breaks later:
 
 ---
 
+## 7. Data available for display (levels · stats · per-turn)
+
+Everything the UI can show, and where to get it.
+
+**Per combatant — identity & static values** (from its `CombatantSetup`; a team is
+an array of these — one per unit):
+- `name` — display name.
+- `stats: CombatantStats` — `maxHp`, `hp`, `attack`, `magicPower`, `armor`,
+  `magicResist`, `speed`, `critPct`. Use these for the initial/prep display; live
+  HP during a fight comes from events (below).
+- `boardSize` + `pieces: BoardPiece[]` — the unit's board. Each piece is
+  `{ skillId, slot, tier?, gem? }`; look up `skillBook[skillId]` for the card's
+  name/props, and `gemBook` for a socketed `gem`.
+- `elementAffinity?` / `weaponAffinity?` — drive the "weak to …" scout hints.
+- `targetPolicy?` (default `'aggro'`), `focus?`, `baseAggro?` — the unit's targeting
+  behaviour; show its policy in the pre-fight scout so the player can plan.
+- **Board PL** for display: `boardPL(pieces, skillBook)`; per card,
+  `instancePowerLevelDeci(def, piece) / 10` (base + socketed gem).
+
+**Level** — NOT on the setup; it comes from the run-layer builders in
+`src/run/encounter.ts`:
+- Enemies: `buildEnemyEncounter(enemyId, level) → { setup, level, enemyId }`.
+  Display `level`; **stop using `EnemyDef.baseDepth`**.
+- Hero: `buildHeroSetup({ level, allocation, pieces }) → { setup, level }`.
+- Thread the resolved `level` next to each combatant into the scene (e.g. a
+  `{ setup, level }[]` per team) so you can render "Bandit · LV 5".
+- (`EnemyDef` also carries `baseDepth`/`isElite`/`isBoss`/`goldReward`/`xpReward`
+  for the map & reward UI later — those are not combat stats.)
+
+**Live values during playback** — read off the event stream, never recompute:
+| Value | Source event → field |
+|---|---|
+| current HP | `damage`/`heal` → `hpAfter` (per `(side,unit)`) |
+| shield total | `shieldGain.totalAfter`, `shieldBroken.totalAfter` |
+| aggro | `aggroChanged.aggro` |
+| statuses | `statusApplied` / `statusExpired` (`turns`, `charges` for negate) |
+| bank/speed/weight/score/queued card | `comparison` → `entries[]` per `(side,unit)` (or legacy `player`/`enemy`) |
+| death / outcome | `died` · `combatEnd.result` |
+
+**Per turn, the log carries** (full detail §1–5): the `comparison` (speed math +
+who performs), the `skillCast` (actor + card + **who was targeted and why** via
+`targetUnit`/`targetPolicy`/`targetValue`, or the AoE marker), and the result
+events (`damage`/`heal`/`shieldGain`/`statusApplied`/riders/`aggroChanged`/`died`)
+— all sharing that `turn`. One turn box = activation + results + the bank in→out
+chain (§3b).
+
+---
+
 ## Worked example (the current 1v1 build)
 
 Turn 3, Hero casts Crushing Blow (slot 2, span 3) for 36:
