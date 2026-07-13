@@ -3,7 +3,7 @@ import type { Action, Property, SkillDef } from '../types';
 import type { CombatEvent } from './events';
 import type { AuraMods } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
-import { boardPowerLevel, effStat, foesOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
+import { boardPowerLevel, effStat, foesOf, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 
 export interface Ctx {
@@ -68,14 +68,94 @@ function pickByPolicy(caster: CombatantState, living: CombatantState[]): Combata
 }
 
 /**
- * Resolve the targets of one action. Support actions apply to the caster.
+ * Support actions that auto-pick a recipient on the caster's OWN side (self
+ * always a candidate). Everything else non-offensive stays on the caster:
+ * shield/guard/negate self-protect, and taunt/lifesteal/comboBonus are self
+ * riders. Ally-shield is a future option (see resolveTargets).
+ */
+function isAllyTargetedSupport(action: Action): boolean {
+  return action.kind === 'heal' || action.kind === 'cleanse' || action.kind === 'buffStat';
+}
+
+/** Cleansable afflictions on a unit (what a `cleanse` would strip). */
+function cleansableCount(c: CombatantState): number {
+  let n = 0;
+  for (const s of c.statuses) {
+    if (s.kind === 'poison' || s.kind === 'burn' || s.kind === 'stun' || s.kind === 'debuff') n += 1;
+  }
+  return n;
+}
+
+/**
+ * Deterministic ALLY-TARGET policy for a support action: pick ONE living unit
+ * on the caster's side (self always a candidate). It's an AUTO-battle, so this
+ * runs with no interactivity — pure integer math, no RNG. `teamOf` is
+ * index-ascending and `.filter` preserves order, so strict comparisons keep
+ * ties on the lowest LIVING index for free.
+ */
+function pickSupportTarget(state: CombatState, caster: CombatantState, action: Action): CombatantState {
+  const allies = teamOf(state, caster.side).filter((a) => a.alive);
+  if (allies.length === 0) return caster; // caster is living when it casts; defensive guard.
+  switch (action.kind) {
+    case 'heal': {
+      // Lowest HP FRACTION (hp/maxHp) = most hurt. Compared by cross-multiplication
+      // to keep it exact integer math (maxHp is always >= 1).
+      let best = allies[0]!;
+      for (const a of allies) {
+        if (a.stats.hp * best.stats.maxHp < best.stats.hp * a.stats.maxHp) best = a;
+      }
+      return best;
+    }
+    case 'cleanse': {
+      // Most cleansable statuses; if nobody is afflicted, fall back to self (no-op).
+      let best = allies[0]!;
+      let bestCount = cleansableCount(best);
+      for (const a of allies) {
+        const n = cleansableCount(a);
+        if (n > bestCount) {
+          best = a;
+          bestCount = n;
+        }
+      }
+      return bestCount === 0 ? caster : best;
+    }
+    case 'buffStat': {
+      const stat = action.stat;
+      // Offensive stats amplify the specialist (highest current value); defensive
+      // stats reinforce the tank (highest aggro).
+      const offensive = stat === 'attack' || stat === 'magicPower' || stat === 'critPct' || stat === 'speed';
+      const metric = (a: CombatantState): number => (offensive ? effStat(a, stat) : a.aggro);
+      const hasSameBuff = (a: CombatantState): boolean => a.statuses.some((s) => s.kind === 'buff' && s.stat === stat);
+      // Prefer allies WITHOUT this buff (skip redundant overwrites); if EVERY ally
+      // already has it, fall back to the same best-metric pick (refresh the best).
+      let pool = allies.filter((a) => !hasSameBuff(a));
+      if (pool.length === 0) pool = allies;
+      let best = pool[0]!;
+      for (const a of pool) if (metric(a) > metric(best)) best = a;
+      return best;
+    }
+    default:
+      return caster;
+  }
+}
+
+/**
+ * Resolve the targets of one action.
+ *
+ * Support actions: ally-targeted ones (heal/cleanse/buffStat) auto-pick the best
+ * recipient on the CASTER'S side via `pickSupportTarget` (self is always a
+ * candidate); shield/guard/negate and self riders stay on the caster.
+ * Ally-shield is a deliberate future option — a unit self-protects for now.
+ *
  * Offensive actions hit foes: `scope: 'all'` = every living foe (ascending
  * index); otherwise the ONE foe chosen by `focus` (when that unit is living)
  * else `targetPolicy`. All deterministic — no RNG, computed from current state.
  *
- * 1v1 byte-identical: the sole foe is returned when living, and — matching the
- * old `foesOf(state, caster)[0]` behavior — the (dead) foe is still returned as
- * a no-op fallback when it is the only foe and has died mid-cast, so a trailing
+ * 1v1 byte-identical: in SOLO/1v1 the only same-side candidate is the caster, so
+ * `pickSupportTarget` returns the caster and support behavior is unchanged. For
+ * foes, the sole foe is returned when living, and — matching the old
+ * `foesOf(state, caster)[0]` behavior — the (dead) foe is still returned as a
+ * no-op fallback when it is the only foe and has died mid-cast, so a trailing
  * damage action still consumes its crit roll in the same fixed RNG order.
  */
 export function resolveTargets(
@@ -84,7 +164,10 @@ export function resolveTargets(
   skill: SkillDef,
   action: Action,
 ): CombatantState[] {
-  if (!isOffensiveAction(action)) return [caster];
+  if (!isOffensiveAction(action)) {
+    if (isAllyTargetedSupport(action)) return [pickSupportTarget(ctx.state, caster, action)];
+    return [caster];
+  }
   const foes = foesOf(ctx.state, caster);
   const living = foes.filter((f) => f.alive);
   if (skill.scope === 'all') return living; // AoE: all living foes, ascending index.
@@ -234,10 +317,13 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
 }
 
 /**
- * Apply one action to one already-resolved target. Offensive actions receive
- * the victim as `enemy`; support actions ignore it and act on the caster (for a
- * support action `enemy === caster`). The interpreter fan-out (see `applyCast`)
- * calls this once per resolved target, in ascending index order.
+ * Apply one action to one already-resolved target, passed as `enemy` (the name
+ * is historical). Offensive actions treat it as the victim. Ally-targeted
+ * support (heal/cleanse/buffStat) treats it as the recipient ally chosen by
+ * `resolveTargets` — which is the caster in 1v1, so `enemy === caster` there.
+ * Self-only support (shield/guard/negate) and the self riders (taunt/lifesteal/
+ * comboBonus) act on the caster directly. The interpreter fan-out (see
+ * `applyCast`) calls this once per resolved target, in ascending index order.
  */
 function applyAction(
   ctx: Ctx,
@@ -266,7 +352,10 @@ function applyAction(
       break;
     }
     case 'heal': {
-      if (!caster.alive) break;
+      // Lands on the resolved ally target (lowest HP fraction; self in 1v1) but
+      // SCALES off the CASTER's stats — the healer's power, the ally's HP bar.
+      const target = enemy;
+      if (!target.alive) break;
       // TRUE heals are flat: exact amount, no scaling, no aura math.
       let amount: number;
       let flat = false;
@@ -277,11 +366,11 @@ function applyAction(
         amount = Math.floor((scaleStat(caster, property) * action.power) / 100);
         amount = Math.floor((amount * (100 + mods.healPct)) / 100);
       }
-      const before = caster.stats.hp;
-      caster.stats.hp = Math.min(caster.stats.maxHp, caster.stats.hp + amount);
-      const healed = caster.stats.hp - before;
+      const before = target.stats.hp;
+      target.stats.hp = Math.min(target.stats.maxHp, target.stats.hp + amount);
+      const healed = target.stats.hp - before;
       if (healed > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, unit: caster.index, amount: healed, flat, hpAfter: caster.stats.hp });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, flat, hpAfter: target.stats.hp });
       }
       break;
     }
@@ -319,14 +408,17 @@ function applyAction(
     case 'stun':
       addStatus(ctx, enemy, { kind: 'stun', turnsLeft: action.turns, fresh: true });
       break;
-    case 'buffStat':
+    case 'buffStat': {
+      // Lands on the resolved ally target (see pickSupportTarget; self in 1v1).
       // TRUE buffs are flat amounts; physical/magical buffs are percentages.
+      const target = enemy;
       if (property === 'true') {
-        addStatus(ctx, caster, { kind: 'buff', stat: action.stat, amount: action.pct, turnsLeft: action.turns, fresh: true });
+        addStatus(ctx, target, { kind: 'buff', stat: action.stat, amount: action.pct, turnsLeft: action.turns, fresh: true });
       } else {
-        addStatus(ctx, caster, { kind: 'buff', stat: action.stat, pct: action.pct, turnsLeft: action.turns, fresh: true });
+        addStatus(ctx, target, { kind: 'buff', stat: action.stat, pct: action.pct, turnsLeft: action.turns, fresh: true });
       }
       break;
+    }
     case 'debuffStat':
       if (property === 'true') {
         addStatus(ctx, enemy, { kind: 'debuff', stat: action.stat, amount: action.pct, turnsLeft: action.turns, fresh: true });
@@ -335,12 +427,15 @@ function applyAction(
       }
       break;
     case 'cleanse': {
-      if (!caster.alive) break;
-      const before = caster.statuses.length;
-      caster.statuses = caster.statuses.filter((s) => s.kind === 'buff');
-      const removed = before - caster.statuses.length;
+      // Lands on the resolved ally target (most-afflicted ally; self when nobody
+      // is afflicted, or in 1v1). Strips everything except buffs.
+      const target = enemy;
+      if (!target.alive) break;
+      const before = target.statuses.length;
+      target.statuses = target.statuses.filter((s) => s.kind === 'buff');
+      const removed = before - target.statuses.length;
       if (removed > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'cleansed', side: caster.side, unit: caster.index, removed });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'cleansed', side: target.side, unit: target.index, removed });
       }
       break;
     }

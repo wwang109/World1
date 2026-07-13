@@ -114,6 +114,18 @@ party/multi-enemy works later, see §6).
 `skillId` → look up the card in `skillBook` for its display name/props. `slot` is
 the board position that fired.
 
+**Support result events may target a NON-SELF ally.** In multi-unit sides,
+ally-target support auto-policies pick the best recipient on the CASTER'S own
+side (self always a candidate; deterministic, no input): `heal` → lowest HP
+fraction, `cleanse` → most-afflicted, `buffStat` → highest-stat/highest-aggro
+un-buffed ally. So a support `heal`/`statusApplied`/`cleansed` event's
+`(side, unit)` identifies **who was healed/buffed/cleansed — not necessarily the
+caster** (`skillCast.unit`). Render the result on the `(side,unit)` unit, not the
+performer. The `skillCast` still carries no target fields for support casts, so
+read the recipient off each result event. In SOLO/1v1 the only same-side
+candidate is the caster, so `(side,unit)` is the caster and this is byte-identical
+to the old self-only behavior. (Shield/guard/negate stay on the caster for now.)
+
 ---
 
 ## 5. Turn box: activations AND their results — both

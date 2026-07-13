@@ -152,7 +152,10 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     const queued = units.map((c) => {
       // Dead units never queue (in 1v1 death ends the fight, so this is a
       // no-op there); a busy unit is finishing a span and cannot compete.
-      const choice = c.busyTurns > 0 || !c.alive ? null : selectCast(c, cfg.skillBook);
+      const choice =
+        c.busyTurns > 0 || !c.alive
+          ? null
+          : selectCast(c, cfg.skillBook, teamOf(state, c.side).filter((u) => u.alive));
       return { unit: c, choice, comp: comparisonSide(c, choice) };
     });
 
