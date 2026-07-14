@@ -258,3 +258,13 @@ Turn 3, Hero casts Crushing Blow (slot 2, span 3) for 36:
 If Sword Slash (slot 1) is cast while War Banner (slot 0) sits adjacent, its
 `skillCast` carries `auras:[{slot:0, skillId:'war_banner', damagePct:25}]`, so
 the activation line reads: **"Sword Slash — War Banner +25% dmg"**.
+
+**Aura reach.** `AuraDef` has an optional `reach?: number` (static def property,
+read from `skillBook` — NOT an event field). It is the empty-slot GAP an aura
+projects across: `reach: 1` (the default when omitted) means "touching only"
+(the historical adjacent/left/right behavior); `reach: 2` extends coverage one
+empty slot further, and so on. `affects` stays the DIRECTION selector
+(`adjacent` = both sides, `left`/`right` = one side, `allBoard` = whole board
+and ignores `reach`). The UI can annotate an `auras` source with its card's
+reach (e.g. **"within 2 slots"**) by reading `skillBook[skillId].aura.reach`;
+no new event field is needed since reach is static.

@@ -42,21 +42,45 @@ export interface ResolvedAuras {
   sources: AuraSource[];
 }
 
-/** Two cards are adjacent when their occupied ranges touch edge to edge. */
-function touches(a: PieceState, b: PieceState): boolean {
-  return a.slot + a.size === b.slot || b.slot + b.size === a.slot;
-}
-
-function covers(source: PieceState, target: PieceState, affects: 'adjacent' | 'left' | 'right' | 'allBoard'): boolean {
+/**
+ * Does `source`'s aura reach `target`?
+ *
+ * Coverage is the empty-slot GAP between their nearest edges being `< reach`,
+ * measured in pure integer slot arithmetic:
+ *   source occupies [source.slot, source.slot + source.size)
+ *   target occupies [target.slot, target.slot + target.size)
+ *   rightGap = target.slot - (source.slot + source.size)  // >= 0 iff target is right of source
+ *   leftGap  = source.slot - (target.slot + target.size)  // >= 0 iff target is left of source
+ *
+ * A source ending EXACTLY at the target's start touches it: gap 0. So `reach: 1`
+ * (gap < 1 → gap === 0) reproduces the old `touches` behavior byte-for-byte
+ * (adjacent/left/right = physically touching). gap 1 = one empty slot between
+ * them, reached only at `reach >= 2`; each +1 reach extends coverage one further
+ * slot. A `reach` of 0 or negative reaches nothing on that side (gap is always
+ * >= 0 for the side the target lies on, and >= 0 is never < 0).
+ *
+ * `affects` is the DIRECTION selector: 'adjacent' = both sides up to `reach`;
+ * 'left'/'right' = that one direction up to `reach`; 'allBoard' = whole board
+ * (reach ignored).
+ */
+function covers(
+  source: PieceState,
+  target: PieceState,
+  affects: 'adjacent' | 'left' | 'right' | 'allBoard',
+  reach: number,
+): boolean {
+  if (affects === 'allBoard') return source !== target;
+  const rightGap = target.slot - (source.slot + source.size);
+  const leftGap = source.slot - (target.slot + target.size);
+  const reachesRight = rightGap >= 0 && rightGap < reach;
+  const reachesLeft = leftGap >= 0 && leftGap < reach;
   switch (affects) {
     case 'adjacent':
-      return touches(source, target);
+      return reachesRight || reachesLeft;
     case 'left':
-      return target.slot + target.size === source.slot;
+      return reachesLeft;
     case 'right':
-      return source.slot + source.size === target.slot;
-    case 'allBoard':
-      return source !== target;
+      return reachesRight;
   }
 }
 
@@ -81,7 +105,7 @@ export function resolveAuras(c: CombatantState, piece: PieceState, skillBook: Sk
     const def = skillBook[source.skillId];
     const aura = def?.aura;
     if (!aura) continue;
-    if (!covers(source, piece, aura.affects)) continue;
+    if (!covers(source, piece, aura.affects, aura.reach ?? 1)) continue;
     if (aura.archetypeFilter && !targetDef.archetypes.includes(aura.archetypeFilter)) continue;
     if (aura.propertyFilter && targetDef.property !== aura.propertyFilter) continue;
     const dmg = aura.mods.damagePct ?? 0;

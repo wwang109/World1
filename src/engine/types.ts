@@ -135,8 +135,21 @@ export type Action =
 
 /** Positional modifiers a (usually Support/passive) card projects onto board neighbors. */
 export interface AuraDef {
-  /** adjacent/left/right = pieces physically touching this card's edges. */
+  /**
+   * DIRECTION selector: adjacent = both sides, left/right = one side,
+   * allBoard = whole board (reach ignored). Combined with `reach` to decide
+   * which neighbors are covered.
+   */
   affects: 'adjacent' | 'left' | 'right' | 'allBoard';
+  /**
+   * Slots of distance the aura projects, measured as the empty-slot GAP between
+   * the source's and target's nearest edges (edge-to-edge). A source touching a
+   * target (gap 0) is reached at `reach: 1`; `reach: 2` reaches one empty slot
+   * further, etc. DEFAULT when omitted is 1, which reproduces the old
+   * touching-only "adjacent/left/right" behavior exactly. Ignored for
+   * 'allBoard'. A reach of 0 or negative reaches nothing. See `covers()`.
+   */
+  reach?: number;
   /** Only cards carrying this archetype receive the aura. */
   archetypeFilter?: Archetype;
   /** Only cards of this property receive the aura. */

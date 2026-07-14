@@ -3,11 +3,59 @@ import { aurasOn } from '../../src/engine/combat/auras';
 import { initCombatState, type CombatantState } from '../../src/engine/combat/state';
 import { simulate } from '../../src/engine/combat/simulate';
 import { skillBook } from '../../src/data/skills';
-import type { BoardPiece } from '../../src/engine/types';
+import type { AuraDef, BoardPiece, SkillBook, SkillDef } from '../../src/engine/types';
 import { cfg, tc, NO_ENDGAME } from '../helpers';
 
 function boardOf(pieces: BoardPiece[]): CombatantState {
   const state = initCombatState(cfg(tc('hero', [], {}, { boardSize: 10, pieces }), tc('foe', [])));
+  return state.player;
+}
+
+// --- Constructed reach fixtures (independent of real card data) --------------
+// A size-1 offense card carrying `aura`, plus a plain size-1 offense target.
+function auraCard(id: string, aura: AuraDef): SkillDef {
+  return {
+    id,
+    name: id,
+    archetypes: ['offense'],
+    property: 'physical',
+    size: 1,
+    speedWeight: 10,
+    rarity: 'common',
+    tier: 'bronze',
+    effects: [],
+    text: '',
+    aura,
+  };
+}
+
+const REACH_BOOK: SkillBook = {
+  target: {
+    id: 'target',
+    name: 'target',
+    archetypes: ['offense'],
+    property: 'physical',
+    size: 1,
+    speedWeight: 10,
+    rarity: 'common',
+    tier: 'bronze',
+    effects: [{ kind: 'damage', power: 100 }],
+    text: '',
+  },
+  // reach OMITTED -> defaults to 1 (old touching-only behavior).
+  adj1: auraCard('adj1', { affects: 'adjacent', mods: { damagePct: 10 } }),
+  adj2: auraCard('adj2', { affects: 'adjacent', reach: 2, mods: { damagePct: 10 } }),
+  left2: auraCard('left2', { affects: 'left', reach: 2, mods: { damagePct: 10 } }),
+  right2: auraCard('right2', { affects: 'right', reach: 2, mods: { damagePct: 10 } }),
+  all1: auraCard('all1', { affects: 'allBoard', reach: 1, mods: { damagePct: 10 } }),
+};
+
+function reachBoardOf(pieces: BoardPiece[]): CombatantState {
+  const state = initCombatState(
+    cfg(tc('hero', [], {}, { boardSize: 12, pieces, skillBook: REACH_BOOK }), tc('foe', [], {}, { skillBook: REACH_BOOK }), {
+      skillBook: REACH_BOOK,
+    }),
+  );
   return state.player;
 }
 
@@ -108,6 +156,64 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
     const { events } = simulate(c, 1);
     const cast = events.find((e) => e.kind === 'skillCast' && e.skillId === 'sword_slash')!;
     expect('auras' in cast).toBe(false);
+  });
+
+  it('reach omitted === reach 1: touches only, one-gap card is NOT reached', () => {
+    // [adj1@0] . [target@2]  -> gap 1, out of reach at default reach 1.
+    const c = reachBoardOf([
+      { skillId: 'adj1', slot: 0 },
+      { skillId: 'target', slot: 2 },
+    ]);
+    expect(aurasOn(c, pieceAt(c, 2), REACH_BOOK).damagePct).toBe(0);
+    // Touching target (slot 1) IS reached at reach 1.
+    const touching = reachBoardOf([
+      { skillId: 'adj1', slot: 0 },
+      { skillId: 'target', slot: 1 },
+    ]);
+    expect(aurasOn(touching, pieceAt(touching, 1), REACH_BOOK).damagePct).toBe(10);
+  });
+
+  it('reach 2 reaches a one-gap card that reach 1 cannot', () => {
+    // [adj2@0] . [target@2]  -> gap 1 < reach 2 -> reached.
+    const c = reachBoardOf([
+      { skillId: 'adj2', slot: 0 },
+      { skillId: 'target', slot: 2 },
+    ]);
+    expect(aurasOn(c, pieceAt(c, 2), REACH_BOOK).damagePct).toBe(10);
+    // But gap 2 (two empty slots) is still out of reach at reach 2.
+    const far = reachBoardOf([
+      { skillId: 'adj2', slot: 0 },
+      { skillId: 'target', slot: 3 },
+    ]);
+    expect(aurasOn(far, pieceAt(far, 3), REACH_BOOK).damagePct).toBe(0);
+  });
+
+  it('directional left/right respect reach and direction', () => {
+    // right2 at slot 2: reaches right (slot 4, gap 1) but NOT left (slot 0, gap 1).
+    const c = reachBoardOf([
+      { skillId: 'target', slot: 0 },
+      { skillId: 'right2', slot: 2 },
+      { skillId: 'target', slot: 4 },
+    ]);
+    expect(aurasOn(c, pieceAt(c, 4), REACH_BOOK).damagePct).toBe(10); // to the right
+    expect(aurasOn(c, pieceAt(c, 0), REACH_BOOK).damagePct).toBe(0); // to the left, ignored
+    // left2 at slot 2: mirror — reaches left (slot 0) not right (slot 4).
+    const c2 = reachBoardOf([
+      { skillId: 'target', slot: 0 },
+      { skillId: 'left2', slot: 2 },
+      { skillId: 'target', slot: 4 },
+    ]);
+    expect(aurasOn(c2, pieceAt(c2, 0), REACH_BOOK).damagePct).toBe(10);
+    expect(aurasOn(c2, pieceAt(c2, 4), REACH_BOOK).damagePct).toBe(0);
+  });
+
+  it('allBoard ignores reach (covers a far card)', () => {
+    // all1 has reach 1 but affects allBoard -> reaches a card 5 slots away.
+    const c = reachBoardOf([
+      { skillId: 'all1', slot: 0 },
+      { skillId: 'target', slot: 6 },
+    ]);
+    expect(aurasOn(c, pieceAt(c, 6), REACH_BOOK).damagePct).toBe(10);
   });
 
   it('weightDelta changes the initiative comparison', () => {
