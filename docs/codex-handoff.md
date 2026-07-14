@@ -34,8 +34,9 @@ when a decision should outlive a single session._
   `?view=loadout`, `?view=bag`, `?view=wiki`, `?scene=battle`, plus `enemy`,
   `seed`, and `board=empty`.
 - Battle history is a continuous timeline paged 10 turns at a time, with no
-  gameplay-round grouping. Tapping a row highlights the activated card in green
-  and each ready loser in amber; cooldown-idle units show unchanged bank.
+  gameplay-round grouping or turn owner. Every row shows all combatants adding
+  Speed before the initiative comparison. Tapping a row highlights the activated
+  card in green and each ready waiter in amber; cooldown-idle units show unchanged bank.
 
 ## Requests to Claude (Codex → Claude)
 _Engine/data/run changes Codex needs. Claude marks each DONE with the commit._
@@ -65,10 +66,21 @@ _UI/design work Claude is handing over. Codex picks these up._
 | 11 | **Combat animations synced to log playback** (user spec). As each event populates the log, play a matching animation beat: **`skillCast`** → the performing card **slides/lunges out of its lane toward the opposing side** (attack) or pulses in place (self buff/heal/shield), then settles back; **`damage`** → the victim's **HP bar shakes** (tween the bar/panel a few px, ~150–250ms) + a brief hit-flash on the victim card/panel, crits bigger; **`heal`/`shieldGain`** → soft pulse/glow; **`statusApplied`** → the status icon pops in; **`died`** → fade/desaturate the unit; **`negated`/`guarded`** → distinct block flourish. Rules: animations are **flavor only** (meaning must also be in the log — durable decision), timings scale with the ×1/×2/×4 speed control, **SKIP renders instantly with no tweens**, use Phaser tweens (no gameplay logic inside), respect reduced-motion sensibilities (short, non-looping). | Turns the auto-battle into something watchable — game-feel/juice pass. Pairs with #10; all triggers are existing events. | OPEN |
 | 12 | **Reword the battle log so a turn reads as "everyone gains Speed, then the comparison picks who acts" — NOT as a turn "owned" by one performer.** The user read the current log (`T2 · BANDIT DUELIST`, `H … FAIL +12`) as if turns alternate owners and the loser's skill *failed*. It doesn't and didn't — every turn BOTH sides are evaluated; the higher `bank+Speed−weight` acts, the other banks its Speed for next turn. Fixes: **(1)** don't title a turn box by its single performer — present it as a shared beat listing every combatant's line. **(2)** Rename **`FAIL` → `BANKED`** (or `SPEED BANKED`); the non-performer didn't fail, it banked Speed. Reserve failure-ish wording only for the true no-op. **(3)** The `nothingUsable` case = **`SKIPPED`** (nothing to cast, no bank) — keep that distinct from `BANKED`. **(4)** Optionally add a one-line teach at the top of the log: "Each turn every combatant gains Speed; highest bank+Speed−weight acts first, the rest keep their Speed banked." All values already in `comparison` (`entries[]` per `{side,unit,bank,speed,weight,score}` + `performerUnit`); no engine change. | User spec, from reviewing battleportrait_4.png. The mechanic is correct and matches the user's mental model exactly — this is purely making the log SAY what the engine already DOES. `BANKED`/`SKIPPED` map to the (e)-answer states in Request #4: performer=ACTIVATED, ready-loser=SPEED BANKED, nothingUsable=IDLE/SKIPPED (no bank). | OPEN |
 | 13 | **Distinguish PASSIVE / aura cards from active skills on the board.** The user saw `War Banner` sitting in a board slot and expected it to be cast — but it's a pure-passive aura card (`effects: []` + an `aura`), so the engine never casts it; it just buffs adjacent cards while present. A passive card currently looks identical to an active one, which is misleading. Give passive cards a clear visual marker (e.g. a "PASSIVE / AURA" ribbon or a distinct frame/desaturated cast-glow) on the board card and in the detail panel, and — nice-to-have — indicate its aura's reach (which adjacent slots it's buffing). Detect via the skill def: a card with no active `effects` (only an `aura`) is passive. | User spec, from battleportrait_4.png ("is war banner not a skill to be used"). Working as intended in the engine (castSelect skips pure-passive cards); this is a legibility gap in the UI. `aura.affects` (`'adjacent'`/etc.) + `aura.archetypeFilter` tell you the reach/target for the buff-range hint. | OPEN |
+| 14 | **Log the aura contribution on each buffed cast.** ENGINE FIELD NOW EXISTS (Claude, 2026-07-13, commit 088a4cb): the `skillCast` event carries an optional `auras?: { slot; skillId; damagePct?; healPct?; weightDelta?; critPctDelta? }[]` naming each board passive that modified this cast and by how much — e.g. `auras: [{ slot: 0, skillId: 'war_banner', damagePct: 25 }]`. Present only when at least one aura contributed (omitted otherwise). In the turn/log row for a cast, add a line crediting the source(s), e.g. `Sword Slash — War Banner +25% dmg` (resolve `skillId` → card name via `skillBook`). This is what makes War Banner's effect visible instead of the damage just being mysteriously higher. `docs/combat-ui-spec.md` §4 documents the field. | User spec ("but you arent logging it") — the passive was silently boosting damage with nothing in the log. Pairs with #13. Card-scope gem stat mods are intentionally NOT in `auras` (the socketed gem is already visible on the card). | OPEN |
 
 ---
 
 ## Session log (newest first)
+
+### 2026-07-13 — Codex — shared-turn Speed wording
+- CHANGED: Reframed every battle-log row as a shared initiative beat instead of a turn owned by the performer, and replaced failure wording with explicit wait/bank outcomes.
+- FILES: `src/game/scenes/BattleScene.ts`, `docs/codex-ui-guide.md`, `docs/screenshots/battle-portrait.png`, `docs/codex-handoff.md`
+- DESIGN: The selected turn now teaches the actual sequence: every combatant adds effective Speed, subtracts the queued card cost, and the highest score activates. The performer reads `ACT · bank->0`; a ready non-performer reads `WAIT · BANK +Speed`; a cooldown-idle unit reads `SKIP · bank stays`.
+- VERIFY: pending final verification.
+- ASSUMPTIONS: The UI continues to render `comparison.entries` exactly. It does not recalculate initiative or alter Claude's cooldown-idle exception.
+- REQUESTS TO CLAUDE: none; this implements Request #12.
+- OPEN: none
+- Claude review:
 
 ### 2026-07-13 — Codex — playable continuous battle log
 - CHANGED: Replaced the derived round selector with a continuous 10-turn paged log, made every turn row selectable, and synchronized row selection with both compared board cards.
