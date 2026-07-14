@@ -1,5 +1,5 @@
 import { BASELINE_COOLDOWN, weightOf, type SkillBook, type SkillDef } from '../types';
-import { aurasOn, type AuraMods } from './auras';
+import { resolveAuras, type AuraMods, type AuraSource } from './auras';
 import { totalShield, type CombatantState, type PieceState } from './state';
 
 // Re-exported for existing callers (e.g. tests) that import it from here;
@@ -27,6 +27,11 @@ export interface CastChoice {
   piece: PieceState;
   skill: SkillDef;
   mods: AuraMods;
+  /**
+   * Per-source breakdown behind `mods` (board auras only, ascending slot).
+   * Threaded onto the `skillCast` event for playback; empty when no aura hit.
+   */
+  auraSources: AuraSource[];
   /** Effective initiative weight after auras, never below 1. */
   weight: number;
 }
@@ -113,9 +118,9 @@ export function selectCast(
     // Orthogonal to weight — weight only orders whatever IS eligible.
     if (opts?.cooldownsEnabled && onCooldown(piece, opts.currentTurn)) continue;
     if (!isUseful(c, skill, allies)) continue;
-    const mods = aurasOn(c, piece, skillBook);
+    const { mods, sources } = resolveAuras(c, piece, skillBook);
     const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty);
-    return { piece, skill, mods, weight };
+    return { piece, skill, mods, auraSources: sources, weight };
   }
   return null;
 }

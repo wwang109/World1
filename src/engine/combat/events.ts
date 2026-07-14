@@ -1,4 +1,7 @@
 import type { CombatOutcome, Property, Side } from '../types';
+import type { AuraSource } from './auras';
+
+export type { AuraSource } from './auras';
 
 
 export type StatusName = 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate';
@@ -88,6 +91,14 @@ export type CombatEvent =
       aoe?: boolean;
       /** All struck opposing unit indices for an AoE cast, ascending. */
       targets?: number[];
+      /**
+       * Board-aura contributors that reached and matched this cast, each with
+       * the per-mod magnitudes it added (ascending board-slot order). Additive
+       * and deterministic; PRESENT ONLY when at least one board aura contributed
+       * (omitted entirely otherwise, so un-aura'd casts stay byte-identical).
+       * Card-scope stat gems are excluded (a separate, already-visible feature).
+       */
+      auras?: AuraSource[];
     }
   | {
       turn: number;

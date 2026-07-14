@@ -242,7 +242,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         c.busyTurns = choice.piece.size - 1;
         // This piece has now performed: stamp the reuse-cooldown clock.
         choice.piece.lastCastTurn = state.turn;
-        applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, { before: cursorBefore, after: cursorAfter });
+        applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, { before: cursorBefore, after: cursorAfter }, choice.auraSources);
         // Slow Next is consumed by this action; Combo remembers this cast.
         c.nextWeightPenalty = 0;
         c.lastCastArchetypes = choice.skill.archetypes;

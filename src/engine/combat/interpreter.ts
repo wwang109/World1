@@ -1,7 +1,7 @@
 import type { Rng } from '../rng';
 import type { Action, Property, SkillDef } from '../types';
 import type { CombatEvent } from './events';
-import type { AuraMods } from './auras';
+import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
 import { boardPowerLevel, effStat, foesOf, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
@@ -560,6 +560,7 @@ export function applyCast(
   slot: number,
   mods: AuraMods,
   cursor: { before: number; after: number },
+  auraSources: AuraSource[] = [],
 ): void {
   ctx.events.push({
     turn: ctx.state.turn,
@@ -572,6 +573,9 @@ export function applyCast(
     cursorBefore: cursor.before,
     cursorAfter: cursor.after,
     ...targetInfoForCast(ctx, caster, skill),
+    // Only surface `auras` when a board aura actually contributed; omit the key
+    // entirely otherwise so un-aura'd casts stay byte-identical.
+    ...(auraSources.length > 0 ? { auras: auraSources } : {}),
   });
   const cast: CastCtx = { damageDealt: 0, bonusPct: 0 };
   for (const action of skill.effects) {

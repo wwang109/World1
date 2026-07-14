@@ -77,6 +77,39 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
     expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 25 }); // 200% of 10 * 1.25
   });
 
+  it('skillCast records the aura source breakdown (war_banner +25% dmg)', () => {
+    const c = cfg(
+      tc('hero', [], { attack: 10, speed: 20 }, {
+        boardSize: 10,
+        pieces: [
+          { skillId: 'war_banner', slot: 0 },
+          { skillId: 'sword_slash', slot: 1 },
+        ],
+      }),
+      tc('wall', [], { maxHp: 1000, speed: 10 }),
+      { ...NO_ENDGAME, maxTurns: 1 },
+    );
+    const { events } = simulate(c, 1);
+    const cast = events.find((e) => e.kind === 'skillCast' && e.skillId === 'sword_slash') as {
+      auras?: { slot: number; skillId: string; damagePct?: number }[];
+    };
+    expect(cast.auras).toEqual([{ slot: 0, skillId: 'war_banner', damagePct: 25 }]);
+  });
+
+  it('skillCast OMITS the auras key when no board aura reaches the cast', () => {
+    const c = cfg(
+      tc('hero', [], { attack: 10, speed: 20 }, {
+        boardSize: 10,
+        pieces: [{ skillId: 'sword_slash', slot: 0 }],
+      }),
+      tc('wall', [], { maxHp: 1000, speed: 10 }),
+      { ...NO_ENDGAME, maxTurns: 1 },
+    );
+    const { events } = simulate(c, 1);
+    const cast = events.find((e) => e.kind === 'skillCast' && e.skillId === 'sword_slash')!;
+    expect('auras' in cast).toBe(false);
+  });
+
   it('weightDelta changes the initiative comparison', () => {
     // arcane_bolt (w10) next to time_crystal -> effective weight 5:
     // hero speed 10: score 10−5=5 beats enemy 10−10=0 every turn.

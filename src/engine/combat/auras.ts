@@ -16,6 +16,32 @@ export const NO_MODS: AuraMods = {
   critPctDelta: 0,
 };
 
+/**
+ * One board card whose aura reached and matched a cast, with the per-mod
+ * magnitudes it contributed. Additive/deterministic playback data: only the
+ * nonzero mods are set, and the log lists sources in ascending board-slot
+ * order (`c.pieces` is slot-sorted, so index order == slot order).
+ *
+ * Board auras ONLY — the piece's own card-scope stat gems are intentionally
+ * excluded here (gems are a separate, already-visible feature).
+ */
+export interface AuraSource {
+  slot: number;
+  skillId: string;
+  damagePct?: number;
+  healPct?: number;
+  weightDelta?: number;
+  critPctDelta?: number;
+}
+
+/** Both the summed mods a cast receives and the per-source breakdown behind them. */
+export interface ResolvedAuras {
+  /** Summed board-aura mods folded together with the piece's card-scope gem mods. */
+  mods: AuraMods;
+  /** Board-aura contributors only (no gems), ascending board-slot order. */
+  sources: AuraSource[];
+}
+
 /** Two cards are adjacent when their occupied ranges touch edge to edge. */
 function touches(a: PieceState, b: PieceState): boolean {
   return a.slot + a.size === b.slot || b.slot + b.size === a.slot;
@@ -35,15 +61,21 @@ function covers(source: PieceState, target: PieceState, affects: 'adjacent' | 'l
 }
 
 /**
- * Sum every aura on this combatant's board that reaches `piece` and whose
- * filters match the card sitting there, then fold in the piece's own card-scope
- * stat-gem mods. Recomputed at cast time so board state changes are reflected.
+ * Single-pass resolution of the auras affecting `piece`: sum every aura on this
+ * combatant's board that reaches it and whose filters match, then fold in the
+ * piece's own card-scope stat-gem mods. Emits both the summed `mods` (the value
+ * the core loop consumes) and the per-source `sources` breakdown (board auras
+ * only) so the log never drifts from the applied mods. Recomputed at cast time
+ * so board state changes are reflected.
  */
-export function aurasOn(c: CombatantState, piece: PieceState, skillBook: SkillBook): AuraMods {
+export function resolveAuras(c: CombatantState, piece: PieceState, skillBook: SkillBook): ResolvedAuras {
   const targetDef = skillBook[piece.skillId];
-  if (!targetDef) return NO_MODS;
+  if (!targetDef) return { mods: { ...NO_MODS }, sources: [] };
 
   const mods: AuraMods = { ...NO_MODS };
+  const sources: AuraSource[] = [];
+  // `c.pieces` is slot-sorted (see makeCombatant), so this index walk yields
+  // sources in ascending board-slot order without a separate sort.
   for (const source of c.pieces) {
     if (source === piece) continue;
     const def = skillBook[source.skillId];
@@ -52,16 +84,36 @@ export function aurasOn(c: CombatantState, piece: PieceState, skillBook: SkillBo
     if (!covers(source, piece, aura.affects)) continue;
     if (aura.archetypeFilter && !targetDef.archetypes.includes(aura.archetypeFilter)) continue;
     if (aura.propertyFilter && targetDef.property !== aura.propertyFilter) continue;
-    mods.damagePct += aura.mods.damagePct ?? 0;
-    mods.healPct += aura.mods.healPct ?? 0;
-    mods.weightDelta += aura.mods.weightDelta ?? 0;
-    mods.critPctDelta += aura.mods.critPctDelta ?? 0;
+    const dmg = aura.mods.damagePct ?? 0;
+    const heal = aura.mods.healPct ?? 0;
+    const weight = aura.mods.weightDelta ?? 0;
+    const crit = aura.mods.critPctDelta ?? 0;
+    mods.damagePct += dmg;
+    mods.healPct += heal;
+    mods.weightDelta += weight;
+    mods.critPctDelta += crit;
+    // Record only the nonzero mods this source contributed.
+    const entry: AuraSource = { slot: source.slot, skillId: source.skillId };
+    if (dmg) entry.damagePct = dmg;
+    if (heal) entry.healPct = heal;
+    if (weight) entry.weightDelta = weight;
+    if (crit) entry.critPctDelta = crit;
+    sources.push(entry);
   }
-  // Card-scope stat gem rides the same bundle.
+  // Card-scope stat gem rides the same summed bundle but is intentionally NOT
+  // recorded in `sources`: gems are a separate, already-visible feature.
   const g = piece.gemMods;
   mods.damagePct += g.damagePct ?? 0;
   mods.healPct += g.healPct ?? 0;
   mods.weightDelta += g.weightDelta ?? 0;
   mods.critPctDelta += g.critPctDelta ?? 0;
-  return mods;
+  return { mods, sources };
+}
+
+/**
+ * Summed aura + card-scope-gem mods affecting `piece`. Thin wrapper over
+ * {@link resolveAuras}; the signature the core loop already calls is unchanged.
+ */
+export function aurasOn(c: CombatantState, piece: PieceState, skillBook: SkillBook): AuraMods {
+  return resolveAuras(c, piece, skillBook).mods;
 }
