@@ -22,6 +22,14 @@ Make the battle board visually balanced and ensure every top header matches the 
 - HP bars and card faces retain a small internal gutter; those are content inside the panel rather than separate panel edges.
 - Player and enemy card rails use the same available width and therefore render symmetrically.
 
+## Selection Treatment
+
+- Keep every roster panel's outer border at 1 pixel in selected and unselected states.
+- Show the active Party or Enemy with a 3-pixel accent bar drawn inside the panel bounds plus the existing fill tint.
+- Hide the accent bar on inactive enemy roster panels.
+- Move the accent bar with the roster panel during damage-shake animation.
+- Never change panel dimensions or outer stroke width to communicate selection.
+
 ## Behavior
 
 - Do not change combat playback, event grouping, targeting, card selection, or engine calculations.
@@ -34,4 +42,5 @@ Make the battle board visually balanced and ensure every top header matches the 
 - Confirm every header shares exact left and right edges with its panel.
 - Confirm Party and Enemies have equal widths and card rails.
 - Confirm text, controls, cards, and roster chips do not overflow.
+- Confirm selecting either enemy does not change any panel's outer dimensions.
 - Run type checking, production build, and the full test suite.
