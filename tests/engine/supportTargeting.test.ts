@@ -127,24 +127,24 @@ describe('ally-target support auto-policies', () => {
 
   it('cleanse targets the MOST-afflicted ally (tie → lowest index)', () => {
     const { ctx, team } = ctxFor([unit('a'), unit('b'), unit('c')]);
-    team[0]!.statuses.push({ kind: 'poison', property: 'true', amount: 5, turnsLeft: 3 });
-    team[1]!.statuses.push({ kind: 'poison', property: 'true', amount: 5, turnsLeft: 3 });
+    team[0]!.statuses.push({ kind: 'poison', property: 'true', stacks: 5, turnsLeft: 5 });
+    team[1]!.statuses.push({ kind: 'poison', property: 'true', stacks: 5, turnsLeft: 5 });
     team[1]!.statuses.push({ kind: 'stun', turnsLeft: 1 });
     // unit 1 has 2 afflictions vs unit 0's 1; unit 2 has none.
-    const picked = resolveTargets(ctx, team[0]!, SUPPORT_SKILL, { kind: 'cleanse' });
+    const picked = resolveTargets(ctx, team[0]!, SUPPORT_SKILL, { kind: 'cleanse', charges: 4 });
     expect(picked[0]!.index).toBe(1);
   });
 
   it('cleanse falls back to SELF when nobody is afflicted', () => {
     const { ctx, team } = ctxFor([unit('a'), unit('b')]);
-    const picked = resolveTargets(ctx, team[1]!, SUPPORT_SKILL, { kind: 'cleanse' });
+    const picked = resolveTargets(ctx, team[1]!, SUPPORT_SKILL, { kind: 'cleanse', charges: 4 });
     expect(picked[0]!.index).toBe(1); // caster = self, no-op
   });
 
   it('1v1: the only same-side candidate is the caster → support stays on self', () => {
     const { ctx, team } = ctxFor([unit('solo', { maxHp: 100, hp: 30 })]);
     expect(resolveTargets(ctx, team[0]!, SUPPORT_SKILL, { kind: 'heal', power: 30 })[0]!.index).toBe(0);
-    expect(resolveTargets(ctx, team[0]!, SUPPORT_SKILL, { kind: 'cleanse' })[0]!.index).toBe(0);
+    expect(resolveTargets(ctx, team[0]!, SUPPORT_SKILL, { kind: 'cleanse', charges: 4 })[0]!.index).toBe(0);
     expect(resolveTargets(ctx, team[0]!, SUPPORT_SKILL, { kind: 'buffStat', stat: 'attack', pct: 20, turns: 3 })[0]!.index).toBe(0);
   });
 

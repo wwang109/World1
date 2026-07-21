@@ -16,7 +16,7 @@ describe('property scaling and mitigation', () => {
       tc('wall', [], { armor: 3, speed: 10 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 17, property: 'physical' }); // 200% of 10 − 3 armor
+    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 27, property: 'physical' }); // 20 flat + 10 Attack − 3 armor
   });
 
   it('magical damage scales off Magic Power and is reduced by Magic Resist', () => {
@@ -25,26 +25,40 @@ describe('property scaling and mitigation', () => {
       tc('wall', [], { armor: 99, magicResist: 4, speed: 10 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 14, property: 'magical' }); // 180% of 10 − 4 resist
+    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 24, property: 'magical' }); // 18 flat + 10 MP − 4 resist
   });
 
-  it('true damage ignores both defenses and scales off the higher stat', () => {
+  it('true damage: the flat base bypasses defenses; the stat add is mitigated by the matching defense', () => {
+    // Higher stat is Magic Power (20), so the stat add is checked against
+    // Magic Resist. MR 99 eats the whole stat add but can never touch the
+    // flat 27 — that part only a TRUE shield can stop.
     const c = cfg(
-      tc('hero', ['soul_rend'], { attack: 5, magicPower: 20, speed: 20 }),
+      tc('hero', ['soul_rend'], { attack: 5, magicPower: 20, speed: 30 }),
       tc('wall', [], { armor: 99, magicResist: 99, speed: 10 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    // 300% of max(5,20)=20 -> 60, no mitigation.
-    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 60, property: 'true' });
+    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 27, property: 'true' }); // 27 flat + max(0, 20 stat − 99 MR)
   });
 
-  it('crits multiply by 1.5 (floored) at 100% crit', () => {
+  it('true damage: partial defense shaves only part of the stat add', () => {
+    const c = cfg(
+      tc('hero', ['soul_rend'], { attack: 5, magicPower: 20, speed: 30 }),
+      tc('wall', [], { armor: 99, magicResist: 8, speed: 10 }),
+      { ...NO_ENDGAME, maxTurns: 1 },
+    );
+    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 39, property: 'true' }); // 27 flat + (20 stat − 8 MR)
+  });
+
+  it('crits multiply by 1.5 (floored)', () => {
+    // Crit CHANCE is hard-capped at CRIT_CHANCE_CAP_PCT (50%), so even critPct 100
+    // is a coin flip — seed 7 lands the crit here. The math under test is the
+    // ×1.5 multiplier: floor(27 * 1.5) = 40.
     const c = cfg(
       tc('hero', ['sword_slash'], { attack: 10, critPct: 100, speed: 20 }),
       tc('wall', [], { armor: 3, speed: 10 }),
       { ...NO_ENDGAME, maxTurns: 1 },
     );
-    expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 25, crit: true }); // floor(17 * 1.5)
+    expect(firstDamage(simulate(c, 7).events)).toMatchObject({ amount: 40, crit: true });
   });
 });
 
@@ -60,7 +74,7 @@ describe('typed shields', () => {
       speedWeight: 1, // casts first
       rarity: 'common',
       tier: 'bronze',
-      effects: [{ kind: 'shield', power: 200 }],
+      effects: [{ kind: 'shield', power: 20 }],
       text: '',
     },
     magic_bolt: {
@@ -72,7 +86,7 @@ describe('typed shields', () => {
       speedWeight: 10,
       rarity: 'common',
       tier: 'bronze',
-      effects: [{ kind: 'damage', power: 100 }],
+      effects: [{ kind: 'damage', power: 10 }],
       text: '',
     },
     true_wall: {
@@ -87,6 +101,18 @@ describe('typed shields', () => {
       effects: [{ kind: 'shield', power: 50 }],
       text: '',
     },
+    true_wall_small: {
+      id: 'true_wall_small',
+      name: 'Small True Wall',
+      archetypes: ['defensive'],
+      property: 'true',
+      size: 1,
+      speedWeight: 1,
+      rarity: 'epic',
+      tier: 'bronze',
+      effects: [{ kind: 'shield', power: 30 }],
+      text: '',
+    },
   };
 
   it('a Physical shield blocks physical damage but NOT magical damage', () => {
@@ -98,18 +124,32 @@ describe('typed shields', () => {
     );
     const { events } = simulate(c, 1);
     const hit = events.find((e) => e.kind === 'damage' && e.side === 'enemy');
-    expect(hit).toMatchObject({ amount: 10, blocked: 0, hpAfter: 70 }); // shield ignored magical hit
+    expect(hit).toMatchObject({ amount: 20, blocked: 0, hpAfter: 60 }); // magical hit (10 flat + 10 MP) ignores physical shield
   });
 
   it('a True shield blocks every damage type', () => {
     const c = cfg(
       tc('hero', ['magic_bolt'], { magicPower: 10, speed: 10 }, { skillBook: shieldBook }),
-      tc('turtle', ['true_wall', 'bite'], { attack: 10, speed: 10, maxHp: 80 }, { skillBook: shieldBook }),
+      tc('turtle', ['true_wall', 'bite'], { attack: 10, speed: 11, maxHp: 80 }, { skillBook: shieldBook }),
       { ...NO_ENDGAME, skillBook: shieldBook, maxTurns: 3 },
     );
     const { events } = simulate(c, 1);
     const hit = events.find((e) => e.kind === 'damage' && e.side === 'enemy');
-    expect(hit).toMatchObject({ amount: 10, blocked: 10, hpAfter: 80 });
+    expect(hit).toMatchObject({ amount: 20, blocked: 20, hpAfter: 80 }); // 20 magical fully absorbed — the 50 TRUE pool drains 40 (2:1 vs typed)
+  });
+
+  it('typed damage drains a True shield 2:1 (half effectiveness)', () => {
+    // 30 TRUE shield vs a 20 magical hit: the whole 30 pool is spent but only
+    // blocks floor(30/2) = 15 — the remaining 5 lands. (TRUE damage would have
+    // been blocked point-for-point.)
+    const c = cfg(
+      tc('hero', ['magic_bolt'], { magicPower: 10, speed: 10 }, { skillBook: shieldBook }),
+      tc('turtle', ['true_wall_small', 'bite'], { attack: 10, speed: 11, maxHp: 80 }, { skillBook: shieldBook }),
+      { ...NO_ENDGAME, skillBook: shieldBook, maxTurns: 3 },
+    );
+    const { events } = simulate(c, 1);
+    const hit = events.find((e) => e.kind === 'damage' && e.side === 'enemy');
+    expect(hit).toMatchObject({ amount: 20, blocked: 15, hpAfter: 75 });
   });
 
   it('shields stack, carry over, and are capped at max HP', () => {
@@ -119,14 +159,14 @@ describe('typed shields', () => {
       { ...NO_ENDGAME, skillBook: shieldBook, maxTurns: 4 },
     );
     const { events, finalState } = simulate(c, 1);
-    // Each cast requests 60; cap is maxHp 80: 60, then 20 (40 wasted), then 0.
+    // Each cast requests 20 flat + 30 Attack = 50; cap is maxHp 80: 50, then 30 (20 wasted), then 0.
     const gains = events.filter((e) => e.kind === 'shieldGain') as Extract<Events[number], { kind: 'shieldGain' }>[];
-    expect(gains[0]).toMatchObject({ amount: 60, wasted: 0, totalAfter: 60 });
-    expect(gains[1]).toMatchObject({ amount: 20, wasted: 40, totalAfter: 80 });
+    expect(gains[0]).toMatchObject({ amount: 50, wasted: 0, totalAfter: 50 });
+    expect(gains[1]).toMatchObject({ amount: 30, wasted: 20, totalAfter: 80 });
     expect(finalState.player.shields.physical).toBe(80);
-    // Once at the cap, further shield casts are skipped as useless.
+    // Readiness pays for later casts even when the shield is already capped.
     const casts = events.filter((e) => e.kind === 'skillCast' && e.side === 'player');
-    expect(casts.length).toBe(2);
+    expect(casts.length).toBe(4);
   });
 });
 
@@ -148,7 +188,7 @@ describe('healing', () => {
       { ...NO_ENDGAME, maxTurns: 1 },
     );
     const { events } = simulate(c, 1);
-    expect(events.find((e) => e.kind === 'heal')).toMatchObject({ amount: 45, flat: true, hpAfter: 95 });
+    expect(events.find((e) => e.kind === 'heal')).toMatchObject({ amount: 50, flat: true, hpAfter: 100 });
   });
 });
 
@@ -165,7 +205,7 @@ describe('damage over time (global-turn durations)', () => {
         speedWeight: 1,
         rarity: 'common',
         tier: 'bronze',
-        effects: [{ kind: 'poison', amount: 5, turns: 3 }],
+        effects: [{ kind: 'poison', stacks: 5 }],
         text: '',
       },
       big_wall: {
@@ -191,8 +231,10 @@ describe('damage over time (global-turn durations)', () => {
     const { events } = simulate(c, 1);
     const poisonTicks = events.filter((e) => e.kind === 'damage' && (e as { source: string }).source === 'poison');
     expect(poisonTicks.length).toBeGreaterThanOrEqual(3);
+    // Re-applications merge into one growing pile; whatever the tick size,
+    // poison is NEVER blocked by the shield.
     for (const tick of poisonTicks) {
-      expect(tick).toMatchObject({ blocked: 0, amount: 5 }); // bypassed shields
+      expect(tick).toMatchObject({ blocked: 0 });
     }
   });
 
@@ -208,7 +250,7 @@ describe('damage over time (global-turn durations)', () => {
         speedWeight: 12,
         rarity: 'common',
         tier: 'bronze',
-        effects: [{ kind: 'burn', amount: 6, turns: 2 }],
+        effects: [{ kind: 'burn', stacks: 6 }],
         text: '',
       },
       magic_wall: {
@@ -231,10 +273,11 @@ describe('damage over time (global-turn durations)', () => {
     );
     const { events } = simulate(c, 1);
     const burnTick = events.find((e) => e.kind === 'damage' && (e as { source: string }).source === 'burn');
-    expect(burnTick).toMatchObject({ blocked: 6, hpAfter: 60 }); // shield absorbed the burn
+    // Halving burn: first tick = 2 × the 6-stack pile = 12, fully absorbed by the shield.
+    expect(burnTick).toMatchObject({ amount: 12, blocked: 12, hpAfter: 60 });
   });
 
-  it('a 3-turn poison expires after 3 global turns', () => {
+  it('a 5-stack poison decays 5,4,3,2,1 then expires', () => {
     const book: SkillBook = {
       poison_once: {
         id: 'poison_once',
@@ -243,23 +286,25 @@ describe('damage over time (global-turn durations)', () => {
         property: 'physical',
         size: 1,
         speedWeight: 10,
+        cooldownTurns: 50, // apply exactly once
         rarity: 'common',
         tier: 'bronze',
-        effects: [{ kind: 'poison', amount: 5, turns: 3 }],
+        effects: [{ kind: 'poison', stacks: 5 }],
         text: '',
       },
     };
-    // Hero casts poison every turn but victim has huge HP; count expiry events.
     const c = cfg(
       tc('hero', ['poison_once'], { speed: 20, maxHp: 500 }, { skillBook: book }),
       tc('victim', [], { maxHp: 500, speed: 10 }, { skillBook: book }),
-      { ...NO_ENDGAME, skillBook: book, maxTurns: 6 },
+      { ...NO_ENDGAME, skillBook: book, maxTurns: 8, cooldownsEnabled: true },
     );
     const { events } = simulate(c, 1);
-    // First application on turn 1 ticks on turns 2,3,4 then expires on turn 4.
+    const ticks = events.filter((e) => e.kind === 'damage' && (e as { source: string }).source === 'poison');
+    expect(ticks.map((t) => (t as { amount: number }).amount)).toEqual([5, 4, 3, 2, 1]);
+    // Applied turn 1 (fresh, skips), ticks end of turns 2-6, expires with the last stack.
     const expiry = events.find((e) => e.kind === 'statusExpired' && (e as { status: string }).status === 'poison');
     expect(expiry).toBeDefined();
-    expect((expiry as { turn: number }).turn).toBe(4);
+    expect((expiry as { turn: number }).turn).toBe(6);
   });
 });
 
@@ -283,9 +328,9 @@ describe('buffs, debuffs and cleanse', () => {
       { ...NO_ENDGAME, maxTurns: 4 },
     );
     const { events } = simulate(c, 1);
-    // Bruiser hits while -25% attack: 200% of floor(10*0.75)=7 -> 14 (0 armor).
+    // Bruiser hits while -25% attack: 20 flat + floor(10*0.75)=7 -> 27 (0 armor).
     const hit = events.find((e) => e.kind === 'damage' && e.side === 'player');
-    expect(hit).toMatchObject({ amount: 14 });
+    expect(hit).toMatchObject({ amount: 27 });
   });
 
   it('cleanse removes dots and debuffs from the caster', () => {

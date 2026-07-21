@@ -1,4 +1,4 @@
-// Core shared types for the 1v1 initiative-comparison skill-board combat engine.
+// Core shared types for the deterministic readiness skill-board combat engine.
 //
 // DETERMINISM RULES (apply to everything under src/engine):
 // - Simulation state holds integers only. No floats persist between turns;
@@ -8,6 +8,14 @@
 //   calls must happen in a fixed order regardless of rendering.
 
 export type Side = 'player' | 'enemy';
+
+/** Which board card produced an effect (for per-card combat attribution). */
+export interface EffectSourceRef {
+  side: Side;
+  unit: number;
+  slot: number;
+  skillId: string;
+}
 
 export interface CombatantStats {
   maxHp: number;
@@ -20,7 +28,7 @@ export interface CombatantStats {
   armor: number;
   /** Reduces incoming Magical damage. */
   magicResist: number;
-  /** Initiative: turn score = bank + speed − queued card's weight. */
+  /** Initiative added to readiness at the start of every gameplay turn. */
   speed: number;
   critPct: number;
 }
@@ -37,7 +45,7 @@ export type Archetype = 'offense' | 'defensive' | 'healing' | 'support' | 'debuf
  */
 export type Property = 'physical' | 'magical' | 'true';
 
-/** Board slots occupied AND turn span: a size-3 card busies its caster 2 extra turns. */
+/** Board slots occupied; traversing slots after the first makes the caster busy. */
 export type SkillSize = 1 | 2 | 3;
 
 /**
@@ -89,16 +97,47 @@ export type Action =
   | { kind: 'damage'; power: number }
   | { kind: 'heal'; power: number }
   | { kind: 'shield'; power: number }
-  /** Ticks on the victim at the start of each global turn. Bypasses shields. */
-  | { kind: 'poison'; amount: number; turns: number }
-  /** Ticks on the victim at the start of each global turn. Consumed by shields. */
-  | { kind: 'burn'; amount: number; turns: number }
+  /**
+   * DECAYING DoT (user-locked 2026-07-20): applies `stacks` poison. Each tick
+   * deals damage EQUAL to the current stack count, then one stack falls off —
+   * N stacks total N×(N+1)/2 damage. Exact printed numbers: no stat scaling,
+   * no matchup. New applications MERGE into the existing pile. Poison ticks at
+   * the END of each global turn (the victim always acts first) and BYPASSES
+   * shields.
+   */
+  | { kind: 'poison'; stacks: number }
+  /**
+   * HALVING DoT (user-locked 2026-07-20) — fierce and brief. Ticks at the
+   * START of each global turn: deals 2 × current stacks, then stacks HALVE
+   * (floored) — burn 8 ticks 16, 8, 4, 2. Can kill before the victim acts;
+   * ABSORBED by shields (which is why its PL table is discounted).
+   */
+  | { kind: 'burn'; stacks: number }
+  /**
+   * DECAYING DoT, same tick model, but ticks each time the victim PERFORMS a
+   * cast — acting costs blood. Bypasses shields once applied, but CANNOT be
+   * applied while the target holds any active shield (you can't cut what you
+   * can't touch). Fast, multi-cast enemies bleed out faster; turtling stalls it.
+   */
+  | { kind: 'bleed'; stacks: number }
   /** Consumes the victim's next performance (not a global turn). */
   | { kind: 'stun'; turns: number }
   | { kind: 'buffStat'; stat: BuffableStat; pct: number; turns: number }
   | { kind: 'debuffStat'; stat: BuffableStat; pct: number; turns: number }
-  /** Remove the caster's poisons, burns, stuns and debuffs. */
-  | { kind: 'cleanse' }
+  /**
+   * The mirror of `guard`: while active, the victim takes +`pct`% damage from
+   * ALL direct hits (source `skill`) for `turns` global turns. DoT ticks are
+   * unaffected (like guard). Applied on the enemy (offensive). `pct` clamped to
+   * <=50 at apply time; amplification is floored.
+   */
+  | { kind: 'expose'; pct: number; turns: number }
+  /**
+   * Remove up to `charges` of the caster's own NEGATIVE effects (poisons,
+   * burns, bleeds, stuns, stat debuffs, expose) in a fixed deterministic order:
+   * expiring-soonest first, ties by application order. Buffs/guards/negate are
+   * never removed.
+   */
+  | { kind: 'cleanse'; charges: number }
   /**
    * Raise the CASTER's own `aggro` by `amount` for the rest of the fight
    * (permanent, not turn-decremented). Under the default `aggro` target policy
@@ -107,15 +146,15 @@ export type Action =
   | { kind: 'taunt'; amount: number }
   // ---- Special ability riders (combined-archetype cards) ----
   /** The enemy's NEXT action is this much heavier (their attack comes later). */
-  | { kind: 'slowNext'; weight: number }
+  | { kind: 'slow'; weight: number }
   /** Drain the enemy's banked readiness (steal their built-up tempo). */
-  | { kind: 'stagger'; amount: number }
+  | { kind: 'disrupt'; amount: number }
   /** Heal the caster for pct% of the damage this cast dealt (place after damage). */
   | { kind: 'lifesteal'; pct: number }
   /** Shatter enemy shields before the hit (place before damage). */
   | { kind: 'shieldBreak'; amount: number }
-  /** +pct% damage this cast if the previous cast shared an archetype (place first). */
-  | { kind: 'comboBonus'; pct: number }
+  /** +amount FLAT damage this cast if the previous cast shared an archetype (place first). */
+  | { kind: 'comboBonus'; amount: number }
   // ---- Property-generic defensive keywords ----
   /**
    * Magical Guard: while active, incoming damage of the matching `property` is
@@ -155,10 +194,13 @@ export interface AuraDef {
   /** Only cards of this property receive the aura. */
   propertyFilter?: Property;
   mods: {
-    damagePct?: number;
-    healPct?: number;
+    /** FLAT damage added to each cast the aura reaches (not a percentage). */
+    damageFlat?: number;
+    /** FLAT healing added to each heal the aura reaches. */
+    healFlat?: number;
     /** Reduces (negative) or raises the card's speed weight. */
     weightDelta?: number;
+    /** Crit CHANCE points — the one modifier that stays a percentage. */
     critPctDelta?: number;
   };
 }
@@ -250,7 +292,7 @@ export interface StatGemMods {
   /** Hero-scope: flat integer stat adds folded into base stats. */
   hero?: Partial<Record<BuffableStat, number>>;
   /** Card-scope: modifiers applied to the socketed card only (AuraMods-shaped). */
-  card?: { damagePct?: number; healPct?: number; weightDelta?: number; critPctDelta?: number };
+  card?: { damageFlat?: number; healFlat?: number; weightDelta?: number; critPctDelta?: number };
 }
 
 /** A card placed on a board; `slot` is its leftmost occupied slot. */
@@ -315,12 +357,9 @@ export interface CombatConfig {
   maxTurns?: number;
   /**
    * Per-card reuse cooldowns (see `SkillDef.cooldownTurns`). A SECOND pacing
-   * dial that COEXISTS with the weight/bank/spans system: weight orders which
-   * eligible card fires, cooldown gates which cards are eligible at all. When
-   * on, `selectCast` skips any card still cooling; a tiny (1–2 card) deck then
-   * idles between casts (banks Speed) instead of looping every turn — the
-   * anti-small-deck effect. DEFAULT true (real play). Tests set it false to
-   * stay byte-identical to the pre-cooldown engine.
+   * dial that coexists with readiness and card weight: weight is the readiness
+   * paid to play, while cooldown gates which cards are eligible. Every living
+   * combatant still gains Speed while cards cool. DEFAULT true for real play.
    */
   cooldownsEnabled?: boolean;
 }

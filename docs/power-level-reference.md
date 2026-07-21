@@ -24,55 +24,90 @@ all division is `Math.floor`'d immediately (integer deci-PL, no floats persist).
 
 | Action / modifier | Formula (deci-PL) | Constant(s) | Note |
 |---|---|---|---|
-| `damage` (physical/magical %) | `power * damagePerPctNum / damagePerPctDen` | `PRICE.damagePerPctNum` (1), `PRICE.damagePerPctDen` (2) | 20% power = 1 PL |
-| `heal` / `shield` (physical/magical %) | same as damage | `PRICE.damagePerPctNum/Den` | 20% power = 1 PL |
-| `heal` / `shield` / `damage` (TRUE, flat) | `power * flatTruePerPoint` | `PRICE.flatTruePerPoint` (2) | 5 flat points = 1 PL |
-| TRUE property premium (casting cards only) | flat `+truePremium` | `PRICE.truePremium` (**10**, was 20) | Approved cut: +1 PL (was +2 PL) |
-| `poison` / `burn` | `amount * turns * dotPerPoint` | `PRICE.dotPerPoint` (2) | 5 total ticks = 1 PL |
-| `stun` | `turns * stunPerTurn` | `PRICE.stunPerTurn` (40) | 4 PL/turn — re-tune deferred (no sim data yet) |
+| `damage` (any property) | `power * flatPowerPerPoint` | `PRICE.flatPowerPerPoint` (5) | FLAT base; 2 power = 1 PL. Caster's stat is added at cast time, unpriced |
+| `heal` / `shield` (physical/magical) | `power * flatPowerPerPoint` | `PRICE.flatPowerPerPoint` (5) | FLAT base + caster stat; 2 power = 1 PL |
+| `heal` (TRUE, pure flat, no stat) | `power * flatTrueHealPerPoint` | `PRICE.flatTrueHealPerPoint` (2) | 5 flat points = 1 PL |
+| `shield` (TRUE, pure flat, no stat) | `power * flatTrueShieldPerPoint` | `PRICE.flatTrueShieldPerPoint` (**5**, was 4) | 2 flat points = 1 PL, typed parity — the premium is mechanical: typed damage drains the TRUE pool 2:1 (half effectiveness), TRUE damage 1:1 |
+| TRUE damage premium (scales with amount) | `+truePremiumPerPoint` per point of TRUE damage | `PRICE.truePremiumPerPoint` (**5**, was 1) | Half-effect rule (user-locked 2026-07-20): TRUE damage = 10 deci/pt, exactly double typed — 5 PL buys 10 typed damage but only 5 TRUE. Heals pay via `flatTrueHealPerPoint` instead (kept cheap: healing is never mitigated, TRUE buys no bypass) |
+| `poison` / `bleed` | `(stacks × (stacks+1) / 2) * dotPerTotalDamage` | `PRICE.dotPerTotalDamage` (2) | Decaying model (user-locked 2026-07-20): a tick = current stacks, then −1; N stacks = N×(N+1)/2 total damage, 5 total = 1 PL. Whole PL ⇔ N ≡ 0 or 4 (mod 5). Poison: end-of-turn, unstoppable. Bleed: per-performance, unstoppable once running, application blocked by active shields |
+| `burn` | authored size table | `PRICE.burnPlDeciBySize` (4→20 · 5→30 · 8→50 · 10→60) | Halving model (user-locked 2026-07-20): start-of-turn tick = 2× stacks, then stacks halve — burn 8 ticks 16,8,4,2 = 30 total over 4 turns. Priced 1.43-1.88 deci per total point (a 15-30% discount vs poison's 2.0) because every tick is absorbed by shields. Unlisted sizes fall back to the poison rate on burn's total |
+| `stun` | `turns * stunPerTurn` | `PRICE.stunPerTurn` (**100**, was 40) | 10 PL/turn — a consumed performance ≈ a whole Bronze card (throughput §2.C); moderated step toward 160, sim re-tune deferred |
 | `buffStat` / `debuffStat` | `pct * turns * statPctTurn` | `PRICE.statPctTurn` (1) | 10%-turn = 1 PL |
-| `cleanse` | flat `cleanse` | `PRICE.cleanse` (**90**, was 80) | Approved bump keeps `purify` on budget under the lower TRUE premium (90 + 10 = 100 = Bronze) |
-| `slowNext` | `weight * slowNextPerWeightNum / Den` | `PRICE.slowNextPerWeightNum` (5), `Den` (2) | 1 PL per +4 weight |
-| `stagger` | `amount * staggerPerPointNum / Den` | `PRICE.staggerPerPointNum` (5), `Den` (4) | 1 PL per 8 drained |
+| `expose` (%amp) | `pct * turns * exposePerPctTurnNum / Den` | `PRICE.exposePerPctTurnNum` (1), `Den` (1) | Guard-parity: amplifying and reducing cost the same (1×) |
+| `cleanse` | `charges * cleansePerCharge` | `PRICE.cleansePerCharge` (**25**, was flat 90) | 2.5 PL per effect removed; `purify` (4 charges) = 100 = Bronze |
+| `slow` | `weight * slowPerWeightNum / Den` | `PRICE.slowPerWeightNum` (5), `Den` (2) | 1 PL per +4 weight |
+| `disrupt` | `amount * disruptPerPointNum / Den` | `PRICE.disruptPerPointNum` (5), `Den` (**2**, was 4) | 1 PL per 4 drained (was per 8) — a meaningful tempo swing (throughput §2.E) |
 | `lifesteal` | `pct * lifestealPerPctNum / Den` | `PRICE.lifestealPerPctNum` (2), `Den` (3) | 1 PL per 15% |
 | `shieldBreak` | `amount * shieldBreakPerPointNum / Den` | `PRICE.shieldBreakPerPointNum` (5), `Den` (4) | 1 PL per 8 shattered |
-| `comboBonus` | `pct * comboPerPctNum / Den` | `PRICE.comboPerPctNum` (**1**, was 2), `Den` (3) | Approved cut: 1 PL per 30% (was 1 PL per 15%) |
-| `guard` (%DR) | `pct * turns * guardPerPctTurnNum / Den` | `PRICE.guardPerPctTurnNum` (5), `Den` (4) | 1.25× premium over `statPctTurn` (1×) — see rationale below |
-| `negate` (charges) | `charges * negatePerCharge` | `PRICE.negatePerCharge` (50) | Flat per-charge — see rationale below |
+| `comboBonus` | `amount * comboPerPoint` | `PRICE.comboPerPoint` (5) | Same rate as a card's own flat damage |
+| `guard` (%DR) | `pct * turns * guardPerPctTurnNum / Den` | `PRICE.guardPerPctTurnNum` (**1**), `Den` (**1**) | Parity with `statPctTurn` (1×) — the old 1.25× premium was removed; see rationale below |
+| `negate` (charges) | `charges * negatePerCharge` | `PRICE.negatePerCharge` (**100**, was 50) | Flat per-charge; a fully cancelled hit ≈ a Bronze card — see rationale below |
 | aura `damagePct` | `damagePct * auraDamagePct * reach` | `PRICE.auraDamagePct` (4) | `reach` = 2 for `allBoard`, else 1 |
 | aura `healPct` | `healPct * auraHealPct * reach` | `PRICE.auraHealPct` (4) | |
 | aura `critPctDelta` | `critPctDelta * auraCritPct * reach` | `PRICE.auraCritPct` (5) | |
 | aura `|weightDelta|` | `abs(weightDelta) * auraWeightDelta * reach` | `PRICE.auraWeightDelta` (20) | |
 | weight | `(baseline − weight) * weightPer` | `PRICE.weightPer` (5), baseline = `size * 10` | Every 2 lighter costs 1 PL; every 2 heavier REFUNDS 1 PL |
-| size grant | `−sizeGrant2` (size 2), `−sizeGrant3` (size 3) | `PRICE.sizeGrant2` (30), `PRICE.sizeGrant3` (60) | Big cards get extra kit budget for board space + turn span |
+| size grant | `−sizeGrantDeci(size, tier)` — Bronze anchor × (tierBudget + 100) / 200 | `PRICE.sizeGrant2Bronze/3Bronze` | Grows at HALF the tier-budget growth (Bronze +14/+38 … Diamond +24.5/+66.5 PL); big cards get extra kit budget for board space + turn span |
 | cooldown (`cooldownTurns`) | `(BASELINE_COOLDOWN − cooldownTurns) * cooldownPerTurn` | `PRICE.cooldownPerTurn` (**20**), `BASELINE_COOLDOWN` (3, `src/engine/types.ts`) | Shorter than baseline COSTS PL, longer REFUNDS — see rationale below |
 
-## `guard` pricing rationale
+## Effect investment caps (design contract, user-locked 2026-07-20)
 
-`guard` grants unconditional, multiplicative %-damage-reduction for a number
-of turns against a matching `property`. That's stronger per nominal
-`pct * turns` unit than a plain stat buff/debuff (`statPctTurn` = 1× rate),
-because it applies straight to the final incoming hit with no compounding
-math in between — so it's priced at a **1.25× premium**:
-`guardPerPctTurnNum / guardPerPctTurnDen = 5/4 = 1.25`.
+Tier budgets × size grants multiply a card's kit PL (Diamond size-3 ≈ 91 PL);
+caps stop that budget from becoming lockdown. Per-size ceilings on the PL a
+single card may invest per effect family — constants in
+`EFFECT_CAPS_DECI` (`src/engine/balance.ts`), audited for every card by the
+EFFECT-CAP AUDIT test, rendered live on the wiki RULES page. **When designing
+a card, run `npm test` — the audit names any cap it breaks.**
 
-Showcase: **Guard 40% for 2 turns, magical**, as the sole effect on a size-1
-card with no weight override — `40 * 2 * 5/4 = 100` deci-PL = **Bronze
-exactly**. (Runtime also clamps `pct` to ≤60 at apply time — a separate
-safety rail, not a pricing input.)
+| Family (max PL per card) | Size 1 | Size 2 | Size 3 | Tier-scaled? |
+|---|---|---|---|---|
+| Control — stun, slow, disrupt, stat-down, expose, shieldBreak | 10 | 15 | 20 | No; plus **stun ≤ 1 per card** (`MAX_STUN_PER_CARD`) |
+| DoTs — poison + burn + bleed combined | 20 | 30 | 40 | No (tiers buy bigger stacks *inside* the cap via the price ladder) |
+| Buffs — stat-up, guard, negate, cleanse, lifesteal, combo | 10 | 15 | 20 | No; auras exempt (passive board identity) |
+| Damage — flat, incl. TRUE | 12 | 28 | 50 | **Yes** ×1.5/×2/×2.5 (Silver/Gold/Diamond) |
+| Shield — flat, incl. TRUE | 12 | 28 | 50 | **Yes** — same multiplier |
+| Heal — flat, incl. TRUE | 12 | 28 | 50 | **Yes** — same multiplier |
+
+`applyTier` never scales control/empower magnitudes, so rank-upgraded cards
+can't drift over a cap; the flat families are the intended sink for tier
+growth, so their caps grow with the tier budget. **A capped control card
+spends its surplus budget on LIGHTER WEIGHT (2 below baseline = 1 PL → casts
+sooner) or on effects from other families** — that's the documented authoring
+pattern, not a rule exception.
+
+**Scope (user-locked 2026-07-20): these caps are DECK-BUILDING rules only.**
+They bind what a single authored card may invest. Runtime stacking on top is
+intentional gameplay, NOT a violation: effect gems appending extra actions,
+DoT piles growing through recasts/merges, and multi-card synergies may all
+exceed what any one card could buy. Do not add runtime clamps to "fix" this —
+build-around stacking is the payoff deck-building rules exist to enable.
+
+## `guard` / `expose` pricing rationale
+
+`guard` grants multiplicative %-damage-reduction for a number of turns against
+a matching `property`; `expose` is its offensive mirror (+%-damage taken on all
+direct hits). Both are priced at **parity with the plain stat buff/debuff rate**
+(`statPctTurn` = 1× — `guardPerPctTurnNum/Den = exposePerPctTurnNum/Den = 1/1`).
+The old guard **1.25× premium was removed** (user-locked 2026-07-19): per the
+throughput analysis (`docs/throughput-pl-proposal.md` §2.D) guard only pays off
+on the turns the opponent actually attacks during the window — the same
+opponent-cadence dilution as a stat debuff — so the premium was unjustified.
+
+Showcase: **Guard 50% for 2 turns, magical** (or **Expose 50% for 2 turns**),
+as the sole effect on a size-1 card with no weight override — `50 * 2 * 1 = 100`
+deci-PL = **Bronze exactly**. (Runtime clamps guard `pct` to ≤60 and expose
+`pct` to ≤50 at apply time — separate safety rails, not pricing inputs.)
 
 ## `negate` pricing rationale
 
 `negate` grants charges that fully cancel the caster's next direct hits of a
-matching `property` — high expected value versus a partial mitigation effect,
-so it's priced as a **flat deci-PL per charge** rather than a scaling rate:
-`negatePerCharge = 50`.
+matching `property` — a fully cancelled direct hit is worth roughly a whole
+Bronze card's output (throughput §2.C), so it's priced as a **flat deci-PL per
+charge**: `negatePerCharge = 100` (user-locked 2026-07-19, raised from 50).
 
-- 1 charge = 50 deci (half of Bronze — a reasonable chunk to pair with one
-  other small effect).
-- 2 charges = 100 deci (= Bronze exactly).
-- 3 charges (the apply-time clamp max, "total charges of a property ≤3") =
-  150 deci (= Silver exactly).
+- 1 charge = 100 deci (= Bronze exactly).
+- 2 charges = 200 deci · 3 charges (the apply-time clamp max, "total charges of
+  a property ≤3") = 300 deci.
 
 ## `cooldown` pricing rationale
 
@@ -162,11 +197,11 @@ both authored card effects and gem effects — no duplicated switch.
 regardless of which card it's later socketed into (a Common gem is worth the
 same 2 PL whether it lands on a physical, magical, or TRUE card) — but
 `actionsPriceDeci` reads `property` for exactly one case, a raw
-`damage`/`heal`/`shield` action, which prices differently as a % of power
-(physical/magical) vs. a flat amount (TRUE). Fixing the property to
-`physical` for gem pricing means:
-- Riders with no property dependence (poison, stun, buffStat, slowNext,
-  stagger, lifesteal, shieldBreak, comboBonus, guard, negate, cleanse) price
+`damage`/`heal`/`shield` action, which prices at the `flatPowerPerPoint` rate
+(physical/magical) vs. the cheaper flat-TRUE rate (TRUE heal/shield). Fixing the
+property to `physical` for gem pricing means:
+- Riders with no property dependence (poison, stun, buffStat, slow,
+  disrupt, lifesteal, shieldBreak, comboBonus, guard, negate, cleanse) price
   identically no matter what property is picked — this choice only matters
   for raw damage/heal/shield gem actions.
 - The **TRUE premium never applies to gems** — it's a card-level charge for
@@ -249,3 +284,38 @@ re-fit — see `tests/engine/balance.test.ts`):
 `purify` (the only `cleanse`-using card) stays on budget: the `cleanse` bump
 (80→90) exactly offsets the TRUE-premium cut (20→10), netting the same 100
 deci total.
+
+## Throughput rebalance pass (2026-07-19, user-locked)
+
+Rate changes derived from `docs/throughput-pl-proposal.md` (denial/tempo
+riders were underpriced; the guard premium was unjustified) plus two new
+effects and a per-charge cleanse. The affected cards were re-fit **mechanically**
+(magnitudes only, never tier/archetypes) so each lands back on its tier budget.
+
+| Change | Before | After | Why |
+|---|---|---|---|
+| `stunPerTurn` | 40 | **100** | A consumed enemy performance ≈ a whole Bronze card (throughput §2.C). Moderated step toward the proposal's 160; sim re-tune deferred |
+| `negatePerCharge` | 50 | **100** | A fully cancelled direct hit ≈ a Bronze card (§2.C) |
+| `disrupt` Den | 4 | **2** | 1 PL per 4 drained (was per 8) — draining banked readiness is a real tempo swing (§2.E) |
+| `guardPerPctTurn` | 5/4 | **1/1** | Parity with `statPctTurn`; the 1.25× premium was unjustified (§2.D) |
+| `cleanse` | flat 90 | **25/charge** | Priced per effect removed ("x per PL spent"); `purify` = 4 charges = 100 |
+| `expose` (NEW) | — | `pct * turns * 1/1` | Guard-parity amplifier (mirror of guard) |
+| `bleed` (NEW) | — | `amount * turns * 2` (dotPerPoint) | Per-performance DoT; per-perf timing stronger vs fast enemies, deferred to sim |
+
+Card re-fits (all land exactly on Bronze = 100 deci):
+
+- `stunning_smash` → pure stun (damage removed), size 2→1: stun 1 = 100.
+- `ward_of_silence` → negate charges 2→1: 100.
+- `frost_ward` → guard pct 40→50 (×2 turns ×1 = 100).
+- `concussive_shot` → disrupt 32→16 (40) + damage 12 (60) = 100.
+- `purify` → cleanse charges 4 = 100.
+- NEW `rupturing_strike` (bleed showcase): damage 10 (50) + bleed 5×5 (50) = 100.
+- NEW `ruinous_hex` (expose showcase): expose 50%×2 = 100.
+
+Forced gem re-fits (rate consequence; content-designer to review — the stun
+gems could no longer fit any rarity band at 100 deci/turn):
+
+- `concussive_shot_echo` disrupt 16→8 (Common 20).
+- `frost_ward_echo` guard 16%→20%, `ward_of_silence_echo` guard 32%→40% (Rare 40).
+- `stunning_shard`, `stunning_smash_echo`, `concussive_shard` re-themed
+  stun→slow (16/16/32 weight → Rare 40 / Rare 40 / Legendary 80).

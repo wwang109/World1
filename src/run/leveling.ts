@@ -23,15 +23,25 @@ export const POINTS_PER_LEVEL = 5;
 /** All stats a level-up point can be spent on (maxHp + the 6 BuffableStats). */
 export type LevelStat = 'maxHp' | BuffableStat;
 
-/** Flat integer bump per point spent on each stat. */
+/**
+ * Flat integer bump per point spent on each stat.
+ *
+ * Under the FLAT combat model (damage = card base + this stat, added flat),
+ * offense is intentionally slow-scaling: attack/magicPower gain +1/point vs
+ * maxHp's +10/point, so HP pools outgrow raw hit size and fights stay
+ * multi-turn at every level (the flat model already removed the multiplicative
+ * explosion; this keeps the linear slopes sane). critPct is likewise +1/point
+ * and hard-capped at cast time (`CRIT_CHANCE_CAP_PCT` in the interpreter) — crit
+ * must not creep toward a guaranteed hit at high level.
+ */
 export const STAT_INCREMENT: Record<LevelStat, number> = {
   maxHp: 10,
-  attack: 2,
-  magicPower: 2,
+  attack: 1,
+  magicPower: 1,
   armor: 1,
   magicResist: 1,
   speed: 1,
-  critPct: 2,
+  critPct: 1,
 };
 
 /** Fixed order used to hand out allocation remainders — deterministic, no RNG. */

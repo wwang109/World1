@@ -1,0 +1,43 @@
+export type CardArtEntry = {
+  fileName: string;
+  textureKey: string;
+};
+
+export const CARD_ART_CATALOG: Record<string, CardArtEntry> = {
+  arcane_bolt: { textureKey: 'card-art:arcane_bolt_spell', fileName: 'arcane-bolt-spell.png' },
+  armor_break: { textureKey: 'card-art:armor_break_anime', fileName: 'armor-break-anime.png' },
+  battle_howl: { textureKey: 'card-art:battle_howl_anime', fileName: 'battle-howl-anime.png' },
+  concussive_shot: { textureKey: 'card-art:concussive_shot_anime', fileName: 'concussive-shot-anime.png' },
+  crushing_blow: { textureKey: 'card-art:crushing_blow_anime', fileName: 'crushing-blow-anime.png' },
+  crippling_strike: { textureKey: 'card-art:crippling_strike_anime', fileName: 'crippling-strike-anime.png' },
+  fireball: { textureKey: 'card-art:fireball_anime', fileName: 'fireball-anime.png' },
+  follow_through: { textureKey: 'card-art:follow_through_anime', fileName: 'follow-through-anime.png' },
+  frost_ward: { textureKey: 'card-art:frost_ward_anime', fileName: 'frost-ward-anime.png' },
+  hex_of_frailty: { textureKey: 'card-art:hex_of_frailty_anime', fileName: 'hex-of-frailty-anime.png' },
+  hunter_shot: { textureKey: 'card-art:hunter_shot_anime', fileName: 'hunter-shot-anime.png' },
+  hamstring: { textureKey: 'card-art:hamstring_anime', fileName: 'hamstring-anime.png' },
+  iron_bulwark: { textureKey: 'card-art:iron_bulwark_anime', fileName: 'iron-bulwark-anime.png' },
+  judgment_light: { textureKey: 'card-art:judgment_light_anime', fileName: 'judgment-light-anime.png' },
+  leeching_fang: { textureKey: 'card-art:leeching_fang_anime', fileName: 'leeching-fang-anime.png' },
+  lucky_charm: { textureKey: 'card-art:lucky_charm_anime', fileName: 'lucky-charm-anime.png' },
+  mana_ward: { textureKey: 'card-art:mana_ward_anime', fileName: 'mana-ward-anime.png' },
+  mending_light: { textureKey: 'card-art:mending_light_anime', fileName: 'mending-light-anime.png' },
+  prism_barrier: { textureKey: 'card-art:prism_barrier_anime', fileName: 'prism-barrier-anime.png' },
+  purging_strike: { textureKey: 'card-art:purging_strike_anime', fileName: 'purging-strike-anime.png' },
+  purify: { textureKey: 'card-art:purify_anime', fileName: 'purify-anime.png' },
+  rending_claws: { textureKey: 'card-art:rending_claws_anime', fileName: 'rending-claws-anime.png' },
+  rupturing_strike: { textureKey: 'card-art:rupturing_strike_anime', fileName: 'rupturing-strike-anime.png' },
+  savage_bite: { textureKey: 'card-art:savage_bite_anime', fileName: 'savage-bite-anime.png' },
+  second_wind: { textureKey: 'card-art:second_wind_anime', fileName: 'second-wind-anime.png' },
+  shield_splitter: { textureKey: 'card-art:shield_splitter_anime', fileName: 'shield-splitter-anime.png' },
+  shadow_bolt: { textureKey: 'card-art:shadow_bolt_anime', fileName: 'shadow-bolt-anime.png' },
+  slow_hex: { textureKey: 'card-art:slow_hex_anime', fileName: 'slow-hex-anime.png' },
+  soul_rend: { textureKey: 'card-art:soul_rend_anime', fileName: 'soul-rend-anime.png' },
+  stunning_smash: { textureKey: 'card-art:stunning_smash_anime', fileName: 'stunning-smash-anime.png' },
+  sword_slash: { textureKey: 'card-art:sword_slash_anime', fileName: 'sword-slash-anime.png' },
+  time_crystal: { textureKey: 'card-art:time_crystal_anime', fileName: 'time-crystal-anime.png' },
+  venom_fang: { textureKey: 'card-art:venom_fang_anime', fileName: 'venom-fang-anime.png' },
+  ward_of_silence: { textureKey: 'card-art:ward_of_silence_anime', fileName: 'ward-of-silence-anime.png' },
+  war_banner: { textureKey: 'card-art:war_banner_anime', fileName: 'war-banner-anime.png' },
+  ruinous_hex: { textureKey: 'card-art:ruinous_hex_anime', fileName: 'ruinous-hex-anime.png' },
+};

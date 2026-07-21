@@ -74,7 +74,13 @@ export function cfg(
 /** Endgame disabled — for tests isolating a single mechanic. */
 export const NO_ENDGAME = { suddenDeathRound: 999, fatigueTurn: 9999, maxTurns: 60 } as const;
 
-/** A minimal book of neutral cards for precise scheduling tests. */
+// A minimal book of neutral cards for precise scheduling tests.
+//
+// FLAT model note: damage = card base `power` + the caster's scaling stat.
+// slash/bite use base 0 so they deal EXACTLY the caster's Attack — byte-identical
+// to the old "100% of Attack" for any Attack value, which keeps every scheduling /
+// death-timing test unchanged. meteor uses base 20 so at the default Magic Power (10)
+// it deals 30, matching its old 300%-of-10 for the default-stat scheduling tests.
 export const MINI_BOOK: SkillBook = {
   slash: {
     id: 'slash',
@@ -85,7 +91,7 @@ export const MINI_BOOK: SkillBook = {
     speedWeight: 10,
     rarity: 'common',
     tier: 'bronze',
-    effects: [{ kind: 'damage', power: 100 }],
+    effects: [{ kind: 'damage', power: 0 }],
     text: '',
   },
   bite: {
@@ -97,7 +103,7 @@ export const MINI_BOOK: SkillBook = {
     speedWeight: 10,
     rarity: 'common',
     tier: 'bronze',
-    effects: [{ kind: 'damage', power: 100 }],
+    effects: [{ kind: 'damage', power: 0 }],
     text: '',
   },
   meteor: {
@@ -109,7 +115,7 @@ export const MINI_BOOK: SkillBook = {
     speedWeight: 30,
     rarity: 'epic',
     tier: 'bronze',
-    effects: [{ kind: 'damage', power: 300 }],
+    effects: [{ kind: 'damage', power: 20 }],
     text: '',
   },
 };

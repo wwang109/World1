@@ -19,7 +19,9 @@ const BOOK: SkillBook = {
     weapon: 'sword',
     rarity: 'common',
     tier: 'bronze',
-    effects: [{ kind: 'damage', power: 100 }],
+    // power 10 flat (÷10 of the old 100%) -> 50 deci-PL, keeping the
+    // highestThreat pricing assertions below intact.
+    effects: [{ kind: 'damage', power: 10 }],
     text: '',
   },
   aoe: {
@@ -33,7 +35,8 @@ const BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     scope: 'all',
-    effects: [{ kind: 'damage', power: 100 }],
+    // power 0 -> deals exactly Attack (flat model equivalent of the old 100%).
+    effects: [{ kind: 'damage', power: 0 }],
     text: '',
   },
   taunt: {
@@ -59,8 +62,9 @@ const BOOK: SkillBook = {
     rarity: 'common',
     tier: 'bronze',
     scope: 'all',
+    // power 0 -> deals exactly Attack (flat model equivalent of the old 100%).
     effects: [
-      { kind: 'damage', power: 100 },
+      { kind: 'damage', power: 0 },
       { kind: 'lifesteal', pct: 50 },
     ],
     text: '',
@@ -233,7 +237,8 @@ describe('Wave 3 — offensive targeting', () => {
     expect(firstCast(run(attacker('strike', {}, { targetPolicy: 'lowestHp' }), [foe('a', 100), foe('b', 20), foe('c', 50)]).events))
       .toMatchObject({ targetUnit: 1, targetPolicy: 'lowestHp', targetValue: 20 });
 
-    // highestThreat → unit 1 (two strike cards), value = board PL in deci (2×50 = 100).
+    // highestThreat → unit 1 (two strike cards). Each strike (10 flat power) prices
+    // at 10 * flatPowerPerPoint(5) = 50 deci-PL; two cards -> board value 2×50 = 100.
     expect(firstCast(run(attacker('strike', {}, { targetPolicy: 'highestThreat' }), [foe('a', 100, ['strike']), foe('b', 100, ['strike', 'strike']), foe('c', 100, ['strike'])]).events))
       .toMatchObject({ targetUnit: 1, targetPolicy: 'highestThreat', targetValue: 100 });
 
@@ -266,20 +271,17 @@ describe('Wave 3 — offensive targeting', () => {
     expect(supportCast.targetPolicy).toBeUndefined();
   });
 
-  it('AoE damage events carry `unit`, and the comparison exposes per-unit entries', () => {
+  it('AoE damage events carry `unit`, and gains expose every living unit in canonical order', () => {
     const { events } = run(attacker('aoe'), [foe('a', 500), foe('b', 500)]);
-    const cmp = events.find((e) => e.kind === 'comparison') as {
-      entries: Array<{ side: string; unit: number }>;
-      performerUnit: number | null;
-      performer: string | null;
-    };
-    // player(0) + enemy(0) + enemy(1) = 3 living entries, canonical order.
-    expect(cmp.entries.map((en) => [en.side, en.unit])).toEqual([
+    const gains = events.filter(
+      (event): event is Extract<ReturnType<typeof simulate>['events'][number], { kind: 'gain' }> =>
+        event.kind === 'gain' && event.turn === 1,
+    );
+    expect(gains.map((event) => [event.side, event.unit])).toEqual([
       ['player', 0],
       ['enemy', 0],
       ['enemy', 1],
     ]);
-    expect(cmp.performer).toBe('player');
-    expect(cmp.performerUnit).toBe(0);
+    expect(events.find((event) => event.kind === 'play')).toMatchObject({ side: 'player', unit: 0 });
   });
 });

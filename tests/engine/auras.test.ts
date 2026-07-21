@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aurasOn } from '../../src/engine/combat/auras';
+import { auraAffectedTargetSlots, aurasOn } from '../../src/engine/combat/auras';
 import { initCombatState, type CombatantState } from '../../src/engine/combat/state';
 import { simulate } from '../../src/engine/combat/simulate';
 import { skillBook } from '../../src/data/skills';
@@ -43,11 +43,11 @@ const REACH_BOOK: SkillBook = {
     text: '',
   },
   // reach OMITTED -> defaults to 1 (old touching-only behavior).
-  adj1: auraCard('adj1', { affects: 'adjacent', mods: { damagePct: 10 } }),
-  adj2: auraCard('adj2', { affects: 'adjacent', reach: 2, mods: { damagePct: 10 } }),
-  left2: auraCard('left2', { affects: 'left', reach: 2, mods: { damagePct: 10 } }),
-  right2: auraCard('right2', { affects: 'right', reach: 2, mods: { damagePct: 10 } }),
-  all1: auraCard('all1', { affects: 'allBoard', reach: 1, mods: { damagePct: 10 } }),
+  adj1: auraCard('adj1', { affects: 'adjacent', mods: { damageFlat: 10 } }),
+  adj2: auraCard('adj2', { affects: 'adjacent', reach: 2, mods: { damageFlat: 10 } }),
+  left2: auraCard('left2', { affects: 'left', reach: 2, mods: { damageFlat: 10 } }),
+  right2: auraCard('right2', { affects: 'right', reach: 2, mods: { damageFlat: 10 } }),
+  all1: auraCard('all1', { affects: 'allBoard', reach: 1, mods: { damageFlat: 10 } }),
 };
 
 function reachBoardOf(pieces: BoardPiece[]): CombatantState {
@@ -74,9 +74,9 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
       { skillId: 'mending_light', slot: 3 },
       { skillId: 'sword_slash', slot: 6 },
     ]);
-    expect(aurasOn(c, pieceAt(c, 0), skillBook).damagePct).toBe(25); // touching offense
-    expect(aurasOn(c, pieceAt(c, 3), skillBook).damagePct).toBe(0); // healing, filtered out
-    expect(aurasOn(c, pieceAt(c, 6), skillBook).damagePct).toBe(0); // not touching (gap)
+    expect(aurasOn(c, pieceAt(c, 0), skillBook).damageFlat).toBe(5); // touching offense: +5 flat
+    expect(aurasOn(c, pieceAt(c, 3), skillBook).damageFlat).toBe(0); // healing, filtered out
+    expect(aurasOn(c, pieceAt(c, 6), skillBook).damageFlat).toBe(0); // not touching (gap)
   });
 
   it('time_crystal lightens only touching MAGICAL cards', () => {
@@ -105,7 +105,7 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
       { skillId: 'lucky_charm', slot: 2 },
     ]);
     const mods = aurasOn(c, pieceAt(c, 1), skillBook);
-    expect(mods.damagePct).toBe(25);
+    expect(mods.damageFlat).toBe(5);
     expect(mods.critPctDelta).toBe(20);
   });
 
@@ -122,10 +122,11 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
       { ...NO_ENDGAME, maxTurns: 1 },
     );
     const { events } = simulate(c, 1);
-    expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 25 }); // 200% of 10 * 1.25
+    // sword_slash: 20 flat + 10 Attack + 5 (war_banner flat aura) = 35.
+    expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 35 });
   });
 
-  it('skillCast records the aura source breakdown (war_banner +25% dmg)', () => {
+  it('skillCast records the aura source breakdown (war_banner +5 dmg)', () => {
     const c = cfg(
       tc('hero', [], { attack: 10, speed: 20 }, {
         boardSize: 10,
@@ -139,9 +140,9 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
     );
     const { events } = simulate(c, 1);
     const cast = events.find((e) => e.kind === 'skillCast' && e.skillId === 'sword_slash') as {
-      auras?: { slot: number; skillId: string; damagePct?: number }[];
+      auras?: { slot: number; skillId: string; damageFlat?: number }[];
     };
-    expect(cast.auras).toEqual([{ slot: 0, skillId: 'war_banner', damagePct: 25 }]);
+    expect(cast.auras).toEqual([{ slot: 0, skillId: 'war_banner', damageFlat: 5 }]);
   });
 
   it('skillCast OMITS the auras key when no board aura reaches the cast', () => {
@@ -164,13 +165,13 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
       { skillId: 'adj1', slot: 0 },
       { skillId: 'target', slot: 2 },
     ]);
-    expect(aurasOn(c, pieceAt(c, 2), REACH_BOOK).damagePct).toBe(0);
+    expect(aurasOn(c, pieceAt(c, 2), REACH_BOOK).damageFlat).toBe(0);
     // Touching target (slot 1) IS reached at reach 1.
     const touching = reachBoardOf([
       { skillId: 'adj1', slot: 0 },
       { skillId: 'target', slot: 1 },
     ]);
-    expect(aurasOn(touching, pieceAt(touching, 1), REACH_BOOK).damagePct).toBe(10);
+    expect(aurasOn(touching, pieceAt(touching, 1), REACH_BOOK).damageFlat).toBe(10);
   });
 
   it('reach 2 reaches a one-gap card that reach 1 cannot', () => {
@@ -179,13 +180,13 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
       { skillId: 'adj2', slot: 0 },
       { skillId: 'target', slot: 2 },
     ]);
-    expect(aurasOn(c, pieceAt(c, 2), REACH_BOOK).damagePct).toBe(10);
+    expect(aurasOn(c, pieceAt(c, 2), REACH_BOOK).damageFlat).toBe(10);
     // But gap 2 (two empty slots) is still out of reach at reach 2.
     const far = reachBoardOf([
       { skillId: 'adj2', slot: 0 },
       { skillId: 'target', slot: 3 },
     ]);
-    expect(aurasOn(far, pieceAt(far, 3), REACH_BOOK).damagePct).toBe(0);
+    expect(aurasOn(far, pieceAt(far, 3), REACH_BOOK).damageFlat).toBe(0);
   });
 
   it('directional left/right respect reach and direction', () => {
@@ -195,16 +196,16 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
       { skillId: 'right2', slot: 2 },
       { skillId: 'target', slot: 4 },
     ]);
-    expect(aurasOn(c, pieceAt(c, 4), REACH_BOOK).damagePct).toBe(10); // to the right
-    expect(aurasOn(c, pieceAt(c, 0), REACH_BOOK).damagePct).toBe(0); // to the left, ignored
+    expect(aurasOn(c, pieceAt(c, 4), REACH_BOOK).damageFlat).toBe(10); // to the right
+    expect(aurasOn(c, pieceAt(c, 0), REACH_BOOK).damageFlat).toBe(0); // to the left, ignored
     // left2 at slot 2: mirror — reaches left (slot 0) not right (slot 4).
     const c2 = reachBoardOf([
       { skillId: 'target', slot: 0 },
       { skillId: 'left2', slot: 2 },
       { skillId: 'target', slot: 4 },
     ]);
-    expect(aurasOn(c2, pieceAt(c2, 0), REACH_BOOK).damagePct).toBe(10);
-    expect(aurasOn(c2, pieceAt(c2, 4), REACH_BOOK).damagePct).toBe(0);
+    expect(aurasOn(c2, pieceAt(c2, 0), REACH_BOOK).damageFlat).toBe(10);
+    expect(aurasOn(c2, pieceAt(c2, 4), REACH_BOOK).damageFlat).toBe(0);
   });
 
   it('allBoard ignores reach (covers a far card)', () => {
@@ -213,25 +214,61 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
       { skillId: 'all1', slot: 0 },
       { skillId: 'target', slot: 6 },
     ]);
-    expect(aurasOn(c, pieceAt(c, 6), REACH_BOOK).damagePct).toBe(10);
+    expect(aurasOn(c, pieceAt(c, 6), REACH_BOOK).damageFlat).toBe(10);
   });
 
-  it('weightDelta changes the initiative comparison', () => {
-    // arcane_bolt (w10) next to time_crystal -> effective weight 5:
-    // hero speed 10: score 10−5=5 beats enemy 10−10=0 every turn.
+  it('weightDelta changes the readiness cost recorded by play', () => {
     const c = cfg(
       tc('hero', [], { magicPower: 1, speed: 10, maxHp: 500 }, {
         boardSize: 10,
         pieces: [
-          { skillId: 'time_crystal', slot: 0 },
-          { skillId: 'arcane_bolt', slot: 1 },
+          { skillId: 'arcane_bolt', slot: 0 },
+          { skillId: 'time_crystal', slot: 1 },
         ],
       }),
       tc('foe', ['sword_slash'], { attack: 1, speed: 10, maxHp: 500 }),
       { ...NO_ENDGAME, maxTurns: 2 },
     );
     const { events } = simulate(c, 1);
-    const first = events.find((e) => e.kind === 'comparison') as { performer: string };
-    expect(first.performer).toBe('player');
+    const bolt = events.find((event) => event.kind === 'play' && event.skillId === 'arcane_bolt');
+    expect(bolt).toMatchObject({ side: 'player', weight: 3 });
+  });
+});
+
+// --- Shared coverage helper (UI + combat use the same rule) -----------------
+describe('auraAffectedTargetSlots (UI-facing coverage)', () => {
+  const book: SkillBook = {
+    ...skillBook,
+    // A left-projecting, reach-2 aura source for a deterministic fixture.
+    beacon: {
+      id: 'beacon', name: 'Beacon', archetypes: ['support'], property: 'physical', size: 1,
+      rarity: 'common', tier: 'bronze', effects: [],
+      aura: { affects: 'left', reach: 2, archetypeFilter: 'offense', mods: { damageFlat: 10 } },
+      text: '',
+    },
+  };
+  // Board: offense(0) offense(1) beacon(2) defensive(3)
+  const pieces = [
+    { slot: 0, skillId: 'sword_slash' },   // offense, left of beacon
+    { slot: 1, skillId: 'sword_slash' },   // offense, touching beacon on the left
+    { slot: 2, skillId: 'beacon' },
+    { slot: 3, skillId: 'iron_bulwark' },  // defensive, right of beacon
+  ];
+
+  it('covers only left-side, in-range, filter-matching cards', () => {
+    const hit = auraAffectedTargetSlots({ slot: 2, skillId: 'beacon' }, pieces, book);
+    // left reach 2 → slots 1 (gap 0) and 0 (gap 1); slot 3 is right (excluded);
+    // all left cards are offense so the filter passes both.
+    expect(hit).toEqual([0, 1]);
+  });
+
+  it('matches the combat resolver exactly (same affected set)', () => {
+    // Cross-check: aurasOn should boost the covered offense cards and not slot 3.
+    const state = initCombatState(cfg(tc('hero', [], {}, { boardSize: 10, pieces }), tc('foe', []), { skillBook: book }));
+    const covered = auraAffectedTargetSlots({ slot: 2, skillId: 'beacon' }, pieces, book);
+    for (const p of state.player.pieces) {
+      const boosted = aurasOn(state.player, p, book).damageFlat > 0;
+      expect(boosted).toBe(covered.includes(p.slot));
+    }
   });
 });

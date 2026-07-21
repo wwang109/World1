@@ -95,7 +95,7 @@ const KW_BOOK: SkillBook = {
     rarity: 'epic',
     tier: 'bronze',
     effects: [
-      { kind: 'shield', power: 200 },
+      { kind: 'shield', power: 20 },
       { kind: 'negate', property: 'magical', charges: 1 },
     ],
     text: '',
@@ -110,7 +110,7 @@ const KW_BOOK: SkillBook = {
     speedWeight: 10,
     rarity: 'common',
     tier: 'bronze',
-    effects: [{ kind: 'damage', power: 100 }],
+    effects: [{ kind: 'damage', power: 0 }],
     text: '',
   },
   tbolt: {
@@ -122,7 +122,7 @@ const KW_BOOK: SkillBook = {
     speedWeight: 10,
     rarity: 'epic',
     tier: 'bronze',
-    effects: [{ kind: 'damage', power: 100 }],
+    effects: [{ kind: 'damage', power: 0 }],
     text: '',
   },
   mburn: {
@@ -134,7 +134,7 @@ const KW_BOOK: SkillBook = {
     speedWeight: 10,
     rarity: 'common',
     tier: 'bronze',
-    effects: [{ kind: 'burn', amount: 20, turns: 5 }],
+    effects: [{ kind: 'burn', stacks: 10 }],
     text: '',
   },
 };
@@ -165,7 +165,8 @@ describe('Magical Guard', () => {
     );
     const burn = simulate(c, 1)
       .events.filter((e): e is DamageEvent => e.kind === 'damage' && e.side === 'player' && e.source === 'burn')[0]!;
-    // burn 20 -> floor(20 * 0.5) = 10 through the magical guard.
+    // halving burn: first tick = 2 × the 10-stack pile = 20, through the
+    // magical guard floor(20 * 0.5) = 10.
     expect(burn).toMatchObject({ amount: 10, property: 'magical', guarded: 10, source: 'burn' });
   });
 
@@ -216,8 +217,8 @@ describe('Magical Negate', () => {
     const hits = heroDamage(events);
     expect(negated.length).toBe(1);
     expect(negated[0]).toMatchObject({ side: 'player', property: 'magical' });
-    // First enemy bolt is negated (no damage on that turn); the second lands full.
-    expect(hits.length).toBe(1);
+    // The T1 bolt is negated; later gameplay turns each add readiness for another bolt.
+    expect(hits.length).toBe(2);
     expect(hits[0]).toMatchObject({ amount: 40, property: 'magical' });
     expect(hits[0]!.turn).toBeGreaterThan(negated[0]!.turn);
   });
@@ -251,7 +252,7 @@ describe('Magical Negate', () => {
     const c = cfg(
       tc('hero', ['shield_negate'], { magicPower: 20, magicResist: 0, speed: 10, maxHp: 200 }, { skillBook: KW_BOOK }),
       tc('mage', ['mbolt'], { magicPower: 40, speed: 10 }, { skillBook: KW_BOOK }),
-      { ...OPT, maxTurns: 2 },
+      { ...OPT, maxTurns: 1 },
     );
     const { events, finalState } = simulate(c, 1);
     expect(events.some((e) => e.kind === 'negated' && e.side === 'player')).toBe(true);

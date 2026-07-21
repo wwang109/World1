@@ -1,21 +1,35 @@
-import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantStats, Element, Property, Side, SkillBook, SkillDef, TargetPolicy, WeaponType } from '../types';
+import type { Archetype, BuffableStat, CombatConfig, CombatantSetup, CombatantStats, EffectSourceRef, Element, Property, Side, SkillBook, SkillDef, TargetPolicy, WeaponType } from '../types';
 import type { AuraMods } from './auras';
 import { applyHeroGems, gemCardMods, gemHeroStats, resolveEffectiveSkill } from '../cards';
 import { powerLevelDeci } from '../balance';
+import { boardTypeIdentity, type BoardIdentity } from './typeIdentity';
 
 export interface StatusInstance {
-  kind: 'poison' | 'burn' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate';
+  kind: 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose';
   /** DoT mitigation/synergy typing (inherited from the card); guard/negate match property. */
   property?: Property;
   stat?: BuffableStat;
   pct?: number;
   amount?: number;
+  /**
+   * DECAYING DoT (poison/burn/bleed): current stack count. Each tick deals
+   * damage equal to `stacks`, then removes one stack; expires at 0. One pile
+   * per kind per victim — new applications merge in. Cleanse removes one
+   * stack per charge.
+   */
+  stacks?: number;
   /** Remaining negate counter-charges (negate only; not turn-decremented). */
   charges?: number;
-  /** Remaining GLOBAL turns (stun: remaining performances; negate: unused/0). */
+  /**
+   * Remaining GLOBAL turns (stun: remaining performances; negate: unused/0).
+   * For decaying DoTs this mirrors `stacks` (kept in sync) so duration sorts
+   * and displays keep working.
+   */
   turnsLeft: number;
   /** Newly applied this turn: skip the first end-of-turn decrement. */
   fresh?: boolean;
+  /** The card that applied this status (poison/burn) — for per-card DoT attribution. */
+  source?: EffectSourceRef;
 }
 
 /** Typed shield pools. A pool only blocks its own property; true blocks all. */
@@ -56,10 +70,8 @@ export interface CombatantState {
   pieces: PieceState[];
   /** Board slot the rotation scan starts from (wraps). */
   castCursor: number;
-  /** Banked initiative from turns spent not performing. */
-  bank: number;
-  /** Remaining turns this side is busy finishing a spanning cast. */
-  busyTurns: number;
+  /** Initiative carried between gameplay turns and spent to play cards. */
+  readiness: number;
   /** Number of performances taken (casts + stun-consumed performances). */
   performs: number;
   /** Accumulated sudden-death damage amp (%). */
@@ -70,6 +82,13 @@ export interface CombatantState {
   lastCastArchetypes: Archetype[];
   elementAffinity?: Element;
   weaponAffinity?: WeaponType;
+  /**
+   * The board's derived type identity (a unique type with the highest count,
+   * count >= 3), computed once at setup. `undefined` when the board has none.
+   * Drives the +20% same-type damage bonus (folded via AuraMods) and the
+   * defensive-affinity fill below. Purely a function of the placed cards.
+   */
+  boardIdentity?: BoardIdentity;
   /** Single-target offensive targeting rule among living foes. Default `aggro`. */
   targetPolicy: TargetPolicy;
   /** Opposing lineup index this unit focuses (overrides policy when living). */
@@ -81,7 +100,7 @@ export interface CombatantState {
 }
 
 export interface CombatState {
-  /** Global turn counter (one comparison+performance step per turn). */
+  /** Gameplay-turn counter; each turn can resolve zero, one, or many plays. */
   turn: number;
   /**
    * Team-shaped source of truth. WAVE 1 keeps exactly one unit per side, so
@@ -117,6 +136,19 @@ function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBo
     pieces.push({ skillId: piece.skillId, slot: piece.slot, size: skill.size, skill, gemMods: gemCardMods(piece.gem) });
   }
   pieces.sort((a, b) => a.slot - b.slot);
+  // Board Type Identity, computed once from the placed cards (element/weapon is
+  // unaffected by tier/gem resolution, so the effective skills are fine to use).
+  const boardIdentity = boardTypeIdentity(pieces.map((p) => p.skill));
+  // Effect 1 — defensive attunement: an identity fills the matching affinity
+  // ONLY where no affinity was authored. Authored (enemy) affinities always win;
+  // heroes have none, so this is their first source of affinity.
+  let elementAffinity = setup.elementAffinity;
+  let weaponAffinity = setup.weaponAffinity;
+  if (boardIdentity?.kind === 'element' && elementAffinity === undefined) {
+    elementAffinity = boardIdentity.type;
+  } else if (boardIdentity?.kind === 'weapon' && weaponAffinity === undefined) {
+    weaponAffinity = boardIdentity.type;
+  }
   return {
     side,
     index,
@@ -126,14 +158,14 @@ function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBo
     boardSize: setup.boardSize,
     pieces,
     castCursor: 0,
-    bank: 0,
-    busyTurns: 0,
+    readiness: 0,
     performs: 0,
     sdStacks: 0,
     nextWeightPenalty: 0,
     lastCastArchetypes: [],
-    elementAffinity: setup.elementAffinity,
-    weaponAffinity: setup.weaponAffinity,
+    elementAffinity,
+    weaponAffinity,
+    boardIdentity,
     targetPolicy: setup.targetPolicy ?? 'aggro',
     focus: setup.focus,
     aggro: setup.baseAggro ?? 0,

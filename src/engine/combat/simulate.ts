@@ -1,9 +1,9 @@
 import { Rng } from '../rng';
 import type { CombatConfig, CombatantSetup, CombatOutcome, Side } from '../types';
-import type { CombatEvent, ComparisonEntry, ComparisonSide } from './events';
+import type { CombatEvent } from './events';
 import { effStat, initCombatState, teamOf, type CombatState, type CombatantState } from './state';
-import { selectCast, type CastChoice } from './castSelect';
-import { applyCast, dealDamage, type Ctx } from './interpreter';
+import { scanCast, type CastChoice } from './castSelect';
+import { applyCast, dealDamage, targetInfoForCast, type Ctx } from './interpreter';
 
 export interface CombatResult {
   result: CombatOutcome;
@@ -34,25 +34,69 @@ function pool(state: CombatState): CombatantState[] {
 }
 
 /**
- * DoTs act on their victim at the start of every global turn (except the turn
- * they were applied). Poison bypasses shields; burn is consumed by shields.
- * Duration decrements with each tick; expires at 0.
+ * Turn-based DoT ticks (user-locked timing 2026-07-20): BURN ticks at the
+ * START of every global turn — it can kill before the victim acts and is
+ * absorbed by shields before they refresh. POISON ticks at the END of every
+ * global turn — the victim always gets to act before it lands, and it
+ * bypasses shields. Neither ticks on the turn its pile was created (`fresh`).
+ * POISON decays linearly: a tick deals the current stack count, then one
+ * stack falls off. BURN is fierce and brief (user-locked 2026-07-20): a tick
+ * deals 2 × the current stack count, then stacks HALVE (floored) — burn 8
+ * ticks 16, 8, 4, 2. Either pile expires at 0 stacks.
  */
-function tickDots(ctx: Ctx, c: CombatantState): void {
+function tickTurnDot(ctx: Ctx, c: CombatantState, kind: 'poison' | 'burn'): void {
   const remaining: typeof c.statuses = [];
   for (const status of c.statuses) {
-    if ((status.kind !== 'poison' && status.kind !== 'burn') || status.fresh) {
+    if (status.kind !== kind || status.fresh) {
       remaining.push(status);
       continue;
     }
     if (c.alive) {
-      dealDamage(ctx, c, status.amount ?? 0, status.property ?? 'true', {
+      // Attribute the tick to the card that applied the DoT (for the per-card report).
+      ctx.source = status.source;
+      const tick = kind === 'burn' ? 2 * (status.stacks ?? 0) : status.stacks ?? 0;
+      dealDamage(ctx, c, tick, status.property ?? 'true', {
         bypassShields: status.kind === 'poison',
         source: status.kind,
       });
+      ctx.source = undefined;
     }
-    status.turnsLeft -= 1;
-    if (status.turnsLeft > 0) {
+    status.stacks = kind === 'burn' ? Math.floor((status.stacks ?? 0) / 2) : (status.stacks ?? 0) - 1;
+    status.turnsLeft = status.stacks;
+    if (status.stacks > 0) {
+      remaining.push(status);
+    } else {
+      ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: c.side, unit: c.index, status: status.kind });
+    }
+  }
+  c.statuses = remaining;
+}
+
+/**
+ * Bleed ticks when its victim PERFORMS a cast — acting costs blood. Called
+ * right after a cast's effects resolve (see the perform loop), NOT at the start
+ * of a global turn like poison/burn, and NOT on a stun-skipped performance
+ * (there is no `play`). DECAYING model: each performance takes the current
+ * stack count in damage, then one stack falls off. Bypasses shields once
+ * running (internal bleeding) — but application is blocked by active shields
+ * (see applyDot's caller). A `fresh` bleed applied this same turn is skipped
+ * until end-of-turn clears its freshness, matching DoT semantics.
+ */
+function tickBleed(ctx: Ctx, c: CombatantState): void {
+  const remaining: typeof c.statuses = [];
+  for (const status of c.statuses) {
+    if (status.kind !== 'bleed' || status.fresh) {
+      remaining.push(status);
+      continue;
+    }
+    if (c.alive) {
+      ctx.source = status.source;
+      dealDamage(ctx, c, status.stacks ?? 0, status.property ?? 'true', { bypassShields: true, source: 'bleed' });
+      ctx.source = undefined;
+    }
+    status.stacks = (status.stacks ?? 0) - 1;
+    status.turnsLeft = status.stacks;
+    if (status.stacks > 0) {
       remaining.push(status);
     } else {
       ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: c.side, unit: c.index, status: status.kind });
@@ -86,38 +130,52 @@ function expireStatuses(ctx: Ctx, c: CombatantState): void {
   c.statuses = remaining;
 }
 
-function comparisonSide(c: CombatantState, choice: CastChoice | null): ComparisonSide {
-  if (c.busyTurns > 0) {
-    return { queuedSkillId: null, queuedSlot: null, bank: c.bank, speed: effStat(c, 'speed'), weight: null, score: null, state: 'busy' };
+function cursorPiece(c: CombatantState): { piece: CombatantState['pieces'][number]; slotIndex: number } | null {
+  for (const piece of c.pieces) {
+    if (c.castCursor >= piece.slot && c.castCursor < piece.slot + piece.size) {
+      return { piece, slotIndex: c.castCursor - piece.slot + 1 };
+    }
   }
-  if (choice === null) {
-    return { queuedSkillId: null, queuedSlot: null, bank: c.bank, speed: effStat(c, 'speed'), weight: null, score: null, state: 'nothingUsable' };
+  return null;
+}
+
+function emitCursor(ctx: Ctx, c: CombatantState, before: number): void {
+  const at = cursorPiece(c);
+  ctx.events.push({
+    turn: ctx.state.turn,
+    kind: 'cursor',
+    side: c.side,
+    unit: c.index,
+    slot: c.castCursor,
+    ...(at ? { skillId: at.piece.skillId, slotIndex: at.slotIndex, slotCount: at.piece.size } : {}),
+    wrapped: c.castCursor < before,
+  });
+}
+
+function moveCursorToNextCard(c: CombatantState): void {
+  if (cursorPiece(c)) return;
+  for (let offset = 0; offset < c.boardSize; offset += 1) {
+    const slot = (c.castCursor + offset) % c.boardSize;
+    if (c.pieces.some((piece) => piece.slot === slot)) {
+      c.castCursor = slot;
+      return;
+    }
   }
-  const speed = effStat(c, 'speed');
-  return {
-    queuedSkillId: choice.skill.id,
-    queuedSlot: choice.piece.slot,
-    bank: c.bank,
-    speed,
-    weight: choice.weight,
-    score: c.bank + speed - choice.weight,
-    state: 'ready',
-  };
+}
+
+function candidateWins(a: { unit: CombatantState }, b: { unit: CombatantState }): boolean {
+  if (a.unit.readiness !== b.unit.readiness) return a.unit.readiness > b.unit.readiness;
+  const aSpeed = effStat(a.unit, 'speed');
+  const bSpeed = effStat(b.unit, 'speed');
+  return aSpeed > bSpeed;
 }
 
 /**
- * Run a full deterministic 1v1 combat.
- *
- * Each global turn: DoTs tick → both sides queue their next card (strict
- * left→right rotation) → initiative comparison (bank + Speed − weight; higher
- * performs, tie → player) → the performer casts (or a stun consumes the
- * performance); everyone else banks their Speed. A cast of size N keeps its
- * caster busy for N−1 further turns. With `cooldownsEnabled` (default on), a
- * card that recently performed is skipped by the rotation until its reuse
- * cooldown elapses (weight still orders whatever IS eligible); a combatant with
- * nothing eligible wastes the turn and does NOT bank Speed. Sudden death after both sides have
- * performed 5 times ramps damage (+10%/turn player, +30%/turn enemy); a flat
- * fatigue backstop from global turn `fatigueTurn` guarantees termination.
+ * Run deterministic readiness combat. Every living combatant gains Speed once
+ * per gameplay turn, then the highest-readiness combatant that can afford its
+ * current card plays and pays its weight. The resolve loop repeats, allowing
+ * multiple plays in one turn. Size advances the cursor through occupied slots;
+ * only the first slot casts and later slots make the combatant busy for a turn.
  */
 export function simulate(cfg: CombatConfig, seed: number): CombatResult {
   const state = initCombatState(cfg);
@@ -127,8 +185,6 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
   const suddenDeathRound = cfg.suddenDeathRound ?? DEFAULT_SUDDEN_DEATH_ROUND;
   const fatigueTurn = cfg.fatigueTurn ?? DEFAULT_FATIGUE_TURN;
   const maxTurns = cfg.maxTurns ?? DEFAULT_MAX_TURNS;
-  // Second pacing dial: per-card reuse cooldowns. ON for real play; tests pass
-  // false to stay byte-identical to the pre-cooldown engine.
   const cooldownsEnabled = cfg.cooldownsEnabled ?? true;
   let sdAnnounced = false;
   let fatigueAnnounced = false;
@@ -144,69 +200,79 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
   while (state.turn < maxTurns) {
     state.turn += 1;
 
-    // Canonical performance pool for this turn: player-side first, then by index.
     const units = pool(state);
 
-    // 1. DoT phase (canonical order for determinism).
-    for (const c of units) tickDots(ctx, c);
+    // Start-of-turn effects resolve before readiness so dead units never gain.
+    // Only BURN ticks here; poison ticks at the end of the turn.
+    for (const c of units) tickTurnDot(ctx, c, 'burn');
     outcome = checkEnd(state);
     if (outcome !== null) return finish(outcome);
 
-    // 2. Queue cards and compare initiative across the pool. Performer = highest
-    //    ready score; ties break to canonical order (player before enemy, lowest
-    //    index) — reproducing the old "player wins ties" rule at 1v1.
-    const queued = units.map((c) => {
-      // Dead units never queue (in 1v1 death ends the fight, so this is a
-      // no-op there); a busy unit is finishing a span and cannot compete.
-      const choice =
-        c.busyTurns > 0 || !c.alive
-          ? null
-          : selectCast(c, cfg.skillBook, teamOf(state, c.side).filter((u) => u.alive), {
-              currentTurn: state.turn,
-              cooldownsEnabled,
-            });
-      return { unit: c, choice, comp: comparisonSide(c, choice) };
-    });
+    // Phase 1: every living combatant gains effective Speed exactly once.
+    for (const c of units) {
+      if (!c.alive) continue;
+      const speed = effStat(c, 'speed');
+      const baseSpeed = c.stats.speed;
+      const readinessBefore = c.readiness;
+      c.readiness += speed;
+      events.push({
+        turn: state.turn,
+        kind: 'gain',
+        side: c.side,
+        unit: c.index,
+        baseSpeed,
+        speedModifier: speed - baseSpeed,
+        speed,
+        readinessBefore,
+        readinessAfter: c.readiness,
+      });
+    }
 
-    let performerEntry: (typeof queued)[number] | null = null;
-    for (const q of queued) {
-      if (q.comp.state !== 'ready') continue;
-      if (performerEntry === null || q.comp.score! > performerEntry.comp.score!) {
-        performerEntry = q;
+    // A cursor inside a multi-slot card advances one occupied slot and makes
+    // that combatant busy for this whole resolve phase.
+    const blocked = new Set<CombatantState>();
+    for (const c of units) {
+      if (!c.alive) continue;
+      const at = cursorPiece(c);
+      if (!at || at.slotIndex === 1) continue;
+      events.push({
+        turn: state.turn,
+        kind: 'busy',
+        side: c.side,
+        unit: c.index,
+        slot: c.castCursor,
+        skillId: at.piece.skillId,
+        slotIndex: at.slotIndex,
+        slotCount: at.piece.size,
+      });
+      const before = c.castCursor;
+      c.castCursor = (c.castCursor + 1) % c.boardSize;
+      moveCursorToNextCard(c);
+      emitCursor(ctx, c, before);
+      blocked.add(c);
+    }
+
+    let playsThisTurn = 0;
+    const played = new Set<CombatantState>();
+    const playedPieces = new Map<CombatantState, Set<CombatantState['pieces'][number]>>();
+    const stunned = new Set<CombatantState>();
+    while (true) {
+      let performerEntry: { unit: CombatantState; choice: CastChoice } | null = null;
+      for (const c of units) {
+        if (!c.alive || blocked.has(c) || stunned.has(c)) continue;
+        const scan = scanCast(c, cfg.skillBook, {
+          currentTurn: state.turn,
+          cooldownsEnabled,
+          excludedThisTurn: playedPieces.get(c),
+        });
+        if (scan.kind !== 'choice' || c.readiness < scan.choice.weight) continue;
+        const entry = { unit: c, choice: scan.choice };
+        if (performerEntry === null || candidateWins(entry, performerEntry)) performerEntry = entry;
       }
-    }
-    const performer: Side | null = performerEntry ? performerEntry.unit.side : null;
-    const performerUnit: number | null = performerEntry ? performerEntry.unit.index : null;
+      if (performerEntry === null) break;
 
-    // Team-shaped source of truth: every living combatant's numbers, canonical
-    // order (already the `pool` order). Legacy player/enemy singletons are kept
-    // (from each side's index-0 unit) for the pre-team UI until Wave 4.
-    const entries: ComparisonEntry[] = queued
-      .filter((q) => q.unit.alive)
-      .map((q) => ({ side: q.unit.side, unit: q.unit.index, ...q.comp }));
-    const pSide = queued.find((q) => q.unit === state.player)!.comp;
-    const eSide = queued.find((q) => q.unit === state.enemy)!.comp;
-    events.push({ turn: state.turn, kind: 'comparison', player: pSide, enemy: eSide, performer, entries, performerUnit });
-
-    // 3. Perform (or pass) and bank the waiters (canonical order).
-    //    A waiter banks its Speed EXCEPT — with cooldowns on — one that has
-    //    NOTHING eligible (`nothingUsable`): its turn is a true waste, no bank.
-    //    This stops a tiny deck from hoarding readiness while its cards cool and
-    //    then unleashing the instant they come off cooldown. A `ready` loser
-    //    (has a card, lost the comparison) and a `busy` spanner still bank.
-    for (const q of queued) {
-      const c = q.unit;
-      if (performerEntry !== null && c === performerEntry.unit) continue;
-      if (cooldownsEnabled && q.comp.state === 'nothingUsable') continue;
-      c.bank += effStat(c, 'speed');
-      if (c.busyTurns > 0) c.busyTurns -= 1;
-    }
-
-    if (performerEntry === null) {
-      events.push({ turn: state.turn, kind: 'noPerformer' });
-    } else {
       const c = performerEntry.unit;
-      const choice = performerEntry.choice!;
+      const choice = performerEntry.choice;
       c.performs += 1;
       events.push({ turn: state.turn, kind: 'performStart', side: c.side, unit: c.index, performs: c.performs });
 
@@ -224,7 +290,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         c.sdStacks += c.side === 'player' ? SD_PLAYER_AMP : SD_ENEMY_AMP;
       }
 
-      const stunIdx = c.statuses.findIndex((s) => s.kind === 'stun' && !s.fresh);
+      const stunIdx = c.statuses.findIndex((status) => status.kind === 'stun' && !status.fresh);
       if (stunIdx >= 0) {
         const stun = c.statuses[stunIdx]!;
         stun.turnsLeft -= 1;
@@ -233,25 +299,115 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
           events.push({ turn: state.turn, kind: 'statusExpired', side: c.side, unit: c.index, status: 'stun' });
         }
         events.push({ turn: state.turn, kind: 'performSkipped', side: c.side, unit: c.index, reason: 'stunned' });
-        c.bank = 0;
+        events.push({ turn: state.turn, kind: 'wait', side: c.side, unit: c.index, reason: 'stunned' });
+        c.readiness = 0;
+        stunned.add(c);
       } else {
-        c.bank = 0;
         const cursorBefore = c.castCursor;
-        const cursorAfter = (choice.piece.slot + choice.piece.size) % c.boardSize;
+        const cursorAfter = (choice.piece.slot + 1) % c.boardSize;
+        const playEvent: Extract<CombatEvent, { kind: 'play' }> = {
+          turn: state.turn,
+          kind: 'play',
+          side: c.side,
+          unit: c.index,
+          slot: choice.piece.slot,
+          skillId: choice.skill.id,
+          weight: choice.weight,
+          size: choice.piece.size,
+          slotIndex: 1,
+          slotCount: choice.piece.size,
+          ...targetInfoForCast(ctx, c, choice.skill),
+          ...(choice.auraSources.length > 0 ? { auras: choice.auraSources } : {}),
+        };
+        events.push(playEvent);
+        const readinessBefore = c.readiness;
+        c.readiness -= choice.weight;
         c.castCursor = cursorAfter;
-        c.busyTurns = choice.piece.size - 1;
-        // This piece has now performed: stamp the reuse-cooldown clock.
         choice.piece.lastCastTurn = state.turn;
+        const effectStart = events.length;
         applyCast(ctx, c, choice.skill, choice.piece.slot, choice.mods, { before: cursorBefore, after: cursorAfter }, choice.auraSources);
-        // Slow Next is consumed by this action; Combo remembers this cast.
+        const firstHit = events.slice(effectStart).find(
+          (event): event is Extract<CombatEvent, { kind: 'damage' }> => event.kind === 'damage' && event.source === 'skill',
+        );
+        if (firstHit) {
+          playEvent.damage = Math.max(0, firstHit.amount - firstHit.blocked);
+          playEvent.hpAfter = firstHit.hpAfter;
+        }
+        // Bleed: performing (a resolved cast) costs the performer blood. Ticks
+        // here, right after this cast's own effects, before the cost event.
+        tickBleed(ctx, c);
+        events.push({
+          turn: state.turn,
+          kind: 'cost',
+          side: c.side,
+          unit: c.index,
+          readinessBefore,
+          readinessAfter: c.readiness,
+          paid: choice.weight,
+        });
+        emitCursor(ctx, c, cursorBefore);
         c.nextWeightPenalty = 0;
         c.lastCastArchetypes = choice.skill.archetypes;
+        playsThisTurn += 1;
+        played.add(c);
+        const pieces = playedPieces.get(c) ?? new Set<CombatantState['pieces'][number]>();
+        pieces.add(choice.piece);
+        playedPieces.set(c, pieces);
+        if (choice.piece.size > 1) blocked.add(c);
       }
       outcome = checkEnd(state);
       if (outcome !== null) return finish(outcome);
     }
 
-    // 4. Fatigue backstop (whole pool, canonical order — ties go to the player).
+    if (playsThisTurn === 0) events.push({ turn: state.turn, kind: 'noPerformer' });
+
+    // Explain why each available combatant stopped. Busy and stunned units
+    // already emitted their authoritative line above.
+    for (const c of units) {
+      if (!c.alive || blocked.has(c) || stunned.has(c)) continue;
+      const scan = scanCast(c, cfg.skillBook, {
+        currentTurn: state.turn,
+        cooldownsEnabled,
+        excludedThisTurn: playedPieces.get(c),
+      });
+      if (scan.kind === 'choice') {
+        events.push({
+          turn: state.turn,
+          kind: 'wait',
+          side: c.side,
+          unit: c.index,
+          reason: 'cantAfford',
+          readiness: c.readiness,
+          weight: scan.choice.weight,
+          slot: scan.choice.piece.slot,
+          skillId: scan.choice.skill.id,
+        });
+      } else if (scan.kind === 'cooling') {
+        if (played.has(c)) continue;
+        events.push({
+          turn: state.turn,
+          kind: 'wait',
+          side: c.side,
+          unit: c.index,
+          reason: 'cooling',
+          turnsLeft: scan.turnsLeft,
+          slot: scan.piece.slot,
+          skillId: scan.piece.skillId,
+        });
+      } else {
+        if (played.has(c)) continue;
+        events.push({ turn: state.turn, kind: 'wait', side: c.side, unit: c.index, reason: 'noCards' });
+      }
+    }
+
+    // End-of-turn POISON ticks: everyone has acted; deaths here deny nothing
+    // this turn but start the next one. Fresh poison (applied this turn) is
+    // still flagged and skips — expireStatuses below clears the flag.
+    for (const c of units) tickTurnDot(ctx, c, 'poison');
+    outcome = checkEnd(state);
+    if (outcome !== null) return finish(outcome);
+
+    // Fatigue backstop (whole pool, canonical order — ties go to the player).
     if (state.turn >= fatigueTurn) {
       if (!fatigueAnnounced) {
         fatigueAnnounced = true;
@@ -263,8 +419,9 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
       if (outcome !== null) return finish(outcome);
     }
 
-    // 5. Durations decrement at global turn end (canonical order).
+    // Durations decrement once per gameplay turn.
     for (const c of units) expireStatuses(ctx, c);
+    events.push({ turn: state.turn, kind: 'end' });
   }
 
   return finish('draw');

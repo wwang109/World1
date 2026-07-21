@@ -1,19 +1,38 @@
-import type { SkillBook } from '../types';
+import type { AuraDef, SkillBook } from '../types';
 import type { CombatantState, PieceState } from './state';
+import { IDENTITY_DAMAGE_PCT, matchesIdentity } from './typeIdentity';
+
+/** A board footprint: a card's leftmost slot and how many slots it spans. */
+export interface Footprint {
+  slot: number;
+  size: number;
+}
 
 /** Accumulated aura modifiers affecting one board card. */
 export interface AuraMods {
-  damagePct: number;
-  healPct: number;
+  /** FLAT damage added to the cast (not a percentage). */
+  damageFlat: number;
+  /** FLAT healing added to the heal. */
+  healFlat: number;
   weightDelta: number;
+  /** Crit CHANCE points — the one modifier that stays a percentage. */
   critPctDelta: number;
+  /**
+   * PERCENT damage bonus applied to direct `damage` actions only (Board Type
+   * Identity's +20% same-type bonus). 0 for un-featured casts, so the damage
+   * math is byte-identical when no board identity applies. NOT an aura source —
+   * it rides the same bundle but is derived from the combatant's identity, not
+   * from any board card, so it never appears in `AuraSource`.
+   */
+  damagePct: number;
 }
 
 export const NO_MODS: AuraMods = {
-  damagePct: 0,
-  healPct: 0,
+  damageFlat: 0,
+  healFlat: 0,
   weightDelta: 0,
   critPctDelta: 0,
+  damagePct: 0,
 };
 
 /**
@@ -28,8 +47,8 @@ export const NO_MODS: AuraMods = {
 export interface AuraSource {
   slot: number;
   skillId: string;
-  damagePct?: number;
-  healPct?: number;
+  damageFlat?: number;
+  healFlat?: number;
   weightDelta?: number;
   critPctDelta?: number;
 }
@@ -63,13 +82,14 @@ export interface ResolvedAuras {
  * 'left'/'right' = that one direction up to `reach`; 'allBoard' = whole board
  * (reach ignored).
  */
-function covers(
-  source: PieceState,
-  target: PieceState,
+export function auraCovers(
+  source: Footprint,
+  target: Footprint,
   affects: 'adjacent' | 'left' | 'right' | 'allBoard',
   reach: number,
 ): boolean {
-  if (affects === 'allBoard') return source !== target;
+  // 'allBoard' reaches everyone but itself (identity by footprint position).
+  if (affects === 'allBoard') return !(source.slot === target.slot && source.size === target.size);
   const rightGap = target.slot - (source.slot + source.size);
   const leftGap = source.slot - (target.slot + target.size);
   const reachesRight = rightGap >= 0 && rightGap < reach;
@@ -82,6 +102,48 @@ function covers(
     case 'right':
       return reachesRight;
   }
+}
+
+function covers(
+  source: PieceState,
+  target: PieceState,
+  affects: 'adjacent' | 'left' | 'right' | 'allBoard',
+  reach: number,
+): boolean {
+  // 'allBoard' identity must stay reference-based here (two distinct pieces can
+  // share a slot/size in principle); slot/size identity is only for the pure
+  // footprint API used by the UI.
+  if (affects === 'allBoard') return source !== target;
+  return auraCovers(source, target, affects, reach);
+}
+
+/**
+ * Which of `targets` an aura projected from `source` reaches AND matches — the
+ * SAME coverage + filter rule the combat loop applies (see {@link resolveAuras}),
+ * exposed for the UI to draw an aura's affected area on the board. Pure and
+ * board-state-based (slot + skillId), independent of combat state. Returns the
+ * covered target slots (source excluded), ascending.
+ */
+export function auraAffectedTargetSlots(
+  source: { slot: number; skillId: string },
+  targets: readonly { slot: number; skillId: string }[],
+  skillBook: SkillBook,
+): number[] {
+  const def = skillBook[source.skillId];
+  const aura: AuraDef | undefined = def?.aura;
+  if (!def || !aura) return [];
+  const reach = aura.reach ?? 1;
+  const out: number[] = [];
+  for (const target of targets) {
+    if (target.slot === source.slot) continue;
+    const tdef = skillBook[target.skillId];
+    if (!tdef) continue;
+    if (!auraCovers({ slot: source.slot, size: def.size }, { slot: target.slot, size: tdef.size }, aura.affects, reach)) continue;
+    if (aura.archetypeFilter && !tdef.archetypes.includes(aura.archetypeFilter)) continue;
+    if (aura.propertyFilter && tdef.property !== aura.propertyFilter) continue;
+    out.push(target.slot);
+  }
+  return out.sort((a, b) => a - b);
 }
 
 /**
@@ -108,18 +170,18 @@ export function resolveAuras(c: CombatantState, piece: PieceState, skillBook: Sk
     if (!covers(source, piece, aura.affects, aura.reach ?? 1)) continue;
     if (aura.archetypeFilter && !targetDef.archetypes.includes(aura.archetypeFilter)) continue;
     if (aura.propertyFilter && targetDef.property !== aura.propertyFilter) continue;
-    const dmg = aura.mods.damagePct ?? 0;
-    const heal = aura.mods.healPct ?? 0;
+    const dmg = aura.mods.damageFlat ?? 0;
+    const heal = aura.mods.healFlat ?? 0;
     const weight = aura.mods.weightDelta ?? 0;
     const crit = aura.mods.critPctDelta ?? 0;
-    mods.damagePct += dmg;
-    mods.healPct += heal;
+    mods.damageFlat += dmg;
+    mods.healFlat += heal;
     mods.weightDelta += weight;
     mods.critPctDelta += crit;
     // Record only the nonzero mods this source contributed.
     const entry: AuraSource = { slot: source.slot, skillId: source.skillId };
-    if (dmg) entry.damagePct = dmg;
-    if (heal) entry.healPct = heal;
+    if (dmg) entry.damageFlat = dmg;
+    if (heal) entry.healFlat = heal;
     if (weight) entry.weightDelta = weight;
     if (crit) entry.critPctDelta = crit;
     sources.push(entry);
@@ -127,10 +189,15 @@ export function resolveAuras(c: CombatantState, piece: PieceState, skillBook: Sk
   // Card-scope stat gem rides the same summed bundle but is intentionally NOT
   // recorded in `sources`: gems are a separate, already-visible feature.
   const g = piece.gemMods;
-  mods.damagePct += g.damagePct ?? 0;
-  mods.healPct += g.healPct ?? 0;
+  mods.damageFlat += g.damageFlat ?? 0;
+  mods.healFlat += g.healFlat ?? 0;
   mods.weightDelta += g.weightDelta ?? 0;
   mods.critPctDelta += g.critPctDelta ?? 0;
+  // Board Type Identity: cards whose type matches this combatant's board
+  // identity get the +20% same-type damage bonus. Folded here alongside gems so
+  // the core loop consumes it through the existing per-card modifier bundle; a
+  // combatant with no identity leaves this at 0 (byte-identical output).
+  if (matchesIdentity(targetDef, c.boardIdentity)) mods.damagePct += IDENTITY_DAMAGE_PCT;
   return { mods, sources };
 }
 

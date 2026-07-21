@@ -7,10 +7,47 @@
 // so behavior and the event log are byte-identical.
 
 import type { AuraMods } from './combat/auras';
-import { BASELINE_COOLDOWN, type BoardPiece, type BuffableStat, type CombatantStats, type Gem, type SkillDef } from './types';
+import { TIER_BUDGET_DECI } from './balance';
+import { BASELINE_COOLDOWN, type Action, type BoardPiece, type BuffableStat, type CombatantStats, type Gem, type SkillDef, type SkillTier } from './types';
 
 /** Fixed order for deterministic hero-stat folding (sums are commutative regardless). */
 const HERO_STATS: readonly BuffableStat[] = ['attack', 'magicPower', 'armor', 'magicResist', 'speed', 'critPct'];
+
+/** Low → high tier order (index = tier-steps above bronze). */
+const TIER_ORDER: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
+
+/**
+ * Rank/tier-up: scale a card's linear effect magnitudes (damage/heal/shield
+ * `power`, poison/burn `amount`) up from its base tier to `targetTier` so the
+ * card's PL lands on the target tier's budget (Silver 15 / Gold 20 / Diamond 25,
+ * i.e. ×1.5 / ×2.0 / ×2.5 of the Bronze 10 base). Integer-floored. Non-magnitude
+ * fields (turns, riders, weight, size) are left alone — enemy cards are not
+ * audited, so hitting the budget approximately via magnitude scaling is fine.
+ * A target at or below the base tier returns `def` unchanged.
+ */
+export function applyTier(def: SkillDef, targetTier: SkillTier): SkillDef {
+  if (TIER_ORDER.indexOf(targetTier) <= TIER_ORDER.indexOf(def.tier)) return def;
+  const num = TIER_BUDGET_DECI[targetTier];
+  const den = TIER_BUDGET_DECI[def.tier];
+  const scale = (n: number): number => Math.floor((n * num) / den);
+  const effects = def.effects.map((a): Action => {
+    switch (a.kind) {
+      case 'damage':
+      case 'heal':
+      case 'shield':
+        return { ...a, power: scale(a.power) };
+      case 'poison':
+      case 'burn':
+      case 'bleed':
+        // Stacking DoT: scale the STACK count with the tier (per-stack damage
+        // scales with the caster's stat for free). Tier-ups aren't budget-audited.
+        return { ...a, stacks: scale(a.stacks) };
+      default:
+        return a;
+    }
+  });
+  return { ...def, tier: targetTier, effects };
+}
 
 /**
  * The skill actually cast from this piece. An effect gem appends its actions
@@ -21,16 +58,19 @@ const HERO_STATS: readonly BuffableStat[] = ['attack', 'magicPower', 'armor', 'm
  * original def unchanged (same reference).
  */
 export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece): SkillDef {
+  // Rank/tier-up first (scales the base card), THEN fold the gem on top — a
+  // gem's own actions are never tier-scaled.
+  const tiered = piece.tier ? applyTier(def, piece.tier) : def;
   const gem = piece.gem;
-  if (!gem || gem.kind !== 'effect') return def;
+  if (!gem || gem.kind !== 'effect') return tiered;
   const cooldownReduction = gem.cooldownReduction ?? 0;
-  if (gem.actions.length === 0 && cooldownReduction === 0) return def;
+  if (gem.actions.length === 0 && cooldownReduction === 0) return tiered;
 
-  const effects = gem.actions.length > 0 ? [...def.effects, ...gem.actions] : def.effects;
-  if (cooldownReduction === 0) return { ...def, effects };
+  const effects = gem.actions.length > 0 ? [...tiered.effects, ...gem.actions] : tiered.effects;
+  if (cooldownReduction === 0) return { ...tiered, effects };
 
-  const baseCooldown = def.cooldownTurns ?? BASELINE_COOLDOWN;
-  return { ...def, effects, cooldownTurns: Math.max(0, baseCooldown - cooldownReduction) };
+  const baseCooldown = tiered.cooldownTurns ?? BASELINE_COOLDOWN;
+  return { ...tiered, effects, cooldownTurns: Math.max(0, baseCooldown - cooldownReduction) };
 }
 
 /** A card-scope stat gem's card mods as an AuraMods-shaped bundle; `{}` otherwise. */
@@ -38,8 +78,8 @@ export function gemCardMods(gem: Gem | null | undefined): Partial<AuraMods> {
   if (!gem || gem.kind !== 'stat' || gem.scope !== 'card' || !gem.mods.card) return {};
   const card = gem.mods.card;
   const out: Partial<AuraMods> = {};
-  if (card.damagePct !== undefined) out.damagePct = card.damagePct;
-  if (card.healPct !== undefined) out.healPct = card.healPct;
+  if (card.damageFlat !== undefined) out.damageFlat = card.damageFlat;
+  if (card.healFlat !== undefined) out.healFlat = card.healFlat;
   if (card.weightDelta !== undefined) out.weightDelta = card.weightDelta;
   if (card.critPctDelta !== undefined) out.critPctDelta = card.critPctDelta;
   return out;

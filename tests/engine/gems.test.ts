@@ -17,7 +17,7 @@ const poisonGem: Gem = {
   kind: 'effect',
   id: 'gem_venom',
   rarity: 'common',
-  actions: [{ kind: 'poison', amount: 5, turns: 3 }],
+  actions: [{ kind: 'poison', stacks: 5 }],
 };
 
 describe('gems: effect gems (append-only riders)', () => {
@@ -57,17 +57,17 @@ describe('gems: effect gems (append-only riders)', () => {
 });
 
 describe('gems: card-scope stat gems ride the aura bundle', () => {
-  it('+damagePct raises that card output; both stack into aurasOn', () => {
-    const dmgGem: Gem = { kind: 'stat', id: 'g_dmg', rarity: 'rare', scope: 'card', mods: { card: { damagePct: 100 } } };
+  it('+damageFlat raises that card output; both stack into aurasOn', () => {
+    const dmgGem: Gem = { kind: 'stat', id: 'g_dmg', rarity: 'rare', scope: 'card', mods: { card: { damageFlat: 30 } } };
     const boarded = (pieces: BoardPiece[]) =>
       initCombatState(cfg(tc('hero', [], {}, { boardSize: 10, pieces }), tc('foe', []))).player;
 
     const gemmed = boarded([{ skillId: 'sword_slash', slot: 0, gem: dmgGem }]);
     const plain = boarded([{ skillId: 'sword_slash', slot: 0 }]);
-    expect(aurasOn(gemmed, pieceAt(gemmed, 0), skillBook).damagePct).toBe(100);
-    expect(aurasOn(plain, pieceAt(plain, 0), skillBook).damagePct).toBe(0);
+    expect(aurasOn(gemmed, pieceAt(gemmed, 0), skillBook).damageFlat).toBe(30);
+    expect(aurasOn(plain, pieceAt(plain, 0), skillBook).damageFlat).toBe(0);
 
-    // End to end: +100% damagePct doubles a 200%-Attack hit (10 atk -> 20 base -> 40).
+    // End to end: +30 flat damage adds on top of the hit (20 flat + 10 atk + 30 = 60).
     const dmgOf = (gem?: Gem) => {
       const c = cfg(
         tc('hero', [], { attack: 10, speed: 20, maxHp: 500 }, {
@@ -79,8 +79,8 @@ describe('gems: card-scope stat gems ride the aura bundle', () => {
       const dmg = simulate(c, 1).events.find((e) => e.kind === 'damage') as { amount: number };
       return dmg.amount;
     };
-    expect(dmgOf()).toBe(20);
-    expect(dmgOf(dmgGem)).toBe(40);
+    expect(dmgOf()).toBe(30);
+    expect(dmgOf(dmgGem)).toBe(60);
   });
 
   it('-weightDelta lightens the socketed card in the initiative comparison', () => {

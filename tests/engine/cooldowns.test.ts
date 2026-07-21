@@ -76,14 +76,21 @@ describe('cooldowns: off-by-one availability', () => {
     // Casts land on 1, 5, 9, 13 — a 4-turn stride (1 active + 3 cooling).
     expect(playerCastTurns(events)).toEqual([1, 5, 9, 13]);
 
-    // On the cooling turns the performer has nothing eligible.
-    const cmp = (turn: number) =>
-      events.find((e) => e.kind === 'comparison' && e.turn === turn) as Extract<
-        ReturnType<typeof simulate>['events'][number],
-        { kind: 'comparison' }
-      >;
-    for (const t of [2, 3, 4]) expect(cmp(t).player.state).toBe('nothingUsable');
-    expect(cmp(5).player.state).toBe('ready');
+    const cooling = events.filter(
+      (event): event is Extract<ReturnType<typeof simulate>['events'][number], { kind: 'wait'; reason: 'cooling' }> =>
+        event.kind === 'wait' && event.side === 'player' && event.reason === 'cooling',
+    );
+    expect(cooling.map((event) => [event.turn, event.turnsLeft])).toEqual([
+      [2, 3],
+      [3, 2],
+      [4, 1],
+      [6, 3],
+      [7, 2],
+      [8, 1],
+      [10, 3],
+      [11, 2],
+      [12, 1],
+    ]);
   });
 });
 
@@ -95,12 +102,10 @@ describe('cooldowns: deck-size pacing', () => {
     expect(playerCastTurns(events)).toEqual([1, 5, 9]);
   });
 
-  it('a diverse 4-card deck is unaffected — it fires every single turn', () => {
-    // 4 distinct cards: by the time the cursor loops back to card `a` (turn 5)
-    // its baseline-3 cooldown (cast T1) has elapsed, so nothing ever idles.
+  it('a diverse 4-card deck can multi-cast all four cards in one turn', () => {
     const hero = tc('hero', ['a', 'b', 'c', 'd'], { speed: 40, attack: 1 }, { skillBook: BOOK });
     const { events } = simulate(run(hero, dummy(), 8), 1);
-    expect(playerCastTurns(events)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(playerCastTurns(events)).toEqual([1, 1, 1, 1, 5, 5, 5, 5]);
   });
 });
 
@@ -128,42 +133,27 @@ describe('cooldowns: skillCast cursor fields', () => {
       ReturnType<typeof simulate>['events'][number],
       { kind: 'skillCast' }
     >[];
-    // cursorBefore is the RAW rotation pointer (`slot + size` of the prior cast),
-    // which can point past the last card — the scan then wraps to the first card.
-    // After the 4th cast the pointer is 4 (no card at slot >= 4), so turn 5 wraps
-    // to card `a` at slot 0: cursorBefore 4, resolved slot 0, cursorAfter 1.
-    expect(casts.map((c) => c.cursorBefore)).toEqual([0, 1, 2, 3, 4]);
-    expect(casts.map((c) => c.cursorAfter)).toEqual([1, 2, 3, 4, 1]);
-    expect(casts.map((c) => c.slot)).toEqual([0, 1, 2, 3, 0]);
+    expect(casts.map((c) => c.cursorBefore)).toEqual([0, 1, 2, 3, 4, 1, 2, 3]);
+    expect(casts.map((c) => c.cursorAfter)).toEqual([1, 2, 3, 4, 1, 2, 3, 4]);
+    expect(casts.map((c) => c.slot)).toEqual([0, 1, 2, 3, 0, 1, 2, 3]);
   });
 });
 
-describe('cooldowns: banking during downtime', () => {
-  it('a combatant idling on cooldown gains NO bank; a ready-but-lost combatant still banks', () => {
-    // Ready-but-lost: a fast winner (diverse deck, always fires) vs a slow loser
-    // with a diverse deck — the loser is always `ready` yet never wins, so it
-    // banks its Speed each turn.
-    const winner = tc('W', ['a', 'b', 'c', 'd'], { speed: 100, attack: 1 }, { skillBook: BOOK });
-    const loser = tc('L', ['a', 'b', 'c', 'd'], { speed: 7, attack: 1 }, { skillBook: BOOK });
-    const cfgLose: CombatConfig = { playerTeam: [winner], enemyTeam: [loser], skillBook: BOOK, ...NO_ENDGAME, maxTurns: 5, cooldownsEnabled: true };
-    const evLose = simulate(cfgLose, 1).events;
-    const enemyBanks = (evLose.filter((e) => e.kind === 'comparison') as Extract<
-      ReturnType<typeof simulate>['events'][number],
-      { kind: 'comparison' }
-    >[]).map((e) => e.enemy.bank);
-    // Loser (speed 7) banks every turn: 0, 7, 14, 21, 28.
-    expect(enemyBanks).toEqual([0, 7, 14, 21, 28]);
-
-    // Cooldown-idle: a single-card hero idling on cooldown does NOT bank —
-    // its bank stays flat at 0 across the idle turns and on the re-eligible turn.
+describe('cooldowns: readiness during downtime', () => {
+  it('a cooling combatant still gains Speed every gameplay turn', () => {
     const hero = tc('hero', ['basic'], { speed: 40, attack: 1 }, { skillBook: BOOK });
     const evIdle = simulate(run(hero, dummy(), 5), 1).events;
-    const heroBanks = (evIdle.filter((e) => e.kind === 'comparison') as Extract<
-      ReturnType<typeof simulate>['events'][number],
-      { kind: 'comparison' }
-    >[]).map((e) => e.player.bank);
-    // Cast T1 (bank reset 0), idle T2–T4 (no bank), re-eligible T5 still at 0.
-    expect(heroBanks).toEqual([0, 0, 0, 0, 0]);
+    const gains = evIdle.filter(
+      (event): event is Extract<ReturnType<typeof simulate>['events'][number], { kind: 'gain' }> =>
+        event.kind === 'gain' && event.side === 'player',
+    );
+    expect(gains.map((event) => [event.readinessBefore, event.readinessAfter])).toEqual([
+      [0, 40],
+      [30, 70],
+      [70, 110],
+      [110, 150],
+      [150, 190],
+    ]);
   });
 });
 

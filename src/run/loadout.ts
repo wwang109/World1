@@ -36,6 +36,169 @@ export function clampSlot(rawSlot: number, skillId: string, book: SkillBook, boa
   return Math.max(0, Math.min(boardSize - size, Math.round(rawSlot)));
 }
 
+/** A sized card on a 1-D strip of slots (deck rail or bag), by leftmost slot. */
+export interface StripItem {
+  id: string;
+  start: number;
+  size: number;
+}
+
+export interface ShiftPlan {
+  /** Final leftmost slot of the inserted card. */
+  movedStart: number;
+  /** Final leftmost slot of every OTHER item (unchanged ones included). */
+  moved: Array<{ id: string; start: number }>;
+}
+
+/**
+ * Insert a card of `size` slots at `desiredStart` on a strip of `stripSize`
+ * slots, shifting existing items sideways to make room. Order is preserved:
+ * items left of the insertion point may pack left, items at/right of it may
+ * push right. Two-pass: a forward pass keeps every item as close to its
+ * current slot as possible; if the strip overflows, a backward pass packs
+ * from the right edge. `isValidStart` lets callers forbid positions (e.g.
+ * bag rows a span may not cross). Returns null when no arrangement exists —
+ * the caller must reject the drop.
+ */
+export function shiftInsert(
+  others: StripItem[],
+  size: number,
+  desiredStart: number,
+  stripSize: number,
+  isValidStart: (start: number, size: number) => boolean = () => true,
+): ShiftPlan | null {
+  // Snap the requested slot to the nearest valid start for this size.
+  const clamped = Math.max(0, Math.min(stripSize - size, desiredStart));
+  let desired = -1;
+  for (let s = 0; s + size <= stripSize; s++) {
+    if (!isValidStart(s, size)) continue;
+    if (desired < 0 || Math.abs(s - clamped) < Math.abs(desired - clamped)) desired = s;
+  }
+  if (desired < 0) return null;
+
+  const sorted = [...others].sort((a, b) => a.start - b.start);
+  const moving = { id: '', start: desired, size };
+  const sequence = [
+    ...sorted.filter((item) => item.start < desired),
+    moving,
+    ...sorted.filter((item) => item.start >= desired),
+  ];
+
+  // Forward pass: left to right, each item stays at its own slot unless the
+  // previous item's span forces it (or an invalid start skips it) rightward.
+  const starts: number[] = [];
+  let pos = 0;
+  let overflow = false;
+  for (const item of sequence) {
+    let s = Math.max(item.start, pos);
+    while (s + item.size <= stripSize && !isValidStart(s, item.size)) s++;
+    if (s + item.size > stripSize) {
+      overflow = true;
+      s = stripSize - item.size;
+    }
+    starts.push(s);
+    pos = s + item.size;
+  }
+
+  // Backward pass (only when the forward pass ran off the end): right to
+  // left, pack toward the right edge so left-side items absorb the slack.
+  if (overflow || pos > stripSize) {
+    let limit = stripSize;
+    for (let i = sequence.length - 1; i >= 0; i--) {
+      const item = sequence[i]!;
+      let s = Math.min(starts[i]!, limit - item.size);
+      while (s >= 0 && !isValidStart(s, item.size)) s--;
+      if (s < 0) return null;
+      starts[i] = s;
+      limit = s;
+    }
+  }
+
+  const movingIndex = sequence.indexOf(moving);
+  return {
+    movedStart: starts[movingIndex]!,
+    moved: sequence
+      .map((item, i) => ({ id: item.id, start: starts[i]! }))
+      .filter((_, i) => i !== movingIndex),
+  };
+}
+
+/** No overlaps and everything in bounds — sizes looked up from `others` by id. */
+function planIsValid(
+  others: StripItem[],
+  moved: Array<{ id: string; start: number }>,
+  movedStart: number,
+  size: number,
+  stripSize: number,
+): boolean {
+  const sizes = new Map(others.map((item) => [item.id, item.size]));
+  const spans = [
+    { start: movedStart, size },
+    ...moved.map((m) => ({ start: m.start, size: sizes.get(m.id) ?? 1 })),
+  ].sort((a, b) => a.start - b.start);
+  let pos = 0;
+  for (const span of spans) {
+    if (span.start < pos) return false;
+    pos = span.start + span.size;
+  }
+  return pos <= stripSize;
+}
+
+/**
+ * Move a card WITHIN its own strip (deck rail or bag). Unlike shiftInsert,
+ * cards displaced by the drop slide into the space the mover vacated — so
+ * dropping onto an adjacent card swaps places, and dropping onto a far card
+ * reorders the run in between. Strategy: (1) plain move when the span is
+ * free, (2) reorder toward the origin, (3) fall back to push-insert.
+ * Returns null when nothing fits.
+ */
+export function moveWithinStrip(
+  others: StripItem[],
+  size: number,
+  origin: number,
+  desiredStart: number,
+  stripSize: number,
+): ShiftPlan | null {
+  const desired = Math.max(0, Math.min(stripSize - size, desiredStart));
+  const sorted = [...others].sort((a, b) => a.start - b.start);
+  const overlapping = sorted.filter((item) => item.start < desired + size && item.start + item.size > desired);
+
+  // 1. The target span is free — move without disturbing anyone.
+  if (overlapping.length === 0) {
+    return { movedStart: desired, moved: sorted.map((item) => ({ id: item.id, start: item.start })) };
+  }
+
+  // 2. Reorder: everything between the origin and the target slides into the
+  //    vacated span; the mover lands tight against the far side, so the run
+  //    occupies the same slots it did before. Adjacent drop = swap.
+  if (desired > origin) {
+    const between = sorted.filter((item) => item.start > origin && item.start < desired + size);
+    const last = between[between.length - 1];
+    if (last) {
+      const movedStart = last.start + last.size - size;
+      const moved = sorted.map((item) => ({
+        id: item.id,
+        start: between.includes(item) ? item.start - size : item.start,
+      }));
+      if (planIsValid(others, moved, movedStart, size, stripSize)) return { movedStart, moved };
+    }
+  } else if (desired < origin) {
+    const between = sorted.filter((item) => item.start < origin && item.start + item.size > desired);
+    const first = between[0];
+    if (first) {
+      const movedStart = first.start;
+      const moved = sorted.map((item) => ({
+        id: item.id,
+        start: between.includes(item) ? item.start + size : item.start,
+      }));
+      if (planIsValid(others, moved, movedStart, size, stripSize)) return { movedStart, moved };
+    }
+  }
+
+  // 3. Reorder impossible — push neighbors like a fresh insert.
+  return shiftInsert(others, size, desiredStart, stripSize);
+}
+
 /**
  * Gem socketing.
  *

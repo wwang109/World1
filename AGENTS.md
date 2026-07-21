@@ -51,7 +51,14 @@ This repo is a TypeScript/Phaser 1v1 roguelite. It's developed by **two agents**
    `docs/codex-handoff.md`.
 2. Do the UI/design work in `src/game/` only.
 3. Verify: `npm run build` + `npm test` + `npm run typecheck` green; eyeball via
-   `npm run dev`; screenshot if you can.
+   `npm run dev`; screenshot if you can. For every changed control, follow
+   `docs/ui-spacing-audit.md` and open the view with `layoutAudit=1`; red outlines
+   or `[layout-audit]` console errors block handoff.
+
+## Visual generation confirmation
+- Before generating another visual iteration, briefly restate the requested change,
+  including what must remain unchanged, and wait for the user's confirmation when
+  the style or scope is ambiguous. Do not silently reinterpret a visual reference.
 4. **Append a handoff entry** in `docs/codex-handoff.md` (use the template there).
 5. Commit on a branch with a clear message; don't push to a shared branch without
    the user's say-so.

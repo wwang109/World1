@@ -9,7 +9,9 @@ import { skillBook } from '../../src/data/skills';
 // that appears in `text` and assert each mechanically-relevant number is one
 // of them. `stun` with turns === 1 is exempt: per the style guide its
 // canonical phrasing ("the enemy's next performance is consumed") carries no
-// numeral for the single-performance case.
+// numeral for the single-performance case. `negate` with charges === 1 is
+// exempt for the same reason ("Negate the next magical attack." — singular, no
+// numeral).
 
 function numbersInText(text: string): number[] {
   return (text.match(/\d+/g) ?? []).map(Number);
@@ -30,41 +32,46 @@ describe('card text drift guard', () => {
             break;
           case 'poison':
           case 'burn':
-            expected.push(eff.amount, eff.turns);
+          case 'bleed':
+            expected.push(eff.stacks);
             break;
           case 'stun':
             if (eff.turns > 1) expected.push(eff.turns);
             break;
           case 'buffStat':
           case 'debuffStat':
+          case 'expose':
             expected.push(eff.pct, eff.turns);
             break;
           case 'cleanse':
+            expected.push(eff.charges);
             break;
-          case 'slowNext':
+          case 'slow':
             expected.push(eff.weight);
             break;
-          case 'stagger':
+          case 'disrupt':
           case 'shieldBreak':
             expected.push(eff.amount);
             break;
           case 'lifesteal':
-          case 'comboBonus':
             expected.push(eff.pct);
+            break;
+          case 'comboBonus':
+            expected.push(eff.amount);
             break;
           case 'guard':
             expected.push(eff.pct, eff.turns);
             break;
           case 'negate':
-            expected.push(eff.charges);
+            if (eff.charges > 1) expected.push(eff.charges);
             break;
         }
       }
 
       if (skill.aura) {
-        const { damagePct, healPct, weightDelta, critPctDelta } = skill.aura.mods;
-        if (damagePct !== undefined) expected.push(damagePct);
-        if (healPct !== undefined) expected.push(healPct);
+        const { damageFlat, healFlat, weightDelta, critPctDelta } = skill.aura.mods;
+        if (damageFlat !== undefined) expected.push(damageFlat);
+        if (healFlat !== undefined) expected.push(healFlat);
         if (weightDelta !== undefined) expected.push(Math.abs(weightDelta));
         if (critPctDelta !== undefined) expected.push(critPctDelta);
       }

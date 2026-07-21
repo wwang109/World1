@@ -1,8 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { buildEnemyEncounter, buildHeroSetup } from '../../src/run/encounter';
+import {
+  assignRankTiers,
+  buildAutoHeroSetup,
+  buildEnemyEncounter,
+  buildHeroSetup,
+  defaultTitleFor,
+  maxRankFor,
+  MAX_TIER_STEPS,
+  TITLE_PRESETS,
+} from '../../src/run/encounter';
 import { enemies } from '../../src/data/enemies';
+import { skillBook } from '../../src/data/skills';
+import { applyTier } from '../../src/engine/cards';
+import { powerLevelDeci, TIER_BUDGET_DECI } from '../../src/engine/balance';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../src/data/heroes';
-import { allocateByProfile, applyAllocation, availablePoints, pointsForLevel, profileFor } from '../../src/run/leveling';
+import {
+  allocateByProfile,
+  applyAllocation,
+  availablePoints,
+  DEFAULT_PROFILE,
+  pointsForLevel,
+  profileFor,
+  scaleMonsterToLevel,
+} from '../../src/run/leveling';
 
 describe('run/encounter: buildEnemyEncounter', () => {
   it('level 1 returns the floor stats and echoes back level 1', () => {
@@ -31,6 +51,114 @@ describe('run/encounter: buildEnemyEncounter', () => {
 
   it('throws on an unknown enemy id', () => {
     expect(() => buildEnemyEncounter('not_a_real_monster', 3)).toThrow();
+  });
+
+  it('defaults to the normal title — baseline level, rank 0, no extra cards, no tiers', () => {
+    const unit = buildEnemyEncounter('giant_rat', 3);
+    expect(unit.title).toBe('normal');
+    expect(unit.effectiveLevel).toBe(3);
+    expect(unit.rank).toBe(0);
+    expect(unit.setup.stats).toEqual(scaleMonsterToLevel(enemies.giant_rat!, 3).stats);
+    expect(unit.setup.pieces.length).toBe(enemies.giant_rat!.pieces.length);
+    expect(unit.setup.pieces.every((piece) => !piece.tier)).toBe(true);
+  });
+
+  it('applies the title level delta to the effective level, keeping requested level for display', () => {
+    const elite = buildEnemyEncounter('giant_rat', 5, 'elite');
+    expect(elite.level).toBe(5);
+    expect(elite.effectiveLevel).toBe(5 + TITLE_PRESETS.elite.levelDelta);
+    expect(elite.setup.stats).toEqual(scaleMonsterToLevel(enemies.giant_rat!, elite.effectiveLevel).stats);
+  });
+
+  it('floors the effective level at 1 even when a mob delta would push it below', () => {
+    const mob = buildEnemyEncounter('giant_rat', 1, 'mob');
+    expect(mob.effectiveLevel).toBe(1);
+  });
+
+  it('elite/boss titles add extra cards and rank tiers without mutating shared enemy data', () => {
+    const baseLen = enemies.giant_rat!.pieces.length; // 2
+    const before = JSON.stringify(enemies.giant_rat!.pieces);
+
+    const boss = buildEnemyEncounter('giant_rat', 1, 'boss');
+    // Boss adds 2 cards → 4-card deck, and applies its preset rank as tiers.
+    expect(boss.setup.pieces.length).toBe(baseLen + TITLE_PRESETS.boss.extraCards);
+    expect(boss.rank).toBe(TITLE_PRESETS.boss.rank);
+    expect(boss.setup.pieces.some((p) => p.tier && p.tier !== 'bronze')).toBe(true);
+
+    // Shared source data untouched (no extra cards, no stamped tiers).
+    expect(JSON.stringify(enemies.giant_rat!.pieces)).toBe(before);
+  });
+
+  it('rankOverride replaces the title preset rank and is clamped to the deck ceiling', () => {
+    const unit = buildEnemyEncounter('giant_rat', 1, 'normal', 99);
+    // 2-card normal deck → ceiling = 2 × 3 = 6.
+    expect(unit.rank).toBe(maxRankFor(unit.setup.pieces.length));
+    expect(unit.rank).toBe(6);
+    // Every card maxed to Diamond.
+    expect(unit.setup.pieces.every((p) => p.tier === 'diamond')).toBe(true);
+  });
+
+  it('defaultTitleFor reads the authored encounter-role tags', () => {
+    expect(defaultTitleFor(enemies.giant_rat!)).toBe('normal');
+    expect(defaultTitleFor(enemies.bandit_duelist!)).toBe('elite');
+  });
+});
+
+describe('run/encounter: assignRankTiers (round-robin tier-steps)', () => {
+  const deck = [
+    { skillId: 'sword_slash', slot: 0 },
+    { skillId: 'follow_through', slot: 1 },
+  ];
+
+  it('rank 3 on a 2-card deck yields one Gold + one Silver card (user spec)', () => {
+    const tiered = assignRankTiers(deck, 3);
+    const bySlot = [...tiered].sort((a, b) => a.slot - b.slot);
+    expect(bySlot[0]!.tier).toBe('gold'); // first card: 2 steps
+    expect(bySlot[1]!.tier).toBe('silver'); // second card: 1 step
+  });
+
+  it('rank 0 leaves every card bronze/untiered and clones the input', () => {
+    const tiered = assignRankTiers(deck, 0);
+    expect(tiered.every((p) => !p.tier)).toBe(true);
+    expect(tiered).not.toBe(deck);
+  });
+
+  it('clamps to the deck ceiling (deckSize × 3 = Diamond each)', () => {
+    const tiered = assignRankTiers(deck, 999);
+    expect(tiered.every((p) => p.tier === 'diamond')).toBe(true);
+    expect(maxRankFor(deck.length)).toBe(deck.length * MAX_TIER_STEPS);
+  });
+});
+
+describe('engine/cards: applyTier PL matching', () => {
+  it('a Bronze card tier-upped lands on the target tier PL budget', () => {
+    const sword = skillBook.sword_slash!; // pure damage, Bronze = 100 deci
+    expect(powerLevelDeci(sword)).toBe(TIER_BUDGET_DECI.bronze);
+    expect(powerLevelDeci(applyTier(sword, 'silver'))).toBe(TIER_BUDGET_DECI.silver);
+    expect(powerLevelDeci(applyTier(sword, 'gold'))).toBe(TIER_BUDGET_DECI.gold);
+    expect(powerLevelDeci(applyTier(sword, 'diamond'))).toBe(TIER_BUDGET_DECI.diamond);
+  });
+
+  it('a target at or below the base tier is a no-op (same reference)', () => {
+    const sword = skillBook.sword_slash!;
+    expect(applyTier(sword, 'bronze')).toBe(sword);
+  });
+});
+
+describe('run/encounter: buildAutoHeroSetup', () => {
+  it('auto-spends the level points via the default profile', () => {
+    const level = 4;
+    const pieces = [{ skillId: 'sword_slash', slot: 0 }];
+    const { setup, level: resolved } = buildAutoHeroSetup(level, pieces);
+    const alloc = allocateByProfile(availablePoints(level), DEFAULT_PROFILE);
+    expect(setup.stats).toEqual(applyAllocation(BASE_HERO_STATS, alloc));
+    expect(resolved).toBe(4);
+    expect(setup.pieces).toBe(pieces);
+  });
+
+  it('level 1 returns the base hero stats (no points spent)', () => {
+    const { setup } = buildAutoHeroSetup(1, []);
+    expect(setup.stats).toEqual(BASE_HERO_STATS);
   });
 });
 

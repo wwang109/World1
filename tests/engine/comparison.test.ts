@@ -4,112 +4,93 @@ import { cfg, tc, MINI_BOOK, NO_ENDGAME } from '../helpers';
 
 type Events = ReturnType<typeof simulate>['events'];
 
-function performers(events: Events): (string | null)[] {
-  return events.filter((e) => e.kind === 'comparison').map((e) => (e as { performer: string | null }).performer);
+function plays(events: Events, side?: 'player' | 'enemy') {
+  return events.filter(
+    (event): event is Extract<Events[number], { kind: 'play' }> =>
+      event.kind === 'play' && (side === undefined || event.side === side),
+  );
 }
 
-function casts(events: Events, side: 'player' | 'enemy'): string[] {
-  return events
-    .filter((e) => e.kind === 'skillCast' && e.side === side)
-    .map((e) => (e as { skillId: string }).skillId);
-}
-
-describe('initiative comparison (score = bank + Speed − weight)', () => {
-  it('reproduces the worked Slash/Meteor vs Bite walkthrough', () => {
-    // Hero Speed 12: [Meteor w30 span3][Slash w10]. Enemy Speed 10: [Bite w10].
+describe('readiness play order', () => {
+  it('lets both sides play in one turn and preserves leftover readiness', () => {
     const c = cfg(
       tc('hero', ['meteor', 'slash'], { speed: 12, attack: 1, magicPower: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
       tc('foe', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
       { ...NO_ENDGAME, skillBook: MINI_BOOK, maxTurns: 6 },
     );
     const { events } = simulate(c, 1);
-    // T1: hero 12−30=−18 vs 0 → enemy. T2: 24−30 vs 0 → enemy. T3: 36−30=6 → HERO METEOR.
-    // T4-5: hero busy (span) → enemy. T6: hero 24+12−10=26 → HERO SLASH.
-    expect(performers(events)).toEqual(['enemy', 'enemy', 'player', 'enemy', 'enemy', 'player']);
-    expect(casts(events, 'player')).toEqual(['meteor', 'slash']);
+    expect(plays(events).map((event) => [event.turn, event.side, event.skillId])).toEqual([
+      [1, 'enemy', 'bite'],
+      [2, 'enemy', 'bite'],
+      [3, 'player', 'meteor'],
+      [3, 'enemy', 'bite'],
+      [4, 'enemy', 'bite'],
+      [5, 'enemy', 'bite'],
+      [6, 'player', 'slash'],
+      [6, 'player', 'meteor'],
+      [6, 'enemy', 'bite'],
+    ]);
   });
 
-  it('player wins exact ties', () => {
+  it('player wins the first exact readiness and Speed tie', () => {
     const c = cfg(
       tc('hero', ['slash'], { speed: 10, maxHp: 500 }, { skillBook: MINI_BOOK }),
       tc('foe', ['bite'], { speed: 10, maxHp: 500 }, { skillBook: MINI_BOOK }),
       { ...NO_ENDGAME, skillBook: MINI_BOOK, maxTurns: 1 },
     );
     const { events } = simulate(c, 1);
-    expect(performers(events)).toEqual(['player']);
+    expect(plays(events).map((event) => event.side)).toEqual(['player', 'enemy']);
   });
 
-  it('double Speed yields a 2:1 performance rhythm', () => {
+  it('a fast two-card board can play twice before a slower one-card board', () => {
     const c = cfg(
-      tc('fast', ['slash'], { speed: 20, attack: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
+      tc('fast', ['slash', 'slash'], { speed: 20, attack: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
       tc('slow', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
-      { ...NO_ENDGAME, skillBook: MINI_BOOK, maxTurns: 30 },
+      { ...NO_ENDGAME, skillBook: MINI_BOOK, maxTurns: 1 },
     );
     const { events } = simulate(c, 1);
-    const p = performers(events);
-    const playerTurns = p.filter((x) => x === 'player').length;
-    const enemyTurns = p.filter((x) => x === 'enemy').length;
-    expect(playerTurns).toBe(2 * enemyTurns);
+    expect(plays(events).map((event) => event.side)).toEqual(['player', 'player', 'enemy']);
   });
 
-  it('a busy (spanning) side sits out and the opponent acts freely', () => {
+  it('a spanning card emits two busy turns while the opponent remains active', () => {
     const c = cfg(
-      tc('hero', ['meteor'], { speed: 10, attack: 1, magicPower: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
+      tc('hero', ['meteor'], { speed: 30, attack: 1, magicPower: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
       tc('foe', ['bite'], { speed: 10, attack: 1, maxHp: 5000 }, { skillBook: MINI_BOOK }),
-      { ...NO_ENDGAME, skillBook: MINI_BOOK, maxTurns: 8 },
+      { ...NO_ENDGAME, skillBook: MINI_BOOK, maxTurns: 3 },
     );
     const { events } = simulate(c, 1);
-    const comparisons = events.filter((e) => e.kind === 'comparison') as Extract<
-      Events[number],
-      { kind: 'comparison' }
-    >[];
-    // Find the meteor cast turn; the two comparisons after it must show the
-    // player as 'busy' and the enemy performing.
-    const castTurn = (events.find((e) => e.kind === 'skillCast' && e.side === 'player') as { turn: number }).turn;
-    const after = comparisons.filter((e) => e.turn === castTurn + 1 || e.turn === castTurn + 2);
-    expect(after).toHaveLength(2);
-    for (const cmp of after) {
-      expect(cmp.player.state).toBe('busy');
-      expect(cmp.performer).toBe('enemy');
-    }
+    expect(events.filter((event) => event.kind === 'busy').map((event) => [event.turn, event.slotIndex])).toEqual([
+      [2, 2],
+      [3, 3],
+    ]);
+    expect(plays(events, 'enemy').map((event) => event.turn)).toEqual([1, 2, 3]);
   });
 
-  it('a passive-only board never performs; the opponent always does', () => {
+  it('aura cards are valid plays', () => {
     const c = cfg(
-      tc('hero', ['war_banner'], { maxHp: 500 }),
-      tc('foe', ['sword_slash'], { attack: 1, maxHp: 500 }),
-      { ...NO_ENDGAME, maxTurns: 6 },
+      tc('hero', ['war_banner'], { speed: 20, maxHp: 500 }),
+      tc('foe', ['sword_slash'], { attack: 1, speed: 10, maxHp: 500 }),
+      { ...NO_ENDGAME, maxTurns: 1 },
     );
     const { events } = simulate(c, 1);
-    expect(casts(events, 'player')).toHaveLength(0);
-    expect(casts(events, 'enemy').length).toBe(6);
-    const cmp = events.find((e) => e.kind === 'comparison') as Extract<Events[number], { kind: 'comparison' }>;
-    expect(cmp.player.state).toBe('nothingUsable');
+    expect(plays(events, 'player').map((event) => event.skillId)).toEqual(['war_banner']);
   });
 
-  it('strict left→right rotation wraps and skips useless heals', () => {
+  it('plays full-health heals instead of hiding their readiness cost', () => {
     const book: typeof MINI_BOOK = {
       ...MINI_BOOK,
       heal_flat: {
-        id: 'heal_flat',
-        name: 'Heal',
-        archetypes: ['healing'],
-        property: 'true',
-        size: 1,
-        speedWeight: 10,
-        rarity: 'common',
-        tier: 'bronze',
-        effects: [{ kind: 'heal', power: 25 }],
-        text: '',
+        id: 'heal_flat', name: 'Heal', archetypes: ['healing'], property: 'true', size: 1,
+        speedWeight: 10, rarity: 'common', tier: 'bronze', effects: [{ kind: 'heal', power: 25 }], text: '',
       },
     };
     const c = cfg(
       tc('hero', ['heal_flat', 'slash'], { speed: 20, attack: 1, maxHp: 500 }, { skillBook: book }),
       tc('dummy', [], { maxHp: 500, speed: 10 }, { skillBook: book }),
-      { ...NO_ENDGAME, skillBook: book, maxTurns: 4 },
+      { ...NO_ENDGAME, skillBook: book, maxTurns: 2 },
     );
-    const { events } = simulate(c, 1);
-    // Full HP -> heal skipped every rotation; only slashes fire.
-    expect(casts(events, 'player')).toEqual(['slash', 'slash', 'slash', 'slash']);
+    expect(plays(simulate(c, 1).events, 'player').map((event) => event.skillId)).toEqual([
+      'heal_flat', 'slash', 'heal_flat', 'slash',
+    ]);
   });
 });

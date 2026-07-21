@@ -1,6 +1,6 @@
 import type { Rng } from '../rng';
-import type { Action, Property, SkillDef } from '../types';
-import type { CombatEvent } from './events';
+import type { Action, EffectSourceRef, Property, SkillDef } from '../types';
+import type { CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
 import { boardPowerLevel, effStat, foesOf, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
@@ -10,7 +10,16 @@ export interface Ctx {
   state: CombatState;
   rng: Rng;
   events: CombatEvent[];
+  /** The card currently producing effects — tags damage/heal/shieldGain events for per-card attribution. */
+  source?: EffectSourceRef;
 }
+
+/**
+ * Hard cap on effective crit chance. Crit% scales with level and stacks with
+ * aura/gem crit mods; without a ceiling it reaches ~90% at high level and crit
+ * stops being a gamble. Capped so a crit build is strong, not guaranteed.
+ */
+export const CRIT_CHANCE_CAP_PCT = 50;
 
 /**
  * Whether an action resolves against foes (offensive) or the caster (support).
@@ -22,10 +31,12 @@ function isOffensiveAction(action: Action): boolean {
     case 'damage':
     case 'poison':
     case 'burn':
+    case 'bleed':
     case 'stun':
     case 'debuffStat':
-    case 'slowNext':
-    case 'stagger':
+    case 'expose':
+    case 'slow':
+    case 'disrupt':
     case 'shieldBreak':
       return true;
     default:
@@ -77,12 +88,22 @@ function isAllyTargetedSupport(action: Action): boolean {
   return action.kind === 'heal' || action.kind === 'cleanse' || action.kind === 'buffStat';
 }
 
+/** Negative-status kinds a `cleanse` can strip (never buff/guard/negate). */
+function isCleansable(kind: StatusInstance['kind']): boolean {
+  return (
+    kind === 'poison' ||
+    kind === 'burn' ||
+    kind === 'bleed' ||
+    kind === 'stun' ||
+    kind === 'debuff' ||
+    kind === 'expose'
+  );
+}
+
 /** Cleansable afflictions on a unit (what a `cleanse` would strip). */
 function cleansableCount(c: CombatantState): number {
   let n = 0;
-  for (const s of c.statuses) {
-    if (s.kind === 'poison' || s.kind === 'burn' || s.kind === 'stun' || s.kind === 'debuff') n += 1;
-  }
+  for (const s of c.statuses) if (isCleansable(s.kind)) n += 1;
   return n;
 }
 
@@ -191,7 +212,45 @@ function scaleStat(c: CombatantState, property: Property): number {
   }
 }
 
-/** Flat defense against a property (true damage has none). */
+/**
+ * Apply a decaying DoT (user-locked 2026-07-20): one pile per kind per
+ * victim — a new application MERGES its stacks into the existing pile
+ * (keeping the pile's tick schedule and re-attributing to the newest
+ * source); otherwise a fresh pile is created that skips ticking on its
+ * application turn. Exact printed stacks: no stat scaling, no matchup.
+ */
+function applyDot(ctx: Ctx, target: CombatantState, kind: 'poison' | 'burn' | 'bleed', stacks: number, property: Property): void {
+  if (!target.alive || stacks <= 0) return;
+  const pile = target.statuses.find((s) => s.kind === kind);
+  if (pile) {
+    pile.stacks = (pile.stacks ?? 0) + stacks;
+    pile.turnsLeft = pile.stacks;
+    pile.source = ctx.source;
+    ctx.events.push({
+      turn: ctx.state.turn,
+      kind: 'statusApplied',
+      side: target.side,
+      unit: target.index,
+      status: kind,
+      property,
+      stacks: pile.stacks,
+      turns: pile.turnsLeft,
+    });
+    return;
+  }
+  addStatus(ctx, target, { kind, property, stacks, turnsLeft: stacks, fresh: true, source: ctx.source });
+}
+
+function scalingStatName(c: CombatantState, property: Property): 'attack' | 'magicPower' {
+  if (property === 'magical') return 'magicPower';
+  if (property === 'physical') return 'attack';
+  return effStat(c, 'attack') >= effStat(c, 'magicPower') ? 'attack' : 'magicPower';
+}
+
+/**
+ * Flat defense against a property. Returns 0 for TRUE: the direct-damage
+ * path applies TRUE's own rule there (defense vs the stat add only).
+ */
 function mitigation(c: CombatantState, property: Property): number {
   switch (property) {
     case 'physical':
@@ -205,8 +264,12 @@ function mitigation(c: CombatantState, property: Property): number {
 
 /**
  * Consume typed shield pools for incoming damage: the matching pool first,
- * then the true pool (true shields block everything). True damage is only
- * ever blocked by true shields.
+ * then the true pool. True damage is only ever blocked by true shields,
+ * point-for-point. Typed (physical/magical) damage that spills into the
+ * true pool is blocked at HALF effectiveness (user-locked 2026-07-20):
+ * every point blocked drains 2 points of true shield. The whole pool is
+ * spent before damage passes through — a dangling odd point still drains
+ * but blocks nothing (floor), keeping the state integer-only.
  */
 function consumeShields(c: CombatantState, property: Property, amount: number): number {
   let blocked = 0;
@@ -215,6 +278,10 @@ function consumeShields(c: CombatantState, property: Property, amount: number): 
     c.shields[property] -= pool;
     blocked += pool;
     amount -= pool;
+    const trueSpent = Math.min(c.shields.true, amount * 2);
+    c.shields.true -= trueSpent;
+    blocked += Math.floor(trueSpent / 2);
+    return blocked;
   }
   const truePool = Math.min(c.shields.true, amount);
   c.shields.true -= truePool;
@@ -225,7 +292,8 @@ function consumeShields(c: CombatantState, property: Property, amount: number): 
 /** Per-cast scratch state for rider actions (combo bonus, lifesteal). */
 interface CastCtx {
   damageDealt: number;
-  bonusPct: number;
+  /** FLAT damage added by a triggered comboBonus this cast. */
+  bonusFlat: number;
 }
 
 /** Apply damage through typed shields; emits events, marks death. */
@@ -238,7 +306,8 @@ export function dealDamage(
     crit?: boolean;
     bypassShields?: boolean;
     matchup?: Matchup;
-    source?: 'skill' | 'poison' | 'burn' | 'fatigue';
+    source?: 'skill' | 'poison' | 'burn' | 'bleed' | 'fatigue';
+    calculation?: Omit<DamageCalculation, 'guardReduction' | 'exposeBonus' | 'shieldBlocked' | 'hpDamage'>;
   } = {},
 ): void {
   if (!victim.alive || amount <= 0) return;
@@ -271,6 +340,20 @@ export function dealDamage(
     reduced = after;
   }
 
+  // Expose: the mirror of guard. Amplifies a DIRECT hit (source `skill`) by
+  // +pct% per active expose, in statuses-array order (deterministic), floored.
+  // Runs right after guard reduction and before shields. DoT ticks (poison /
+  // burn / bleed) and fatigue never trigger expose — only direct skill hits.
+  let exposed = 0;
+  if (source === 'skill') {
+    for (const s of victim.statuses) {
+      if (s.kind !== 'expose') continue;
+      const amp = Math.floor((reduced * (s.pct ?? 0)) / 100);
+      exposed += amp;
+      reduced += amp;
+    }
+  }
+
   const blocked = opts.bypassShields ? 0 : consumeShields(victim, property, reduced);
   const remaining = reduced - blocked;
   victim.stats.hp = Math.max(0, victim.stats.hp - remaining);
@@ -285,8 +368,21 @@ export function dealDamage(
     crit: opts.crit ?? false,
     matchup: opts.matchup === 'advantage' || opts.matchup === 'disadvantage' ? opts.matchup : undefined,
     guarded: guarded > 0 ? guarded : undefined,
+    exposed: exposed > 0 ? exposed : undefined,
     hpAfter: victim.stats.hp,
     source,
+    ...(ctx.source ? { sourceCard: ctx.source } : {}),
+    ...(opts.calculation
+      ? {
+          calculation: {
+            ...opts.calculation,
+            guardReduction: guarded,
+            ...(exposed > 0 ? { exposeBonus: exposed } : {}),
+            shieldBlocked: blocked,
+            hpDamage: remaining,
+          },
+        }
+      : {}),
   });
   if (victim.stats.hp === 0) {
     victim.alive = false;
@@ -311,6 +407,10 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
     unit: target.index,
     status: status.kind,
     property: status.property,
+    stat: status.stat,
+    pct: status.pct,
+    amount: status.amount,
+    stacks: status.stacks,
     turns: status.turnsLeft,
     charges: status.charges,
   });
@@ -337,17 +437,64 @@ function applyAction(
   const property = skill.property;
   switch (action.kind) {
     case 'damage': {
-      let base = Math.floor((scaleStat(caster, property) * action.power) / 100);
-      base = Math.floor((base * (100 + mods.damagePct + cast.bonusPct)) / 100);
+      // FLAT model: a card's `power` is a flat base; the caster's scaling stat
+      // (Attack / Magic Power / higher for TRUE) plus any aura / combo bonus are
+      // ADDED flat on top — never multiplied. Damage and HP both scale linearly.
+      // Only crit (×1.5) and matchup (±%) remain multipliers.
+      const scalingStat = scalingStatName(caster, property);
+      const baseStat = caster.stats[scalingStat];
+      const effectiveStat = scaleStat(caster, property);
+      const baseDamage = action.power + baseStat;
+      const scaledDamage = action.power + effectiveStat;
+      const flatBonus = mods.damageFlat + cast.bonusFlat;
+      // Board Type Identity's +20% same-type bonus rides the same per-card
+      // modifier bundle (mods.damagePct). It's a percentage of the scaled +
+      // flat-bonus damage, floored, and attributed through effectBonusDamage so
+      // the UI math strip still sums exactly. damagePct is 0 for un-featured
+      // casts, leaving modifiedDamage byte-identical. Heals/shields/DoTs are
+      // untouched (this bonus only lives in the direct-damage path, matching how
+      // aura damageFlat also stays out of DoT ticks).
+      const preIdentityDamage = scaledDamage + flatBonus;
+      const identityBonus = mods.damagePct > 0 ? Math.floor((preIdentityDamage * mods.damagePct) / 100) : 0;
+      const modifiedDamage = preIdentityDamage + identityBonus;
       const critChance = Math.max(0, effStat(caster, 'critPct') + mods.critPctDelta);
-      const crit = ctx.rng.pct(Math.min(100, critChance));
-      let amount = Math.max(1, base - mitigation(enemy, property));
-      if (crit) amount = Math.floor((amount * 150) / 100);
+      const crit = ctx.rng.pct(Math.min(CRIT_CHANCE_CAP_PCT, critChance));
+      // TRUE damage (user-locked 2026-07-20): only the card's FLAT portion
+      // bypasses defenses. The stat add is checked against the enemy's
+      // matching defense (Attack vs Armor, Magic Power vs Magic Resist) —
+      // defense can eat up to the stat add, never the flat base or bonuses.
+      const defense = property === 'true'
+        ? Math.min(effectiveStat, effStat(enemy, scalingStat === 'attack' ? 'armor' : 'magicResist'))
+        : mitigation(enemy, property);
+      const afterDefenseWithoutFloor = Math.max(0, modifiedDamage - defense);
+      const afterDefense = Math.max(1, afterDefenseWithoutFloor);
+      const afterCrit = crit ? Math.floor((afterDefense * 150) / 100) : afterDefense;
       const matchup = cardMatchup(skill, enemy);
-      amount = Math.floor((amount * matchupPct(matchup)) / 100);
-      if (caster.sdStacks > 0) amount = Math.floor((amount * (100 + caster.sdStacks)) / 100);
+      const afterMatchup = Math.floor((afterCrit * matchupPct(matchup)) / 100);
+      const amountBeforeFinalFloor = caster.sdStacks > 0
+        ? Math.floor((afterMatchup * (100 + caster.sdStacks)) / 100)
+        : afterMatchup;
+      const amount = Math.max(1, amountBeforeFinalFloor);
       const hpBefore = enemy.stats.hp;
-      dealDamage(ctx, enemy, Math.max(1, amount), property, { crit, matchup });
+      dealDamage(ctx, enemy, amount, property, {
+        crit,
+        matchup,
+        calculation: {
+          scalingStat,
+          baseStat,
+          effectiveStat,
+          power: action.power,
+          baseDamage,
+          statBonusDamage: scaledDamage - baseDamage,
+          effectBonusDamage: modifiedDamage - scaledDamage,
+          ...(identityBonus > 0 ? { identityBonusDamage: identityBonus } : {}),
+          defense: modifiedDamage - afterDefenseWithoutFloor,
+          minimumDamageBonus: (afterDefense - afterDefenseWithoutFloor) + (amount - amountBeforeFinalFloor),
+          critBonusDamage: afterCrit - afterDefense,
+          matchupBonusDamage: afterMatchup - afterCrit,
+          suddenDeathBonusDamage: amountBeforeFinalFloor - afterMatchup,
+        },
+      });
       cast.damageDealt += hpBefore - enemy.stats.hp;
       break;
     }
@@ -357,27 +504,32 @@ function applyAction(
       const target = enemy;
       if (!target.alive) break;
       // TRUE heals are flat: exact amount, no scaling, no aura math.
+      // Non-TRUE heals are the card's flat base + the caster's scaling stat +
+      // any FLAT aura/gem heal bonus.
       let amount: number;
       let flat = false;
       if (property === 'true') {
         amount = action.power;
         flat = true;
       } else {
-        amount = Math.floor((scaleStat(caster, property) * action.power) / 100);
-        amount = Math.floor((amount * (100 + mods.healPct)) / 100);
+        amount = action.power + scaleStat(caster, property) + mods.healFlat;
       }
       const before = target.stats.hp;
       target.stats.hp = Math.min(target.stats.maxHp, target.stats.hp + amount);
       const healed = target.stats.hp - before;
-      if (healed > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, flat, hpAfter: target.stats.hp });
+      // Emit whenever the card ATTEMPTED a heal (even if fully overhealed) so the
+      // per-card report credits its full output; `amount` is the effective HP
+      // restored, `overheal` the wasted remainder (attempted = amount + overheal).
+      if (amount > 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: amount - healed, flat, hpAfter: target.stats.hp, ...(ctx.source ? { sourceCard: ctx.source } : {}) });
       }
       break;
     }
     case 'shield': {
       if (!caster.alive) break;
       // Shields stack and carry over, but total shield is hard-capped at maxHp.
-      const request = property === 'true' ? action.power : Math.floor((scaleStat(caster, property) * action.power) / 100);
+      // TRUE shields are the flat base; others add the caster's scaling stat.
+      const request = property === 'true' ? action.power : action.power + scaleStat(caster, property);
       const room = Math.max(0, caster.stats.maxHp - totalShield(caster));
       const gain = Math.min(request, room);
       const wasted = request - gain;
@@ -391,20 +543,23 @@ function applyAction(
         amount: gain,
         wasted,
         totalAfter: totalShield(caster),
+        ...(ctx.source ? { sourceCard: ctx.source } : {}),
       });
       break;
     }
-    case 'poison': {
-      // DoTs inherit the card's element/weapon: the matchup bakes into the tick amount.
-      const amount = Math.max(1, Math.floor((action.amount * matchupPct(cardMatchup(skill, enemy))) / 100));
-      addStatus(ctx, enemy, { kind: 'poison', property, amount, turnsLeft: action.turns, fresh: true });
+    case 'poison':
+      applyDot(ctx, enemy, 'poison', action.stacks, property);
       break;
-    }
-    case 'burn': {
-      const amount = Math.max(1, Math.floor((action.amount * matchupPct(cardMatchup(skill, enemy))) / 100));
-      addStatus(ctx, enemy, { kind: 'burn', property, amount, turnsLeft: action.turns, fresh: true });
+    case 'burn':
+      applyDot(ctx, enemy, 'burn', action.stacks, property);
       break;
-    }
+    case 'bleed':
+      // Bleed cannot be applied through plating: any active shield on the
+      // target blocks the application entirely (the stacks are simply lost —
+      // once applied, though, ticks bypass shields).
+      if (totalShield(enemy) > 0) break;
+      applyDot(ctx, enemy, 'bleed', action.stacks, property);
+      break;
     case 'stun':
       addStatus(ctx, enemy, { kind: 'stun', turnsLeft: action.turns, fresh: true });
       break;
@@ -426,15 +581,49 @@ function applyAction(
         addStatus(ctx, enemy, { kind: 'debuff', stat: action.stat, pct: action.pct, turnsLeft: action.turns, fresh: true });
       }
       break;
+    case 'expose': {
+      // Offensive debuff: applied to the enemy. pct clamped to <=50 at apply time.
+      if (!enemy.alive) break;
+      const pct = Math.max(0, Math.min(50, action.pct));
+      addStatus(ctx, enemy, { kind: 'expose', pct, turnsLeft: action.turns, fresh: true });
+      break;
+    }
     case 'cleanse': {
       // Lands on the resolved ally target (most-afflicted ally; self when nobody
-      // is afflicted, or in 1v1). Strips everything except buffs.
+      // is afflicted, or in 1v1). Each charge removes ONE STACK of a negative
+      // effect, processing afflictions in a fixed deterministic order:
+      // expiring-soonest (lowest turnsLeft) first, ties by application order
+      // (original array index). A stacking DoT (poison/burn/bleed) drains one
+      // stack per charge from its soonest instance (the instance is removed when
+      // it hits 0 stacks before moving on); a stun/debuff/expose is a 1-stack
+      // ailment removed whole by one charge. Buffs, guards and negate charges are
+      // never removed. `removed` on the event counts STACKS removed.
       const target = enemy;
       if (!target.alive) break;
-      const before = target.statuses.length;
-      target.statuses = target.statuses.filter((s) => s.kind === 'buff');
-      const removed = before - target.statuses.length;
+      const ordered = target.statuses
+        .map((status, index) => ({ status, index }))
+        .filter((entry) => isCleansable(entry.status.kind))
+        .sort((a, b) => a.status.turnsLeft - b.status.turnsLeft || a.index - b.index);
+      let chargesLeft = Math.max(0, action.charges);
+      let removed = 0;
+      const drained = new Set<StatusInstance>();
+      for (const { status } of ordered) {
+        if (chargesLeft <= 0) break;
+        const isStackingDot = status.kind === 'poison' || status.kind === 'burn' || status.kind === 'bleed';
+        if (isStackingDot) {
+          const take = Math.min(status.stacks ?? 0, chargesLeft);
+          status.stacks = (status.stacks ?? 0) - take;
+          removed += take;
+          chargesLeft -= take;
+          if ((status.stacks ?? 0) <= 0) drained.add(status);
+        } else {
+          drained.add(status);
+          removed += 1;
+          chargesLeft -= 1;
+        }
+      }
       if (removed > 0) {
+        if (drained.size > 0) target.statuses = target.statuses.filter((s) => !drained.has(s));
         ctx.events.push({ turn: ctx.state.turn, kind: 'cleansed', side: target.side, unit: target.index, removed });
       }
       break;
@@ -447,18 +636,26 @@ function applyAction(
       ctx.events.push({ turn: ctx.state.turn, kind: 'aggroChanged', side: caster.side, unit: caster.index, aggro: caster.aggro });
       break;
     }
-    case 'slowNext':
+    case 'slow':
       // Slows don't stack (that would permanently lock out slow enemies):
       // the strongest pending slow applies until the enemy next performs.
       if (!enemy.alive) break;
       enemy.nextWeightPenalty = Math.max(enemy.nextWeightPenalty, action.weight);
-      ctx.events.push({ turn: ctx.state.turn, kind: 'slowedNext', side: enemy.side, unit: enemy.index, weight: action.weight });
+      ctx.events.push({ turn: ctx.state.turn, kind: 'slowed', side: enemy.side, unit: enemy.index, weight: action.weight });
       break;
-    case 'stagger': {
+    case 'disrupt': {
       if (!enemy.alive) break;
-      const drained = Math.min(enemy.bank, action.amount);
-      enemy.bank -= drained;
-      ctx.events.push({ turn: ctx.state.turn, kind: 'staggered', side: enemy.side, unit: enemy.index, amount: drained, bankAfter: enemy.bank });
+      const drained = Math.min(enemy.readiness, action.amount);
+      enemy.readiness -= drained;
+      ctx.events.push({
+        turn: ctx.state.turn,
+        kind: 'disrupted',
+        side: enemy.side,
+        unit: enemy.index,
+        amount: drained,
+        readinessAfter: enemy.readiness,
+        bankAfter: enemy.readiness,
+      });
       break;
     }
     case 'lifesteal': {
@@ -469,7 +666,7 @@ function applyAction(
       caster.stats.hp = Math.min(caster.stats.maxHp, caster.stats.hp + amount);
       const healed = caster.stats.hp - before;
       if (healed > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, unit: caster.index, amount: healed, flat: false, hpAfter: caster.stats.hp });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, unit: caster.index, amount: healed, overheal: amount - healed, flat: false, hpAfter: caster.stats.hp, ...(ctx.source ? { sourceCard: ctx.source } : {}) });
       }
       break;
     }
@@ -492,7 +689,7 @@ function applyAction(
     }
     case 'comboBonus':
       if (caster.lastCastArchetypes.some((a) => skill.archetypes.includes(a))) {
-        cast.bonusPct += action.pct;
+        cast.bonusFlat += action.amount;
       }
       break;
     case 'guard': {
@@ -529,7 +726,7 @@ type CastTargetInfo = Pick<
  * get the chosen unit, the deciding policy, and its metric. Deterministic —
  * mirrors `resolveTargets`, no RNG.
  */
-function targetInfoForCast(ctx: Ctx, caster: CombatantState, skill: SkillDef): CastTargetInfo {
+export function targetInfoForCast(ctx: Ctx, caster: CombatantState, skill: SkillDef): CastTargetInfo {
   if (!skill.effects.some(isOffensiveAction)) return {};
   const living = foesOf(ctx.state, caster).filter((f) => f.alive);
   if (living.length === 0) return {};
@@ -577,7 +774,9 @@ export function applyCast(
     // entirely otherwise so un-aura'd casts stay byte-identical.
     ...(auraSources.length > 0 ? { auras: auraSources } : {}),
   });
-  const cast: CastCtx = { damageDealt: 0, bonusPct: 0 };
+  const cast: CastCtx = { damageDealt: 0, bonusFlat: 0 };
+  // Tag every effect this cast emits with its source card (for the per-card report).
+  ctx.source = { side: caster.side, unit: caster.index, slot, skillId: skill.id };
   for (const action of skill.effects) {
     // Fan out: offensive actions apply to EACH resolved target in ascending
     // index order (so crit rolls fire per victim in a fixed RNG order);
@@ -590,4 +789,5 @@ export function applyCast(
   if (skill.special !== undefined) {
     getSpecial(skill.special)(ctx, caster, skill, slot, mods);
   }
+  ctx.source = undefined;
 }

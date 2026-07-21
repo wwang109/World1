@@ -2,6 +2,7 @@
 //   npm run fight            (hero vs bandit_duelist)
 //   npm run fight -- ember_imp 42
 import { simulate1v1 } from '../src/engine/combat/simulate';
+import type { DamageCalculation } from '../src/engine/combat/events';
 import { hashSeed } from '../src/engine/rng';
 import { skillBook } from '../src/data/skills';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../src/data/heroes';
@@ -49,14 +50,68 @@ const fmt = (side: { bank: number; speed: number; weight: number | null; score: 
     ? `${side.bank}+${side.speed}-${side.weight}=${side.score} (${side.queuedSkillId})`
     : side.state;
 
+const fmtDamage = (c: DamageCalculation): string => {
+  const terms = [`${c.baseDamage}`];
+  const add = (label: string, value: number): void => {
+    if (value !== 0) terms.push(`${value > 0 ? '+' : '-'}${label}${Math.abs(value)}`);
+  };
+  add('STAT', c.statBonusDamage);
+  add('BONUS', c.effectBonusDamage);
+  add('DEF', -c.defense);
+  add('MIN', c.minimumDamageBonus);
+  add('CRIT', c.critBonusDamage);
+  add('MATCH', c.matchupBonusDamage);
+  add('RAMP', c.suddenDeathBonusDamage);
+  add('GUARD', -c.guardReduction);
+  add('BLOCK', -c.shieldBlocked);
+  const identity = c.identityBonusDamage ?? 0;
+  const bonusLabel = identity > 0
+    ? `+${c.effectBonusDamage - identity} aura/combo, +${identity} board identity`
+    : `+${c.effectBonusDamage} aura/combo`;
+  return `${terms.join(' ')} = ${c.hpDamage} HP (${c.scalingStat} ${c.baseStat}->${c.effectiveStat}, ${bonusLabel})`;
+};
+
 for (const e of events) {
   const t = String(e.turn).padStart(3);
   switch (e.kind) {
+    case 'gain':
+      console.log(
+        `${t}  gain    ${tag(e.side)} readiness ${e.readinessBefore} -> ${e.readinessAfter} (+${e.speed}${e.speedModifier === 0 ? '' : `; effect ${e.speedModifier > 0 ? '+' : ''}${e.speedModifier}`})`,
+      );
+      break;
+    case 'play':
+      console.log(
+        `${t}  play    ${tag(e.side)} ${e.skillId} (slot ${e.slot + 1}${e.slotCount > 1 ? `, 1 of ${e.slotCount}` : ''}) · weight ${e.weight}${e.damage === undefined ? '' : ` -> -${e.damage} [${e.hpAfter} hp]`}`,
+      );
+      break;
+    case 'cost':
+      console.log(`${t}  cost    ${tag(e.side)} readiness ${e.readinessBefore} -> ${e.readinessAfter} (paid ${e.paid})`);
+      break;
+    case 'cursor':
+      console.log(
+        `${t}  cursor  ${tag(e.side)} -> ${e.skillId ?? 'empty'} (slot ${e.slot + 1}${e.slotCount && e.slotCount > 1 ? `, ${e.slotIndex} of ${e.slotCount}` : ''}${e.wrapped ? ', wrap' : ''})`,
+      );
+      break;
+    case 'busy':
+      console.log(`${t}  busy    ${tag(e.side)} ${e.skillId} resolving (slot ${e.slotIndex} of ${e.slotCount})`);
+      break;
+    case 'wait':
+      if (e.reason === 'cantAfford') {
+        console.log(`${t}  wait    ${tag(e.side)} readiness ${e.readiness} < ${e.skillId} weight ${e.weight}`);
+      } else if (e.reason === 'cooling') {
+        console.log(`${t}  wait    ${tag(e.side)} ${e.skillId} cooling · ${e.turnsLeft} turn${e.turnsLeft === 1 ? '' : 's'} left`);
+      } else {
+        console.log(`${t}  wait    ${tag(e.side)} ${e.reason === 'stunned' ? 'stunned' : 'no cards'}`);
+      }
+      break;
+    case 'end':
+      console.log(`${t}  end     turn over`);
+      break;
     case 'comparison':
       console.log(`${t} ┌ you ${fmt(e.player)} | foe ${fmt(e.enemy)} → ${e.performer ?? 'nobody'}`);
       break;
     case 'skillCast':
-      console.log(`${t} │  ${tag(e.side)} casts [${e.slot}] ${e.skillId}${e.span > 1 ? ` (spans ${e.span})` : ''}`);
+      // Compatibility event; the tagged `play` line above is the readable cast record.
       break;
     case 'performSkipped':
       console.log(`${t} │  ${tag(e.side)} performance consumed (${e.reason})`);
@@ -65,6 +120,7 @@ for (const e of events) {
       console.log(
         `${t} │  ${tag(e.side)} takes ${e.amount} ${e.property}${e.crit ? ' CRIT' : ''}${e.blocked ? ` (${e.blocked} blocked)` : ''} -> ${e.hpAfter} hp${e.source !== 'skill' ? ` [${e.source}]` : ''}`,
       );
+      if (e.calculation) console.log(`${t} │  calc             ${fmtDamage(e.calculation)}`);
       break;
     case 'heal':
       console.log(`${t} │  ${tag(e.side)} heals ${e.amount}${e.flat ? ' (flat)' : ''} -> ${e.hpAfter} hp`);
@@ -72,17 +128,29 @@ for (const e of events) {
     case 'shieldGain':
       console.log(`${t} │  ${tag(e.side)} +${e.amount} ${e.property} shield${e.wasted ? ` (${e.wasted} wasted)` : ''} -> ${e.totalAfter} total`);
       break;
-    case 'statusApplied':
-      console.log(`${t} │  ${tag(e.side)} gains ${e.status}${e.property ? `(${e.property})` : ''} for ${e.turns}t`);
+    case 'statusApplied': {
+      let detail = '';
+      if (e.stat) {
+        detail = ` ${e.stat} ${e.status === 'debuff' ? '-' : '+'}${e.pct ?? e.amount ?? 0}${e.pct !== undefined ? '%' : ''}`;
+      } else if (e.status === 'expose') {
+        detail = ` +${e.pct ?? 0}%`;
+      } else if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') {
+        detail = ` ${e.stacks ?? 0} stacks${e.property ? ` (${e.property})` : ''}`;
+      } else if (e.property) {
+        detail = `(${e.property})`;
+      }
+      const unit = e.status === 'bleed' ? 'performances' : 't';
+      console.log(`${t} │  ${tag(e.side)} gains ${e.status}${detail} for ${e.turns}${unit === 't' ? 't' : ` ${unit}`}`);
       break;
+    }
     case 'statusExpired':
       console.log(`${t} │  ${tag(e.side)} ${e.status} expired`);
       break;
-    case 'slowedNext':
+    case 'slowed':
       console.log(`${t} │  ${tag(e.side)} next action +${e.weight} weight (slowed)`);
       break;
-    case 'staggered':
-      console.log(`${t} │  ${tag(e.side)} staggered −${e.amount} bank -> ${e.bankAfter}`);
+    case 'disrupted':
+      console.log(`${t} │  ${tag(e.side)} disrupted −${e.amount} bank -> ${e.bankAfter}`);
       break;
     case 'shieldBroken':
       console.log(`${t} │  ${tag(e.side)} shield shattered −${e.amount} -> ${e.totalAfter}`);

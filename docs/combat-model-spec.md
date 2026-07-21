@@ -130,14 +130,15 @@ T2  cost    enemy  readiness 16 → 6    (paid 10)
 T2  cursor  enemy  → wrap (slot 1)
 T2  end     turn over
 
-T3  gain    hero   readiness 4 → 14
+T3  gain    hero   readiness 4 → 24
 T3  gain    enemy  readiness 6 → 14
 T3  busy    hero   Greatswing resolving
 T3  cursor  hero   → Greatswing (slot 3 of 3)
 T3  wait    enemy  Slash cooling — 3 turns left
 T3  end     turn over
 
-T4  gain    hero   readiness 14 → 24
+T4  gain    hero   readiness 24 → 44
+T4  gain    enemy  readiness 14 → 22
 T4  busy    hero   Greatswing resolving
 T4  cursor  hero   → Jab (slot 1, wrap)
 T4  wait    enemy  Slash cooling — 2 turns left
@@ -152,13 +153,30 @@ Every event carries `turn`, `type`, `side`, `unit`.
 
 | type   | extra fields |
 |--------|--------------|
-| gain   | `readinessBefore`, `readinessAfter`, `speed` |
+| gain   | `readinessBefore`, `readinessAfter`, `baseSpeed`, `speedModifier`, `speed` |
 | play   | `slot`, `skillId`, `weight`, `size`, `targetSide`, `targetUnit`, `damage`, `hpAfter` |
 | cost   | `readinessBefore`, `readinessAfter`, `paid` |
 | cursor | `slot`, `skillId`, `slotIndex`, `slotCount` (e.g. 2 of 3), `wrapped?` |
 | busy   | `slot`, `skillId` (the card being resolved) |
 | wait   | `reason`: `cantAfford` (+`readiness`, `weight`, `skillId`, `slot`) or `cooling` (+`skillId`, `slot`, `turnsLeft`) |
 | end    | `reason` (`noEligible`) |
+
+Direct-skill damage uses the **FLAT model**: `damage = card.power (a flat base) +
+the caster's scaling stat` (Attack / Magic Power / higher for TRUE), then the
+bounded multipliers/subtractions — aura+combo `effectPct`, flat armor/MR subtract
+(TRUE: the flat base bypasses defenses entirely; the STAT ADD is reduced by the
+enemy's matching defense — Attack vs Armor, Magic Power vs Magic Resist — capped
+at the stat add, user-locked 2026-07-20), crit ×1.5 (chance capped at 50%),
+matchup ±50%/−25%, sudden-death ramp. Non-TRUE heal/shield are likewise `power + stat`; TRUE heal/shield are pure
+flat `power`. Damage and HP scale linearly, never multiplicatively.
+
+Direct-skill `damage` events carry an optional authoritative `calculation` with
+the exact integer stages used by the engine: scaling stat name, base/effective
+stat, `power` (the flat base — field renamed from `powerPct`), base damage
+(`power + baseStat`), stat-buff damage, other bonus damage/pct, defense,
+minimum-damage clamp, crit, matchup, sudden-death ramp, guard, shield, and final
+HP damage. DoT and fatigue damage omit it because they do not use a card formula.
+`statusApplied` includes `stat` plus `pct` or flat `amount` for stat effects.
 
 **Click → highlight:** a clicked row reads `side + unit + slot + skillId` and
 highlights that board card and combatant — the cast card (`play`), the victim
@@ -177,7 +195,9 @@ Checks:
 - **Readiness continuity:** a combatant's `readinessAfter` at the end of turn N
   equals its readiness at the start of turn N+1 before Phase-1 gain.
 - **Gain once:** each living combatant has exactly one `gain` per turn with
-  `readinessAfter = readinessBefore + Speed`.
+  `readinessAfter = readinessBefore + speed`, where `speed = baseSpeed +
+  speedModifier`. The signed modifier exposes temporary Speed buffs/debuffs to
+  playback without asking the UI to recompute stats.
 - **Cost matches weight:** every `play` is followed by a `cost` with
   `readinessAfter = readinessBefore − weight`, `paid = weight`.
 - **Eligibility:** a combatant `play`ed only if `readiness ≥ weight`, card not
