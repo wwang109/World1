@@ -1530,6 +1530,18 @@ export class PrepScene extends Phaser.Scene {
         rule('TRUE shield', `${10 / PRICE.flatTrueShieldPerPoint} pts = 1 PL · no stat · blocks TRUE 1:1, typed drains 2:1`, `92 = ${priced({ kind: 'shield', power: 92 }, 'true')} PL`);
         rule('heal', `${10 / PRICE.flatPowerPerPoint} pts = 1 PL · +stat free (TRUE: flat only)`, `TRUE 50 = ${priced({ kind: 'heal', power: 50 }, 'true')} PL`);
         rule('CAP per card', 'each of dmg / shield / heal · ×1.5 / ×2 / ×2.5 at Silver/Gold/Diamond', `${caps('damage')} at Bronze`);
+        y += 4;
+        section('DAMAGE ORDER — how a hit resolves');
+        rule(
+          'pipeline',
+          'base + ATK/MAG + skill/aura/identity bonuses − DEF/RES · then × CRIT 1.5 · then × affinity 1.5 / 0.75 · then shields absorb · never below 1',
+          'base 96 + 12 − 2 = 106 → ×crit 159 → ×0.75 = 119',
+        );
+        rule(
+          'reading the math',
+          'multiplicative steps (crit, affinity) display as the flat damage they added or removed AT THEIR STEP — so every term sums exactly to the total',
+          '+ (53 CRIT) = 50% of 106 · − (40 AFFINITY) = 25% of 159',
+        );
         break;
       }
       case 'budget': {

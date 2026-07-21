@@ -15,6 +15,7 @@ import { buildAutoHeroSetup, buildEnemyEncounter } from '../../run/encounter';
 import { demoState } from '../demoState';
 import { ARCHETYPE_COLOR, BATTLE_SIDE_LAYOUT, ELEMENT_COLOR, ELEMENT_ICON, FOOTER_ACTION_LAYOUT, FONT, PROPERTY_COLOR, PROPERTY_LABEL, SCREEN, STATUS_ICON, TYPE_SCALE, UI, WEAPON_COLOR, WEAPON_ICON } from '../theme';
 import { drawBackdrop } from '../ui/displayLibrary';
+import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { presentAuraSource, skillAccent, type AuraSourcePresentation } from '../ui/auraPresentation';
 import { describeAura, isAuraSkill } from '../ui/skillPresentation';
 
@@ -180,6 +181,7 @@ export class BattleScene extends Phaser.Scene {
   private comparisonText!: Phaser.GameObjects.Text;
   private turnAuraTokens: Phaser.GameObjects.Text[] = [];
   private turnResultText!: Phaser.GameObjects.Text;
+  private turnSnapshotText!: Phaser.GameObjects.Text;
   private turnCalculationTokens: Phaser.GameObjects.Text[] = [];
   private turnCalculationBg!: Phaser.GameObjects.Rectangle;
   private selectedSkillText!: Phaser.GameObjects.Text;
@@ -203,11 +205,11 @@ export class BattleScene extends Phaser.Scene {
   private activeEnemyUnit: number | null = null;
   private partyRosterChips: RosterChip[] = [];
   private enemyRosterChips: RosterChip[] = [];
-  private auraViewEnabled = true;
+  /** Persistent always-on aura stripes are retired — reach shows via the play-time pulse and hover. */
+  private auraViewEnabled = false;
   private persistentAuraObjects: AuraOverlay[] = [];
   private hoverAuraObjects: AuraOverlay[] = [];
   private selectedAuraObjects: AuraOverlay[] = [];
-  private auraToggle!: ButtonPair;
 
   constructor() {
     super('Battle');
@@ -237,7 +239,7 @@ export class BattleScene extends Phaser.Scene {
     this.enemyRosterChips = [];
     this.turnCalculationTokens = [];
     this.turnAuraTokens = [];
-    this.auraViewEnabled = true;
+    this.auraViewEnabled = false;
     this.persistentAuraObjects = [];
     this.hoverAuraObjects = [];
     this.selectedAuraObjects = [];
@@ -641,6 +643,41 @@ export class BattleScene extends Phaser.Scene {
     };
   }
 
+  /**
+   * Aura feedback at play time: the aura SOURCE card flashes, and an overlay
+   * in the aura color spreads across the boosted card, then fades — replaces
+   * the old always-on stripes and the AURA ON/OFF toggle.
+   */
+  private animateAuraPulse(
+    side: Side,
+    unit: number,
+    playedSlot: number,
+    auras: ReadonlyArray<{ slot: number }>,
+    delayMs: number,
+  ): void {
+    if (side === 'enemy' && unit !== this.activeEnemyUnit) return;
+    const view = this.viewFor(side, unit);
+    if (!view) return;
+    const color = ARCHETYPE_COLOR.support;
+    const timer = this.time.delayedCall(delayMs, () => {
+      for (const aura of auras) {
+        const source = view.auraBounds.get(aura.slot);
+        if (!source) continue;
+        const glow = this.add.rectangle(source.x - 2, source.y - 2, source.width + 4, source.height + 4, color, 0.22)
+          .setOrigin(0, 0)
+          .setStrokeStyle(2, color, 0.95);
+        this.tweens.add({ targets: glow, alpha: 0, duration: this.scaledMs(750), ease: 'Cubic.Out', onComplete: () => glow.destroy() });
+      }
+      const target = view.auraBounds.get(playedSlot);
+      if (!target) return;
+      const overlay = this.add.rectangle(target.x + target.width / 2, target.y + target.height / 2, target.width, target.height, color, 0.32).setOrigin(0.5);
+      overlay.displayWidth = 10;
+      this.tweens.add({ targets: overlay, displayWidth: target.width, duration: this.scaledMs(280), ease: 'Cubic.Out' });
+      this.tweens.add({ targets: overlay, alpha: 0, delay: this.scaledMs(360), duration: this.scaledMs(480), onComplete: () => overlay.destroy() });
+    });
+    this.pendingVisualTimers.push(timer);
+  }
+
   private auraEffectColor(source: AuraSourcePresentation): number {
     if (source.tone === 'negative') return UI.bad;
     if (source.tone === 'mixed') return UI.waiting;
@@ -746,9 +783,6 @@ export class BattleScene extends Phaser.Scene {
 
   private toggleAuraView(): void {
     this.auraViewEnabled = !this.auraViewEnabled;
-    this.auraToggle.text.setText(this.auraViewEnabled ? 'AURA ON' : 'AURA OFF');
-    this.auraToggle.rect.setFillStyle(this.auraViewEnabled ? UI.chip : UI.panelMuted);
-    this.auraToggle.text.setColor(this.auraViewEnabled ? '#ffffff' : UI.text);
     this.refreshPersistentAuraOverlays();
   }
 
@@ -875,14 +909,24 @@ export class BattleScene extends Phaser.Scene {
       lineSpacing: 1,
       maxLines: 4,
     });
-    this.turnResultText = this.add.text(COMPARISON_PANEL.x + 14, COMPARISON_PANEL.y + 124, 'RESULT  Waiting for a selected event.', {
+    // Board state AT this row: HP and shields for both sides — fills the gap
+    // between the action text and the outcome list.
+    this.turnSnapshotText = this.add.text(COMPARISON_PANEL.x + 14, COMPARISON_PANEL.y + 102, '', {
+      fontSize: '9px',
+      color: UI.text,
+      fontFamily: FONT.body,
+      fontStyle: 'bold',
+      wordWrap: { width: COMPARISON_PANEL.w - 28 },
+      maxLines: 1,
+    });
+    this.turnResultText = this.add.text(COMPARISON_PANEL.x + 14, COMPARISON_PANEL.y + 122, 'RESULT  Waiting for a selected event.', {
       fontSize: '8px',
       color: UI.textDim,
       fontFamily: FONT.body,
       fontStyle: 'bold',
       wordWrap: { width: COMPARISON_PANEL.w - 28 },
       lineSpacing: 1,
-      maxLines: 3,
+      maxLines: 4,
     });
     this.turnCalculationBg = this.add.rectangle(COMPARISON_PANEL.x + 10, COMPARISON_PANEL.y + 182, COMPARISON_PANEL.w - 20, 38, UI.battleLog, 0.9).setOrigin(0, 0).setStrokeStyle(1, UI.battleOutline, 0.28);
     this.renderTurnCalculation('Readiness and damage calculations appear here.', false);
@@ -954,12 +998,11 @@ export class BattleScene extends Phaser.Scene {
     const playbackY = pagerY + 40;
     this.playbackButtons.set(1, this.makeButton(feedX, playbackY, 52, 30, '1×', UI.chipDark, '#ffffff', () => this.setPlaybackRate(1)));
     this.playbackButtons.set(2, this.makeButton(feedX + 58, playbackY, 52, 30, '2×', UI.panelMuted, UI.text, () => this.setPlaybackRate(2)));
+    // No aura toggle — aura reach shows as a pulse animation when a boosted
+    // cast plays (see animateAuraPulse), plus card hover/selection.
     const utilityX = feedX + 116;
     const utilityW = feedW - 116;
-    const auraW = 52;
-    this.auraToggle = this.makeButton(utilityX, playbackY, auraW, 30, 'AURA ON', UI.chip, '#1a1208', () => this.toggleAuraView());
-    this.auraToggle.text.setFontSize('8px');
-    const endButton = this.makeButton(utilityX + auraW + 6, playbackY, utilityW - auraW - 6, 30, 'END', UI.panelAlt, UI.text, () => this.finishPlayback());
+    const endButton = this.makeButton(utilityX, playbackY, utilityW, 30, 'END', UI.panelAlt, UI.text, () => this.finishPlayback());
     endButton.text.setFontSize('9px');
     this.refreshFeed();
   }
@@ -1025,134 +1068,47 @@ export class BattleScene extends Phaser.Scene {
     this.closeModal();
     this.inspectSkill(skill.id);
 
-    const effectiveSkill = resolveEffectiveSkill(skill, piece);
     const basePl = instancePowerLevelDeci(skill, { gem: null });
     const totalPl = instancePowerLevelDeci(skill, piece);
     const gem = piece.gem ? gemBook[piece.gem.id] : undefined;
     const aura = describeAura(skill);
 
-    const overlay = this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.border, 0.48).setOrigin(0, 0).setDepth(50).setInteractive();
-    const panelX = SCREEN.safeX + 14;
-    const panelY = 206;
-    const panelW = VIEW_W - 28;
-    const panelH = 700;
-    const bg = this.add.rectangle(panelX, panelY, panelW, panelH, UI.battleFrame).setOrigin(0, 0).setStrokeStyle(1, UI.battleOutline).setDepth(51).setInteractive();
-    const accent = this.add.rectangle(panelX, panelY, panelW, 10, PROPERTY_COLOR[skill.property]).setOrigin(0, 0).setDepth(52);
-    const title = this.add.text(panelX + 24, panelY + 30, skill.name, {
-      fontSize: '26px',
-      color: UI.text,
-      fontFamily: FONT.display,
-      fontStyle: 'bold',
-      fixedWidth: panelW - 112,
-      maxLines: 2,
-    }).setDepth(52);
-    const context = this.add.text(panelX + 24, panelY + 76, `CARD INFORMATION · BOARD SLOTS ${piece.slot + 1}-${piece.slot + skill.size}`, {
-      fontSize: '10px',
-      color: UI.textDim,
-      fontFamily: FONT.body,
-      fontStyle: 'bold',
-    }).setDepth(52);
-
-    const chips: Phaser.GameObjects.Text[] = [];
-    const chipLabels = [
-      isAuraSkill(skill) ? 'AURA' : skill.archetypes[0]?.toUpperCase(),
-      skill.tier.toUpperCase(),
-      PROPERTY_LABEL[skill.property],
-      skill.element?.toUpperCase() ?? skill.weapon?.toUpperCase(),
-    ].filter((label): label is string => Boolean(label));
-    let chipX = panelX + 24;
-    for (const label of chipLabels) {
-      const chip = this.add.text(chipX, panelY + 101, label, {
-        fontSize: '8px',
-        color: '#ffffff',
-        fontFamily: FONT.body,
-        fontStyle: 'bold',
-        backgroundColor: this.hexColor(label === PROPERTY_LABEL[skill.property] ? PROPERTY_COLOR[skill.property] : UI.laneLog),
-        padding: { x: 8, y: 4 },
-      }).setDepth(52);
-      chips.push(chip);
-      chipX += chip.width + 6;
-    }
-
-    const metricObjects: Phaser.GameObjects.GameObject[] = [];
-    const metricGap = 8;
-    const metricX = panelX + 24;
-    const metricY = panelY + 142;
-    const metricW = (panelW - 48 - metricGap * 3) / 4;
-    const metrics = [
-      ['WEIGHT', String(weightOf(effectiveSkill))],
-      ['SIZE', `${effectiveSkill.size} SLOT${effectiveSkill.size === 1 ? '' : 'S'}`],
-      ['COOLDOWN', `${effectiveCooldown(effectiveSkill)} TURNS`],
-      ['TOTAL PL', formatPowerDeci(totalPl)],
-    ];
-    metrics.forEach(([label, value], index) => {
-      const x = metricX + index * (metricW + metricGap);
-      const tile = this.add.rectangle(x, metricY, metricW, 64, index % 2 === 0 ? UI.panelMuted : UI.panelAlt, 0.74).setOrigin(0, 0).setStrokeStyle(1, UI.battleOutline, 0.3).setDepth(52);
-      const metricLabel = this.add.text(x + 10, metricY + 9, label!, {
-        fontSize: '8px', color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold',
-      }).setDepth(53);
-      const metricValue = this.add.text(x + 10, metricY + 29, value!, {
-        fontSize: '14px', color: UI.text, fontFamily: FONT.display, fontStyle: 'bold',
-        fixedWidth: metricW - 20, maxLines: 1,
-      }).setDepth(53);
-      metricObjects.push(tile, metricLabel, metricValue);
+    // The card sheet IS the card — the same full-art template the deck build
+    // and wiki render, with a compact battle-context strip beneath it.
+    const overlay = this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, 0x090b12, 0.82).setOrigin(0, 0).setDepth(50).setInteractive();
+    const card = new FantasyCardTemplateV2(this, SCREEN.width / 2, 500, skill, {
+      width: 420,
+      height: 690,
+      tier: piece.tier ?? skill.tier,
     });
+    card.setDepth(61);
 
-    const effectY = panelY + 226;
-    const effectBg = this.add.rectangle(panelX + 24, effectY, panelW - 48, 142, UI.panelAlt, 0.72).setOrigin(0, 0).setStrokeStyle(1, UI.battleOutline, 0.34).setDepth(52);
-    const effectLabel = this.add.text(panelX + 40, effectY + 14, 'CARD EFFECT', {
-      fontSize: '9px', color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold',
-    }).setDepth(53);
-    // The authored `text` carries Bronze numbers; a RANK-upgraded card would show
-    // stale values, so tiered cards show the scaled effect breakdown instead.
-    const isTiered = skill.tier !== (skillBook[skill.id]?.tier ?? skill.tier);
-    const effectBody = isTiered
-      ? presentCardActions(skill).map((a) => `${a.verb}: ${a.effect}`).join('\n')
-      : stripCardTextMarkup(skill.text);
-    const body = this.add.text(panelX + 40, effectY + 40, effectBody, {
-      fontSize: '16px',
+    const infoX = SCREEN.width / 2 - 210;
+    const infoY = 872;
+    const infoLines = [
+      `BOARD SLOTS ${piece.slot + 1}-${piece.slot + skill.size} · CARD PL ${gem ? `${formatPowerDeci(basePl)} + ${gemPowerLevel(gem)} gem = ${formatPowerDeci(totalPl)}` : formatPowerDeci(totalPl)}`,
+      gem ? `GEM · ${gem.name.toUpperCase()} (${gem.rarity.toUpperCase()}) — ${stripCardTextMarkup(gem.text ?? '')}` : 'GEM · empty socket',
+      aura ? `AURA · ${aura}` : '',
+    ].filter(Boolean);
+    const infoBg = this.add.rectangle(infoX, infoY, 420, 24 + infoLines.length * 18, UI.battleLog, 0.94).setOrigin(0, 0).setStrokeStyle(1, UI.battleOutline, 0.6).setDepth(61);
+    const infoText = this.add.text(infoX + 14, infoY + 12, infoLines.join('\n'), {
+      fontSize: '10px',
       color: UI.text,
       fontFamily: FONT.body,
       fontStyle: 'bold',
-      wordWrap: { width: panelW - 80 },
-      lineSpacing: 7,
-      maxLines: 4,
-    }).setDepth(53);
+      wordWrap: { width: 392 },
+      lineSpacing: 6,
+      maxLines: infoLines.length,
+    }).setDepth(62);
 
-    const detailY = effectY + 160;
-    const detailBg = this.add.rectangle(panelX + 24, detailY, panelW - 48, 174, UI.battleLog, 0.72).setOrigin(0, 0).setStrokeStyle(1, UI.battleOutline, 0.28).setDepth(52);
-    const detailLabel = this.add.text(panelX + 40, detailY + 14, aura ? 'AURA & SOCKET' : 'SOCKET', {
-      fontSize: '9px', color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold',
-    }).setDepth(53);
-    const detailLines = [
-      aura ? `Aura · ${aura}` : '',
-      gem ? `${gem.name.toUpperCase()} · ${gem.rarity.toUpperCase()} · +${gemPowerLevel(gem)} PL` : 'Empty socket',
-      gem?.text ?? '',
-      gem ? `Card PL · ${formatPowerDeci(basePl)} base + ${gemPowerLevel(gem)} gem = ${formatPowerDeci(totalPl)}` : `Card PL · ${formatPowerDeci(basePl)}`,
-    ].filter(Boolean);
-    const detailText = this.add.text(panelX + 40, detailY + 40, detailLines.join('\n\n'), {
-      fontSize: '12px',
-      color: UI.text,
-      fontFamily: FONT.body,
-      wordWrap: { width: panelW - 80 },
-      lineSpacing: 5,
-      maxLines: 7,
-    }).setDepth(53);
-
-    const hint = this.add.text(panelX + 24, panelY + panelH - 42, 'Tap outside this card sheet to close.', {
-      fontSize: '9px', color: UI.textDim, fontFamily: FONT.body,
-    }).setDepth(52);
-    const close = this.makeButton(panelX + panelW - 58, panelY + 22, 34, 32, '×', UI.laneLog, '#ffffff', () => this.closeModal());
-    close.rect.setDepth(52);
-    close.text.setDepth(53);
+    const close = this.makeButton(SCREEN.width / 2 + 176, 132, 34, 32, '×', UI.laneLog, '#ffffff', () => this.closeModal());
+    close.rect.setDepth(62);
+    close.text.setDepth(63);
     overlay.on('pointerdown', () => this.closeModal());
 
-    this.modalObjects.push(
-      overlay, bg, accent, title, context, ...chips, ...metricObjects,
-      effectBg, effectLabel, body, detailBg, detailLabel, detailText, hint,
-      close.rect, close.text,
-    );
+    this.modalObjects.push(overlay, card, infoBg, infoText, close.rect, close.text);
   }
+
 
   private openStatsModal(name: string, stats: CombatantStats, level: number, side: Side): void {
     this.closeModal();
@@ -1210,6 +1166,12 @@ export class BattleScene extends Phaser.Scene {
     let activePlayRow: ActivationRow | null = null;
     let activeTurn = -1;
     let snapshot = this.cloneBattleSnapshot(initialSnapshot);
+    // HP renders as current/max everywhere; the initial snapshot is full HP.
+    const maxHp: Record<Side, number[]> = {
+      player: initialSnapshot.player.map((unit) => unit.hp),
+      enemy: initialSnapshot.enemy.map((unit) => unit.hp),
+    };
+    const hpOf = (side: Side, unit: number, hp: number): string => `${hp}/${maxHp[side][unit] ?? hp}`;
 
     const push = (
       turn: number,
@@ -1250,15 +1212,16 @@ export class BattleScene extends Phaser.Scene {
       }
 
       if (event.kind === 'gain') {
+        // The END row opens each turn with the readiness refill: "Hero 18 · SPD +16".
         const speedEffect = event.speedModifier === 0
           ? ''
-          : ` · effect ${event.speedModifier > 0 ? '+' : ''}${event.speedModifier}`;
-        const gainLine = `${this.unitLabel(event.side, event.unit)} · R ${event.readinessBefore} → ${event.readinessAfter} · +${event.speed} Speed${speedEffect}`;
+          : ` (${event.speedModifier > 0 ? '+' : ''}${event.speedModifier} effect)`;
+        const gainLine = `${this.unitLabel(event.side, event.unit)} ${event.readinessAfter} · SPD +${event.speed}${speedEffect}`;
         const gainRow = gainRows.get(event.turn);
         if (gainRow) {
           gainRow.activation += `\n${gainLine}`;
         } else {
-          gainRows.set(event.turn, push(event.turn, 'GAIN', gainLine));
+          gainRows.set(event.turn, push(event.turn, 'END', gainLine));
         }
       } else if (event.kind === 'play') {
         activePlay = { side: event.side, unit: event.unit, skillId: event.skillId, slot: event.slot };
@@ -1266,7 +1229,7 @@ export class BattleScene extends Phaser.Scene {
         activePlayRow = push(
           event.turn,
           'PLAY',
-          `${this.unitLabel(event.side, event.unit)} · ${this.skillName(event.skillId)} · S${event.slot + 1} · weight ${event.weight}${this.formatTarget(event)}${event.damage === undefined ? '' : ` · -${event.damage} HP [${event.hpAfter}]`}`,
+          `${this.unitLabel(event.side, event.unit)} · ${this.skillName(event.skillId)}${this.formatTarget(event)}`,
           {
             side: event.side,
             unit: event.unit,
@@ -1279,10 +1242,9 @@ export class BattleScene extends Phaser.Scene {
           },
         );
       } else if (event.kind === 'cost') {
+        // Readiness accounting is TURN DETAIL material — never a feed row.
         if (activePlayRow && activePlay?.side === event.side && activePlay.unit === event.unit) {
           activePlayRow.resultLines.push(`R ${event.readinessBefore} → ${event.readinessAfter} · paid ${event.paid}`);
-        } else {
-          push(event.turn, 'COST', `${this.unitLabel(event.side, event.unit)} · readiness ${event.readinessBefore} → ${event.readinessAfter} · paid ${event.paid}`, event);
         }
       } else if (event.kind === 'cursor') {
         const card = event.skillId ? this.skillName(event.skillId) : `empty slot ${event.slot + 1}`;
@@ -1295,20 +1257,17 @@ export class BattleScene extends Phaser.Scene {
           } else {
             activePlayRow.resultLines.push(cursorLine);
           }
-        } else {
-          push(event.turn, 'CURSOR', `${this.unitLabel(event.side, event.unit)} → ${card} · S${event.slot + 1}${span}${event.wrapped ? ' · wrap' : ''}`, {
-            side: event.side, unit: event.unit, skillId: event.skillId, slot: event.skillId ? event.slot - (event.slotIndex ?? 1) + 1 : null,
-          });
         }
+        // Standalone cursor bookkeeping stays out of the feed.
       } else if (event.kind === 'busy') {
-        push(event.turn, 'BUSY', `${this.unitLabel(event.side, event.unit)} · ${this.skillName(event.skillId)} resolving · ${event.slotIndex}/${event.slotCount}`, {
+        push(event.turn, 'WAIT', `${this.unitLabel(event.side, event.unit)} · ${this.skillName(event.skillId)} resolving · ${event.slotIndex}/${event.slotCount}`, {
           side: event.side, unit: event.unit, skillId: event.skillId, slot: event.slot - event.slotIndex + 1,
         });
       } else if (event.kind === 'wait') {
         const text = event.reason === 'cantAfford'
-          ? `${this.unitLabel(event.side, event.unit)} · readiness ${event.readiness} < ${this.skillName(event.skillId)} weight ${event.weight}`
+          ? `${this.unitLabel(event.side, event.unit)} · saving ${event.readiness}/${event.weight} for ${this.skillName(event.skillId)}`
           : event.reason === 'cooling'
-            ? `${this.unitLabel(event.side, event.unit)} · ${this.skillName(event.skillId)} cooling · ${event.turnsLeft}t left`
+            ? `${this.unitLabel(event.side, event.unit)} · ${this.skillName(event.skillId)} cooling · ${event.turnsLeft}t`
             : `${this.unitLabel(event.side, event.unit)} · ${event.reason === 'stunned' ? 'stunned' : 'no cards'}`;
         push(event.turn, 'WAIT', text, {
           side: event.side,
@@ -1317,78 +1276,99 @@ export class BattleScene extends Phaser.Scene {
           slot: 'slot' in event ? event.slot : undefined,
         });
       } else if (event.kind === 'end') {
-        push(event.turn, 'END', 'Turn complete');
+        // No "Turn complete" card — the next turn's END (refill) row is the divider.
       } else if (event.kind === 'damage') {
         const dealt = Math.max(0, event.amount - event.blocked);
-        const tags = [event.blocked ? `${event.blocked} blocked` : '', event.crit ? 'CRIT' : ''].filter(Boolean).join(' · ');
-        const isPreTurnDot = event.source === 'poison' || event.source === 'burn';
-        const sourceLabel = isPreTurnDot ? `${event.source.toUpperCase()} · ` : '';
-        const hitLine = `${sourceLabel}${this.unitLabel(event.side, event.unit)} · -${dealt} HP · ${event.hpAfter} left${tags ? ` · ${tags}` : ''}`;
+        const hp = hpOf(event.side, event.unit, event.hpAfter);
         snapshot[event.side][event.unit] = {
           hp: event.hpAfter,
           shield: Math.max(0, snapshot[event.side][event.unit]!.shield - event.blocked),
         };
         if (event.source === 'skill' && activePlayRow) {
-          activePlayRow.resultLines.push(`HIT · ${hitLine}`);
+          activePlayRow.resultLines.push(
+            `HIT · ${this.unitLabel(event.side, event.unit)} −${dealt}${event.crit ? ' CRIT' : ''} · ${hp}${event.blocked ? ` · ${event.blocked} blocked` : ''}`,
+          );
           if (event.calculation) activePlayRow.resultLines.push(this.formatDamageCalculation(event.calculation));
           syncRowSnapshot(activePlayRow);
         } else {
-          push(event.turn, isPreTurnDot ? 'PRE-TURN' : event.source.toUpperCase(), hitLine, {
+          // DoT ticks read as the debuff doing its work, stack count included
+          // (poison/bleed tick = stacks; burn tick = 2 × stacks).
+          const isDot = event.source === 'poison' || event.source === 'burn' || event.source === 'bleed';
+          const stacks = event.source === 'burn' ? Math.floor(event.amount / 2) : event.amount;
+          const cap = event.source.charAt(0).toUpperCase() + event.source.slice(1);
+          const label = isDot ? `${cap} ${stacks}` : cap;
+          push(event.turn, 'DEBUFF', `${label} · ${this.unitLabel(event.side, event.unit)} −${dealt} · ${hp}${event.blocked ? ` · ${event.blocked} blocked` : ''}`, {
             targetSide: event.side,
             targetUnit: event.unit,
           });
         }
       } else if (event.kind === 'heal') {
-        const over = event.overheal > 0 ? ` (+${event.overheal} overheal)` : '';
+        const over = event.overheal > 0 ? ` (+${event.overheal} over)` : '';
         snapshot[event.side][event.unit] = {
           hp: event.hpAfter,
           shield: snapshot[event.side][event.unit]!.shield,
         };
-        if (activePlayRow) activePlayRow.resultLines.push(`HEAL · ${this.unitLabel(event.side, event.unit)} +${event.amount} HP${over} · ${event.hpAfter}`);
-        else push(event.turn, 'HEAL', `${this.unitLabel(event.side, event.unit)} · +${event.amount} HP${over} · ${event.hpAfter}`, event);
+        const healLine = `${this.unitLabel(event.side, event.unit)} +${event.amount} HP${over} · ${hpOf(event.side, event.unit, event.hpAfter)}`;
+        if (activePlayRow) activePlayRow.resultLines.push(`BUFF · ${healLine}`);
+        else push(event.turn, 'BUFF', healLine, event);
         syncRowSnapshot(activePlayRow);
       } else if (event.kind === 'shieldGain') {
         snapshot[event.side][event.unit] = {
           hp: snapshot[event.side][event.unit]!.hp,
           shield: event.totalAfter,
         };
-        if (activePlayRow) activePlayRow.resultLines.push(`SHIELD · ${this.unitLabel(event.side, event.unit)} +${event.amount} · ${event.totalAfter}`);
-        else push(event.turn, 'SHIELD', `${this.unitLabel(event.side, event.unit)} · +${event.amount} shield · ${event.totalAfter}`, event);
+        const shieldLine = `${this.unitLabel(event.side, event.unit)} +${event.amount} shield · ${event.totalAfter} total`;
+        if (activePlayRow) activePlayRow.resultLines.push(`BUFF · ${shieldLine}`);
+        else push(event.turn, 'BUFF', shieldLine, event);
         syncRowSnapshot(activePlayRow);
       } else if (event.kind === 'statusApplied') {
+        // Every applied effect is its OWN tagged row — never joined.
+        const tag = event.status === 'buff' || event.status === 'guard' || event.status === 'negate' ? 'BUFF' : 'DEBUFF';
+        const cap = event.status.charAt(0).toUpperCase() + event.status.slice(1);
         const magnitude = event.stat
-          ? `${event.stat.toUpperCase()} ${event.status === 'debuff' ? '-' : '+'}${event.pct ?? event.amount ?? 0}${event.pct !== undefined ? '%' : ''} · ${event.turns}t`
-          : `${event.status}${event.property ? ` ${event.property}` : ''} · ${event.turns}t`;
-        const statusLine = `${this.unitLabel(event.side, event.unit)} · ${magnitude}`;
-        if (activePlayRow) activePlayRow.resultLines.push(`STATUS · ${statusLine}`);
-        else push(event.turn, 'STATUS', statusLine, event);
+          ? `${event.stat.toUpperCase()} ${event.status === 'debuff' ? '−' : '+'}${event.pct ?? event.amount ?? 0}${event.pct !== undefined ? '%' : ''} · ${event.turns}t`
+          : event.status === 'poison' || event.status === 'burn' || event.status === 'bleed'
+            ? `${cap} ${event.stacks ?? 0}`
+            : event.status === 'stun'
+              ? 'Stunned'
+              : event.status === 'expose'
+                ? `Exposed +${event.pct ?? 0}% · ${event.turns}t`
+                : event.status === 'negate'
+                  ? `Negate ×${event.charges ?? 0}`
+                  : event.status === 'guard'
+                    ? `Guard ${event.pct ?? 0}% · ${event.turns}t`
+                    : `${cap} · ${event.turns}t`;
+        push(event.turn, tag, `${this.unitLabel(event.side, event.unit)} · ${magnitude}`, { targetSide: event.side, targetUnit: event.unit });
       } else if (event.kind === 'statusExpired') {
-        push(event.turn, 'STATUS', `${this.unitLabel(event.side, event.unit)} · ${event.status} ended`, event);
+        const tag = event.status === 'buff' || event.status === 'guard' || event.status === 'negate' ? 'BUFF' : 'DEBUFF';
+        const cap = event.status.charAt(0).toUpperCase() + event.status.slice(1);
+        push(event.turn, tag, `${this.unitLabel(event.side, event.unit)} · ${cap} ends`, event);
       } else if (event.kind === 'cleansed') {
-        push(event.turn, 'CLEANSE', `${this.unitLabel(event.side, event.unit)} · removed ${event.removed} effects`, activePlay ?? event);
+        push(event.turn, 'BUFF', `${this.unitLabel(event.side, event.unit)} · cleansed ${event.removed} stack${event.removed === 1 ? '' : 's'}`, activePlay ?? event);
       } else if (event.kind === 'aggroChanged') {
-        push(event.turn, 'AGGRO', `${this.unitLabel(event.side, event.unit)} · aggro ${event.aggro}`, activePlay ?? event);
+        push(event.turn, 'BUFF', `${this.unitLabel(event.side, event.unit)} · aggro ${event.aggro}`, activePlay ?? event);
       } else if (event.kind === 'slowed') {
-        push(event.turn, 'SLOW', `${this.unitLabel(event.side, event.unit)} · next card +${event.weight} weight`, activePlay ?? event);
+        push(event.turn, 'DEBUFF', `${this.unitLabel(event.side, event.unit)} · slowed · next cast +${event.weight} weight`, activePlay ?? event);
       } else if (event.kind === 'disrupted') {
-        push(event.turn, 'STAGGER', `${this.unitLabel(event.side, event.unit)} · readiness -${event.amount} → ${event.readinessAfter}`, activePlay ?? event);
+        push(event.turn, 'DEBUFF', `${this.unitLabel(event.side, event.unit)} · staggered · readiness −${event.amount} → ${event.readinessAfter}`, activePlay ?? event);
       } else if (event.kind === 'shieldBroken') {
         snapshot[event.side][event.unit] = {
           hp: snapshot[event.side][event.unit]!.hp,
           shield: event.totalAfter,
         };
-        push(event.turn, 'BREAK', `${this.unitLabel(event.side, event.unit)} · shield -${event.amount} → ${event.totalAfter}`, activePlay ?? event);
+        push(event.turn, 'DEBUFF', `${this.unitLabel(event.side, event.unit)} · shield −${event.amount} → ${event.totalAfter}`, activePlay ?? event);
       } else if (event.kind === 'negated') {
-        push(event.turn, 'NEGATE', `${this.unitLabel(event.side, event.unit)} negated ${event.property}`, activePlay ?? event);
+        push(event.turn, 'BUFF', `${this.unitLabel(event.side, event.unit)} · negated the ${event.property} hit`, activePlay ?? event);
       } else if (event.kind === 'died') {
         if (activePlayRow) activePlayRow.resultLines.push(`DOWN · ${this.unitLabel(event.side, event.unit)}`);
-        else push(event.turn, 'DOWN', `${this.unitLabel(event.side, event.unit)} was defeated`, { targetSide: event.side, targetUnit: event.unit });
+        else push(event.turn, 'DOWN', `${this.unitLabel(event.side, event.unit)} falls`, { targetSide: event.side, targetUnit: event.unit });
       } else if (event.kind === 'suddenDeathStart') {
-        push(event.turn, 'SUDDEN DEATH', 'Damage escalation has begun');
+        push(event.turn, 'RESULT', 'Sudden death — damage ramps each turn');
       } else if (event.kind === 'fatigueStart') {
-        push(event.turn, 'FATIGUE', 'Endurance damage has begun');
+        push(event.turn, 'RESULT', 'Fatigue — endurance damage begins');
       } else if (event.kind === 'combatEnd') {
-        push(event.turn, 'RESULT', `${event.result.toUpperCase()} · ${event.turns} turns`);
+        const outcome = event.result === 'win' ? 'VICTORY' : event.result === 'loss' ? 'DEFEAT' : 'DRAW';
+        push(event.turn, 'RESULT', `${outcome} · ${event.turns} turns`);
       }
     }
 
@@ -1682,26 +1662,38 @@ export class BattleScene extends Phaser.Scene {
     const castColor = row.side === 'player' ? UI.good : row.side === 'enemy' ? UI.bad : UI.border;
     this.turnText.setColor(`#${castColor.toString(16).padStart(6, '0')}`);
     this.turnText.setText(`TURN ${row.turn} · ${row.note}`);
-    const calculation = row.resultLines.find((line) => line.startsWith('DMG '));
+    const calculation = row.resultLines.find((line) => line.startsWith('D: '));
     const readiness = row.resultLines.find((line) => line.startsWith('R '));
     const outcomes = row.resultLines.filter((line) => line !== calculation && line !== readiness);
     this.comparisonText.setText(row.activation);
     this.renderTurnAuraSources(row);
 
-    const resultLines = outcomes.slice(0, 1);
+    // Every outcome line fits here (the feed card only shows the first two).
+    const resultLines = outcomes.slice(0, 3);
     if (readiness) resultLines.push(`READY · ${readiness}`);
     if (resultLines.length === 0) {
-      resultLines.push(row.note === 'GAIN'
-        ? 'SPEED · Added to every living combatant before cards resolve.'
-        : row.note === 'END'
-          ? 'TURN · All affordable activations have resolved.'
-          : `${row.note} · No additional effect.`);
+      resultLines.push(row.note === 'END'
+        ? 'SPEED · Readiness refills; highest affordable readiness resolves first.'
+        : `${row.note} · No additional effect.`);
     }
     this.turnResultText.setText(`RESULT  ${resultLines.join('\n')}`);
+    if (row.snapshot) {
+      const parts: string[] = [];
+      for (const side of ['player', 'enemy'] as Side[]) {
+        for (let unit = 0; unit < this.views[side].length; unit++) {
+          if (side === 'enemy' && unit !== this.activeEnemyUnit) continue;
+          const snap = row.snapshot[side][unit];
+          const unitView = this.views[side][unit];
+          if (!snap || !unitView) continue;
+          parts.push(`${this.shortUnitLabel(side, unit)} ${snap.hp}/${unitView.maxHp}${snap.shield > 0 ? ` +${snap.shield}🛡` : ''}`);
+        }
+      }
+      this.turnSnapshotText.setText(parts.join('   ·   '));
+    }
 
     const math = calculation
-      ?? (readiness ? `READINESS ${readiness.slice(2)}` : row.note === 'GAIN' ? 'ORDER · Highest affordable readiness resolves first.' : row.activation);
-    this.renderTurnCalculation(math.replace(/^DMG\s+/, ''), Boolean(calculation));
+      ?? (readiness ? `READINESS ${readiness.slice(2)}` : row.activation);
+    this.renderTurnCalculation(math.replace(/^D:\s+/, ''), Boolean(calculation));
     this.turnCalculationBg.setFillStyle(row.side === 'player' ? UI.goodSoft : row.side === 'enemy' ? UI.badSoft : UI.battleLog, 0.9);
     if (row.snapshot) {
       for (const side of ['player', 'enemy'] as Side[]) {
@@ -1863,19 +1855,22 @@ export class BattleScene extends Phaser.Scene {
 
   private rowPresentation(row: ActivationRow): { verb: string; title: string; resultVerb: string; body: string; calculation: string } {
     if (row.note === 'PLAY' && row.side !== null && row.unit !== null && row.skillId) {
-      const firstResult = row.resultLines[0] ?? row.activation;
-      const knownResultVerbs = new Set(['HIT', 'HEAL', 'SHIELD', 'STATUS', 'DOWN', 'CLEANSE', 'AGGRO', 'SLOW', 'STAGGER', 'BREAK', 'NEGATE']);
+      // Readiness accounting (R …) stays in TURN DETAIL; the D: math line is
+      // the card's second line, under the HIT.
+      const outcomes = row.resultLines.filter((line) => !line.startsWith('R ') && !line.startsWith('D: '));
+      const firstResult = outcomes[0] ?? row.activation;
+      const knownResultVerbs = new Set(['HIT', 'BUFF', 'DEBUFF', 'DOWN']);
       const divider = firstResult.indexOf(' · ');
       const candidateVerb = divider > 0 ? firstResult.slice(0, divider) : '';
       const resultVerb = knownResultVerbs.has(candidateVerb) ? candidateVerb : '';
       const body = resultVerb ? firstResult.slice(divider + 3) : firstResult;
-      const calculation = row.resultLines.find((line) => line.startsWith('DMG '))
+      const calculation = row.resultLines.find((line) => line.startsWith('D: '))
         || this.auraSourceText(row)
-        || row.resultLines[1]
+        || outcomes[1]
         || '';
       return {
         verb: 'PLAY',
-        title: `T${row.turn} · ${this.shortUnitLabel(row.side, row.unit)} · ${this.skillName(row.skillId)}${row.weight === null ? '' : ` · W${row.weight}`}`,
+        title: `T${row.turn} · ${this.shortUnitLabel(row.side, row.unit)} · ${this.skillName(row.skillId)}`,
         resultVerb,
         body,
         calculation,
@@ -1898,28 +1893,15 @@ export class BattleScene extends Phaser.Scene {
         return row.side === 'enemy' ? UI.bad : UI.good;
       case 'HIT':
       case 'DOWN':
-      case 'SUDDEN DEATH':
-      case 'FATIGUE':
-      case 'PRE-TURN':
-      case 'BURN':
-      case 'POISON':
         return UI.bad;
-      case 'HEAL':
-      case 'CLEANSE':
+      case 'BUFF':
         return UI.good;
-      case 'SHIELD':
-      case 'GAIN':
-      case 'COST':
-      case 'CURSOR':
-      case 'BUSY':
-      case 'STATUS':
-        return UI.shield;
+      case 'DEBUFF':
+        return ARCHETYPE_COLOR.debuff;
       case 'WAIT':
-      case 'STAGGER':
-      case 'SLOW':
         return UI.waiting;
       case 'RESULT':
-        return row.activation.startsWith('WIN') ? UI.good : UI.bad;
+        return row.activation.startsWith('VICTORY') ? UI.good : UI.bad;
       default:
         return UI.border;
     }
@@ -1971,32 +1953,42 @@ export class BattleScene extends Phaser.Scene {
 
   private formatActivationRow(row: ActivationRow): string {
     if (row.note === 'PLAY' && row.side !== null && row.unit !== null && row.skillId) {
-      const title = `T${row.turn} · ${this.shortUnitLabel(row.side, row.unit)} PLAY · ${this.skillName(row.skillId)}${row.weight === null ? '' : ` · W${row.weight}`}`;
-      const result = row.resultLines[0] ?? row.activation;
-      const calculation = row.resultLines.find((line) => line.startsWith('DMG ')) || this.auraSourceText(row) || row.resultLines[1];
+      const title = `T${row.turn} · ${this.shortUnitLabel(row.side, row.unit)} PLAY · ${this.skillName(row.skillId)}`;
+      const outcomes = row.resultLines.filter((line) => !line.startsWith('R ') && !line.startsWith('D: '));
+      const result = outcomes[0] ?? row.activation;
+      const calculation = row.resultLines.find((line) => line.startsWith('D: ')) || this.auraSourceText(row) || outcomes[1];
       return [title, result, calculation].filter(Boolean).join('\n');
     }
     const aura = this.auraSourceText(row);
     return [`T${row.turn} · ${row.note}`, row.activation, aura].filter(Boolean).join('\n');
   }
 
+  /**
+   * The HIT sub-line math: `D: base 96 + (12 ATK) − (2 DEF) + (53 CRIT)
+   * − (40 AFFINITY) = 119`. Value-then-label in parens, only non-zero terms;
+   * multiplicative steps (crit, affinity, ramp) show the flat damage they
+   * added or removed at their step, so the terms sum exactly to the total.
+   */
   private formatDamageCalculation(calculation: NonNullable<Extract<CombatEvent, { kind: 'damage' }>['calculation']>): string {
     const stat = calculation.scalingStat === 'attack' ? 'ATK' : 'MAG';
-    const terms = [`${calculation.power} BASE`, `+${calculation.baseStat} ${stat}`];
+    const defense = calculation.scalingStat === 'attack' ? 'DEF' : 'RES';
+    const terms = [`base ${calculation.power}`];
     const addTerm = (label: string, value: number): void => {
       if (value === 0) return;
-      terms.push(`${value > 0 ? '+' : '-'}${label}${Math.abs(value)}`);
+      terms.push(`${value > 0 ? '+' : '−'} (${Math.abs(value)} ${label})`);
     };
+    addTerm(stat, calculation.baseStat);
     addTerm('BUFF', calculation.statBonusDamage);
-    addTerm('FX', calculation.effectBonusDamage);
-    addTerm('DEF', -calculation.defense);
+    addTerm('SKILL', calculation.effectBonusDamage);
+    addTerm('IDENTITY', calculation.identityBonusDamage ?? 0);
+    addTerm(defense, -calculation.defense);
     addTerm('MIN', calculation.minimumDamageBonus);
     addTerm('CRIT', calculation.critBonusDamage);
-    addTerm('MATCH', calculation.matchupBonusDamage);
+    addTerm('AFFINITY', calculation.matchupBonusDamage);
     addTerm('RAMP', calculation.suddenDeathBonusDamage);
     addTerm('GUARD', -calculation.guardReduction);
     addTerm('BLOCK', -calculation.shieldBlocked);
-    return `DMG ${terms.join(' ')} = ${calculation.hpDamage}`;
+    return `D: ${terms.join(' ')} = ${calculation.hpDamage}`;
   }
 
   private turnCastLabel(row: ActivationRow): string {
@@ -2153,6 +2145,9 @@ export class BattleScene extends Phaser.Scene {
             ease: 'Cubic.Out',
             onComplete: () => card.setHighlight(false),
           });
+          if (event.auras && event.auras.length > 0) {
+            this.animateAuraPulse(event.side, event.unit, event.slot, event.auras, visualDelay);
+          }
         }
         break;
       }
