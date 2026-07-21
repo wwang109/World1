@@ -118,7 +118,7 @@ export interface CardContribution {
   skillId: string;
   /** Direct skill-hit damage dealt (gross output, pre-shield). */
   damage: number;
-  /** Poison/burn damage dealt over time. */
+  /** Poison/burn/bleed damage dealt over time. */
   dotDamage: number;
   /** HP restored to allies. */
   healing: number;
@@ -154,7 +154,7 @@ export function cardContributions(events: readonly CombatEvent[]): CardContribut
 
   for (const e of events) {
     if (e.kind === 'damage' && e.sourceCard) {
-      bump(e.sourceCard, e.source === 'poison' || e.source === 'burn' ? 'dotDamage' : 'damage', e.amount);
+      bump(e.sourceCard, e.source === 'poison' || e.source === 'burn' || e.source === 'bleed' ? 'dotDamage' : 'damage', e.amount);
     } else if (e.kind === 'heal' && e.sourceCard) {
       // Gross healing the card produced (effective + overheal), so a heal card
       // always shows its output even when it topped a near-full ally.

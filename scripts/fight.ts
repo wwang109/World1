@@ -135,12 +135,14 @@ for (const e of events) {
       } else if (e.status === 'expose') {
         detail = ` +${e.pct ?? 0}%`;
       } else if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') {
-        detail = ` ${e.stacks ?? 0} stacks${e.property ? ` (${e.property})` : ''}`;
+        // Decaying DoTs: the pile size IS the state — duration is implied
+        // (poison/bleed: stacks ticks; burn: halves each tick).
+        console.log(`${t} │  ${tag(e.side)} gains ${e.status} ${e.stacks ?? 0} stacks${e.property ? ` (${e.property})` : ''}`);
+        break;
       } else if (e.property) {
         detail = `(${e.property})`;
       }
-      const unit = e.status === 'bleed' ? 'performances' : 't';
-      console.log(`${t} │  ${tag(e.side)} gains ${e.status}${detail} for ${e.turns}${unit === 't' ? 't' : ` ${unit}`}`);
+      console.log(`${t} │  ${tag(e.side)} gains ${e.status}${detail} for ${e.turns}t`);
       break;
     }
     case 'statusExpired':
