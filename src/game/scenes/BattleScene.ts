@@ -1529,7 +1529,11 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.logPage = Math.max(0, Math.ceil(this.revealedRowCount / FEED_ROWS) - 1);
-    this.selectTurn(this.activationRows[this.revealedRowCount - 1] ?? null);
+    // During live playback the EVENTS animate the bars — applying the row
+    // snapshot here would jump HP to the end state instantly and the delayed
+    // damage tween would then bounce it back (the sudden-death 0-then-back
+    // flicker). Snapshots are for scrubbing history after playback.
+    this.selectTurn(this.activationRows[this.revealedRowCount - 1] ?? null, false);
     this.revealNewRows(previousCount);
 
     if (this.eventIdx < this.result.events.length) {
@@ -1631,7 +1635,7 @@ export class BattleScene extends Phaser.Scene {
     this.revealVisibleRows();
   }
 
-  private selectTurn(row: ActivationRow | null): void {
+  private selectTurn(row: ActivationRow | null, applySnapshot = true): void {
     this.selectedRow = row;
     this.clearTurnHighlights();
     this.clearAuraObjects(this.selectedAuraObjects);
@@ -1695,7 +1699,7 @@ export class BattleScene extends Phaser.Scene {
       ?? (readiness ? `READINESS ${readiness.slice(2)}` : row.activation);
     this.renderTurnCalculation(math.replace(/^D:\s+/, ''), Boolean(calculation));
     this.turnCalculationBg.setFillStyle(row.side === 'player' ? UI.goodSoft : row.side === 'enemy' ? UI.badSoft : UI.battleLog, 0.9);
-    if (row.snapshot) {
+    if (applySnapshot && row.snapshot) {
       for (const side of ['player', 'enemy'] as Side[]) {
         for (let unit = 0; unit < this.views[side].length; unit++) {
           const snap = row.snapshot[side][unit];
