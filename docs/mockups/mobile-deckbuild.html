@@ -1,0 +1,122 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { background:#06090f; margin:0; padding:24px; font-family: Verdana, sans-serif; display:flex; justify-content:center; }
+  .phone { width:412px; height:892px; background:#0b1420; border:2px solid #2a3a52; border-radius:18px; overflow:hidden; display:flex; flex-direction:column; }
+  .label { color:#8a94a6; font-size:11px; text-align:center; padding:6px 0; letter-spacing:1px; }
+
+  /* top-level tab switcher */
+  .tabs { display:flex; gap:6px; padding:8px 10px 4px; }
+  .tab { flex:1; text-align:center; color:#8a94a6; font-size:12px; font-weight:bold; letter-spacing:1px; padding:9px 0; background:#131f32; border:1px solid #2a3a52; border-radius:6px; }
+  .tab.on { background:#b78a46; color:#1a1208; }
+
+  .hdr { display:flex; align-items:center; gap:8px; padding:4px 12px 2px; }
+  .meta { color:#9aa4b6; font-size:10px; }
+  .meta b { color:#e8e0c8; }
+
+  /* transfer strip on TOP — slim */
+  .transfer { margin:3px 10px; border:1px dashed #b78a46; border-radius:6px; background:#12203366; display:flex; align-items:center; gap:10px; padding:4px 10px; }
+  .tslot { width:34px; height:40px; background:#16233a; border:1px solid #3a4a62; border-radius:4px; flex:none; display:flex; align-items:center; justify-content:center; }
+  .tlabel { color:#c9a15a; font-size:11px; font-weight:bold; }
+  .tsub { color:#8a94a6; font-size:9.5px; }
+
+  /* columns */
+  .colwrap { flex:1; display:flex; gap:8px; padding:4px 10px; }
+  .colhead { color:#b78a46; font-size:10px; font-weight:bold; letter-spacing:1px; text-align:center; padding:2px 0 4px; }
+  .col { flex:1; display:flex; flex-direction:column; }
+  .slots { flex:1; display:flex; flex-direction:column; gap:5px; }
+  .slot { flex:1; background:#121e30; border:1px solid #24344a; border-radius:4px; position:relative; display:flex; align-items:center; padding:0 8px; gap:7px; overflow:hidden; }
+  .slot.empty { opacity:.45; }
+  .cardp { background:#2c3e58; }
+  .cardb { background:#243146; }
+  /* CARD ART as the token background + gradient overlay for text legibility */
+  .art { background-size:cover; background-position:center 22%; }
+  .art::before { content:""; position:absolute; inset:0; background:linear-gradient(90deg, #0b1420ee 0%, #0b1420cc 46%, #0b142033 100%); }
+  .art > * { position:relative; z-index:1; }
+  .art .cname { text-shadow:0 1px 3px #000; }
+  .art .csub { color:#c8d0dc; text-shadow:0 1px 2px #000; }
+  .accent { position:absolute; left:0; top:0; bottom:0; width:4px; }
+  .cname { color:#e8e0c8; font-size:12.5px; font-weight:bold; line-height:1.15; }
+  .csub { color:#9aa4b6; font-size:9.5px; }
+  .num { position:absolute; right:6px; top:4px; color:#7a86a0; font-size:10px; font-weight:bold; }
+  .gem { position:absolute; right:6px; bottom:4px; font-size:10px; }
+  .dragging { outline:3px solid #e8b446; outline-offset:1px; box-shadow:0 0 18px #e8b44688; opacity:.92; }
+  .dragging::after { content:"DRAGGING"; position:absolute; right:-2px; bottom:-1px; background:#e8b446; color:#1a1208; font-size:8px; font-weight:bold; padding:1px 5px; border-radius:3px 0 3px 0; }
+  .droptarget { border:2px dashed #e8b446; background:#2a2412; opacity:1; }
+  .droptarget .csub { color:#e8b446; font-weight:bold; }
+
+  /* identity pips under deck column */
+  .identity { display:flex; align-items:center; justify-content:center; gap:6px; padding:5px 0 2px; color:#e8e0c8; font-size:10px; font-weight:bold; }
+  .pip { width:9px; height:9px; background:#b78a46; border:1px solid #3a4a62; }
+  .pip.empty { background:#16233a; }
+  .idtail { color:#8a94a6; font-weight:normal; }
+
+  /* trash on BOTTOM — slim */
+  .trash { margin:3px 10px 10px; border:1px dashed #b0483c; border-radius:6px; background:#2a141266; display:flex; align-items:center; gap:10px; padding:4px 10px; }
+  .trash .tlabel { color:#d05c4e; }
+</style>
+</head>
+<body>
+
+<div>
+<div class="label">MOBILE DECK BUILD — transfer top · deck left / bag right · trash bottom</div>
+<div class="phone">
+  <div class="tabs">
+    <div class="tab">PREP</div>
+    <div class="tab on">DECK BUILD</div>
+    <div class="tab">WIKI</div>
+  </div>
+  <div class="hdr">
+    <div class="meta"><b>LV 1</b> · HP 150 · ATK 12 · MAG 12 · SPD 12 &nbsp;·&nbsp; <b>8/10 slots</b> · PL 64 · 2 gems</div>
+  </div>
+
+  <div class="transfer">
+    <div class="tslot" style="color:#5a6880">⇱</div>
+    <div><div class="tlabel">TEMP HOLDING <span class="tsub">— drop a card to hold it while rearranging</span></div></div>
+  </div>
+
+  <div class="colwrap">
+    <div class="col">
+      <div class="colhead">ACTIVE DECK · 8/10</div>
+      <div class="slots">
+        <div class="slot cardp art" data-art="1" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/sword-slash-anime.png')"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10 · BRONZE</div></div><div class="num">1</div></div>
+        <div class="slot cardp art" data-art="1" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/war-banner-anime.png')"><div class="accent" style="background:#d8a018"></div><div><div class="cname">War Banner</div><div class="csub">⚔ AURA +5</div></div><div class="num">2</div><div class="gem">💎</div></div>
+        <div class="slot cardp art" data-art="1" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/sword-slash-anime.png')"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10</div></div><div class="num">3</div><div class="gem">💎</div></div>
+        <div class="slot cardp art" data-art="1" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/second-wind-anime.png')"><div class="accent" style="background:#57a05f"></div><div><div class="cname">Second Wind</div><div class="csub">❊ W10</div></div><div class="num">4</div></div>
+        <div class="slot cardp art" data-art="1" style="flex:2; background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/iron-bulwark-anime.png')"><div class="accent" style="background:#5f7ab0"></div><div><div class="cname">Iron Bulwark</div><div class="csub">⚔ W20 · 2 slots</div></div><div class="num">5-6</div></div>
+        <div class="slot empty droptarget"><div class="csub">7 — drop to place</div></div>
+        <div class="slot empty"><div class="num">8</div></div><div class="slot empty"><div class="num">9</div></div><div class="slot empty"><div class="num">10</div></div>
+      </div>
+      <div class="identity">SWORD <div class="pip"></div><div class="pip"></div><div class="pip"></div> <span class="idtail">+20% DMG</span></div>
+    </div>
+
+    <div class="col">
+      <div class="colhead">BAG · 6/10</div>
+      <div class="slots">
+        <div class="slot cardb dragging art" data-art="1" style="flex:2; background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/fireball-anime.png')"><div class="accent" style="background:#d86a2a"></div><div><div class="cname">Fireball</div><div class="csub">🔥 W20 · 2 slots · BRN 5</div></div><div class="num nume">1-2</div></div>
+        <div class="slot cardb art" data-art="1" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/mana-ward-anime.png')"><div class="accent" style="background:#5fa8d3"></div><div><div class="cname">Mana Ward</div><div class="csub">❆ SHLD 20</div></div><div class="num nume">3</div></div>
+        <div class="slot cardb art" data-art="1" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/follow-through-anime.png')"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Follow-Through</div><div class="csub">⚔ COMBO +10</div></div><div class="num nume">4</div></div>
+        <div class="slot cardb art" data-art="1" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/armor-break-anime.png')"><div class="accent" style="background:#8b6f3a"></div><div><div class="cname">Armor Break</div><div class="csub">🪓 −50% DEF</div></div><div class="num nume">5</div></div>
+        <div class="slot cardb art" data-art="1" style="flex:2; background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/crippling-strike-anime.png')"><div class="accent" style="background:#a678d8"></div><div><div class="cname">Crippling Strike</div><div class="csub">🔱 W20 · 2 slots</div></div><div class="num nume">6-7</div></div>
+        <div class="slot cardb art" data-art="1" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/arcane-bolt-anime.png')"><div class="accent" style="background:#5f7ab0"></div><div><div class="cname">Arcane Bolt</div><div class="csub">⚡ DMG 18</div></div><div class="num nume">8</div></div>
+        <div class="slot empty"><div class="num nume">9</div></div><div class="slot empty"><div class="num nume">10</div></div>
+      </div>
+      <div class="identity"><span class="idtail">tap a card to inspect · long-press for gems</span></div>
+    </div>
+  </div>
+
+  <div class="trash">
+    <div class="tslot" style="color:#7a4a42">🗑</div>
+    <div><div class="tlabel">TRASH <span class="tsub">— drop to destroy (asks to confirm)</span></div></div>
+  </div>
+</div>
+</div>
+
+</body>
+</html>
+
+
+
+

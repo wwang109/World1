@@ -57,6 +57,13 @@
   .csub { color:#9aa4b6; font-size:9.5px; }
   .num { position:absolute; right:6px; top:4px; color:#7a86a0; font-size:10px; font-weight:bold; }
   .nume { left:6px; right:auto; }
+  /* shared CardToken art treatment — identical to deck build / prep */
+  .art { background-size:cover; background-position:center 22%; overflow:hidden; }
+  .art::before { content:""; position:absolute; inset:0; background:linear-gradient(90deg, #0b1420ee 0%, #0b1420cc 46%, #0b142033 100%); }
+  .art.e::before { background:linear-gradient(270deg, #0b1420ee 0%, #0b1420cc 46%, #0b142033 100%); }
+  .art > * { position:relative; z-index:1; }
+  .art .cname { text-shadow:0 1px 3px #000; }
+  .art .csub { color:#c8d0dc; text-shadow:0 1px 2px #000; }
   .cursor { outline:3px solid #e8b446; outline-offset:1px; box-shadow:0 0 18px #e8b44688; }
   .cursor::after { content:"▶ NEXT"; position:absolute; right:-2px; bottom:-1px; background:#e8b446; color:#1a1208; font-size:9px; font-weight:bold; padding:1px 5px; border-radius:3px 0 3px 0; }
   .cursorE::after { content:"NEXT ◀"; right:auto; left:-2px; border-radius:0 3px 0 3px; }
@@ -118,12 +125,15 @@
   </div>
   <div class="boards">
     <div class="col">
-      <div class="slot cardp"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10</div></div><div class="num">1</div><div class="cooldown">⏳2</div></div>
-      <div class="slot cardp"><div class="accent" style="background:#d8a018"></div><div><div class="cname">War Banner</div><div class="csub">⚔ AURA +5</div></div><div class="num">2</div></div>
-      <div class="slot cardp cursor"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10</div></div><div class="num">3</div></div>
-      <div class="slot cardp"><div class="accent" style="background:#57a05f"></div><div><div class="cname">Second Wind</div><div class="csub">❊ W10</div></div><div class="num">4</div></div>
-      <div class="slot cardp" style="flex:2"><div class="accent" style="background:#5f7ab0"></div><div><div class="cname">Iron Bulwark</div><div class="csub">⚔ W20 · 2 slots</div></div><div class="num">5-6</div></div>
-      <div class="slot empty"><div class="csub">7</div></div>
+      <div class="slot cardp art" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/sword-slash-anime.png')"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10</div></div><div class="num">1</div><div class="cooldown">⏳2</div></div>
+      <div class="slot cardp art" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/war-banner-anime.png')"><div class="accent" style="background:#d8a018"></div><div><div class="cname">War Banner</div><div class="csub">⚔ AURA +5</div></div><div class="num">2</div></div>
+      <div class="slot cardp art cursor" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/sword-slash-anime.png')"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10</div></div><div class="num">3</div></div>
+      <div class="slot cardp art" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/second-wind-anime.png')"><div class="accent" style="background:#57a05f"></div><div><div class="cname">Second Wind</div><div class="csub">❊ W10</div></div><div class="num">4</div></div>
+      <div class="slot cardp art" style="flex:2; background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/iron-bulwark-anime.png')"><div class="accent" style="background:#5f7ab0"></div><div><div class="cname">Iron Bulwark</div><div class="csub">⚔ W20 · 2 slots</div></div><div class="num">5-6</div></div>
+      <div class="slot empty"><div class="num">7</div></div>
+      <div class="slot empty"><div class="num">8</div></div>
+      <div class="slot empty"><div class="num">9</div></div>
+      <div class="slot empty"><div class="num">10</div></div>
     </div>
     <div class="vtrack">
       <div class="vrail"></div>
@@ -151,12 +161,16 @@
       <div class="vlabel">T3</div>
     </div>
     <div class="col">
-      <div class="slot carde"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10</div></div><div class="num nume">1</div></div>
-      <div class="slot carde cursor cursorE"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Follow-Through</div><div class="csub">⚔ W10</div></div><div class="num nume">2</div></div>
-      <div class="slot carde"><div class="accent" style="background:#8858b8"></div><div><div class="cname">Venom Fang</div><div class="csub">🐍 W12</div></div><div class="num nume">3</div></div>
-      <div class="slot empty"><div class="csub">4</div></div>
-      <div class="slot empty"><div class="csub">5</div></div>
-      <div class="slot empty" style="flex:2"><div class="csub">6-7</div></div>
+      <div class="slot carde art e" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/sword-slash-anime.png')"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10</div></div><div class="num nume">1</div></div>
+      <div class="slot carde art e cursor cursorE" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/follow-through-anime.png')"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Follow-Through</div><div class="csub">⚔ W10</div></div><div class="num nume">2</div></div>
+      <div class="slot carde art e" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/venom-fang-anime.png')"><div class="accent" style="background:#8858b8"></div><div><div class="cname">Venom Fang</div><div class="csub">🐍 W12</div></div><div class="num nume">3</div></div>
+      <div class="slot empty"><div class="num nume">4</div></div>
+      <div class="slot empty"><div class="num nume">5</div></div>
+      <div class="slot empty"><div class="num nume">6</div></div>
+      <div class="slot empty"><div class="num nume">7</div></div>
+      <div class="slot empty"><div class="num nume">8</div></div>
+      <div class="slot empty"><div class="num nume">9</div></div>
+      <div class="slot empty"><div class="num nume">10</div></div>
     </div>
   </div>
   <div style="display:flex; padding:0 10px;">

@@ -89,9 +89,47 @@ text resolution); the problem is SIZE and DENSITY, not blur.
 | Screen | Intent |
 |---|---|
 | Battle | LOCKED — v5 spec in decision 3 (`docs/mockups/mobile-battle-final.html`, `docs/screenshots/mobile-battle-final-v5.png`) |
-| Deck build | Drag-and-drop kept; bag as 3-wide V2 card grid; full-width 10-slot rail; identity pips beneath; inspect as bottom sheet |
+| Deck build | LOCKED (v2+art mockups, user-approved 2026-07-21): PREP/DECK BUILD/WIKI tab bar on top · slim TEMP HOLDING strip · ACTIVE DECK left / BAG right as battle-style vertical columns (10 slots EACH, size-2 cards span two) · slim TRASH strip on the bottom (confirm on drop) · drag-and-drop primary (short horizontal hop across the gutter) · **tokens use CARD ART backgrounds with a left-anchored dark gradient overlay** (shared constant; same token component as the battle boards; art from `cardArtCatalog`) · identity pips under the deck column · tap = V2 card modal (inspect is modal-only) · **gem socketing UI: DEFERRED** (no mobile design yet — user, 2026-07-21; long-press + bottom sheet was floated, nothing locked) |
 | Prep / choose fight | One enemy visible + swipe between roster entries; keep stat block + DMG/turn threat line |
 | Wiki | Cards grid 2-wide; RULES tabs already single-column and reflow cleanly; TABLE view likely desktop-only or horizontally scrollable |
+
+## Shared components (user-locked 2026-07-22)
+
+All three mobile screens are assemblies of TWO shared components in
+`src/game/ui/` — never per-scene copies:
+
+- **CardToken — DISPLAY SPEC (user-locked 2026-07-22).** Identical on every
+  screen; only size and badge set vary:
+  - **Background**: the card's art (`cardArtCatalog`), cover-fit, focal
+    point ~22% from the top; over it a LEFT-anchored legibility gradient
+    (near-opaque panel color on the left, fading to ~20% by the right
+    edge). The gradient is left-anchored on BOTH columns — text legibility
+    beats visual symmetry; only the slot number mirrors.
+  - **Accent stripe**: 4px property-color bar on the token's left edge,
+    always.
+  - **Text block**: left-aligned over the gradient with text shadow —
+    name (bold, profile type ladder) + one sub-line (type icon · context
+    numbers: weight in battle, effect summary in prep/bag, tier when
+    relevant).
+  - **Slot number**: INWARD top corner — left column top-RIGHT, right
+    column top-LEFT — on every slot, filled or EMPTY (empties are flat
+    panel color at ~45% opacity, no art, number only). The token reserves
+    that corner so the number never collides with name or badges.
+  - **Badges**: cooldown ⏳n bottom-inward corner (battle) · gem 💎
+    bottom-right (deck build) · gold corner plates for ▶ NEXT (cursor) and
+    DRAGGING states · cursor/drag emphasis = 3px gold outline + glow.
+  - **Size-N cards** render as ONE token spanning N slot heights, numbered
+    `5-6` style.
+  - Fonts and paddings come from the layout profile's ladder — the same
+    component renders at battle, deck-build, or prep sizes unchanged.
+- **BoardColumn(pieces, side, mode, bounds)** — 10 slots, size-N cards span
+  N; `side` mirrors gradient/number/accent alignment; `mode` is `playback`
+  (cursor + aura pulse), `editable` (drag), or `readonly` (tap-inspect).
+
+Screen assemblies: battle = header + log dock + 2×BoardColumn(playback) +
+scrubber · deck build = tabs + holding + 2×BoardColumn(editable) + trash ·
+prep = tabs + enemy sheet + BoardColumn(readonly)×2. The invariant across
+all screens: YOUR deck is the LEFT column, the opposition is the RIGHT.
 
 ## Migration order
 

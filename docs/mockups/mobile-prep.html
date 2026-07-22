@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { background:#06090f; margin:0; padding:24px; font-family: Verdana, sans-serif; display:flex; justify-content:center; }
+  .phone { width:412px; height:892px; background:#0b1420; border:2px solid #2a3a52; border-radius:18px; overflow:hidden; display:flex; flex-direction:column; }
+  .label { color:#8a94a6; font-size:11px; text-align:center; padding:6px 0; letter-spacing:1px; }
+
+  .tabs { display:flex; gap:6px; padding:8px 10px 4px; }
+  .tab { flex:1; text-align:center; color:#8a94a6; font-size:12px; font-weight:bold; letter-spacing:1px; padding:9px 0; background:#131f32; border:1px solid #2a3a52; border-radius:6px; }
+  .tab.on { background:#b78a46; color:#1a1208; }
+
+  .roster { display:flex; gap:6px; padding:6px 10px 2px; }
+  .rchip { flex:1; background:#16233a; border:1px solid #24344a; border-radius:6px; padding:5px 8px; }
+  .rchip.focus { border-color:#e8b446; box-shadow:0 0 8px #e8b44655; }
+  .rname { color:#e8e0c8; font-size:11px; font-weight:bold; }
+  .rsub { color:#9aa4b6; font-size:9px; margin-top:2px; }
+  .radd { flex:none; width:64px; text-align:center; color:#8a94a6; border-style:dashed; font-size:11px; font-weight:bold; padding:11px 0; }
+
+  /* compact enemy sheet: stats + knobs in two rows */
+  .sheet { margin:4px 10px; background:#101a2a; border:1px solid #2a3a52; border-radius:8px; padding:8px 12px 8px; position:relative; }
+  .spine { position:absolute; left:0; top:0; bottom:0; width:5px; background:#c9a15a; border-radius:8px 0 0 8px; }
+  .ename { color:#e8e0c8; font-size:16px; font-weight:bold; font-family: Georgia, serif; }
+  .etag { position:absolute; right:12px; top:10px; background:#c9a15a; color:#1a1208; font-size:9px; font-weight:bold; padding:3px 8px; border-radius:4px; }
+  .estats { color:#e8e0c8; font-size:11.5px; font-weight:bold; margin-top:4px; }
+  .estats .dim { color:#9aa4b6; font-weight:normal; }
+  .threat { margin-top:3px; color:#d05c4e; font-size:12px; font-weight:bold; }
+  .weak { color:#c9a15a; font-size:10.5px; font-weight:normal; margin-left:8px; }
+  .knobs { display:flex; gap:6px; margin-top:7px; }
+  .titlechips { display:flex; gap:4px; flex:1; }
+  .tc { flex:1; text-align:center; font-size:9px; font-weight:bold; color:#8a94a6; background:#16233a; border:1px solid #24344a; border-radius:4px; padding:6px 0; }
+  .tc.on { background:#c9a15a; color:#1a1208; }
+  .step { display:flex; align-items:center; gap:5px; background:#16233a; border:1px solid #24344a; border-radius:4px; padding:3px 7px; }
+  .step b { color:#e8e0c8; font-size:12px; }
+  .step span { color:#8a94a6; font-size:9px; font-weight:bold; }
+  .pm { color:#e8e0c8; font-size:14px; font-weight:bold; padding:0 3px; }
+
+  /* the vertical columns — same shape as deck build & battle */
+  .colwrap { flex:1; display:flex; gap:8px; padding:4px 10px; }
+  .colhead { color:#b78a46; font-size:10px; font-weight:bold; letter-spacing:1px; text-align:center; padding:2px 0 4px; }
+  .col { flex:1; display:flex; flex-direction:column; }
+  .slots { flex:1; display:flex; flex-direction:column; gap:5px; }
+  .slot { flex:1; background:#121e30; border:1px solid #24344a; border-radius:4px; position:relative; display:flex; align-items:center; padding:0 8px; gap:7px; overflow:hidden; }
+  .slot.empty { opacity:.45; }
+  .accent { position:absolute; left:0; top:0; bottom:0; width:4px; }
+  .cname { color:#e8e0c8; font-size:12px; font-weight:bold; line-height:1.15; text-shadow:0 1px 3px #000; }
+  .csub { color:#c8d0dc; font-size:9px; text-shadow:0 1px 2px #000; }
+  .num { position:absolute; right:6px; top:4px; color:#aab4c6; font-size:10px; font-weight:bold; text-shadow:0 1px 2px #000; z-index:1; }
+  .nume { left:6px; right:auto; }
+  .art { background-size:cover; background-position:center 22%; }
+  .art::before { content:""; position:absolute; inset:0; background:linear-gradient(90deg, #0b1420ee 0%, #0b1420cc 46%, #0b142033 100%); }
+  .art.e::before { background:linear-gradient(270deg, #0b1420ee 0%, #0b1420cc 46%, #0b142033 100%); }
+  .art > * { position:relative; z-index:1; }
+
+  .identity { display:flex; align-items:center; justify-content:center; gap:6px; padding:4px 0 2px; color:#e8e0c8; font-size:10px; font-weight:bold; }
+  .pip { width:9px; height:9px; background:#b78a46; border:1px solid #3a4a62; }
+  .idtail { color:#8a94a6; font-weight:normal; }
+
+  .foot { display:flex; gap:8px; padding:8px 10px 12px; background:#0e1726; border-top:1px solid #24344a; }
+  .btn { background:#1b2940; border:1px solid #3a4a62; color:#e8e0c8; font-size:13px; font-weight:bold; padding:12px 0; text-align:center; border-radius:6px; flex:1; }
+  .btn.gold { background:#b78a46; color:#1a1208; flex:2; }
+</style>
+</head>
+<body>
+
+<div>
+<div class="label">MOBILE PREP v2 — vertical columns: YOUR DECK vs ENEMY SKILLS, like battle</div>
+<div class="phone">
+  <div class="tabs">
+    <div class="tab on">PREP</div>
+    <div class="tab">DECK BUILD</div>
+    <div class="tab">WIKI</div>
+  </div>
+
+  <div class="roster">
+    <div class="rchip focus"><div class="rname">BANDIT DUELIST</div><div class="rsub">ELITE · LV 1 · PL 37.5</div></div>
+    <div class="rchip"><div class="rname">EMBER IMP</div><div class="rsub">MOB · LV 1</div></div>
+    <div class="rchip radd">+ FOE</div>
+  </div>
+
+  <div class="sheet">
+    <div class="spine"></div>
+    <div class="etag">ELITE</div>
+    <div class="ename">Bandit Duelist</div>
+    <div class="estats">HP 140 · SPD 15 · ATK 16 · MAG 0 <span class="dim">· DEF 2 · RES 1 · CRIT 9%</span></div>
+    <div class="threat">DMG/turn 36–43 <span class="weak">⚔ weak to LANCE</span></div>
+    <div class="knobs">
+      <div class="titlechips">
+        <div class="tc">MOB</div><div class="tc">NORM</div><div class="tc on">ELITE</div><div class="tc">BOSS</div>
+      </div>
+      <div class="step"><span>LV</span><div class="pm">−</div><b>1</b><div class="pm">+</div></div>
+      <div class="step"><span>RANK</span><div class="pm">−</div><b>2</b><div class="pm">+</div></div>
+    </div>
+  </div>
+
+  <div class="colwrap">
+    <div class="col">
+      <div class="colhead">YOUR DECK · 8/10 · PL 64</div>
+      <div class="slots">
+        <div class="slot art" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/sword-slash-anime.png')"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10</div></div><div class="num">1</div></div>
+        <div class="slot art" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/war-banner-anime.png')"><div class="accent" style="background:#d8a018"></div><div><div class="cname">War Banner</div><div class="csub">⚔ AURA +5</div></div><div class="num">2</div></div>
+        <div class="slot art" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/sword-slash-anime.png')"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10</div></div><div class="num">3</div></div>
+        <div class="slot art" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/second-wind-anime.png')"><div class="accent" style="background:#57a05f"></div><div><div class="cname">Second Wind</div><div class="csub">❊ HEAL 50</div></div><div class="num">4</div></div>
+        <div class="slot art" style="flex:2; background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/iron-bulwark-anime.png')"><div class="accent" style="background:#5f7ab0"></div><div><div class="cname">Iron Bulwark</div><div class="csub">⚔ SHLD 48 · 2 slots</div></div><div class="num">5-6</div></div>
+        <div class="slot empty"><div class="num">7</div></div>
+        <div class="slot empty"><div class="num">8</div></div>
+        <div class="slot empty"><div class="num">9</div></div>
+        <div class="slot empty"><div class="num">10</div></div>
+      </div>
+      <div class="identity">SWORD <div class="pip"></div><div class="pip"></div><div class="pip"></div> <span class="idtail">+20% DMG</span></div>
+    </div>
+
+    <div class="col">
+      <div class="colhead">ENEMY SKILLS · 3 cards</div>
+      <div class="slots">
+        <div class="slot art e" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/sword-slash-anime.png')"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ DMG 30</div></div><div class="num nume">1</div></div>
+        <div class="slot art e" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/follow-through-anime.png')"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Follow-Through</div><div class="csub">⚔ DMG 15 · COMBO</div></div><div class="num nume">2</div></div>
+        <div class="slot art e" style="background-image:url('file:///C:/Users/wenwa/source/repos/wwang109/world1/public/game-art/cards/venom-fang-anime.png')"><div class="accent" style="background:#8858b8"></div><div><div class="cname">Venom Fang</div><div class="csub">🐍 DMG 16 · PSN 5</div></div><div class="num nume">3</div></div>
+        <div class="slot empty"><div class="num nume">4</div></div>
+        <div class="slot empty"><div class="num nume">5</div></div>
+        <div class="slot empty"><div class="num nume">6</div></div>
+        <div class="slot empty"><div class="num nume">7</div></div>
+        <div class="slot empty"><div class="num nume">8</div></div>
+        <div class="slot empty"><div class="num nume">9</div></div>
+        <div class="slot empty"><div class="num nume">10</div></div>
+      </div>
+      <div class="identity"><span class="idtail">tap any card to inspect</span></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="btn">🎲 SEED 1</div>
+    <div class="btn gold">⚔ FIGHT</div>
+  </div>
+</div>
+</div>
+
+</body>
+</html>
