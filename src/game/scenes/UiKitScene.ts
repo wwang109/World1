@@ -13,6 +13,7 @@ import {
 } from '../theme';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { CardToken } from '../ui/CardToken';
+import { BoardColumn } from '../ui/BoardColumn';
 import { templateBadgeTextureKey } from '../ui/cardArtPresentation';
 import type { SkillDef } from '../../engine/types';
 
@@ -120,23 +121,20 @@ export class UiKitScene extends Phaser.Scene {
     label(x0, 'YOUR DECK · number top-right');
     label(x0 + colW + gap, 'OPPONENT · number top-left');
 
-    const renderCol = (skills: SkillDef[], colX: number, side: 'left' | 'right'): void => {
-      let slot = 1;
-      let y = top + 24;
+    // Both columns are just BoardColumn — the same helper the real screens use.
+    const toPieces = (skills: SkillDef[]): { skill: SkillDef; slot: number; state?: 'none' | 'cursor' }[] => {
+      const pieces: { skill: SkillDef; slot: number; state?: 'none' | 'cursor' }[] = [];
+      let slot = 0;
       for (let i = 0; i < skills.length; i++) {
-        const skill = skills[i]!;
-        const span = skill.size >= 2 ? skill.size : 1;
-        const hgt = rowH * span + (span - 1) * 6;
-        const slotLabel = span > 1 ? `${slot}-${slot + span - 1}` : `${slot}`;
-        this.keep(new CardToken(this, colX + colW / 2, y + hgt / 2, skill, {
-          width: colW, height: hgt, side, slotLabel, deck: skills, state: i === 0 ? 'cursor' : 'none',
-        }));
-        y += hgt + 6;
-        slot += span;
+        pieces.push({ skill: skills[i]!, slot, state: i === 0 ? 'cursor' : 'none' });
+        slot += Math.max(1, skills[i]!.size);
       }
+      return pieces;
     };
-    renderCol(left, x0, 'left');
-    renderCol(right, x0 + colW + gap, 'right');
+    const colY = top + 24;
+    const colH = rowH * 10 + 6 * 9;
+    for (const t of new BoardColumn(this, { x: x0, y: colY, width: colW, height: colH, side: 'left', pieces: toPieces(left), deck: left }).tokens) this.keep(t);
+    for (const t of new BoardColumn(this, { x: x0 + colW + gap, y: colY, width: colW, height: colH, side: 'right', pieces: toPieces(right), deck: right }).tokens) this.keep(t);
   }
 
   // ---------- shared little builders ----------
