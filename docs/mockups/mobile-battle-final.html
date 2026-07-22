@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { background:#06090f; margin:0; padding:24px; font-family: Verdana, sans-serif; display:flex; gap:28px; justify-content:center; }
+  .phone { width:412px; height:892px; background:#0b1420; border:2px solid #2a3a52; border-radius:18px; overflow:hidden; display:flex; flex-direction:column; }
+  .label { color:#8a94a6; font-size:11px; text-align:center; padding:6px 0; letter-spacing:1px; }
+
+  /* TOP: the log dock */
+  .dock { background:#101a2a; border-bottom:2px solid #b78a46; }
+  .turnline { display:flex; gap:10px; padding:8px 12px 3px; align-items:baseline; }
+  .ttag { color:#b78a46; font-size:12px; font-weight:bold; }
+  .ttext { color:#cdd4de; font-size:12px; }
+  .expand { margin-left:auto; color:#8a94a6; font-size:11px; font-weight:bold; }
+  .feed { padding:2px 12px 6px; }
+  .frow { display:flex; gap:8px; padding:3.5px 0; border-top:1px solid #1c2940; align-items:baseline; }
+  .tag { font-size:11px; font-weight:bold; width:52px; flex:none; }
+  .t-play{color:#4f9e57} .t-hit{color:#d05c4e} .t-debuff{color:#a678d8} .t-buff{color:#5fb56a} .t-wait{color:#c9a15a} .t-end{color:#7a86a0}
+  .ftext { color:#e8e0c8; font-size:13px; line-height:1.25; }
+  .fmath { color:#8a94a6; font-size:11px; }
+
+  /* MID: names + hp */
+  .hdr { padding:8px 12px 4px; }
+  .hpline { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .hpname { color:#e8e0c8; font-size:13px; font-weight:bold; width:64px; }
+  .hpbar { flex:1; height:14px; background:#1b2431; border:1px solid #3a4a62; position:relative; }
+  .hpfill-p { position:absolute; inset:0; width:56%; background:#4f9e57; }
+  .hpfill-e { position:absolute; inset:0; width:40%; background:#b0483c; }
+  .shield { position:absolute; top:-5px; left:0; width:14%; height:4px; background:#5fa8d3; }
+  .hpnum { color:#e8e0c8; font-size:13px; font-weight:bold; width:72px; text-align:right; }
+  .statusrow { color:#b090d8; font-size:11px; padding:0 12px 4px; }
+
+  /* roster: swap which friend/enemy board is focused — tap chip or swipe board */
+  .roster { display:flex; gap:6px; padding:2px 12px 6px; }
+  .rside { flex:1; display:flex; gap:5px; }
+  .rchip { flex:1; background:#16233a; border:1px solid #24344a; border-radius:5px; padding:4px 6px 5px; position:relative; }
+  .rchip.focus { border-color:#e8b446; box-shadow:0 0 8px #e8b44655; }
+  .rname { color:#e8e0c8; font-size:10px; font-weight:bold; }
+  .rhp { height:4px; background:#1b2431; margin-top:3px; border-radius:2px; overflow:hidden; }
+  .rhp div { height:100%; }
+  .dots { display:flex; justify-content:center; gap:5px; padding:3px 0 0; }
+  .dot { width:6px; height:6px; border-radius:50%; background:#2a3a52; }
+  .dot.on { background:#b78a46; }
+  /* aggro leader: who enemy attacks land on — follows taunts, not the camera */
+  .aggro { position:absolute; top:-7px; right:-4px; background:#b0483c; color:#fff; font-size:8px; font-weight:bold; padding:1px 5px; border-radius:6px; }
+
+  /* boards + vertical scrubber */
+  .boards { flex:1; display:flex; gap:6px; padding:4px 10px 6px; }
+  .col { flex:1; display:flex; flex-direction:column; gap:5px; }
+  .slot { flex:1; background:#121e30; border:1px solid #24344a; border-radius:4px; position:relative; display:flex; align-items:center; padding:0 8px; gap:7px; }
+  .slot.empty { opacity:.45; }
+  .cardp { background:#2c3e58; }
+  .carde { background:#45291f; }
+  .accent { position:absolute; left:0; top:0; bottom:0; width:4px; }
+  .cname { color:#e8e0c8; font-size:12.5px; font-weight:bold; line-height:1.15; }
+  .csub { color:#9aa4b6; font-size:9.5px; }
+  .num { position:absolute; right:6px; top:4px; color:#7a86a0; font-size:10px; font-weight:bold; }
+  .nume { left:6px; right:auto; }
+  .cursor { outline:3px solid #e8b446; outline-offset:1px; box-shadow:0 0 18px #e8b44688; }
+  .cursor::after { content:"▶ NEXT"; position:absolute; right:-2px; bottom:-1px; background:#e8b446; color:#1a1208; font-size:9px; font-weight:bold; padding:1px 5px; border-radius:3px 0 3px 0; }
+  .cursorE::after { content:"NEXT ◀"; right:auto; left:-2px; border-radius:0 3px 0 3px; }
+  .cooldown { position:absolute; right:6px; bottom:4px; color:#c9a15a; font-size:9px; }
+
+  .vtrack { width:16px; flex:none; position:relative; margin:2px 0; }
+  .vrail { position:absolute; left:50%; top:0; bottom:0; width:8px; transform:translateX(-50%); background:#16233a; border:1px solid #2a3a52; border-radius:4px; }
+  .vfill { position:absolute; left:50%; top:0; height:42%; width:8px; transform:translateX(-50%); background:linear-gradient(180deg,#7a5c2e,#b78a46); border-radius:4px 4px 0 0; }
+  .vhandle { position:absolute; left:50%; top:42%; transform:translate(-50%,-50%); width:24px; height:24px; background:#e8b446; border:2px solid #1a1208; border-radius:50%; box-shadow:0 0 10px #e8b44688; z-index:2; }
+  .vlabel { position:absolute; left:50%; top:42%; transform:translate(-50%,16px); color:#e8b446; font-size:9px; font-weight:bold; white-space:nowrap; z-index:2; }
+  /* anchor points: MAJOR detent per turn, MINI detent per log row inside it */
+  .vtick { position:absolute; left:50%; transform:translate(-50%,-50%); width:14px; height:3px; background:#3a4a62; border-radius:2px; z-index:1; }
+  .vtick.done { background:#b78a46; }
+  .vmini { position:absolute; left:50%; transform:translate(-50%,-50%); width:7px; height:2px; background:#2c3e58; border-radius:1px; }
+  .vmini.done { background:#8a6a34; }
+
+  /* turn chips + controls */
+  .scrub { display:flex; align-items:center; gap:5px; padding:6px 12px; background:#0e1726; border-top:1px solid #24344a; }
+  .arrow { color:#8a94a6; font-size:13px; font-weight:bold; padding:0 4px; }
+  .tchip { flex:1; text-align:center; color:#8a94a6; font-size:11px; font-weight:bold; padding:5px 0; background:#16233a; border:1px solid #24344a; border-radius:4px; }
+  .tchip.done { color:#cdd4de; }
+  .tchip.cur { background:#b78a46; color:#1a1208; box-shadow:0 0 10px #b78a4655; }
+  .tchip.future { opacity:.35; }
+  .controls { display:flex; gap:8px; padding:8px 12px 12px; background:#0e1726; }
+  .btn { background:#1b2940; border:1px solid #3a4a62; color:#e8e0c8; font-size:13px; font-weight:bold; padding:9px 0; text-align:center; border-radius:5px; flex:1; }
+  .speed { display:flex; border:1px solid #3a4a62; border-radius:5px; overflow:hidden; flex:none; }
+  .speed div { padding:9px 12px; font-size:11px; font-weight:bold; color:#8a94a6; background:#131f32; }
+  .speed .on { background:#b78a46; color:#1a1208; }
+</style>
+</head>
+<body>
+
+<div>
+<div class="label">MOBILE BATTLE — FINAL: log top · HP mid · boards + vertical scrubber · chips + controls bottom</div>
+<div class="phone">
+  <div class="dock">
+    <div class="turnline"><div class="ttag">T3</div><div class="ttext">Hero 18 · SPD +16 &nbsp;·&nbsp; Bandit 25 · SPD +15</div><div class="expand">LOG ▼</div></div>
+    <div class="feed">
+      <div class="frow"><div class="tag t-play">PLAY</div><div class="ftext">Hero · Sword Slash</div></div>
+      <div class="frow"><div class="tag t-hit">HIT</div><div class="ftext">Bandit −63 CRIT · 57/120<br><span class="fmath">D: base 20 + (12 ATK) + (5 AURA) − (2 DEF) + (21 CRIT) = 63</span></div></div>
+      <div class="frow"><div class="tag t-debuff">DEBUFF</div><div class="ftext">Hero · Poison 5</div></div>
+      <div class="frow"><div class="tag t-wait">WAIT</div><div class="ftext">Hero · saving 16/30 for Crushing Blow</div></div>
+    </div>
+  </div>
+  <div class="hdr">
+    <div class="hpline"><div class="hpname">HERO</div><div class="hpbar"><div class="hpfill-p"></div><div class="shield"></div></div><div class="hpnum">84/150</div></div>
+    <div class="hpline"><div class="hpname" style="color:#d8a08a">BANDIT</div><div class="hpbar"><div class="hpfill-e"></div></div><div class="hpnum">56/140</div></div>
+  </div>
+  <div class="statusrow">You: ☠4 poison · Bandit: —</div>
+  <div class="roster">
+    <div class="rside">
+      <div class="rchip focus"><div class="aggro">◎ TARGET</div><div class="rname">HERO</div><div class="rhp"><div style="width:56%;background:#4f9e57"></div></div></div>
+      <div class="rchip"><div class="rname">KNIGHT</div><div class="rhp"><div style="width:88%;background:#4f9e57"></div></div></div>
+    </div>
+    <div class="rside">
+      <div class="rchip focus"><div class="aggro">◎ TARGET</div><div class="rname">BANDIT</div><div class="rhp"><div style="width:40%;background:#b0483c"></div></div></div>
+      <div class="rchip"><div class="rname">IMP</div><div class="rhp"><div style="width:100%;background:#b0483c"></div></div></div>
+    </div>
+  </div>
+  <div class="boards">
+    <div class="col">
+      <div class="slot cardp"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10</div></div><div class="num">1</div><div class="cooldown">⏳2</div></div>
+      <div class="slot cardp"><div class="accent" style="background:#d8a018"></div><div><div class="cname">War Banner</div><div class="csub">⚔ AURA +5</div></div><div class="num">2</div></div>
+      <div class="slot cardp cursor"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10</div></div><div class="num">3</div></div>
+      <div class="slot cardp"><div class="accent" style="background:#57a05f"></div><div><div class="cname">Second Wind</div><div class="csub">❊ W10</div></div><div class="num">4</div></div>
+      <div class="slot cardp" style="flex:2"><div class="accent" style="background:#5f7ab0"></div><div><div class="cname">Iron Bulwark</div><div class="csub">⚔ W20 · 2 slots</div></div><div class="num">5-6</div></div>
+      <div class="slot empty"><div class="csub">7</div></div>
+    </div>
+    <div class="vtrack">
+      <div class="vrail"></div>
+      <div class="vfill"></div>
+      <div class="vtick done" style="top:2%"></div>
+      <div class="vmini done" style="top:7%"></div>
+      <div class="vmini done" style="top:12%"></div>
+      <div class="vmini done" style="top:17%"></div>
+      <div class="vtick done" style="top:22%"></div>
+      <div class="vmini done" style="top:27%"></div>
+      <div class="vmini done" style="top:32%"></div>
+      <div class="vmini done" style="top:37%"></div>
+      <div class="vtick done" style="top:42%"></div>
+      <div class="vmini" style="top:47%"></div>
+      <div class="vmini" style="top:52%"></div>
+      <div class="vmini" style="top:57%"></div>
+      <div class="vtick" style="top:62%"></div>
+      <div class="vmini" style="top:68%"></div>
+      <div class="vmini" style="top:75%"></div>
+      <div class="vtick" style="top:82%"></div>
+      <div class="vmini" style="top:88%"></div>
+      <div class="vmini" style="top:93%"></div>
+      <div class="vtick" style="top:98%"></div>
+      <div class="vhandle"></div>
+      <div class="vlabel">T3</div>
+    </div>
+    <div class="col">
+      <div class="slot carde"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Sword Slash</div><div class="csub">⚔ W10</div></div><div class="num nume">1</div></div>
+      <div class="slot carde cursor cursorE"><div class="accent" style="background:#c94f3f"></div><div><div class="cname">Follow-Through</div><div class="csub">⚔ W10</div></div><div class="num nume">2</div></div>
+      <div class="slot carde"><div class="accent" style="background:#8858b8"></div><div><div class="cname">Venom Fang</div><div class="csub">🐍 W12</div></div><div class="num nume">3</div></div>
+      <div class="slot empty"><div class="csub">4</div></div>
+      <div class="slot empty"><div class="csub">5</div></div>
+      <div class="slot empty" style="flex:2"><div class="csub">6-7</div></div>
+    </div>
+  </div>
+  <div style="display:flex; padding:0 10px;">
+    <div style="flex:1"><div class="dots"><div class="dot on"></div><div class="dot"></div></div></div>
+    <div style="width:16px"></div>
+    <div style="flex:1"><div class="dots"><div class="dot on"></div><div class="dot"></div></div></div>
+  </div>
+  <div class="scrub">
+    <div class="arrow">‹</div>
+    <div class="tchip done">T1</div>
+    <div class="tchip done">T2</div>
+    <div class="tchip cur">T3</div>
+    <div class="tchip future">T4</div>
+    <div class="tchip future">T5</div>
+    <div class="tchip future">T6</div>
+    <div class="arrow">›</div>
+  </div>
+  <div class="controls">
+    <div class="speed"><div class="on">1×</div><div>2×</div></div>
+    <div class="btn">DETAIL</div>
+    <div class="btn">END</div>
+  </div>
+</div>
+</div>
+
+</body>
+</html>
