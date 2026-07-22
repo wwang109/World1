@@ -12,13 +12,16 @@ import {
   UI,
 } from '../theme';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
+import { CardToken } from '../ui/CardToken';
 import { templateBadgeTextureKey } from '../ui/cardArtPresentation';
+import type { SkillDef } from '../../engine/types';
 
-type KitTab = 'system' | 'card' | 'gem-a' | 'gem-b' | 'gem-c';
+type KitTab = 'system' | 'card' | 'tokens' | 'gem-a' | 'gem-b' | 'gem-c';
 
 const TABS: Array<{ key: KitTab; label: string }> = [
   { key: 'system', label: 'SYSTEM' },
   { key: 'card', label: 'CARD & BADGES' },
+  { key: 'tokens', label: 'CARD TOKENS' },
   { key: 'gem-a', label: 'GEM A' },
   { key: 'gem-b', label: 'GEM B' },
   { key: 'gem-c', label: 'GEM C' },
@@ -91,7 +94,49 @@ export class UiKitScene extends Phaser.Scene {
     const top = 136;
     if (this.tab === 'system') this.renderSystem(top);
     else if (this.tab === 'card') this.renderCard(top);
+    else if (this.tab === 'tokens') this.renderTokens(top);
     else this.renderGemPicker(this.tab, top);
+  }
+
+  /**
+   * The shared mobile CardToken rendered from REAL skillBook data — two
+   * mirrored columns (deck left / opponent right), the affinity + identity
+   * "n/3" sub-line, per-type accent color and card art. Nothing hand-typed;
+   * change skills.ts / theme.ts and this updates.
+   */
+  private renderTokens(top: number): void {
+    const left = ['sword_slash', 'war_banner', 'iron_bulwark', 'second_wind', 'crushing_blow']
+      .map((id) => skillBook[id]).filter((s): s is NonNullable<typeof s> => Boolean(s));
+    const right = ['savage_bite', 'hunter_shot', 'armor_break', 'crippling_strike', 'fireball']
+      .map((id) => skillBook[id]).filter((s): s is NonNullable<typeof s> => Boolean(s));
+
+    const colW = 232;
+    const gap = 24;
+    const x0 = SCREEN.safeX;
+    const rowH = 66;
+    const label = (x: number, t: string): void => {
+      this.keep(this.add.text(x + colW / 2, top, t, { fontSize: '11px', color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0));
+    };
+    label(x0, 'YOUR DECK · number top-right');
+    label(x0 + colW + gap, 'OPPONENT · number top-left');
+
+    const renderCol = (skills: SkillDef[], colX: number, side: 'left' | 'right'): void => {
+      let slot = 1;
+      let y = top + 24;
+      for (let i = 0; i < skills.length; i++) {
+        const skill = skills[i]!;
+        const span = skill.size >= 2 ? skill.size : 1;
+        const hgt = rowH * span + (span - 1) * 6;
+        const slotLabel = span > 1 ? `${slot}-${slot + span - 1}` : `${slot}`;
+        this.keep(new CardToken(this, colX + colW / 2, y + hgt / 2, skill, {
+          width: colW, height: hgt, side, slotLabel, deck: skills, state: i === 0 ? 'cursor' : 'none',
+        }));
+        y += hgt + 6;
+        slot += span;
+      }
+    };
+    renderCol(left, x0, 'left');
+    renderCol(right, x0 + colW + gap, 'right');
   }
 
   // ---------- shared little builders ----------
