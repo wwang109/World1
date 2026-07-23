@@ -32,6 +32,10 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     const launch = applyDevLaunchConfig();
-    this.scene.start(launch.scene === 'battle' ? 'Battle' : launch.scene === 'uikit' ? 'UiKit' : 'Prep');
+    const target = launch.scene === 'battle' ? 'Battle'
+      : launch.scene === 'uikit' ? 'UiKit'
+      : launch.scene === 'mprep' ? 'MobilePrep'
+      : 'Prep';
+    this.scene.start(target);
   }
 }
