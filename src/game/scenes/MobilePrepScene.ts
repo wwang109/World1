@@ -14,17 +14,20 @@ import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
  *  frame on the current canvas until the mobile layout profile switches the
  *  canvas size. Reachable at ?scene=mprep. */
 export class MobilePrepScene extends Phaser.Scene {
-  private readonly W = 412;
-  private readonly H = 892;
+  // Fills the whole canvas — on a phone the FIT-scaled canvas fills the screen.
+  private W = SCREEN.width;
+  private H = SCREEN.height;
   private ox = 0;
-  private oy = 40;
+  private oy = 0;
 
   constructor() { super('MobilePrep'); }
 
   create(): void {
-    this.ox = Math.round((SCREEN.width - this.W) / 2);
-    this.cameras.main.setBackgroundColor(UI.bg);
-    this.add.rectangle(this.ox, this.oy, this.W, this.H, 0x0b1420).setOrigin(0, 0).setStrokeStyle(2, 0x2a3a52);
+    this.W = SCREEN.width;
+    this.H = SCREEN.height;
+    this.ox = 0;
+    this.oy = 0;
+    this.cameras.main.setBackgroundColor(0x0b1420);
 
     const title = demoState.enemyTitle;
     const level = demoState.enemyLevel;

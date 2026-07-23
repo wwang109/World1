@@ -82,18 +82,26 @@ export class CardToken extends Phaser.GameObjects.Container {
     line(1, summarizeEffects(skill), '10px', '#e8d8b0');       // DMG 16 · PSN 5 (real, from effects)
     line(15, this.affinityLine(skill, type, opts.deck), '9px', '#9aa4b6');
 
+    // small dark scrim so a corner label stays readable over bright art.
+    const cornerX = side === 'left' ? 1 : 0;
+    const scrimLabel = (t: Phaser.GameObjects.Text): void => {
+      const scrim = scene.add.rectangle(t.x, t.y, t.width + 8, t.height + 3, 0x0b1420, 0.55)
+        .setOrigin(cornerX, t.originY);
+      this.add(scrim);
+      this.add(t);
+    };
+
     // slot number — inward TOP corner
     if (opts.slotLabel) {
-      this.add(scene.add.text(inwardX, -h / 2 + 5, opts.slotLabel, {
-        fontSize: '10px', color: '#aab4c6', fontFamily: FONT.body, fontStyle: 'bold',
-      }).setOrigin(side === 'left' ? 1 : 0, 0));
+      scrimLabel(scene.add.text(inwardX, -h / 2 + 5, opts.slotLabel, {
+        fontSize: '10px', color: '#e6ecf5', fontFamily: FONT.body, fontStyle: 'bold',
+      }).setOrigin(cornerX, 0));
     }
 
     // weight — inward BOTTOM corner badge
-    const weightText = scene.add.text(inwardX, h / 2 - 5, `W${weightOf(skill)}`, {
+    scrimLabel(scene.add.text(inwardX, h / 2 - 5, `W${weightOf(skill)}`, {
       fontSize: '9px', color: '#c9a15a', fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(side === 'left' ? 1 : 0, 1);
-    this.add(weightText);
+    }).setOrigin(cornerX, 1));
 
     if (opts.state === 'cursor' || opts.state === 'drag') {
       bg.setStrokeStyle(3, 0xe8b446, 1);
