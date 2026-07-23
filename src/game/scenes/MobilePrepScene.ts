@@ -83,30 +83,42 @@ export class MobilePrepScene extends Phaser.Scene {
 
   private renderEnemySheet(encounter: ReturnType<typeof buildEnemyEncounter>, name: string, title: EnemyTitle): number {
     const top = 92;
-    const h = 96;
+    const h = 138;
     this.add.rectangle(this.x(10), this.y(top), this.W - 20, h, 0x101a2a).setOrigin(0, 0).setStrokeStyle(1, 0x2a3a52);
     this.add.rectangle(this.x(10), this.y(top), 5, h, 0xc9a15a).setOrigin(0, 0);
     this.text(20, top + 8, name, 16, '#e8e0c8', { display: true, bold: true });
     this.text(this.W - 20, top + 10, title.toUpperCase(), 9, '#1a1208', { bold: true, origin: [1, 0] })
       .setBackgroundColor('#c9a15a').setPadding(6, 3, 6, 3);
     const s = encounter.setup.stats;
-    this.text(20, top + 34, `HP ${s.maxHp} · SPD ${s.speed} · ATK ${s.attack} · MAG ${s.magicPower}`, 11, '#e8e0c8', { bold: true });
-    this.text(20, top + 50, `DEF ${s.armor} · RES ${s.magicResist} · CRIT ${s.critPct}%`, 10, '#9aa4b6');
+    this.text(20, top + 32, `HP ${s.maxHp} · SPD ${s.speed} · ATK ${s.attack} · MAG ${s.magicPower}`, 11, '#e8e0c8', { bold: true });
+    this.text(20, top + 47, `DEF ${s.armor} · RES ${s.magicResist} · CRIT ${s.critPct}% · ${encounter.setup.pieces.length} cards`, 10, '#9aa4b6');
     const band = damagePerTurn(encounter.setup, skillBook, { turns: 8, seeds: 8 });
-    this.text(20, top + 66, `DMG/turn ${band.min}–${band.max}`, 12, '#d05c4e', { bold: true });
+    this.text(20, top + 62, `DMG/turn ${band.min}–${band.max}`, 12, '#d05c4e', { bold: true });
 
-    // title / LV / RANK knobs
-    const knobY = top + 84;
+    // title chips (row 1)
     let kx = 20;
     for (const t of ENEMY_TITLES) {
       const active = t === title;
-      const w = 40;
-      this.button(kx, knobY - 4, w, 20, t.slice(0, 4).toUpperCase(), active ? 0xc9a15a : 0x16233a, active ? '#1a1208' : UI.textDim, () => {
+      const w = 44;
+      this.button(kx, top + 82, w, 22, t.slice(0, 4).toUpperCase(), active ? 0xc9a15a : 0x16233a, active ? '#1a1208' : UI.textDim, () => {
         demoState.enemyTitle = t; demoState.enemyRank = TITLE_PRESETS[t].rank; this.scene.restart();
-      }, 8);
-      kx += w + 4;
+      }, 9);
+      kx += w + 5;
     }
+
+    // LV + RANK steppers (row 2)
+    this.stepper(20, top + 110, 'LV', demoState.enemyLevel, (d) => { demoState.enemyLevel = Math.max(1, demoState.enemyLevel + d); this.scene.restart(); });
+    this.stepper(150, top + 110, 'RANK', demoState.enemyRank, (d) => { demoState.enemyRank = Math.max(0, demoState.enemyRank + d); this.scene.restart(); });
     return top + h;
+  }
+
+  private stepper(dx: number, dy: number, label: string, value: number, onDelta: (d: number) => void): void {
+    this.text(dx, dy + 6, label, 9, '#8a94a6', { bold: true });
+    const bx = dx + 34;
+    this.button(bx, dy, 24, 24, '−', 0x16233a, '#e8e0c8', () => onDelta(-1), 14);
+    this.add.rectangle(this.x(bx + 26), this.y(dy), 30, 24, 0x0e1726).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
+    this.text(bx + 41, dy + 6, `${value}`, 12, '#e8e0c8', { bold: true, origin: [0.5, 0] });
+    this.button(bx + 58, dy, 24, 24, '+', 0x16233a, '#e8e0c8', () => onDelta(1), 14);
   }
 
   private renderColumns(encounter: ReturnType<typeof buildEnemyEncounter>, sheetBottom: number): void {
