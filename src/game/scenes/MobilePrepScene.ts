@@ -144,6 +144,6 @@ export class MobilePrepScene extends Phaser.Scene {
       demoState.seed = 1 + Math.floor(Math.abs(Math.sin(demoState.seed * 97.13)) * 999999);
       this.scene.restart();
     });
-    this.button(10 + w / 3 + 4, y, (w * 2) / 3 - 4, 40, 'FIGHT', 0xb78a46, '#1a1208', () => this.scene.start('Battle'));
+    this.button(10 + w / 3 + 4, y, (w * 2) / 3 - 4, 40, 'FIGHT', 0xb78a46, '#1a1208', () => this.scene.start('MobileBattle'));
   }
 }
