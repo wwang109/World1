@@ -4,6 +4,7 @@ import { PrepScene } from './game/scenes/PrepScene';
 import { BattleScene } from './game/scenes/BattleScene';
 import { UiKitScene } from './game/scenes/UiKitScene';
 import { MobilePrepScene } from './game/scenes/MobilePrepScene';
+import { MobileDeckBuildScene } from './game/scenes/MobileDeckBuildScene';
 import { SCREEN } from './game/theme';
 
 // Crisp text: the canvas is a fixed 720×1280 buffer scaled with FIT, so on a
@@ -31,7 +32,7 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, PrepScene, BattleScene, UiKitScene, MobilePrepScene],
+  scene: [BootScene, PrepScene, BattleScene, UiKitScene, MobilePrepScene, MobileDeckBuildScene],
 });
 
 // Dev aid: lets Playwright smoke scripts hit-test Phaser input directly

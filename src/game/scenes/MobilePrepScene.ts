@@ -62,7 +62,7 @@ export class MobilePrepScene extends Phaser.Scene {
   private renderTabs(): void {
     const tabs: Array<[string, () => void]> = [
       ['PREP', () => {}],
-      ['DECK BUILD', () => { demoState.prepView = 'bag'; this.scene.start('Prep'); }],
+      ['DECK BUILD', () => this.scene.start('MobileDeckBuild')],
       ['WIKI', () => { demoState.prepView = 'codex'; this.scene.start('Prep'); }],
     ];
     const w = (this.W - 20 - 12) / 3;

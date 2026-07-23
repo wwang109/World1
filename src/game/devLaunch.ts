@@ -2,7 +2,7 @@ import { enemies } from '../data/enemies';
 import { defaultTitleFor, ENEMY_TITLES, TITLE_PRESETS, type EnemyTitle } from '../run/encounter';
 import { demoState, EMPTY_BOARD_OVERRIDES, resetDemoState, type DemoState, type EnemyFightConfig, type PrepView } from './demoState';
 
-export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep';
+export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck';
 
 export interface DevLaunchConfig {
   scene: LaunchScene;
@@ -43,6 +43,7 @@ function readSearchParam(search: string): URLSearchParams {
 function parseScene(value: string | null, view: string | null): LaunchScene {
   if (view === 'uikit' || value === 'uikit') return 'uikit';
   if (view === 'mprep' || value === 'mprep') return 'mprep';
+  if (view === 'mdeck' || value === 'mdeck') return 'mdeck';
   return value === 'battle' || value === 'multi' ? 'battle' : 'prep';
 }
 
