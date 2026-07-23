@@ -1,4 +1,5 @@
 import type { Archetype, Property, Rarity, SkillTier } from '../engine/types';
+import { ACTIVE_PROFILE } from './layoutProfile';
 
 export const PROPERTY_COLOR: Record<Property, number> = {
   physical: 0xd98a3d,
@@ -191,12 +192,14 @@ export const FONT = {
   body: 'Verdana, Segoe UI, sans-serif',
 };
 
+// SCREEN reflects the ACTIVE layout profile's canvas (mobile-first). The old
+// desktop scenes still read this; a dedicated desktop build comes later.
 export const SCREEN = {
-  width: 720,
-  height: 1280,
-  safeX: 28,
-  safeTop: 28,
-  safeBottom: 28,
+  width: ACTIVE_PROFILE.canvas.width,
+  height: ACTIVE_PROFILE.canvas.height,
+  safeX: ACTIVE_PROFILE.safe.x,
+  safeTop: ACTIVE_PROFILE.safe.top,
+  safeBottom: ACTIVE_PROFILE.safe.bottom,
 };
 
 export const FOOTER_ACTION_LAYOUT = {

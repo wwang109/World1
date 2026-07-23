@@ -12,6 +12,16 @@ CSS px, tap targets shrink below comfortable size, and the three-column
 battle screen is cramped. Text sharpness is already handled (global 2-3×
 text resolution); the problem is SIZE and DENSITY, not blur.
 
+## Direction change (user, 2026-07-22)
+
+**Mobile-first, desktop deferred.** We are no longer preserving the current
+720×1280 desktop layouts — a dedicated desktop version is a SEPARATE later
+build. For now the game renders at the MOBILE canvas (~412×892) and boots
+into the mobile scenes; the old desktop scenes are left as-is (may look
+wrong at the mobile canvas — that's fine, they're not the target). Goal:
+the mobile screens are complete, with ALL locked features (below), not
+reduced v1s. This supersedes the "desktop/tablet byte-identical" constraint.
+
 ## Locked decisions (user, 2026-07-21)
 
 1. **Two layout profiles** (option B). Desktop AND tablets share the

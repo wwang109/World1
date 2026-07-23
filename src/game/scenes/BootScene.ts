@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { applyDevLaunchConfig } from '../devLaunch';
+import { ACTIVE_PROFILE } from '../layoutProfile';
 import { CARD_ART_CATALOG } from '../ui/cardArtCatalog';
 
 export class BootScene extends Phaser.Scene {
@@ -32,11 +33,15 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     const launch = applyDevLaunchConfig();
+    // Explicit ?scene/?view wins; otherwise the mobile profile boots into the
+    // mobile flow (Prep), desktop into the legacy Prep (dedicated desktop later).
+    const defaultScene = ACTIVE_PROFILE.id === 'mobile' ? 'MobilePrep' : 'Prep';
     const target = launch.scene === 'battle' ? 'Battle'
       : launch.scene === 'uikit' ? 'UiKit'
       : launch.scene === 'mprep' ? 'MobilePrep'
       : launch.scene === 'mdeck' ? 'MobileDeckBuild'
       : launch.scene === 'mbattle' ? 'MobileBattle'
+      : launch.prepView === 'loadout' ? defaultScene
       : 'Prep';
     this.scene.start(target);
   }
