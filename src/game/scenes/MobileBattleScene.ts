@@ -51,6 +51,25 @@ export class MobileBattleScene extends Phaser.Scene {
 
   private skillName(id: string): string { return skillBook[id]?.name ?? id; }
 
+  /** The HIT `D:` math line (locked grammar): base n + (n LABEL) … = total. */
+  private formatDmg(c: NonNullable<Extract<CombatEvent, { kind: 'damage' }>['calculation']>): string {
+    const stat = c.scalingStat === 'attack' ? 'ATK' : 'MAG';
+    const def = c.scalingStat === 'attack' ? 'DEF' : 'RES';
+    const terms = [`base ${c.power}`];
+    const add = (label: string, v: number): void => { if (v) terms.push(`${v > 0 ? '+' : '−'} (${Math.abs(v)} ${label})`); };
+    add(stat, c.baseStat);
+    add('BUFF', c.statBonusDamage);
+    add('SKILL', c.effectBonusDamage);
+    add('IDENTITY', c.identityBonusDamage ?? 0);
+    add(def, -c.defense);
+    add('CRIT', c.critBonusDamage);
+    add('AFFINITY', c.matchupBonusDamage);
+    add('RAMP', c.suddenDeathBonusDamage);
+    add('GUARD', -c.guardReduction);
+    add('BLOCK', -c.shieldBlocked);
+    return `D: ${terms.join(' ')} = ${c.hpDamage}`;
+  }
+
   private buildFight(): void {
     const heroEncounter = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces.map((p) => ({ ...p })));
     const hero = heroEncounter.setup;
@@ -87,8 +106,10 @@ export class MobileBattleScene extends Phaser.Scene {
           const dealt = Math.max(0, e.amount - e.blocked);
           if (e.side === 'player') cur.player = e.hpAfter; else cur.enemy = e.hpAfter;
           const hp = e.side === 'player' ? `${e.hpAfter}/${cur.playerMax}` : `${e.hpAfter}/${cur.enemyMax}`;
-          if (e.source === 'skill') push(e.turn, 'HIT', `${label(e)} −${dealt}${e.crit ? ' CRIT' : ''} · ${hp}`);
-          else { const cap = e.source.charAt(0).toUpperCase() + e.source.slice(1); push(e.turn, 'DEBUFF', `${cap} · ${label(e)} −${dealt} · ${hp}`); }
+          if (e.source === 'skill') {
+            push(e.turn, 'HIT', `${label(e)} −${dealt}${e.crit ? ' CRIT' : ''} · ${hp}`);
+            if (e.calculation) push(e.turn, '', this.formatDmg(e.calculation));
+          } else { const cap = e.source.charAt(0).toUpperCase() + e.source.slice(1); push(e.turn, 'DEBUFF', `${cap} · ${label(e)} −${dealt} · ${hp}`); }
           break;
         }
         case 'heal': if (e.side === 'player') cur.player = e.hpAfter; else cur.enemy = e.hpAfter; push(e.turn, 'BUFF', `${label(e)} +${e.amount} HP`); break;
@@ -120,10 +141,16 @@ export class MobileBattleScene extends Phaser.Scene {
     this.add.rectangle(0, 0, this.W, dockH, 0x101a2a).setOrigin(0, 0).setStrokeStyle(2, 0xb78a46, 0.9);
     this.add.text(12, 8, `TURN ${turn}${turn === this.turns[this.turns.length - 1]! ? ` · ${this.outcome}` : ''}`, { fontSize: '13px', color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' });
     let ly = 30;
-    for (const line of (this.linesByTurn.get(turn) ?? []).slice(0, 9)) {
+    for (const line of (this.linesByTurn.get(turn) ?? []).slice(0, 10)) {
+      if (line.tag === '') {
+        // D: math sub-line — dim, indented under its HIT
+        this.add.text(64, ly, line.text, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, wordWrap: { width: this.W - 76 }, maxLines: 1 });
+        ly += 16;
+        continue;
+      }
       this.add.text(12, ly, line.tag, { fontSize: '11px', color: TAG_COLOR[line.tag] ?? UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' });
       this.add.text(64, ly, line.text, { fontSize: '12px', color: '#e8e0c8', fontFamily: FONT.body, wordWrap: { width: this.W - 76 }, maxLines: 1 });
-      ly += 19;
+      ly += 18;
     }
 
     // ---- HP block ----
@@ -131,18 +158,54 @@ export class MobileBattleScene extends Phaser.Scene {
     this.hpBar(hpY, this.heroName, hp.player, hp.playerMax, UI.good ?? 0x4f9e57);
     this.hpBar(hpY + 26, this.foeName, hp.enemy, hp.enemyMax, UI.bad ?? 0xb0483c);
 
-    // ---- boards ----
+    // ---- boards (with a gutter for the vertical scrubber) ----
     const top = hpY + 60;
     const colH = this.H - top - 58;
-    const colW = (this.W - 20 - 8) / 2;
-    this.add.text(10 + colW / 2, top - 4, 'YOUR DECK', { fontSize: '10px', color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
-    this.add.text(10 + colW + 8 + colW / 2, top - 4, this.foeName.toUpperCase(), { fontSize: '10px', color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
-    new BoardColumn(this, { x: 10, y: top, width: colW, height: colH, side: 'left', pieces: this.heroPieces, deck: this.heroSkills });
-    new BoardColumn(this, { x: 10 + colW + 8, y: top, width: colW, height: colH, side: 'right', pieces: this.foePieces, deck: this.foeSkills });
+    const gutterW = 24;
+    const colW = (this.W - 20 - gutterW) / 2;
+    const deckX = 10; const gutterX = 10 + colW; const bagX = 10 + colW + gutterW;
+    this.add.text(deckX + colW / 2, top - 4, 'YOUR DECK', { fontSize: '10px', color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
+    this.add.text(bagX + colW / 2, top - 4, this.foeName.toUpperCase(), { fontSize: '10px', color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
+    new BoardColumn(this, { x: deckX, y: top, width: colW, height: colH, side: 'left', pieces: this.heroPieces, deck: this.heroSkills });
+    new BoardColumn(this, { x: bagX, y: top, width: colW, height: colH, side: 'right', pieces: this.foePieces, deck: this.foeSkills });
 
-    // ---- turn chips + controls ----
+    this.renderScrubber(gutterX + gutterW / 2, top, colH);
     this.renderChips();
     this.renderControls();
+
+    // ---- victory / defeat banner on the final turn ----
+    if (turn === this.turns[this.turns.length - 1]!) {
+      const good = this.outcome === 'VICTORY';
+      const by = top + colH / 2 - 26;
+      this.add.rectangle(deckX, by, this.W - 20, 52, good ? 0x143a1a : 0x3a1414, 0.92).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c);
+      this.add.text(this.W / 2, by + 26, this.outcome, { fontSize: '26px', color: good ? '#7fe08a' : '#f08a7a', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
+    }
+  }
+
+  /** Vertical scrubber in the board gutter: one major tick per turn, a
+   *  draggable gold handle. Drag the gutter to scrub turns. */
+  private renderScrubber(cx: number, top: number, height: number): void {
+    const n = this.turns.length;
+    this.add.rectangle(cx, top, 8, height, 0x16233a).setOrigin(0.5, 0).setStrokeStyle(1, 0x2a3a52, 1);
+    const yFor = (i: number): number => top + (n <= 1 ? 0 : (i / (n - 1)) * height);
+    // fill up to current
+    this.add.rectangle(cx, top, 8, yFor(this.idx) - top, 0xb78a46).setOrigin(0.5, 0);
+    // major ticks
+    for (let i = 0; i < n; i++) {
+      this.add.rectangle(cx, yFor(i), 14, 3, i <= this.idx ? 0xb78a46 : 0x3a4a62).setOrigin(0.5, 0.5);
+    }
+    // handle
+    this.add.circle(cx, yFor(this.idx), 11, 0xe8b446).setStrokeStyle(2, 0x1a1208);
+    this.add.text(cx, yFor(this.idx) + 15, `T${this.turns[this.idx]}`, { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0);
+    // wide invisible hit zone for dragging
+    const zone = this.add.rectangle(cx, top, 40, height, 0xffffff, 0.001).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    const setFromY = (y: number): void => {
+      const t = Math.max(0, Math.min(1, (y - top) / height));
+      const i = Math.round(t * (n - 1));
+      if (i !== this.idx) { this.idx = i; this.render(); }
+    };
+    zone.on('pointerdown', (p: Phaser.Input.Pointer) => setFromY(p.y));
+    zone.on('pointermove', (p: Phaser.Input.Pointer) => { if (p.isDown) setFromY(p.y); });
   }
 
   private hpBar(y: number, name: string, hp: number, max: number, color: number): void {
