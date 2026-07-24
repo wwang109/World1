@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { SkillDef } from '../../engine/types';
 import { CardToken } from './CardToken';
+import type { ScalingStats } from './skillPresentation';
 
 /** A card placed at a starting slot; a size-N card occupies N slots. */
 export interface ColumnPiece {
@@ -20,6 +21,8 @@ export interface BoardColumnOptions {
   /** Deck context for each token's affinity "n/3" identity progress. */
   deck?: readonly SkillDef[];
   gap?: number;
+  /** This side's owning combatant's live Attack/Magic Power — renders `base+stat` on card faces. */
+  stats?: ScalingStats;
 }
 
 /**
@@ -54,7 +57,7 @@ export class BoardColumn {
       const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
       if (piece) {
         this.tokens.push(new CardToken(scene, cx, cy, piece.skill, {
-          width: opts.width, height: h, side, slotLabel: label, deck: opts.deck, state: piece.state,
+          width: opts.width, height: h, side, slotLabel: label, deck: opts.deck, state: piece.state, stats: opts.stats,
         }));
         row += span;
       } else {

@@ -69,11 +69,10 @@ describe('card text drift guard', () => {
       }
 
       if (skill.aura) {
-        const { damageFlat, healFlat, weightDelta, critPctDelta } = skill.aura.mods;
+        const { damageFlat, healFlat, weightDelta } = skill.aura.mods;
         if (damageFlat !== undefined) expected.push(damageFlat);
         if (healFlat !== undefined) expected.push(healFlat);
         if (weightDelta !== undefined) expected.push(Math.abs(weightDelta));
-        if (critPctDelta !== undefined) expected.push(critPctDelta);
       }
 
       for (const n of expected) {

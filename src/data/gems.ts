@@ -19,18 +19,10 @@ export const gemBook: Record<string, GemDef> = {
     name: 'Venom Sliver',
     kind: 'effect',
     rarity: 'common',
-    // poison 4 stacks = 4×5 = 20 deci = Common exactly (ticks 4,3,2,1 = 10 total).
-    actions: [{ kind: 'poison', stacks: 4 }],
-    text: 'Also apply {{Poison}} 4 (poison bypasses shields).',
-  },
-  keen_edge: {
-    id: 'keen_edge',
-    name: 'Keen Edge',
-    kind: 'stat',
-    rarity: 'common',
-    scope: 'card',
-    mods: { card: { critPctDelta: 4 } },
-    text: '+4% Crit Chance on this card.',
+    // poison priced LINEARLY per stack (2026-07-23): 2 stacks × 10 deci = 20
+    // deci = Common exactly (ticks 2,1 = 3 total).
+    actions: [{ kind: 'poison', stacks: 2 }],
+    text: 'Also apply {{Poison}} 2 (poison bypasses shields).',
   },
   swift_charm: {
     id: 'swift_charm',
@@ -97,9 +89,10 @@ export const gemBook: Record<string, GemDef> = {
     name: 'Ember of Fireball',
     kind: 'effect',
     rarity: 'common',
-    // burn 4 stacks = 4×5 = 20 deci = Common exactly (ticks 4,3,2,1 = 10 total).
-    actions: [{ kind: 'burn', stacks: 4 }],
-    text: 'Also apply {{Burn}} 4.',
+    // burn priced LINEARLY per stack (2026-07-23): 2 stacks × 10 deci = 20
+    // deci = Common exactly (ticks 4,2 = 6 total).
+    actions: [{ kind: 'burn', stacks: 2 }],
+    text: 'Also apply {{Burn}} 2.',
   },
   venom_fang_echo: {
     // echo of venom_fang
@@ -107,9 +100,10 @@ export const gemBook: Record<string, GemDef> = {
     name: 'Venom Whisper',
     kind: 'effect',
     rarity: 'common',
-    // poison 4 stacks = 4×5 = 20 deci = Common exactly (ticks 4,3,2,1 = 10 total).
-    actions: [{ kind: 'poison', stacks: 4 }],
-    text: 'Also apply {{Poison}} 4 (poison bypasses shields).',
+    // poison priced LINEARLY per stack (2026-07-23): 2 stacks × 10 deci = 20
+    // deci = Common exactly (ticks 2,1 = 3 total).
+    actions: [{ kind: 'poison', stacks: 2 }],
+    text: 'Also apply {{Poison}} 2 (poison bypasses shields).',
   },
   iron_bulwark_echo: {
     // echo of iron_bulwark
@@ -336,18 +330,8 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'stat',
     rarity: 'rare',
     scope: 'card',
-    mods: { card: { damageFlat: 2 } },
-    text: '+2 damage on this card.',
-  },
-  lucky_charm_echo: {
-    // echo of lucky_charm
-    id: 'lucky_charm_echo',
-    name: 'Lucky Sliver',
-    kind: 'stat',
-    rarity: 'rare',
-    scope: 'card',
-    mods: { card: { critPctDelta: 8 } },
-    text: '+8% Crit Chance on this card.',
+    mods: { card: { damageFlat: 4 } },
+    text: '+4 damage on this card.',
   },
   battle_howl_echo: {
     // echo of battle_howl
@@ -359,13 +343,14 @@ export const gemBook: Record<string, GemDef> = {
     text: 'Also gain +20% Attack for 2 turns.',
   },
   follow_through_echo: {
-    // echo of follow_through
+    // echo of follow_through. Re-fit for the 2026-07-23 comboPerPoint cut
+    // (2.5/pt): floor(16*5/2) = 40 = Rare exactly (was amount 8 at the old 5/pt rate).
     id: 'follow_through_echo',
     name: 'Follow-Through Echo',
     kind: 'effect',
     rarity: 'rare',
-    actions: [{ kind: 'comboBonus', amount: 8 }],
-    text: 'Also +8 damage if your previous cast shared an archetype with this card.',
+    actions: [{ kind: 'comboBonus', amount: 16 }],
+    text: 'Also +16 damage if your previous cast shared an archetype with this card.',
   },
   hex_of_frailty_echo: {
     // echo of hex_of_frailty
@@ -412,8 +397,8 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'stat',
     rarity: 'epic',
     scope: 'card',
-    mods: { card: { damageFlat: 3 } },
-    text: '+3 damage on this card.',
+    mods: { card: { damageFlat: 6 } },
+    text: '+6 damage on this card.',
   },
   bulwark_core: {
     id: 'bulwark_core',
@@ -454,8 +439,8 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'stat',
     rarity: 'legendary',
     scope: 'card',
-    mods: { card: { healFlat: 4 } },
-    text: '+4 healing on this card.',
+    mods: { card: { healFlat: 8 } },
+    text: '+8 healing on this card.',
   },
   archmages_core: {
     id: 'archmages_core',

@@ -1,6 +1,7 @@
 import { gemBook } from '../data/gems';
 import type { BoardPiece, Gem, SkillTier } from '../engine/types';
 import type { EnemyTitle } from '../run/encounter';
+import type { Allocation } from '../run/leveling';
 
 export type PrepView = 'loadout' | 'bag' | 'codex' | 'opponents' | 'balance';
 export type GemInventorySlot = string;
@@ -39,6 +40,13 @@ export interface DemoState {
   gemInventory: GemInventorySlot[];
   /** Hero level; stats come from the auto-balanced allocation until the stat-sheet UI exists. */
   heroLevel: number;
+  /**
+   * Player PL-budget stat-sheet spend: buy counts per stat (see
+   * `LEVEL_STAT_COST` in run/leveling.ts). Unspent PL simply isn't reflected
+   * here and stays banked. Defaults to zero buys (fully banked) until a
+   * stat-sheet UI exists to let the player spend it.
+   */
+  heroAllocation: Allocation;
   /** Requested enemy level (title deltas apply on top in the encounter resolver). */
   enemyLevel: number;
   enemyTitle: EnemyTitle;
@@ -51,7 +59,7 @@ export interface DemoState {
 const DEFAULT_PIECES: OwnedBoardPiece[] = [
   { instanceId: 'card_002', skillId: 'sword_slash', tier: 'bronze', slot: 0 },
   { instanceId: 'card_001', skillId: 'war_banner', tier: 'bronze', slot: 1, gem: gemBook.swift_charm },
-  { instanceId: 'card_011', skillId: 'sword_slash', tier: 'bronze', slot: 2, gem: gemBook.keen_edge },
+  { instanceId: 'card_011', skillId: 'sword_slash', tier: 'bronze', slot: 2, gem: gemBook.war_banner_echo },
   { instanceId: 'card_005', skillId: 'second_wind', tier: 'bronze', slot: 3 },
   { instanceId: 'card_004', skillId: 'iron_bulwark', tier: 'bronze', slot: 4 },
 ];
@@ -107,6 +115,7 @@ export const DEFAULT_DEMO_STATE: DemoState = {
   nextCardInstanceId: 12,
   gemInventory: DEFAULT_GEM_INVENTORY,
   heroLevel: 1,
+  heroAllocation: {},
   enemyLevel: 1,
   // bandit_duelist is tagged isElite in data, so its natural title is elite
   // (which presets rank 2 — one tier-up card + one card gem-less bump).
@@ -136,7 +145,7 @@ export const EMPTY_BOARD_OVERRIDES: Partial<DemoState> = {
     { instanceId: 'card_006', skillId: 'arcane_bolt', tier: 'bronze' },
     { instanceId: 'card_008', skillId: 'mana_ward', tier: 'bronze' },
   ],
-  gemInventory: [...DEFAULT_GEM_INVENTORY, 'swift_charm', 'keen_edge'],
+  gemInventory: [...DEFAULT_GEM_INVENTORY, 'swift_charm', 'war_banner_echo'],
 };
 
 function cloneGem(gem: Gem | null | undefined): Gem | null | undefined {
@@ -175,6 +184,10 @@ function cloneEnemyTeam(team: EnemyFightConfig[]): EnemyFightConfig[] {
   return team.map((enemy) => ({ ...enemy, modifiers: [...enemy.modifiers] }));
 }
 
+function cloneAllocation(alloc: Allocation): Allocation {
+  return { ...alloc };
+}
+
 /** Mutable demo session state shared between Prep and Battle scenes. */
 export const demoState: DemoState = {
   pieces: clonePieces(DEFAULT_DEMO_STATE.pieces),
@@ -189,6 +202,7 @@ export const demoState: DemoState = {
   nextCardInstanceId: DEFAULT_DEMO_STATE.nextCardInstanceId,
   gemInventory: cloneGemInventory(DEFAULT_DEMO_STATE.gemInventory),
   heroLevel: DEFAULT_DEMO_STATE.heroLevel,
+  heroAllocation: cloneAllocation(DEFAULT_DEMO_STATE.heroAllocation),
   enemyLevel: DEFAULT_DEMO_STATE.enemyLevel,
   enemyTitle: DEFAULT_DEMO_STATE.enemyTitle,
   enemyRank: DEFAULT_DEMO_STATE.enemyRank,
@@ -224,6 +238,7 @@ export function resetDemoState(overrides: Partial<DemoState> = {}): void {
   demoState.nextCardInstanceId = overrides.nextCardInstanceId ?? DEFAULT_DEMO_STATE.nextCardInstanceId;
   demoState.gemInventory = cloneGemInventory(overrides.gemInventory ?? DEFAULT_DEMO_STATE.gemInventory);
   demoState.heroLevel = overrides.heroLevel ?? DEFAULT_DEMO_STATE.heroLevel;
+  demoState.heroAllocation = cloneAllocation(overrides.heroAllocation ?? DEFAULT_DEMO_STATE.heroAllocation);
   demoState.enemyLevel = activeEnemy.level;
   demoState.enemyTitle = activeEnemy.title;
   demoState.enemyRank = activeEnemy.rank;

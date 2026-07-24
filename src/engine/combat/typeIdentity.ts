@@ -5,10 +5,12 @@
 // single type — a unique type with the highest count, that count >= 3 — the
 // board takes on that type as its identity. See docs/board-type-identity.md.
 //
-// This module only DERIVES the identity. Its two effects are wired elsewhere
-// through existing seams: the defensive affinity fold in `state.ts` (combatant
-// setup) and the +20% same-type damage bonus in the AuraMods bundle (auras.ts),
-// so the core combat loop stays feature-agnostic.
+// This module only DERIVES the identity. Its single effect is wired elsewhere
+// through an existing seam: the defensive affinity fold in `state.ts` (combatant
+// setup) — a board of 3+ one type gains that type's affinity, which unlocks the
+// weapon/element triangle (advantage +50% / disadvantage −25%) via `cardMatchup`
+// in the interpreter. There is no flat same-type damage bonus. The core combat
+// loop stays feature-agnostic.
 
 import type { Element, SkillDef, WeaponType } from '../types';
 
@@ -17,8 +19,8 @@ export type BoardIdentity =
   | { kind: 'element'; type: Element }
   | { kind: 'weapon'; type: WeaponType };
 
-/** +20% damage to cards whose type matches the board identity (v1, PL-neutral). */
-export const IDENTITY_DAMAGE_PCT = 20;
+/** Cards of one unique top type needed for a board to take that identity. */
+export const IDENTITY_THRESHOLD = 3;
 
 /**
  * A card's single type: its `element` if present, else its `weapon`. Shipped
@@ -71,13 +73,6 @@ export function boardTypeIdentity(skills: SkillDef[]): BoardIdentity | undefined
       tied = true;
     }
   }
-  if (bestIdx === -1 || bestCount < 3 || tied) return undefined;
+  if (bestIdx === -1 || bestCount < IDENTITY_THRESHOLD || tied) return undefined;
   return identities[bestIdx];
-}
-
-/** Does a card's type equal a board identity? (undefined identity → false.) */
-export function matchesIdentity(skill: SkillDef, identity: BoardIdentity | undefined): boolean {
-  if (!identity) return false;
-  const t = cardType(skill);
-  return t !== undefined && t.kind === identity.kind && t.type === identity.type;
 }

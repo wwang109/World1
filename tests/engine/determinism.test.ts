@@ -33,7 +33,6 @@ function randomCombatant(rng: Rng, name: string): CombatantSetup {
       armor: rng.int(5),
       magicResist: rng.int(5),
       speed: 5 + rng.int(15),
-      critPct: rng.int(40),
     },
     boardSize,
     pieces,
@@ -120,10 +119,13 @@ describe('simulate determinism', () => {
     }
   });
 
-  it('different seeds can diverge (crit rolls consume RNG)', () => {
+  it('combat is now fully seed-independent (crit removed — no RNG in the loop)', () => {
+    // Crit was the only combat-loop RNG consumer; with it gone, the same config
+    // yields a byte-identical log for EVERY seed. This locks in that no new
+    // nondeterminism sneaks back into the sim.
     const make = (): CombatantSetup => ({
       name: 'x',
-      stats: { maxHp: 200, hp: 200, attack: 10, magicPower: 0, armor: 0, magicResist: 0, speed: 10, critPct: 50 },
+      stats: { maxHp: 200, hp: 200, attack: 10, magicPower: 0, armor: 0, magicResist: 0, speed: 10 },
       boardSize: 10,
       pieces: [{ skillId: 'sword_slash', slot: 0 }],
     });
@@ -132,6 +134,6 @@ describe('simulate determinism', () => {
       const { events } = simulate({ player: make(), enemy: make(), skillBook }, seed);
       logs.add(JSON.stringify(events));
     }
-    expect(logs.size).toBeGreaterThan(1);
+    expect(logs.size).toBe(1);
   });
 });

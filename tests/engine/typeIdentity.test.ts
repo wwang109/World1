@@ -165,12 +165,11 @@ describe('defensive attunement (Effect 1)', () => {
   });
 });
 
-describe('same-type damage bonus (Effect 2)', () => {
-  it('matching-type cards get +20% (floored); off-type cards on the same board do not', () => {
-    // Hero board: 3 fire + 1 lightning → fire identity. Enemy has NO affinity, so
-    // matchup is neutral and the only multiplier is the +20% identity bonus.
-    // Fire card:      20 + MP 10 = 30, +20% = floor(30 × 1.2) = 36.
-    // Lightning card: 20 + MP 10 = 30, no bonus                = 30.
+describe('affinity grants NO flat same-type damage bonus', () => {
+  it('a matching-type card gets no bonus when the foe has no affinity (neutral matchup)', () => {
+    // Hero board: 3 fire + 1 lightning → fire affinity. Enemy has NO affinity, so
+    // the matchup is neutral — and there is no flat same-type bonus. Both cards
+    // deal their plain 20 + MP 10 = 30, with zero effectBonusDamage.
     const hero = tc('hero', ['fire', 'fire', 'fire', 'lightning'], { magicPower: 10, speed: 20 }, { skillBook: BOOK });
     const foe = tc('foe', [], { speed: 5, maxHp: 500 }, { skillBook: BOOK });
     const { events, finalState } = simulate(
@@ -184,15 +183,13 @@ describe('same-type damage bonus (Effect 2)', () => {
     const lightningHit = events.find(
       (e) => e.kind === 'damage' && e.source === 'skill' && e.sourceCard?.skillId === 'lightning',
     );
-    expect(fireHit).toMatchObject({ amount: 36 });
+    expect(fireHit).toMatchObject({ amount: 30 });
     expect(lightningHit).toMatchObject({ amount: 30 });
-    // The +20% is attributed through effectBonusDamage so the math strip sums.
-    expect((fireHit as { calculation?: { effectBonusDamage: number } }).calculation?.effectBonusDamage).toBe(6);
+    expect((fireHit as { calculation?: { effectBonusDamage: number } }).calculation?.effectBonusDamage).toBe(0);
     expect((lightningHit as { calculation?: { effectBonusDamage: number } }).calculation?.effectBonusDamage).toBe(0);
   });
 
-  it('no identity → no same-type bonus (byte-identical damage)', () => {
-    // 2 fire + 2 lightning: no identity, so the fire card deals its plain 30.
+  it('no affinity (2+2 split) → plain damage, unchanged', () => {
     const hero = tc('hero', ['fire', 'lightning', 'fire', 'lightning'], { magicPower: 10, speed: 20 }, { skillBook: BOOK });
     const foe = tc('foe', [], { speed: 5, maxHp: 500 }, { skillBook: BOOK });
     const { events } = simulate(cfg(hero, foe, { ...NO_ENDGAME, maxTurns: 4, skillBook: BOOK }), 1);

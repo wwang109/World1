@@ -9,7 +9,6 @@ export const DEFAULT_STATS: CombatantStats = {
   armor: 0,
   magicResist: 0,
   speed: 10,
-  critPct: 0,
 };
 
 /**

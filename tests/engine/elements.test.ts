@@ -66,7 +66,7 @@ describe('matchups in combat', () => {
 
   it('fire magic into a fire... into frost affinity is resisted −25%', () => {
     // fireball (fire) vs frost affinity: frost beats fire -> disadvantage.
-    // 42 flat + MP 10 = 52 -> x0.75 = 39 (floored). The halving burn is NOT
+    // 38 flat + MP 10 = 48 -> x0.75 = 36 (floored). The halving burn is NOT
     // matchup-modified: fireball applies 5 burn, first tick = 2×5 = 10 exactly.
     const c = cfg(
       tc('hero', ['fireball'], { magicPower: 10, speed: 20 }),
@@ -75,7 +75,7 @@ describe('matchups in combat', () => {
     );
     const { events } = simulate(c, 1);
     expect(events.find((e) => e.kind === 'damage' && e.source === 'skill')).toMatchObject({
-      amount: 39,
+      amount: 36,
       matchup: 'disadvantage',
     });
     const burnTick = events.find((e) => e.kind === 'damage' && e.source === 'burn');
@@ -94,7 +94,7 @@ describe('matchups in combat', () => {
   });
 
   it('beast attacks are neutral against the triangle', () => {
-    // venom_fang (beast): 16 flat + Attack 10 = 26, no multiplier vs sword affinity.
+    // venom_fang (beast): 12 flat + Attack 10 = 22, no multiplier vs sword affinity.
     const c = cfg(
       tc('hero', ['venom_fang'], { attack: 10, speed: 20 }),
       { ...tc('swordsman', [], { speed: 10, maxHp: 200 }), weaponAffinity: 'sword' },
@@ -102,7 +102,7 @@ describe('matchups in combat', () => {
     );
     const { events } = simulate(c, 1);
     const hit = events.find((e) => e.kind === 'damage');
-    expect(hit).toMatchObject({ amount: 26 });
+    expect(hit).toMatchObject({ amount: 22 });
     expect((hit as { matchup?: string }).matchup).toBeUndefined();
   });
 

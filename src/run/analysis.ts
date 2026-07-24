@@ -2,9 +2,10 @@
 //
 // `damagePerTurn` measures a combatant's sustained offensive throughput by
 // actually running `simulate()` against an inert training dummy for N turns and
-// summing the damage it dealt, then averaging per turn. Crit is the only source
-// of variance, so we run several seeds and report the observed low–high band
-// plus the average — an honest range, not a fake number.
+// summing the damage it dealt, then averaging per turn. Combat is now fully
+// deterministic (crit was removed 2026-07-23), so the low–high band collapses
+// to a single value; the multi-seed sweep is kept as a harmless no-op guard in
+// case a future stochastic effect reintroduces variance.
 //
 // Why a dummy (not the live opponent): this is an INTRINSIC throughput stat for
 // comparing builds/enemies on equal footing (armor, matchups, and the
@@ -31,7 +32,6 @@ function trainingDummy(): CombatantSetup {
       armor: 0,
       magicResist: 0,
       speed: 0,
-      critPct: 0,
     },
     boardSize: 1,
     pieces: [],
@@ -41,9 +41,9 @@ function trainingDummy(): CombatantSetup {
 export interface DamageBand {
   /** Mean damage per turn across the seed runs (integer). */
   avg: number;
-  /** Lowest per-turn damage seen (all-unlucky-crit end of the band). */
+  /** Lowest per-turn damage seen across seeds (== avg while combat is deterministic). */
   min: number;
-  /** Highest per-turn damage seen (all-lucky-crit end of the band). */
+  /** Highest per-turn damage seen across seeds (== avg while combat is deterministic). */
   max: number;
   /** Turns simulated per run. */
   turns: number;
@@ -52,7 +52,7 @@ export interface DamageBand {
 export interface DamageProfileOpts {
   /** Turns to simulate per run (default 10 — the "after 5–10 turns" window). */
   turns?: number;
-  /** Distinct seeds to average over, smoothing crit variance (default 16). */
+  /** Distinct seeds to average over (default 16); vestigial now that combat is deterministic. */
   seeds?: number;
 }
 

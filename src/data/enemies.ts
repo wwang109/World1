@@ -2,18 +2,25 @@ import type { EnemyDef } from '../engine/types';
 
 // Demo enemy presets, authored at a Bronze / lowest-level FLOOR: every card
 // here is Bronze, every board is small (2-3 cards, no gems, no tier
-// overrides), and every statline is each monster's own modest default — not
-// an inflated "elite" or "boss" version. Tier/board/HP difficulty (bigger
-// boards, tier-ups, HP/stat multipliers) is a run-layer SCALING concern,
-// applied later by depth/level — it is deliberately NOT baked into these
-// depth-1 definitions. See docs/enemy-design.md for the full rule. Do NOT
-// retune these numbers against simulated fight outcomes — the fight result
-// is emergent and depends on the player's own build; that's intended.
+// overrides). Tier/board/HP difficulty (bigger boards, tier-ups, HP/stat
+// scaling) is a run-layer SCALING concern, applied later by depth/level — it
+// is deliberately NOT baked into these depth-1 definitions. See
+// docs/enemy-design.md for the full rule. Do NOT retune these numbers
+// against simulated fight outcomes — the fight result is emergent and
+// depends on the player's own build; that's intended.
+//
+// UNIFIED STAT SYSTEM (locked 2026-07-24): every enemy's floor `stats` is now
+// the SAME universal Level-1 statline the hero starts from (maxHp 100, atk 1,
+// magicPower 1, armor 1, magicResist 1, speed 10) — there is no bespoke floor
+// identity any more. A monster's combat identity instead lives entirely in
+// its cards, its `MONSTER_PROFILES` weight profile (how it spends level-up
+// PL — see `src/run/leveling.ts`), and its Title. Do NOT hand-tune floor
+// stats per monster; add/adjust its profile weights instead.
 //
 // `isElite`/`isBoss` are identity/encounter-role tags (used by the run layer
 // to place the monster), not stat multipliers — an elite or boss at the
-// floor still has a small 2-3 card board and a modest statline; its
-// intended extra difficulty comes from future depth-scaling, not from
+// floor still has a small 2-3 card board and the universal statline; its
+// intended extra difficulty comes from Title + depth-scaling, not from
 // hand-inflated numbers here.
 export const enemies: Record<string, EnemyDef> = {
   // --- Basic floor: 2-3 Bronze cards, one mechanic each. ---
@@ -21,7 +28,7 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'giant_rat',
     name: 'Giant Rat',
     baseDepth: 1,
-    stats: { maxHp: 90, hp: 90, attack: 9, magicPower: 0, armor: 0, magicResist: 0, speed: 13, critPct: 5 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'beast',
     boardSize: 2,
     pieces: [
@@ -35,7 +42,7 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'stone_beetle',
     name: 'Stone Beetle',
     baseDepth: 1,
-    stats: { maxHp: 150, hp: 150, attack: 8, magicPower: 0, armor: 5, magicResist: 1, speed: 7, critPct: 0 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     elementAffinity: 'nature',
     weaponAffinity: 'beast',
     boardSize: 3,
@@ -50,7 +57,7 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'ember_imp',
     name: 'Ember Imp',
     baseDepth: 1,
-    stats: { maxHp: 85, hp: 85, attack: 4, magicPower: 13, armor: 0, magicResist: 3, speed: 11, critPct: 10 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     elementAffinity: 'fire',
     boardSize: 3,
     pieces: [
@@ -68,7 +75,7 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'Bandit Duelist',
     baseDepth: 1,
     isElite: true,
-    stats: { maxHp: 120, hp: 120, attack: 12, magicPower: 0, armor: 2, magicResist: 1, speed: 12, critPct: 8 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'sword',
     boardSize: 2,
     pieces: [
@@ -88,7 +95,7 @@ export const enemies: Record<string, EnemyDef> = {
     name: 'The Wolf King',
     baseDepth: 1,
     isBoss: true,
-    stats: { maxHp: 160, hp: 160, attack: 13, magicPower: 0, armor: 2, magicResist: 1, speed: 13, critPct: 8 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'beast',
     boardSize: 3,
     pieces: [
@@ -107,7 +114,7 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'seraph',
     name: 'Seraph',
     baseDepth: 1,
-    stats: { maxHp: 110, hp: 110, attack: 0, magicPower: 12, armor: 1, magicResist: 4, speed: 11, critPct: 5 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     elementAffinity: 'holy',
     boardSize: 3,
     pieces: [
@@ -121,7 +128,7 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'knight',
     name: 'Knight',
     baseDepth: 1,
-    stats: { maxHp: 170, hp: 170, attack: 10, magicPower: 0, armor: 6, magicResist: 2, speed: 9, critPct: 5 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'sword',
     boardSize: 3,
     pieces: [
@@ -135,7 +142,7 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'mage',
     name: 'Mage',
     baseDepth: 1,
-    stats: { maxHp: 80, hp: 80, attack: 0, magicPower: 14, armor: 0, magicResist: 2, speed: 12, critPct: 12 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     elementAffinity: 'fire',
     boardSize: 3,
     pieces: [
@@ -149,7 +156,7 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'hunter',
     name: 'Hunter',
     baseDepth: 1,
-    stats: { maxHp: 95, hp: 95, attack: 11, magicPower: 0, armor: 1, magicResist: 1, speed: 15, critPct: 10 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'bow',
     boardSize: 2,
     pieces: [
@@ -163,7 +170,7 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'rogue',
     name: 'Rogue',
     baseDepth: 1,
-    stats: { maxHp: 90, hp: 90, attack: 10, magicPower: 0, armor: 0, magicResist: 1, speed: 14, critPct: 18 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'beast',
     boardSize: 3,
     pieces: [
@@ -177,7 +184,7 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'berserker',
     name: 'Berserker',
     baseDepth: 1,
-    stats: { maxHp: 140, hp: 140, attack: 14, magicPower: 0, armor: 1, magicResist: 0, speed: 10, critPct: 8 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'axe',
     boardSize: 4,
     pieces: [
@@ -191,7 +198,7 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'necromancer',
     name: 'Necromancer',
     baseDepth: 1,
-    stats: { maxHp: 90, hp: 90, attack: 0, magicPower: 12, armor: 0, magicResist: 3, speed: 11, critPct: 6 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     elementAffinity: 'dark',
     boardSize: 2,
     pieces: [
@@ -205,7 +212,7 @@ export const enemies: Record<string, EnemyDef> = {
     id: 'cleric',
     name: 'Cleric',
     baseDepth: 1,
-    stats: { maxHp: 130, hp: 130, attack: 6, magicPower: 9, armor: 2, magicResist: 3, speed: 10, critPct: 5 },
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     elementAffinity: 'holy',
     boardSize: 4,
     pieces: [

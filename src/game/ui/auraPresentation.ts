@@ -25,7 +25,6 @@ export function auraTone(source: AuraSource): AuraTone {
     source.damageFlat ?? 0,
     source.healFlat ?? 0,
     -(source.weightDelta ?? 0),
-    source.critPctDelta ?? 0,
   ]
     .filter((value) => value !== 0)
     .map(Math.sign);

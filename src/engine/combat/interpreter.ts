@@ -15,13 +15,6 @@ export interface Ctx {
 }
 
 /**
- * Hard cap on effective crit chance. Crit% scales with level and stacks with
- * aura/gem crit mods; without a ceiling it reaches ~90% at high level and crit
- * stops being a gamble. Capped so a crit build is strong, not guaranteed.
- */
-export const CRIT_CHANCE_CAP_PCT = 50;
-
-/**
  * Whether an action resolves against foes (offensive) or the caster (support).
  * Offensive actions fan out over the resolved target list; support actions run
  * once on the caster.
@@ -144,7 +137,7 @@ function pickSupportTarget(state: CombatState, caster: CombatantState, action: A
       const stat = action.stat;
       // Offensive stats amplify the specialist (highest current value); defensive
       // stats reinforce the tank (highest aggro).
-      const offensive = stat === 'attack' || stat === 'magicPower' || stat === 'critPct' || stat === 'speed';
+      const offensive = stat === 'attack' || stat === 'magicPower' || stat === 'speed';
       const metric = (a: CombatantState): number => (offensive ? effStat(a, stat) : a.aggro);
       const hasSameBuff = (a: CombatantState): boolean => a.statuses.some((s) => s.kind === 'buff' && s.stat === stat);
       // Prefer allies WITHOUT this buff (skip redundant overwrites); if EVERY ally
@@ -176,8 +169,8 @@ function pickSupportTarget(state: CombatState, caster: CombatantState, action: A
  * `pickSupportTarget` returns the caster and support behavior is unchanged. For
  * foes, the sole foe is returned when living, and — matching the old
  * `foesOf(state, caster)[0]` behavior — the (dead) foe is still returned as a
- * no-op fallback when it is the only foe and has died mid-cast, so a trailing
- * damage action still consumes its crit roll in the same fixed RNG order.
+ * no-op fallback when it is the only foe and has died mid-cast, matching the
+ * historical fan-out order.
  */
 export function resolveTargets(
   ctx: Ctx,
@@ -303,7 +296,6 @@ export function dealDamage(
   amount: number,
   property: Property,
   opts: {
-    crit?: boolean;
     bypassShields?: boolean;
     matchup?: Matchup;
     source?: 'skill' | 'poison' | 'burn' | 'bleed' | 'fatigue';
@@ -365,7 +357,6 @@ export function dealDamage(
     amount: reduced,
     property,
     blocked,
-    crit: opts.crit ?? false,
     matchup: opts.matchup === 'advantage' || opts.matchup === 'disadvantage' ? opts.matchup : undefined,
     guarded: guarded > 0 ? guarded : undefined,
     exposed: exposed > 0 ? exposed : undefined,
@@ -440,25 +431,18 @@ function applyAction(
       // FLAT model: a card's `power` is a flat base; the caster's scaling stat
       // (Attack / Magic Power / higher for TRUE) plus any aura / combo bonus are
       // ADDED flat on top — never multiplied. Damage and HP both scale linearly.
-      // Only crit (×1.5) and matchup (±%) remain multipliers.
+      // Only matchup (±%) and sudden death remain multipliers.
       const scalingStat = scalingStatName(caster, property);
       const baseStat = caster.stats[scalingStat];
       const effectiveStat = scaleStat(caster, property);
       const baseDamage = action.power + baseStat;
       const scaledDamage = action.power + effectiveStat;
       const flatBonus = mods.damageFlat + cast.bonusFlat;
-      // Board Type Identity's +20% same-type bonus rides the same per-card
-      // modifier bundle (mods.damagePct). It's a percentage of the scaled +
-      // flat-bonus damage, floored, and attributed through effectBonusDamage so
-      // the UI math strip still sums exactly. damagePct is 0 for un-featured
-      // casts, leaving modifiedDamage byte-identical. Heals/shields/DoTs are
-      // untouched (this bonus only lives in the direct-damage path, matching how
-      // aura damageFlat also stays out of DoT ticks).
-      const preIdentityDamage = scaledDamage + flatBonus;
-      const identityBonus = mods.damagePct > 0 ? Math.floor((preIdentityDamage * mods.damagePct) / 100) : 0;
-      const modifiedDamage = preIdentityDamage + identityBonus;
-      const critChance = Math.max(0, effStat(caster, 'critPct') + mods.critPctDelta);
-      const crit = ctx.rng.pct(Math.min(CRIT_CHANCE_CAP_PCT, critChance));
+      // Scaled base + flat aura/gem/combo bonus. There is no percent same-type
+      // bonus: a board's type identity only grants a defensive affinity, which
+      // feeds the weapon/element triangle multiplier (advantage/disadvantage)
+      // applied below — not a flat damage add here.
+      const modifiedDamage = scaledDamage + flatBonus;
       // TRUE damage (user-locked 2026-07-20): only the card's FLAT portion
       // bypasses defenses. The stat add is checked against the enemy's
       // matching defense (Attack vs Armor, Magic Power vs Magic Resist) —
@@ -468,16 +452,14 @@ function applyAction(
         : mitigation(enemy, property);
       const afterDefenseWithoutFloor = Math.max(0, modifiedDamage - defense);
       const afterDefense = Math.max(1, afterDefenseWithoutFloor);
-      const afterCrit = crit ? Math.floor((afterDefense * 150) / 100) : afterDefense;
       const matchup = cardMatchup(skill, enemy);
-      const afterMatchup = Math.floor((afterCrit * matchupPct(matchup)) / 100);
+      const afterMatchup = Math.floor((afterDefense * matchupPct(matchup)) / 100);
       const amountBeforeFinalFloor = caster.sdStacks > 0
         ? Math.floor((afterMatchup * (100 + caster.sdStacks)) / 100)
         : afterMatchup;
       const amount = Math.max(1, amountBeforeFinalFloor);
       const hpBefore = enemy.stats.hp;
       dealDamage(ctx, enemy, amount, property, {
-        crit,
         matchup,
         calculation: {
           scalingStat,
@@ -487,11 +469,9 @@ function applyAction(
           baseDamage,
           statBonusDamage: scaledDamage - baseDamage,
           effectBonusDamage: modifiedDamage - scaledDamage,
-          ...(identityBonus > 0 ? { identityBonusDamage: identityBonus } : {}),
           defense: modifiedDamage - afterDefenseWithoutFloor,
           minimumDamageBonus: (afterDefense - afterDefenseWithoutFloor) + (amount - amountBeforeFinalFloor),
-          critBonusDamage: afterCrit - afterDefense,
-          matchupBonusDamage: afterMatchup - afterCrit,
+          matchupBonusDamage: afterMatchup - afterDefense,
           suddenDeathBonusDamage: amountBeforeFinalFloor - afterMatchup,
         },
       });
@@ -779,8 +759,8 @@ export function applyCast(
   ctx.source = { side: caster.side, unit: caster.index, slot, skillId: skill.id };
   for (const action of skill.effects) {
     // Fan out: offensive actions apply to EACH resolved target in ascending
-    // index order (so crit rolls fire per victim in a fixed RNG order);
-    // support actions resolve to `[caster]` and run once. `cast.damageDealt`
+    // index order; support actions resolve to `[caster]` and run once.
+    // `cast.damageDealt`
     // accumulates across all victims so lifesteal sums the whole cast.
     for (const target of resolveTargets(ctx, caster, skill, action)) {
       applyAction(ctx, caster, skill, action, mods, cast, target);

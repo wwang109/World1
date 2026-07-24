@@ -1237,3 +1237,147 @@ _UI/design work Claude is handing over. Codex picks these up._
   the run layer lands.
 - Claude review: n/a (baseline).
 \n\n## Session entry — 2026-07-20\n\n### Codex changes\n- Added simple, Fireball-inspired generated art for the three previously unillustrated cards: Hamstring, Rupturing Strike, and Ruinous Hex.\n- Added the three PNGs under public/game-art/cards/ and wired them through src/game/ui/cardArtCatalog.ts.\n- Direction: one bold focal shape, flatter cel shading, limited background detail, saturated VFX, and a quiet lower third for the existing fantasy card template.\n\n### Verification\n- Catalog comparison confirms every skill id has an art entry.\n- Generated files exist in the workspace.\n- npm typecheck/build could not be launched in this session because the local Windows sandbox helper returned spawn EINVAL; please run the normal project commands in a working shell.\n\n### Requests to Claude\n- Please review the three new assets after the next UI build. No engine/data changes requested.\n\n### Claude review\n_Pending._\n\n### 2026-07-20 — Codex — Move Wiki card pagination to gallery edges\n- CHANGED: Moved Wiki Cards previous/next paging from the crowded top toolbar to the left/right edges of the card gallery.\n- FILES: src/game/scenes/PrepScene.ts\n- DESIGN: The page counter and grid/tier/filter controls remain in the toolbar. Previous/next arrows are vertically centered beside the gallery, with disabled states preserved at the first and last page. The grid reserves side insets so arrows do not collide with cards. Other Wiki tabs are unchanged.\n- VERIFY: npm run build = pass · npm test = pass (320 tests) · npm run typecheck = clean · dev screenshot not captured.\n- ASSUMPTIONS: The requested paging relocation applies to the Wiki Cards gallery only, as shown in the supplied reference.\n- REQUESTS TO CLAUDE: none\n- OPEN: None.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Clear Wiki frame lines from paging controls\n- CHANGED: Moved the Wiki Cards paging hit areas inward from the panel edges into the reserved gallery gutters.\n- FILES: src/game/scenes/PrepScene.ts\n- DESIGN: Paging buttons no longer cover the outer ornamental frame lines; card spacing and paging behavior remain unchanged.\n- VERIFY: npm run build = pass · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: Please eyeball the updated gutter placement in the running app.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Move deck gem sockets above cards\n- CHANGED: Moved deck-build gem socket controls from below each card to above the card rail and changed the circular control to a rotated-square diamond.\n- FILES: src/game/scenes/PrepScene.ts\n- DESIGN: Socket controls remain clickable and continue opening the existing gem picker. Empty sockets show +; socketed gems retain rarity color and ◆ marker. Slot numbers remain below the deck rail.\n- VERIFY: npm run build = pass · npm test = pass (320 tests) · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: Please eyeball the top socket placement against narrow and multi-slot cards.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Raise deck gem sockets clear of card borders\n- CHANGED: Raised the diamond socket control from 10px above the card to 20px above it.\n- FILES: src/game/scenes/PrepScene.ts\n- DESIGN: The diamond now clears the card top border and decorative line instead of touching it.\n- VERIFY: npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: Please eyeball the new vertical gap in Deck Build.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Center deck gem sockets in header/card gap\n- CHANGED: Repositioned the diamond socket controls into the vertical center of the open band between the deck header controls and the active card row.\n- FILES: src/game/scenes/PrepScene.ts\n- DESIGN: Socket diamonds are no longer attached to or touching the card border.\n- VERIFY: npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: Please eyeball the gap placement in Deck Build.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Fix double-centered Phaser canvas\n- CHANGED: Removed Flexbox centering from the HTML app wrapper and kept Phaser Scale.FIT + CENTER_BOTH as the only canvas centering system.\n- FILES: index.html\n- DESIGN: The game canvas should now occupy the centered portrait region instead of being pushed into the right half of the viewport. Body overflow is hidden to prevent scrollbars from affecting centering.\n- VERIFY: npm run build = pass · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: Please reload the dev page and confirm the blue canvas is centered.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Calculate deck socket midpoint from real anchors\n- CHANGED: Replaced the guessed socket Y offset with the exact midpoint between panelToolbarRowY(bounds) and the active card top (railY - CARD_H / 2).\n- FILES: src/game/scenes/PrepScene.ts\n- DESIGN: Diamonds now sit in the actual visual gap between the hero controls/text row and the card boxes shown in the reference.\n- VERIFY: npm run build = pass · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: Please reload Deck Build and confirm the diamond is centered in that gap.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Centralize Deck Build layout constants\n- CHANGED: Added shared DECK_BUILD_LAYOUT constants to src/game/theme.ts and replaced Deck Build panel, rail, and socket geometry literals in PrepScene.ts.\n- FILES: src/game/theme.ts, src/game/scenes/PrepScene.ts\n- DESIGN: Board/transfer/bag dimensions, rail offsets, socket size, rotation, stroke alpha, and label size now have one named source of truth.\n- VERIFY: npm run build = pass · npm test = pass (320 tests) · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: Future Deck Build spacing changes should update DECK_BUILD_LAYOUT rather than scene-local literals.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Clean up transfer panel title and vertical centering\n- CHANGED: Removed the TRASH / TRANSFER title and centered the existing side-by-side drop zones using the panel midpoint.\n- FILES: src/game/scenes/PrepScene.ts\n- DESIGN: The two boxes remain side by side, but now have equal top and bottom spacing inside the transfer panel. Existing labels and drop behavior remain unchanged.\n- VERIFY: npm run build = pass · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: None.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Match active-deck and card-bag slot number spacing\n- CHANGED: Added DECK_BUILD_LAYOUT.rail.slotNumberGap and reused it for both active-deck and card-bag slot labels.\n- FILES: src/game/theme.ts, src/game/scenes/PrepScene.ts\n- DESIGN: The active deck numbers now sit at the same distance from their skill boxes as the card-bag numbers.\n- VERIFY: npm run build = pass · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: None.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Add read-only card previews to Choose Fight\n- CHANGED: Replaced the Choose Fight static description/enemy-skill text with reusable enemy skill cards and a read-only active-deck card rail.\n- FILES: src/game/theme.ts, src/game/scenes/PrepScene.ts\n- DESIGN: Enemy skill cards render in the empty fight-panel area with swap arrows enabled only when multiple configured enemies exist. Active deck cards are inspectable but cannot be dragged, moved, socketed, or otherwise edited here. Clicking either rail populates the existing bottom Skill Details panel, including socketed gem details for active-deck cards.\n- VERIFY: npm run build = pass · npm test = pass (320 tests) · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: Please visually review the rail vertical spacing in Choose Fight at 720x1280.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Add Choose Fight active-deck section divider\n- CHANGED: Added a horizontal divider above the active-deck rail and renamed its header from ACTIVE DECK · READ ONLY to ACTIVE DECK.\n- FILES: src/game/theme.ts, src/game/scenes/PrepScene.ts\n- DESIGN: Enemy cards and the read-only active deck now read as separate sections without redundant explanatory wording.\n- VERIFY: npm run build = pass · npm test = pass (320 tests) · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: None.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Show active-deck type progress in Choose Fight\n- CHANGED: Reused the deck identity tally renderer beneath the read-only active-deck rail in Choose Fight.\n- FILES: src/game/theme.ts, src/game/scenes/PrepScene.ts\n- DESIGN: The preview now shows up to four type progress tallies toward the 3-card threshold, such as SWORD 3/3, LANCE 1/3, NATURE 1/3, and LIGHTNING 1/3, plus the active identity matchup text when unlocked.\n- VERIFY: npm run build = pass · npm test = pass (320 tests) · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: None.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Stack Choose Fight deck type tallies\n- CHANGED: Stacked the active-deck type progress lines vertically in Choose Fight instead of placing them side by side.\n- FILES: src/game/theme.ts, src/game/scenes/PrepScene.ts\n- DESIGN: Choose Fight now shows one type tally per line; Deck Build keeps its compact inline identity summary.\n- VERIFY: npm run build = pass · npm test = pass (320 tests) · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: None.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Extend Choose Fight active-deck section\n- CHANGED: Extended the active-deck section to the bottom of the Choose Fight panel with a dedicated framed area for the cards and stacked type summary.\n- FILES: src/game/theme.ts, src/game/scenes/PrepScene.ts\n- DESIGN: The outer fight panel and bottom inspector remain in place; the active-deck content now has enough visual and vertical room for its stacked tallies.\n- VERIFY: npm run build = pass · npm test = pass (320 tests) · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: None.\n- Claude review: Pending.\n\n### 2026-07-20 — Codex — Standardize Prep and Battle footer buttons\n- CHANGED: Added FOOTER_ACTION_LAYOUT to the shared theme and reused it for Prep and Battle bottom action buttons.\n- FILES: src/game/theme.ts, src/game/scenes/PrepScene.ts, src/game/scenes/BattleScene.ts\n- DESIGN: Both screens now use the same footer height, Y position, first/second button widths, and horizontal offsets; labels and actions remain screen-specific.\n- VERIFY: npm run build = pass · npm test = pass (320 tests) · npm run typecheck = clean.\n- REQUESTS TO CLAUDE: none\n- OPEN: None.\n- Claude review: Pending.\n
+### 2026-07-23 — Codex — Show mobile battle outcome at final turn
+- CHANGED: Moved the Mobile Battle victory/defeat banner trigger from the final event step to the first step of the final combat turn.
+- FILES: src/game/scenes/MobileBattleScene.ts, docs/codex-handoff.md
+- DESIGN: The outcome banner now appears as soon as playback reaches the final turn instead of waiting through every event-level result line; scrubber, replay, and event playback timing remain unchanged.
+- VERIFY: npm run typecheck = pass · npm run build = pass · npm test = fail (boundary check pass; 326 tests pass, existing dirty engine/data balance audit fails with effect-cap violations).
+- ASSUMPTIONS: The simulation result is already authoritative before playback begins, so announcing it at the final turn is consistent with the mobile playback model.
+- REQUESTS TO CLAUDE: none
+- OPEN: Please eyeball a longer mobile fight and confirm the banner timing feels immediate without obscuring the final-turn log.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Tune mobile death-to-result timing
+- CHANGED: Added a short 160ms death beat between the DOWN log step and the RESULT step; normal playback remains 450ms per event step.
+- FILES: src/game/scenes/MobileBattleScene.ts, docs/codex-handoff.md
+- DESIGN: The defeated unit's DOWN line remains readable briefly, then the victory/defeat banner appears quickly without feeling instantaneous or waiting a full playback interval.
+- VERIFY: Pending final typecheck/build after timing adjustment.
+- ASSUMPTIONS: 160ms is a reasonable mobile result-transition beat and can be tuned after a live eyeball.
+- REQUESTS TO CLAUDE: none
+- OPEN: Please evaluate the death beat in a longer fight; adjust toward ~120ms if it still feels late or ~200ms if the DOWN state is too easy to miss.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Stop mobile playback at lethal hit
+- CHANGED: Truncated the mobile event timeline at the first HP snapshot reaching zero, removing redundant DOWN/RESULT scrubber steps after the killing hit.
+- FILES: src/game/scenes/MobileBattleScene.ts, docs/codex-handoff.md
+- DESIGN: The lethal hit is now the final scrollbar event and the result banner is shown on that final state; replay no longer requires advancing through several post-death ticks.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: The first damage/heal-derived snapshot at 0 HP is the authoritative visual end of combat; engine events remain unchanged.
+- REQUESTS TO CLAUDE: none
+- OPEN: Please eyeball a lethal mobile fight and confirm the scrubber ends exactly on the hit that reaches 0 HP.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Keep outcome out of mobile turn header
+- CHANGED: Removed VICTORY/DEFEAT text from the compact top-left turn header.
+- FILES: src/game/scenes/MobileBattleScene.ts, docs/codex-handoff.md
+- DESIGN: The header now stays limited to turn/playback status, while the larger result banner remains the only outcome indicator and no longer competes with stat text.
+- VERIFY: Pending typecheck.
+- ASSUMPTIONS: The centered result banner is sufficient outcome feedback.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Add end-of-fight card damage summary
+- CHANGED: Added a separate CARD DAMAGE summary box above the mobile victory/defeat banner.
+- FILES: src/game/scenes/MobileBattleScene.ts, docs/codex-handoff.md
+- DESIGN: The result state now shows the top player cards by direct skill damage plus a total across the fight; the combat log remains unchanged and no playback steps are added.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: Summary uses player skill damage dealt to the enemy (`amount - blocked`), excluding poison/burn/fatigue ticks.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Expand end-of-fight summary metrics
+- CHANGED: Expanded the separate result summary box to include player damage, enemy damage, player healing, and player card-damage breakdown.
+- FILES: src/game/scenes/MobileBattleScene.ts, docs/codex-handoff.md
+- DESIGN: The combat log remains unchanged. The summary above the victory/defeat banner now covers both sides’ direct skill damage and the player’s healing, with the player’s card damage listed below.
+- VERIFY: npm run typecheck = pass.
+- ASSUMPTIONS: Enemy damage means direct enemy skill damage; player healing sums heal events received by the player. Damage-over-time is excluded from card attribution.
+- REQUESTS TO CLAUDE: none
+- OPEN: Please eyeball the summary box on a long fight for vertical fit above the result banner.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Show per-card combat result ledger
+- CHANGED: Expanded the separate end-of-fight summary to list every card used by either side.
+- FILES: src/game/scenes/MobileBattleScene.ts, docs/codex-handoff.md
+- DESIGN: Each card row shows `DMG / SHIELD / HEAL / DOT` values, with YOU/FOE ownership labels; the existing combat log remains unchanged.
+- VERIFY: npm run typecheck = pass.
+- ASSUMPTIONS: DOT is the number of poison/burn/bleed stacks applied by the card; direct skill damage uses HP lost after blocking.
+- REQUESTS TO CLAUDE: none
+- OPEN: Please eyeball a fight using cards with mixed effects to confirm the compact two-column ledger is readable above the result banner.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Redesign mobile result ledger
+- CHANGED: Reworked the end-of-fight card ledger into a compact two-column result panel with side accents, clear metric labels, and zero-output card filtering.
+- FILES: src/game/scenes/MobileBattleScene.ts, docs/codex-handoff.md
+- DESIGN: War Banner and other cards with no measurable damage, shield, healing, or DOT output are omitted. Meaningful cards show only their nonzero metrics; the combat log is unchanged.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: “DOT” summarizes applied poison/burn/bleed stacks, while direct damage remains post-block HP loss.
+- REQUESTS TO CLAUDE: none
+- OPEN: Please eyeball the redesigned ledger on a long fight for fit above the result banner.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Hide irrelevant result metrics
+- CHANGED: Made the summary totals strip conditional so it only renders damage, enemy damage, or healing when that metric is nonzero.
+- FILES: src/game/scenes/MobileBattleScene.ts, docs/codex-handoff.md
+- DESIGN: The ledger now avoids empty stat labels and shows “No measurable output” only when the fight produced no tracked output.
+- VERIFY: npm run typecheck = pass.
+- ASSUMPTIONS: Zero-value card metrics remain hidden individually as in the previous redesign.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Make mobile deck drops insert and shift spans
+- CHANGED: Replaced mobile deck-build occupied-slot swaps/free-slot placement with span-aware insertion and same-strip reordering.
+- FILES: src/game/scenes/MobileDeckBuildScene.ts
+- DESIGN: Dropping a larger card between cards now shifts neighboring cards to make room in the deck or bag, preserving order. Cross-zone drops use the same insertion behavior; drops still reject cleanly when the 10-slot strip cannot fit the arrangement.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: The pointer’s slot row is the requested insertion position; card spans remain contiguous and cannot overflow the strip.
+- REQUESTS TO CLAUDE: none
+- OPEN: Please test a size-2 or size-3 card dropped between occupied cards in both ACTIVE DECK and BAG.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Restore mobile Wiki card gallery layout
+- CHANGED: Replaced the compressed one-column CardToken catalog with the approved FantasyCardTemplateV2 card presentation in a two-column gallery, and reserved a top filter band.
+- FILES: src/game/scenes/MobileWikiScene.ts, docs/codex-handoff.md
+- DESIGN: Mobile Wiki now has a dedicated CARD LIBRARY / FILTERS header area, two full card columns below it, and scroll/tap hit testing aligned to the new card bounds. Filter chips are visual placeholders until filtering is wired.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: The existing FantasyCardTemplateV2 is the “proper card UI” to restore; card detail and add-to-bag behavior remain unchanged.
+- REQUESTS TO CLAUDE: none
+- OPEN: Please eyeball `?scene=mwiki` at the mobile profile and confirm the two-column card scale feels right before wiring filter behavior.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Set mobile Wiki to two-column compact gallery
+- CHANGED: Restored the filter band, changed the Wiki catalog to a two-column compact CardToken gallery, and kept the full FantasyCardTemplateV2 treatment in the clicked-card detail modal.
+- FILES: src/game/scenes/MobileWikiScene.ts, docs/codex-handoff.md
+- DESIGN: Wiki now matches the Prep/Deck Build mobile shell and density: filter area above, two compact card columns below, full card UI only when inspecting a card. Scrolling and tap hit testing follow the two-column geometry.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: The requested “previous filter section” is the compact CARD LIBRARY / FILTERS band; its chips remain reserved visual controls until filtering is wired.
+- REQUESTS TO CLAUDE: none
+- OPEN: Please eyeball `?scene=mwiki` and tap a card to confirm the full card modal reads correctly.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Add Wiki card detail close button
+- CHANGED: Added an explicit close button to the mobile Wiki card detail modal.
+- FILES: src/game/scenes/MobileWikiScene.ts, docs/codex-handoff.md
+- DESIGN: The modal can now be dismissed from its top-right CLOSE control or by tapping the backdrop.
+- VERIFY: npm run typecheck = pass.
+- ASSUMPTIONS: Backdrop dismissal remains useful as a secondary mobile gesture.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Simplify Wiki card detail overlay
+- CHANGED: Removed the extra modal frame and metadata panel; the clicked card now appears by itself over the dimmed backdrop with ADD TO BAG directly underneath.
+- FILES: src/game/scenes/MobileWikiScene.ts, docs/codex-handoff.md
+- DESIGN: Added pointer propagation guards so CLOSE and ADD TO BAG cannot trigger the card/gallery action behind them.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: Backdrop tap remains a valid dismiss gesture; the card UI itself carries the card’s authored details.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Anchor Wiki close control to card edge
+- CHANGED: Moved the Wiki detail close button from the screen corner to the card’s upper-right outside edge.
+- FILES: src/game/scenes/MobileWikiScene.ts, docs/codex-handoff.md
+- DESIGN: The close control now visually belongs to the card detail while staying outside the card artwork.
+- VERIFY: npm run typecheck = pass.
+- ASSUMPTIONS: The card remains centered and the close control has enough right-side safe area at the mobile profile width.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-23 — Codex — Add Wiki weapon and magic filters
+- CHANGED: Made the Wiki filter band functional with ALL, WEAPON, and MAGIC card-type filters.
+- FILES: src/game/scenes/MobileWikiScene.ts, docs/codex-handoff.md
+- DESIGN: Filter selection rebuilds the existing two-column gallery and updates the visible card count; card detail behavior is unchanged.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: MAGIC maps to cards with an authored element; WEAPON maps to cards with an authored weapon type.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.

@@ -29,8 +29,7 @@ all division is `Math.floor`'d immediately (integer deci-PL, no floats persist).
 | `heal` (TRUE, pure flat, no stat) | `power * flatTrueHealPerPoint` | `PRICE.flatTrueHealPerPoint` (2) | 5 flat points = 1 PL |
 | `shield` (TRUE, pure flat, no stat) | `power * flatTrueShieldPerPoint` | `PRICE.flatTrueShieldPerPoint` (**5**, was 4) | 2 flat points = 1 PL, typed parity — the premium is mechanical: typed damage drains the TRUE pool 2:1 (half effectiveness), TRUE damage 1:1 |
 | TRUE damage premium (scales with amount) | `+truePremiumPerPoint` per point of TRUE damage | `PRICE.truePremiumPerPoint` (**5**, was 1) | Half-effect rule (user-locked 2026-07-20): TRUE damage = 10 deci/pt, exactly double typed — 5 PL buys 10 typed damage but only 5 TRUE. Heals pay via `flatTrueHealPerPoint` instead (kept cheap: healing is never mitigated, TRUE buys no bypass) |
-| `poison` / `bleed` | `(stacks × (stacks+1) / 2) * dotPerTotalDamage` | `PRICE.dotPerTotalDamage` (2) | Decaying model (user-locked 2026-07-20): a tick = current stacks, then −1; N stacks = N×(N+1)/2 total damage, 5 total = 1 PL. Whole PL ⇔ N ≡ 0 or 4 (mod 5). Poison: end-of-turn, unstoppable. Bleed: per-performance, unstoppable once running, application blocked by active shields |
-| `burn` | authored size table | `PRICE.burnPlDeciBySize` (4→20 · 5→30 · 8→50 · 10→60) | Halving model (user-locked 2026-07-20): start-of-turn tick = 2× stacks, then stacks halve — burn 8 ticks 16,8,4,2 = 30 total over 4 turns. Priced 1.43-1.88 deci per total point (a 15-30% discount vs poison's 2.0) because every tick is absorbed by shields. Unlisted sizes fall back to the poison rate on burn's total |
+| `poison` / `bleed` / `burn` | `stacks * dotPerStack` | `PRICE.dotPerStack` (**10**, was a quadratic total-damage formula) | LINEAR PER-STACK (user-locked 2026-07-23, replaces the decaying/halving-total pricing below): 1 stack = 1 PL, so EVERY stack count prices to a whole PL (the old formula only worked at N ≡ 0 or 4 mod 5, making stacks like 7/8 unreachable). Tick GAMEPLAY is unchanged: poison/bleed still DECAY (tick = current stacks, then −1; N stacks = N×(N+1)/2 total damage over N ticks — poison end-of-turn/unstoppable, bleed per-performance/blocked at application by shields); burn still HALVES (start-of-turn tick = 2× stacks, then stacks halve — burn 8 ticks 16,8,4,2 = 30 total). All three share ONE rate for simplicity, which means burn (whose halving total is lower per stack than poison's decaying total) no longer gets its old ~15-30%-per-total-point discount — the `dot` effect cap (below) is the backstop against any DoT over-investing in stacks |
 | `stun` | `turns * stunPerTurn` | `PRICE.stunPerTurn` (**100**, was 40) | 10 PL/turn — a consumed performance ≈ a whole Bronze card (throughput §2.C); moderated step toward 160, sim re-tune deferred |
 | `buffStat` / `debuffStat` | `pct * turns * statPctTurn` | `PRICE.statPctTurn` (1) | 10%-turn = 1 PL |
 | `expose` (%amp) | `pct * turns * exposePerPctTurnNum / Den` | `PRICE.exposePerPctTurnNum` (1), `Den` (1) | Guard-parity: amplifying and reducing cost the same (1×) |
@@ -39,11 +38,11 @@ all division is `Math.floor`'d immediately (integer deci-PL, no floats persist).
 | `disrupt` | `amount * disruptPerPointNum / Den` | `PRICE.disruptPerPointNum` (5), `Den` (**2**, was 4) | 1 PL per 4 drained (was per 8) — a meaningful tempo swing (throughput §2.E) |
 | `lifesteal` | `pct * lifestealPerPctNum / Den` | `PRICE.lifestealPerPctNum` (2), `Den` (3) | 1 PL per 15% |
 | `shieldBreak` | `amount * shieldBreakPerPointNum / Den` | `PRICE.shieldBreakPerPointNum` (5), `Den` (4) | 1 PL per 8 shattered |
-| `comboBonus` | `amount * comboPerPoint` | `PRICE.comboPerPoint` (5) | Same rate as a card's own flat damage |
+| `comboBonus` | `amount * comboPerPointNum / Den` | `PRICE.comboPerPointNum` (5), `Den` (**2**, was flat 5/pt) | CONDITIONAL-TRIGGER DISCOUNT (user-locked 2026-07-23): 2.5 deci/pt, half the flat-damage rate, because the bonus only fires when the previous cast shares this card's archetype (~50% assumed uptime — throughput §2.F). Sets the template for any future gated rider |
 | `guard` (%DR) | `pct * turns * guardPerPctTurnNum / Den` | `PRICE.guardPerPctTurnNum` (**1**), `Den` (**1**) | Parity with `statPctTurn` (1×) — the old 1.25× premium was removed; see rationale below |
 | `negate` (charges) | `charges * negatePerCharge` | `PRICE.negatePerCharge` (**100**, was 50) | Flat per-charge; a fully cancelled hit ≈ a Bronze card — see rationale below |
-| aura `damagePct` | `damagePct * auraDamagePct * reach` | `PRICE.auraDamagePct` (4) | `reach` = 2 for `allBoard`, else 1 |
-| aura `healPct` | `healPct * auraHealPct * reach` | `PRICE.auraHealPct` (4) | |
+| aura `damageFlat` | `damageFlat * auraDamageFlat * reach` | `PRICE.auraDamageFlat` (10) | `reach` = 2 for `allBoard`, else 1. 2× a card's own flat damage (5/pt): the empirical break-even where the best adjacent placement (2 casting neighbors) is PL-fair vs a same-budget damage card (audited 2026-07-23; was 20, which overpriced auras 2-4×) |
+| aura `healFlat` | `healFlat * auraHealFlat * reach` | `PRICE.auraHealFlat` (10) | kept at damage parity |
 | aura `critPctDelta` | `critPctDelta * auraCritPct * reach` | `PRICE.auraCritPct` (5) | |
 | aura `|weightDelta|` | `abs(weightDelta) * auraWeightDelta * reach` | `PRICE.auraWeightDelta` (20) | |
 | weight | `(baseline − weight) * weightPer` | `PRICE.weightPer` (5), baseline = `size * 10` | Every 2 lighter costs 1 PL; every 2 heavier REFUNDS 1 PL |
@@ -230,8 +229,8 @@ no other actions) = `1 * 20 = 20` deci = Common exactly; `quickening_core`
 
 A `kind: 'stat'`, `scope: 'card'` gem's `mods.card` (an `AuraMods`-shaped
 bundle: `damagePct`, `healPct`, `weightDelta`, `critPctDelta`) reuses the
-**same per-point aura rates already in `PRICE`** — `auraDamagePct`,
-`auraHealPct`, `auraCritPct`, `auraWeightDelta` — since a card-scope stat gem
+**same per-point aura rates already in `PRICE`** — `auraDamageFlat`,
+`auraHealFlat`, `auraCritPct`, `auraWeightDelta` — since a card-scope stat gem
 is structurally identical to a self-only aura riding on one card. Unlike a
 card's own `aura` block, a socketed gem never has an `allBoard`/`adjacent`
 reach — it always affects exactly the one host card — so there's **no reach
@@ -300,7 +299,7 @@ effects and a per-charge cleanse. The affected cards were re-fit **mechanically*
 | `guardPerPctTurn` | 5/4 | **1/1** | Parity with `statPctTurn`; the 1.25× premium was unjustified (§2.D) |
 | `cleanse` | flat 90 | **25/charge** | Priced per effect removed ("x per PL spent"); `purify` = 4 charges = 100 |
 | `expose` (NEW) | — | `pct * turns * 1/1` | Guard-parity amplifier (mirror of guard) |
-| `bleed` (NEW) | — | `amount * turns * 2` (dotPerPoint) | Per-performance DoT; per-perf timing stronger vs fast enemies, deferred to sim |
+| `bleed` (NEW) | — | `amount * turns * 2` (dotPerPoint) | Per-performance DoT; per-perf timing stronger vs fast enemies, deferred to sim. NOTE: bleed's price formula was superseded 2026-07-23 (see `dotPerStack` above); the row above is left as a historical record of this changelog entry |
 
 Card re-fits (all land exactly on Bronze = 100 deci):
 

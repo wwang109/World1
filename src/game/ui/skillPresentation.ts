@@ -6,14 +6,12 @@ const STAT_ABBREV: Record<BuffableStat, string> = {
   armor: 'DEF',
   magicResist: 'MDEF',
   speed: 'SPD',
-  critPct: 'CRIT',
 };
 
 interface AuraModifierShape {
   damageFlat?: number;
   healFlat?: number;
   weightDelta?: number;
-  critPctDelta?: number;
 }
 
 function signed(value: number): string {
@@ -25,12 +23,11 @@ export function isAuraSkill(skill: SkillDef): boolean {
 }
 
 export function formatAuraModifiers(mods: AuraModifierShape, compact = false): string {
-  // FLAT damage/heal (no %); crit stays a percentage.
+  // FLAT damage/heal (no %).
   return [
     mods.damageFlat === undefined ? '' : `${signed(mods.damageFlat)} ${compact ? 'DMG' : 'damage'}`,
     mods.healFlat === undefined ? '' : `${signed(mods.healFlat)} ${compact ? 'HEAL' : 'healing'}`,
     mods.weightDelta === undefined ? '' : `${signed(mods.weightDelta)} ${compact ? 'WT' : 'weight'}`,
-    mods.critPctDelta === undefined ? '' : `${signed(mods.critPctDelta)}% ${compact ? 'CRIT' : 'critical chance'}`,
   ].filter(Boolean).join(' · ');
 }
 
@@ -54,11 +51,43 @@ export function describeAuraRange(skill: SkillDef): string | null {
   return reach <= 1 ? `${target} touching this one ${where}` : `${target} up to ${reach} slots away ${where}`;
 }
 
+/** Live scaling stats (current combatant) used to compute the actual number a card deals. */
+export interface ScalingStats {
+  attack: number;
+  magicPower: number;
+}
+
+/** The caster's scaling stat contribution for a given property, per the engine's `scaleStat` rule. */
+function statContribution(property: SkillDef['property'], stats: ScalingStats): number {
+  switch (property) {
+    case 'physical': return stats.attack;
+    case 'magical': return stats.magicPower;
+    case 'true': return Math.max(stats.attack, stats.magicPower);
+  }
+}
+
+/** `DMG 37` — the summed EFFECTIVE number (base + live stat) when stats are known and contribute; else the bare base number. */
+function scaledLabel(label: string, base: number, property: SkillDef['property'], stats: ScalingStats | undefined, statScales: boolean): string {
+  if (stats && statScales) {
+    const contribution = statContribution(property, stats);
+    if (contribution) return `${label} ${base + contribution}`;
+  }
+  return `${label} ${base}`;
+}
+
 /**
  * Compact effect summary for the card face — the numbers the player actually
  * plays for (damage, heal, shield, DoTs, buffs), not metadata like PL or size.
+ *
+ * When `stats` (the current combatant's live Attack/Magic Power) is supplied,
+ * the scalable damage/heal/shield lines render as the SUMMED effective number
+ * (base + live stat) — e.g. `Sword Slash` with 17 Attack shows `DMG 37`, not
+ * a breakdown. Physical scales off Attack, magical off Magic Power, TRUE
+ * damage off the higher of the two — TRUE heal/shield are flat (no stat
+ * added, sum == base). Omitting `stats` (or a zero contribution) falls back
+ * to the bare base number, e.g. `DMG 20`.
  */
-export function summarizeEffects(skill: SkillDef): string {
+export function summarizeEffects(skill: SkillDef, stats?: ScalingStats): string {
   if (skill.aura) return `AURA ${formatAuraModifiers(skill.aura.mods, true)}`;
 
   const parts: string[] = [];
@@ -84,14 +113,15 @@ export function summarizeEffects(skill: SkillDef): string {
       case 'taunt': extras.push('TAUNT'); break;
       case 'lifesteal': extras.push(`LSTEAL ${action.pct}%`); break;
       case 'shieldBreak': extras.push(`SHATTER ${action.amount}`); break;
-      case 'comboBonus': extras.push(`COMBO +${action.amount}`); break;
+      case 'comboBonus': extras.push(`SKILL +${action.amount}`); break;
       case 'slow': extras.push(`SLOW +${action.weight}`); break;
       case 'disrupt': extras.push(`STAG ${action.amount}`); break;
     }
   }
-  if (damage) parts.push(`DMG ${damage}`);
-  if (heal) parts.push(`HEAL ${heal}`);
-  if (shield) parts.push(`SHLD ${shield}`);
+  const property = skill.property;
+  if (damage) parts.push(scaledLabel('DMG', damage, property, stats, true));
+  if (heal) parts.push(scaledLabel('HEAL', heal, property, stats, property !== 'true'));
+  if (shield) parts.push(scaledLabel('SHLD', shield, property, stats, property !== 'true'));
   parts.push(...extras);
   return parts.join(' · ') || 'PASSIVE';
 }

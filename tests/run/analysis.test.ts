@@ -24,14 +24,6 @@ describe('run/analysis: damagePerTurn', () => {
     expect(band.turns).toBe(10);
   });
 
-  it('a crit-capable build shows a real spread (max > min)', () => {
-    // High crit chance → crit RNG should separate the lucky/unlucky seeds.
-    const setup = heroWith([{ skillId: 'sword_slash', slot: 0 }], 1);
-    setup.stats.critPct = 50;
-    const band = damagePerTurn(setup, skillBook);
-    expect(band.max).toBeGreaterThan(band.min);
-  });
-
   it('a purely defensive/heal build dishes out 0 damage per turn', () => {
     const setup = heroWith([
       { skillId: 'iron_bulwark', slot: 0 },
@@ -63,7 +55,7 @@ describe('run/analysis: cardContributions (per-card report)', () => {
     // Hero deck: an attacker, a poison attacker, a shield, a heal.
     const hero: CombatantSetup = {
       name: 'Hero',
-      stats: { maxHp: 400, hp: 200, attack: 12, magicPower: 12, armor: 0, magicResist: 0, speed: 20, critPct: 0 },
+      stats: { maxHp: 400, hp: 200, attack: 12, magicPower: 12, armor: 0, magicResist: 0, speed: 20 },
       boardSize: 10,
       pieces: [
         { skillId: 'sword_slash', slot: 0 },
@@ -73,7 +65,7 @@ describe('run/analysis: cardContributions (per-card report)', () => {
       ],
     };
     const dummy: CombatantSetup = {
-      name: 'Bag', stats: { maxHp: 5000, hp: 5000, attack: 6, magicPower: 0, armor: 0, magicResist: 0, speed: 8, critPct: 0 },
+      name: 'Bag', stats: { maxHp: 5000, hp: 5000, attack: 6, magicPower: 0, armor: 0, magicResist: 0, speed: 8 },
       boardSize: 2, pieces: [{ skillId: 'sword_slash', slot: 0 }],
     };
     const { events } = simulate({ playerTeam: [hero], enemyTeam: [dummy], skillBook, suddenDeathRound: 999, fatigueTurn: 999, maxTurns: 8 }, 1);
@@ -91,11 +83,11 @@ describe('run/analysis: cardContributions (per-card report)', () => {
 
   it('is deterministic and attributes only cards that actually fired', () => {
     const hero: CombatantSetup = {
-      name: 'Hero', stats: { maxHp: 300, hp: 300, attack: 10, magicPower: 10, armor: 0, magicResist: 0, speed: 20, critPct: 0 },
+      name: 'Hero', stats: { maxHp: 300, hp: 300, attack: 10, magicPower: 10, armor: 0, magicResist: 0, speed: 20 },
       boardSize: 10, pieces: [{ skillId: 'sword_slash', slot: 0 }],
     };
     const dummy: CombatantSetup = {
-      name: 'Bag', stats: { maxHp: 9999, hp: 9999, attack: 0, magicPower: 0, armor: 0, magicResist: 0, speed: 0, critPct: 0 },
+      name: 'Bag', stats: { maxHp: 9999, hp: 9999, attack: 0, magicPower: 0, armor: 0, magicResist: 0, speed: 0 },
       boardSize: 1, pieces: [],
     };
     const run = () => cardContributions(simulate({ playerTeam: [hero], enemyTeam: [dummy], skillBook, suddenDeathRound: 999, fatigueTurn: 999, maxTurns: 6 }, 3).events);

@@ -77,7 +77,7 @@ describe('special ability riders', () => {
 
   it('comboBonus triggers only when the previous cast shared an archetype', () => {
     // Board: [sword_slash][follow_through] — both Offense.
-    // Turn 1 slash (no combo: nothing cast before), turn 2 follow_through with the flat +10 combo.
+    // Turn 1 slash (no combo: nothing cast before), turn 2 follow_through with the flat +20 combo.
     const c = cfg(
       tc('hero', ['sword_slash', 'follow_through'], { attack: 10, speed: 20, maxHp: 500 }),
       tc('wall', [], { maxHp: 500, speed: 1 }),
@@ -86,7 +86,7 @@ describe('special ability riders', () => {
     const { events } = simulate(c, 1);
     const hits = events.filter((e) => e.kind === 'damage').map((e) => (e as { amount: number }).amount);
     expect(hits[0]).toBe(30); // sword_slash: 20 flat + 10 Attack
-    expect(hits[1]).toBe(30); // follow_through: 10 flat + 10 Attack + 10 combo = 30
+    expect(hits[1]).toBe(40); // follow_through: 10 flat + 10 Attack + 20 combo = 40
   });
 
   it('rider magnitudes are priced per unit (decimal-precise deci-PL)', () => {

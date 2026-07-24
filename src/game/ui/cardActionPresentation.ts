@@ -13,7 +13,6 @@ const STAT_LABEL: Record<BuffableStat, string> = {
   armor: 'Armor',
   magicResist: 'Magic Resist',
   speed: 'Speed',
-  critPct: 'Crit Chance',
 };
 
 function scalingStat(skill: SkillDef): string {

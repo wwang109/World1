@@ -41,6 +41,7 @@ export class BootScene extends Phaser.Scene {
       : launch.scene === 'mprep' ? 'MobilePrep'
       : launch.scene === 'mdeck' ? 'MobileDeckBuild'
       : launch.scene === 'mbattle' ? 'MobileBattle'
+      : launch.scene === 'mwiki' ? 'MobileWiki'
       : launch.prepView === 'loadout' ? defaultScene
       : 'Prep';
     this.scene.start(target);

@@ -15,19 +15,12 @@ export interface DamageCalculation {
   power: number;
   baseDamage: number;
   statBonusDamage: number;
-  /** FLAT aura + combo + board-identity bonus damage added (no longer a percentage). */
+  /** FLAT aura + combo + gem bonus damage added (no longer a percentage). */
   effectBonusDamage: number;
-  /**
-   * Informational subset of effectBonusDamage contributed by the board type
-   * identity's same-type +20% (docs/board-type-identity.md). Present only when
-   * non-zero; the math strip still sums using effectBonusDamage alone.
-   */
-  identityBonusDamage?: number;
   /** Actual damage removed by Armor/Magic Resist after the minimum-1 clamp. */
   defense: number;
   /** Damage restored by the engine's minimum-1 clamps. */
   minimumDamageBonus: number;
-  critBonusDamage: number;
   /** Signed elemental/weapon matchup contribution. */
   matchupBonusDamage: number;
   suddenDeathBonusDamage: number;
@@ -235,7 +228,6 @@ export type CombatEvent =
       amount: number;
       property: Property;
       blocked: number;
-      crit: boolean;
       /** Element wheel / weapon triangle result for this hit. */
       matchup?: 'advantage' | 'disadvantage';
       /** Amount removed by Magical Guard (present only when a guard fired). */

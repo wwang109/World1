@@ -24,11 +24,11 @@ import { enemies } from '../data/enemies';
 import { skillBook } from '../data/skills';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../data/heroes';
 import {
-  allocateByProfile,
-  applyPlayerAllocation,
-  availablePoints,
+  allocateMonsterPL,
+  applyPlayerLevelAllocation,
   DEFAULT_PROFILE,
   scaleMonsterToLevel,
+  totalLevelPL,
   type Allocation,
 } from './leveling';
 
@@ -55,12 +55,17 @@ export interface TitlePreset {
 }
 
 /**
- * User-locked title design: Mob is WEAKER than baseline; Normal is the floor;
- * Elite is +2 levels, +1 card, and a couple of tier-up ranks; Boss is +4
- * levels, +2 cards, and more ranks.
+ * User-locked title design (2026-07-24): titles are ± LEVELS of stat PL, one
+ * rule for the whole ladder — Mob -4 levels (-12 PL, can drive the monster's
+ * PL spend negative — see `scaleMonsterToLevel`/`allocateMonsterPL` in
+ * leveling.ts for the "un-buy" + clamp mechanics), Normal +0, Elite +2 levels
+ * (+1 card, a couple tier-up ranks), Boss +4 levels (+2 cards, more ranks).
+ * `levelDelta` feeds `effectiveLevel` below, which is intentionally NOT
+ * floored at 1 any more — Mob's demotion needs to be able to go negative to
+ * reach `scaleMonsterToLevel`'s negative-PL un-buy path.
  */
 export const TITLE_PRESETS: Record<EnemyTitle, TitlePreset> = {
-  mob: { levelDelta: -1, rank: 0, extraCards: 0 },
+  mob: { levelDelta: -4, rank: 0, extraCards: 0 },
   normal: { levelDelta: 0, rank: 0, extraCards: 0 },
   elite: { levelDelta: 2, rank: 2, extraCards: 1 },
   boss: { levelDelta: 4, rank: 4, extraCards: 2 },
@@ -160,7 +165,12 @@ export interface EncounterUnit {
   setup: CombatantSetup;
   /** The requested (display) level, clamped to >= 1. */
   level: number;
-  /** The level actually scaled to: requested + title delta, floored at 1. */
+  /**
+   * The level actually scaled to: requested + title delta. UNCLAMPED — a
+   * demoted title (Mob, -4) can drive this below 1 (even negative), which is
+   * intentional: it feeds directly into `scaleMonsterToLevel`'s signed PL
+   * spend, letting Mob "un-buy" stats below the universal floor.
+   */
   effectiveLevel: number;
   title: EnemyTitle;
   /** Tier-steps applied across the deck (after clamping to the ceiling). */
@@ -191,7 +201,7 @@ export function buildEnemyEncounter(
   }
   const preset = TITLE_PRESETS[title];
   const resolvedLevel = clampLevel(level);
-  const effectiveLevel = Math.max(1, resolvedLevel + preset.levelDelta);
+  const effectiveLevel = resolvedLevel + preset.levelDelta;
   const scaled = scaleMonsterToLevel(enemy, effectiveLevel);
 
   const withCards = addExtraCards(scaled.pieces, poolFor(enemy), preset.extraCards);
@@ -209,40 +219,29 @@ export function buildEnemyEncounter(
   };
 }
 
-/** Inputs needed to resolve a hero's combat setup: level, chosen allocation, and board. */
-export interface HeroBuild {
-  level: number;
-  allocation: Allocation;
-  pieces: BoardPiece[];
-}
-
 /**
- * Resolve the hero's combat setup: BASE_HERO_STATS + the player's chosen
- * allocation, validated against the points available at `build.level`.
- * Throws (propagated from `applyPlayerAllocation`) if the allocation
- * over-spends its budget.
+ * Hero setup at `level`, either:
+ *   - `playerLevelAllocation` given: the player's PL-budget stat-sheet spend
+ *     (buy counts per stat, priced via `LEVEL_STAT_COST` — the unified
+ *     PL-budget leveling economy; see leveling.ts). This is the real path
+ *     once the stat-sheet UI is wired (`demoState.heroAllocation`).
+ *   - omitted: falls back to an AUTO-balanced spend of the SAME PL budget
+ *     (`allocateMonsterPL` against `DEFAULT_PROFILE`, exactly like a monster
+ *     with no bespoke identity would auto-spend) for legacy callers that
+ *     haven't been wired to an allocation yet.
+ *
+ * Both branches spend from the SAME `totalLevelPL(level)` budget the player
+ * and every monster share — the only difference is WHO decides the spend
+ * (player picks by hand vs. the auto-balanced fallback here).
  */
-export function buildHeroSetup(build: HeroBuild): { setup: CombatantSetup; level: number } {
-  const resolvedLevel = clampLevel(build.level);
-  const available = availablePoints(resolvedLevel);
-  const stats = applyPlayerAllocation(BASE_HERO_STATS, build.allocation, available);
-  const setup: CombatantSetup = {
-    name: 'Hero',
-    stats,
-    boardSize: HERO_BOARD_SLOTS,
-    pieces: build.pieces,
-  };
-  return { setup, level: resolvedLevel };
-}
-
-/**
- * Hero setup at `level` with an AUTO-balanced point spend (the flat
- * DEFAULT_PROFILE spread). This is the stand-in until the player stat-sheet
- * UI exists — the demo hero-level selector calls this so a chosen level is
- * honestly reflected in stats without hand-picking an allocation.
- */
-export function buildAutoHeroSetup(level: number, pieces: BoardPiece[]): { setup: CombatantSetup; level: number } {
+export function buildAutoHeroSetup(
+  level: number,
+  pieces: BoardPiece[],
+  playerLevelAllocation?: Allocation,
+): { setup: CombatantSetup; level: number } {
   const resolvedLevel = clampLevel(level);
-  const allocation = allocateByProfile(availablePoints(resolvedLevel), DEFAULT_PROFILE);
-  return buildHeroSetup({ level: resolvedLevel, allocation, pieces });
+  const allocation = playerLevelAllocation ?? allocateMonsterPL(totalLevelPL(resolvedLevel), DEFAULT_PROFILE);
+  const stats = applyPlayerLevelAllocation(BASE_HERO_STATS, resolvedLevel, allocation);
+  const setup: CombatantSetup = { name: 'Hero', stats, boardSize: HERO_BOARD_SLOTS, pieces };
+  return { setup, level: resolvedLevel };
 }

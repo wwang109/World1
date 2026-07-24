@@ -18,6 +18,59 @@ import {
 import { skillBook } from '../../src/data/skills';
 import type { Gem, SkillDef } from '../../src/engine/types';
 
+// USER-LOCKED 2026-07-23 — no drift. The entire price table is frozen here:
+// changing any rate in balance.ts MUST also edit this literal, so every pricing
+// change is a deliberate, reviewed decision — never a silent refactor. Same
+// drift-guard philosophy as the card balance audit below.
+//
+// 2026-07-23: DoT pricing switched from the quadratic decaying-TOTAL model
+// (dotPerTotalDamage / burnPlDeciBySize) to a single LINEAR PER-STACK rate
+// (dotPerStack) shared by poison/bleed/burn — see balance.ts for the full
+// rationale. Tick gameplay is unchanged; only the price formula moved.
+//
+// 2026-07-23: comboBonus cut from a flat 5/pt (no discount) to 2.5/pt
+// (comboPerPointNum/Den = 5/2) — CONDITIONAL-TRIGGER DISCOUNT: a bonus gated
+// on "previous cast shared an archetype" doesn't always fire, so it must cost
+// less per point than guaranteed flat damage. See balance.ts for the derivation.
+describe('PRICE structure lock', () => {
+  it('every PRICE rate matches its locked value', () => {
+    expect(PRICE).toEqual({
+      flatPowerPerPoint: 5,
+      flatTrueHealPerPoint: 2,
+      flatTrueShieldPerPoint: 5,
+      truePremiumPerPoint: 5,
+      dotPerStack: 10,
+      stunPerTurn: 100,
+      statPctTurn: 1,
+      cleansePerCharge: 25,
+      weightPer: 5,
+      sizeGrant2Bronze: 140,
+      sizeGrant3Bronze: 380,
+      cooldownPerTurn: 100,
+      slowPerWeightNum: 5,
+      slowPerWeightDen: 2,
+      disruptPerPointNum: 5,
+      disruptPerPointDen: 2,
+      lifestealPerPctNum: 2,
+      lifestealPerPctDen: 3,
+      shieldBreakPerPointNum: 5,
+      shieldBreakPerPointDen: 4,
+      comboPerPointNum: 5,
+      comboPerPointDen: 2,
+      guardPerPctTurnNum: 1,
+      guardPerPctTurnDen: 1,
+      exposePerPctTurnNum: 1,
+      exposePerPctTurnDen: 1,
+      negatePerCharge: 100,
+      auraDamageFlat: 10,
+      auraHealFlat: 10,
+      auraWeightDelta: 20,
+      extraHitPremium: 30,
+      heroStatPerPoint: { attack: 8, magicPower: 8, armor: 10, magicResist: 10, speed: 5 },
+    });
+  });
+});
+
 describe('Power Level budgets', () => {
   it('tier budgets are Bronze 10 / Silver 15 / Gold 20 / Diamond 25', () => {
     expect(TIER_BUDGET_DECI).toEqual({ bronze: 100, silver: 150, gold: 200, diamond: 250 });
@@ -43,13 +96,14 @@ describe('Power Level budgets', () => {
       control: { 1: 100, 2: 150, 3: 200 },
       dot: { 1: 200, 2: 300, 3: 400 },
       empower: { 1: 100, 2: 150, 3: 200 },
-      damage: { 1: 120, 2: 280, 3: 500 },
-      shield: { 1: 120, 2: 280, 3: 500 },
-      heal: { 1: 120, 2: 280, 3: 500 },
+      damage: { 1: 300, 2: 700, 3: 1250 },
+      shield: { 1: 300, 2: 700, 3: 1250 },
+      heal: { 1: 300, 2: 700, 3: 1250 },
     });
     expect(MAX_STUN_PER_CARD).toBe(1);
-    // Flat families scale with tier (×1.5/×2/×2.5); the others never do.
+    // USER-LOCKED 2026-07-23: one flat Diamond-tier ceiling for every tier (no scaling).
     expect(effectCapDeci('damage', 1, 'diamond')).toBe(300);
+    expect(effectCapDeci('damage', 1, 'bronze')).toBe(300);
     expect(effectCapDeci('control', 1, 'diamond')).toBe(100);
     const offenders: string[] = [];
     for (const skill of Object.values(skillBook)) {
@@ -126,10 +180,10 @@ describe('Power Level budgets', () => {
     const passive: SkillDef = {
       ...casting,
       effects: [],
-      aura: { affects: 'adjacent', mods: { critPctDelta: 20 } },
+      aura: { affects: 'adjacent', mods: { damageFlat: 20 } },
     };
     expect(powerLevelDeci(casting)).toBe(40 * PRICE.flatTrueHealPerPoint); // flat heal; the TRUE premium scales with damage only
-    expect(powerLevelDeci(passive)).toBe(20 * PRICE.auraCritPct); // aura only, no premium
+    expect(powerLevelDeci(passive)).toBe(20 * PRICE.auraDamageFlat); // aura only, no premium
   });
 
   it('powerLevel() reports decimal-precise PL and all demo cards sit on budget', () => {
@@ -196,8 +250,8 @@ describe('Power Level budgets', () => {
     expect(powerLevelDeci(mk(3))).toBe(300);
   });
 
-  it('bleed is priced at the decaying-DoT rate (N×(N+1)/2 total × 2 deci), same as poison/burn', () => {
-    const bleedCard: SkillDef = {
+  it('poison/bleed/burn are priced LINEARLY per stack (10 deci/stack) — every stack count is a whole PL', () => {
+    const mk = (kind: 'poison' | 'bleed' | 'burn', stacks: number): SkillDef => ({
       id: 'x',
       name: 'x',
       archetypes: ['debuff'],
@@ -206,14 +260,22 @@ describe('Power Level budgets', () => {
       weapon: 'axe',
       rarity: 'common',
       tier: 'bronze',
-      effects: [{ kind: 'bleed', stacks: 9 }],
+      effects: [{ kind, stacks } as SkillDef['effects'][number]],
       text: '',
-    };
-    // 9 stacks tick 9+8+…+1 = 45 total damage × dotPerTotalDamage(2) =
-    // 90 deci. Whole PL ⇔ N ≡ 0 or 4 (mod 5).
-    expect(PRICE.dotPerTotalDamage).toBe(2);
-    expect(powerLevelDeci(bleedCard)).toBe(((9 * 10) / 2) * PRICE.dotPerTotalDamage);
-    expect(powerLevelDeci(bleedCard)).toBe(90);
+    });
+    expect(PRICE.dotPerStack).toBe(10);
+    // The tick model (decaying for poison/bleed, halving for burn) still
+    // determines gameplay totals, but pricing reads only the stack count —
+    // so 7 and 8 stacks (previously unreachable at a whole PL under the old
+    // quadratic total-damage formula) now price cleanly, same as any N.
+    expect(powerLevelDeci(mk('bleed', 9))).toBe(90);
+    expect(powerLevelDeci(mk('poison', 7))).toBe(70);
+    expect(powerLevelDeci(mk('poison', 8))).toBe(80);
+    expect(powerLevelDeci(mk('burn', 7))).toBe(70);
+    expect(powerLevelDeci(mk('burn', 8))).toBe(80);
+    // All three DoT kinds share the one rate.
+    expect(powerLevelDeci(mk('poison', 5))).toBe(powerLevelDeci(mk('bleed', 5)));
+    expect(powerLevelDeci(mk('poison', 5))).toBe(powerLevelDeci(mk('burn', 5)));
   });
 
   it('cleanse is priced per charge (25 deci); 4 charges lands on Bronze', () => {
@@ -274,9 +336,9 @@ describe('Gem Power Level', () => {
       id: 'g2',
       rarity: 'rare',
       scope: 'card',
-      mods: { card: { damageFlat: 2 } }, // 2 * auraDamageFlat(20) = 40 deci
+      mods: { card: { damageFlat: 4 } }, // 4 * auraDamageFlat(10) = 40 deci
     };
-    expect(gemPowerLevelDeci(gem)).toBe(2 * PRICE.auraDamageFlat);
+    expect(gemPowerLevelDeci(gem)).toBe(4 * PRICE.auraDamageFlat);
     expect(gemPowerLevelDeci(gem)).toBe(40);
     expect(isGemOnBudget(gem)).toBe(true);
   });

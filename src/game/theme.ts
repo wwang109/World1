@@ -223,7 +223,7 @@ export const BATTLE_SIDE_LAYOUT = {
   summaryOffsetY: 32,
   attackOffsetY: 50,
   defenseOffsetY: 66,
-  /** Shifted down (was 82) so the shield strip above the bar clears the DEF/RES/CRIT line. */
+  /** Shifted down (was 82) so the shield strip above the bar clears the DEF/RES line. */
   hpBarOffsetY: 90,
   hpTextOffsetY: 14,
   scoreOffsetY: 30,

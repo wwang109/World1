@@ -1,6 +1,5 @@
 import type { AuraDef, SkillBook } from '../types';
 import type { CombatantState, PieceState } from './state';
-import { IDENTITY_DAMAGE_PCT, matchesIdentity } from './typeIdentity';
 
 /** A board footprint: a card's leftmost slot and how many slots it spans. */
 export interface Footprint {
@@ -15,24 +14,12 @@ export interface AuraMods {
   /** FLAT healing added to the heal. */
   healFlat: number;
   weightDelta: number;
-  /** Crit CHANCE points — the one modifier that stays a percentage. */
-  critPctDelta: number;
-  /**
-   * PERCENT damage bonus applied to direct `damage` actions only (Board Type
-   * Identity's +20% same-type bonus). 0 for un-featured casts, so the damage
-   * math is byte-identical when no board identity applies. NOT an aura source —
-   * it rides the same bundle but is derived from the combatant's identity, not
-   * from any board card, so it never appears in `AuraSource`.
-   */
-  damagePct: number;
 }
 
 export const NO_MODS: AuraMods = {
   damageFlat: 0,
   healFlat: 0,
   weightDelta: 0,
-  critPctDelta: 0,
-  damagePct: 0,
 };
 
 /**
@@ -50,7 +37,6 @@ export interface AuraSource {
   damageFlat?: number;
   healFlat?: number;
   weightDelta?: number;
-  critPctDelta?: number;
 }
 
 /** Both the summed mods a cast receives and the per-source breakdown behind them. */
@@ -173,17 +159,14 @@ export function resolveAuras(c: CombatantState, piece: PieceState, skillBook: Sk
     const dmg = aura.mods.damageFlat ?? 0;
     const heal = aura.mods.healFlat ?? 0;
     const weight = aura.mods.weightDelta ?? 0;
-    const crit = aura.mods.critPctDelta ?? 0;
     mods.damageFlat += dmg;
     mods.healFlat += heal;
     mods.weightDelta += weight;
-    mods.critPctDelta += crit;
     // Record only the nonzero mods this source contributed.
     const entry: AuraSource = { slot: source.slot, skillId: source.skillId };
     if (dmg) entry.damageFlat = dmg;
     if (heal) entry.healFlat = heal;
     if (weight) entry.weightDelta = weight;
-    if (crit) entry.critPctDelta = crit;
     sources.push(entry);
   }
   // Card-scope stat gem rides the same summed bundle but is intentionally NOT
@@ -192,12 +175,6 @@ export function resolveAuras(c: CombatantState, piece: PieceState, skillBook: Sk
   mods.damageFlat += g.damageFlat ?? 0;
   mods.healFlat += g.healFlat ?? 0;
   mods.weightDelta += g.weightDelta ?? 0;
-  mods.critPctDelta += g.critPctDelta ?? 0;
-  // Board Type Identity: cards whose type matches this combatant's board
-  // identity get the +20% same-type damage bonus. Folded here alongside gems so
-  // the core loop consumes it through the existing per-card modifier bundle; a
-  // combatant with no identity leaves this at 0 (byte-identical output).
-  if (matchesIdentity(targetDef, c.boardIdentity)) mods.damagePct += IDENTITY_DAMAGE_PCT;
   return { mods, sources };
 }
 

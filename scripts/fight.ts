@@ -59,15 +59,11 @@ const fmtDamage = (c: DamageCalculation): string => {
   add('BONUS', c.effectBonusDamage);
   add('DEF', -c.defense);
   add('MIN', c.minimumDamageBonus);
-  add('CRIT', c.critBonusDamage);
-  add('MATCH', c.matchupBonusDamage);
+  add('AFFINITY', c.matchupBonusDamage);
   add('RAMP', c.suddenDeathBonusDamage);
   add('GUARD', -c.guardReduction);
   add('BLOCK', -c.shieldBlocked);
-  const identity = c.identityBonusDamage ?? 0;
-  const bonusLabel = identity > 0
-    ? `+${c.effectBonusDamage - identity} aura/combo, +${identity} board identity`
-    : `+${c.effectBonusDamage} aura/combo`;
+  const bonusLabel = `+${c.effectBonusDamage} aura/combo`;
   return `${terms.join(' ')} = ${c.hpDamage} HP (${c.scalingStat} ${c.baseStat}->${c.effectiveStat}, ${bonusLabel})`;
 };
 
@@ -118,7 +114,7 @@ for (const e of events) {
       break;
     case 'damage':
       console.log(
-        `${t} │  ${tag(e.side)} takes ${e.amount} ${e.property}${e.crit ? ' CRIT' : ''}${e.blocked ? ` (${e.blocked} blocked)` : ''} -> ${e.hpAfter} hp${e.source !== 'skill' ? ` [${e.source}]` : ''}`,
+        `${t} │  ${tag(e.side)} takes ${e.amount} ${e.property}${e.blocked ? ` (${e.blocked} blocked)` : ''} -> ${e.hpAfter} hp${e.source !== 'skill' ? ` [${e.source}]` : ''}`,
       );
       if (e.calculation) console.log(`${t} │  calc             ${fmtDamage(e.calculation)}`);
       break;

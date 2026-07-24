@@ -10,8 +10,8 @@ import { tc, NO_ENDGAME } from '../helpers';
  * (the real-play default); the 194 pre-cooldown mechanic tests keep the toggle
  * OFF via the `cfg()` helper and stay byte-identical.
  *
- * Cards deal true damage scaled off a tiny stat with critPct 0, so no matchup /
- * crit RNG divergence muddies the event stream we assert on.
+ * Cards deal true damage scaled off a tiny stat, so no matchup divergence
+ * muddies the event stream we assert on.
  */
 function card(id: string, over: Partial<SkillDef> = {}): SkillDef {
   return {
@@ -159,8 +159,8 @@ describe('cooldowns: readiness during downtime', () => {
 
 describe('cooldowns: determinism', () => {
   it('cooldowns ON: same config + seed → identical event logs', () => {
-    const hero = tc('hero', ['a', 'b', 'c', 'd', 'basic'], { speed: 20, attack: 6, critPct: 35 }, { skillBook: BOOK });
-    const foe = tc('foe', ['a', 'b', 'basic'], { speed: 18, attack: 5, critPct: 25, maxHp: 300 }, { skillBook: BOOK });
+    const hero = tc('hero', ['a', 'b', 'c', 'd', 'basic'], { speed: 20, attack: 6 }, { skillBook: BOOK });
+    const foe = tc('foe', ['a', 'b', 'basic'], { speed: 18, attack: 5, maxHp: 300 }, { skillBook: BOOK });
     const cfgOn: CombatConfig = { playerTeam: [hero], enemyTeam: [foe], skillBook: BOOK, maxTurns: 80, cooldownsEnabled: true };
     const a = simulate(structuredClone(cfgOn), 12345);
     const b = simulate(structuredClone(cfgOn), 12345);

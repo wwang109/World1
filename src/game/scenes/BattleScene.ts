@@ -257,6 +257,7 @@ export class BattleScene extends Phaser.Scene {
     const heroEncounter = buildAutoHeroSetup(
       demoState.heroLevel,
       demoState.pieces.map((piece) => ({ ...piece })),
+      demoState.heroAllocation,
     );
     const enemyTeam = demoState.enemyTeam.length > 0
       ? demoState.enemyTeam
@@ -523,7 +524,7 @@ export class BattleScene extends Phaser.Scene {
     }));
     statLine.setInteractive({ useHandCursor: true });
     statLine.on('pointerdown', () => this.openStatsModal(name, stats, level, side));
-    const defenseLine = track(this.add.text(panel.x + contentInset, panel.y + BATTLE_SIDE_LAYOUT.defenseOffsetY, `DEF ${stats.armor} · RES ${stats.magicResist} · CRIT ${stats.critPct}%`, {
+    const defenseLine = track(this.add.text(panel.x + contentInset, panel.y + BATTLE_SIDE_LAYOUT.defenseOffsetY, `DEF ${stats.armor} · RES ${stats.magicResist}`, {
       fontSize: compact ? '7px' : '8px',
       color: UI.text,
       fontFamily: FONT.body,
@@ -1138,7 +1139,6 @@ export class BattleScene extends Phaser.Scene {
       `Armor      ${stats.armor}`,
       `Resist     ${stats.magicResist}`,
       `Speed      ${stats.speed}`,
-      `Crit       ${stats.critPct}%`,
     ].join('\n');
     const statsBlock = this.add.text(panelX + 22, panelY + 112, statText, {
       fontSize: '16px',
@@ -1286,7 +1286,7 @@ export class BattleScene extends Phaser.Scene {
         };
         if (event.source === 'skill' && activePlayRow) {
           activePlayRow.resultLines.push(
-            `HIT · ${this.unitLabel(event.side, event.unit)} −${dealt}${event.crit ? ' CRIT' : ''} · ${hp}${event.blocked ? ` · ${event.blocked} blocked` : ''}`,
+            `HIT · ${this.unitLabel(event.side, event.unit)} −${dealt} · ${hp}${event.blocked ? ` · ${event.blocked} blocked` : ''}`,
           );
           if (event.calculation) activePlayRow.resultLines.push(this.formatDamageCalculation(event.calculation));
           syncRowSnapshot(activePlayRow);
@@ -1968,9 +1968,9 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /**
-   * The HIT sub-line math: `D: base 96 + (12 ATK) − (2 DEF) + (53 CRIT)
+   * The HIT sub-line math: `D: base 96 + (12 ATK) − (2 DEF)
    * − (40 AFFINITY) = 119`. Value-then-label in parens, only non-zero terms;
-   * multiplicative steps (crit, affinity, ramp) show the flat damage they
+   * multiplicative steps (affinity, ramp) show the flat damage they
    * added or removed at their step, so the terms sum exactly to the total.
    */
   private formatDamageCalculation(calculation: NonNullable<Extract<CombatEvent, { kind: 'damage' }>['calculation']>): string {
@@ -1984,10 +1984,8 @@ export class BattleScene extends Phaser.Scene {
     addTerm(stat, calculation.baseStat);
     addTerm('BUFF', calculation.statBonusDamage);
     addTerm('SKILL', calculation.effectBonusDamage);
-    addTerm('IDENTITY', calculation.identityBonusDamage ?? 0);
     addTerm(defense, -calculation.defense);
     addTerm('MIN', calculation.minimumDamageBonus);
-    addTerm('CRIT', calculation.critBonusDamage);
     addTerm('AFFINITY', calculation.matchupBonusDamage);
     addTerm('RAMP', calculation.suddenDeathBonusDamage);
     addTerm('GUARD', -calculation.guardReduction);
@@ -2215,7 +2213,7 @@ export class BattleScene extends Phaser.Scene {
         if (event.blocked > 0) view.shield = Math.max(0, view.shield - event.blocked);
         const dealt = event.amount - event.blocked;
         const match = event.matchup === 'advantage' ? ' ▲' : event.matchup === 'disadvantage' ? ' ▼' : '';
-        this.addTurnNote(event.turn, `${this.unitLabel(event.side, event.unit)} -${dealt}${event.blocked ? ` (${event.blocked} blocked)` : ''}${event.crit ? ' crit' : ''}${match}`);
+        this.addTurnNote(event.turn, `${this.unitLabel(event.side, event.unit)} -${dealt}${event.blocked ? ` (${event.blocked} blocked)` : ''}${match}`);
         if (instant) {
           view.displayHp = event.hpAfter;
           view.scheduledHp = event.hpAfter;
@@ -2223,8 +2221,8 @@ export class BattleScene extends Phaser.Scene {
         } else {
           this.animateHpTo(view, event.side, event.unit, event.hpAfter, visualDelay);
           this.scheduleVisual(visualDelay, () => {
-            this.floatText(view, `-${dealt}${event.crit ? '!' : ''}${match}`, PROPERTY_COLOR[event.property]);
-            if (dealt > 0) this.shakeDamagePanel(view, event.side, event.unit, dealt, event.crit);
+            this.floatText(view, `-${dealt}${match}`, PROPERTY_COLOR[event.property]);
+            if (dealt > 0) this.shakeDamagePanel(view, event.side, event.unit, dealt);
           });
         }
         break;
@@ -2441,7 +2439,7 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
-  private shakeDamagePanel(view: SideView, side: Side, unit: number, damage: number, crit: boolean): void {
+  private shakeDamagePanel(view: SideView, side: Side, unit: number, damage: number): void {
     if (view.isShaking) return;
 
     const targets = view.objects.filter((object) => object.visible);
@@ -2452,16 +2450,16 @@ export class BattleScene extends Phaser.Scene {
     view.isShaking = true;
     const origins = targets.map((target) => ({ target, x: target.x, y: target.y }));
     const hpRatio = damage / Math.max(1, view.maxHp);
-    const distance = Phaser.Math.Clamp(Math.round(3 + hpRatio * 16 + (crit ? 2 : 0)), 3, 8);
+    const distance = Phaser.Math.Clamp(Math.round(3 + hpRatio * 16), 3, 8);
 
     for (const target of targets) target.x -= distance / 2;
     this.tweens.add({
       targets,
       x: `+=${distance}`,
-      duration: this.scaledMs(crit ? 42 : 48),
+      duration: this.scaledMs(48),
       ease: 'Sine.InOut',
       yoyo: true,
-      repeat: crit ? 3 : 2,
+      repeat: 2,
       onComplete: () => {
         for (const origin of origins) {
           origin.target.setPosition(origin.x, origin.y);

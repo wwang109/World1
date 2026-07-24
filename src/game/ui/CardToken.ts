@@ -3,7 +3,7 @@ import { weightOf, type SkillDef } from '../../engine/types';
 import { ELEMENT_COLOR, FONT, PROPERTY_COLOR, UI, WEAPON_COLOR } from '../theme';
 import { cardType, IDENTITY_THRESHOLD } from '../../engine/combat/typeIdentity';
 import { fantasyTemplateCardArtKey } from './cardArtPresentation';
-import { summarizeEffects } from './skillPresentation';
+import { summarizeEffects, type ScalingStats } from './skillPresentation';
 
 export interface CardTokenOptions {
   width: number;
@@ -16,6 +16,8 @@ export interface CardTokenOptions {
   deck?: readonly SkillDef[];
   /** Cursor / drag emphasis. */
   state?: 'none' | 'cursor' | 'drag';
+  /** The current combatant's live Attack/Magic Power — renders `base+stat` on damage/heal/shield lines. */
+  stats?: ScalingStats;
 }
 
 const GRADIENT_KEY = 'cardtoken-gradient';
@@ -30,6 +32,11 @@ const GRADIENT_KEY = 'cardtoken-gradient';
  * number pinned to the inward-top corner].
  */
 export class CardToken extends Phaser.GameObjects.Container {
+  /** Art clip mask — drawn in WORLD coords, so it must be redrawn when the token moves. */
+  private artMask?: Phaser.GameObjects.Graphics;
+  private maskW = 0;
+  private maskH = 0;
+
   constructor(scene: Phaser.Scene, x: number, y: number, skill: SkillDef, opts: CardTokenOptions) {
     super(scene, x, y);
     const { width: w, height: h } = opts;
@@ -52,6 +59,9 @@ export class CardToken extends Phaser.GameObjects.Container {
       maskShape.fillStyle(0xffffff);
       maskShape.fillRect(x - w / 2, y - h / 2, w, h);
       img.setMask(maskShape.createGeometryMask());
+      this.artMask = maskShape;
+      this.maskW = w;
+      this.maskH = h;
       this.add(img);
       // legibility gradient (dark on the text side, fading toward the art)
       const grad = scene.add.image(0, 0, this.ensureGradient(scene)).setDisplaySize(w, h);
@@ -78,9 +88,32 @@ export class CardToken extends Phaser.GameObjects.Container {
         fontSize: size, color, fontFamily: size === '12px' ? FONT.display : FONT.body, fontStyle: 'bold', align: textAlign,
       }).setOrigin(nameOrigin, 0.5));
     };
-    line(-14, skill.name, '12px', '#e8e0c8');
-    line(1, summarizeEffects(skill), '10px', '#e8d8b0');       // DMG 16 · PSN 5 (real, from effects)
-    line(15, this.affinityLine(skill, type, opts.deck), '9px', '#9aa4b6');
+    // Clamped variant for the effects line — the live `base + (N STAT)` label
+    // can run longer than the flat base-only text, so it needs the same
+    // ellipsis guard the compact strip mode already has.
+    const clampedLine = (dy: number, text: string, size: string, color: string, maxW: number): void => {
+      const t = scene.add.text(textX, dy, text, {
+        fontSize: size, color, fontFamily: FONT.body, fontStyle: 'bold', align: textAlign,
+      }).setOrigin(nameOrigin, 0.5);
+      let s = text;
+      while (s.length > 1 && t.width > maxW) { s = s.slice(0, -1); t.setText(`${s}…`); }
+      this.add(t);
+    };
+    if (h >= 42) {
+      line(-14, skill.name, '12px', '#e8e0c8');
+      clampedLine(1, summarizeEffects(skill, opts.stats), '10px', '#e8d8b0', w - 20);     // DMG 16 · PSN 5 (real, from effects)
+      line(15, this.affinityLine(skill, type, opts.deck), '9px', '#9aa4b6');
+    } else {
+      // COMPACT (slim strips like TEMP HOLDING): one centered line, clamped to
+      // the token width so long names never overflow the strip.
+      const t = scene.add.text(textX, 0, `${skill.name} · ${summarizeEffects(skill, opts.stats)}`, {
+        fontSize: '10px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold', align: textAlign,
+      }).setOrigin(nameOrigin, 0.5);
+      const maxW = w - 52; // clear of the accent stripe + weight badge
+      let s = `${skill.name} · ${summarizeEffects(skill, opts.stats)}`;
+      while (s.length > 1 && t.width > maxW) { s = s.slice(0, -1); t.setText(`${s}…`); }
+      this.add(t);
+    }
 
     // small dark scrim so a corner label stays readable over bright art.
     const cornerX = side === 'left' ? 1 : 0;
@@ -106,8 +139,36 @@ export class CardToken extends Phaser.GameObjects.Container {
     if (opts.state === 'cursor' || opts.state === 'drag') {
       bg.setStrokeStyle(3, 0xe8b446, 1);
     }
+    // Playback cursor badge (mockup): gold "▶ NEXT" chip, bottom-outward corner,
+    // mirrored per side so it points into the gutter.
+    if (opts.state === 'cursor') {
+      const badgeText = side === 'left' ? '▶ NEXT' : 'NEXT ◀';
+      const bx = side === 'left' ? w / 2 : -w / 2;
+      const t = scene.add.text(bx, h / 2, badgeText, {
+        fontSize: '9px', color: '#1a1208', fontFamily: FONT.body, fontStyle: 'bold',
+      }).setOrigin(side === 'left' ? 1 : 0, 1);
+      const chip = scene.add.rectangle(bx, h / 2, t.width + 10, t.height + 4, 0xe8b446)
+        .setOrigin(side === 'left' ? 1 : 0, 1);
+      this.add(chip);
+      this.add(t);
+    }
     this.setSize(w, h);
     scene.add.existing(this);
+  }
+
+  /**
+   * Keep the world-space art mask aligned with the token as it moves (drag).
+   * A geometry mask is not a child, so it does NOT follow the container on its
+   * own — we redraw its rect at the new center here.
+   */
+  override setPosition(x?: number, y?: number, z?: number, w?: number): this {
+    super.setPosition(x, y, z, w);
+    if (this.artMask) {
+      this.artMask.clear();
+      this.artMask.fillStyle(0xffffff);
+      this.artMask.fillRect(this.x - this.maskW / 2, this.y - this.maskH / 2, this.maskW, this.maskH);
+    }
+    return this;
   }
 
   /** "SWORD 2/3" — affinity name + deck progress toward its identity (gold at 3/3). */

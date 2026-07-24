@@ -1,72 +1,173 @@
 // Leveling / stat-scaling — the run-layer scaling resolver.
 //
-// ONE point economy scales BOTH the player and monsters (locked design):
-// every level grants POINTS_PER_LEVEL points; each point buys a fixed
-// STAT_INCREMENT bump to one stat. Monsters spend their points by an
-// identity-shaped weight profile (MONSTER_PROFILES); the player will spend
-// theirs via a future stat-sheet UI (Codex/phaser-ui-programmer), through
-// `applyPlayerAllocation` below.
+// UNIFIED ECONOMY (locked design, 2026-07-24): the player and every monster
+// share ONE base statline (see `BASE_HERO_STATS` / `enemies[*].stats` — both
+// now the same Level-1 floor: maxHp 100, attack 1, magicPower 1, armor 1,
+// magicResist 1, speed 10) and ONE leveling currency: every level grants
+// `PL_PER_LEVEL` Power Level, spent via the priced `LEVEL_STAT_COST` table.
+//
+// An enemy's IDENTITY no longer lives in bespoke floor stats — it lives in
+// HOW its profile (`MONSTER_PROFILES`) spends its level PL (weights), plus
+// its cards and Title. `allocateMonsterPL` spends a monster's banked PL
+// against its profile deterministically (see its doc comment for the exact
+// algorithm); the player spends the same currency by hand through a future
+// stat-sheet UI, via the `applyPlayerLevelAllocation` guarded entry point.
 //
 // Pure TS, integer-only, deterministic — no RNG here. The XP->level curve
 // (how much XP a level costs) and the player stat-sheet UI are OUT of scope
 // for this module (run loop / Codex); this module only knows "given a level,
-// how many points, and how do they turn into stats."
+// how much PL, and how does it turn into stats."
 //
-// Titles (e.g. "Elite" = +2 levels) are NOT built here — a future caller
-// just passes a higher effective `level` into `scaleMonsterToLevel`.
+// Titles (e.g. "Elite" = +2 levels of stats) are NOT built here — a future
+// caller just passes a higher effective `level` into `scaleMonsterToLevel`.
 
 import type { BuffableStat, CombatantSetup, CombatantStats, EnemyDef } from '../engine/types';
 
-/** Points granted per level (level 1 = floor, 0 points spent). */
-export const POINTS_PER_LEVEL = 5;
-
-/** All stats a level-up point can be spent on (maxHp + the 6 BuffableStats). */
+/** All stats a level-up can be spent on (maxHp + the 6 BuffableStats). */
 export type LevelStat = 'maxHp' | BuffableStat;
 
-/**
- * Flat integer bump per point spent on each stat.
- *
- * Under the FLAT combat model (damage = card base + this stat, added flat),
- * offense is intentionally slow-scaling: attack/magicPower gain +1/point vs
- * maxHp's +10/point, so HP pools outgrow raw hit size and fights stay
- * multi-turn at every level (the flat model already removed the multiplicative
- * explosion; this keeps the linear slopes sane). critPct is likewise +1/point
- * and hard-capped at cast time (`CRIT_CHANCE_CAP_PCT` in the interpreter) — crit
- * must not creep toward a guaranteed hit at high level.
- */
-export const STAT_INCREMENT: Record<LevelStat, number> = {
-  maxHp: 10,
-  attack: 1,
+/** Fixed order used for deterministic iteration/tie-breaks — no RNG. */
+const STAT_ORDER: LevelStat[] = ['maxHp', 'attack', 'magicPower', 'armor', 'magicResist', 'speed'];
+
+export type Allocation = Partial<Record<LevelStat, number>>;
+
+/** Integer weight profile per stat, used by `allocateMonsterPL` for monster identities. */
+export type StatProfile = Record<LevelStat, number>;
+
+const ZERO_PROFILE: StatProfile = {
+  maxHp: 0,
+  attack: 0,
+  magicPower: 0,
+  armor: 0,
+  magicResist: 0,
+  speed: 0,
+};
+
+function profile(weights: Partial<StatProfile>): StatProfile {
+  return { ...ZERO_PROFILE, ...weights };
+}
+
+/** Fallback profile for any monster id not explicitly listed below: a flat, balanced spend. */
+export const DEFAULT_PROFILE: StatProfile = profile({
+  maxHp: 2,
+  // Former critPct weight (1) folded into attack (offense-leaning).
+  attack: 2,
   magicPower: 1,
   armor: 1,
   magicResist: 1,
   speed: 1,
-  critPct: 1,
-};
-
-/** Fixed order used to hand out allocation remainders — deterministic, no RNG. */
-const STAT_ORDER: LevelStat[] = ['maxHp', 'attack', 'magicPower', 'armor', 'magicResist', 'speed', 'critPct'];
-
-/** Points available at `level` (level 1 == floor stats, no points spent). */
-export function pointsForLevel(level: number): number {
-  return Math.max(0, level - 1) * POINTS_PER_LEVEL;
-}
-
-export type Allocation = Partial<Record<LevelStat, number>>;
+});
 
 /**
- * Apply an integer point allocation to base stats, returning a NEW stats
- * object. Applying points to maxHp also raises current hp by the same amount
- * (keeps hp == maxHp for a freshly-scaled combatant; the engine's own
- * hp-vs-maxHp handling during a fight is untouched).
+ * Per-monster identity weight profiles, one per current roster id. Weights
+ * are relative (integers); only their ratio matters. Add an entry here for
+ * every new monster id content-designer ships — unlisted ids fall back to
+ * DEFAULT_PROFILE.
+ *
+ * Since every monster now shares the SAME level-1 floor statline as the
+ * player, these weights are the ONLY thing left carrying stat identity as a
+ * monster levels up (e.g. `ember_imp`/`mage`/`rogue` carry zero `maxHp`
+ * weight — they stay glass cannons because they simply never buy HP; a
+ * caster like `seraph` grants itself a little `maxHp` alongside its magic
+ * stats to feel sturdier). Reviewed 2026-07-24 against the unification: all
+ * existing weights already express their monster's identity correctly, so
+ * none needed to change.
  */
-export function applyAllocation(base: CombatantStats, alloc: Allocation): CombatantStats {
+export const MONSTER_PROFILES: Record<string, StatProfile> = {
+  // --- Basic floor ---
+  // Former critPct weights folded into each identity's dominant offensive
+  // stat (attack for physical, magicPower for casters) — crit removed 2026-07-23.
+  giant_rat: profile({ maxHp: 2, attack: 3, speed: 2 }),
+  stone_beetle: profile({ maxHp: 3, armor: 3, attack: 1 }),
+  ember_imp: profile({ magicPower: 5, speed: 1 }),
+
+  // --- Elite / boss floor ---
+  bandit_duelist: profile({ attack: 3, speed: 2, maxHp: 1 }),
+  wolf_king: profile({ attack: 3, maxHp: 2, speed: 1 }),
+
+  // --- Signature roster ---
+  seraph: profile({ magicPower: 3, magicResist: 3, maxHp: 1 }),
+  knight: profile({ maxHp: 3, armor: 3, attack: 1 }),
+  mage: profile({ magicPower: 6 }),
+  hunter: profile({ speed: 3, attack: 4 }),
+  rogue: profile({ speed: 2, attack: 5 }),
+  berserker: profile({ attack: 3, maxHp: 3 }),
+  necromancer: profile({ magicPower: 3, magicResist: 3 }),
+  cleric: profile({ magicPower: 2, magicResist: 2, maxHp: 2 }),
+};
+
+/** Profile lookup for an enemy id, falling back to DEFAULT_PROFILE. */
+export function profileFor(enemyId: string): StatProfile {
+  return MONSTER_PROFILES[enemyId] ?? DEFAULT_PROFILE;
+}
+
+// ---------------------------------------------------------------------------
+// The ONE PL-budget leveling economy (locked design, 2026-07-23/24). Both the
+// player and every monster spend from this same priced table; only WHO
+// decides the spend differs (player picks by hand, monsters auto-spend via
+// their profile weights through `allocateMonsterPL`).
+// ---------------------------------------------------------------------------
+
+/** Fixed PL granted per level (locked design: 3 PL/level), for player AND monsters. */
+export const PL_PER_LEVEL = 3;
+
+/** Price of one "buy" on a given stat: costs `pl`, grants `gain` flat stat points. */
+export interface LevelStatCost {
+  pl: number;
+  gain: number;
+}
+
+/**
+ * Per-stat buy price for the unified PL-budget leveling economy — shared by
+ * the player and every monster.
+ */
+export const LEVEL_STAT_COST: Record<LevelStat, LevelStatCost> = {
+  attack: { pl: 1, gain: 1 },
+  magicPower: { pl: 1, gain: 1 },
+  armor: { pl: 1, gain: 1 },
+  magicResist: { pl: 1, gain: 1 },
+  speed: { pl: 2, gain: 1 },
+  maxHp: { pl: 1, gain: 5 },
+};
+
+/** Total PL banked at `level` (level 1 = 0 PL, no points spent yet). */
+export function totalLevelPL(level: number): number {
+  return Math.max(0, level - 1) * PL_PER_LEVEL;
+}
+
+/**
+ * PL spent by an allocation, where `alloc[stat]` is the number of BUYS on
+ * that stat (not raw stat points) — each buy costs `LEVEL_STAT_COST[stat].pl`.
+ */
+export function spentPL(alloc: Allocation): number {
+  return STAT_ORDER.reduce((sum, stat) => sum + (alloc[stat] ?? 0) * LEVEL_STAT_COST[stat].pl, 0);
+}
+
+/** PL left unspent (banked) at `level` after `alloc`'s buys. Can go negative for an invalid over-spend. */
+export function bankedPL(level: number, alloc: Allocation): number {
+  return totalLevelPL(level) - spentPL(alloc);
+}
+
+/** True if `alloc`'s buys fit within the PL banked at `level` (bankedPL >= 0). */
+export function canAfford(level: number, alloc: Allocation): boolean {
+  return bankedPL(level, alloc) >= 0;
+}
+
+/**
+ * Apply a PL-budget allocation (buy counts per stat) to base stats, returning
+ * a NEW stats object. Each buy on a stat adds `LEVEL_STAT_COST[stat].gain`;
+ * maxHp buys also raise current hp by the same amount. A NEGATIVE buy count
+ * un-buys (subtracts) at the same rate — used by the monster title path
+ * (e.g. Mob's demotion spends negative PL). Pure — never mutates `base`.
+ * Shared by both the player and monster scaling paths.
+ */
+export function applyLevelAllocation(base: CombatantStats, alloc: Allocation): CombatantStats {
   const next: CombatantStats = { ...base };
   let hpAdded = 0;
   for (const stat of STAT_ORDER) {
-    const points = alloc[stat] ?? 0;
-    if (points <= 0) continue;
-    const add = points * STAT_INCREMENT[stat];
+    const buys = alloc[stat] ?? 0;
+    if (buys === 0) continue; // buys may be NEGATIVE (monster title "un-buys" — see allocateMonsterPL)
+    const add = buys * LEVEL_STAT_COST[stat].gain;
     if (stat === 'maxHp') {
       next.maxHp += add;
       hpAdded += add;
@@ -79,122 +180,161 @@ export function applyAllocation(base: CombatantStats, alloc: Allocation): Combat
 }
 
 /**
- * Distribute `points` across stats proportional to integer `profile`
- * weights, deterministically: floor each stat's share by weight ratio, then
- * hand out the leftover remainder one-by-one in `STAT_ORDER` (fixed order —
- * no RNG, no floats persisted). Sum of the returned allocation always equals
- * `points` exactly (given points >= 0 and at least one positive weight).
+ * Guarded entry point for the PL-budget economy: applies `alloc` to `base`,
+ * but throws (reject rather than silently clamp) if `alloc` spends more PL
+ * than is banked at `level`. Used directly by the player path; the monster
+ * path (`scaleMonsterToLevel`) builds its allocation via `allocateMonsterPL`,
+ * which by construction never over-spends.
  */
-export function allocateByProfile(points: number, profile: Record<LevelStat, number>): Allocation {
+export function applyPlayerLevelAllocation(base: CombatantStats, level: number, alloc: Allocation): CombatantStats {
+  const banked = bankedPL(level, alloc);
+  if (banked < 0) {
+    throw new Error(
+      `applyPlayerLevelAllocation: over-spend (${spentPL(alloc)} PL spent, ${totalLevelPL(level)} PL available at level ${level})`,
+    );
+  }
+  return applyLevelAllocation(base, alloc);
+}
+
+// ---------------------------------------------------------------------------
+// Monster auto-spend: turns a monster's identity profile into a PL-budget
+// allocation, deterministically.
+// ---------------------------------------------------------------------------
+
+/**
+ * Spend `totalPL` as a sequence of individual stat "buys" (priced via
+ * `LEVEL_STAT_COST`), across the stats weighted by `weights`, deterministically.
+ * `totalPL` may be NEGATIVE (a demoted title like Mob "un-buys" stats) — see
+ * the direction note below.
+ *
+ * ALGORITHM — greedy weighted-share deficit, one buy at a time:
+ *   1. Only stats with a positive profile weight are eligible ("weighted").
+ *   2. Split `totalPL` into a `direction` (+1 spend / -1 un-spend) and a
+ *      non-negative `magnitude` — the rest of the algorithm works purely in
+ *      magnitude terms, then every buy count gets `direction` applied at the
+ *      end (so spending and un-spending follow the identical proportional
+ *      logic, just adding vs. subtracting).
+ *   3. At each step, for every AFFORDABLE weighted stat (its buy's PL cost
+ *      fits in the magnitude remaining), compute its "weight-share deficit":
+ *        targetShare(stat) = magnitude * weight(stat) / totalWeight
+ *        deficit(stat)      = targetShare(stat) - plAlreadySpentOnStat(stat)
+ *      i.e. how far below its proportional share of the whole budget that
+ *      stat currently sits.
+ *   4. Buy one unit of the stat with the LARGEST deficit (ties broken by
+ *      fixed `STAT_ORDER`, first-in-order wins — no RNG). Deduct its PL cost
+ *      from the remaining magnitude and repeat.
+ *   5. Stop when no weighted stat is affordable any more — any leftover
+ *      magnitude (necessarily smaller than the cheapest weighted stat's buy
+ *      cost) is simply left unspent, by design (never over-spends, never
+ *      invents fractional buys). For a negative `totalPL` this means a
+ *      profile with only expensive weighted stats (e.g. only `speed`, at 2
+ *      PL/buy) may not fully absorb an odd magnitude — the remainder (< the
+ *      cheapest weighted stat's cost) is simply not deducted.
+ *
+ * NOTE: this operates purely in weight/PL-share terms and does NOT look at
+ * the monster's actual current stat values — a heavily negative spend (e.g.
+ * Mob's -12 PL) can therefore drive an "un-buy" allocation whose magnitude
+ * exceeds what the monster's tiny floor stats can absorb (a 1-point `attack`
+ * floor minus a full-weight un-buy easily goes negative). The CALLER
+ * (`scaleMonsterToLevel`) is responsible for clamping the resulting stats to
+ * a sane in-engine floor — this function only produces the buy counts.
+ *
+ * This generalizes the old ratio-based allocator to a priced table where
+ * different stats cost different PL per buy (e.g. speed costs 2, everything
+ * else 1) — a stat's "share" of the budget is judged in PL terms, not raw
+ * buy-count terms, so a 2-PL stat naturally gets fewer buys for the same
+ * weight. Integer-only, index-ordered, no RNG; the sum of |spent PL| is
+ * always <= |totalPL|.
+ */
+export function allocateMonsterPL(totalPL: number, weights: StatProfile): Allocation {
+  if (totalPL === 0) return {};
+
+  const direction = totalPL > 0 ? 1 : -1;
+  const magnitude = Math.abs(totalPL);
+
+  const weighted = STAT_ORDER.filter((stat) => (weights[stat] ?? 0) > 0);
+  if (weighted.length === 0) return {};
+
+  const totalWeight = weighted.reduce((sum, stat) => sum + weights[stat]!, 0);
+  const spentByStat: Record<LevelStat, number> = { maxHp: 0, attack: 0, magicPower: 0, armor: 0, magicResist: 0, speed: 0 };
   const alloc: Allocation = {};
-  if (points <= 0) return alloc;
 
-  const totalWeight = STAT_ORDER.reduce((sum, stat) => sum + (profile[stat] ?? 0), 0);
-  if (totalWeight <= 0) {
-    // No weights at all: dump everything into the first stat in fixed order.
-    alloc[STAT_ORDER[0]!] = points;
-    return alloc;
-  }
-
-  let distributed = 0;
-  for (const stat of STAT_ORDER) {
-    const weight = profile[stat] ?? 0;
-    if (weight <= 0) continue;
-    const share = Math.floor((points * weight) / totalWeight);
-    if (share > 0) {
-      alloc[stat] = share;
-      distributed += share;
+  let remaining = magnitude;
+  for (;;) {
+    let bestStat: LevelStat | null = null;
+    let bestDeficit = -Infinity;
+    for (const stat of weighted) {
+      const cost = LEVEL_STAT_COST[stat].pl;
+      if (cost > remaining) continue;
+      const targetShare = (magnitude * weights[stat]!) / totalWeight;
+      const deficit = targetShare - spentByStat[stat];
+      if (deficit > bestDeficit) {
+        bestDeficit = deficit;
+        bestStat = stat;
+      }
     }
-  }
-
-  let remainder = points - distributed;
-  // Hand out the remainder in fixed STAT_ORDER, only to stats the profile
-  // actually weights (so it never spends on a stat this identity ignores).
-  for (const stat of STAT_ORDER) {
-    if (remainder <= 0) break;
-    const weight = profile[stat] ?? 0;
-    if (weight <= 0) continue;
-    alloc[stat] = (alloc[stat] ?? 0) + 1;
-    distributed += 1;
-    remainder -= 1;
+    if (!bestStat) break; // nothing weighted is affordable any more
+    alloc[bestStat] = (alloc[bestStat] ?? 0) + direction;
+    spentByStat[bestStat] += LEVEL_STAT_COST[bestStat].pl;
+    remaining -= LEVEL_STAT_COST[bestStat].pl;
   }
 
   return alloc;
 }
 
-/** Integer weight profile per stat, used by `allocateByProfile` for monster identities. */
-export type StatProfile = Record<LevelStat, number>;
-
-const ZERO_PROFILE: StatProfile = {
-  maxHp: 0,
-  attack: 0,
-  magicPower: 0,
-  armor: 0,
-  magicResist: 0,
-  speed: 0,
-  critPct: 0,
-};
-
-function profile(weights: Partial<StatProfile>): StatProfile {
-  return { ...ZERO_PROFILE, ...weights };
+/**
+ * Signed PL for MONSTER stat scaling: `(level - 1) * PL_PER_LEVEL`,
+ * UNCLAMPED — unlike the player's `totalLevelPL`, this CAN go negative (a
+ * demoted title like Mob passes a `level` below 1 here on purpose). Matches
+ * `totalLevelPL` exactly for `level >= 1` (the only range the player economy
+ * ever sees), so it is safe as the monster-side replacement without touching
+ * the locked player function.
+ */
+export function monsterLevelPL(level: number): number {
+  return (level - 1) * PL_PER_LEVEL;
 }
 
-/** Fallback profile for any monster id not explicitly listed below: a flat, balanced spend. */
-export const DEFAULT_PROFILE: StatProfile = profile({
-  maxHp: 2,
-  attack: 1,
-  magicPower: 1,
-  armor: 1,
-  magicResist: 1,
-  speed: 1,
-  critPct: 1,
-});
-
 /**
- * Per-monster identity weight profiles, one per current roster id. Weights
- * are relative (integers); only their ratio matters. Add an entry here for
- * every new monster id content-designer ships — unlisted ids fall back to
- * DEFAULT_PROFILE.
+ * Clamp a scaled monster's stats to sane in-engine floors after a (possibly
+ * negative) PL spend: offensive/defensive stats floor at 0, speed floors at
+ * 1 (the engine's turn-order math assumes forward progress), maxHp floors at
+ * 1 and hp is kept equal to it. A no-op for a purely positive spend (every
+ * universal floor stat only ever grows from there).
  */
-export const MONSTER_PROFILES: Record<string, StatProfile> = {
-  // --- Basic floor ---
-  giant_rat: profile({ maxHp: 2, attack: 2, speed: 2, critPct: 1 }),
-  stone_beetle: profile({ maxHp: 3, armor: 3, attack: 1 }),
-  ember_imp: profile({ magicPower: 3, critPct: 2, speed: 1 }),
-
-  // --- Elite / boss floor ---
-  bandit_duelist: profile({ attack: 2, speed: 2, critPct: 1, maxHp: 1 }),
-  wolf_king: profile({ attack: 2, maxHp: 2, speed: 1, critPct: 1 }),
-
-  // --- Signature roster ---
-  seraph: profile({ magicPower: 3, magicResist: 3, maxHp: 1 }),
-  knight: profile({ maxHp: 3, armor: 3, attack: 1 }),
-  mage: profile({ magicPower: 3, critPct: 3 }),
-  hunter: profile({ speed: 3, attack: 3, critPct: 1 }),
-  rogue: profile({ critPct: 3, speed: 2, attack: 2 }),
-  berserker: profile({ attack: 3, maxHp: 3 }),
-  necromancer: profile({ magicPower: 3, magicResist: 3 }),
-  cleric: profile({ magicPower: 2, magicResist: 2, maxHp: 2 }),
-};
-
-/** Profile lookup for an enemy id, falling back to DEFAULT_PROFILE. */
-export function profileFor(enemyId: string): StatProfile {
-  return MONSTER_PROFILES[enemyId] ?? DEFAULT_PROFILE;
+function clampMonsterStats(stats: CombatantStats): CombatantStats {
+  const maxHp = Math.max(1, stats.maxHp);
+  return {
+    ...stats,
+    maxHp,
+    hp: maxHp,
+    attack: Math.max(0, stats.attack),
+    magicPower: Math.max(0, stats.magicPower),
+    armor: Math.max(0, stats.armor),
+    magicResist: Math.max(0, stats.magicResist),
+    speed: Math.max(1, stats.speed),
+  };
 }
 
 /**
  * Scale an enemy's floor definition up to `level`. Level 1 returns the floor
- * (base stats, 0 points spent). Board/pieces/affinities carry over unchanged
- * — only stats scale.
+ * (base stats, 0 PL spent). `level` may be a Title-adjusted value below 1
+ * (Mob's -4 levels can drive it negative) — the PL spend then goes negative
+ * too, un-buying stats through the same profile weights, and the result is
+ * clamped to a sane floor (see `clampMonsterStats`). Board/pieces/affinities
+ * carry over unchanged — only stats scale, via the SAME PL-budget economy
+ * the player uses (`monsterLevelPL` for the signed budget, `allocateMonsterPL`
+ * to auto-spend it against the monster's identity profile,
+ * `applyLevelAllocation` to apply the resulting buys).
  *
- * Hook for titles: a caller wanting an "Elite" (or any title) version of a
- * monster just passes a higher effective `level` here (e.g. baseLevel + 2);
- * no separate title system lives in this module.
+ * Hook for titles: a caller wanting an "Elite"/"Mob"/etc. version of a
+ * monster just passes a higher (or lower) effective `level` here (e.g.
+ * baseLevel + 2, or baseLevel - 4); no separate title system lives in this
+ * module.
  */
 export function scaleMonsterToLevel(enemy: EnemyDef, level: number): CombatantSetup {
-  const points = pointsForLevel(level);
-  const alloc = allocateByProfile(points, profileFor(enemy.id));
-  const stats = applyAllocation(enemy.stats, alloc);
+  const totalPL = monsterLevelPL(level);
+  const alloc = allocateMonsterPL(totalPL, profileFor(enemy.id));
+  const stats = clampMonsterStats(applyLevelAllocation(enemy.stats, alloc));
   return {
     name: enemy.name,
     stats,
@@ -203,28 +343,4 @@ export function scaleMonsterToLevel(enemy: EnemyDef, level: number): CombatantSe
     elementAffinity: enemy.elementAffinity,
     weaponAffinity: enemy.weaponAffinity,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Player helpers (for the future stat-sheet UI; XP curve lives in the run
-// loop, not here).
-// ---------------------------------------------------------------------------
-
-/** Total points available to the player at `level` (same curve as monsters — locked). */
-export function availablePoints(level: number): number {
-  return pointsForLevel(level);
-}
-
-/**
- * Apply a player-chosen allocation to base stats, validating the alloc's
- * total spend does not exceed `available` points. Throws on over-spend
- * (reject rather than silently clamp — the UI should never let this happen,
- * but a rejected over-spend must be loud, not silently wrong).
- */
-export function applyPlayerAllocation(base: CombatantStats, alloc: Allocation, available: number): CombatantStats {
-  const spent = STAT_ORDER.reduce((sum, stat) => sum + (alloc[stat] ?? 0), 0);
-  if (spent > available) {
-    throw new Error(`applyPlayerAllocation: over-spend (${spent} points spent, ${available} available)`);
-  }
-  return applyAllocation(base, alloc);
 }

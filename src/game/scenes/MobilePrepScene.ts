@@ -3,10 +3,11 @@ import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { enemies } from '../../data/enemies';
 import type { SkillDef } from '../../engine/types';
-import { buildEnemyEncounter, ENEMY_TITLES, TITLE_PRESETS, type EnemyTitle } from '../../run/encounter';
+import { buildAutoHeroSetup, buildEnemyEncounter, ENEMY_TITLES, TITLE_PRESETS, type EnemyTitle } from '../../run/encounter';
 import { damagePerTurn } from '../../run/analysis';
 import { demoState } from '../demoState';
 import { FONT, SCREEN, UI } from '../theme';
+import { renderActionBar } from '../ui/ActionBar';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 
 /** Mobile Prep screen — vertical: tabs · enemy sheet · YOUR DECK vs ENEMY
@@ -63,7 +64,7 @@ export class MobilePrepScene extends Phaser.Scene {
     const tabs: Array<[string, () => void]> = [
       ['PREP', () => {}],
       ['DECK BUILD', () => this.scene.start('MobileDeckBuild')],
-      ['WIKI', () => { demoState.prepView = 'codex'; this.scene.start('Prep'); }],
+      ['WIKI', () => this.scene.start('MobileWiki')],
     ];
     const w = (this.W - 20 - 12) / 3;
     tabs.forEach(([label, fn], i) => {
@@ -91,7 +92,7 @@ export class MobilePrepScene extends Phaser.Scene {
       .setBackgroundColor('#c9a15a').setPadding(6, 3, 6, 3);
     const s = encounter.setup.stats;
     this.text(20, top + 32, `HP ${s.maxHp} · SPD ${s.speed} · ATK ${s.attack} · MAG ${s.magicPower}`, 11, '#e8e0c8', { bold: true });
-    this.text(20, top + 47, `DEF ${s.armor} · RES ${s.magicResist} · CRIT ${s.critPct}% · ${encounter.setup.pieces.length} cards`, 10, '#9aa4b6');
+    this.text(20, top + 47, `DEF ${s.armor} · RES ${s.magicResist} · ${encounter.setup.pieces.length} cards`, 10, '#9aa4b6');
     const band = damagePerTurn(encounter.setup, skillBook, { turns: 8, seeds: 8 });
     this.text(20, top + 62, `DMG/turn ${band.min}–${band.max}`, 12, '#d05c4e', { bold: true });
 
@@ -140,22 +141,28 @@ export class MobilePrepScene extends Phaser.Scene {
       foeSkills.push(skill);
     }
 
+    const heroStats = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces.map((p) => ({ ...p })), demoState.heroAllocation).setup.stats;
+    const foeStats = encounter.setup.stats;
+
     const top = sheetBottom + 22;
     const colH = this.H - (top - this.oy) - 66;
     const colW = (this.W - 20 - 8) / 2;
     this.text(10 + colW / 2, sheetBottom + 6, 'YOUR DECK', 10, '#b78a46', { bold: true, origin: [0.5, 0] });
     this.text(10 + colW + 8 + colW / 2, sheetBottom + 6, 'ENEMY SKILLS', 10, '#b78a46', { bold: true, origin: [0.5, 0] });
-    new BoardColumn(this, { x: this.x(10), y: this.y(top), width: colW, height: colH, side: 'left', pieces: heroPieces, deck: heroSkills });
-    new BoardColumn(this, { x: this.x(10 + colW + 8), y: this.y(top), width: colW, height: colH, side: 'right', pieces: foePieces, deck: foeSkills });
+    new BoardColumn(this, { x: this.x(10), y: this.y(top), width: colW, height: colH, side: 'left', pieces: heroPieces, deck: heroSkills, stats: { attack: heroStats.attack, magicPower: heroStats.magicPower } });
+    new BoardColumn(this, { x: this.x(10 + colW + 8), y: this.y(top), width: colW, height: colH, side: 'right', pieces: foePieces, deck: foeSkills, stats: { attack: foeStats.attack, magicPower: foeStats.magicPower } });
   }
 
   private renderFooter(): void {
-    const y = this.H - 56;
-    const w = this.W - 20;
-    this.button(10, y, w / 3 - 4, 40, `SEED ${demoState.seed}`, 0x1b2940, '#e8e0c8', () => {
-      demoState.seed = 1 + Math.floor(Math.abs(Math.sin(demoState.seed * 97.13)) * 999999);
-      this.scene.restart();
-    });
-    this.button(10 + w / 3 + 4, y, (w * 2) / 3 - 4, 40, 'FIGHT', 0xb78a46, '#1a1208', () => this.scene.start('MobileBattle'));
+    renderActionBar(this, this.W, this.H, [
+      {
+        label: `SEED ${demoState.seed}`,
+        onPress: () => {
+          demoState.seed = 1 + Math.floor(Math.abs(Math.sin(demoState.seed * 97.13)) * 999999);
+          this.scene.restart();
+        },
+      },
+      { label: 'FIGHT', primary: true, flex: 2, onPress: () => this.scene.start('MobileBattle') },
+    ]);
   }
 }

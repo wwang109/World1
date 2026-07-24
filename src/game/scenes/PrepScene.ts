@@ -13,7 +13,7 @@ import { createOwnedCard, demoState, type EnemyFightConfig, type GemInventorySlo
 import { ARCHETYPE_COLOR, DECK_BUILD_LAYOUT, DISPLAY_THEME, ELEMENT_COLOR, ELEMENT_ICON, FOOTER_ACTION_LAYOUT, FONT, GEM_RARITY_COLOR, PREP_FIGHT_LAYOUT, PROPERTY_COLOR, PROPERTY_LABEL, SCREEN, TIER_COLOR, TYPE_SCALE, UI, WEAPON_COLOR, WEAPON_ICON } from '../theme';
 import { applyTier } from '../../engine/cards';
 import { auraAffectedTargetSlots } from '../../engine/combat/auras';
-import { boardTypeIdentity, cardType, IDENTITY_DAMAGE_PCT, type BoardIdentity } from '../../engine/combat/typeIdentity';
+import { boardTypeIdentity, cardType, IDENTITY_THRESHOLD, type BoardIdentity } from '../../engine/combat/typeIdentity';
 import { CardView, CARD_H, SLOT_W } from '../ui/CardView';
 import { drawBackdrop, drawCompactTextBlock, drawPanelShell, drawStepperControl, panelHeaderCenterY, panelToolbarRowY } from '../ui/displayLibrary';
 import { presentCardActions } from '../ui/cardActionPresentation';
@@ -648,9 +648,10 @@ export class PrepScene extends Phaser.Scene {
   }
 
   /**
-   * Board type identity status: 3+ cards of one weapon/element give the deck
-   * that identity — +20% damage on matching cards, but the deck takes the
-   * standard matchup weakness of that type. Shows progress when locked.
+   * Deck affinity status: 3+ cards of one weapon/element give the deck that
+   * type's affinity — unlocking the weapon/element triangle (deal +50% into the
+   * type it beats, take −25% from it; take +50% from the type that beats it).
+   * Shows progress toward the threshold when not yet unlocked.
    */
   private renderDeckIdentityLine(bounds: { x: number; y: number; w: number; h: number }, yOverride?: number, stacked = false): void {
     const skills = demoState.pieces
@@ -671,7 +672,7 @@ export class PrepScene extends Phaser.Scene {
 
     if (!identity) {
       if (entries.length === 0) {
-        this.viewText(bounds.x + bounds.w / 2, y, `No deck identity — 3+ cards of one type unlock +${IDENTITY_DAMAGE_PCT}% damage`, {
+        this.viewText(bounds.x + bounds.w / 2, y, `No affinity — 3+ cards of one type unlocks that affinity`, {
           fontSize: '10px',
           color: UI.textDim,
           fontFamily: FONT.body,
@@ -679,14 +680,14 @@ export class PrepScene extends Phaser.Scene {
         }).setOrigin(0.5);
         return;
       }
-      this.renderIdentityTalliesForLayout(bounds.x + bounds.w / 2, y, entries, `— 3 of a type = +${IDENTITY_DAMAGE_PCT}% DMG`, stacked);
+      this.renderIdentityTalliesForLayout(bounds.x + bounds.w / 2, y, entries, `— 3 of a type unlocks its affinity`, stacked);
       return;
     }
 
     const { weakTo, resists } = this.identityMatchups(identity);
-    const tail = [`— +${IDENTITY_DAMAGE_PCT}% ${identity.type} DMG`];
+    const tail = [`— ${String(identity.type).toUpperCase()} affinity`];
     if (weakTo) tail.push(`weak to ${weakTo.toUpperCase()} +50%`);
-    if (resists) tail.push(`resists ${resists.toUpperCase()} −25%`);
+    if (resists) tail.push(`beats ${resists.toUpperCase()} −25%`);
     this.renderIdentityTalliesForLayout(bounds.x + bounds.w / 2, y, entries, tail.join(' · '), stacked);
   }
 
@@ -990,7 +991,7 @@ export class PrepScene extends Phaser.Scene {
       fontFamily: FONT.body,
       fontStyle: 'bold',
     });
-    this.viewText(x + 14, y + 61, `DEF ${stats.armor} · RES ${stats.magicResist} · CRIT ${stats.critPct}%`, {
+    this.viewText(x + 14, y + 61, `DEF ${stats.armor} · RES ${stats.magicResist}`, {
       fontSize: '10px',
       color: UI.textDim,
       fontFamily: FONT.body,
@@ -1082,7 +1083,7 @@ export class PrepScene extends Phaser.Scene {
       fontFamily: FONT.body,
       fontStyle: 'bold',
     }).setDepth(64);
-    const defense = this.add.text(76, 376, `DEF ${stats.armor}     RES ${stats.magicResist}     CRIT ${stats.critPct}%     BOARD ${preview.setup.boardSize}`, {
+    const defense = this.add.text(76, 376, `DEF ${stats.armor}     RES ${stats.magicResist}     BOARD ${preview.setup.boardSize}`, {
       fontSize: '12px',
       color: UI.textDim,
       fontFamily: FONT.body,
@@ -1493,19 +1494,19 @@ export class PrepScene extends Phaser.Scene {
           'Removes your ailment stacks, soonest-to-expire first.');
         rule('lifesteal', `${Math.round((10 * PRICE.lifestealPerPctDen) / PRICE.lifestealPerPctNum)}% = 1 PL`, `45% = ${priced({ kind: 'lifesteal', pct: 45 })} PL`,
           'Heals the caster for % of the damage this cast dealt.');
-        rule('combo', `${10 / PRICE.comboPerPoint} dmg = 1 PL`, `+10 = ${priced({ kind: 'comboBonus', amount: 10 })} PL`,
+        rule('combo', `${Math.round((10 * PRICE.comboPerPointDen) / PRICE.comboPerPointNum)} dmg = 1 PL`, `+20 = ${priced({ kind: 'comboBonus', amount: 20 })} PL`,
           'Bonus damage when your previous cast shared an archetype with this card.');
-        rule('auras', `dmg+1 = ${PRICE.auraDamageFlat / 10} · heal+1 = ${PRICE.auraHealFlat / 10} · crit+1% = ${PRICE.auraCritPct / 10} · wt±1 = ${PRICE.auraWeightDelta / 10} PL · all-board ×2`, `dmg+5 adjacent = ${(5 * PRICE.auraDamageFlat) / 10} PL`,
+        rule('auras', `dmg+1 = ${PRICE.auraDamageFlat / 10} · heal+1 = ${PRICE.auraHealFlat / 10} · wt±1 = ${PRICE.auraWeightDelta / 10} PL · all-board ×2`, `dmg+5 adjacent = ${(5 * PRICE.auraDamageFlat) / 10} PL`,
           'Passive — boosts neighboring cards while this card sits on the board.');
         rule('CAP per card', 'auras exempt', caps('empower'));
         break;
       }
       case 'debuffs': {
         section('DEBUFFS');
-        rule('poison / bleed', `tick = stacks, then −1 · N stacks = N×(N+1)/2 dmg · ${10 / PRICE.dotPerTotalDamage} dmg = 1 PL`, `5 stacks = ${priced({ kind: 'poison', stacks: 5 })} PL`,
+        rule('poison / bleed', `tick = stacks, then −1 (decays) · ${10 / PRICE.dotPerStack} stack = 1 PL`, `5 stacks = ${priced({ kind: 'poison', stacks: 5 })} PL`,
           'Poison ticks at END of turn, unstoppable. Bleed ticks each time the victim CASTS; can\'t be applied through a shield. New stacks add to the pile.');
-        rule('burn', `tick = 2× stacks, then halve · sizes 4/5/8/10 = ${priced({ kind: 'burn', stacks: 4 })}/${priced({ kind: 'burn', stacks: 5 })}/${priced({ kind: 'burn', stacks: 8 })}/${priced({ kind: 'burn', stacks: 10 })} PL`, `burn 8 = ${priced({ kind: 'burn', stacks: 8 })} PL`,
-          'Ticks at START of turn — can kill before the victim acts. Shields absorb burn ticks (why it\'s cheaper per damage).');
+        rule('burn', `tick = 2× stacks, then halve · ${10 / PRICE.dotPerStack} stack = 1 PL`, `burn 8 = ${priced({ kind: 'burn', stacks: 8 })} PL`,
+          'Ticks at START of turn — can kill before the victim acts. Shields absorb burn ticks.');
         rule('stun', `1 performance = ${PRICE.stunPerTurn / 10} PL · max ${MAX_STUN_PER_CARD} per card`, `stun 1 = ${priced({ kind: 'stun', turns: 1 })} PL`,
           'The enemy skips their next cast (they still bank Speed).');
         rule('slow', `+${(10 * PRICE.slowPerWeightDen) / PRICE.slowPerWeightNum} weight = 1 PL`, `+16w = ${priced({ kind: 'slow', weight: 16 })} PL`,
@@ -1534,13 +1535,18 @@ export class PrepScene extends Phaser.Scene {
         section('DAMAGE ORDER — how a hit resolves');
         rule(
           'pipeline',
-          'base + ATK/MAG + skill/aura/identity bonuses − DEF/RES · then × CRIT 1.5 · then × affinity 1.5 / 0.75 · then shields absorb · never below 1',
-          'base 96 + 12 − 2 = 106 → ×crit 159 → ×0.75 = 119',
+          'base + ATK/MAG + skill/aura bonuses − DEF/RES · then × affinity 1.5 / 0.75 · then shields absorb · never below 1',
+          'base 96 + 12 − 2 = 106 → ×0.75 = 79',
         );
         rule(
           'reading the math',
-          'multiplicative steps (crit, affinity) display as the flat damage they added or removed AT THEIR STEP — so every term sums exactly to the total',
-          '+ (53 CRIT) = 50% of 106 · − (40 AFFINITY) = 25% of 159',
+          'the affinity step displays as the flat damage it added or removed AT THAT STEP — so every term sums exactly to the total',
+          '− (27 AFFINITY) = 25% of 106',
+        );
+        rule(
+          'AFFINITY (design rule)',
+          `innate (authored on monsters) always wins · else ${IDENTITY_THRESHOLD}+ cards of one unique top type grants that affinity · else none (neutral)`,
+          `SWORD deck ⇒ sword affinity · beats AXE −25% · weak to LANCE +50%`,
         );
         break;
       }
@@ -1805,7 +1811,6 @@ export class PrepScene extends Phaser.Scene {
           const modBits = [
             mods.damageFlat ? `dmg+${mods.damageFlat}` : '',
             mods.healFlat ? `heal+${mods.healFlat}` : '',
-            mods.critPctDelta ? `crit+${mods.critPctDelta}%` : '',
             mods.weightDelta ? `wt${mods.weightDelta}` : '',
           ].filter(Boolean).join(' ');
           const reach = skill.aura.affects === 'allBoard' ? 'all-board(9)' : 'adjacent(2)';
@@ -2134,7 +2139,7 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private renderLoadoutSummary(): void {
-    const heroSetup = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces).setup;
+    const heroSetup = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces, demoState.heroAllocation).setup;
     const stats = heroSetup.stats;
     const deckSig = demoState.pieces
       .map((p) => `${p.skillId}@${p.slot}${p.gem ? `#${p.gem.id}` : ''}`)
@@ -2199,7 +2204,7 @@ export class PrepScene extends Phaser.Scene {
       color: UI.text,
       fontFamily: FONT.body,
     });
-    this.viewText(bounds.x + 18, bounds.y + 102, `ARM ${stats.armor} · RES ${stats.magicResist} · CRIT ${stats.critPct}% · ${deck.length} cards · PL ${formatPowerDeci(totalPl)}`, {
+    this.viewText(bounds.x + 18, bounds.y + 102, `ARM ${stats.armor} · RES ${stats.magicResist} · ${deck.length} cards · PL ${formatPowerDeci(totalPl)}`, {
       fontSize: '11px',
       color: UI.textDim,
       fontFamily: FONT.body,
@@ -2386,10 +2391,10 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.viewSmallButton(stepX + 82, rowY + 2, 22, 22, '+', demoState.heroLevel < MAX_LEVEL, () => this.stepHeroLevel(1));
 
-    // Preview the auto-balanced scaled stats this level produces (the stat-sheet
-    // UI will later let the player spend the points by hand instead), plus the
-    // deck's real simulated damage-per-turn band (10-turn output vs a dummy).
-    const heroSetup = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces).setup;
+    // Preview the stats this level + the player's banked PL-budget spend
+    // (demoState.heroAllocation) produces, plus the deck's real simulated
+    // damage-per-turn band (10-turn output vs a dummy).
+    const heroSetup = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces, demoState.heroAllocation).setup;
     const stats = heroSetup.stats;
     const deckSig = demoState.pieces
       .map((p) => `${p.skillId}@${p.slot}${p.gem ? `#${p.gem.id}` : ''}`)

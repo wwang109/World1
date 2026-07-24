@@ -74,7 +74,7 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
       { skillId: 'mending_light', slot: 3 },
       { skillId: 'sword_slash', slot: 6 },
     ]);
-    expect(aurasOn(c, pieceAt(c, 0), skillBook).damageFlat).toBe(5); // touching offense: +5 flat
+    expect(aurasOn(c, pieceAt(c, 0), skillBook).damageFlat).toBe(10); // touching offense: +10 flat
     expect(aurasOn(c, pieceAt(c, 3), skillBook).damageFlat).toBe(0); // healing, filtered out
     expect(aurasOn(c, pieceAt(c, 6), skillBook).damageFlat).toBe(0); // not touching (gap)
   });
@@ -89,24 +89,15 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
     expect(aurasOn(c, pieceAt(c, 2), skillBook).weightDelta).toBe(0);
   });
 
-  it('lucky_charm grants crit to any touching card', () => {
-    const c = boardOf([
-      { skillId: 'lucky_charm', slot: 0 },
-      { skillId: 'mending_light', slot: 1 },
-    ]);
-    expect(aurasOn(c, pieceAt(c, 1), skillBook).critPctDelta).toBe(20);
-  });
-
   it('auras stack additively across sources', () => {
-    // slash touched by war_banner (left) and lucky_charm (right).
+    // slash touched by war_banner on BOTH sides — the two damageFlat auras sum.
     const c = boardOf([
       { skillId: 'war_banner', slot: 0 },
       { skillId: 'sword_slash', slot: 1 },
-      { skillId: 'lucky_charm', slot: 2 },
+      { skillId: 'war_banner', slot: 2 },
     ]);
     const mods = aurasOn(c, pieceAt(c, 1), skillBook);
-    expect(mods.damageFlat).toBe(5);
-    expect(mods.critPctDelta).toBe(20);
+    expect(mods.damageFlat).toBe(20);
   });
 
   it('war_banner changes actual combat damage', () => {
@@ -122,11 +113,11 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
       { ...NO_ENDGAME, maxTurns: 1 },
     );
     const { events } = simulate(c, 1);
-    // sword_slash: 20 flat + 10 Attack + 5 (war_banner flat aura) = 35.
-    expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 35 });
+    // sword_slash: 20 flat + 10 Attack + 10 (war_banner flat aura) = 40.
+    expect(events.find((e) => e.kind === 'damage')).toMatchObject({ amount: 40 });
   });
 
-  it('skillCast records the aura source breakdown (war_banner +5 dmg)', () => {
+  it('skillCast records the aura source breakdown (war_banner +10 dmg)', () => {
     const c = cfg(
       tc('hero', [], { attack: 10, speed: 20 }, {
         boardSize: 10,
@@ -142,7 +133,7 @@ describe('aura math (size-aware adjacency, archetype/property filters)', () => {
     const cast = events.find((e) => e.kind === 'skillCast' && e.skillId === 'sword_slash') as {
       auras?: { slot: number; skillId: string; damageFlat?: number }[];
     };
-    expect(cast.auras).toEqual([{ slot: 0, skillId: 'war_banner', damageFlat: 5 }]);
+    expect(cast.auras).toEqual([{ slot: 0, skillId: 'war_banner', damageFlat: 10 }]);
   });
 
   it('skillCast OMITS the auras key when no board aura reaches the cast', () => {

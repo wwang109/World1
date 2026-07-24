@@ -73,33 +73,36 @@ export const PRICE = {
   truePremiumPerPoint: 5,
 
   /**
-   * poison/bleed (DECAYING model, user-locked 2026-07-20): a DoT is one
-   * number, N stacks. Each tick deals the current stack count then removes a
-   * stack, so N stacks = N×(N+1)/2 total damage over N ticks. Priced on that
-   * TOTAL: dotPerTotalDamage deci per point (2 deci = 5 total damage per PL —
-   * cheaper than direct damage's 5 deci/pt because DoTs are delayed, get no
-   * stat add, no crit, no matchup, and are cleansable). Cost formula:
-   * N×(N+1)/2 × 2 = N×(N+1) deci. WHOLE-PL requirement: N×(N+1) must end in
-   * 0, so legal stack counts are N ≡ 0 or 4 (mod 5): 4, 5, 9, 10, 14, 15…
-   * Poison is end-of-turn and unstoppable; bleed is per-performance,
-   * unstoppable once running but BLOCKED AT APPLICATION by active shields —
-   * costs and upsides judged a wash, so both share the rate.
+   * poison/bleed/burn (LINEAR PER-STACK model, user-locked 2026-07-23 —
+   * REPLACES the prior quadratic decaying-TOTAL pricing). A DoT card is
+   * priced directly on its authored `stacks` number, not on the total damage
+   * that model decays to: cost = stacks × dotPerStack = stacks × 10 deci
+   * (1 PL per stack, flat). This makes EVERY stack count legal at a whole-PL
+   * price — the old total-damage formula (N×(N+1)/2 × 2 deci = N×(N+1) deci)
+   * only landed on a whole PL when N ≡ 0 or 4 (mod 5), which made stack
+   * counts like 7 or 8 impossible to price cleanly; a linear per-stack rate
+   * has no such gap, so authors get fine-grained control at every tier
+   * (e.g. a card can go 5 → 7 → 8 stacks tier-to-tier).
+   *
+   * The TICK GAMEPLAY is UNCHANGED — this is a pricing-only change:
+   *   - poison/bleed still DECAY (tick = current stacks, then −1 stack;
+   *     N stacks deals N×(N+1)/2 total over N ticks).
+   *   - burn still HALVES (tick = 2×stacks at turn start, then stacks
+   *     halve floored; see `burnTotalDamage`).
+   * All three share ONE rate for simplicity/calculability rather than
+   * per-type rates: poison and bleed have the identical decaying-total
+   * curve so sharing was already the existing design; burn's halving curve
+   * converges to LESS total damage per stack (burn 8 → 30 total vs poison's
+   * 8 → 36), so under a shared linear rate burn is now priced somewhat
+   * ABOVE its total-damage efficiency (its old size table gave it a ~15-30%
+   * discount per point of total damage — that discount is gone under the
+   * flat rate). This is an intentional simplification: the EFFECT_CAPS_DECI
+   * `dot` family cap (200/300/400 deci by size, unchanged) is the backstop
+   * against any DoT card — poison, bleed, or burn — over-investing in raw
+   * stack count regardless of how the per-stack rate compares to its total
+   * damage curve.
    */
-  dotPerTotalDamage: 2,
-
-  /**
-   * burn (HALVING model, user-locked 2026-07-20): fierce and brief. Each
-   * START-of-turn tick deals 2 × current stacks, then stacks HALVE (floored):
-   * burn 8 → 16, 8, 4, 2 = 30 total over 4 turns. Priced by this authored
-   * size table (deci) rather than a formula — the ~15-30% discount per point
-   * of total damage vs poison's 2.0 rate pays for burn being absorbed by
-   * shields (a counter poison/bleed ticks never meet):
-   *   4 → 14 total = 2 PL (1.43/pt) · 5 → 16 = 3 PL (1.88/pt)
-   *   8 → 30 = 5 PL (1.67/pt) · 10 → 36 = 6 PL (1.67/pt)
-   * Sizes not in the table price conservatively at the poison rate
-   * (2 deci × total) — author new sizes into the table deliberately.
-   */
-  burnPlDeciBySize: { 4: 20, 5: 30, 8: 50, 10: 60 } as Record<number, number>,
+  dotPerStack: 10,
 
   /**
    * stun: turns * stunPerTurn — 10 PL/turn (user-locked 2026-07-19; raised from
@@ -176,12 +179,20 @@ export const PRICE = {
   shieldBreakPerPointDen: 4,
 
   /**
-   * comboBonus: FLAT bonus damage points × comboPerPoint. Priced at the same
-   * rate as a card's own flat damage (flatPowerPerPoint = 5) — the conditional
-   * (previous-cast-archetype-gated) trigger is the balancing cost, so no extra
-   * discount is baked in.
+   * comboBonus: FLAT bonus damage points × (comboPerPointNum/Den) — 1 PL per
+   * 4 points (2.5 deci/pt), a discount off the flat-damage rate
+   * (flatPowerPerPoint = 5) BECAUSE the bonus is CONDITIONAL: it only lands
+   * when the previous cast shares an archetype with this one, which doesn't
+   * fire every turn. Rate derived from an assumed ~50% archetype-match uptime
+   * in a typically mixed board (docs/throughput-pl-proposal.md §2.F:
+   * 5 × p(0.5) = 2.5) — user-locked 2026-07-23, cut from the old no-discount
+   * 5/pt. This establishes the CONDITIONAL-TRIGGER DISCOUNT principle: any
+   * future rider that only fires under a gate (board-composition checks,
+   * HP-threshold checks, etc.) should price at a fraction of its
+   * always-on equivalent, not the full rate.
    */
-  comboPerPoint: 5,
+  comboPerPointNum: 5,
+  comboPerPointDen: 2,
 
   /**
    * guard: pct * turns * (guardPerPctTurnNum/Den) deci. Priced at PARITY with
@@ -218,15 +229,30 @@ export const PRICE = {
   negatePerCharge: 100,
 
   /** aura (per point, on the projecting card): damageFlat * auraDamageFlat,
-   * healFlat * auraHealFlat, critPctDelta * auraCritPct,
-   * |weightDelta| * auraWeightDelta. allBoard reach doubles the total.
-   * FLAT damage/heal auras are priced steeper than a card's own one-shot flat
-   * damage (5/pt) because the bonus applies to every cast the aura reaches,
-   * every fight — 20 deci/pt (War Banner +5 = 100 = Bronze). */
-  auraDamageFlat: 20,
-  auraHealFlat: 20,
-  auraCritPct: 5,
+   * healFlat * auraHealFlat, |weightDelta| * auraWeightDelta.
+   * allBoard reach doubles the total.
+   * FLAT damage/heal auras cost 2× a card's own one-shot flat damage (5/pt):
+   * empirically (2026-07-23 audit, 500 seeds × all enemies) an adjacent aura's
+   * best case covers 2 casting neighbors, so 10 deci/pt makes that placement
+   * exactly PL-fair vs a same-budget damage card (edge placement stays worse —
+   * placement remains a real decision). The old 20 deci/pt (4×) overpriced
+   * auras 2-4× because the aura card also burns its own cast turn every
+   * rotation. War Banner +10 = 100 = Bronze. */
+  auraDamageFlat: 10,
+  auraHealFlat: 10,
   auraWeightDelta: 20,
+
+  /**
+   * Multi-hit premium: each damage action BEYOND the first on one card pays
+   * this flat surcharge (30 deci = 3 PL). Every hit re-delivers the caster's
+   * full stat add unpriced (the flat rate only prices the card's own points),
+   * so a second hit ships roughly ATK − DEF extra damage for free; 30 deci
+   * (≈ 6 flat points at 5/pt) prices that delivery at typical low-level
+   * spreads. Each extra hit also eats mitigation again, which is the built-in
+   * counterweight vs armor stacks. First-pass rate — re-derive with sim data
+   * once more multi-hit cards exist.
+   */
+  extraHitPremium: 30,
 
   /**
    * Hero-scope gem stat mods: flat integer points folded into base
@@ -241,7 +267,6 @@ export const PRICE = {
     armor: 10,
     magicResist: 10,
     speed: 5,
-    critPct: 5,
   } as Record<BuffableStat, number>,
 } as const;
 
@@ -274,6 +299,10 @@ export function sizeGrantDeci(size: number, tier: SkillTier): number {
  */
 export function actionsPriceDeci(actions: readonly Action[], property: Property): number {
   let deci = 0;
+  // Multi-hit premium: damage actions beyond the first pay a flat surcharge
+  // for re-delivering the unpriced caster stat add (see PRICE.extraHitPremium).
+  const damageActions = actions.filter((a) => a.kind === 'damage').length;
+  if (damageActions > 1) deci += (damageActions - 1) * PRICE.extraHitPremium;
   for (const action of actions) {
     switch (action.kind) {
       case 'damage':
@@ -293,14 +322,12 @@ export function actionsPriceDeci(actions: readonly Action[], property: Property)
         break;
       case 'poison':
       case 'bleed':
-        // DECAYING: N stacks deal N×(N+1)/2 total damage, priced per total
-        // point. = N×(N+1) deci at the 2-deci rate; whole PL ⇔ N ≡ 0 or 4 (mod 5).
-        deci += ((action.stacks * (action.stacks + 1)) / 2) * PRICE.dotPerTotalDamage;
-        break;
       case 'burn':
-        // HALVING: authored size table (discounted for shield-absorbability);
-        // unlisted sizes fall back to the poison rate on burn's halving total.
-        deci += PRICE.burnPlDeciBySize[action.stacks] ?? burnTotalDamage(action.stacks) * PRICE.dotPerTotalDamage;
+        // LINEAR PER-STACK (user-locked 2026-07-23): priced directly on the
+        // authored stack count, not the tick model's total damage — every
+        // stack count is legal at a whole-PL price. Tick gameplay (decaying
+        // for poison/bleed, halving for burn) is unchanged; see PRICE.dotPerStack.
+        deci += action.stacks * PRICE.dotPerStack;
         break;
       case 'stun':
         deci += action.turns * PRICE.stunPerTurn;
@@ -329,7 +356,7 @@ export function actionsPriceDeci(actions: readonly Action[], property: Property)
         deci += Math.floor((action.amount * PRICE.shieldBreakPerPointNum) / PRICE.shieldBreakPerPointDen);
         break;
       case 'comboBonus':
-        deci += action.amount * PRICE.comboPerPoint;
+        deci += Math.floor((action.amount * PRICE.comboPerPointNum) / PRICE.comboPerPointDen);
         break;
       // ---- Property-generic defensive keywords ----
       case 'guard':
@@ -353,7 +380,6 @@ export function powerLevelDeci(skill: SkillDef): number {
     deci +=
       ((mods.damageFlat ?? 0) * PRICE.auraDamageFlat +
         (mods.healFlat ?? 0) * PRICE.auraHealFlat +
-        (mods.critPctDelta ?? 0) * PRICE.auraCritPct +
         Math.abs(mods.weightDelta ?? 0) * PRICE.auraWeightDelta) *
       reach;
   }
@@ -392,6 +418,10 @@ export function powerLevelBreakdown(skill: SkillDef): PlBreakdownPart[] {
   for (const action of skill.effects) {
     push(action.kind, actionsPriceDeci([action], skill.property));
   }
+  // Multi-hit premium is count-based, so single-action pricing above misses
+  // it — surface it as its own labeled part (keeps parts summing exactly).
+  const extraHits = skill.effects.filter((a) => a.kind === 'damage').length - 1;
+  if (extraHits > 0) push('multi-hit', extraHits * PRICE.extraHitPremium);
 
   if (skill.aura) {
     const reach = skill.aura.affects === 'allBoard' ? 2 : 1;
@@ -399,7 +429,6 @@ export function powerLevelBreakdown(skill: SkillDef): PlBreakdownPart[] {
     push('aura',
       ((mods.damageFlat ?? 0) * PRICE.auraDamageFlat +
         (mods.healFlat ?? 0) * PRICE.auraHealFlat +
-        (mods.critPctDelta ?? 0) * PRICE.auraCritPct +
         Math.abs(mods.weightDelta ?? 0) * PRICE.auraWeightDelta) *
       reach);
   }
@@ -439,35 +468,45 @@ export function isOnBudget(skill: SkillDef): boolean {
  * `npm test` and the audit names any rule it breaks.
  */
 export const EFFECT_CAPS_DECI = {
-  /** stun, slow, disrupt, stat-down, expose, shieldBreak */
+  /** stun, slow, disrupt, stat-down, expose, shieldBreak — one whole discrete effect */
   control: { 1: 100, 2: 150, 3: 200 } as Record<number, number>,
-  /** poison + burn + bleed combined */
+  /** poison + burn + bleed combined (deci = stacks × 10 at 1 PL/stack) */
   dot: { 1: 200, 2: 300, 3: 400 } as Record<number, number>,
-  /** stat-up, guard, negate, cleanse, lifesteal, combo */
+  /** stat-up, guard, negate, cleanse, lifesteal, combo — one whole discrete effect */
   empower: { 1: 100, 2: 150, 3: 200 } as Record<number, number>,
-  /** flat damage (incl. TRUE) — Bronze anchor, ×tierBudget/100 at higher tiers */
-  damage: { 1: 120, 2: 280, 3: 500 } as Record<number, number>,
-  /** flat shield (incl. TRUE) — Bronze anchor, tier-scaled like damage */
-  shield: { 1: 120, 2: 280, 3: 500 } as Record<number, number>,
-  /** flat heal (incl. TRUE) — Bronze anchor, tier-scaled like damage */
-  heal: { 1: 120, 2: 280, 3: 500 } as Record<number, number>,
+  /** flat damage (incl. TRUE) — DIAMOND-tier ceiling (30/70/125 PL), one flat cap
+   * for every tier (user-locked 2026-07-23): a card just can't exceed what a
+   * Diamond card of its size could carry. Loose guardrail, not a diversify-forcer. */
+  damage: { 1: 300, 2: 700, 3: 1250 } as Record<number, number>,
+  /** flat shield (incl. TRUE) — Diamond-tier ceiling, flat across tiers */
+  shield: { 1: 300, 2: 700, 3: 1250 } as Record<number, number>,
+  /** flat heal (incl. TRUE) — Diamond-tier ceiling, flat across tiers */
+  heal: { 1: 300, 2: 700, 3: 1250 } as Record<number, number>,
 } as const;
 export const MAX_STUN_PER_CARD = 1;
 
-/**
- * The flat families are the intended sink for tier scaling (`applyTier`
- * multiplies their magnitudes ×1.5/×2/×2.5), so their caps scale with the
- * tier budget; control/dot/empower caps are tier-independent — lockdown and
- * utility never grow with tier. A capped control card spends its surplus
- * budget on LIGHTER WEIGHT (2 below baseline = 1 PL → casts sooner) or on
- * effects from OTHER families (splash damage, a small shield) — that is the
- * documented authoring pattern, not a rule exception.
- */
-const TIER_SCALED_FAMILIES: ReadonlySet<keyof typeof EFFECT_CAPS_DECI> = new Set(['damage', 'shield', 'heal']);
+/** Weight bounds (user-locked 2026-07-23): a card can't be faster than WEIGHT_MIN
+ * or slower than the per-size max. Native weight units, not PL. */
+export const WEIGHT_MIN = 5;
+export const WEIGHT_MAX_BY_SIZE: Record<number, number> = { 1: 20, 2: 30, 3: 40 };
+/** A card can occupy at most this many board slots. */
+export const MAX_CARD_SIZE = 3;
 
-const CONTROL_KINDS: ReadonlySet<Action['kind']> = new Set(['stun', 'slow', 'disrupt', 'debuffStat', 'expose', 'shieldBreak']);
-const DOT_KINDS: ReadonlySet<Action['kind']> = new Set(['poison', 'burn', 'bleed']);
-const EMPOWER_KINDS: ReadonlySet<Action['kind']> = new Set(['buffStat', 'guard', 'negate', 'cleanse', 'lifesteal', 'comboBonus']);
+/**
+ * EVERY family's cap is now FROZEN across tiers (user-locked 2026-07-23): a
+ * single stat can never exceed its fixed per-size cap no matter the tier, so
+ * ranking a card up buys NEW EFFECTS, not bigger numbers. (Was: damage/shield/
+ * heal scaled ×1.5/2/2.5 — removed.) A card that can't absorb its tier budget
+ * within the caps diversifies into other lines — the documented authoring
+ * pattern, and what the tier scaler enforces.
+ */
+const TIER_SCALED_FAMILIES: ReadonlySet<keyof typeof EFFECT_CAPS_DECI> = new Set();
+
+export const CONTROL_KINDS: ReadonlySet<Action['kind']> = new Set(['stun', 'slow', 'disrupt', 'debuffStat', 'expose', 'shieldBreak']);
+export const DOT_KINDS: ReadonlySet<Action['kind']> = new Set(['poison', 'burn', 'bleed']);
+export const EMPOWER_KINDS: ReadonlySet<Action['kind']> = new Set(['buffStat', 'guard', 'negate', 'cleanse', 'lifesteal', 'comboBonus']);
+/** damage/heal/shield — the EXACT sink solved to hit budget by the tier scaler. */
+export const SCALABLE_KINDS: ReadonlySet<Action['kind']> = new Set(['damage', 'heal', 'shield']);
 
 /**
  * A family's per-size cap (sizes outside 1-3 clamp to the nearest row).
@@ -499,6 +538,14 @@ export function capViolations(skill: SkillDef): string[] {
   if (stunTurns > MAX_STUN_PER_CARD) {
     violations.push(`stun ${stunTurns} exceeds the ${MAX_STUN_PER_CARD}-performance cap`);
   }
+  // Weight + size bounds (native units, not PL).
+  if (skill.size > MAX_CARD_SIZE) {
+    violations.push(`size ${skill.size} exceeds the max of ${MAX_CARD_SIZE}`);
+  }
+  const wt = weightOf(skill);
+  const wtMax = WEIGHT_MAX_BY_SIZE[Math.min(MAX_CARD_SIZE, skill.size)]!;
+  if (wt < WEIGHT_MIN) violations.push(`weight ${wt} is below the minimum ${WEIGHT_MIN}`);
+  if (wt > wtMax) violations.push(`weight ${wt} exceeds the size-${skill.size} max ${wtMax}`);
   return violations;
 }
 
@@ -552,7 +599,6 @@ export function gemPowerLevelDeci(gem: Gem): number {
     return (
       (card.damageFlat ?? 0) * PRICE.auraDamageFlat +
       (card.healFlat ?? 0) * PRICE.auraHealFlat +
-      (card.critPctDelta ?? 0) * PRICE.auraCritPct +
       Math.abs(card.weightDelta ?? 0) * PRICE.auraWeightDelta
     );
   }

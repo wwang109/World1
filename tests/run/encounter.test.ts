@@ -3,7 +3,6 @@ import {
   assignRankTiers,
   buildAutoHeroSetup,
   buildEnemyEncounter,
-  buildHeroSetup,
   defaultTitleFor,
   maxRankFor,
   MAX_TIER_STEPS,
@@ -13,15 +12,14 @@ import { enemies } from '../../src/data/enemies';
 import { skillBook } from '../../src/data/skills';
 import { applyTier } from '../../src/engine/cards';
 import { powerLevelDeci, TIER_BUDGET_DECI } from '../../src/engine/balance';
-import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../src/data/heroes';
+import { BASE_HERO_STATS } from '../../src/data/heroes';
 import {
-  allocateByProfile,
-  applyAllocation,
-  availablePoints,
+  allocateMonsterPL,
+  applyPlayerLevelAllocation,
   DEFAULT_PROFILE,
-  pointsForLevel,
   profileFor,
   scaleMonsterToLevel,
+  totalLevelPL,
 } from '../../src/run/leveling';
 
 describe('run/encounter: buildEnemyEncounter', () => {
@@ -36,10 +34,7 @@ describe('run/encounter: buildEnemyEncounter', () => {
   it('level 5 matches scaleMonsterToLevel output', () => {
     const knight = enemies.knight!;
     const unit = buildEnemyEncounter('knight', 5);
-    const points = pointsForLevel(5);
-    const alloc = allocateByProfile(points, profileFor('knight'));
-    const expectedStats = applyAllocation(knight.stats, alloc);
-    expect(unit.setup.stats).toEqual(expectedStats);
+    expect(unit.setup.stats).toEqual(scaleMonsterToLevel(knight, 5).stats);
     expect(unit.level).toBe(5);
   });
 
@@ -70,9 +65,22 @@ describe('run/encounter: buildEnemyEncounter', () => {
     expect(elite.setup.stats).toEqual(scaleMonsterToLevel(enemies.giant_rat!, elite.effectiveLevel).stats);
   });
 
-  it('floors the effective level at 1 even when a mob delta would push it below', () => {
+  it('Mob applies its full -4 level delta WITHOUT flooring at 1 (feeds a negative PL spend)', () => {
     const mob = buildEnemyEncounter('giant_rat', 1, 'mob');
-    expect(mob.effectiveLevel).toBe(1);
+    expect(mob.effectiveLevel).toBe(1 + TITLE_PRESETS.mob.levelDelta);
+    expect(mob.effectiveLevel).toBe(-3);
+    expect(mob.setup.stats).toEqual(scaleMonsterToLevel(enemies.giant_rat!, -3).stats);
+    // Still resolves to safe, playable stats (clamped floors — see leveling.ts).
+    expect(mob.setup.stats.maxHp).toBeGreaterThanOrEqual(1);
+    expect(mob.setup.stats.speed).toBeGreaterThanOrEqual(1);
+  });
+
+  it('a Mob is weaker than the same enemy at Normal, same requested level', () => {
+    const normal = buildEnemyEncounter('knight', 10, 'normal');
+    const mob = buildEnemyEncounter('knight', 10, 'mob');
+    const totalStats = (s: typeof normal.setup.stats) =>
+      s.maxHp + s.attack + s.magicPower + s.armor + s.magicResist + s.speed;
+    expect(totalStats(mob.setup.stats)).toBeLessThan(totalStats(normal.setup.stats));
   });
 
   it('elite/boss titles add extra cards and rank tiers without mutating shared enemy data', () => {
@@ -146,46 +154,34 @@ describe('engine/cards: applyTier PL matching', () => {
 });
 
 describe('run/encounter: buildAutoHeroSetup', () => {
-  it('auto-spends the level points via the default profile', () => {
+  it('auto-spends the level PL via the default profile (no allocation given)', () => {
     const level = 4;
     const pieces = [{ skillId: 'sword_slash', slot: 0 }];
     const { setup, level: resolved } = buildAutoHeroSetup(level, pieces);
-    const alloc = allocateByProfile(availablePoints(level), DEFAULT_PROFILE);
-    expect(setup.stats).toEqual(applyAllocation(BASE_HERO_STATS, alloc));
+    const alloc = allocateMonsterPL(totalLevelPL(level), DEFAULT_PROFILE);
+    expect(setup.stats).toEqual(applyPlayerLevelAllocation(BASE_HERO_STATS, level, alloc));
     expect(resolved).toBe(4);
     expect(setup.pieces).toBe(pieces);
   });
 
-  it('level 1 returns the base hero stats (no points spent)', () => {
+  it('level 1 returns the base hero stats (no PL spent)', () => {
     const { setup } = buildAutoHeroSetup(1, []);
     expect(setup.stats).toEqual(BASE_HERO_STATS);
   });
-});
 
-describe('run/encounter: buildHeroSetup', () => {
-  it('applies the allocation on top of BASE_HERO_STATS and echoes the level', () => {
-    const level = 3;
-    const available = availablePoints(level); // 10
-    const alloc = { attack: 2, armor: 1 };
-    const build = { level, allocation: alloc, pieces: [{ skillId: 'sword_slash', slot: 0 }] };
-    const { setup, level: resolvedLevel } = buildHeroSetup(build);
-
-    const expectedStats = applyAllocation(BASE_HERO_STATS, alloc);
-    expect(setup.stats).toEqual(expectedStats);
-    expect(setup.boardSize).toBe(HERO_BOARD_SLOTS);
-    expect(setup.pieces).toBe(build.pieces);
-    expect(resolvedLevel).toBe(3);
-    expect(available).toBe(10);
+  it('an explicit playerLevelAllocation is applied via the PL-budget economy', () => {
+    const level = 4; // totalLevelPL = 9
+    const pieces = [{ skillId: 'sword_slash', slot: 0 }];
+    const { setup } = buildAutoHeroSetup(level, pieces, { attack: 2, armor: 1 });
+    expect(setup.stats).toEqual(applyPlayerLevelAllocation(BASE_HERO_STATS, level, { attack: 2, armor: 1 }));
   });
 
-  it('throws on an over-spend allocation', () => {
-    const build = { level: 2, allocation: { attack: 100 }, pieces: [] };
-    expect(() => buildHeroSetup(build)).toThrow();
+  it('throws on an over-spend playerLevelAllocation', () => {
+    expect(() => buildAutoHeroSetup(2, [], { attack: 100 })).toThrow();
   });
 
   it('clamps sub-1 levels to level 1', () => {
-    const build = { level: 0, allocation: {}, pieces: [] };
-    const { level } = buildHeroSetup(build);
+    const { level } = buildAutoHeroSetup(0, []);
     expect(level).toBe(1);
   });
 });

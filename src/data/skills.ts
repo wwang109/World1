@@ -24,6 +24,25 @@ const defs: SkillDef[] = [
     text: 'Deal Sword damage +20 (+Attack).',
   },
   {
+    // Twin-hit showcase: 2 × 6 base (60 deci) + 1 extra-hit premium (30 deci)
+    // + weight 8 (light, +10 deci) = exactly Bronze. Each hit adds full
+    // Attack; armor mitigates each hit separately.
+    id: 'twin_slash',
+    name: 'Twin Slash',
+    archetypes: ['offense'],
+    property: 'physical',
+    size: 1,
+    rarity: 'common',
+    tier: 'bronze',
+    weapon: 'sword',
+    speedWeight: 8,
+    effects: [
+      { kind: 'damage', power: 6 },
+      { kind: 'damage', power: 6 },
+    ],
+    text: 'Deal Sword damage +6 (+Attack), twice.',
+  },
+  {
     id: 'savage_bite',
     name: 'Savage Bite',
     archetypes: ['offense'],
@@ -93,14 +112,14 @@ const defs: SkillDef[] = [
     rarity: 'common',
     tier: 'bronze',
     element: 'fire',
-    // burn on the decaying model: 5 stacks = 5×6 = 30 deci = 3 PL (ticks
-    // 5,4,3,2,1 = 15 total). damage 42 (210) + burn (30) − size2 grant (140)
-    // = 100 = Bronze.
+    // burn priced LINEARLY per stack (2026-07-23): 5 stacks × 10 deci = 50
+    // deci = 5 PL. Tick gameplay unchanged (halves each turn: 10,4,2 = 16
+    // total). damage 38 (190) + burn (50) − size2 grant (140) = 100 = Bronze.
     effects: [
-      { kind: 'damage', power: 42 },
+      { kind: 'damage', power: 38 },
       { kind: 'burn', stacks: 5 },
     ],
-    text: 'Deal Fire damage +42 (+Magic Power) · {{Burn}} 5.',
+    text: 'Deal Fire damage +38 (+Magic Power) · {{Burn}} 5.',
   },
   {
     id: 'soul_rend',
@@ -144,14 +163,14 @@ const defs: SkillDef[] = [
     rarity: 'common',
     tier: 'bronze',
     weapon: 'beast',
-    // poison on the decaying model: 5 stacks = 5×6 = 30 deci = 3 PL (ticks
-    // 5,4,3,2,1 = 15 total). damage 16 (80) + poison (30) + weight +2 refund
-    // (−10) = 100 = Bronze.
+    // poison priced LINEARLY per stack (2026-07-23): 5 stacks × 10 deci = 50
+    // deci = 5 PL. Tick gameplay unchanged (decays 5,4,3,2,1 = 15 total).
+    // damage 12 (60) + poison (50) + weight +2 refund (−10) = 100 = Bronze.
     effects: [
-      { kind: 'damage', power: 16 },
+      { kind: 'damage', power: 12 },
       { kind: 'poison', stacks: 5 },
     ],
-    text: 'Deal Beast damage +16 (+Attack) · {{Poison}} 5 (poison bypasses shields).',
+    text: 'Deal Beast damage +12 (+Attack) · {{Poison}} 5 (poison bypasses shields).',
   },
 
   // ---- Defensive (typed shields) ----
@@ -260,8 +279,8 @@ const defs: SkillDef[] = [
     rarity: 'rare',
     tier: 'bronze',
     effects: [],
-    aura: { affects: 'adjacent', archetypeFilter: 'offense', mods: { damageFlat: 5 } },
-    text: 'Passive: adjacent Offense cards deal +5 damage.',
+    aura: { affects: 'adjacent', archetypeFilter: 'offense', mods: { damageFlat: 10 } },
+    text: 'Passive: adjacent Offense cards deal +10 damage.',
   },
   {
     id: 'time_crystal',
@@ -276,19 +295,10 @@ const defs: SkillDef[] = [
     aura: { affects: 'adjacent', propertyFilter: 'magical', mods: { weightDelta: -5 } },
     text: 'Passive: adjacent Magical cards -5 weight (cast sooner).',
   },
-  {
-    id: 'lucky_charm',
-    name: 'Lucky Charm',
-    archetypes: ['support'],
-    property: 'true',
-    element: 'holy',
-    size: 1,
-    rarity: 'rare',
-    tier: 'bronze',
-    effects: [],
-    aura: { affects: 'adjacent', mods: { critPctDelta: 20 } },
-    text: 'Passive: adjacent cards +20% Crit Chance.',
-  },
+  // NOTE (2026-07-23): 'lucky_charm' was removed here. Its sole effect was an
+  // adjacent +Crit aura and crit was excised from the game, leaving it inert /
+  // off-budget. Rather than silently rebudget it, the defunct card is dropped;
+  // content-designer can ship a fresh, priced support aura in its place.
   {
     id: 'battle_howl',
     name: 'Battle Howl',
@@ -358,11 +368,14 @@ const defs: SkillDef[] = [
     rarity: 'rare',
     tier: 'bronze',
     weapon: 'sword',
+    // comboPerPoint discount (2.5/pt, user-locked 2026-07-23): damage 10 (50)
+    // + comboBonus 20 (floor(20*5/2)=50) = 100 = Bronze exactly. Un-comboed
+    // 10 is half a Sword Slash's 20; comboed 30 (10+20) beats it by 50%.
     effects: [
-      { kind: 'comboBonus', amount: 10 },
+      { kind: 'comboBonus', amount: 20 },
       { kind: 'damage', power: 10 },
     ],
-    text: 'Deal Sword damage +10 (+Attack) · +10 if previous cast was Offense.',
+    text: 'Deal Sword damage +10 (+Attack) · +20 if previous cast was Offense.',
   },
   {
     id: 'concussive_shot',
@@ -497,8 +510,9 @@ const defs: SkillDef[] = [
 
   // ---- Bleed showcase (per-performance DoT) ----
   {
-    // damage 14 (70) + bleed 5 stacks (5×6 = 30 deci, ticks 5,4,3,2,1 = 15
-    // total) = 100 = Bronze.
+    // bleed priced LINEARLY per stack (2026-07-23): 5 stacks × 10 deci = 50
+    // deci = 5 PL. Tick gameplay unchanged (decays 5,4,3,2,1 = 15 total).
+    // damage 10 (50) + bleed (50) = 100 = Bronze.
     id: 'rupturing_strike',
     name: 'Rupturing Strike',
     archetypes: ['offense', 'debuff'],
@@ -508,10 +522,10 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     weapon: 'axe',
     effects: [
-      { kind: 'damage', power: 14 },
+      { kind: 'damage', power: 10 },
       { kind: 'bleed', stacks: 5 },
     ],
-    text: 'Deal Axe damage +14 (+Attack) · {{Bleed}} 5 — ticks when the enemy performs; blocked by shields.',
+    text: 'Deal Axe damage +10 (+Attack) · {{Bleed}} 5 — ticks when the enemy performs; blocked by shields.',
   },
 
   // ---- Expose showcase (incoming-damage amplifier) ----

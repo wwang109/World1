@@ -48,18 +48,6 @@ describe('property scaling and mitigation', () => {
     );
     expect(firstDamage(simulate(c, 1).events)).toMatchObject({ amount: 39, property: 'true' }); // 27 flat + (20 stat − 8 MR)
   });
-
-  it('crits multiply by 1.5 (floored)', () => {
-    // Crit CHANCE is hard-capped at CRIT_CHANCE_CAP_PCT (50%), so even critPct 100
-    // is a coin flip — seed 7 lands the crit here. The math under test is the
-    // ×1.5 multiplier: floor(27 * 1.5) = 40.
-    const c = cfg(
-      tc('hero', ['sword_slash'], { attack: 10, critPct: 100, speed: 20 }),
-      tc('wall', [], { armor: 3, speed: 10 }),
-      { ...NO_ENDGAME, maxTurns: 1 },
-    );
-    expect(firstDamage(simulate(c, 7).events)).toMatchObject({ amount: 40, crit: true });
-  });
 });
 
 describe('typed shields', () => {

@@ -175,7 +175,7 @@ describe('bleed', () => {
 describe('expose', () => {
   it('amplifies a direct hit by +pct% (floored)', () => {
     const c = cfg(
-      tc('hero', ['expose_apply', 'hit_sword'], { attack: 10, critPct: 0, speed: 20, maxHp: 500 }, { skillBook: B }),
+      tc('hero', ['expose_apply', 'hit_sword'], { attack: 10, speed: 20, maxHp: 500 }, { skillBook: B }),
       tc('foe', [], { armor: 0, speed: 1, maxHp: 1000 }, { skillBook: B }),
       { ...OPT, maxTurns: 1 },
     );
@@ -186,7 +186,7 @@ describe('expose', () => {
 
   it('stacks multiplicatively per expose, in statuses order', () => {
     const c = cfg(
-      tc('hero', ['expose_double', 'hit_sword'], { attack: 10, critPct: 0, speed: 20, maxHp: 500 }, { skillBook: B }),
+      tc('hero', ['expose_double', 'hit_sword'], { attack: 10, speed: 20, maxHp: 500 }, { skillBook: B }),
       tc('foe', [], { armor: 0, speed: 1, maxHp: 1000 }, { skillBook: B }),
       { ...OPT, maxTurns: 1 },
     );
@@ -197,7 +197,7 @@ describe('expose', () => {
 
   it('applies AFTER the matchup multiplier (matchup baked first, then amplified)', () => {
     const c = cfg(
-      tc('hero', ['expose_apply', 'hit_sword'], { attack: 10, critPct: 0, speed: 20, maxHp: 500 }, { skillBook: B }),
+      tc('hero', ['expose_apply', 'hit_sword'], { attack: 10, speed: 20, maxHp: 500 }, { skillBook: B }),
       { ...tc('foe', [], { armor: 0, speed: 1, maxHp: 1000 }, { skillBook: B }), weaponAffinity: 'axe' },
       { ...OPT, maxTurns: 1 },
     );
@@ -208,7 +208,7 @@ describe('expose', () => {
 
   it('does NOT amplify DoT ticks (poison unaffected)', () => {
     const c = cfg(
-      tc('hero', ['expose_apply', 'poison_apply'], { attack: 0, critPct: 0, speed: 20, maxHp: 500 }, { skillBook: B }),
+      tc('hero', ['expose_apply', 'poison_apply'], { attack: 0, speed: 20, maxHp: 500 }, { skillBook: B }),
       tc('foe', [], { armor: 0, speed: 1, maxHp: 1000 }, { skillBook: B }),
       { ...OPT, maxTurns: 3 },
     );

@@ -30,7 +30,6 @@ export interface CombatantStats {
   magicResist: number;
   /** Initiative added to readiness at the start of every gameplay turn. */
   speed: number;
-  critPct: number;
 }
 
 /** Card type identity — a card carries ONE OR MORE of these. */
@@ -72,7 +71,7 @@ export type WeaponType = 'sword' | 'axe' | 'lance' | 'bow' | 'beast';
 export type SkillTier = 'bronze' | 'silver' | 'gold' | 'diamond';
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 
-export type BuffableStat = 'attack' | 'magicPower' | 'armor' | 'magicResist' | 'speed' | 'critPct';
+export type BuffableStat = 'attack' | 'magicPower' | 'armor' | 'magicResist' | 'speed';
 
 /**
  * How a unit picks its single offensive target among living foes (deterministic,
@@ -200,10 +199,32 @@ export interface AuraDef {
     healFlat?: number;
     /** Reduces (negative) or raises the card's speed weight. */
     weightDelta?: number;
-    /** Crit CHANCE points — the one modifier that stays a percentage. */
-    critPctDelta?: number;
   };
 }
+
+/**
+ * An AUTHORED tier override for one tier above a card's base. When present for
+ * a target tier, `applyTier` uses it verbatim (spread over the base def) instead
+ * of the budget-honest auto-scaler — the escape hatch for cards the auto-scaler
+ * can't solve (pure control/empower/aura cards) or whose auto-curve a designer
+ * wants to hand-shape. Only the listed fields are overridden; everything else
+ * (property, size, weapon, element, rarity, archetypes) carries over from base.
+ */
+export interface TierUpgrade {
+  /** Full replacement effect list at this tier. */
+  effects?: Action[];
+  /** Full replacement aura block at this tier. */
+  aura?: AuraDef;
+  /** Overrides speedWeight at this tier. */
+  speedWeight?: number;
+  /** Overrides cooldownTurns at this tier. */
+  cooldownTurns?: number;
+  /** Overrides the card text at this tier. */
+  text?: string;
+}
+
+/** Authored per-tier overrides, keyed by the (non-bronze) target tier. */
+export type TierUpgrades = Partial<Record<Exclude<SkillTier, 'bronze'>, TierUpgrade>>;
 
 export interface SkillDef {
   id: string;
@@ -245,6 +266,14 @@ export interface SkillDef {
   aura?: AuraDef;
   /** Registry key for hand-coded behavior the DSL can't express. */
   special?: string;
+  /**
+   * Authored per-tier overrides. When a target tier has an entry here,
+   * `applyTier` uses it verbatim (spread over the base def) instead of the
+   * budget-honest auto-scaler — the escape hatch for cards the auto-scaler
+   * can't solve to budget (pure control/empower/aura cards) or whose curve a
+   * designer wants to hand-shape.
+   */
+  tierUpgrades?: TierUpgrades;
   text: string;
 }
 
@@ -292,7 +321,7 @@ export interface StatGemMods {
   /** Hero-scope: flat integer stat adds folded into base stats. */
   hero?: Partial<Record<BuffableStat, number>>;
   /** Card-scope: modifiers applied to the socketed card only (AuraMods-shaped). */
-  card?: { damageFlat?: number; healFlat?: number; weightDelta?: number; critPctDelta?: number };
+  card?: { damageFlat?: number; healFlat?: number; weightDelta?: number };
 }
 
 /** A card placed on a board; `slot` is its leftmost occupied slot. */
