@@ -1,28 +1,18 @@
 import Phaser from 'phaser';
-import { simulate } from '../../engine/combat/simulate';
-import { applyTier } from '../../engine/cards';
-import { skillBook } from '../../data/skills';
-import type { CombatEvent } from '../../engine/combat/events';
 import type { SkillDef } from '../../engine/types';
-import { buildAutoHeroSetup, buildEnemyEncounter } from '../../run/encounter';
 import { demoState } from '../demoState';
+import {
+  buildBattleTimeline,
+  type BattleTimelineInput,
+  type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
+} from '../battleTimeline';
+import { fetchBattleLog } from '../battleApi';
+import type { BattleLog } from '../../run/resolveBattle';
 import { FONT, SCREEN, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { footerY, renderActionBar } from '../ui/ActionBar';
 import type { ScalingStats } from '../ui/skillPresentation';
 
-interface LogLine { tag: string; text: string; detail?: string; }
-interface HpSnap { player: number; enemy: number; playerMax: number; enemyMax: number; }
-interface SpeedSnap { player: string; enemy: string; }
-/** One playback-FX event for a step: floating number + (for damage) a bar shake. */
-interface TurnFx { side: 'player' | 'enemy'; kind: 'damage' | 'heal' | 'shield'; amount: number; source?: string; }
-/** A single playback position: one IMPORTANT log line (or a turn's fallback
- * anchor line when it has no important lines) — `lineIndex` into that turn's
- * `linesByTurn` array. `this.idx` indexes `steps`, not turns. */
-interface PlaybackStep { turn: number; lineIndex: number; }
-/** A step record captured mid-build, before turns/fallback-steps are known —
- * folded into the final per-step arrays in turn order once the event loop ends. */
-interface StepRecord { turn: number; lineIndex: number; hp: HpSnap; shield: { player: number; enemy: number }; fx: TurnFx[]; }
 /** Everything a rendered HP bar hands back so FX can target it after the fact. */
 interface HpBarHandles {
   fillRect: Phaser.GameObjects.Rectangle;
@@ -31,24 +21,13 @@ interface HpBarHandles {
   floatX: number;
   floatY: number;
 }
-interface CardSummaryRow {
-  side: 'player' | 'enemy';
-  name: string;
-  damage: number;
-  shield: number;
-  healing: number;
-  dots: number;
-}
-interface CombatSummary {
-  playerDamage: number;
-  enemyDamage: number;
-  playerHealing: number;
-  cards: CardSummaryRow[];
-}
 // Footer buttons come from the shared ActionBar template (ui/ActionBar.ts).
 
+/** The result overlay (scrim + ledger + banner) draws above the board. */
+const OUTCOME_DEPTH = 40;
+
 const TAG_COLOR: Record<string, string> = {
-  PLAY: '#4f9e57', HIT: '#d05c4e', BUFF: '#5fb56a',
+  START: '#e8b446', PLAY: '#4f9e57', HIT: '#d05c4e', BUFF: '#5fb56a',
   DEBUFF: '#a678d8', WAIT: '#c9a15a', DOWN: '#d05c4e', RESULT: '#e8b446',
 };
 /** Ailment identity colors — used to tint the afflicted side's HP bar and its DoT tick numbers. */
@@ -67,12 +46,12 @@ export class MobileBattleScene extends Phaser.Scene {
   private H = SCREEN.height;
   private linesByTurn = new Map<number, LogLine[]>();
   private hpByTurn = new Map<number, HpSnap>();
-  private shieldByTurn = new Map<number, { player: number; enemy: number }>();
+  private shieldByTurn = new Map<number, ShieldSnap>();
   /** Active ailment keys per side per turn — drives the HP-bar ailment tint. */
-  private statusByTurn = new Map<number, { player: string[]; enemy: string[] }>();
+  private statusByTurn = new Map<number, { player: string[]; enemy: string[]; enemyUnits?: string[][] }>();
   private speedByTurn = new Map<number, SpeedSnap>();
   /** Which board slot each side cast from, per turn — drives the gold cursor. */
-  private playSlotByTurn = new Map<number, { player?: number; enemy?: number }>();
+  private playSlotByTurn = new Map<number, { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }>();
   private turns: number[] = [];
   /** Flat, event-level playback timeline — one entry per IMPORTANT log line
    * (HIT/DEBUFF/BUFF/DOWN/RESULT), plus one fallback entry for any turn that
@@ -82,10 +61,17 @@ export class MobileBattleScene extends Phaser.Scene {
   /** HP/shield snapshots captured at each step's exact position in the event
    * stream (not just per-turn) so the bars animate on the precise event. */
   private hpByStep: HpSnap[] = [];
-  private shieldByStep: Array<{ player: number; enemy: number }> = [];
+  private shieldByStep: ShieldSnap[] = [];
   /** Structured per-step FX (damage/heal/shield deltas) for floating numbers + shakes. */
   private fxByStep: TurnFx[][] = [];
+  private focusFoeByStep: Array<number | undefined> = [];
   private idx = 0;
+  /** Which foe the tabbed enemy view (3+ foes) is showing. */
+  private focusedFoe = 0;
+  /** Auto-switch the focused tab to the foe involved in the current event;
+   *  tapping a tab pins it (turns this off) until AUTO is tapped again. */
+  private autoFollow = true;
+  private lastFocusedFoe = -1;
   /** The `idx` shown by the previous render() call — used to detect a single
    * forward step (playback tick or one scrub click) vs. a jump/rewind, which
    * gates all FX (floating numbers, shakes, bar tweens) per the no-spam rule. */
@@ -93,28 +79,73 @@ export class MobileBattleScene extends Phaser.Scene {
   private expanded = new Set<string>();
   private heroPieces: ColumnPiece[] = [];
   private heroSkills: SkillDef[] = [];
-  private foePieces: ColumnPiece[] = [];
-  private foeSkills: SkillDef[] = [];
+  private foes: FoeModel[] = [];
   private heroName = 'Hero';
-  private foeName = 'Foe';
   private heroStats: ScalingStats = { attack: 0, magicPower: 0 };
-  private foeStats: ScalingStats = { attack: 0, magicPower: 0 };
+  private heroStatLine = '';
   private outcome = '';
   private combatSummary: CombatSummary = { playerDamage: 0, enemyDamage: 0, playerHealing: 0, cards: [] };
   /** First playback step that contains the defeated unit's DOWN log. */
   private outcomeStep = -1;
   private playing = true;
   private playTimer?: Phaser.Time.TimerEvent;
+  /** Playback speed multiplier — cycles ×1 → ×2 → ×½ → ×1 via the footer
+   * button; NOT reset on replay/restart so the player's pick persists. */
+  private speedMult = 1;
 
   constructor() { super('MobileBattle'); }
 
   create(): void {
     this.W = SCREEN.width; this.H = SCREEN.height;
     this.cameras.main.setBackgroundColor(0x0b1420);
-    this.buildFight();
-    this.idx = 0;
-    this.render();
-    this.startPlayback();
+    this.focusedFoe = 0;
+    this.autoFollow = true;
+    this.lastFocusedFoe = -1;
+    // The battle service owns combat, so the log is a round trip: show a status
+    // line, then render once it lands. No local fallback exists by design.
+    this.renderStatus('RESOLVING BATTLE…');
+    void this.startFight();
+  }
+
+  /** Fetches the log, folds it, then starts playback. */
+  private async startFight(): Promise<void> {
+    const input = this.fightInput();
+    try {
+      const log = await fetchBattleLog(input);
+      if (!this.scene.isActive()) return;
+      this.buildFight(input, log);
+      this.idx = 0;
+      this.render();
+      this.startPlayback();
+    } catch (err) {
+      if (!this.scene.isActive()) return;
+      this.renderStatus(`BATTLE SERVICE UNREACHABLE\n${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  /** Centered status/error text — the only thing drawn before the log arrives. */
+  private renderStatus(message: string): void {
+    this.children.removeAll();
+    this.add.text(this.W / 2, this.H / 2, message, {
+      fontSize: '12px', color: '#8a94a6', fontFamily: FONT.body,
+      align: 'center', wordWrap: { width: this.W - 60 }, lineSpacing: 4,
+    }).setOrigin(0.5);
+  }
+
+  /** The prep info this fight resolves from. */
+  private fightInput(): BattleTimelineInput {
+    return {
+      pieces: demoState.pieces,
+      heroLevel: demoState.heroLevel,
+      heroAllocation: demoState.heroAllocation,
+      enemyId: demoState.enemyId,
+      enemyLevel: demoState.enemyLevel,
+      enemyTitle: demoState.enemyTitle,
+      enemyRank: demoState.enemyRank,
+      enemyModifiers: demoState.enemyModifiers,
+      enemyTeam: demoState.enemyTeam,
+      seed: demoState.seed,
+    };
   }
 
   /** Auto-advance the scrubber through the fight, one event-step at a time; stops at the end. */
@@ -129,7 +160,7 @@ export class MobileBattleScene extends Phaser.Scene {
     if (!this.playing) return;
     const current = this.steps[this.idx];
     const line = current ? this.linesByTurn.get(current.turn)?.[current.lineIndex] : undefined;
-    const delay = line?.tag === 'DOWN' ? 160 : 450;
+    const delay = (line?.tag === 'DOWN' ? 160 : 450) / this.speedMult;
     this.playTimer = this.time.delayedCall(delay, () => {
       if (this.idx < this.steps.length - 1) {
         this.idx += 1;
@@ -162,223 +193,40 @@ export class MobileBattleScene extends Phaser.Scene {
     return t;
   }
 
-  private skillName(id: string): string { return skillBook[id]?.name ?? id; }
-
-  /** The HIT `D:` math detail (locked grammar): base n + (n LABEL) … = total. */
-  private formatDmg(c: NonNullable<Extract<CombatEvent, { kind: 'damage' }>['calculation']>): string {
-    const stat = c.scalingStat === 'attack' ? 'ATK' : 'MAG';
-    const def = c.scalingStat === 'attack' ? 'DEF' : 'RES';
-    const terms = [`base ${c.power}`];
-    const add = (label: string, v: number): void => { if (v) terms.push(`${v > 0 ? '+' : '−'} (${Math.abs(v)} ${label})`); };
-    add(stat, c.baseStat);
-    add('BUFF', c.statBonusDamage);
-    add('SKILL', c.effectBonusDamage);
-    add(def, -c.defense);
-    add('AFFINITY', c.matchupBonusDamage);
-    add('RAMP', c.suddenDeathBonusDamage);
-    add('GUARD', -c.guardReduction);
-    add('BLOCK', -c.shieldBlocked);
-    return `D: ${terms.join(' ')} = ${c.hpDamage}`;
-  }
-
-  private buildFight(): void {
-    const heroEncounter = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces.map((p) => ({ ...p })), demoState.heroAllocation);
-    const hero = heroEncounter.setup;
-    const enc = buildEnemyEncounter(demoState.enemyId, demoState.enemyLevel, demoState.enemyTitle, demoState.enemyRank);
-    const foe = enc.setup;
-    this.heroName = hero.name;
-    this.foeName = foe.name;
-    this.heroStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower };
-    this.foeStats = { attack: foe.stats.attack, magicPower: foe.stats.magicPower };
-
-    for (const p of demoState.pieces) {
-      const s = skillBook[p.skillId]; if (!s) continue;
-      this.heroPieces.push({ skill: s, slot: p.slot }); this.heroSkills.push(s);
-    }
-    for (const p of foe.pieces) {
-      const base = skillBook[p.skillId]; if (!base) continue;
-      const s = p.tier ? applyTier(base, p.tier) : base;
-      this.foePieces.push({ skill: s, slot: p.slot }); this.foeSkills.push(s);
-    }
-
-    const result = simulate({ playerTeam: [hero], enemyTeam: [foe], skillBook }, demoState.seed);
-    this.outcome = result.result === 'win' ? 'VICTORY' : result.result === 'loss' ? 'DEFEAT' : 'DRAW';
-
-    const cur: HpSnap = { player: hero.stats.maxHp, enemy: foe.stats.maxHp, playerMax: hero.stats.maxHp, enemyMax: foe.stats.maxHp };
-    const shield = { player: 0, enemy: 0 };
-    const speed: SpeedSnap = { player: '', enemy: '' };
-    const dots: Record<'player' | 'enemy', Map<string, number>> = { player: new Map(), enemy: new Map() };
-    const activeCardByTurn = new Map<number, CardSummaryRow>();
-    const cardSummaries = new Map<string, CardSummaryRow>();
-    let playerDamage = 0;
-    let enemyDamage = 0;
-    let playerHealing = 0;
-    const label = (e: Extract<CombatEvent, { side: 'player' | 'enemy' }>): string => (e.side === 'player' ? this.heroName : this.foeName);
-    // Every IMPORTANT line (anything but PLAY) becomes its own playback step,
-    // captured here in event order; folded into per-turn-ordered final arrays
-    // (with fallback steps for import-less turns) once the loop below ends.
-    const stepRecords: StepRecord[] = [];
-    const push = (turn: number, tag: string, text: string, detail?: string): void => {
-      const arr = this.linesByTurn.get(turn) ?? [];
-      arr.push({ tag, text, detail });
-      this.linesByTurn.set(turn, arr);
-      if (tag !== 'PLAY') {
-        stepRecords.push({ turn, lineIndex: arr.length - 1, hp: { ...cur }, shield: { ...shield }, fx: [] });
-      }
-    };
-    const pushFx = (side: 'player' | 'enemy', kind: TurnFx['kind'], amount: number, source?: string): void => {
-      if (amount <= 0) return;
-      const last = stepRecords[stepRecords.length - 1];
-      if (last) last.fx.push({ side, kind, amount, source });
-    };
-
-    for (const e of result.events) {
-      switch (e.kind) {
-        // Readiness gain — mockup turnline: "Hero 18 · SPD +16 · Bandit 25 · SPD +15".
-        case 'gain': speed[e.side] = `${e.readinessAfter} · SPD +${e.speed}`; break;
-        case 'play': {
-          push(e.turn, 'PLAY', `${label(e)} · ${this.skillName(e.skillId)}`);
-          const slots = this.playSlotByTurn.get(e.turn) ?? {};
-          slots[e.side] = e.slot;
-          this.playSlotByTurn.set(e.turn, slots);
-          const key = `${e.side}:${e.skillId}`;
-          const card = cardSummaries.get(key) ?? {
-            side: e.side,
-            name: this.skillName(e.skillId),
-            damage: 0,
-            shield: 0,
-            healing: 0,
-            dots: 0,
-          };
-          cardSummaries.set(key, card);
-          activeCardByTurn.set(e.turn, card);
-          break;
-        }
-        case 'damage': {
-          const dealt = Math.max(0, e.amount - e.blocked);
-          if (e.side === 'player') cur.player = e.hpAfter; else cur.enemy = e.hpAfter;
-          if (e.blocked > 0) shield[e.side] = Math.max(0, shield[e.side] - e.blocked);
-          const hp = e.side === 'player' ? `${e.hpAfter}/${cur.playerMax}` : `${e.hpAfter}/${cur.enemyMax}`;
-          if (e.source === 'skill') {
-            push(e.turn, 'HIT', `${label(e)} −${dealt} · ${hp}`, e.calculation ? this.formatDmg(e.calculation) : undefined);
-          } else {
-            const cap = e.source.charAt(0).toUpperCase() + e.source.slice(1);
-            push(e.turn, 'DEBUFF', `${cap} · ${label(e)} −${dealt} · ${hp}`);
-          }
-          const activeCard = activeCardByTurn.get(e.turn);
-          if (e.source === 'skill' && activeCard) {
-            activeCard.damage += dealt;
-          }
-          if (e.source === 'skill' && activeCard?.side === 'player' && e.side === 'enemy') {
-            playerDamage += dealt;
-          } else if (e.source === 'skill' && activeCard?.side === 'enemy' && e.side === 'player') {
-            enemyDamage += dealt;
-          }
-          pushFx(e.side, 'damage', dealt, e.source !== 'skill' ? e.source : undefined);
-          break;
-        }
-        case 'heal': {
-          if (e.side === 'player') cur.player = e.hpAfter; else cur.enemy = e.hpAfter;
-          if (e.side === 'player') playerHealing += e.amount;
-          const activeCard = activeCardByTurn.get(e.turn);
-          if (activeCard) activeCard.healing += e.amount;
-          const max = e.side === 'player' ? cur.playerMax : cur.enemyMax;
-          push(e.turn, 'BUFF', `${label(e)} +${e.amount} HP · ${e.hpAfter}/${max}`);
-          pushFx(e.side, 'heal', e.amount);
-          break;
-        }
-        case 'shieldGain':
-          shield[e.side] = e.totalAfter;
-          const shieldCard = activeCardByTurn.get(e.turn);
-          if (shieldCard) shieldCard.shield += e.amount;
-          push(e.turn, 'BUFF', `${label(e)} +${e.amount} shield`);
-          pushFx(e.side, 'shield', e.amount);
-          break;
-        case 'shieldBroken': shield[e.side] = e.totalAfter; push(e.turn, 'DEBUFF', `${label(e)} · shield −${e.amount}`); break;
-        case 'statusApplied': {
-          const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'negate';
-          const cap = e.status.charAt(0).toUpperCase() + e.status.slice(1);
-          push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap}${e.stacks ? ` ${e.stacks}` : ''}`);
-          if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') {
-            const dotCard = activeCardByTurn.get(e.turn);
-            if (dotCard) dotCard.dots += e.stacks ?? 1;
-          }
-          if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') dots[e.side].set(e.status, e.stacks ?? 0);
-          else if (e.status === 'stun') dots[e.side].set('stun', e.turns);
-          else if (e.status === 'expose') dots[e.side].set('expose', e.pct ?? 0);
-          break;
-        }
-        case 'statusExpired': dots[e.side].delete(e.status); break;
-        case 'died': push(e.turn, 'DOWN', `${label(e)} falls`); break;
-        case 'combatEnd': push(e.turn, 'RESULT', `${this.outcome} · ${e.turns} turns`); break;
-        default: break;
-      }
-      this.hpByTurn.set(e.turn, { ...cur });
-      this.shieldByTurn.set(e.turn, { ...shield });
-      this.statusByTurn.set(e.turn, { player: [...dots.player.keys()], enemy: [...dots.enemy.keys()] });
-      this.speedByTurn.set(e.turn, { ...speed });
-    }
-    const cards = [...cardSummaries.values()]
-      .sort((a, b) => (a.side === b.side ? b.damage - a.damage : a.side === 'player' ? -1 : 1));
-    this.combatSummary = { playerDamage, enemyDamage, playerHealing, cards };
-    this.turns = [...this.linesByTurn.keys()].sort((a, b) => a - b);
-    if (this.turns.length === 0) this.turns = [1];
-
-    // Fold stepRecords (already in chronological/event order) into the final
-    // per-step arrays, walking turns in order and inserting a fallback step
-    // (the turn's last known line) for any turn that had no important lines.
-    const recordsByTurn = new Map<number, StepRecord[]>();
-    for (const r of stepRecords) {
-      const arr = recordsByTurn.get(r.turn) ?? [];
-      arr.push(r);
-      recordsByTurn.set(r.turn, arr);
-    }
-    for (const t of this.turns) {
-      const recs = recordsByTurn.get(t);
-      if (recs && recs.length > 0) {
-        for (const r of recs) {
-          this.steps.push({ turn: r.turn, lineIndex: r.lineIndex });
-          this.hpByStep.push(r.hp);
-          this.shieldByStep.push(r.shield);
-          this.fxByStep.push(r.fx);
-        }
-      } else {
-        const lines = this.linesByTurn.get(t) ?? [];
-        this.steps.push({ turn: t, lineIndex: Math.max(0, lines.length - 1) });
-        this.hpByStep.push(this.hpByTurn.get(t) ?? cur);
-        this.shieldByStep.push(this.shieldByTurn.get(t) ?? shield);
-        this.fxByStep.push([]);
-      }
-    }
-    if (this.steps.length === 0) {
-      this.steps = [{ turn: this.turns[0] ?? 1, lineIndex: 0 }];
-      this.hpByStep = [cur];
-      this.shieldByStep = [shield];
-      this.fxByStep = [[]];
-    }
-    // A lethal damage event is the meaningful end of playback. Do not force
-    // the player through separate DOWN/RESULT ticks after HP has already hit 0.
-    const lethalStep = this.hpByStep.findIndex((snapshot) => snapshot.player <= 0 || snapshot.enemy <= 0);
-    if (lethalStep >= 0) {
-      this.steps = this.steps.slice(0, lethalStep + 1);
-      this.hpByStep = this.hpByStep.slice(0, lethalStep + 1);
-      this.shieldByStep = this.shieldByStep.slice(0, lethalStep + 1);
-      this.fxByStep = this.fxByStep.slice(0, lethalStep + 1);
-    }
-    const resultStep = this.steps.findIndex((step) => {
-      const line = this.linesByTurn.get(step.turn)?.[step.lineIndex];
-      return line?.tag === 'RESULT';
-    });
-    // Draws or unusual empty logs have no DOWN event; preserve their normal
-    // end-of-playback result banner.
-    this.outcomeStep = lethalStep >= 0 ? lethalStep : resultStep >= 0 ? resultStep : this.steps.length - 1;
+  /** Runs the shared `buildBattleTimeline` transform and copies its model
+   * into this scene's fields — the scene stays a pure playback head. */
+  private buildFight(input: BattleTimelineInput, log: BattleLog): void {
+    const model = buildBattleTimeline(input, log);
+    this.linesByTurn = model.linesByTurn;
+    this.hpByTurn = model.hpByTurn;
+    this.shieldByTurn = model.shieldByTurn;
+    this.statusByTurn = model.statusByTurn;
+    this.speedByTurn = model.speedByTurn;
+    this.playSlotByTurn = model.playSlotByTurn;
+    this.turns = model.turns;
+    this.steps = model.steps;
+    this.hpByStep = model.hpByStep;
+    this.shieldByStep = model.shieldByStep;
+    this.fxByStep = model.fxByStep;
+    this.focusFoeByStep = model.focusFoeByStep;
+    this.outcome = model.outcome;
+    this.outcomeStep = model.outcomeStep;
+    this.combatSummary = model.combatSummary;
+    this.heroName = model.heroName;
+    this.heroStats = model.heroStats;
+    this.heroStatLine = model.heroStatLine;
+    this.heroPieces = model.heroPieces;
+    this.heroSkills = model.heroSkills;
+    this.foes = model.foes;
   }
 
   private render(): void {
     // Kill any in-flight FX tweens before the full redraw so fast scrubbing
     // never leaves an orphaned tween chasing a destroyed object.
     this.tweens.killAll();
-    this.children.removeAll();
+    // Destroy (not just remove) the previous frame's objects — removeAll()
+    // alone leaks every Text's backing canvas texture across ~30 redraws/fight.
+    for (const child of [...this.children.list]) child.destroy();
     this.cameras.main.setBackgroundColor(0x0b1420);
     const step = this.steps[this.idx] ?? this.steps[0] ?? { turn: this.turns[0] ?? 1, lineIndex: 0 };
     const turn = step.turn;
@@ -405,7 +253,13 @@ export class MobileBattleScene extends Phaser.Scene {
     // Turnline (mockup): "T3   Hero 18 · SPD +16  ·  Bandit 25 · SPD +15"
     const spd = this.speedByTurn.get(turn) ?? { player: '', enemy: '' };
     this.add.text(12, 8, `T${turn}${!isOutcomeStep && this.playing ? ' ▶' : ''}`, { fontSize: '13px', color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' });
-    const turnStats = [spd.player && `${this.heroName} ${spd.player}`, spd.enemy && `${this.foeName} ${spd.enemy}`].filter(Boolean).join('   ·   ');
+    const turnStats = [
+      spd.player && `${this.heroName} ${spd.player}`,
+      ...this.foes.map((f, u) => {
+        const line = spd.enemyUnits?.[u] ?? (u === 0 ? spd.enemy : '');
+        return line && `${f.name} ${line}`;
+      }),
+    ].filter(Boolean).join('   ·   ');
     if (turnStats) this.boundedText(66, 9, turnStats, { fontSize: '11px', color: '#cdd4de', fontFamily: FONT.body }, this.W - 78);
 
     // Rolling transcript: every line up through the current step's line —
@@ -451,36 +305,108 @@ export class MobileBattleScene extends Phaser.Scene {
     }
 
     // ---- HP block: bars + shield strip. Ailments live ON the bar (tint +
-    // colored pips), not in a text row — the log already narrates them. ----
+    // colored pips), not in a text row — the log already narrates them. A
+    // tiny 9px statline sits under each bar (barRowH accounts for it).
+    // 1–2 foes: one row each. 3+ foes: the FOCUSED foe's row + a tab strip
+    // (name + mini HP per foe); tabs auto-follow the foe involved in the
+    // current event unless the player pins one. ----
+    const tabbed = this.foes.length > 2;
+    if (tabbed && this.autoFollow) {
+      const f = this.focusFoeByStep[this.idx];
+      if (f !== undefined && f < this.foes.length) this.focusedFoe = f;
+    }
+    this.focusedFoe = Math.max(0, Math.min(this.focusedFoe, Math.max(0, this.foes.length - 1)));
+    const focusChanged = this.focusedFoe !== this.lastFocusedFoe;
+    this.lastFocusedFoe = this.focusedFoe;
+
     const hpY = dockH + 10;
+    const barRowH = 36;
     const heroBar = this.hpBar(
       hpY, this.heroName, hp.player, hp.playerMax, shield.player, UI.good ?? 0x4f9e57, status.player,
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
     );
-    const foeBar = this.hpBar(
-      hpY + 26, this.foeName, hp.enemy, hp.enemyMax, shield.enemy, UI.bad ?? 0xb0483c, status.enemy,
-      forwardStep ? { hp: prevHp?.enemy ?? hp.enemy, shield: prevShield?.enemy ?? shield.enemy } : undefined,
-    );
+    this.boundedText(120, hpY + 17, this.heroStatLine, { fontSize: '9px', color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
+    const foeBars: Array<HpBarHandles | undefined> = [];
+    /** Tab-mode float anchor for foes whose full bar isn't on screen. */
+    const tabAnchors: Array<{ x: number; y: number } | undefined> = [];
+    const foeRowAt = (u: number, barY: number, animate: boolean): void => {
+      const foeModel = this.foes[u]!;
+      const foeHp = hp.enemies?.[u] ?? hp.enemy;
+      const foeMax = hp.enemyMaxes?.[u] ?? hp.enemyMax;
+      const foeShield = shield.enemies?.[u] ?? shield.enemy;
+      const foeStatus = status.enemyUnits?.[u] ?? status.enemy;
+      const prevFoeHp = prevHp ? (prevHp.enemies?.[u] ?? prevHp.enemy) : undefined;
+      const prevFoeShield = prevShield ? (prevShield.enemies?.[u] ?? prevShield.enemy) : undefined;
+      foeBars[u] = this.hpBar(
+        barY, foeModel.name, foeHp, foeMax, foeShield, UI.bad ?? 0xb0483c, foeStatus,
+        animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
+      );
+      this.boundedText(120, barY + 17, foeModel.statLine, { fontSize: '9px', color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
+    };
+    let boardsTop: number;
+    if (!tabbed) {
+      this.foes.forEach((_, u) => foeRowAt(u, hpY + barRowH * (u + 1), forwardStep));
+      boardsTop = hpY + 32 + barRowH * this.foes.length;
+    } else {
+      // Snap (don't tween) the focused bar right after a tab switch — a tween
+      // from the PREVIOUS foe's HP fraction would be a lie.
+      foeRowAt(this.focusedFoe, hpY + barRowH, forwardStep && !focusChanged);
+      const tabY = hpY + barRowH * 2 - 4;
+      const tabH = 26;
+      const tabGap = 4;
+      const autoW = 46;
+      const tabW = (this.W - 20 - autoW - tabGap * this.foes.length) / this.foes.length;
+      this.foes.forEach((foeModel, u) => {
+        const tx = 10 + u * (tabW + tabGap);
+        const isActive = u === this.focusedFoe;
+        const foeHp = hp.enemies?.[u] ?? hp.enemy;
+        const foeMax = Math.max(1, hp.enemyMaxes?.[u] ?? hp.enemyMax);
+        const dead = foeHp <= 0;
+        const tab = this.add.rectangle(tx, tabY, tabW, tabH, isActive ? 0x16233a : 0x101a2a, dead ? 0.55 : 1)
+          .setOrigin(0, 0).setStrokeStyle(isActive ? 2 : 1, isActive ? 0xe8b446 : UI.border, isActive ? 0.9 : 0.5)
+          .setInteractive({ useHandCursor: true });
+        tab.on('pointerdown', () => { this.focusedFoe = u; this.autoFollow = false; this.render(); });
+        this.boundedText(tx + 5, tabY + 3, dead ? `✕ ${foeModel.name.toUpperCase()}` : foeModel.name.toUpperCase(), {
+          fontSize: '9px', color: dead ? '#5a6a82' : isActive ? '#e8e0c8' : '#9aa4b6', fontFamily: FONT.body, fontStyle: 'bold',
+        }, tabW - 10);
+        // Mini HP strip along the tab's bottom — every foe's health stays
+        // readable even while another foe's full bar is focused.
+        this.add.rectangle(tx + 5, tabY + tabH - 8, tabW - 10, 4, 0x1b2431).setOrigin(0, 0);
+        this.add.rectangle(tx + 5, tabY + tabH - 8, (tabW - 10) * Math.max(0, Math.min(1, foeHp / foeMax)), 4, dead ? 0x5a3a36 : (UI.bad ?? 0xb0483c)).setOrigin(0, 0);
+        tabAnchors[u] = { x: tx + tabW / 2, y: tabY + tabH / 2 };
+      });
+      // AUTO pill: re-enables follow-the-action tab switching.
+      const ax = this.W - 10 - autoW;
+      const auto = this.add.rectangle(ax, tabY, autoW, tabH, this.autoFollow ? 0xb78a46 : 0x101a2a)
+        .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      auto.on('pointerdown', () => { this.autoFollow = !this.autoFollow; this.render(); });
+      this.add.text(ax + autoW / 2, tabY + tabH / 2, 'AUTO', { fontSize: '9px', color: this.autoFollow ? '#1a1208' : '#9aa4b6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      boardsTop = tabY + tabH + 8;
+    }
 
     // ---- floating numbers + defender shake for this step's damage/heal/shield ----
     if (forwardStep) {
       for (const fx of this.fxByStep[this.idx] ?? []) {
-        const bar = fx.side === 'player' ? heroBar : foeBar;
+        const bar = fx.side === 'player' ? heroBar : foeBars[fx.unit ?? 0];
+        const anchor = bar
+          ? { x: bar.floatX, y: bar.floatY }
+          : (fx.side === 'enemy' ? tabAnchors[fx.unit ?? 0] : undefined);
+        if (!anchor) continue;
         if (fx.kind === 'damage') {
-          this.shakeBar(bar.shakeTargets);
+          if (bar) this.shakeBar(bar.shakeTargets);
           // DoT ticks float in their ailment's color (poison green, burn orange…)
           const dmgColor = fx.source ? (AILMENT_COLOR[fx.source] ?? '#d05c4e') : '#d05c4e';
-          this.spawnFloat(bar.floatX, bar.floatY, `−${fx.amount}`, dmgColor);
+          this.spawnFloat(anchor.x, anchor.y, `−${fx.amount}`, dmgColor);
         } else if (fx.kind === 'heal') {
-          this.spawnFloat(bar.floatX, bar.floatY, `+${fx.amount}`, '#5fb56a');
+          this.spawnFloat(anchor.x, anchor.y, `+${fx.amount}`, '#5fb56a');
         } else if (fx.kind === 'shield') {
-          this.spawnFloat(bar.floatX, bar.floatY, `+${fx.amount}`, '#5fa8d3');
+          this.spawnFloat(anchor.x, anchor.y, `+${fx.amount}`, '#5fa8d3');
         }
       }
     }
 
     // ---- boards + gutter scrubber ----
-    const top = hpY + 58;
+    const top = boardsTop;
     const colH = footerY(this.H) - top - 8;
     const gutterW = 24;
     const colW = (this.W - 20 - gutterW) / 2;
@@ -492,20 +418,47 @@ export class MobileBattleScene extends Phaser.Scene {
       state: slot !== undefined && slot >= p.slot && slot < p.slot + Math.max(1, p.skill.size) ? 'cursor' as const : p.state,
     }));
     const heroCol = new BoardColumn(this, { x: deckX, y: top, width: colW, height: colH, side: 'left', pieces: mark(this.heroPieces, slots.player), deck: this.heroSkills, stats: this.heroStats });
-    const foeCol = new BoardColumn(this, { x: bagX, y: top, width: colW, height: colH, side: 'right', pieces: mark(this.foePieces, slots.enemy), deck: this.foeSkills, stats: this.foeStats });
-    // Quick scale pulse on the card that just played this turn (forward step only).
-    if (forwardStep) {
-      if (slots.player !== undefined) this.pulseTokenAt(heroCol, this.heroPieces, slots.player);
-      if (slots.enemy !== undefined) this.pulseTokenAt(foeCol, this.foePieces, slots.enemy);
+    if (forwardStep && slots.player !== undefined) this.pulseTokenAt(heroCol, this.heroPieces, slots.player);
+    // Enemy boards: 1–2 foes stack vertically in the right column; 3+ foes
+    // show only the FOCUSED foe's board (the tab strip covers the rest).
+    const foeBoard = (u: number, boardTop: number, boardH: number): void => {
+      const foeModel = this.foes[u]!;
+      const foeSlot = slots.enemyUnits?.[u] ?? (u === 0 ? slots.enemy : undefined);
+      const foeCol = new BoardColumn(this, {
+        x: bagX, y: boardTop, width: colW, height: boardH, side: 'right',
+        pieces: mark(foeModel.pieces, foeSlot), deck: foeModel.skills, stats: foeModel.stats,
+      });
+      if (forwardStep && foeSlot !== undefined) this.pulseTokenAt(foeCol, foeModel.pieces, foeSlot);
+    };
+    if (!tabbed) {
+      const nFoes = Math.max(1, this.foes.length);
+      const subH = (colH - (nFoes - 1) * 8) / nFoes;
+      this.foes.forEach((_, u) => foeBoard(u, top + u * (subH + 8), subH));
+    } else {
+      foeBoard(this.focusedFoe, top, colH);
     }
     this.renderScrubber(gutterX + gutterW / 2, top, colH);
     renderActionBar(this, this.W, this.H, [
       { label: 'PREP', onPress: () => this.scene.start('MobilePrep') },
       { label: 'REPLAY', onPress: () => { this.stopPlayback(); this.idx = 0; this.render(); this.startPlayback(); } },
+      {
+        label: this.speedMult === 1 ? '×1' : this.speedMult === 2 ? '×2' : '×½',
+        onPress: () => {
+          // Cycle ×1 → ×2 → ×½ → ×1. Takes effect on the next scheduled step.
+          this.speedMult = this.speedMult === 1 ? 2 : this.speedMult === 2 ? 0.5 : 1;
+          this.render();
+        },
+      },
       { label: 'END', primary: true, onPress: () => { this.stopPlayback(); this.idx = this.steps.length - 1; this.render(); } },
     ]);
 
     if (isOutcomeStep) {
+      // The result overlay is a LAYER over the board, so give it an explicit
+      // depth instead of relying on draw order, and make the scrim opaque
+      // enough that card text underneath stops reading through it.
+      const D = OUTCOME_DEPTH;
+      this.add.rectangle(deckX, top, this.W - 20, colH, 0x05070c, 0.93)
+        .setOrigin(0, 0).setStrokeStyle(1, 0xb78a46, 0.35).setDepth(D);
       const good = this.outcome === 'VICTORY';
       const by = top + colH / 2 - 26;
       const summaryRows = this.combatSummary.cards.filter((row) => row.damage > 0 || row.shield > 0 || row.healing > 0 || row.dots > 0);
@@ -514,17 +467,17 @@ export class MobileBattleScene extends Phaser.Scene {
       const summaryH = 74 + Math.max(1, Math.ceil(summaryRows.length / summaryColumns)) * summaryRowH;
       const summaryBy = by - summaryH - 8;
       this.add.rectangle(deckX, summaryBy, this.W - 20, summaryH, 0x101a2a, 0.96)
-        .setOrigin(0, 0).setStrokeStyle(1, 0xb78a46, 0.8);
-      this.add.text(deckX + 12, summaryBy + 8, 'BATTLE LEDGER', { fontSize: '11px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' });
-      this.add.text(this.W - 30, summaryBy + 8, `${summaryRows.length} EFFECTIVE CARDS`, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
-      this.add.rectangle(deckX + 10, summaryBy + 27, this.W - 40, 1, 0x2a3a52).setOrigin(0, 0);
+        .setOrigin(0, 0).setStrokeStyle(1, 0xb78a46, 0.8).setDepth(D);
+      this.add.text(deckX + 12, summaryBy + 8, 'BATTLE LEDGER', { fontSize: '11px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setDepth(D);
+      this.add.text(this.W - 30, summaryBy + 8, `${summaryRows.length} EFFECTIVE CARDS`, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setDepth(D);
+      this.add.rectangle(deckX + 10, summaryBy + 27, this.W - 40, 1, 0x2a3a52).setOrigin(0, 0).setDepth(D);
       const totalMetrics = [
         this.combatSummary.playerDamage > 0 ? `YOU DMG ${this.combatSummary.playerDamage}` : '',
         this.combatSummary.enemyDamage > 0 ? `FOE DMG ${this.combatSummary.enemyDamage}` : '',
         this.combatSummary.playerHealing > 0 ? `HEAL ${this.combatSummary.playerHealing}` : '',
       ].filter(Boolean).join('  ·  ');
-      this.boundedText(deckX + 12, summaryBy + 33, totalMetrics || 'No measurable output', { fontSize: '10px', color: '#cdd4de', fontFamily: FONT.body, fontStyle: 'bold' }, this.W - 44);
-      this.add.text(deckX + 12, summaryBy + 52, 'CARD OUTPUT', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
+      this.boundedText(deckX + 12, summaryBy + 33, totalMetrics || 'No measurable output', { fontSize: '10px', color: '#cdd4de', fontFamily: FONT.body, fontStyle: 'bold' }, this.W - 44).setDepth(D);
+      this.add.text(deckX + 12, summaryBy + 52, 'CARD OUTPUT', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setDepth(D);
       summaryRows.forEach((row, index) => {
         const col = index % summaryColumns;
         const rowIndex = Math.floor(index / summaryColumns);
@@ -533,18 +486,18 @@ export class MobileBattleScene extends Phaser.Scene {
         const y = summaryBy + 66 + rowIndex * summaryRowH;
         const prefix = row.side === 'player' ? 'YOU' : 'FOE';
         const accent = row.side === 'player' ? 0x315f43 : 0x6c3838;
-        this.add.rectangle(cellX, y, cellW - 6, 27, accent, 0.42).setOrigin(0, 0).setStrokeStyle(1, row.side === 'player' ? 0x4f9e57 : 0xb0483c, 0.55);
-        this.boundedText(cellX + 6, y + 3, `${prefix} · ${row.name}`, { fontSize: '9px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }, cellW - 18);
+        this.add.rectangle(cellX, y, cellW - 6, 27, accent, 0.42).setOrigin(0, 0).setStrokeStyle(1, row.side === 'player' ? 0x4f9e57 : 0xb0483c, 0.55).setDepth(D);
+        this.boundedText(cellX + 6, y + 3, `${prefix} · ${row.name}`, { fontSize: '9px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }, cellW - 18).setDepth(D);
         const metrics = [
           row.damage > 0 ? `DMG ${row.damage}` : '',
           row.shield > 0 ? `SHD ${row.shield}` : '',
           row.healing > 0 ? `HEAL ${row.healing}` : '',
           row.dots > 0 ? `DOT ${row.dots}` : '',
         ].filter(Boolean).join('  ·  ');
-        this.boundedText(cellX + 6, y + 15, metrics, { fontSize: '8px', color: '#e8b446', fontFamily: FONT.body }, cellW - 18);
+        this.boundedText(cellX + 6, y + 15, metrics, { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body }, cellW - 18).setDepth(D);
       });
-      this.add.rectangle(deckX, by, this.W - 20, 52, good ? 0x143a1a : 0x3a1414, 0.92).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c);
-      this.add.text(this.W / 2, by + 26, this.outcome, { fontSize: '26px', color: good ? '#7fe08a' : '#f08a7a', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.rectangle(deckX, by, this.W - 20, 52, good ? 0x143a1a : 0x3a1414, 0.92).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c).setDepth(D);
+      this.add.text(this.W / 2, by + 26, this.outcome, { fontSize: '26px', color: good ? '#7fe08a' : '#f08a7a', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5).setDepth(D);
     }
   }
 

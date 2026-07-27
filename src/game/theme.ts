@@ -135,6 +135,10 @@ export const UI = {
   text: '#ecd7a4',
   textDim: '#b89460',
   textSoft: '#8d724a',
+  /** Bronze accent as a text color (string twin of `chip`). */
+  textAccent: '#c69948',
+  /** Dark ink for text sitting on a bronze chip/button fill. */
+  textOnChip: '#1a1208',
   hp: 0x3f8f4e,
   hpBack: 0xcbb894,
   shield: 0x5f83a6,

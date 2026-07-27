@@ -16,7 +16,8 @@
 //              resolveEffectiveSkill scales that card to the tier's PL budget.
 //   • CARDS  — titles/modifiers add extra cards to the base deck.
 // Titles (Mob/Normal/Elite/Boss) are just named presets over (level + rank +
-// extra cards). Modifiers (rogue-like affixes) remain a reserved future axis.
+// extra cards). Modifiers (rogue-like affixes) are a FOURTH additive dial —
+// see `MODIFIER_PRESETS` below.
 // The resolver-seam pattern — no combat-loop involvement. No RNG, no Phaser.
 
 import type { BoardPiece, CombatantSetup, EnemyDef, SkillTier } from '../engine/types';
@@ -25,11 +26,13 @@ import { skillBook } from '../data/skills';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../data/heroes';
 import {
   allocateMonsterPL,
+  applyLevelAllocation,
   applyPlayerLevelAllocation,
   DEFAULT_PROFILE,
   scaleMonsterToLevel,
   totalLevelPL,
   type Allocation,
+  type StatProfile,
 } from './leveling';
 
 /** Low → high tier order; a rank tier-step moves a card one entry up this list. */
@@ -72,6 +75,43 @@ export const TITLE_PRESETS: Record<EnemyTitle, TitlePreset> = {
 };
 
 export const ENEMY_TITLES: EnemyTitle[] = ['mob', 'normal', 'elite', 'boss'];
+
+/**
+ * Enemy MODIFIERS — the fourth additive dial (rogue-like affixes), stacked on
+ * top of (level + rank + extra cards). Each preset is either:
+ *   • a bonus PL auto-spend (`bonusPL` + `bonusProfile`), priced through the
+ *     SAME `LEVEL_STAT_COST` economy as every other stat point in the game
+ *     (so a Swift enemy's speed is exactly as "expensive" as anyone else's), or
+ *   • a deck-wide tier override (`forceTier`) applied AFTER rank assignment.
+ * Add a new affix = add a row here; the resolver below needs no changes.
+ */
+export interface EnemyModifierPreset {
+  /** Display name, e.g. chip label. */
+  name: string;
+  /** One-line effect description for UI. */
+  blurb: string;
+  /** Extra PL auto-spent (allocateMonsterPL) against `bonusProfile` after level scaling. */
+  bonusPL?: number;
+  bonusProfile?: Partial<StatProfile>;
+  /** Force EVERY deck card to this tier after rank assignment (rank reads as the ceiling). */
+  forceTier?: SkillTier;
+}
+
+export const MODIFIER_PRESETS: Record<string, EnemyModifierPreset> = {
+  diamond: {
+    name: 'DIAMOND-POWERED',
+    blurb: 'Every card upgraded to Diamond tier',
+    forceTier: 'diamond',
+  },
+  swift: {
+    name: 'SWIFT',
+    blurb: '+8 PL of pure Speed (+4 SPD)',
+    bonusPL: 8,
+    bonusProfile: { speed: 1 },
+  },
+};
+
+export const ENEMY_MODIFIER_IDS: readonly string[] = Object.keys(MODIFIER_PRESETS);
 
 /**
  * Shared extra-card pool keyed by the enemy's damage flavour. All size-1 so
@@ -176,6 +216,8 @@ export interface EncounterUnit {
   /** Tier-steps applied across the deck (after clamping to the ceiling). */
   rank: number;
   enemyId: string;
+  /** Modifier ids applied (validated against MODIFIER_PRESETS). */
+  modifiers: string[];
 }
 
 /** Clamp any requested level to the valid floor (level 1 = no points spent). */
@@ -184,38 +226,64 @@ function clampLevel(level: number): number {
 }
 
 /**
- * Resolve an enemy encounter along the three dials. `title` picks a preset;
+ * Resolve an enemy encounter along the four dials. `title` picks a preset;
  * `rankOverride` (if given) replaces the title's rank so the prep UI can tune
- * it directly. Order: scale stats to the effective level → add the title's
- * extra cards → distribute rank as per-card tiers. Throws on unknown id.
+ * it directly; `modifiers` stacks affixes from `MODIFIER_PRESETS`. Order:
+ * scale stats to the effective level → apply modifier stat bonuses → add the
+ * title's extra cards → distribute rank as per-card tiers → apply modifier
+ * tier overrides. Throws on an unknown enemy OR modifier id (a typo'd affix
+ * must scream, not silently produce an easier fight).
  */
 export function buildEnemyEncounter(
   enemyId: string,
   level: number,
   title: EnemyTitle = 'normal',
   rankOverride?: number,
+  modifiers: readonly string[] = [],
 ): EncounterUnit {
   const enemy = enemies[enemyId];
   if (!enemy) {
     throw new Error(`buildEnemyEncounter: unknown enemy id "${enemyId}"`);
   }
+  const presets = modifiers.map((id) => {
+    const preset = MODIFIER_PRESETS[id];
+    if (!preset) throw new Error(`buildEnemyEncounter: unknown modifier id "${id}"`);
+    return preset;
+  });
   const preset = TITLE_PRESETS[title];
   const resolvedLevel = clampLevel(level);
   const effectiveLevel = resolvedLevel + preset.levelDelta;
   const scaled = scaleMonsterToLevel(enemy, effectiveLevel);
 
+  // Modifier stat bonuses — positive PL auto-spends through the same priced
+  // economy as level scaling (never need the negative-spend clamp).
+  let stats = scaled.stats;
+  for (const mod of presets) {
+    if (!mod.bonusPL || !mod.bonusProfile) continue;
+    const profile: StatProfile = { maxHp: 0, attack: 0, magicPower: 0, armor: 0, magicResist: 0, speed: 0, ...mod.bonusProfile };
+    stats = applyLevelAllocation(stats, allocateMonsterPL(mod.bonusPL, profile));
+  }
+
   const withCards = addExtraCards(scaled.pieces, poolFor(enemy), preset.extraCards);
-  const rank = Math.max(0, Math.min(rankOverride ?? preset.rank, maxRankFor(withCards.length)));
-  const pieces = assignRankTiers(withCards, rank);
+  let rank = Math.max(0, Math.min(rankOverride ?? preset.rank, maxRankFor(withCards.length)));
+  let pieces = assignRankTiers(withCards, rank);
+
+  // Modifier tier overrides (e.g. DIAMOND-POWERED) trump rank assignment.
+  const forceTier = presets.map((m) => m.forceTier).find((t) => t !== undefined);
+  if (forceTier) {
+    pieces = pieces.map((p) => ({ ...p, tier: forceTier }));
+    if (forceTier === 'diamond') rank = maxRankFor(pieces.length);
+  }
   const boardSize = Math.max(enemy.boardSize, nextFreeSlot(pieces));
 
   return {
-    setup: { ...scaled, pieces, boardSize },
+    setup: { ...scaled, stats, pieces, boardSize },
     level: resolvedLevel,
     effectiveLevel,
     title,
     rank,
     enemyId,
+    modifiers: [...modifiers],
   };
 }
 

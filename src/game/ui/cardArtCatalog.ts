@@ -19,6 +19,8 @@ export const CARD_ART_CATALOG: Record<string, CardArtEntry> = {
   iron_bulwark: { textureKey: 'card-art:iron_bulwark_anime', fileName: 'iron-bulwark-anime.png' },
   judgment_light: { textureKey: 'card-art:judgment_light_anime', fileName: 'judgment-light-anime.png' },
   leeching_fang: { textureKey: 'card-art:leeching_fang_anime', fileName: 'leeching-fang-anime.png' },
+  // lucky-charm-anime.png exists on disk but the 'lucky_charm' skill was
+  // removed 2026-07-23 — re-add the entry here if the card ever returns.
   mana_ward: { textureKey: 'card-art:mana_ward_anime', fileName: 'mana-ward-anime.png' },
   mending_light: { textureKey: 'card-art:mending_light_anime', fileName: 'mending-light-anime.png' },
   prism_barrier: { textureKey: 'card-art:prism_barrier_anime', fileName: 'prism-barrier-anime.png' },

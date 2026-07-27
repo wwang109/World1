@@ -35,7 +35,7 @@ all division is `Math.floor`'d immediately (integer deci-PL, no floats persist).
 | `expose` (%amp) | `pct * turns * exposePerPctTurnNum / Den` | `PRICE.exposePerPctTurnNum` (1), `Den` (1) | Guard-parity: amplifying and reducing cost the same (1×) |
 | `cleanse` | `charges * cleansePerCharge` | `PRICE.cleansePerCharge` (**25**, was flat 90) | 2.5 PL per effect removed; `purify` (4 charges) = 100 = Bronze |
 | `slow` | `weight * slowPerWeightNum / Den` | `PRICE.slowPerWeightNum` (5), `Den` (2) | 1 PL per +4 weight |
-| `disrupt` | `amount * disruptPerPointNum / Den` | `PRICE.disruptPerPointNum` (5), `Den` (**2**, was 4) | 1 PL per 4 drained (was per 8) — a meaningful tempo swing (throughput §2.E) |
+| `disrupt` | ESCALATING brackets, marginal per point (see `disruptCostDeci`) | `PRICE.disruptBrackets` | **user-locked 2026-07-25, replaces the flat per-point rate**: pts 1-5 @ 5 deci/pt, 6-10 @ 15 deci/pt, 11-15 @ 30 deci/pt, 16+ @ 60 deci/pt. Checkpoints: 5 = 25 deci (2.5 PL) · 10 = 100 deci (10 PL, all of Bronze) · 15 = 250 deci (25 PL, all of Diamond) · 16 = 310 deci (31 PL, unaffordable at any tier). Draining banked readiness has no counterplay window, so large amounts must cost disproportionately more than small ones — design directive keeps sane card magnitudes to 5-10 |
 | `lifesteal` | `pct * lifestealPerPctNum / Den` | `PRICE.lifestealPerPctNum` (2), `Den` (3) | 1 PL per 15% |
 | `shieldBreak` | `amount * shieldBreakPerPointNum / Den` | `PRICE.shieldBreakPerPointNum` (5), `Den` (4) | 1 PL per 8 shattered |
 | `comboBonus` | `amount * comboPerPointNum / Den` | `PRICE.comboPerPointNum` (5), `Den` (**2**, was flat 5/pt) | CONDITIONAL-TRIGGER DISCOUNT (user-locked 2026-07-23): 2.5 deci/pt, half the flat-damage rate, because the bonus only fires when the previous cast shares this card's archetype (~50% assumed uptime — throughput §2.F). Sets the template for any future gated rider |
@@ -246,17 +246,59 @@ flat per-point rate table, `PRICE.heroStatPerPoint`:
 
 | Stat | deci-PL / point | Anchor |
 |---|---|---|
-| `attack` | 8 | Scaling stat for Physical damage; permanent, fight-wide leverage across every Physical cast — priced above a single card's %-power rate since one point compounds over every hit, every turn, for the whole run. |
-| `magicPower` | 8 | Mirror of `attack` for Magical. |
-| `armor` | 10 | Flat, direct 1:1 damage mitigation against every incoming Physical hit for the whole fight (see `mitigation()` in `src/engine/combat/interpreter.ts`) — priced above `attack`/`magicPower` because it blunts ALL incoming hits unconditionally, not gated by the hero's own cast frequency. |
+| `attack` | 10 | Scaling stat for Physical damage/shield; permanent, fight-wide leverage across EVERY Physical card on the board, every cast, for the whole run — see "Hero-scope vs card-scope stat pricing" below. |
+| `magicPower` | 10 | Mirror of `attack` for Magical. |
+| `armor` | 10 | Flat, direct 1:1 damage mitigation against every incoming Physical hit for the whole fight (see `mitigation()` in `src/engine/combat/interpreter.ts`) — same rate as `attack`/`magicPower` now that both are floor-parity priced against a single-card rate. |
 | `magicResist` | 10 | Mirror of `armor` for Magical. |
 | `speed` | 5 | Directly anchored to `PRICE.weightPer` (5 deci/unit): turn score is `bank + speed − weight`, so 1 point of `speed` plays the *identical* mechanical role as 1 unit of lighter `speedWeight` — same rate, no re-derivation needed. |
-| `critPct` | 5 | Directly anchored to `PRICE.auraCritPct` (5 deci/point): hero `critPct` IS the same stat an aura's `critPctDelta` modifies — same unit, same rate. |
 
 These are a **first-pass, documented approximation** (like `stun`'s
-deferred re-tune) — `speed`/`critPct` are exact 1:1 anchors to existing
-engine rates; `attack`/`magicPower`/`armor`/`magicResist` are reasoned
-estimates pending sim data once content-designer's gem catalog exists.
+deferred re-tune) — `speed` is an exact 1:1 anchor to an existing engine
+rate; `attack`/`magicPower`/`armor`/`magicResist` are reasoned estimates
+pending sim data.
+
+### Hero-scope vs card-scope stat pricing (balance-designer pass, 2026-07-25)
+
+**Before this pass**, `attack`/`magicPower` priced at 8 deci/point — CHEAPER
+than a card-scope stat gem's `auraDamageFlat`/`auraHealFlat` rate (10
+deci/point, see "Card-scope stat gems" above), even though a hero-scope
+point adds its flat bonus to **every matching-property card's** damage/
+shield, on **every cast**, for the **whole fight**, while a card-scope point
+only ever touches the one host card it's socketed on. Reach can only ever
+be *equal to or greater than* a single card — pricing the broader effect
+below the narrower one was backwards, independent of exactly how many
+matching cards a given deck runs.
+
+**The numbers** (worked over the 10-card demo catalog, `src/game/
+demoState.ts` board + bag — `war_banner`, `sword_slash`×2, `second_wind`,
+`iron_bulwark`, `fireball`, `mana_ward`, `follow_through`, `armor_break`,
+`crippling_strike`, `arcane_bolt`): 5 of those 10 cards deal Physical damage
+or grant a Physical shield (both scale off `attack`), vs. 3 that scale off
+`magicPower`. A hero-scope `attack` point therefore lands on the order of
+**5× the instances per fight** that a card-scope `damageFlat` point on one
+card does, for the SAME number of casts of each — yet, before this pass, it
+cost 20% LESS per point (8 vs 10). Even a deliberately narrow/mixed deck
+clears the "at least 1 other qualifying card" bar that makes hero-scope
+strictly better than card-scope at equal price; a deck built around a single
+scaling property (very achievable — the full skill catalog has 17
+Physical-scaling cards out of 36 total to choose from) can push that
+multiplier past 8-10×.
+
+**The fix**: `attack`/`magicPower` raised 8 → 10 deci/point — a FLOOR-PARITY
+correction (hero-scope can never be honestly priced below the one-card
+card-scope rate), not a full reach-multiplier correction (which the 5×
+figure above would justify pricing closer to 25-50/point — deferred as too
+large a swing without sim data backing the exact "typical deck" reach
+assumption). This is intentionally conservative: hero-scope stat gems
+remain a strong pick in any deck with 2+ matching cards (the common case),
+they're simply no longer priced BELOW a strictly-worse-reach alternative.
+`armor`/`magicResist` were already at 10 and are unaffected; all four core
+combat stats now share one rate, with `speed` (a tempo stat, not a
+damage-equivalent one) priced separately.
+
+Re-fit gems (`src/data/gems.ts`) to stay exactly on their rarity band under
+the new rate: `brawlers_core` (Rare) `attack` 5 → 4 (`4 × 10 = 40` deci);
+`archmages_core` (Legendary) `magicPower` 10 → 8 (`8 × 10 = 80` deci).
 
 ## Approved pricing changes (this pass)
 
@@ -306,7 +348,7 @@ Card re-fits (all land exactly on Bronze = 100 deci):
 - `stunning_smash` → pure stun (damage removed), size 2→1: stun 1 = 100.
 - `ward_of_silence` → negate charges 2→1: 100.
 - `frost_ward` → guard pct 40→50 (×2 turns ×1 = 100).
-- `concussive_shot` → disrupt 32→16 (40) + damage 12 (60) = 100.
+- `concussive_shot` → disrupt 32→16 (40) + damage 12 (60) = 100. **[Superseded 2026-07-25: disrupt re-priced to the escalating bracket schedule; `concussive_shot` is now disrupt 6 (40 deci) + damage 12 (60) = 100 — see changelog below.]**
 - `purify` → cleanse charges 4 = 100.
 - NEW `rupturing_strike` (bleed showcase): damage 10 (50) + bleed 5×5 (50) = 100.
 - NEW `ruinous_hex` (expose showcase): expose 50%×2 = 100.
@@ -314,7 +356,48 @@ Card re-fits (all land exactly on Bronze = 100 deci):
 Forced gem re-fits (rate consequence; content-designer to review — the stun
 gems could no longer fit any rarity band at 100 deci/turn):
 
-- `concussive_shot_echo` disrupt 16→8 (Common 20).
+- `concussive_shot_echo` disrupt 16→8 (Common 20). **[Superseded 2026-07-25: now disrupt 4 (Common 20) — see changelog below.]**
 - `frost_ward_echo` guard 16%→20%, `ward_of_silence_echo` guard 32%→40% (Rare 40).
 - `stunning_shard`, `stunning_smash_echo`, `concussive_shard` re-themed
   stun→slow (16/16/32 weight → Rare 40 / Rare 40 / Legendary 80).
+
+## 2026-07-25 changelog: disrupt re-priced to an escalating bracket schedule
+
+**User-locked directive:** disrupt was underpriced at its old flat rate — a
+Bronze card (`concussive_shot`) could carry disrupt 16 alongside a real damage
+hit, an unfair tempo swing with no counterplay window. Fix: disrupt magnitudes
+should live in the 5-10 range, and every point ABOVE the cheap entry band must
+cost progressively more (escalating, not linear).
+
+`PRICE.disruptPerPointNum/Den` (flat 5/2, i.e. 1 PL per 4 drained) is REPLACED
+by `PRICE.disruptBrackets`, a marginal (tax-bracket-style) schedule read by
+`disruptCostDeci(amount)`:
+
+| Points in bracket | Rate (deci/point) |
+|---|---|
+| 1-5 | 5 |
+| 6-10 | 15 |
+| 11-15 | 30 |
+| 16+ | 60 |
+
+Cumulative checkpoints (only the points inside each bracket pay that bracket's
+rate):
+
+| Amount | Cost | As PL |
+|---|---|---|
+| 5 | 25 deci | 2.5 PL |
+| 6 | 40 deci | 4 PL |
+| 8 | 70 deci | 7 PL |
+| 10 | 100 deci | 10 PL (all of Bronze) |
+| 15 | 250 deci | 25 PL (all of Diamond) |
+| 16 | 310 deci | 31 PL (unaffordable at any tier) |
+
+Card and gem re-fits to land exactly back on budget:
+
+- `concussive_shot` (Bronze, size 1): disrupt 16→**6** (40 deci, was also 40
+  deci at the old rate — a coincidental match that let damage stay at 12
+  unchanged) + damage 12 (60 deci) = 100 = Bronze exactly.
+- `concussive_shot_echo` (Common gem): disrupt 8→**4** (20 deci = Common
+  exactly; 4 sits below the 5-10 card-magnitude band, but a Common gem's tiny
+  20-deci budget can't afford 5 at the new entry rate — this is a deliberate
+  gem-scale exception, not a violation of the card-design directive).

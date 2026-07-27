@@ -16,6 +16,9 @@ export type OwnedBoardPiece = Omit<BoardPiece, 'tier'> & OwnedCard;
 
 export type InventorySlot = OwnedCard | null;
 
+/** Hard cap on enemyTeam size — the prep foe pickers stop offering + FOE here. */
+export const MAX_FOES = 5;
+
 export interface EnemyFightConfig {
   enemyId: string;
   level: number;
@@ -30,6 +33,8 @@ export interface DemoState {
   enemyIds: string[];
   /** The exact per-enemy setup handed from Prep to Battle, in roster order. */
   enemyTeam: EnemyFightConfig[];
+  /** Which enemyTeam entry the prep controls (title/LV/RANK/modifiers) edit. */
+  activeFoe: number;
   seed: number;
   prepView: PrepView;
   wikiTier: SkillTier;
@@ -52,8 +57,25 @@ export interface DemoState {
   enemyTitle: EnemyTitle;
   /** Enemy rank = tier-steps distributed across the deck (0..deckSize×3). */
   enemyRank: number;
-  /** Future rogue-like affixes on the enemy — reserved, nothing implemented yet. */
+  /** Rogue-like affixes on the PRIMARY enemy (mirror of enemyTeam[0].modifiers). */
   enemyModifiers: string[];
+}
+
+/**
+ * Re-mirror the legacy single-enemy fields from enemyTeam[0]. Call after ANY
+ * enemyTeam mutation — 1v1 surfaces (mobile scenes, legacy Prep/Battle) read
+ * the singular fields, multi-foe surfaces read the team array.
+ */
+export function syncPrimaryFoe(): void {
+  const primary = demoState.enemyTeam[0];
+  if (!primary) return;
+  demoState.enemyId = primary.enemyId;
+  demoState.enemyLevel = primary.level;
+  demoState.enemyTitle = primary.title;
+  demoState.enemyRank = primary.rank;
+  demoState.enemyModifiers = [...primary.modifiers];
+  demoState.enemyIds = demoState.enemyTeam.map((f) => f.enemyId);
+  demoState.activeFoe = Math.max(0, Math.min(demoState.activeFoe, demoState.enemyTeam.length - 1));
 }
 
 const DEFAULT_PIECES: OwnedBoardPiece[] = [
@@ -98,6 +120,7 @@ export const DEFAULT_DEMO_STATE: DemoState = {
   pieces: DEFAULT_PIECES,
   enemyId: 'bandit_duelist',
   enemyIds: ['bandit_duelist'],
+  activeFoe: 0,
   enemyTeam: [
     {
       enemyId: 'bandit_duelist',
@@ -194,6 +217,7 @@ export const demoState: DemoState = {
   enemyId: DEFAULT_DEMO_STATE.enemyId,
   enemyIds: [...DEFAULT_DEMO_STATE.enemyIds],
   enemyTeam: cloneEnemyTeam(DEFAULT_DEMO_STATE.enemyTeam),
+  activeFoe: DEFAULT_DEMO_STATE.activeFoe,
   seed: DEFAULT_DEMO_STATE.seed,
   prepView: DEFAULT_DEMO_STATE.prepView,
   wikiTier: DEFAULT_DEMO_STATE.wikiTier,
@@ -228,6 +252,7 @@ export function resetDemoState(overrides: Partial<DemoState> = {}): void {
   const activeEnemy = enemyTeam[0] ?? DEFAULT_DEMO_STATE.enemyTeam[0]!;
   demoState.pieces = clonePieces(overrides.pieces ?? DEFAULT_DEMO_STATE.pieces);
   demoState.enemyTeam = cloneEnemyTeam(enemyTeam);
+  demoState.activeFoe = Math.max(0, Math.min(overrides.activeFoe ?? 0, enemyTeam.length - 1));
   demoState.enemyId = activeEnemy.enemyId;
   demoState.enemyIds = enemyTeam.map((enemy) => enemy.enemyId);
   demoState.seed = overrides.seed ?? DEFAULT_DEMO_STATE.seed;

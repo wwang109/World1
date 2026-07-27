@@ -120,6 +120,34 @@ const defs: SkillDef[] = [
       { kind: 'burn', stacks: 5 },
     ],
     text: 'Deal Fire damage +38 (+Magic Power) · {{Burn}} 5.',
+    // Hand-tuned curve (user-locked 2026-07-24): MODERATE burn growth, rest
+    // into damage. Size-2 grants (170/210/240 deci) fold into each tier's
+    // effective budget. Silver: burn 7 (70) + damage 50 (250) = 320 = 150 +
+    // grant 170. Gold: burn 8 (80) + damage 66 (330) = 410 = 200 + grant 210.
+    // Diamond: burn 10 (100) + damage 78 (390) = 490 = 250 + grant 240.
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'damage', power: 50 },
+          { kind: 'burn', stacks: 7 },
+        ],
+        text: 'Deal Fire damage +50 (+Magic Power) · {{Burn}} 7.',
+      },
+      gold: {
+        effects: [
+          { kind: 'damage', power: 66 },
+          { kind: 'burn', stacks: 8 },
+        ],
+        text: 'Deal Fire damage +66 (+Magic Power) · {{Burn}} 8.',
+      },
+      diamond: {
+        effects: [
+          { kind: 'damage', power: 78 },
+          { kind: 'burn', stacks: 10 },
+        ],
+        text: 'Deal Fire damage +78 (+Magic Power) · {{Burn}} 10.',
+      },
+    },
   },
   {
     id: 'soul_rend',
@@ -171,6 +199,34 @@ const defs: SkillDef[] = [
       { kind: 'poison', stacks: 5 },
     ],
     text: 'Deal Beast damage +12 (+Attack) · {{Poison}} 5 (poison bypasses shields).',
+    // Hand-tuned curve (user-locked 2026-07-24): MODERATE stack growth, rest
+    // into damage; weight stays 12 (−10 deci refund) at every tier.
+    // Silver: poison 7 (70) + damage 18 (90) + weight (−10) = 150.
+    // Gold:   poison 8 (80) + damage 26 (130) + weight (−10) = 200.
+    // Diamond: poison 9 (90) + damage 34 (170) + weight (−10) = 250.
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'damage', power: 18 },
+          { kind: 'poison', stacks: 7 },
+        ],
+        text: 'Deal Beast damage +18 (+Attack) · {{Poison}} 7 (poison bypasses shields).',
+      },
+      gold: {
+        effects: [
+          { kind: 'damage', power: 26 },
+          { kind: 'poison', stacks: 8 },
+        ],
+        text: 'Deal Beast damage +26 (+Attack) · {{Poison}} 8 (poison bypasses shields).',
+      },
+      diamond: {
+        effects: [
+          { kind: 'damage', power: 34 },
+          { kind: 'poison', stacks: 9 },
+        ],
+        text: 'Deal Beast damage +34 (+Attack) · {{Poison}} 9 (poison bypasses shields).',
+      },
+    },
   },
 
   // ---- Defensive (typed shields) ----
@@ -227,6 +283,33 @@ const defs: SkillDef[] = [
     // (was 40% at the old 1.25x premium). Apply-time clamp is 60%, so 50 is legal.
     effects: [{ kind: 'guard', property: 'magical', pct: 50, turns: 2 }],
     text: '-50% incoming magical damage (2 turns).',
+    // Guard is frozen (already at the size-1 empower cap, 100 deci, and near
+    // the 60%-apply-time clamp); a magical shield sinks the rest. Silver
+    // 10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100
+    // = 250.
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'guard', property: 'magical', pct: 50, turns: 2 },
+          { kind: 'shield', power: 10 },
+        ],
+        text: '-50% incoming magical damage (2 turns) · +10 MDEF (+Magic Power).',
+      },
+      gold: {
+        effects: [
+          { kind: 'guard', property: 'magical', pct: 50, turns: 2 },
+          { kind: 'shield', power: 20 },
+        ],
+        text: '-50% incoming magical damage (2 turns) · +20 MDEF (+Magic Power).',
+      },
+      diamond: {
+        effects: [
+          { kind: 'guard', property: 'magical', pct: 50, turns: 2 },
+          { kind: 'shield', power: 30 },
+        ],
+        text: '-50% incoming magical damage (2 turns) · +30 MDEF (+Magic Power).',
+      },
+    },
   },
   {
     id: 'ward_of_silence',
@@ -240,6 +323,33 @@ const defs: SkillDef[] = [
     // negate re-priced to 100 deci/charge: 1 charge = Bronze exactly (was 2).
     effects: [{ kind: 'negate', property: 'magical', charges: 1 }],
     text: '{{Negate}} the next magical attack.',
+    // Negate can't grow to 2 charges (200 deci would blow the size-1 empower
+    // cap of 100 alone) — frozen at 1 charge; a magical shield sinks the
+    // rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond
+    // 30 (150) + 100 = 250.
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'negate', property: 'magical', charges: 1 },
+          { kind: 'shield', power: 10 },
+        ],
+        text: '{{Negate}} the next magical attack · +10 MDEF (+Magic Power).',
+      },
+      gold: {
+        effects: [
+          { kind: 'negate', property: 'magical', charges: 1 },
+          { kind: 'shield', power: 20 },
+        ],
+        text: '{{Negate}} the next magical attack · +20 MDEF (+Magic Power).',
+      },
+      diamond: {
+        effects: [
+          { kind: 'negate', property: 'magical', charges: 1 },
+          { kind: 'shield', power: 30 },
+        ],
+        text: '{{Negate}} the next magical attack · +30 MDEF (+Magic Power).',
+      },
+    },
   },
 
   // ---- Healing ----
@@ -281,6 +391,22 @@ const defs: SkillDef[] = [
     effects: [],
     aura: { affects: 'adjacent', archetypeFilter: 'offense', mods: { damageFlat: 10 } },
     text: 'Passive: adjacent Offense cards deal +10 damage.',
+    // Pure aura (no scalable sink) — the aura itself grows: 15/20/25 damageFlat
+    // × auraDamageFlat 10 (adjacent reach ×1) = 150/200/250 exactly.
+    tierUpgrades: {
+      silver: {
+        aura: { affects: 'adjacent', archetypeFilter: 'offense', mods: { damageFlat: 15 } },
+        text: 'Passive: adjacent Offense cards deal +15 damage.',
+      },
+      gold: {
+        aura: { affects: 'adjacent', archetypeFilter: 'offense', mods: { damageFlat: 20 } },
+        text: 'Passive: adjacent Offense cards deal +20 damage.',
+      },
+      diamond: {
+        aura: { affects: 'adjacent', archetypeFilter: 'offense', mods: { damageFlat: 25 } },
+        text: 'Passive: adjacent Offense cards deal +25 damage.',
+      },
+    },
   },
   {
     id: 'time_crystal',
@@ -294,6 +420,27 @@ const defs: SkillDef[] = [
     effects: [],
     aura: { affects: 'adjacent', propertyFilter: 'magical', mods: { weightDelta: -5 } },
     text: 'Passive: adjacent Magical cards -5 weight (cast sooner).',
+    // Time theme: the aura's own weight-shave deepens, and a self Speed buff
+    // (empower, well under the size-1 100-deci cap) rounds each tier out exact.
+    // Silver: |6|*20=120 + 15*2*1=30 = 150. Gold: |8|*20=160 + 20*2*1=40 = 200.
+    // Diamond: |10|*20=200 + 25*2*1=50 = 250.
+    tierUpgrades: {
+      silver: {
+        aura: { affects: 'adjacent', propertyFilter: 'magical', mods: { weightDelta: -6 } },
+        effects: [{ kind: 'buffStat', stat: 'speed', pct: 15, turns: 2 }],
+        text: 'Passive: adjacent Magical cards -6 weight (cast sooner). Self: +15% Speed (2 turns).',
+      },
+      gold: {
+        aura: { affects: 'adjacent', propertyFilter: 'magical', mods: { weightDelta: -8 } },
+        effects: [{ kind: 'buffStat', stat: 'speed', pct: 20, turns: 2 }],
+        text: 'Passive: adjacent Magical cards -8 weight (cast sooner). Self: +20% Speed (2 turns).',
+      },
+      diamond: {
+        aura: { affects: 'adjacent', propertyFilter: 'magical', mods: { weightDelta: -10 } },
+        effects: [{ kind: 'buffStat', stat: 'speed', pct: 25, turns: 2 }],
+        text: 'Passive: adjacent Magical cards -10 weight (cast sooner). Self: +25% Speed (2 turns).',
+      },
+    },
   },
   // NOTE (2026-07-23): 'lucky_charm' was removed here. Its sole effect was an
   // adjacent +Crit aura and crit was excised from the game, leaving it inert /
@@ -310,6 +457,32 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     effects: [{ kind: 'buffStat', stat: 'attack', pct: 50, turns: 2 }],
     text: '+50% Attack (2 turns).',
+    // War-cry theme: the +50%/2t buff is frozen (already at the size-1 empower
+    // cap, 100 deci); a Beast damage roar sinks the rest. Silver 10 (50) + 100
+    // = 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250.
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'buffStat', stat: 'attack', pct: 50, turns: 2 },
+          { kind: 'damage', power: 10 },
+        ],
+        text: '+50% Attack (2 turns) · Deal Beast damage +10 (+Attack).',
+      },
+      gold: {
+        effects: [
+          { kind: 'buffStat', stat: 'attack', pct: 50, turns: 2 },
+          { kind: 'damage', power: 20 },
+        ],
+        text: '+50% Attack (2 turns) · Deal Beast damage +20 (+Attack).',
+      },
+      diamond: {
+        effects: [
+          { kind: 'buffStat', stat: 'attack', pct: 50, turns: 2 },
+          { kind: 'damage', power: 30 },
+        ],
+        text: '+50% Attack (2 turns) · Deal Beast damage +30 (+Attack).',
+      },
+    },
   },
 
   // ---- Special-ability showcase (combined archetypes, priced riders) ----
@@ -386,13 +559,17 @@ const defs: SkillDef[] = [
     rarity: 'rare',
     tier: 'bronze',
     weapon: 'bow',
-    // disrupt re-priced to 1 PL per 4 drained: damage 12 (60) + disrupt 16
-    // (16*5/2 = 40) = 100 = Bronze (was disrupt 32 at the old 1-per-8 rate).
+    // disrupt re-priced to an ESCALATING bracket schedule (user-locked
+    // 2026-07-25 — see PRICE.disruptBrackets): disrupt 6 costs 5*5 + 1*15 =
+    // 40 deci (the first 5 points at 5/pt, the 6th at the 6-10 bracket's
+    // 15/pt). damage 12 (60) + disrupt 6 (40) = 100 = Bronze exactly (was
+    // disrupt 16 at the old flat 1-per-4 rate; 16 is now unaffordable at any
+    // tier — 310 deci = 31 PL).
     effects: [
       { kind: 'damage', power: 12 },
-      { kind: 'disrupt', amount: 16 },
+      { kind: 'disrupt', amount: 6 },
     ],
-    text: 'Deal Bow damage +12 (+Attack) · {{Disrupt}} 16 banked readiness.',
+    text: 'Deal Bow damage +12 (+Attack) · {{Disrupt}} 6 banked readiness.',
   },
 
   // ---- Debuff ----
@@ -409,6 +586,32 @@ const defs: SkillDef[] = [
     // (was 40%×3t = 12 PL funded by extra weight).
     effects: [{ kind: 'debuffStat', stat: 'magicResist', pct: 50, turns: 2 }],
     text: '-50% enemy Magic Resist (2 turns).',
+    // Curse theme: the debuff is frozen (already at the size-1 control cap,
+    // 100 deci); a Dark damage tick sinks the rest. Silver 10 (50) + 100 = 150.
+    // Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250.
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'debuffStat', stat: 'magicResist', pct: 50, turns: 2 },
+          { kind: 'damage', power: 10 },
+        ],
+        text: '-50% enemy Magic Resist (2 turns) · Deal Dark damage +10 (+Magic Power).',
+      },
+      gold: {
+        effects: [
+          { kind: 'debuffStat', stat: 'magicResist', pct: 50, turns: 2 },
+          { kind: 'damage', power: 20 },
+        ],
+        text: '-50% enemy Magic Resist (2 turns) · Deal Dark damage +20 (+Magic Power).',
+      },
+      diamond: {
+        effects: [
+          { kind: 'debuffStat', stat: 'magicResist', pct: 50, turns: 2 },
+          { kind: 'damage', power: 30 },
+        ],
+        text: '-50% enemy Magic Resist (2 turns) · Deal Dark damage +30 (+Magic Power).',
+      },
+    },
   },
   {
     id: 'armor_break',
@@ -421,6 +624,32 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     effects: [{ kind: 'debuffStat', stat: 'armor', pct: 50, turns: 2 }],
     text: '-50% enemy Armor (2 turns).',
+    // Frozen debuff (already at the size-1 control cap, 100 deci); a physical
+    // Axe chop sinks the rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100
+    // = 200. Diamond 30 (150) + 100 = 250.
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'debuffStat', stat: 'armor', pct: 50, turns: 2 },
+          { kind: 'damage', power: 10 },
+        ],
+        text: '-50% enemy Armor (2 turns) · Deal Axe damage +10 (+Attack).',
+      },
+      gold: {
+        effects: [
+          { kind: 'debuffStat', stat: 'armor', pct: 50, turns: 2 },
+          { kind: 'damage', power: 20 },
+        ],
+        text: '-50% enemy Armor (2 turns) · Deal Axe damage +20 (+Attack).',
+      },
+      diamond: {
+        effects: [
+          { kind: 'debuffStat', stat: 'armor', pct: 50, turns: 2 },
+          { kind: 'damage', power: 30 },
+        ],
+        text: '-50% enemy Armor (2 turns) · Deal Axe damage +30 (+Attack).',
+      },
+    },
   },
   {
     id: 'slow_hex',
@@ -451,6 +680,33 @@ const defs: SkillDef[] = [
     weapon: 'axe',
     effects: [{ kind: 'stun', turns: 1 }],
     text: "{{Stun}} — the enemy's next performance is consumed.",
+    // Stun cannot grow (hard-capped at 1 performance/card, and already the
+    // full size-1 control cap at 100 deci); a physical Axe smash sinks the
+    // rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30
+    // (150) + 100 = 250.
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'stun', turns: 1 },
+          { kind: 'damage', power: 10 },
+        ],
+        text: "{{Stun}} — the enemy's next performance is consumed. Deal Axe damage +10 (+Attack).",
+      },
+      gold: {
+        effects: [
+          { kind: 'stun', turns: 1 },
+          { kind: 'damage', power: 20 },
+        ],
+        text: "{{Stun}} — the enemy's next performance is consumed. Deal Axe damage +20 (+Attack).",
+      },
+      diamond: {
+        effects: [
+          { kind: 'stun', turns: 1 },
+          { kind: 'damage', power: 30 },
+        ],
+        text: "{{Stun}} — the enemy's next performance is consumed. Deal Axe damage +30 (+Attack).",
+      },
+    },
   },
   {
     id: 'judgment_light',
@@ -506,6 +762,33 @@ const defs: SkillDef[] = [
     // cleanse re-priced per charge (25 deci): 4 charges = 100 = Bronze exactly.
     effects: [{ kind: 'cleanse', charges: 4 }],
     text: 'Remove up to 4 of your ailments.',
+    // Cleanse is frozen (already at the size-1 empower cap, 100 deci); a TRUE
+    // heal (2 deci/pt, the cheap TRUE-heal rate) sinks the rest. Silver
+    // 25pts (50) + 100 = 150. Gold 50pts (100) + 100 = 200. Diamond 75pts
+    // (150) + 100 = 250.
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'cleanse', charges: 4 },
+          { kind: 'heal', power: 25 },
+        ],
+        text: 'Remove up to 4 of your ailments. +25 TRUE HP.',
+      },
+      gold: {
+        effects: [
+          { kind: 'cleanse', charges: 4 },
+          { kind: 'heal', power: 50 },
+        ],
+        text: 'Remove up to 4 of your ailments. +50 TRUE HP.',
+      },
+      diamond: {
+        effects: [
+          { kind: 'cleanse', charges: 4 },
+          { kind: 'heal', power: 75 },
+        ],
+        text: 'Remove up to 4 of your ailments. +75 TRUE HP.',
+      },
+    },
   },
 
   // ---- Bleed showcase (per-performance DoT) ----
@@ -526,6 +809,33 @@ const defs: SkillDef[] = [
       { kind: 'bleed', stacks: 5 },
     ],
     text: 'Deal Axe damage +10 (+Attack) · {{Bleed}} 5 — ticks when the enemy performs; blocked by shields.',
+    // Hand-tuned curve (user-locked 2026-07-24): MODERATE bleed growth, rest
+    // into damage. Silver: bleed 7 (70) + damage 16 (80) = 150. Gold: bleed 8
+    // (80) + damage 24 (120) = 200. Diamond: bleed 9 (90) + damage 32 (160)
+    // = 250.
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'damage', power: 16 },
+          { kind: 'bleed', stacks: 7 },
+        ],
+        text: 'Deal Axe damage +16 (+Attack) · {{Bleed}} 7 — ticks when the enemy performs; blocked by shields.',
+      },
+      gold: {
+        effects: [
+          { kind: 'damage', power: 24 },
+          { kind: 'bleed', stacks: 8 },
+        ],
+        text: 'Deal Axe damage +24 (+Attack) · {{Bleed}} 8 — ticks when the enemy performs; blocked by shields.',
+      },
+      diamond: {
+        effects: [
+          { kind: 'damage', power: 32 },
+          { kind: 'bleed', stacks: 9 },
+        ],
+        text: 'Deal Axe damage +32 (+Attack) · {{Bleed}} 9 — ticks when the enemy performs; blocked by shields.',
+      },
+    },
   },
 
   // ---- Expose showcase (incoming-damage amplifier) ----
@@ -541,6 +851,33 @@ const defs: SkillDef[] = [
     element: 'dark',
     effects: [{ kind: 'expose', pct: 50, turns: 2 }],
     text: '{{Expose}} the enemy — +50% damage from all direct hits (2 turns).',
+    // Expose is frozen (already at the size-1 control cap, 100 deci, and the
+    // 50%-apply-time clamp); a Dark damage tick sinks the rest. Silver 10
+    // (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100
+    // = 250.
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'expose', pct: 50, turns: 2 },
+          { kind: 'damage', power: 10 },
+        ],
+        text: '{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal Dark damage +10 (+Magic Power).',
+      },
+      gold: {
+        effects: [
+          { kind: 'expose', pct: 50, turns: 2 },
+          { kind: 'damage', power: 20 },
+        ],
+        text: '{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal Dark damage +20 (+Magic Power).',
+      },
+      diamond: {
+        effects: [
+          { kind: 'expose', pct: 50, turns: 2 },
+          { kind: 'damage', power: 30 },
+        ],
+        text: '{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal Dark damage +30 (+Magic Power).',
+      },
+    },
   },
 ];
 

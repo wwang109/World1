@@ -42,6 +42,10 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
   private readonly cardScale: number;
   private glossaryTip?: Phaser.GameObjects.Container;
   private skinTrimColor = 0xffffff;
+  /** Art clip mask — WORLD-space, so it must be redrawn whenever the card moves. */
+  private artMask?: Phaser.GameObjects.Graphics;
+  /** The art mask's rect in CARD-local coords (offsets from this.x/this.y). */
+  private artMaskLocal?: { x: number; y: number; w: number; h: number; r: number };
 
   constructor(
     scene: Phaser.Scene,
@@ -63,9 +67,12 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     const halfW = width / 2;
     const halfH = height / 2;
 
-    this.add(this.makeFrame(scene, width, height, model.skin.trimColor));
+    // The silhouette stays tier-colored. Weapon identity belongs to the
+    // weapon badge frame, not the entire card border.
+    const silhouetteTrim = model.skin.trimColor;
+    this.add(this.makeFrame(scene, width, height, silhouetteTrim));
     this.add(this.makeArt(scene, model, halfW, halfH));
-    this.add(this.makeCornerArt(scene, halfW, halfH, model.skin.trimColor, model.skin.accentColor));
+    this.add(this.makeCornerArt(scene, halfW, halfH, silhouetteTrim, model.skin.accentColor));
     this.add(this.makeTextPlate(scene, model, halfW, halfH));
     this.add(this.makeBadges(scene, model, halfW, halfH));
     this.add(this.makeWtPlate(scene, model, halfW, halfH));
@@ -75,13 +82,29 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     this.add(this.makeDivider(scene, model, halfW, halfH));
     this.add(this.makeBody(scene, model, halfW, halfH));
 
-    this.skinTrimColor = model.skin.trimColor;
+    this.skinTrimColor = silhouetteTrim;
     if (options.glossary !== false) {
       this.addGlossaryZones(scene, model, halfW, halfH);
     }
 
     this.setSize(width, height);
     scene.add.existing(this);
+  }
+
+  /**
+   * Keep the world-space art mask aligned with the card as it moves (grid
+   * scroll, drag). A geometry mask is not a child, so it does NOT follow the
+   * container on its own — redraw its rounded rect at the new position here.
+   */
+  override setPosition(x?: number, y?: number, z?: number, w?: number): this {
+    super.setPosition(x, y, z, w);
+    if (this.artMask && this.artMaskLocal) {
+      const m = this.artMaskLocal;
+      this.artMask.clear();
+      this.artMask.fillStyle(0xffffff, 1);
+      this.artMask.fillRoundedRect(this.x + m.x, this.y + m.y, m.w, m.h, m.r);
+    }
+    return this;
   }
 
   private addGlossaryZones(
@@ -239,10 +262,14 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     if (artKey && scene.textures.exists(artKey)) {
       // Geometry masks live in WORLD space, not container space: draw the mask
       // at the container's world position and keep the graphics invisible.
+      // Track it (+ its card-local rect) so setPosition() can redraw it when
+      // the card moves — e.g. the wiki gallery scrolling its grid.
       const maskShape = scene.add.graphics();
       maskShape.fillStyle(0xffffff, 1);
       maskShape.fillRoundedRect(this.x + x, this.y + y, artRegion.w, artRegion.h, radius);
       maskShape.setVisible(false);
+      this.artMask = maskShape;
+      this.artMaskLocal = { x, y, w: artRegion.w, h: artRegion.h, r: radius };
       this.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
       const image = scene.add.image(0, 0, artKey);
       const source = image.texture.getSourceImage() as { width: number; height: number };
@@ -355,16 +382,32 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     const right = this.region(model.regions.rightRail);
     const stack = spec.archetypeStack;
 
+    // Keep the authored badge texture at its intended scale. Enlarging the
+    // 80x80 source makes elemental icons softer on the desktop card.
+    const typeBadgeScale = 1;
     group.add(this.makeBadge(
       scene,
       -halfW + typeRegion.x + typeRegion.w / 2,
       -halfH + typeRegion.y + typeRegion.h / 2,
-      typeRegion.w,
-      typeRegion.h,
+      typeRegion.w * typeBadgeScale,
+      typeRegion.h * typeBadgeScale,
       model.type.color ?? UI.chip,
       model.type.iconKey,
       model.type.label,
     ));
+    if (model.skill.weapon) {
+      const cx = -halfW + typeRegion.x + typeRegion.w / 2;
+      const cy = -halfH + typeRegion.y + typeRegion.h / 2;
+      const radius = Math.min(typeRegion.w, typeRegion.h) * 0.48;
+      const points = Array.from({ length: 6 }, (_, index) => {
+        const angle = -Math.PI / 2 + (Math.PI * 2 * index) / 6;
+        return new Phaser.Geom.Point(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
+      });
+      const hexFrame = scene.add.graphics();
+      hexFrame.lineStyle(Math.max(2, this.px(3)), model.type.color, 0.95);
+      hexFrame.strokePoints(points, true, true);
+      group.add(hexFrame);
+    }
 
     model.archetypes.slice(0, stack.max).forEach((badge, index) => {
       group.add(

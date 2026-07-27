@@ -2,12 +2,13 @@ import Phaser from 'phaser';
 import { gemPowerLevel, instancePowerLevelDeci } from '../../engine/balance';
 import { applyTier, resolveEffectiveSkill } from '../../engine/cards';
 import { auraAffectedTargetSlots } from '../../engine/combat/auras';
-import { cardContributions } from '../../run/analysis';
+import { cardContributions } from '../../run/logAnalysis';
 import { presentCardActions } from '../ui/cardActionPresentation';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { effectiveCooldown } from '../../engine/combat/castSelect';
 import type { CombatEvent, ComparisonEntry, ComparisonSide } from '../../engine/combat/events';
-import { simulate, type CombatResult } from '../../engine/combat/simulate';
+import type { BattleLog } from '../../run/resolveBattle';
+import { fetchBattleLog } from '../battleApi';
 import { weightOf, type BoardPiece, type CombatantStats, type Property, type Side, type SkillDef } from '../../engine/types';
 import { gemBook } from '../../data/gems';
 import { skillBook } from '../../data/skills';
@@ -172,7 +173,7 @@ function formatPowerDeci(value: number): string {
 }
 
 export class BattleScene extends Phaser.Scene {
-  private result!: CombatResult;
+  private result!: BattleLog;
   private views!: Record<Side, SideView[]>;
   private eventIdx = 0;
   private finished = false;
@@ -251,6 +252,11 @@ export class BattleScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Combat comes from the battle service, so setup is async now.
+    void this.createFight();
+  }
+
+  private async createFight(): Promise<void> {
     this.cameras.main.setBackgroundColor(UI.bg);
     this.drawBackdrop();
 
@@ -273,14 +279,27 @@ export class BattleScene extends Phaser.Scene {
     const heroSetup = heroEncounter.setup;
     const enemySetups = enemyEncounters.map((encounter) => encounter.setup);
     this.unitNames = { player: [heroSetup.name], enemy: enemySetups.map((setup) => setup.name) };
-    this.result = simulate(
-      {
-        playerTeam: [heroSetup],
-        enemyTeam: enemySetups,
-        skillBook,
-      },
-      demoState.seed,
-    );
+    try {
+      this.result = await fetchBattleLog({
+        pieces: demoState.pieces,
+        heroLevel: demoState.heroLevel,
+        heroAllocation: demoState.heroAllocation,
+        enemyId: demoState.enemyId,
+        enemyLevel: demoState.enemyLevel,
+        enemyTitle: demoState.enemyTitle,
+        enemyRank: demoState.enemyRank,
+        // Legacy parity: this scene has never applied enemy modifiers, and the
+        // setups it renders above are built without them either.
+        enemyTeam: enemyTeam.map((e) => ({ enemyId: e.enemyId, level: e.level, title: e.title, rank: e.rank, modifiers: [] })),
+        seed: demoState.seed,
+      });
+    } catch (err) {
+      this.add.text(40, 40, `BATTLE SERVICE UNREACHABLE\n${err instanceof Error ? err.message : String(err)}`, {
+        fontSize: '14px', color: '#d05c4e', fontFamily: FONT.body, lineSpacing: 4,
+      });
+      return;
+    }
+    if (!this.scene.isActive()) return;
     this.activationRows = this.buildActivationRows(this.result.events, {
       player: [this.initialBattleSnapshot(heroSetup.stats)],
       enemy: enemySetups.map((setup) => this.initialBattleSnapshot(setup.stats)),
@@ -810,7 +829,7 @@ export class BattleScene extends Phaser.Scene {
     for (const event of this.result.events) {
       if (event.kind === 'damage' && event.side === victimSide) dealt += event.amount;
     }
-    const turns = Math.max(1, this.result.finalState.turn);
+    const turns = Math.max(1, this.result.turns);
     return Math.round(dealt / turns);
   }
 
@@ -1159,7 +1178,7 @@ export class BattleScene extends Phaser.Scene {
     this.modalObjects = [];
   }
 
-  private buildActivationRows(events: CombatEvent[], initialSnapshot: BattleSnapshot): ActivationRow[] {
+  private buildActivationRows(events: readonly CombatEvent[], initialSnapshot: BattleSnapshot): ActivationRow[] {
     const rows: ActivationRow[] = [];
     const gainRows = new Map<number, ActivationRow>();
     let activePlay: { side: Side; unit: number; skillId: string; slot: number } | null = null;

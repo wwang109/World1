@@ -7,22 +7,12 @@ import type { SkillTier } from '../../src/engine/types';
 /**
  * Cards the budget-honest auto-scaler CANNOT lift to a higher tier's budget:
  * pure control / empower / aura kits with no damage/heal/shield sink (and no
- * DoT line) to absorb the extra PL. They rank up with only their `tier` bumped
- * (base kit unchanged → under budget). Shrink this set to empty once each has
- * an authored `tierUpgrades` path.
+ * DoT line) to absorb the extra PL. Each now has an authored `tierUpgrades`
+ * path (see src/data/skills.ts), so this set is EMPTY — every card in the
+ * book audits to its tier budget exactly, either via the auto-scaler or an
+ * authored override.
  */
-const CAP_HITTERS_PENDING = new Set<string>([
-  'war_banner',
-  'time_crystal',
-  'battle_howl',
-  'hex_of_frailty',
-  'armor_break',
-  'stunning_smash',
-  'purify',
-  'frost_ward',
-  'ward_of_silence',
-  'ruinous_hex',
-]);
+const CAP_HITTERS_PENDING = new Set<string>([]);
 
 const ABOVE: Record<SkillTier, SkillTier[]> = {
   bronze: ['silver', 'gold', 'diamond'],
@@ -113,5 +103,52 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
 
   it('prism_barrier ranks to exactly its tier budget (was 51 PL at Diamond under the naive scaler)', () => {
     expect(powerLevelDeci(applyTier(skillBook.prism_barrier!, 'diamond'))).toBe(TIER_BUDGET_DECI.diamond);
+  });
+
+  it('hand-tuned DoT curves (venom_fang / fireball / rupturing_strike) are locked via authored tierUpgrades', () => {
+    const at = (id: string, tier: SkillTier, kind: string): number => {
+      const scaled = applyTier(skillBook[id]!, tier);
+      const dot = scaled.effects.find((a) => a.kind === kind) as { stacks: number };
+      return dot.stacks;
+    };
+    const damageAt = (id: string, tier: SkillTier): number => {
+      const scaled = applyTier(skillBook[id]!, tier);
+      const dmg = scaled.effects.find((a) => a.kind === 'damage') as { power: number };
+      return dmg.power;
+    };
+
+    // venom_fang (poison, size 1, weight 12): moderate stack growth, rest into damage.
+    expect(at('venom_fang', 'silver', 'poison')).toBe(7);
+    expect(at('venom_fang', 'gold', 'poison')).toBe(8);
+    expect(at('venom_fang', 'diamond', 'poison')).toBe(9);
+    expect(damageAt('venom_fang', 'silver')).toBe(18);
+    expect(damageAt('venom_fang', 'gold')).toBe(26);
+    expect(damageAt('venom_fang', 'diamond')).toBe(34);
+
+    // fireball (burn, size 2): moderate burn growth, rest into damage.
+    expect(at('fireball', 'silver', 'burn')).toBe(7);
+    expect(at('fireball', 'gold', 'burn')).toBe(8);
+    expect(at('fireball', 'diamond', 'burn')).toBe(10);
+    expect(damageAt('fireball', 'silver')).toBe(50);
+    expect(damageAt('fireball', 'gold')).toBe(66);
+    expect(damageAt('fireball', 'diamond')).toBe(78);
+
+    // rupturing_strike (bleed, size 1): moderate bleed growth, rest into damage.
+    expect(at('rupturing_strike', 'silver', 'bleed')).toBe(7);
+    expect(at('rupturing_strike', 'gold', 'bleed')).toBe(8);
+    expect(at('rupturing_strike', 'diamond', 'bleed')).toBe(9);
+    expect(damageAt('rupturing_strike', 'silver')).toBe(16);
+    expect(damageAt('rupturing_strike', 'gold')).toBe(24);
+    expect(damageAt('rupturing_strike', 'diamond')).toBe(32);
+
+    // Every authored tier lands exactly on budget and stays cap-compliant.
+    for (const id of ['venom_fang', 'fireball', 'rupturing_strike']) {
+      const skill = skillBook[id]!;
+      for (const tier of ABOVE[skill.tier]) {
+        const scaled = applyTier(skill, tier);
+        expect(powerLevelDeci(scaled)).toBe(TIER_BUDGET_DECI[tier]);
+        expect(capViolations(scaled)).toEqual([]);
+      }
+    }
   });
 });

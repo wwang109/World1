@@ -7,13 +7,18 @@ import { buildAutoHeroSetup } from '../../run/encounter';
 import { moveWithinStrip, shiftInsert, socketGem, swapGem, unsocketGem } from '../../run/loadout';
 import { gemBook } from '../../data/gems';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
+import { GEM_RARITY_COLOR } from '../theme';
 import { demoState, type OwnedCard } from '../demoState';
-import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
+import { DESKTOP_PROFILE } from '../layoutProfile';
+import { FONT, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
+import { renderDesktopBackground, renderDesktopHeader, DESKTOP_LAYOUT } from '../ui/DesktopNav';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { rebuildScene } from '../sceneRebuild';
 
 const SLOTS = 10;
+const F = DESKTOP_PROFILE.font;
+const ACCENT_TEXT = UI.textAccent;
 
 type Source =
   | { where: 'deck'; instanceId: string; card: OwnedCard }
@@ -23,53 +28,62 @@ type Source =
 interface ColLayout { top: number; colH: number; colW: number; rowH: number; gap: number; deckX: number; bagX: number; }
 
 /**
- * Mobile Deck Build — vertical: tabs · header · TEMP HOLDING strip · ACTIVE
- * DECK (left) vs BAG (right) columns · TRASH strip. DRAG a card between deck,
- * bag, and holding; drop on TRASH to delete (with confirm). Real demoState
- * mutations. Reachable at ?scene=mdeck.
+ * Desktop Deck Build — full parity with MobileDeckBuildScene: pointer-drag
+ * cards between the ACTIVE DECK / BAG columns and the TEMP HOLDING strip,
+ * TRASH drop with a confirm dialog, deck identity/affinity readout. Layout is
+ * a 1440x900 two-panel spread (deck left, bag right) rather than mobile's
+ * portrait stack, but every placement decision routes through the same pure
+ * `run/loadout.ts` helpers and mutates `demoState` in place.
  */
-export class MobileDeckBuildScene extends Phaser.Scene {
-  private W = SCREEN.width;
-  private H = SCREEN.height;
+export class DesktopDeckBuildScene extends Phaser.Scene {
   private hold: OwnedCard | null = null;
   private pendingTrash: Source | null = null;
-  /** Deck piece instanceId whose gem-socket panel is open (survives restart —
-   *  this scene deliberately has NO init(), mirroring `hold`/`pendingTrash`). */
+  /** Deck piece instanceId whose gem-socket panel is open (survives restart). */
   private socketFor: string | null = null;
   private layout!: ColLayout;
   private draggables: Array<{ token: CardToken; bounds: Phaser.Geom.Rectangle; src: Source }> = [];
   private heroStats!: ScalingStats;
+  private holdingTop = 0;
+  private holdingH = 0;
+  private trashTop = 0;
+  private trashH = 0;
 
-  constructor() { super('MobileDeckBuild'); }
+  constructor() { super('DesktopDeck'); }
 
   /** State changed → rebuild this frame in place (see sceneRebuild.ts). */
   private rerender(): void {
     rebuildScene(this);
   }
 
+  init(): void {
+    // NOTE: `hold` and `pendingTrash` are deliberately NOT reset here — this
+    // scene re-renders after every drop via scene.restart() (which re-runs
+    // init), and both must survive that restart: `hold` carries the TEMP
+    // HOLDING card, `pendingTrash` keeps the trash-confirm dialog open.
+    this.draggables = [];
+    this.holdingTop = 0;
+    this.holdingH = 0;
+    this.trashTop = 0;
+    this.trashH = 0;
+  }
+
   create(): void {
-    this.W = SCREEN.width; this.H = SCREEN.height;
     this.draggables = [];
     const hero = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces.map((p) => ({ ...p })), demoState.heroAllocation).setup;
     this.heroStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower };
-    this.cameras.main.setBackgroundColor(0x0b1420);
-    this.renderTabs();
-    this.renderHeader();
+    renderDesktopBackground(this);
+    renderDesktopHeader(this, 'DECK BUILD', 'deck');
+    this.renderMeta(hero.stats);
     this.renderHolding();
     this.renderColumns();
     this.renderTrash();
-    // wireDrag() resets ALL global input listeners — call it before any
-    // overlay that registers its own (e.g. the socket panel's pouch scroll)
-    // so those survive.
-    this.wireDrag();
     if (this.pendingTrash) this.renderConfirm();
     if (this.socketFor) this.renderSocketPanel();
+    this.wireDrag();
   }
 
-  /** Manual pointer-drag: hit-test tokens ourselves (Phaser container-drag is
-   *  unreliable). Drop resolves against columns / holding / trash. A TAP (< 8px
-   *  of movement between down and up) on a DECK card opens the gem-socket
-   *  panel instead of resolving as a drop. */
+  /** Manual pointer-drag: hit-test tokens ourselves. Drop resolves against
+   *  columns / holding / trash, mirroring the mobile scene's flow. */
   private wireDrag(): void {
     this.input.removeAllListeners();
     let dragging: { token: CardToken; src: Source; home: { x: number; y: number } } | null = null;
@@ -86,13 +100,12 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       start = { x: p.x, y: p.y };
       ghost = hit.token.spawnGhost(); // dimmed copy + dashed outline stays in the source slot
       hit.token.setDepth(1000).setAlpha(0.9);
-      dropHint = this.add.rectangle(0, 0, 10, 10, 0xe8b446, 0.12).setOrigin(0, 0).setStrokeStyle(2, 0xe8b446, 0.9).setVisible(false).setDepth(900);
+      dropHint = this.add.rectangle(0, 0, 10, 10, UI.chip, 0.12).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.9).setVisible(false).setDepth(900);
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!dragging) return;
       totalMove = Math.max(totalMove, Math.hypot(p.x - start.x, p.y - start.y));
       dragging.token.setPosition(p.x, p.y);
-      // gold drop-target highlight (mockup "drop to place") on the hovered slot
       if (dropHint) {
         const { top, colH, colW, rowH, gap, deckX, bagX } = this.layout;
         if (p.y >= top && p.y <= top + colH) {
@@ -108,9 +121,9 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       dragging = null;
       dropHint?.destroy(); dropHint = null;
       ghost?.destroy(); ghost = null;
-      // A TAP (no real movement) on a DECK card opens its gem-socket panel
+      // A CLICK (no real movement) on a DECK card opens its gem-socket panel
       // instead of resolving as a drop.
-      if (totalMove < 8 && src.where === 'deck') {
+      if (totalMove < 6 && src.where === 'deck') {
         this.socketFor = src.instanceId;
         this.rerender();
         return;
@@ -124,41 +137,23 @@ export class MobileDeckBuildScene extends Phaser.Scene {
 
   // ---------- occupancy / placement ----------
 
-  private deckOccupied(exclude?: string | string[]): boolean[] {
-    const ex = new Set(Array.isArray(exclude) ? exclude : exclude !== undefined ? [exclude] : []);
+  private deckOccupied(): boolean[] {
     const occ = Array<boolean>(SLOTS).fill(false);
     for (const p of demoState.pieces) {
-      if (ex.has(p.instanceId)) continue;
       const size = this.sizeOf(p.skillId);
       for (let i = p.slot; i < p.slot + size && i < SLOTS; i++) occ[i] = true;
     }
     return occ;
   }
 
-  private bagOccupied(exclude?: number | number[]): boolean[] {
-    const ex = new Set(Array.isArray(exclude) ? exclude : exclude !== undefined ? [exclude] : []);
+  private bagOccupied(): boolean[] {
     const occ = Array<boolean>(SLOTS).fill(false);
     demoState.bagSlots.forEach((card, index) => {
-      if (!card || ex.has(index)) return;
+      if (!card) return;
       const size = this.sizeOf(card.skillId);
       for (let i = index; i < index + size && i < SLOTS; i++) occ[i] = true;
     });
     return occ;
-  }
-
-  /** The deck piece whose span covers `row`, if any. */
-  private deckPieceAt(row: number): (typeof demoState.pieces)[number] | undefined {
-    return demoState.pieces.find((p) => row >= p.slot && row < p.slot + this.sizeOf(p.skillId));
-  }
-
-  /** The bag entry whose span covers `row`, if any. */
-  private bagEntryAt(row: number): { index: number; card: OwnedCard } | undefined {
-    for (let i = 0; i < SLOTS; i++) {
-      const card = demoState.bagSlots[i];
-      if (!card) continue;
-      if (row >= i && row < i + this.sizeOf(card.skillId)) return { index: i, card };
-    }
-    return undefined;
   }
 
   // ---------- moves (real demoState) ----------
@@ -178,37 +173,26 @@ export class MobileDeckBuildScene extends Phaser.Scene {
 
   // ---------- render ----------
 
-  private renderTabs(): void {
-    const tabs: Array<[string, boolean, () => void]> = [
-      ['PREP', false, () => this.scene.start('MobilePrep')],
-      ['DECK BUILD', true, () => {}],
-      ['WIKI', false, () => this.scene.start('MobileWiki')],
-    ];
-    const w = (this.W - 20 - 12) / 3;
-    tabs.forEach(([label, active, fn], i) => {
-      const r = this.add.rectangle(10 + i * (w + 6), 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      r.on('pointerdown', fn);
-      this.add.text(10 + i * (w + 6) + w / 2, 25, label, { fontSize: '12px', color: active ? '#1a1208' : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    });
-  }
-
-  /** Mockup header meta: "LV 1 · HP 150 · ATK 12 · MAG 12 · SPD 12  ·  6/10 slots · PL 54 · 2 gems". */
-  private renderHeader(): void {
+  /** Header meta line: LV / HP / ATK / MAG / SPD  ·  slots / PL / gems. */
+  private renderMeta(stats: { maxHp: number; attack: number; magicPower: number; speed: number }): void {
+    const gx = DESKTOP_LAYOUT.gutter;
     const used = this.deckOccupied().filter(Boolean).length;
     let plDeci = 0;
     for (const p of demoState.pieces) { const s = skillBook[p.skillId]; if (s) plDeci += instancePowerLevelDeci(s, { gem: p.gem ?? null }); }
     const gems = demoState.pieces.filter((p) => p.gem).length;
-    const hero = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces.map((p) => ({ ...p })), demoState.heroAllocation).setup;
-    const s = hero.stats;
-    const meta = `LV ${demoState.heroLevel} · HP ${s.maxHp} · ATK ${s.attack} · MAG ${s.magicPower} · SPD ${s.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
-    this.add.text(12, 50, meta, { fontSize: '10px', color: '#9aa4b6', fontFamily: FONT.body });
+    const meta = `LV ${demoState.heroLevel} · HP ${stats.maxHp} · ATK ${stats.attack} · MAG ${stats.magicPower} · SPD ${stats.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
+    // Right-aligned on the tab row's centerline — clear of both the tab
+    // buttons on the left and the divider below.
+    this.add.text(SCREEN.width - gx, 102 + DESKTOP_LAYOUT.tabH / 2, meta, {
+      fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body,
+    }).setOrigin(1, 0.5);
   }
 
-  /** Dashed 1px border (the mockup's transfer/trash strip style). */
+  /** Dashed rectangle border (matches mobile's transfer/trash strip style). */
   private dashedRect(x: number, y: number, w: number, h: number, color: number, alpha = 0.9): void {
     const g = this.add.graphics();
     g.lineStyle(1, color, alpha);
-    const dash = 5; const gapLen = 4;
+    const dash = 6; const gapLen = 5;
     const seg = (x1: number, y1: number, x2: number, y2: number): void => {
       const len = Math.hypot(x2 - x1, y2 - y1);
       const ux = (x2 - x1) / len; const uy = (y2 - y1) / len;
@@ -222,46 +206,52 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     g.strokePath();
   }
 
-  /** Slim TEMP HOLDING strip (mockup): dashed gold border · mini slot · label + grey sub. */
+  /** TEMP HOLDING strip under the header — full content width, mirroring the
+   *  TRASH strip at the bottom so the two drop zones read as a matched pair. */
   private renderHolding(): void {
-    const y = 66; const h = 34; const w = this.W - 20;
-    this.add.rectangle(10, y, w, h, 0x122033, 0.4).setOrigin(0, 0);
-    this.dashedRect(10, y, w, h, 0xb78a46, this.hold ? 1 : 0.7);
-    this.add.rectangle(18, y + 4, 24, h - 8, 0x16233a).setOrigin(0, 0).setStrokeStyle(1, 0x3a4a62, 0.9);
+    const gx = DESKTOP_LAYOUT.gutter;
+    const y = DESKTOP_LAYOUT.contentTop; const h = 56; const w = SCREEN.width - gx * 2;
+    this.holdingTop = y; this.holdingH = h;
+    this.add.rectangle(gx, y, w, h, UI.panelAlt, 0.4).setOrigin(0, 0);
+    this.dashedRect(gx, y, w, h, UI.chip, this.hold ? 1 : 0.7);
+    this.add.rectangle(gx + 12, y + 8, 40, h - 16, UI.slot).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9);
     if (this.hold) {
       const skill = skillBook[this.hold.skillId];
       if (skill) {
-        const tok = new CardToken(this, 52 + 105, y + h / 2, skill, { width: 210, height: h - 6, side: 'left', deck: [skill], stats: this.heroStats });
+        const tok = new CardToken(this, gx + 12 + 40 + 8 + 170, y + h / 2, skill, { width: 340, height: h - 12, side: 'left', deck: [skill], stats: this.heroStats });
         this.makeDraggable(tok, { where: 'hold', card: this.hold });
       }
-      this.add.text(this.W - 16, y + h / 2, 'HOLDING', { fontSize: '10px', color: '#c9a15a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0.5);
+      this.add.text(gx + w - 16, y + h / 2, 'HOLDING', { fontSize: `${F.label}px`, color: ACCENT_TEXT, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0.5);
     } else {
-      const label = this.add.text(52, y + h / 2, 'TEMP HOLDING', { fontSize: '11px', color: '#c9a15a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
-      this.add.text(label.x + label.width + 6, y + h / 2, '— drop a card to hold it while rearranging', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(0, 0.5);
+      const label = this.add.text(gx + 64, y + h / 2 - 8, 'TEMP HOLDING', { fontSize: `${F.label}px`, color: ACCENT_TEXT, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
+      this.add.text(gx + 64, y + h / 2 + 10, 'drop a card to hold it while rearranging', { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0, 0.5);
     }
   }
 
   private renderColumns(): void {
-    const top = 122;
-    const colH = this.H - top - 78;
-    const colW = (this.W - 20 - 8) / 2;
-    const gap = 5;
+    const gx = DESKTOP_LAYOUT.gutter;
+    // 44px band between the holding strip and the columns gives the
+    // ACTIVE DECK / BAG header labels clear air on both sides.
+    const top = this.holdingTop + this.holdingH + 44;
+    const colH = 500;
+    const colW = 620;
+    const gap = 8;
     const rowH = (colH - gap * (SLOTS - 1)) / SLOTS;
-    const deckX = 10; const bagX = 10 + colW + 8;
+    const deckX = gx; const bagX = SCREEN.width - gx - colW;
     this.layout = { top, colH, colW, rowH, gap, deckX, bagX };
 
     const deckUsed = this.deckOccupied().filter(Boolean).length;
     const bagUsed = this.bagOccupied().filter(Boolean).length;
-    this.add.text(deckX + colW / 2, top - 6, `ACTIVE DECK · ${deckUsed}/${SLOTS}`, { fontSize: '10px', color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
-    this.add.text(bagX + colW / 2, top - 6, `BAG · ${bagUsed}/${SLOTS}`, { fontSize: '10px', color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
+    this.add.text(deckX + colW / 2, top - 18, `ACTIVE DECK · ${deckUsed}/${SLOTS}`, { fontSize: `${F.label}px`, color: ACCENT_TEXT, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
+    this.add.text(bagX + colW / 2, top - 18, `BAG · ${bagUsed}/${SLOTS}`, { fontSize: `${F.label}px`, color: ACCENT_TEXT, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
 
     const deckSkills = demoState.pieces.map((p) => skillBook[p.skillId]).filter((s): s is SkillDef => Boolean(s));
     const bagSkills = demoState.bagSlots.map((c) => (c ? skillBook[c.skillId] : undefined)).filter((s): s is SkillDef => Boolean(s));
     const rowTop = (row: number): number => top + row * (rowH + gap);
     const empty = (colX: number, row: number, side: 'left' | 'right'): void => {
-      this.add.rectangle(colX + colW / 2, rowTop(row) + rowH / 2, colW, rowH, 0x121e30, 0.45).setOrigin(0.5).setStrokeStyle(1, 0x24344a, 0.9);
-      const nx = side === 'left' ? colX + colW - 6 : colX + 6;
-      this.add.text(nx, rowTop(row) + 4, `${row + 1}`, { fontSize: '10px', color: '#5a6880', fontFamily: 'monospace', fontStyle: 'bold' }).setOrigin(side === 'left' ? 1 : 0, 0);
+      this.add.rectangle(colX + colW / 2, rowTop(row) + rowH / 2, colW, rowH, UI.slot, 0.45).setOrigin(0.5).setStrokeStyle(1, UI.border, 0.35);
+      const nx = side === 'left' ? colX + colW - 10 : colX + 10;
+      this.add.text(nx, rowTop(row) + 6, `${row + 1}`, { fontSize: `${F.small}px`, color: UI.textSoft, fontFamily: 'monospace', fontStyle: 'bold' }).setOrigin(side === 'left' ? 1 : 0, 0);
     };
 
     // DECK (left)
@@ -299,7 +289,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       } else if (!bagOcc[row]) { empty(bagX, row, 'right'); }
     }
 
-    // affinity pips under the deck column (mockup): "SWORD ■■■ — affinity"
+    // affinity pips under the deck column
     const id = boardTypeIdentity(deckSkills);
     const tally = new Map<string, number>();
     for (const s of deckSkills) {
@@ -308,24 +298,29 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     }
     let topType = ''; let topCount = 0;
     for (const [k, v] of tally) if (v > topCount) { topType = k; topCount = v; }
-    const py = top + colH + 8;
+    const py = top + colH + 20;
     const pipLabel = id ? id.type.toUpperCase() : topType ? topType.toUpperCase() : 'NO TYPE';
-    const label = this.add.text(deckX + colW / 2 - 30, py, pipLabel, { fontSize: '10px', color: id ? '#e8b446' : '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0.5);
+    const label = this.add.text(deckX + 90, py, pipLabel, { fontSize: `${F.label}px`, color: id ? ACCENT_TEXT : UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0.5);
     for (let i = 0; i < 3; i++) {
       const filled = i < Math.min(3, topCount);
-      this.add.rectangle(label.x + 8 + i * 13, py, 9, 9, filled ? 0xb78a46 : 0x16233a).setOrigin(0, 0.5).setStrokeStyle(1, 0x3a4a62, 1);
+      this.add.rectangle(label.x + 10 + i * 16, py, 11, 11, filled ? UI.chip : UI.slot).setOrigin(0, 0.5).setStrokeStyle(1, UI.border, 1);
     }
-    this.add.text(label.x + 8 + 3 * 13 + 6, py, id ? 'affinity' : '3 to unlock', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(0, 0.5);
+    this.add.text(label.x + 10 + 3 * 16 + 8, py, id ? 'affinity' : '3 to unlock', { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0, 0.5);
   }
 
-  /** Slim TRASH strip (mockup): dashed red border · label + grey sub. No emoji (canvas tofu). */
+  /** TRASH strip along the bottom of the content area. */
   private renderTrash(): void {
-    const y = this.H - 44; const h = 34; const w = this.W - 20;
-    this.add.rectangle(10, y, w, h, 0x2a1412, 0.4).setOrigin(0, 0);
-    this.dashedRect(10, y, w, h, 0xb0483c, 0.9);
-    const label = this.add.text(52, y + h / 2, 'TRASH', { fontSize: '11px', color: '#d05c4e', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
-    this.add.rectangle(18, y + 4, 24, h - 8, 0x1c0f0d).setOrigin(0, 0).setStrokeStyle(1, 0x7a4a42, 0.9);
-    this.add.text(label.x + label.width + 6, y + h / 2, '— drop to destroy (asks to confirm)', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(0, 0.5);
+    const gx = DESKTOP_LAYOUT.gutter;
+    const h = 56; const w = SCREEN.width - gx * 2;
+    const y = SCREEN.height - DESKTOP_PROFILE.safe.bottom - h;
+    this.trashTop = y; this.trashH = h;
+    this.add.rectangle(gx, y, w, h, UI.badSoft, 0.4).setOrigin(0, 0);
+    this.dashedRect(gx, y, w, h, UI.bad, 0.9);
+    this.add.rectangle(gx + 12, y + 8, 40, h - 16, UI.panelMuted).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.7);
+    const badHex = `#${UI.bad.toString(16).padStart(6, '0')}`;
+    const label = this.add.text(gx + 64, y + h / 2 - 8, 'TRASH', { fontSize: `${F.label}px`, color: badHex, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
+    this.add.text(gx + 64, y + h / 2 + 10, 'drop to destroy (asks to confirm)', { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0, 0.5);
+    void label;
   }
 
   // ---------- drag ----------
@@ -336,9 +331,9 @@ export class MobileDeckBuildScene extends Phaser.Scene {
 
   private resolveDrop(src: Source, px: number, py: number): void {
     // TRASH strip (bottom)
-    if (py >= this.H - 48) { this.pendingTrash = src; return; }
+    if (py >= this.trashTop && py <= this.trashTop + this.trashH) { this.pendingTrash = src; return; }
     // TEMP HOLDING strip (top)
-    if (py >= 62 && py < 104) { this.toHold(src); return; }
+    if (py >= this.holdingTop && py <= this.holdingTop + this.holdingH) { this.toHold(src); return; }
     const { top, colH, rowH, gap, bagX } = this.layout;
     if (py < top || py > top + colH) return; // dropped nowhere valid → snaps back
     const row = Math.max(0, Math.min(SLOTS - 1, Math.floor((py - top) / (rowH + gap))));
@@ -412,30 +407,12 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     return true;
   }
 
-  private renderConfirm(): void {
-    const src = this.pendingTrash!;
-    const skill = skillBook[src.card.skillId];
-    this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.72).setOrigin(0, 0).setInteractive();
-    const bw = this.W - 60; const bx = 30; const by = this.H / 2 - 70;
-    this.add.rectangle(bx, by, bw, 140, 0x141d2c).setOrigin(0, 0).setStrokeStyle(2, 0xd05c4e);
-    this.add.text(this.W / 2, by + 24, `Delete ${skill?.name ?? 'card'}?`, { fontSize: '15px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.text(this.W / 2, by + 50, 'This removes it from your collection.', { fontSize: '10px', color: '#9aa4b6', fontFamily: FONT.body }).setOrigin(0.5);
-    const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
-      const r = this.add.rectangle(dx, by + 88, w, 36, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      r.on('pointerdown', fn);
-      this.add.text(dx + w / 2, by + 106, label, { fontSize: '13px', color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    };
-    mk(bx + 16, (bw - 40) / 2, 'CANCEL', 0x1b2940, '#e8e0c8', () => { this.pendingTrash = null; this.rerender(); });
-    mk(bx + 24 + (bw - 40) / 2, (bw - 40) / 2, 'DELETE', 0x7a2e2a, '#ffffff', () => { this.removeSource(src); this.pendingTrash = null; this.rerender(); });
-  }
-
   /**
-   * Gem-socket panel for one deck piece (opened by TAPPING a deck card).
-   * Every card has one socket: shows the current gem with UNSOCKET, and the
-   * pouch inventory with SOCKET/SWAP. All mutations go through run/loadout's
-   * socketGem/swapGem/unsocketGem; displaced gems return to
-   * `demoState.gemInventory`. The pouch list is masked + drag/wheel
-   * scrollable so an overflowing pouch never draws off-canvas.
+   * Gem-socket panel for one deck piece (opened by CLICKING a deck card).
+   * Every card has one socket (availability-by-tier is a future rule): shows
+   * the current gem with UNSOCKET, and the pouch inventory with SOCKET/SWAP.
+   * All mutations go through run/loadout's socketGem/swapGem/unsocketGem;
+   * displaced gems return to `demoState.gemInventory`.
    */
   private renderSocketPanel(): void {
     const piece = demoState.pieces.find((p) => p.instanceId === this.socketFor);
@@ -444,85 +421,62 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     if (!skill) { this.socketFor = null; return; }
 
     const close = (): void => { this.socketFor = null; this.rerender(); };
-    const scrim = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.78).setOrigin(0, 0).setInteractive();
+    const scrim = this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
     scrim.on('pointerdown', close);
 
     const pouch = demoState.gemInventory.map((id) => gemBook[id]).filter((g): g is NonNullable<typeof g> => Boolean(g));
-    const pw = this.W - 24;
-    const px = 12;
-    const rowH = 58;
-    const rowGap = 8;
-    const headerH = piece.gem ? 128 : 92;
-    const footerPad = 14;
-    const maxPanelH = this.H - 56;
-    const maxListH = Math.max(rowH, maxPanelH - headerH - footerPad);
-    const contentH = Math.max(rowH, pouch.length * (rowH + rowGap) - rowGap);
-    const listH = Math.min(contentH, maxListH);
-    const ph = Math.min(maxPanelH, headerH + listH + footerPad);
-    const py = Math.max(20, (this.H - ph) / 2);
-    this.add.rectangle(px, py, pw, ph, 0x141d2c, 0.98).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive();
+    const rowH = 52;
+    const pw = 520;
+    const listH = Math.max(1, pouch.length) * (rowH + 8);
+    const ph = 120 + listH + 24;
+    const px = (SCREEN.width - pw) / 2;
+    const py = Math.max(40, (SCREEN.height - ph) / 2);
+    this.add.rectangle(px, py, pw, ph, UI.panelAlt, 0.98).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive();
 
     const basePl = (instancePowerLevelDeci(skill, { gem: null }) / 10).toFixed(0);
     const totalPl = (instancePowerLevelDeci(skill, { gem: piece.gem ?? null }) / 10).toFixed(0);
-    this.add.text(px + 14, py + 12, `${skill.name.toUpperCase()} — GEM SOCKET`, { fontSize: '13px', color: '#e8b446', fontFamily: FONT.display, fontStyle: 'bold' });
-    this.add.text(px + pw - 14, py + 14, 'tap outside to close', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(1, 0);
+    this.add.text(px + 20, py + 14, `${skill.name.toUpperCase()} — GEM SOCKET`, { fontSize: `${F.name}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold' });
+    this.add.text(px + pw - 20, py + 18, 'click outside to close', { fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body }).setOrigin(1, 0);
 
     // Current socket row.
-    const curY = py + 36;
-    this.add.rectangle(px + 14, curY, pw - 28, 48, 0x101a2a, 0.85).setOrigin(0, 0)
-      .setStrokeStyle(1, piece.gem ? GEM_RARITY_COLOR[piece.gem.rarity] : UI.border, 0.9);
+    const curY = py + 46;
+    this.add.rectangle(px + 20, curY, pw - 40, rowH, UI.panelMuted, 0.8).setOrigin(0, 0).setStrokeStyle(1, piece.gem ? GEM_RARITY_COLOR[piece.gem.rarity] : UI.border, 0.9);
     if (piece.gem) {
       const gem = piece.gem;
       // The engine's structural Gem has no display name/text — resolve via the catalog.
       const gemDef = gemBook[gem.id];
       const bonus = gemDef ? stripCardTextMarkup(gemDef.text) : '';
-      this.add.rectangle(px + 30, curY + 24, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-      this.add.text(px + 42, curY + 6, `${gemDef?.name ?? gem.id}`, { fontSize: '11px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' });
-      const bonusT = this.add.text(px + 42, curY + 20, bonus, { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, wordWrap: { width: pw - 175 } });
-      let s = bonus;
-      while (s.length > 1 && bonusT.height > 12) { s = s.slice(0, -1); bonusT.setText(`${s}…`); }
-      this.add.text(px + 42, curY + 34, `card PL ${basePl} + ${gemPowerLevel(gem)} gem = ${totalPl}`, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body });
-      const un = this.add.rectangle(px + pw - 88, curY + 8, 74, 32, 0x352019).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
-      this.add.text(px + pw - 51, curY + 24, 'UNSOCKET', { fontSize: '9px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.rectangle(px + 40, curY + rowH / 2, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
+      this.add.text(px + 56, curY + 8, `${gemDef?.name ?? gem.id} — ${bonus}`, { fontSize: `${F.small}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' });
+      this.add.text(px + 56, curY + 28, `card PL ${basePl} + ${gemPowerLevel(gem)} gem = ${totalPl}`, { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body });
+      const un = this.add.rectangle(px + pw - 130, curY + 8, 96, rowH - 16, UI.badSoft).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
+      this.add.text(px + pw - 82, curY + rowH / 2, 'UNSOCKET', { fontSize: `${F.tiny}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       un.on('pointerdown', () => {
         const removed = unsocketGem(piece);
         if (removed) demoState.gemInventory = [...demoState.gemInventory, removed.id];
         close();
       });
     } else {
-      this.add.text(px + 28, curY + 24, `Empty socket · card PL ${basePl}`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(0, 0.5);
+      this.add.text(px + 40, curY + rowH / 2, `Empty socket · card PL ${basePl}`, { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0, 0.5);
     }
 
-    // Pouch list — masked, drag/wheel scrollable.
-    const listTop = curY + 48 + 14;
-    this.add.text(px + 14, listTop - 12, `GEM POUCH · ${pouch.length}`, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
+    // Pouch list.
+    let ly = curY + rowH + 18;
+    this.add.text(px + 20, ly - 12, `GEM POUCH · ${pouch.length}`, { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' });
     if (pouch.length === 0) {
-      this.add.text(px + 14, listTop + 8, 'No gems in the pouch — collect some\nin the WIKI › GEMS tab.', {
-        fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, lineSpacing: 3,
-      });
-      return;
+      this.add.text(px + 20, ly + 10, 'No gems in the pouch — collect some in the WIKI › GEMS tab.', { fontSize: `${F.small}px`, color: UI.textSoft, fontFamily: FONT.body });
     }
-
-    const maskShape = this.make.graphics({}, false);
-    maskShape.fillStyle(0xffffff);
-    maskShape.fillRect(px + 14, listTop, pw - 28, listH);
-    const mask = maskShape.createGeometryMask();
-
-    let scrollY = 0;
-    const maxScroll = Math.max(0, contentH - listH);
-    const rowContainers: Phaser.GameObjects.Container[] = [];
     pouch.forEach((gem, index) => {
-      const baseY = index * (rowH + rowGap);
-      const container = this.add.container(px + 14, listTop + baseY);
-      const bg = this.add.rectangle(0, 0, pw - 28, rowH, 0x101a2a, 0.9).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
-      const diamond = this.add.rectangle(16, rowH / 2, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-      const name = this.add.text(30, 8, `${gem.name} · ${gem.rarity.toUpperCase()}`, { fontSize: '10px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' });
+      const rowY = ly + 8 + index * (rowH + 8) - 8;
+      this.add.rectangle(px + 20, rowY, pw - 40, rowH, UI.panel, 0.9).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
+      this.add.rectangle(px + 40, rowY + rowH / 2, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
+      this.add.text(px + 56, rowY + 8, `${gem.name} · ${gem.rarity.toUpperCase()}`, { fontSize: `${F.small}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' });
       // The bonus itself is the headline info (PL is bookkeeping — see WIKI).
-      const desc = this.add.text(30, 24, stripCardTextMarkup(gem.text), { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: pw - 28 - 100 } });
+      const desc = this.add.text(px + 56, rowY + 28, stripCardTextMarkup(gem.text), { fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold' });
       let s = stripCardTextMarkup(gem.text);
-      while (s.length > 1 && desc.height > 24) { s = s.slice(0, -1); desc.setText(`${s}…`); }
-      const act = this.add.rectangle(pw - 28 - 66, rowH / 2 - 14, 60, 28, 0xb78a46).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
-      const actLabel = this.add.text(pw - 28 - 36, rowH / 2, piece.gem ? 'SWAP' : 'SOCKET', { fontSize: '9px', color: '#1a1208', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      while (s.length > 1 && desc.width > pw - 220) { s = s.slice(0, -1); desc.setText(`${s}…`); }
+      const act = this.add.rectangle(px + pw - 130, rowY + 8, 96, rowH - 16, UI.chip).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
+      this.add.text(px + pw - 82, rowY + rowH / 2, piece.gem ? 'SWAP' : 'SOCKET', { fontSize: `${F.tiny}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       act.on('pointerdown', () => {
         // consume ONE copy of this gem id from the pouch
         const at = demoState.gemInventory.indexOf(gem.id);
@@ -531,31 +485,23 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         if (displaced) demoState.gemInventory = [...demoState.gemInventory, displaced.id];
         close();
       });
-      container.add([bg, diamond, name, desc, act, actLabel]);
-      container.setMask(mask);
-      rowContainers.push(container);
     });
+  }
 
-    if (maxScroll > 0) {
-      let dragging = false;
-      let startY = 0;
-      let startScroll = 0;
-      const inList = (x: number, y: number): boolean => x >= px + 14 && x <= px + 14 + (pw - 28) && y >= listTop && y <= listTop + listH;
-      this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-        if (!inList(p.x, p.y)) return;
-        dragging = true; startY = p.y; startScroll = scrollY;
-      });
-      this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-        if (!dragging) return;
-        scrollY = Phaser.Math.Clamp(startScroll + (p.y - startY), -maxScroll, 0);
-        rowContainers.forEach((c, i) => c.setY(listTop + scrollY + i * (rowH + rowGap)));
-      });
-      this.input.on('pointerup', () => { dragging = false; });
-      this.input.on('wheel', (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
-        if (!inList(pointer.x, pointer.y)) return;
-        scrollY = Phaser.Math.Clamp(scrollY - dy, -maxScroll, 0);
-        rowContainers.forEach((c, i) => c.setY(listTop + scrollY + i * (rowH + rowGap)));
-      });
-    }
+  private renderConfirm(): void {
+    const src = this.pendingTrash!;
+    const skill = skillBook[src.card.skillId];
+    this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
+    const bw = 460; const bx = SCREEN.width / 2 - bw / 2; const by = SCREEN.height / 2 - 90;
+    this.add.rectangle(bx, by, bw, 180, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(2, UI.bad);
+    this.add.text(SCREEN.width / 2, by + 34, `Delete ${skill?.name ?? 'card'}?`, { fontSize: `${F.name}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(SCREEN.width / 2, by + 66, 'This removes it from your collection.', { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0.5);
+    const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
+      const r = this.add.rectangle(dx, by + 116, w, 44, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      r.on('pointerdown', fn);
+      this.add.text(dx + w / 2, by + 138, label, { fontSize: `${F.body}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+    };
+    mk(bx + 20, (bw - 60) / 2, 'CANCEL', UI.panelMuted, UI.text, () => { this.pendingTrash = null; this.rerender(); });
+    mk(bx + 40 + (bw - 60) / 2, (bw - 60) / 2, 'DELETE', UI.badSoft, '#ffffff', () => { this.removeSource(src); this.pendingTrash = null; this.rerender(); });
   }
 }

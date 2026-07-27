@@ -145,6 +145,43 @@ _UI/design work Claude is handing over. Codex picks these up._
 
 ## Session log (newest first)
 
+### 2026-07-25 — Claude — wiki tier selection + GEMS tab, deck-build gem socketing, holding/trash fix, tier-text honesty
+- CHANGED: **(1) Wiki tier selection (desktop):** the detail pane has BRONZE→DIAMOND chips (tiers below the card's authored tier disabled); the preview card, PL line, and rules text all re-resolve through `applyTier`, and **ADD TO BAG stamps the chosen tier** (`createOwnedCard(id, tier)`). **(2) Wiki GEMS tab (desktop):** CARDS|GEMS tabs; full 12-gem catalog grid (rarity diamond, kind, +PL, stripped text), detail pane with pouch count and **ADD TO POUCH** (`demoState.gemInventory`). **(3) Deck-build gem socketing (desktop):** CLICKING a deck card (moving <6px — dragging still drags) opens its GEM SOCKET panel: current socket with card PL math + UNSOCKET, and the pouch list with SOCKET/SWAP; all mutations via run/loadout's `socketGem/swapGem/unsocketGem`, displaced gems return to the pouch; ◆ accessory badge + header PL/gem counts update. **(4) BUG FIX (user-reported): desktop TEMP HOLDING and TRASH never worked** — the scene's `init()` reset `hold`/`pendingTrash`, but the scene re-renders after every drop via `scene.restart()` (which re-runs init), wiping both instantly. They now survive the restart (mobile never had an init — that's why it worked there). **(5) ENGINE FIX: auto-scaled tier-ups kept stale display text** (`applyTier` scaled `effects` but not `text`, so a Diamond Arcane Bolt still read "+18" while dealing 48) — `autoScaleTier` now rewrites each changed power/stacks number in the text; authored `tierUpgrades` text untouched; locked by NEW `tests/engine/tierText.test.ts`.
+- FILES: `src/game/scenes/DesktopWikiScene.ts`, `src/game/scenes/DesktopDeckBuildScene.ts`, `src/engine/cards.ts`, `tests/engine/tierText.test.ts` (new), `docs/feature-inventory.md`
+- VERIFY: `npm run typecheck` clean · `npm test` = **376 green** · live: Arcane Bolt DIAMOND chip → PL 25, diamond frame, "ADD TO BAG · DIAMOND", text scaled (+18→+48); GEMS tab catalog; clicked Sword Slash → socket panel → socketed Venom Sliver → ◆ badge + PL 56→58 · 3 gems; drop onto TEMP HOLDING holds Second Wind across the restart.
+- OPEN: mobile wiki has no tier chips / GEMS tab, mobile deck build no socket panel (inventory-listed gaps). Multi-effect cards with duplicate numbers could retext the wrong occurrence — display-only risk, engine unaffected.
+- Claude review: (self-authored)
+
+### 2026-07-25 — Claude — multi-foe fights, foe picker, wiki-art fix, Disrupt rebalance, battle statlines, feature inventory
+- CHANGED: **(1) Multi-foe (2v1) end-to-end.** `buildBattleTimeline` accepts `enemyTeam` (per-unit HP/shield/status/speed/playSlot arrays via event `unit`; singular fields stay as unit-0 views); BOTH battle scenes render one HP bar + board per foe; the all-foes-down rule ends playback. **(2) Foe management in BOTH preps:** foe chips (select / click-active-to-SWAP via roster picker / ✕ remove, cap 2), + FOE picker; every control (title/LV/RANK/modifiers) edits the SELECTED foe (`demoState.activeFoe`, `syncPrimaryFoe()` keeps the legacy singles mirrored to foe 0). Desktop prep stacks all foe boards. **(3) Wiki art bug fixed:** `FantasyCardTemplateV2`'s world-space art mask never followed the card, so scrolled gallery cards lost their art — mask now redraws in a `setPosition` override (same pattern as CardToken); only `twin_slash` has no PNG. **(4) Disrupt repriced** (balance-designer): escalating brackets 5/15/30/60 deci-PL (pts 1-5/6-10/11-15/16+); Concussive Shot 16 → 6; gem echo 8 → 4; audit green. **(5) Battle statlines:** hero + per-foe `ATK · MAG · DEF · RES · SPD` under the HP bars (user reported "battle doesn't use stats" — allocation DID apply, verified −14 damage per hit with 14 armor buys; it just wasn't visible). **(6) NEW [`docs/feature-inventory.md`](feature-inventory.md)** — per-page feature checklist (D/M), the anti-regression reference; update it with every scene change.
+- FILES: `src/game/battleTimeline.ts`, `src/game/demoState.ts`, `src/game/scenes/{DesktopPrep,MobilePrep,DesktopBattle,MobileBattle}Scene.ts`, `src/game/ui/FantasyCardTemplateV2.ts`, `src/game/ui/cardArtCatalog.ts`, `src/engine/balance.ts`, `src/data/{skills,gems}.ts`, `docs/{power-level-reference,feature-inventory}.md`, `tests/game/battleTimeline.test.ts` (new), `tests/engine/balance.test.ts`
+- VERIFY: `npm run typecheck` clean · `npm test` = **373 green** (new: 4 timeline tests incl. 2-foe + single-vs-team-of-one identity; disrupt bracket test) · live: +FOE→2 duelists (one DIAMOND-POWERED, edits stay per-foe), FIGHT → two enemy sections with independent HP/boards, START line lists both foes, wiki scrolls with art intact, statlines under bars.
+- OPEN: mobile gaps are enumerated in feature-inventory.md (modifier chips, hero stat sheet, statlines, speed control); `twin_slash` needs a PNG.
+- Claude review: (self-authored)
+
+### 2026-07-25 — Claude — battle polish: START step, compact ledger, speed control, rank-cap/modifier interplay
+- CHANGED: **(1) Battle-start baseline step** — `buildBattleTimeline` now prepends a synthetic `START` step (`Hero 100/100 vs Foe 105/105`) with both sides at FULL HP before any event; previously playback opened on the first HIT with damage already applied to the HP snapshot. Shared model, so mobile gets it too (`START` added to both scenes' TAG_COLOR). **(2) Compact outcome panel** (DesktopBattleScene): the full-width BATTLE LEDGER + banner is now one centered ~640px card (banner on top, totals, 2-col CARD OUTPUT) over a lighter scrim — boards/log stay visible around it. **(3) Playback speed control**: ×½ / ×1 / ×2 segment in the battle footer; multiplier divides the step delays (450/160ms), applies at the next scheduled step, and deliberately survives REPLAY/re-entry (not reset in init()). **(4) Rank cap ↔ tier-forcing modifiers**: the prep RANK steppers (desktop + mobile) now display the RESOLVED encounter rank, clamp at `maxRankFor(deckSize)` (deckSize × 3), and go inert with a `RANK · MAXED BY DIAMOND` label while a forceTier modifier owns the dial — previously the stepper showed the raw demoState value, had no cap, and silently did nothing under DIAMOND-POWERED.
+- ALSO (perf, user-reported sluggish modifier toggles): `DesktopPrepScene` control changes (chips/steppers) now use an in-place `rerender()` (destroy children + rebuild synchronously) instead of `scene.restart()` — no full lifecycle teardown, no empty-frame flash. Measured click→rendered-frame 18–34ms over repeated toggles; encounter+DMG-band rebuild itself is <2ms. Mobile prep still restarts (portrait scenes are lighter).
+- FILES: `src/game/battleTimeline.ts`, `src/game/scenes/DesktopBattleScene.ts`, `src/game/scenes/MobileBattleScene.ts`, `src/game/scenes/DesktopPrepScene.ts`, `src/game/scenes/MobilePrepScene.ts`
+- VERIFY: `npm run typecheck` clean · `npm test` = 368 green · live: step 0 shows `T1 START Hero 100/100 vs Bandit Duelist 105/105` with full bars; outcome card centered/compact; speed segment renders with ×1 active; `?mods=diamond` → `RANK · MAXED BY DIAMOND` showing resolved 9 (3-card deck) and inert stepper.
+- Claude review: (self-authored)
+
+### 2026-07-25 — Claude — enemy modifiers + hero stat selection + deck-build spacing
+- CHANGED: **(1) Enemy MODIFIERS are now a real fourth dial** (was the reserved axis): `MODIFIER_PRESETS` in `src/run/encounter.ts` — `diamond` (DIAMOND-POWERED: every card forced to Diamond tier after rank assignment, rank reads as ceiling) and `swift` (SWIFT: +8 PL auto-spent on Speed through the same priced `LEVEL_STAT_COST` economy → +4 SPD). `buildEnemyEncounter(id, level, title, rank?, modifiers?)` applies them (throws on unknown ids); `EncounterUnit.modifiers` echoes them. Threaded through `battleTimeline` (`enemyModifiers` input), both battle scenes, both prep scenes, and a `?mods=diamond,swift` dev URL param. Adding a new affix = one row in `MODIFIER_PRESETS` (bonusPL+profile and/or forceTier). **(2) Hero stat selection** (`DesktopPrepScene.renderHeroSection`): HERO LV stepper + PL SPENT/BANKED readout + 2×3 allocation grid (HP/ATK/MAG/DEF/RES/SPD) spending `demoState.heroAllocation` through the guarded `applyPlayerLevelAllocation` path — buys disable when unaffordable, lowering LV auto-trims stranded buys so the guard never throws; allocation flows live into YOUR DECK numbers. **(3)** Deck Build: ACTIVE DECK/BAG header labels get a 44px band clear of TEMP HOLDING.
+- FILES: `src/run/encounter.ts`, `src/game/battleTimeline.ts`, `src/game/scenes/Desktop{Prep,DeckBuild,Battle}Scene.ts`, `src/game/scenes/Mobile{Prep,Battle}Scene.ts`, `src/game/devLaunch.ts`, `tests/run/encounter.test.ts`
+- VERIFY: `npm run typecheck` clean · `npm test` = **368 green** (6 new modifier tests incl. byte-identical no-modifier baseline) · live checks: SWIFT chip → SPD 11→15 in the sheet; DIAMOND-POWERED → enemy DMG 34→54 / DMG-turn 27→46; hero LV→3 then ATK/SPD buys → PL 3/6 SPENT and deck DMG 21→22.
+- OPEN: mobile prep has no modifier/stat-selection UI yet (fights honor demoState either way). Modifier chips row will need a wrap/scroll treatment past ~4 affixes.
+- Claude review: (self-authored)
+
+### 2026-07-25 — Claude — desktop screens rebuilt playable (fix of prior desktop scaffolding)
+- CHANGED: Rebuilt all four desktop screens to full mobile parity on the 1440×900 canvas. **DesktopPrep**: enemy sheet + DMG/turn band, title chips, LV/RANK steppers, seed reroll, deck columns, FIGHT → DesktopBattle. **DesktopDeck**: real pointer drag-and-drop (placement via `run/loadout.ts`), TEMP HOLDING, trash confirm, identity pips. **DesktopWiki**: full scrollable catalog (wheel + drag, no 10-card cap), shared `DesktopNav` header, `init()` resets, `{{markup}}` stripped in the detail pane. **NEW DesktopBattleScene** (`?scene=desktop-battle`): landscape playback — boards left/right, wide center log with expandable D: math, HP bars w/ FX, horizontal scrubber, PREP/REPLAY/END, ledger + outcome banner over an 0.88 scrim. The mobile battle timeline transform was extracted to shared `src/game/battleTimeline.ts` (no Phaser import); `MobileBattleScene` now consumes it — behavior unchanged.
+- ALSO: `DesktopNav` rewritten (theme tokens, `DESKTOP_LAYOUT` shared geometry: gutter 32 / contentTop 168 / gap 12 / 40px tabs); new `UI.textAccent`/`UI.textOnChip` string tokens; `TEXT_RESOLUTION` DPI-aware cap (4× desktop) instead of hardcoded 6; deck-build stat strip moved to the tab row's right edge (was overlapping the tabs); both battle scenes now **destroy** (not just remove) children on redraw — fixes a per-step Text-texture leak.
+- FILES: `src/game/scenes/Desktop{Prep,DeckBuild,Wiki,Battle}Scene.ts`, `src/game/battleTimeline.ts`, `src/game/scenes/MobileBattleScene.ts`, `src/game/ui/DesktopNav.ts`, `src/game/theme.ts`, `src/game/layoutProfile.ts`, `src/game/devLaunch.ts`, `src/game/scenes/BootScene.ts`, `src/main.ts`
+- VERIFY: `npm run typecheck` clean · `npm test` = 356 green · live Chromium pass at 1440×900 over all four screens: drag deck→bag confirmed (counts/PL update), wiki wheel-scroll + ADD TO BAG detail, LV stepper + FIGHT → battle → PREP loop, mobile battle visually unchanged.
+- OPEN: several catalog cards have no art asset (render as dark frames in the wiki grid) — content gap, not layout. `+ FOE` remains a stub on both prep scenes.
+- FOLLOW-UP (same day, user-requested): **(1) Drag ghost** — picking up a card in Deck Build (desktop + mobile) now leaves a dimmed clone + dashed gold outline in the source slot (`CardToken.spawnGhost()`), destroyed on drop. **(2) Card-token template spec** — NEW `src/game/ui/cardTokenSpec.ts` is the single source of truth for the strip token's region geometry (accent stripe, text lines + ellipsis clamps, corner badges, cursor chip), the strip-token counterpart of `fantasyCardTemplateSpec.ts`; `CardToken` renders purely from it. It includes a reserved **accessory rail** (horizontal boxes along the bottom inward corner beside the weight badge, `accessorySlot(i)`, text clamps auto-shrink) for future attachments — gem sockets, tier plates, enchant pips. First consumer: gem-socketed deck cards show a ◆ badge via the new `accessories` option. Unit-tested in `tests/game/cardTokenSpec.test.ts` (6 tests; suite now 362 green, typecheck clean).
+- Claude review: (self-authored)
+
 ### 2026-07-19 — Codex — fight header gap cleanup
 - CHANGED: Pushed the shared panel divider farther down and kept the fight selector row aligned under the `CHOOSE FIGHT` title so the enemy chip, close box, and header text no longer crowd the separator line.
 - FILES: `src/game/theme.ts`, `src/game/scenes/PrepScene.ts`, `docs/codex-handoff.md`
@@ -1273,6 +1310,123 @@ _UI/design work Claude is handing over. Codex picks these up._
 - REQUESTS TO CLAUDE: none
 - OPEN: None.
 - Claude review: Pending.
+### 2026-07-25 — Codex — Route desktop launches to the proper horizontal shells
+- CHANGED: Desktop `view=prep` now opens DesktopPrep and desktop `view=deck` now opens DesktopDeck, replacing the legacy narrow PrepScene rail for desktop launches.
+- FILES: src/game/scenes/BootScene.ts, docs/codex-handoff.md
+- DESIGN: The legacy mobile-sized desktop panel remains available only through the legacy Prep scene; normal desktop entry now uses the full-width horizontal card rails shown in the new desktop shells.
+- VERIFY: npm run typecheck = pass · npm run build = pass · browser smoke: `?ui=desktop&view=prep` -> DesktopPrep; `?ui=desktop&view=deck` -> DesktopDeck.
+- ASSUMPTIONS: The supplied screenshot is the old PrepScene active-deck view that should be replaced for normal desktop entry.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-25 — Codex — Make desktop Prep and Deck cards horizontal
+- CHANGED: Reworked the first-pass desktop Prep loadout into one horizontal card rail and changed Desktop Deck Build to a full-width horizontal board rail with a horizontal bag rail beneath it.
+- FILES: src/game/scenes/DesktopPrepScene.ts, src/game/scenes/DesktopDeckBuildScene.ts, docs/codex-handoff.md
+- DESIGN: Desktop card placement now follows the legacy across-the-page rail pattern instead of vertically stacking cards; card proportions and the shared full-card renderer remain unchanged.
+- VERIFY: npm run typecheck = pass · npm run build = pass · browser smoke: desktop-prep and desktop-deck boot expected scenes.
+- ASSUMPTIONS: “Across instead of vertical” refers to the active board/loadout and bag card rails.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-25 — Codex — Remove Battle from desktop browse navigation
+- CHANGED: Removed BATTLE from the desktop page tabs; combat remains reachable through the Prep FIGHT action only.
+- FILES: src/game/ui/DesktopNav.ts, src/game/scenes/DesktopWikiScene.ts, docs/codex-handoff.md
+- DESIGN: Battle is an encounter state, not a browsable hub page, so the desktop navigation now contains only PREP, DECK BUILD, and WIKI.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: Starting a configured fight is the only intended entry into Battle.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-25 — Codex — Expand desktop canvas and start page shells
+- CHANGED: Tightened Desktop Wiki spacing to five aligned columns, increased the selected inspector card, raised desktop text texture resolution to 6×, and added initial DesktopPrep and DesktopDeck scenes with shared horizontal navigation; Wiki now routes PREP and DECK BUILD into those desktop shells.
+- FILES: src/game/scenes/DesktopWikiScene.ts, src/game/scenes/DesktopPrepScene.ts, src/game/scenes/DesktopDeckBuildScene.ts, src/game/ui/DesktopNav.ts, src/game/layoutProfile.ts, src/game/devLaunch.ts, src/game/scenes/BootScene.ts, src/main.ts, docs/codex-handoff.md
+- DESIGN: Desktop page work starts from one shared horizontal header and flexible canvas; the existing card renderer remains the card source of truth. Battle continues to use the existing Battle scene while its desktop shell is the next refinement.
+- VERIFY: npm run typecheck = pass · npm run build = pass · browser smoke: desktop-prep, desktop-deck, and desktop-wiki each boot their expected scene.
+- ASSUMPTIONS: Five smaller gallery cards plus a larger selected card uses the available desktop space better than a sparse four-card gallery.
+- REQUESTS TO CLAUDE: none
+- OPEN: Desktop Prep/Deck are first-pass shells; interaction polish and a dedicated Battle shell remain.
+- Claude review: Pending.
+### 2026-07-25 — Codex — Give Wiki inspector card clear spacing
+- CHANGED: Reduced the desktop inspector preview to a controlled 260px width, moved it into its right-side lane, and added a larger gap before the centered ADD TO BAG button.
+- FILES: src/game/scenes/DesktopWikiScene.ts, docs/codex-handoff.md
+- DESIGN: The selected card no longer crowds the action or competes with nearby gallery text; the card face remains the only description surface.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: A 260px inspector card with 64px center-to-center action spacing is the right balance for the 1440×900 desktop canvas.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-25 — Codex — Strengthen existing weapon hex badge frame
+- CHANGED: Added a thicker, weapon-accented hex outline over the existing weapon badge shape; the full card silhouette remains tier-colored.
+- FILES: src/game/ui/FantasyCardTemplateV2.ts, docs/codex-handoff.md
+- DESIGN: Tier color belongs to the card frame; weapon color belongs only to the existing hexagon badge frame around the weapon icon.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: The requested “hexagon shape frame” is the existing type badge around weapon icons.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-25 — Codex — Simplify desktop card detail action
+- CHANGED: Removed the repeated desktop description/detail copy and centered a single ADD TO BAG button directly beneath the selected full card.
+- FILES: src/game/scenes/DesktopWikiScene.ts, docs/codex-handoff.md
+- DESIGN: The card face is the source of truth for its description; the surrounding detail area now acts only as a clean action zone.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: Keep the card itself as the only information surface and the button centered under it.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-25 — Codex — Keep card frame color tier-based
+- CHANGED: Removed the weapon-specific badge ring so the shared card frame remains controlled only by Bronze/Silver/Gold/Diamond tier skin colors.
+- FILES: src/game/ui/FantasyCardTemplateV2.ts, docs/codex-handoff.md
+- DESIGN: Weapon identity stays in the existing weapon badge; frame identity is consistently tier-based across all card types.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: “Those frames” refers to the full card silhouette/frame, not the weapon icon badge.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-25 — Codex — Correct desktop battle route and card rendering accents
+- CHANGED: Desktop Wiki BATTLE now routes to the desktop Battle scene; desktop text rendering uses a higher resolution; weapon identity is shown by a colored ring around the weapon badge while the overall card silhouette keeps its tier color.
+- FILES: src/main.ts, src/game/scenes/DesktopWikiScene.ts, src/game/ui/FantasyCardTemplateV2.ts, docs/codex-handoff.md
+- DESIGN: The card silhouette remains tier-led; weapon color is scoped to the weapon icon frame only. The desktop profile uses a 4× text texture resolution for sharper labels.
+- VERIFY: npm run typecheck = pass · npm run build = pass · browser smoke: DesktopWiki boots with no console errors and BATTLE starts Battle.
+- ASSUMPTIONS: Magic icon softness is primarily from desktop canvas/text scaling; the existing authored badge textures remain the source of truth.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-24 — Codex — Tune shared card type accents
+- CHANGED: Weapon cards now use their authored WEAPON_COLOR accent for the shared silhouette trim; elemental/magic type badges are scaled up slightly for stronger recognition.
+- FILES: src/game/ui/FantasyCardTemplateV2.ts, docs/codex-handoff.md
+- DESIGN: Tier remains the default trim language for non-weapon cards; weapon identity is now carried by the frame while magic identity gets a more prominent existing icon badge.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: “More hp” meant more visual pop/readability for magic icons.
+- REQUESTS TO CLAUDE: none
+- OPEN: If “more hp” meant a specific icon replacement or HP-themed symbol, adjust after user clarification.
+- Claude review: Pending.
+### 2026-07-24 — Codex — Preserve magic badge sharpness
+- CHANGED: Removed the experimental magic badge enlargement so the authored 80×80 elemental textures render at their intended scale and remain sharper on desktop.
+- FILES: src/game/ui/FantasyCardTemplateV2.ts, docs/codex-handoff.md
+- DESIGN: High definition is handled by using the real badge textures without enlarging them; weapon frame accents remain in place.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: “High definition” meant sharper source rendering, not larger icon dimensions.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-24 — Codex — Build actual desktop Wiki card surface
+- CHANGED: Added a dedicated DesktopWiki scene using the existing FantasyCardTemplateV2 renderer directly, with a horizontal navigation header, responsive desktop canvas, filters, card selection, detail view, and ADD TO BAG action.
+- FILES: src/game/scenes/DesktopWikiScene.ts, src/game/layoutProfile.ts, src/game/devLaunch.ts, src/game/scenes/BootScene.ts, src/main.ts, docs/codex-handoff.md
+- DESIGN: Desktop expands the surrounding canvas while preserving the authored mobile card silhouette and typography; no sideways navigation rail or replacement HTML card renderer is used.
+- VERIFY: npm run typecheck = pass · npm run build = pass · browser smoke: ?scene=desktop-wiki&ui=desktop boots DesktopWiki with no console errors.
+- ASSUMPTIONS: Desktop Wiki is the first implementation slice; Prep, Deck Build, and Battle can adopt the same horizontal shell after this card surface is approved.
+- REQUESTS TO CLAUDE: none
+- OPEN: DesktopWiki currently shows the first eight filtered cards; broader desktop scene migration remains after visual approval.
+- Claude review: Pending.
+### 2026-07-24 — Codex — Lock desktop Wiki card alignment
+- CHANGED: Rounded the shared desktop card height and used one explicit row stride so every FantasyCardTemplateV2 card shares the same portrait baseline and spacing.
+- FILES: src/game/scenes/DesktopWikiScene.ts, docs/codex-handoff.md
+- DESIGN: This is the first incremental desktop-template refinement; card geometry stays fixed while surrounding layout remains unchanged for review.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: Equal card silhouette and baseline are the preferred starting point before further desktop spacing or shell changes.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
 ### 2026-07-23 — Codex — Add end-of-fight card damage summary
 - CHANGED: Added a separate CARD DAMAGE summary box above the mobile victory/defeat banner.
 - FILES: src/game/scenes/MobileBattleScene.ts, docs/codex-handoff.md
@@ -1378,6 +1532,15 @@ _UI/design work Claude is handing over. Codex picks these up._
 - DESIGN: Filter selection rebuilds the existing two-column gallery and updates the visible card count; card detail behavior is unchanged.
 - VERIFY: npm run typecheck = pass · npm run build = pass.
 - ASSUMPTIONS: MAGIC maps to cards with an authored element; WEAPON maps to cards with an authored weapon type.
+- REQUESTS TO CLAUDE: none
+- OPEN: None.
+- Claude review: Pending.
+### 2026-07-24 — Codex — Focus mobile end-of-fight result overlay
+- CHANGED: Added a dimmed board overlay behind the battle ledger/result banner and a stronger highlighted END button when the outcome is reached.
+- FILES: src/game/scenes/MobileBattleScene.ts, src/game/ui/ActionBar.ts, docs/codex-handoff.md
+- DESIGN: The result layer now reads as a focused modal state without obscuring the ledger or footer; END uses a brighter fill and stronger border only in the outcome state.
+- VERIFY: npm run typecheck = pass · npm run build = pass.
+- ASSUMPTIONS: The board area is the correct dimming scope; the top log and bottom actions remain active/readable.
 - REQUESTS TO CLAUDE: none
 - OPEN: None.
 - Claude review: Pending.

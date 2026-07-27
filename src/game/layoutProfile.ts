@@ -32,11 +32,11 @@ export const MOBILE_PROFILE: LayoutProfile = {
 
 export const DESKTOP_PROFILE: LayoutProfile = {
   id: 'desktop',
-  canvas: { width: 720, height: 1280 },
-  safe: { x: 28, top: 28, bottom: 28 },
-  font: { tiny: 8, small: 9, body: 11, label: 10, name: 13, title: 20, big: 26 },
-  gap: 8,
-  minTap: 32,
+  canvas: { width: 1440, height: 900 },
+  safe: { x: 32, top: 24, bottom: 24 },
+  font: { tiny: 10, small: 11, body: 14, label: 12, name: 16, title: 26, big: 36 },
+  gap: 12,
+  minTap: 40,
 };
 
 export function detectProfile(search?: string): LayoutProfile {
@@ -46,6 +46,7 @@ export function detectProfile(search?: string): LayoutProfile {
   const ui = params.get('ui');
   if (ui === 'mobile') return MOBILE_PROFILE;
   if (ui === 'desktop') return DESKTOP_PROFILE;
+  if (['desktop-wiki', 'desktop-prep', 'desktop-deck', 'desktop-battle'].includes(params.get('scene') ?? '')) return DESKTOP_PROFILE;
   const screen = window.screen;
   const shortEdge = screen ? Math.min(screen.width, screen.height) : 9999;
   const coarse = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;

@@ -185,3 +185,50 @@ describe('run/encounter: buildAutoHeroSetup', () => {
     expect(level).toBe(1);
   });
 });
+
+describe('run/encounter: enemy modifiers', () => {
+  it('no modifiers (or []) resolves byte-identical to the pre-modifier behavior', () => {
+    const bare = buildEnemyEncounter('bandit_duelist', 3, 'elite', 2);
+    const empty = buildEnemyEncounter('bandit_duelist', 3, 'elite', 2, []);
+    expect(JSON.stringify(empty.setup)).toBe(JSON.stringify(bare.setup));
+    expect(empty.modifiers).toEqual([]);
+  });
+
+  it('diamond forces every card to diamond tier and reports rank at the ceiling', () => {
+    const unit = buildEnemyEncounter('bandit_duelist', 3, 'elite', 2, ['diamond']);
+    expect(unit.setup.pieces.length).toBeGreaterThan(0);
+    for (const piece of unit.setup.pieces) expect(piece.tier).toBe('diamond');
+    expect(unit.rank).toBe(maxRankFor(unit.setup.pieces.length));
+    expect(unit.modifiers).toEqual(['diamond']);
+  });
+
+  it('diamond does not touch stats', () => {
+    const bare = buildEnemyEncounter('bandit_duelist', 3, 'elite', 2);
+    const diamond = buildEnemyEncounter('bandit_duelist', 3, 'elite', 2, ['diamond']);
+    expect(diamond.setup.stats).toEqual(bare.setup.stats);
+  });
+
+  it('swift adds exactly its bonus PL of speed (8 PL / 2 per buy = +4 SPD) and nothing else', () => {
+    const bare = buildEnemyEncounter('bandit_duelist', 3, 'elite', 2);
+    const swift = buildEnemyEncounter('bandit_duelist', 3, 'elite', 2, ['swift']);
+    expect(swift.setup.stats.speed).toBe(bare.setup.stats.speed + 4);
+    expect(swift.setup.stats.maxHp).toBe(bare.setup.stats.maxHp);
+    expect(swift.setup.stats.attack).toBe(bare.setup.stats.attack);
+    expect(swift.setup.stats.magicPower).toBe(bare.setup.stats.magicPower);
+    expect(swift.setup.stats.armor).toBe(bare.setup.stats.armor);
+    expect(swift.setup.stats.magicResist).toBe(bare.setup.stats.magicResist);
+    // tiers untouched by a pure stat modifier
+    expect(swift.setup.pieces.map((p) => p.tier)).toEqual(bare.setup.pieces.map((p) => p.tier));
+  });
+
+  it('modifiers stack (diamond + swift)', () => {
+    const bare = buildEnemyEncounter('giant_rat', 2, 'normal', 0);
+    const both = buildEnemyEncounter('giant_rat', 2, 'normal', 0, ['diamond', 'swift']);
+    expect(both.setup.stats.speed).toBe(bare.setup.stats.speed + 4);
+    for (const piece of both.setup.pieces) expect(piece.tier).toBe('diamond');
+  });
+
+  it('throws on an unknown modifier id', () => {
+    expect(() => buildEnemyEncounter('bandit_duelist', 1, 'normal', 0, ['nope'])).toThrow(/unknown modifier/);
+  });
+});

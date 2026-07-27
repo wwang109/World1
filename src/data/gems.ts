@@ -31,7 +31,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'common',
     scope: 'hero',
     mods: { hero: { speed: 4 } },
-    text: '+4 Speed, permanent.',
+    text: 'Passive: hero +4 Speed.',
   },
   quickening_sliver: {
     // slow +8 weight: floor(8 * 5/2) = 20 deci = Common exactly. (Was a
@@ -42,7 +42,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'slow', weight: 8 }],
-    text: 'Casts also slow the enemy’s next action by +8 weight.',
+    text: "Also {{Slow}} the enemy's next action by +8 weight.",
   },
 
   // ---- Echo gems (one per skill, weaker versions of the skill's signature
@@ -54,7 +54,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also deal 4 (+the host card\'s power stat) bonus damage.',
+    text: 'Also +4 damage (+stat).',
   },
   savage_bite_echo: {
     // echo of savage_bite
@@ -63,7 +63,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also deal 4 (+the host card\'s power stat) bonus damage — a fading echo of fang and claw.',
+    text: 'Also +4 damage (+stat).',
   },
   hunter_shot_echo: {
     // echo of hunter_shot
@@ -72,7 +72,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also deal 4 (+the host card\'s power stat) bonus damage.',
+    text: 'Also +4 damage (+stat).',
   },
   arcane_bolt_echo: {
     // echo of arcane_bolt
@@ -81,7 +81,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also deal 4 (+the host card\'s power stat) bonus damage.',
+    text: 'Also +4 damage (+stat).',
   },
   fireball_echo: {
     // echo of fireball
@@ -112,7 +112,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'shield', power: 4 }],
-    text: 'Also grant a shield worth 4 (+the host card\'s power stat).',
+    text: 'Also +4 shield (+stat).',
   },
   mana_ward_echo: {
     // echo of mana_ward
@@ -121,7 +121,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'shield', power: 4 }],
-    text: 'Also grant a shield worth 4 (+the host card\'s power stat).',
+    text: 'Also +4 shield (+stat).',
   },
   mending_light_echo: {
     // echo of mending_light
@@ -130,7 +130,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'heal', power: 4 }],
-    text: 'Also restore 4 (+the host card\'s power stat) bonus health.',
+    text: 'Also +4 HP (+stat).',
   },
   time_crystal_echo: {
     // echo of time_crystal
@@ -140,7 +140,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'common',
     scope: 'card',
     mods: { card: { weightDelta: -1 } },
-    text: '−1 weight on this card (comes out faster).',
+    text: 'Passive: this card -1 weight (casts sooner).',
   },
   hamstring_echo: {
     // echo of hamstring
@@ -158,7 +158,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'lifesteal', pct: 30 }],
-    text: 'Also heal for 30% of the damage dealt.',
+    text: 'Also {{Lifesteal}} 30% of damage dealt.',
   },
   shield_splitter_echo: {
     // echo of shield_splitter
@@ -167,17 +167,19 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'shieldBreak', amount: 16 }],
-    text: 'Also shatter up to 16 enemy shield before the hit.',
+    text: 'Also {{Shatter}} 16 enemy shield.',
   },
   concussive_shot_echo: {
-    // echo of concussive_shot. disrupt re-priced to 1 PL per 4 drained:
-    // floor(8 * 5/2) = 20 deci = Common exactly (was amount 16 at 1-per-8).
+    // echo of concussive_shot. disrupt re-priced to the escalating bracket
+    // schedule (user-locked 2026-07-25, PRICE.disruptBrackets): the Common
+    // band (20 deci) only affords 4 points at the entry 5-deci/point rate
+    // (4*5 = 20 = Common exactly) — was amount 8 at the old flat rate.
     id: 'concussive_shot_echo',
     name: 'Concussive Whisper',
     kind: 'effect',
     rarity: 'common',
-    actions: [{ kind: 'disrupt', amount: 8 }],
-    text: "Also {{Disrupt}} 8 banked readiness from the enemy.",
+    actions: [{ kind: 'disrupt', amount: 4 }],
+    text: 'Also {{Disrupt}} 4 banked readiness.',
   },
   armor_break_echo: {
     // echo of armor_break
@@ -186,7 +188,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'debuffStat', stat: 'armor', pct: 10, turns: 2 }],
-    text: "Also reduce the enemy's Armor by 10% for 2 turns.",
+    text: 'Also -10% enemy Armor (2 turns).',
   },
   slow_hex_echo: {
     // echo of slow_hex
@@ -195,7 +197,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'debuffStat', stat: 'speed', pct: 10, turns: 2 }],
-    text: "Also reduce the enemy's Speed by 10% for 2 turns.",
+    text: 'Also -10% enemy Speed (2 turns).',
   },
   judgment_light_echo: {
     // echo of judgment_light
@@ -204,7 +206,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'debuffStat', stat: 'magicResist', pct: 10, turns: 2 }],
-    text: "Also reduce the enemy's Magic Resist by 10% for 2 turns.",
+    text: 'Also -10% enemy Magic Resist (2 turns).',
   },
   shadow_bolt_echo: {
     // echo of shadow_bolt
@@ -213,7 +215,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also deal 4 (+the host card\'s power stat) bonus damage.',
+    text: 'Also +4 damage (+stat).',
   },
   purify_echo: {
     // echo of purify
@@ -222,7 +224,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'guard', property: 'true', pct: 20, turns: 1 }],
-    text: 'Also reduce incoming damage of all types by 20% for 1 turn.',
+    text: 'Also -20% incoming damage, all types (1 turn).',
   },
 
   // ---- Rare (4 PL / 40 deci) ----
@@ -245,16 +247,19 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'rare',
     scope: 'card',
     mods: { card: { weightDelta: -2 } },
-    text: '−2 weight on this card (comes out faster).',
+    text: 'Passive: this card -2 weight (casts sooner).',
   },
   brawlers_core: {
+    // Re-fit for the 2026-07-25 heroStatPerPoint.attack repricing (8 -> 10
+    // deci/pt, see PRICE.heroStatPerPoint): 4 * 10 = 40 deci = Rare exactly
+    // (was attack 5 at the old 8/pt rate).
     id: 'brawlers_core',
     name: "Brawler's Core",
     kind: 'stat',
     rarity: 'rare',
     scope: 'hero',
-    mods: { hero: { attack: 5 } },
-    text: '+5 Attack, permanent.',
+    mods: { hero: { attack: 4 } },
+    text: 'Passive: hero +4 Attack.',
   },
   quickening_core: {
     // slow +16 weight: floor(16 * 5/2) = 40 deci = Rare exactly.
@@ -263,7 +268,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'slow', weight: 16 }],
-    text: 'Casts also slow the enemy’s next action by +16 weight.',
+    text: "Also {{Slow}} the enemy's next action by +16 weight.",
   },
 
   // ---- Rare echo gems (40 deci each) ----
@@ -274,7 +279,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'damage', power: 8 }],
-    text: 'Also deal 8 (+the host card\'s power stat) bonus damage.',
+    text: 'Also +8 damage (+stat).',
   },
   crushing_blow_echo: {
     // echo of crushing_blow
@@ -283,7 +288,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'damage', power: 8 }],
-    text: 'Also deal 8 (+the host card\'s power stat) bonus damage.',
+    text: 'Also +8 damage (+stat).',
   },
   crippling_strike_echo: {
     // echo of crippling_strike
@@ -292,7 +297,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'debuffStat', stat: 'attack', pct: 20, turns: 2 }],
-    text: "Also reduce the enemy's Attack by 20% for 2 turns.",
+    text: 'Also -20% enemy Attack (2 turns).',
   },
   frost_ward_echo: {
     // echo of frost_ward
@@ -302,7 +307,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'rare',
     // guard re-priced to parity (1x): 20*2*1 = 40 deci = Rare exactly (was pct 16).
     actions: [{ kind: 'guard', property: 'magical', pct: 20, turns: 2 }],
-    text: 'Also reduce incoming magical damage by 20% for 2 turns.',
+    text: 'Also -20% incoming magical damage (2 turns).',
   },
   ward_of_silence_echo: {
     // echo of ward_of_silence
@@ -312,7 +317,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'rare',
     // guard re-priced to parity (1x): 40*1*1 = 40 deci = Rare exactly (was pct 32).
     actions: [{ kind: 'guard', property: 'magical', pct: 40, turns: 1 }],
-    text: 'Also reduce incoming magical damage by 40% for 1 turn.',
+    text: 'Also -40% incoming magical damage (1 turn).',
   },
   second_wind_echo: {
     // echo of second_wind
@@ -321,7 +326,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'heal', power: 8 }],
-    text: 'Also restore 8 (+the host card\'s power stat) bonus health.',
+    text: 'Also +8 HP (+stat).',
   },
   war_banner_echo: {
     // echo of war_banner
@@ -331,7 +336,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'rare',
     scope: 'card',
     mods: { card: { damageFlat: 4 } },
-    text: '+4 damage on this card.',
+    text: 'Passive: this card +4 damage.',
   },
   battle_howl_echo: {
     // echo of battle_howl
@@ -340,7 +345,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'buffStat', stat: 'attack', pct: 20, turns: 2 }],
-    text: 'Also gain +20% Attack for 2 turns.',
+    text: 'Also +20% Attack (2 turns).',
   },
   follow_through_echo: {
     // echo of follow_through. Re-fit for the 2026-07-23 comboPerPoint cut
@@ -350,7 +355,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'comboBonus', amount: 16 }],
-    text: 'Also +16 damage if your previous cast shared an archetype with this card.',
+    text: 'Also {{Combo}} +16 damage (previous cast shared an archetype).',
   },
   hex_of_frailty_echo: {
     // echo of hex_of_frailty
@@ -359,7 +364,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'debuffStat', stat: 'magicResist', pct: 20, turns: 2 }],
-    text: "Also reduce the enemy's Magic Resist by 20% for 2 turns.",
+    text: 'Also -20% enemy Magic Resist (2 turns).',
   },
   stunning_smash_echo: {
     // echo of stunning_smash. Re-themed stun -> slow for the same reason as
@@ -379,7 +384,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'damage', power: 8 }],
-    text: 'Also deal 8 (+the host card\'s power stat) bonus damage.',
+    text: 'Also +8 damage (+stat).',
   },
 
   // ---- Epic (6 PL / 60 deci) ----
@@ -389,7 +394,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'epic',
     actions: [{ kind: 'debuffStat', stat: 'armor', pct: 30, turns: 2 }],
-    text: "Also reduce the enemy's Armor by 30% for 2 turns.",
+    text: 'Also -30% enemy Armor (2 turns).',
   },
   empowering_core: {
     id: 'empowering_core',
@@ -398,7 +403,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'epic',
     scope: 'card',
     mods: { card: { damageFlat: 6 } },
-    text: '+6 damage on this card.',
+    text: 'Passive: this card +6 damage.',
   },
   bulwark_core: {
     id: 'bulwark_core',
@@ -407,7 +412,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'epic',
     scope: 'hero',
     mods: { hero: { armor: 6 } },
-    text: '+6 Armor, permanent.',
+    text: 'Passive: hero +6 Armor.',
   },
 
   // ---- Epic echo gem (60 deci) ----
@@ -418,7 +423,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'epic',
     actions: [{ kind: 'shield', power: 12 }],
-    text: 'Also grant a shield worth 12 (+the host card\'s power stat).',
+    text: 'Also +12 shield (+stat).',
   },
 
   // ---- Legendary (8 PL / 80 deci) ----
@@ -440,16 +445,19 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'legendary',
     scope: 'card',
     mods: { card: { healFlat: 8 } },
-    text: '+8 healing on this card.',
+    text: 'Passive: this card +8 HP.',
   },
   archmages_core: {
+    // Re-fit for the 2026-07-25 heroStatPerPoint.magicPower repricing (8 -> 10
+    // deci/pt, see PRICE.heroStatPerPoint): 8 * 10 = 80 deci = Legendary
+    // exactly (was magicPower 10 at the old 8/pt rate).
     id: 'archmages_core',
     name: "Archmage's Core",
     kind: 'stat',
     rarity: 'legendary',
     scope: 'hero',
-    mods: { hero: { magicPower: 10 } },
-    text: '+10 Magic Power, permanent.',
+    mods: { hero: { magicPower: 8 } },
+    text: 'Passive: hero +8 Magic Power.',
   },
 
   // ---- Legendary echo gem (80 deci) ----
@@ -460,6 +468,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'legendary',
     actions: [{ kind: 'damage', power: 16 }],
-    text: 'Also deal 16 (+the host card\'s power stat) bonus damage.',
+    text: 'Also +16 damage (+stat).',
   },
 };
+

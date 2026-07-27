@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { actionsPriceDeci, BUDGET_TOLERANCE_DECI, effectCapDeci, gemPowerLevel, instancePowerLevelDeci, MAX_STUN_PER_CARD, powerLevel, powerLevelBreakdown, powerLevelDeci, PRICE, sizeGrantDeci, TIER_BUDGET_DECI } from '../../engine/balance';
 import { ELEMENT_BEATS, WEAPON_BEATS } from '../../engine/elements';
 import { weightOf, type Action, type CombatantSetup, type Element, type EnemyDef, type Property, type SkillDef, type SkillTier, type WeaponType } from '../../engine/types';
-import { damagePerTurn, type DamageBand } from '../../run/analysis';
+import type { DamageBand } from '../../run/analysis';
+import { fetchDamageBand } from '../battleApi';
 import { enemies } from '../../data/enemies';
 import { gemBook, type GemDef } from '../../data/gems';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../data/heroes';
@@ -201,8 +202,12 @@ export class PrepScene extends Phaser.Scene {
   private wikiFilterDraft: WikiFilters | null = null;
   private modalObjects: Phaser.GameObjects.GameObject[] = [];
   private activeEnemySlot = 0;
-  /** Memoized damage-per-turn bands (real sims are cheap but keyed to avoid per-render recompute). */
+  /** Memoized damage-per-turn bands, fetched from the battle service (combat is not in this bundle). */
   private dptCache = new Map<string, DamageBand>();
+  /** Signatures with an in-flight fetch — avoids firing duplicate requests for the same key. */
+  private dptPending = new Set<string>();
+  /** Signatures whose fetch failed — shown as a dim "n/a" instead of retrying every render. */
+  private dptFailed = new Set<string>();
   /** Transient border overlays showing an aura card's reach; cleared on hover-out. */
   private auraHighlightObjects: Phaser.GameObjects.GameObject[] = [];
 
@@ -210,18 +215,40 @@ export class PrepScene extends Phaser.Scene {
     super('Prep');
   }
 
-  /** Cached simulated damage-per-turn band for a setup, keyed by a stable signature. */
-  private dptBand(key: string, setup: CombatantSetup): DamageBand {
-    let band = this.dptCache.get(key);
-    if (!band) {
-      band = damagePerTurn(setup, skillBook);
-      this.dptCache.set(key, band);
+  /**
+   * Cached damage-per-turn band for a setup, keyed by a stable signature.
+   * Combat sims are served (this bundle may not import `simulate()`), so a
+   * cache miss kicks off an async fetch and returns `null` for this render;
+   * the resolved band is cached and the active view is redrawn once so the
+   * real number appears in place of the placeholder. Duplicate in-flight
+   * requests for the same key are suppressed via `dptPending`.
+   */
+  private dptBand(key: string, setup: CombatantSetup): DamageBand | null {
+    const cached = this.dptCache.get(key);
+    if (cached) return cached;
+    if (this.dptFailed.has(key)) return null;
+    if (!this.dptPending.has(key)) {
+      this.dptPending.add(key);
+      fetchDamageBand(setup).then((band) => {
+        this.dptPending.delete(key);
+        this.dptCache.set(key, band);
+        if (!this.scene.isActive()) return;
+        this.renderActiveView();
+        this.restoreSelection();
+      }).catch(() => {
+        this.dptPending.delete(key);
+        this.dptFailed.add(key);
+        if (!this.scene.isActive()) return;
+        this.renderActiveView();
+        this.restoreSelection();
+      });
     }
-    return band;
+    return null;
   }
 
-  /** Compact "min–max" (or a single number when the band has no spread). */
-  private static formatBand(band: DamageBand): string {
+  /** Compact "min–max" (a single number when the band has no spread), "…" while pending, "n/a" on failure. */
+  private static formatBand(band: DamageBand | null, failed = false): string {
+    if (!band) return failed ? 'n/a' : '…';
     return band.min === band.max ? `${band.avg}` : `${band.min}–${band.max}`;
   }
 
@@ -243,6 +270,8 @@ export class PrepScene extends Phaser.Scene {
     this.wikiFilterDraft = null;
     this.wikiTier = demoState.wikiTier;
     this.dptCache = new Map();
+    this.dptPending = new Set();
+    this.dptFailed = new Set();
     this.activeEnemySlot = 0;
     this.auraHighlightObjects = [];
   }
@@ -1511,8 +1540,8 @@ export class PrepScene extends Phaser.Scene {
           'The enemy skips their next cast (they still bank Speed).');
         rule('slow', `+${(10 * PRICE.slowPerWeightDen) / PRICE.slowPerWeightNum} weight = 1 PL`, `+16w = ${priced({ kind: 'slow', weight: 16 })} PL`,
           'The enemy\'s next cast costs +N weight, so it comes out later.');
-        rule('disrupt', `${(10 * PRICE.disruptPerPointDen) / PRICE.disruptPerPointNum} readiness = 1 PL`, `disrupt 16 = ${priced({ kind: 'disrupt', amount: 16 })} PL`,
-          'Drains the enemy\'s banked readiness — can deny an imminent cast.');
+        rule('disrupt', 'escalating: pts 1-5 @ 5/pt, 6-10 @ 15/pt, 11-15 @ 30/pt, 16+ @ 60/pt (deci)', `disrupt 6 = ${priced({ kind: 'disrupt', amount: 6 })} PL · disrupt 10 = ${priced({ kind: 'disrupt', amount: 10 })} PL`,
+          'Drains the enemy\'s banked readiness — can deny an imminent cast. Cost escalates sharply above 10.');
         rule('stat down', `${10 / PRICE.statPctTurn} %-turns = 1 PL`, `50% × 2t = ${priced({ kind: 'debuffStat', stat: 'attack', pct: 50, turns: 2 })} PL`,
           'Lowers an enemy stat by % for N global turns.');
         rule('expose', `${(10 * PRICE.guardPerPctTurnDen) / PRICE.guardPerPctTurnNum} %-turns = 1 PL · max 50%`, `50% × 2t = ${priced({ kind: 'expose', pct: 50, turns: 2 })} PL`,
@@ -2145,7 +2174,8 @@ export class PrepScene extends Phaser.Scene {
       .map((p) => `${p.skillId}@${p.slot}${p.gem ? `#${p.gem.id}` : ''}`)
       .sort()
       .join(',');
-    const heroBand = this.dptBand(`h:${demoState.heroLevel}:${deckSig}`, heroSetup);
+    const heroBandKey = `h:${demoState.heroLevel}:${deckSig}`;
+    const heroBand = this.dptBand(heroBandKey, heroSetup);
     const totalPl = demoState.pieces.reduce((sum, piece) => {
       const baseSkill = skillBook[piece.skillId];
       const skill = baseSkill ? applyTier(baseSkill, piece.tier) : undefined;
@@ -2166,7 +2196,7 @@ export class PrepScene extends Phaser.Scene {
       'CURRENT DECK',
       `${demoState.pieces.length} cards ready`,
       `LV ${demoState.heroLevel} · PL ${formatPowerDeci(totalPl)}`,
-      `HP ${stats.maxHp} · ATK ${stats.attack} · MAG ${stats.magicPower} · SPD ${stats.speed} · DMG/turn ${PrepScene.formatBand(heroBand)}`,
+      `HP ${stats.maxHp} · ATK ${stats.attack} · MAG ${stats.magicPower} · SPD ${stats.speed} · DMG/turn ${PrepScene.formatBand(heroBand, this.dptFailed.has(heroBandKey))}`,
       deckRows.length > 0 && deckRows[0]
         ? deckRows.join('\n')
         : 'No cards equipped yet.',
@@ -2212,11 +2242,9 @@ export class PrepScene extends Phaser.Scene {
 
     // Real simulated damage-per-turn band (10-turn output vs an inert dummy) —
     // the balancing readout; emphasized on the right of the stat block.
-    const enemyBand = this.dptBand(
-      `e:${demoState.enemyId}:${demoState.enemyLevel}:${demoState.enemyTitle}:${demoState.enemyRank}`,
-      encounter.setup,
-    );
-    this.viewText(bounds.x + bounds.w - 18, bounds.y + 102, `DMG/turn ${PrepScene.formatBand(enemyBand)}`, {
+    const enemyBandKey = `e:${demoState.enemyId}:${demoState.enemyLevel}:${demoState.enemyTitle}:${demoState.enemyRank}`;
+    const enemyBand = this.dptBand(enemyBandKey, encounter.setup);
+    this.viewText(bounds.x + bounds.w - 18, bounds.y + 102, `DMG/turn ${PrepScene.formatBand(enemyBand, this.dptFailed.has(enemyBandKey))}`, {
       fontSize: '12px',
       color: `#${UI.bad.toString(16).padStart(6, '0')}`,
       fontFamily: FONT.body,
@@ -2400,8 +2428,9 @@ export class PrepScene extends Phaser.Scene {
       .map((p) => `${p.skillId}@${p.slot}${p.gem ? `#${p.gem.id}` : ''}`)
       .sort()
       .join(',');
-    const heroBand = this.dptBand(`h:${demoState.heroLevel}:${deckSig}`, heroSetup);
-    this.viewText(stepX + 132, rowY + 12, `HP ${stats.maxHp} · ATK ${stats.attack} · MAG ${stats.magicPower} · SPD ${stats.speed} · DMG/turn ${PrepScene.formatBand(heroBand)}`, {
+    const heroBandKey = `h:${demoState.heroLevel}:${deckSig}`;
+    const heroBand = this.dptBand(heroBandKey, heroSetup);
+    this.viewText(stepX + 132, rowY + 12, `HP ${stats.maxHp} · ATK ${stats.attack} · MAG ${stats.magicPower} · SPD ${stats.speed} · DMG/turn ${PrepScene.formatBand(heroBand, this.dptFailed.has(heroBandKey))}`, {
       fontSize: '10px',
       color: UI.text,
       fontFamily: FONT.body,

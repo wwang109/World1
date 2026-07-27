@@ -163,12 +163,30 @@ export const PRICE = {
   slowPerWeightNum: 5,
   slowPerWeightDen: 2,
 
-  /** disrupt: amount * (disruptPerPointNum/Den) — 1 PL per 4 drained
-   * (user-locked 2026-07-19; doubled from 1 PL per 8). Throughput rationale
-   * (docs/throughput-pl-proposal.md §2.E): draining banked readiness is a
-   * meaningful tempo swing that was underpriced. */
-  disruptPerPointNum: 5,
-  disruptPerPointDen: 2,
+  /**
+   * disrupt: ESCALATING BRACKETED rate (user-locked 2026-07-25 — REPLACES the
+   * prior flat 1-PL-per-4 rate). Draining banked readiness is a hard tempo
+   * denial with no counterplay window (unlike a debuff or DoT the target can
+   * out-race), so large amounts must be disproportionately, not linearly,
+   * expensive — the design directive is "only 5-10 is a sane card magnitude,
+   * and each further point costs more than the last." Each bracket below
+   * prices only the points THAT FALL IN IT (marginal, not average) at a
+   * deci-PL rate per point:
+   *   points  1-5  : 5 deci/point  (cheap  — half the flat-damage rate)
+   *   points  6-10 : 15 deci/point (3x the entry rate)
+   *   points 11-15 : 30 deci/point (6x the entry rate)
+   *   points  16+  : 60 deci/point (12x the entry rate)
+   * Cumulative checkpoints fall on clean whole-PL numbers by design:
+   *   5 -> 25 deci (2.5 PL) · 10 -> 100 deci (10 PL, all of Bronze)
+   *   15 -> 250 deci (25 PL, all of Diamond) · 16 -> 310 deci (31 PL,
+   *   unaffordable at any tier). See `disruptCostDeci`.
+   */
+  disruptBrackets: [
+    { upTo: 5, rateDeci: 5 },
+    { upTo: 10, rateDeci: 15 },
+    { upTo: 15, rateDeci: 30 },
+    { upTo: Infinity, rateDeci: 60 },
+  ],
 
   /** lifesteal: pct * (lifestealPerPctNum/Den) — 1 PL per 15%. */
   lifestealPerPctNum: 2,
@@ -258,12 +276,28 @@ export const PRICE = {
    * Hero-scope gem stat mods: flat integer points folded into base
    * `CombatantStats` for the whole run (permanent, every card, every turn) —
    * see "Gem pricing" in docs/power-level-reference.md for the anchoring
-   * rationale per stat. First-pass rates; re-tune with sim data once
-   * content-designer's gem catalog exists.
+   * rationale per stat.
+   *
+   * `attack`/`magicPower` re-priced 8 -> 10 (balance-designer pass,
+   * 2026-07-25 — see docs/power-level-reference.md "Hero-scope vs card-scope
+   * stat pricing"): a hero-scope point adds flat damage/shield to EVERY
+   * matching-property card on the board, every cast, for the whole fight —
+   * strictly MORE reach than a card-scope stat gem's `auraDamageFlat`/
+   * `auraHealFlat` rate (10/pt), which is pinned to exactly one host card.
+   * Pricing hero-scope BELOW card-scope (the old 8) was backwards: the
+   * broader-reaching effect can never be honestly cheaper than the
+   * single-card one. 10/pt is the floor-parity fix (hero-scope now costs at
+   * least as much per point as a guaranteed one-card buff); it's still a
+   * bargain in any deck with 2+ matching-property cards, which is the
+   * expected case, so this remains a conservative correction, not a punitive
+   * one. `armor`/`magicResist` already priced at 10 (unaffected — this pass
+   * brings attack/magicPower up to meet them, so all four core combat stats
+   * now share one rate); `speed` is a distinct tempo stat, left at its own
+   * anchor.
    */
   heroStatPerPoint: {
-    attack: 8,
-    magicPower: 8,
+    attack: 10,
+    magicPower: 10,
     armor: 10,
     magicResist: 10,
     speed: 5,
@@ -282,6 +316,25 @@ export function burnTotalDamage(stacks: number): number {
   let total = 0;
   for (let s = Math.max(0, Math.floor(stacks)); s > 0; s = Math.floor(s / 2)) total += 2 * s;
   return total;
+}
+
+/**
+ * Escalating bracketed disrupt price (deci-PL) for a given amount of drained
+ * banked readiness — see PRICE.disruptBrackets for the rate table and
+ * rationale. Marginal pricing: only the points that fall inside a bracket pay
+ * that bracket's rate, matching the style of a progressive tax bracket.
+ * Integer-only (amount is always a whole readiness point).
+ */
+export function disruptCostDeci(amount: number): number {
+  let deci = 0;
+  let priced = 0;
+  for (const bracket of PRICE.disruptBrackets) {
+    if (amount <= priced) break;
+    const upTo = Math.min(amount, bracket.upTo);
+    deci += (upTo - priced) * bracket.rateDeci;
+    priced = upTo;
+  }
+  return deci;
 }
 
 export function sizeGrantDeci(size: number, tier: SkillTier): number {
@@ -347,7 +400,7 @@ export function actionsPriceDeci(actions: readonly Action[], property: Property)
         deci += Math.floor((action.weight * PRICE.slowPerWeightNum) / PRICE.slowPerWeightDen);
         break;
       case 'disrupt':
-        deci += Math.floor((action.amount * PRICE.disruptPerPointNum) / PRICE.disruptPerPointDen);
+        deci += disruptCostDeci(action.amount);
         break;
       case 'lifesteal':
         deci += Math.floor((action.pct * PRICE.lifestealPerPctNum) / PRICE.lifestealPerPctDen);

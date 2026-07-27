@@ -7,6 +7,7 @@ export interface ActionButton {
   label: string;
   onPress: () => void;
   primary?: boolean;
+  highlight?: boolean;
   flex?: number;
 }
 
@@ -43,10 +44,10 @@ export function renderActionBar(
   let cx = x;
   for (const b of buttons) {
     const w = (usable * (b.flex ?? 1)) / totalFlex;
-    const fill = b.primary ? 0xb78a46 : 0x1b2940;
-    const color = b.primary ? '#1a1208' : '#e8e0c8';
+    const fill = b.highlight ? 0xe8b446 : b.primary ? 0xb78a46 : 0x1b2940;
+    const color = b.primary || b.highlight ? '#1a1208' : '#e8e0c8';
     const r = scene.add.rectangle(cx, y, w, FOOTER_HEIGHT, fill)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      .setOrigin(0, 0).setStrokeStyle(b.highlight ? 2 : 1, b.highlight ? 0xffe2a0 : UI.border, b.highlight ? 1 : 0.7).setInteractive({ useHandCursor: true });
     r.on('pointerdown', b.onPress);
     scene.add.text(cx + w / 2, y + FOOTER_HEIGHT / 2, b.label, {
       fontSize: '13px', color, fontFamily: FONT.body, fontStyle: 'bold',

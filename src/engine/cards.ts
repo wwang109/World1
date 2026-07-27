@@ -120,11 +120,13 @@ export function autoScaleTier(def: SkillDef, targetTier: SkillTier): SkillDef {
       if (perActionPower !== null && sinkIndices.includes(i)) return { ...a, power: perActionPower };
       return a;
     });
+  const withEffects = (next: Action[]): SkillDef =>
+    ({ ...def, tier: targetTier, effects: next, text: retextScaledNumbers(def.text, effects, next) });
 
   // CAP-HIT: no scalable sink to hit the budget with (pure control/empower/aura).
   // Leave the base kit unchanged — under budget, audit-exempt until authored.
   if (sinkIndices.length === 0) {
-    return { ...def, tier: targetTier, effects: applyEffects(null) };
+    return withEffects(applyEffects(null));
   }
 
   const scalableBudget = budget - frozenDeci - dotDeci;
@@ -133,10 +135,35 @@ export function autoScaleTier(def: SkillDef, targetTier: SkillTier): SkillDef {
   const denom = rate * sinkIndices.length;
   // Accept only a clean, non-negative, evenly-split integer solution.
   if (!homogeneous || scalableBudget < 0 || denom <= 0 || scalableBudget % denom !== 0) {
-    return { ...def, tier: targetTier, effects: applyEffects(null) };
+    return withEffects(applyEffects(null));
   }
   const perActionPower = scalableBudget / denom;
-  return { ...def, tier: targetTier, effects: applyEffects(perActionPower) };
+  return withEffects(applyEffects(perActionPower));
+}
+
+/**
+ * Keep the display `text` honest when auto-scaling changes effect numbers
+ * (authored `tierUpgrades` carry their own text; this covers the generic
+ * path). For each effect whose `power`/`stacks` changed, rewrite the FIRST
+ * standalone occurrence of the old number in the text (not part of a longer
+ * number and not a percentage). Effects are display-only — the engine never
+ * reads `text` — so a rare miss degrades display, never simulation.
+ */
+function retextScaledNumbers(text: string, before: readonly Action[], after: readonly Action[]): string {
+  let out = text;
+  before.forEach((oldAction, i) => {
+    const newAction = after[i];
+    if (!newAction) return;
+    const numericPairs: Array<[number | undefined, number | undefined]> = [
+      [(oldAction as { power?: number }).power, (newAction as { power?: number }).power],
+      [(oldAction as { stacks?: number }).stacks, (newAction as { stacks?: number }).stacks],
+    ];
+    for (const [oldValue, newValue] of numericPairs) {
+      if (oldValue === undefined || newValue === undefined || oldValue === newValue) continue;
+      out = out.replace(new RegExp(`(?<!\\d)${oldValue}(?!\\d|%)`), String(newValue));
+    }
+  });
+  return out;
 }
 
 /**

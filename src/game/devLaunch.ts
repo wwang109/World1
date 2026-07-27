@@ -1,8 +1,8 @@
 import { enemies } from '../data/enemies';
-import { defaultTitleFor, ENEMY_TITLES, TITLE_PRESETS, type EnemyTitle } from '../run/encounter';
-import { demoState, EMPTY_BOARD_OVERRIDES, resetDemoState, type DemoState, type EnemyFightConfig, type PrepView } from './demoState';
+import { defaultTitleFor, ENEMY_TITLES, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../run/encounter';
+import { demoState, EMPTY_BOARD_OVERRIDES, MAX_FOES, resetDemoState, type DemoState, type EnemyFightConfig, type PrepView } from './demoState';
 
-export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mbattle' | 'mwiki';
+export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mbattle' | 'mwiki' | 'desktop-wiki' | 'desktop-prep' | 'desktop-deck' | 'desktop-battle';
 
 export interface DevLaunchConfig {
   scene: LaunchScene;
@@ -16,6 +16,7 @@ export interface DevLaunchConfig {
   enemyLevel: number;
   enemyTitle: EnemyTitle;
   enemyRank: number;
+  enemyModifiers: string[];
 }
 
 const PREP_VIEW_MAP: Record<string, PrepView> = {
@@ -46,6 +47,10 @@ function parseScene(value: string | null, view: string | null): LaunchScene {
   if (view === 'mdeck' || value === 'mdeck') return 'mdeck';
   if (view === 'mbattle' || value === 'mbattle') return 'mbattle';
   if (view === 'mwiki' || value === 'mwiki') return 'mwiki';
+  if (view === 'desktop-wiki' || value === 'desktop-wiki') return 'desktop-wiki';
+  if (view === 'desktop-prep' || value === 'desktop-prep') return 'desktop-prep';
+  if (view === 'desktop-deck' || value === 'desktop-deck') return 'desktop-deck';
+  if (view === 'desktop-battle' || value === 'desktop-battle') return 'desktop-battle';
   return value === 'battle' || value === 'multi' ? 'battle' : 'prep';
 }
 
@@ -68,8 +73,11 @@ function parseEnemyIds(value: string | null, fallback: string): string[] {
   const valid = value
     .split(',')
     .map((id) => id.trim())
+    // Dedupe is intentional (a deep-link naming the same foe twice is a typo),
+    // but the cap tracks MAX_FOES so `?enemies=` can reach any team the + FOE
+    // button can build — it was pinned at 2 from the original 2v1 support.
     .filter((id, index, ids) => id in enemies && ids.indexOf(id) === index)
-    .slice(0, 2);
+    .slice(0, MAX_FOES);
   return valid.length > 0 ? valid : [fallback];
 }
 
@@ -87,6 +95,15 @@ function parseTitle(value: string | null, fallback: EnemyTitle): EnemyTitle {
   return value && (ENEMY_TITLES as string[]).includes(value.toLowerCase()) ? (value.toLowerCase() as EnemyTitle) : fallback;
 }
 
+/** `?mods=diamond,swift` — unknown ids are dropped (a dev deep-link should not crash boot). */
+function parseModifiers(value: string | null): string[] {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((id) => id.trim().toLowerCase())
+    .filter((id, index, ids) => id in MODIFIER_PRESETS && ids.indexOf(id) === index);
+}
+
 function stateOverridesFromConfig(config: DevLaunchConfig): Partial<DemoState> {
   return {
     ...(config.board === 'empty' ? EMPTY_BOARD_OVERRIDES : {}),
@@ -99,6 +116,7 @@ function stateOverridesFromConfig(config: DevLaunchConfig): Partial<DemoState> {
     enemyLevel: config.enemyLevel,
     enemyTitle: config.enemyTitle,
     enemyRank: config.enemyRank,
+    enemyModifiers: config.enemyModifiers,
   };
 }
 
@@ -114,6 +132,7 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
   const enemyRank = rankParam !== null && Number.isFinite(Number(rankParam))
     ? Math.max(0, Math.floor(Number(rankParam)))
     : TITLE_PRESETS[enemyTitle].rank;
+  const enemyModifiers = parseModifiers(params.get('mods'));
   const enemyTeam = enemyIds.map((id, index): EnemyFightConfig => {
     const definition = enemies[id]!;
     const title = index === 0 || params.has('title') ? enemyTitle : defaultTitleFor(definition);
@@ -122,7 +141,7 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
       level: index === 0 || params.has('enemyLevel') ? enemyLevel : Math.max(1, definition.baseDepth),
       title,
       rank: index === 0 || rankParam !== null ? enemyRank : TITLE_PRESETS[title].rank,
-      modifiers: [],
+      modifiers: index === 0 ? [...enemyModifiers] : [],
     };
   });
   return {
@@ -138,6 +157,7 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
     enemyTitle,
     // Rank defaults to the title's preset rank unless explicitly overridden.
     enemyRank,
+    enemyModifiers,
   };
 }
 

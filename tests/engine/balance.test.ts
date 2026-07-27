@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BUDGET_TOLERANCE_DECI,
   capViolations,
+  disruptCostDeci,
   EFFECT_CAPS_DECI,
   effectCapDeci,
   gemPowerLevelDeci,
@@ -32,6 +33,12 @@ import type { Gem, SkillDef } from '../../src/engine/types';
 // (comboPerPointNum/Den = 5/2) — CONDITIONAL-TRIGGER DISCOUNT: a bonus gated
 // on "previous cast shared an archetype" doesn't always fire, so it must cost
 // less per point than guaranteed flat damage. See balance.ts for the derivation.
+//
+// 2026-07-25: disrupt re-priced from a flat per-point rate to an ESCALATING
+// bracket schedule (PRICE.disruptBrackets, read by disruptCostDeci) —
+// user-locked: draining banked readiness has no counterplay window, so large
+// amounts must cost disproportionately more than small ones. See balance.ts
+// for the full bracket table and rationale.
 describe('PRICE structure lock', () => {
   it('every PRICE rate matches its locked value', () => {
     expect(PRICE).toEqual({
@@ -49,8 +56,12 @@ describe('PRICE structure lock', () => {
       cooldownPerTurn: 100,
       slowPerWeightNum: 5,
       slowPerWeightDen: 2,
-      disruptPerPointNum: 5,
-      disruptPerPointDen: 2,
+      disruptBrackets: [
+        { upTo: 5, rateDeci: 5 },
+        { upTo: 10, rateDeci: 15 },
+        { upTo: 15, rateDeci: 30 },
+        { upTo: Infinity, rateDeci: 60 },
+      ],
       lifestealPerPctNum: 2,
       lifestealPerPctDen: 3,
       shieldBreakPerPointNum: 5,
@@ -66,7 +77,7 @@ describe('PRICE structure lock', () => {
       auraHealFlat: 10,
       auraWeightDelta: 20,
       extraHitPremium: 30,
-      heroStatPerPoint: { attack: 8, magicPower: 8, armor: 10, magicResist: 10, speed: 5 },
+      heroStatPerPoint: { attack: 10, magicPower: 10, armor: 10, magicResist: 10, speed: 5 },
     });
   });
 });
@@ -278,6 +289,32 @@ describe('Power Level budgets', () => {
     expect(powerLevelDeci(mk('poison', 5))).toBe(powerLevelDeci(mk('burn', 5)));
   });
 
+  it('disrupt is priced on an ESCALATING bracket schedule (marginal, not linear)', () => {
+    const mk = (amount: number): SkillDef => ({
+      id: 'x',
+      name: 'x',
+      archetypes: ['debuff'],
+      property: 'physical',
+      size: 1,
+      weapon: 'bow',
+      rarity: 'common',
+      tier: 'bronze',
+      effects: [{ kind: 'disrupt', amount }],
+      text: '',
+    });
+    // Entry bracket (1-5 @ 5 deci/pt).
+    expect(disruptCostDeci(5)).toBe(25);
+    expect(powerLevelDeci(mk(5))).toBe(25);
+    // 6-10 bracket (15 deci/pt) — only the points ABOVE 5 pay the higher rate.
+    expect(disruptCostDeci(6)).toBe(40);
+    expect(disruptCostDeci(10)).toBe(100); // all of Bronze, alone
+    // 11-15 bracket (30 deci/pt).
+    expect(disruptCostDeci(15)).toBe(250); // all of Diamond, alone
+    // 16+ bracket (60 deci/pt) — unaffordable at any tier.
+    expect(disruptCostDeci(16)).toBe(310);
+    expect(disruptCostDeci(16)).toBeGreaterThan(TIER_BUDGET_DECI.diamond);
+  });
+
   it('cleanse is priced per charge (25 deci); 4 charges lands on Bronze', () => {
     const mk = (charges: number): SkillDef => ({
       id: 'x',
@@ -323,9 +360,10 @@ describe('Gem Power Level', () => {
   });
 
   it('effect gem: priced via actionsPriceDeci over the canonical (physical) property', () => {
-    // disrupt 8 -> floor(8 * 5/2) = 20 deci; lands on the Common band.
-    const gem: Gem = { kind: 'effect', id: 'g1', rarity: 'common', actions: [{ kind: 'disrupt', amount: 8 }] };
-    expect(gemPowerLevelDeci(gem)).toBe(Math.floor((8 * PRICE.disruptPerPointNum) / PRICE.disruptPerPointDen));
+    // disrupt 4 -> all 4 points fall in the entry bracket (5 deci/pt) = 20
+    // deci; lands on the Common band.
+    const gem: Gem = { kind: 'effect', id: 'g1', rarity: 'common', actions: [{ kind: 'disrupt', amount: 4 }] };
+    expect(gemPowerLevelDeci(gem)).toBe(disruptCostDeci(4));
     expect(gemPowerLevelDeci(gem)).toBe(20);
     expect(isGemOnBudget(gem)).toBe(true);
   });
@@ -349,15 +387,15 @@ describe('Gem Power Level', () => {
       id: 'g3',
       rarity: 'epic',
       scope: 'hero',
-      mods: { hero: { attack: 5, speed: 4 } }, // 5*8 + 4*5 = 60 deci
+      mods: { hero: { attack: 4, speed: 4 } }, // 4*10 + 4*5 = 60 deci
     };
-    expect(gemPowerLevelDeci(gem)).toBe(5 * PRICE.heroStatPerPoint.attack + 4 * PRICE.heroStatPerPoint.speed);
+    expect(gemPowerLevelDeci(gem)).toBe(4 * PRICE.heroStatPerPoint.attack + 4 * PRICE.heroStatPerPoint.speed);
     expect(gemPowerLevelDeci(gem)).toBe(60);
     expect(isGemOnBudget(gem)).toBe(true);
   });
 
   it('isGemOnBudget flags a gem outside its rarity band', () => {
-    const cheapCommon: Gem = { kind: 'effect', id: 'g4', rarity: 'common', actions: [{ kind: 'disrupt', amount: 4 }] };
+    const cheapCommon: Gem = { kind: 'effect', id: 'g4', rarity: 'common', actions: [{ kind: 'disrupt', amount: 2 }] };
     expect(isGemOnBudget(cheapCommon)).toBe(false);
   });
 });
