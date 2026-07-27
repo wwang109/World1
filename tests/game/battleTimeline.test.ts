@@ -83,6 +83,22 @@ describe('game/battleTimeline', () => {
     expect(model.focusFoeByStep[0]).toBeUndefined();
   });
 
+  it('a size-3 card logs its full span: cast 1/3 then WAIT lines 2/3 and 3/3', () => {
+    const model = timeline({
+      ...BASE,
+      pieces: [{ instanceId: 'c1', skillId: 'crushing_blow', tier: 'bronze', slot: 0 }],
+    });
+    const lines = [...model.linesByTurn.values()].flat();
+    expect(lines.some((l) => l.tag === 'PLAY' && l.text.includes('Crushing Blow · 1/3'))).toBe(true);
+    // The busy turns must be visible — a span turn with no line vanishes from playback.
+    expect(lines.some((l) => l.tag === 'WAIT' && l.text.includes('Crushing Blow · 2/3'))).toBe(true);
+    expect(lines.some((l) => l.tag === 'WAIT' && l.text.includes('Crushing Blow · 3/3'))).toBe(true);
+    // WAIT lines are playback steps, so the scrubber pauses on span turns.
+    const waitStep = model.steps.find((s) =>
+      model.linesByTurn.get(s.turn)![s.lineIndex]!.tag === 'WAIT');
+    expect(waitStep).toBeDefined();
+  });
+
   it('single-enemy input still resolves identically through the team path', () => {
     const single = timeline(BASE);
     const teamOfOne = timeline({

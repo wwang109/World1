@@ -283,7 +283,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         break;
       }
       case 'play': {
-        push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}`);
+        // Multi-slot cards carry their span progress: the cast turn is 1/N,
+        // the busy turns below continue 2/N … N/N.
+        const progress = e.slotCount > 1 ? ` · ${e.slotIndex}/${e.slotCount}` : '';
+        push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress}`);
         const slots = playSlotByTurn.get(e.turn) ?? {};
         if (e.side === 'player') slots.player = e.slot;
         else {
@@ -375,6 +378,21 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       case 'statusExpired': {
         const bucket = e.side === 'player' ? dotsPlayer : dotsEnemies[unitOf(e)]!;
         bucket.delete(e.status);
+        break;
+      }
+      // A size-N card busies its caster N−1 further turns; each one gets a
+      // WAIT line ("Meteor · 2/3") so span turns don't vanish from the log,
+      // and the gold board cursor tracks the occupied slot being worked off.
+      case 'busy': {
+        push(e.turn, 'WAIT', `${label(e)} · ${skillName(e.skillId)} · ${e.slotIndex}/${e.slotCount}`);
+        const slots = playSlotByTurn.get(e.turn) ?? {};
+        if (e.side === 'player') slots.player = e.slot;
+        else {
+          slots.enemyUnits = slots.enemyUnits ?? foes.map(() => undefined);
+          slots.enemyUnits[unitOf(e)] = e.slot;
+          if (unitOf(e) === 0) slots.enemy = e.slot;
+        }
+        playSlotByTurn.set(e.turn, slots);
         break;
       }
       case 'died': push(e.turn, 'DOWN', `${label(e)} falls`); break;
