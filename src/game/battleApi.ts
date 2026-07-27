@@ -12,7 +12,10 @@ import type { BattleTimelineInput } from './battleTimeline';
  * imports, so nothing from the engine survives into the build.
  */
 
-const BASE_URL: string = (import.meta.env?.VITE_BATTLE_API as string | undefined) ?? 'http://localhost:8787';
+// Dev talks to the local tsx server; production is same-origin (Cloudflare
+// Pages Functions in functions/ serve /battle and /damage-band).
+const BASE_URL: string = (import.meta.env?.VITE_BATTLE_API as string | undefined)
+  ?? (import.meta.env?.DEV ? 'http://localhost:8787' : '');
 
 /** Prep info → request payload. The foe list is the multi-foe team when present. */
 export function battleRequestOf(input: BattleTimelineInput): BattleRequest {
