@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import type { SkillDef } from '../../engine/types';
-import { demoState } from '../demoState';
 import {
   buildBattleTimeline,
   type BattleTimelineInput,
@@ -8,12 +7,17 @@ import {
 } from '../battleTimeline';
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
+import { getBattleContext, getBattleTimelineInput } from '../battleContext';
+import { currentBankedPL, currentHeroLevel, notifyTutorialMoment, resolveRunBattleResult, skipTutorial } from '../runStore';
 import type { BattleLog } from '../../run/resolveBattle';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { renderDesktopBackground } from '../ui/DesktopNav';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import type { ScalingStats } from '../ui/skillPresentation';
+import { renderTutorialCard } from '../tutorial/overlay';
+import { armCards } from '../tutorial/controller';
+import type { ArmedTutorialCard, TutorialAnchorId, TutorialAnchorRect } from '../tutorial/types';
 
 const F = DESKTOP_PROFILE.font;
 
@@ -96,6 +100,10 @@ export class DesktopBattleScene extends Phaser.Scene {
    * it; a fresh scene entry (init() runs) re-fetches a new log and credits again. */
   private goldCreditedLog: BattleLog | null = null;
   private goldPayout = 0;
+  /** Queued tutorial pointer card(s) armed by the current render pass (run
+   * context only — see `notifyBattleTutorialMoments`); shown one at a time. */
+  private activeTutorialCards: ArmedTutorialCard[] = [];
+  private tutorialCardIndex = 0;
 
   constructor() { super('DesktopBattle'); }
 
@@ -135,6 +143,8 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.playTimer = undefined;
     this.goldCreditedLog = null;
     this.goldPayout = 0;
+    this.activeTutorialCards = [];
+    this.tutorialCardIndex = 0;
   }
 
   create(): void {
@@ -155,7 +165,9 @@ export class DesktopBattleScene extends Phaser.Scene {
       // SAME log object (no re-fetch), so the identity check skips it.
       if (this.goldCreditedLog !== log) {
         this.goldCreditedLog = log;
-        this.goldPayout = creditBattleGold(input, log);
+        this.goldPayout = getBattleContext() === 'run'
+          ? resolveRunBattleResult(input, log)
+          : creditBattleGold(input, log);
       }
       this.idx = 0;
       this.render();
@@ -175,20 +187,10 @@ export class DesktopBattleScene extends Phaser.Scene {
     }).setOrigin(0.5);
   }
 
-  /** The prep info this fight resolves from. */
+  /** The prep info this fight resolves from — demoState in Sandbox, the
+   * active run's current combat node in Run Mode (see `battleContext.ts`). */
   private fightInput(): BattleTimelineInput {
-    return {
-      pieces: demoState.pieces,
-      heroLevel: demoState.heroLevel,
-      heroAllocation: demoState.heroAllocation,
-      enemyId: demoState.enemyId,
-      enemyLevel: demoState.enemyLevel,
-      enemyTitle: demoState.enemyTitle,
-      enemyRank: demoState.enemyRank,
-      enemyModifiers: demoState.enemyModifiers,
-      enemyTeam: demoState.enemyTeam,
-      seed: demoState.seed,
-    };
+    return getBattleTimelineInput();
   }
 
   /** Auto-advance the scrubber through the fight, one event-step at a time; stops at the end. */
@@ -422,20 +424,85 @@ export class DesktopBattleScene extends Phaser.Scene {
     }
 
     // ---- combat log (center column) ----
-    this.renderLog(logX, contentTop, logW, contentBottom - contentTop, turn, step, isOutcomeStep);
+    const logAnchors = this.renderLog(logX, contentTop, logW, contentBottom - contentTop, turn, step, isOutcomeStep);
 
     // ---- horizontal scrubber + footer controls ----
     this.renderScrubber(leftX, scrubberY, this.W - GUTTER * 2);
     this.renderFooter(leftX, footerY, this.W - GUTTER * 2);
 
+    let levelUpAnchor: TutorialAnchorRect | undefined;
     if (isOutcomeStep) {
-      this.renderOutcome(leftX, contentTop, this.W - GUTTER * 2, contentBottom - contentTop);
+      levelUpAnchor = this.renderOutcome(leftX, contentTop, this.W - GUTTER * 2, contentBottom - contentTop);
+    }
+
+    // ---- tutorial (run context only) ----
+    if (getBattleContext() === 'run') {
+      this.notifyBattleTutorialMoments(logAnchors, isOutcomeStep);
+      this.renderTutorialOverlay({
+        hitRow: logAnchors.hitRowAnchor,
+        turnline: logAnchors.turnlineAnchor,
+        levelUpLine: levelUpAnchor,
+      });
     }
   }
 
+  /** One notify() call per relevant moment this render pass exposes — every
+   * call is idempotent beyond the first fire (see `notifyTutorialMoment`),
+   * so calling them every render is safe; each only ever arms its step(s)
+   * once across the whole run. Only ever called in run context (checked by
+   * the caller) — the tutorial never arms in the Sandbox. */
+  private notifyBattleTutorialMoments(
+    logAnchors: { turnlineAnchor: TutorialAnchorRect; hitRowAnchor?: TutorialAnchorRect; hitRowHasMatchup?: boolean },
+    isOutcomeStep: boolean,
+  ): void {
+    if (this.activeTutorialCards.length > 0) return; // one card queue at a time.
+    let fired: ArmedTutorialCard[] = [];
+    if (logAnchors.hitRowAnchor) {
+      fired = fired.concat(armCards(notifyTutorialMoment('battle:hit', {}), {}));
+      const matchupPayload = { hasMatchup: logAnchors.hitRowHasMatchup === true };
+      fired = fired.concat(armCards(notifyTutorialMoment('battle:hitMatchup', matchupPayload), matchupPayload));
+    }
+    const turnlinePayload = { hasSpan: this.heroPieces.some((p) => p.skill.size > 1) };
+    fired = fired.concat(armCards(notifyTutorialMoment('battle:turnline', turnlinePayload), turnlinePayload));
+    if (isOutcomeStep) {
+      const levelUpPayload = { level: currentHeroLevel(), banked: currentBankedPL() };
+      fired = fired.concat(armCards(notifyTutorialMoment('battle:levelUp', levelUpPayload), levelUpPayload));
+    }
+    if (fired.length > 0) { this.activeTutorialCards = fired; this.tutorialCardIndex = 0; }
+  }
+
+  /** Draws the current queued tutorial card (if any) against whichever of
+   * this frame's anchors matches its `anchor` id — a missing anchor is a
+   * silent no-op (see `renderTutorialCard`). */
+  private renderTutorialOverlay(anchors: Partial<Record<TutorialAnchorId, TutorialAnchorRect>>): void {
+    const card = this.activeTutorialCards[this.tutorialCardIndex];
+    renderTutorialCard(this, card, card ? anchors[card.step.anchor] : undefined, () => {
+      this.tutorialCardIndex += 1;
+      if (this.tutorialCardIndex >= this.activeTutorialCards.length) {
+        this.activeTutorialCards = [];
+        this.tutorialCardIndex = 0;
+      }
+      this.render();
+    }, () => {
+      skipTutorial();
+      this.activeTutorialCards = [];
+      this.tutorialCardIndex = 0;
+      this.render();
+    });
+  }
+
   /** Wide center-column combat log: header (turnline) + a scrolling
-   * transcript (newest at bottom), tap a HIT row to expand its D: math. */
-  private renderLog(x: number, y: number, w: number, h: number, turn: number, step: PlaybackStep, isOutcomeStep: boolean): void {
+   * transcript (newest at bottom), tap a HIT row to expand its D: math.
+   * Returns the tutorial anchor rects this pass exposes — the turnline
+   * (always) and the CURRENT step's row when it's a HIT (plus whether that
+   * hit's already-formatted D: string carries an AFFINITY term), so the
+   * scene's tutorial notify calls read straight off what's on screen rather
+   * than recomputing anything. */
+  private renderLog(x: number, y: number, w: number, h: number, turn: number, step: PlaybackStep, isOutcomeStep: boolean): {
+    turnlineAnchor: TutorialAnchorRect;
+    hitRowAnchor?: TutorialAnchorRect;
+    hitRowHasMatchup?: boolean;
+  } {
     this.add.rectangle(x, y, w, h, UI.panel, 0.92).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
     this.add.text(x + 16, y + 12, 'COMBAT LOG', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.text });
     const spd = this.speedByTurn.get(turn) ?? { player: '', enemy: '' };
@@ -449,6 +516,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.boundedText(x + 16, y + 32, `T${turn}${!isOutcomeStep && this.playing ? ' ▶' : ''}   ${turnStats}`, {
       fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
     }, w - 32);
+    const turnlineAnchor: TutorialAnchorRect = { x: x + 16, y: y + 24, w: w - 32, h: 16 };
     this.add.rectangle(x + 16, y + 54, w - 32, 1, UI.border, 0.4).setOrigin(0, 0);
 
     const feed: Array<{ t: number; local: number; line: LogLine }> = [];
@@ -467,6 +535,8 @@ export class DesktopBattleScene extends Phaser.Scene {
     const visible = feed.slice(-maxRows);
     let ly = headerBottom;
     let prevTurn = -1;
+    let hitRowAnchor: TutorialAnchorRect | undefined;
+    let hitRowHasMatchup: boolean | undefined;
     for (const { t, local, line } of visible) {
       if (ly > y + h - 20) break;
       const key = `${t}:${local}`;
@@ -481,12 +551,21 @@ export class DesktopBattleScene extends Phaser.Scene {
         const zone = this.add.rectangle(x, ly - 3, w, rowH, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
         zone.on('pointerdown', () => { if (this.expanded.has(key)) this.expanded.delete(key); else this.expanded.add(key); this.render(); });
       }
+      // Tutorial anchor: the CURRENT step's row, when it's a HIT — this is
+      // exactly the damage number the "stats -> damage" lesson points at.
+      // Reading `line.detail` (the ALREADY-formatted D: string) for an
+      // AFFINITY term, rather than recomputing the matchup bonus.
+      if (t === turn && local === step.lineIndex && line.tag === 'HIT') {
+        hitRowAnchor = { x: tagX, y: ly - 3, w: x + w - 16 - tagX, h: rowH };
+        hitRowHasMatchup = line.detail?.includes('AFFINITY') ?? false;
+      }
       ly += rowH;
       if (line.detail && this.expanded.has(key) && ly < y + h - 16) {
         const d = this.boundedText(textX, ly, line.detail, { fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim }, w - (textX - x) - 16);
         ly += d.height + 6;
       }
     }
+    return { turnlineAnchor, hitRowAnchor, hitRowHasMatchup };
   }
 
   /** Horizontal event-level scrubber: a MAJOR tick at each turn's first step,
@@ -517,18 +596,31 @@ export class DesktopBattleScene extends Phaser.Scene {
     zone.on('pointermove', (p: Phaser.Input.Pointer) => { if (p.isDown) setFromX(p.x); });
   }
 
-  /** Footer control row: PREP / REPLAY / speed segment / END — desktop draws
-   * its own buttons (the shared ActionBar template is portrait-fixed). */
+  /** Footer buttons EXCLUDING the speed segment (drawn separately, always in
+   * the middle): Sandbox is PREP / REPLAY .. END; Run Mode is REPLAY ..
+   * CONTINUE › (no PREP — there's no sandbox prep to return to mid-run; no
+   * END — CONTINUE both finishes playback and moves the run on). */
+  private footerButtons(): Array<{ label: string; primary?: boolean; onPress: () => void }> {
+    const replay = { label: 'REPLAY', onPress: () => { this.stopPlayback(); this.idx = 0; this.render(); this.startPlayback(); } };
+    if (getBattleContext() === 'run') {
+      return [replay, { label: 'CONTINUE ›', primary: true, onPress: () => this.scene.start('DesktopRunMap') }];
+    }
+    return [
+      { label: 'PREP', onPress: () => this.scene.start('DesktopPrep') },
+      replay,
+      { label: 'END', primary: true, onPress: () => { this.stopPlayback(); this.idx = this.steps.length - 1; this.render(); } },
+    ];
+  }
+
+  /** Footer control row: buttons from `footerButtons()` with a speed segment
+   * sandwiched between the last two — desktop draws its own buttons (the
+   * shared ActionBar template is portrait-fixed). */
   private renderFooter(x: number, y: number, w: number): void {
     const gap = GAP;
     const speeds: Array<[string, number]> = [['×½', 0.5], ['×1', 1], ['×2', 2]];
     const speedCellW = 56;
     const speedW = speedCellW * speeds.length + gap * (speeds.length - 1);
-    const buttons: Array<{ label: string; primary?: boolean; onPress: () => void }> = [
-      { label: 'PREP', onPress: () => this.scene.start('DesktopPrep') },
-      { label: 'REPLAY', onPress: () => { this.stopPlayback(); this.idx = 0; this.render(); this.startPlayback(); } },
-      { label: 'END', primary: true, onPress: () => { this.stopPlayback(); this.idx = this.steps.length - 1; this.render(); } },
-    ];
+    const buttons = this.footerButtons();
     const bw = (w - speedW - gap * buttons.length) / buttons.length;
     let cx = x;
     const drawButton = (label: string, width: number, active: boolean, primary: boolean, onPress: () => void): void => {
@@ -546,8 +638,10 @@ export class DesktopBattleScene extends Phaser.Scene {
       }).setOrigin(0.5);
       cx += width + gap;
     };
-    drawButton(buttons[0]!.label, bw, false, false, buttons[0]!.onPress);
-    drawButton(buttons[1]!.label, bw, false, false, buttons[1]!.onPress);
+    // Every button but the last draws before the speed segment; the last
+    // (primary) button always trails it — 3-button Sandbox (PREP, REPLAY ..
+    // END) and 2-button Run Mode (REPLAY .. CONTINUE) both fit this shape.
+    for (const b of buttons.slice(0, -1)) drawButton(b.label, bw, false, !!b.primary, b.onPress);
     // Playback speed segment — the multiplier applies at the NEXT scheduled
     // step, so switching mid-playback takes effect immediately in practice.
     for (const [label, mult] of speeds) {
@@ -557,12 +651,15 @@ export class DesktopBattleScene extends Phaser.Scene {
         this.render();
       });
     }
-    drawButton(buttons[2]!.label, bw, false, true, buttons[2]!.onPress);
+    const last = buttons[buttons.length - 1]!;
+    drawButton(last.label, bw, false, !!last.primary, last.onPress);
   }
 
   /** Compact centered outcome card: banner + totals + CARD OUTPUT grid in one
-   * ~640px panel over a dimming scrim — the boards/log stay visible around it. */
-  private renderOutcome(x: number, y: number, w: number, h: number): void {
+   * ~640px panel over a dimming scrim — the boards/log stay visible around it.
+   * Returns the LEVEL UP line's rect (run context only) for the PL-growth
+   * tutorial lesson to anchor its first beat on. */
+  private renderOutcome(x: number, y: number, w: number, h: number): TutorialAnchorRect | undefined {
     this.add.rectangle(x, y, w, h, 0x05070c, 0.72).setOrigin(0, 0);
     const good = this.outcome === 'VICTORY';
     const summaryRows = this.combatSummary.cards.filter((row) => row.damage > 0 || row.shield > 0 || row.healing > 0 || row.dots > 0);
@@ -581,7 +678,17 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.add.rectangle(px, py, pw, ph, UI.panel, 0.97).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9);
     this.add.rectangle(px, py, pw, bannerH, good ? 0x143a1a : 0x3a1414, 0.95).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c);
     this.add.text(px + pw / 2 - 8, py + bannerH / 2, this.outcome, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: good ? '#7fe08a' : '#f08a7a' }).setOrigin(1, 0.5);
-    this.add.text(px + pw / 2 + 8, py + bannerH / 2 + 4, `+${this.goldPayout} GOLD`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: '#e8b446' }).setOrigin(0, 0.5);
+    this.add.text(px + pw / 2 + 8, py + bannerH / 2 - (getBattleContext() === 'run' ? 6 : 0), `+${this.goldPayout} GOLD`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: '#e8b446' }).setOrigin(0, 0.5);
+    let levelUpAnchor: TutorialAnchorRect | undefined;
+    if (getBattleContext() === 'run') {
+      // Run Mode: the hero levels after EVERY fight, win or lose (locked
+      // design) — `resolveRunBattleResult` already applied it before this
+      // renders, so this is a pure readout, never a second mutation.
+      const levelUpText = this.add.text(px + pw / 2 + 8, py + bannerH / 2 + 12, `LEVEL UP → LV ${currentHeroLevel()} · ${currentBankedPL()} PL BANKED`, {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+      }).setOrigin(0, 0.5);
+      levelUpAnchor = { x: levelUpText.x, y: levelUpText.y - levelUpText.height / 2, w: levelUpText.width, h: levelUpText.height };
+    }
 
     let cy = py + bannerH + 10;
     const totalMetrics = [
@@ -613,6 +720,7 @@ export class DesktopBattleScene extends Phaser.Scene {
       this.boundedText(cellX + cellW - 8, cellY + 3, metrics, { fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: '#e8b446' }, cellW * 0.4, 1);
       void rowIndex;
     });
+    return levelUpAnchor;
   }
 
   /**

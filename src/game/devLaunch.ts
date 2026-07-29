@@ -1,10 +1,13 @@
 import { enemies } from '../data/enemies';
 import { defaultTitleFor, ENEMY_TITLES, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../run/encounter';
 import { demoState, EMPTY_BOARD_OVERRIDES, MAX_FOES, MAX_GOLD, resetDemoState, type DemoState, type EnemyFightConfig, type PrepView } from './demoState';
+import { setPendingTutorialFlag } from './runStore';
 
 export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mbattle' | 'mwiki'
   | 'desktop-wiki' | 'desktop-prep' | 'desktop-deck' | 'desktop-battle'
-  | 'desktop-shop' | 'mobile-shop' | 'desktop-draft' | 'mobile-draft';
+  | 'desktop-shop' | 'mobile-shop' | 'desktop-draft' | 'mobile-draft'
+  | 'desktop-runmap' | 'mrunmap' | 'desktop-runprep' | 'mrunprep'
+  | 'desktop-runevent' | 'mrunevent';
 
 export interface DevLaunchConfig {
   scene: LaunchScene;
@@ -21,6 +24,9 @@ export interface DevLaunchConfig {
   enemyModifiers: string[];
   /** `?gold=N` dev override for the starting wallet, clamped 0..MAX_GOLD. */
   gold: number;
+  /** `?tutorial=off|reset` — see `runStore.ts#setPendingTutorialFlag`.
+   * `undefined` = no override (default run-tutorial behavior). */
+  tutorial?: 'off' | 'reset';
 }
 
 const PREP_VIEW_MAP: Record<string, PrepView> = {
@@ -59,6 +65,12 @@ function parseScene(value: string | null, view: string | null): LaunchScene {
   if (view === 'mobile-shop' || value === 'mobile-shop') return 'mobile-shop';
   if (view === 'desktop-draft' || value === 'desktop-draft') return 'desktop-draft';
   if (view === 'mobile-draft' || value === 'mobile-draft') return 'mobile-draft';
+  if (view === 'desktop-runmap' || value === 'desktop-runmap') return 'desktop-runmap';
+  if (view === 'mrunmap' || value === 'mrunmap') return 'mrunmap';
+  if (view === 'desktop-runprep' || value === 'desktop-runprep') return 'desktop-runprep';
+  if (view === 'mrunprep' || value === 'mrunprep') return 'mrunprep';
+  if (view === 'desktop-runevent' || value === 'desktop-runevent') return 'desktop-runevent';
+  if (view === 'mrunevent' || value === 'mrunevent') return 'mrunevent';
   return value === 'battle' || value === 'multi' ? 'battle' : 'prep';
 }
 
@@ -103,6 +115,11 @@ function parseLevel(value: string | null, fallback: number): number {
 function parseGold(value: string | null): number {
   const numeric = Number(value);
   return Number.isFinite(numeric) && value !== null ? Math.max(0, Math.min(MAX_GOLD, Math.floor(numeric))) : demoState.gold;
+}
+
+/** `?tutorial=off` (pre-skip) / `?tutorial=reset` — anything else is "no override". */
+function parseTutorialFlag(value: string | null): 'off' | 'reset' | undefined {
+  return value === 'off' || value === 'reset' ? value : undefined;
 }
 
 function parseTitle(value: string | null, fallback: EnemyTitle): EnemyTitle {
@@ -174,11 +191,16 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
     enemyRank,
     enemyModifiers,
     gold: parseGold(params.get('gold')),
+    tutorial: parseTutorialFlag(params.get('tutorial')),
   };
 }
 
 export function applyDevLaunchConfig(search = window.location.search): DevLaunchConfig {
   const config = readDevLaunchConfig(search);
   resetDemoState(stateOverridesFromConfig(config));
+  // Applies to the NEXT (and every) run started this session — see
+  // `runStore.ts#setPendingTutorialFlag`; a run isn't created until the
+  // player hits START on the Run Map, so this can't touch `RunState` yet.
+  setPendingTutorialFlag(config.tutorial);
   return config;
 }

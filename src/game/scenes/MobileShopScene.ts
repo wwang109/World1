@@ -4,13 +4,23 @@ import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
 import { shopCatalog, shopTypeIds } from '../../data/shopTypes';
 import type { SkillTier } from '../../engine/types';
+import type { CardOffer, GemOffer } from '../../run/shop';
+import { shopPoolInfo } from '../../run/shop';
 import { bagHasRoomFor, buyCard, buyGem, ensureShelf, rerollShelf } from '../shopActions';
 import { demoState } from '../demoState';
+import {
+  buyCurrentShopCard, buyCurrentShopGem, currentNode, currentRunBagHasRoomFor, currentShopShelf,
+  ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, rerollCurrentShop,
+} from '../runStore';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { rebuildScene } from '../sceneRebuild';
+
+/** Structural shape shared by `ShopShelfState` (demoState) and `RunShopShelf`
+ * (run) — the shop scene reads/writes through this either way. */
+interface ShelfLike { cards: CardOffer[]; gems: GemOffer[]; rerollCount: number }
 
 type PendingBuy = { kind: 'card'; index: number } | { kind: 'gem'; index: number };
 
@@ -44,16 +54,58 @@ export class MobileShopScene extends Phaser.Scene {
 
   private rerender(): void { rebuildScene(this); }
 
+  /** Run Mode: the current node IS a shop node — single storefront, no
+   * 5-shop picker, wallet/shelf come from the active run instead of
+   * `demoState`. Sandbox otherwise (unchanged). */
+  private runShopId(): string | null {
+    const node = currentNode();
+    return node?.kind === 'shop' && node.shopId ? node.shopId : null;
+  }
+
+  private activeGold(): number {
+    const runShop = this.runShopId();
+    return runShop ? (getActiveRun()?.gold ?? 0) : demoState.gold;
+  }
+
+  /** The current shelf for `shopId`, sourced from the run in Run Mode or
+   * `demoState.shopShelves` in the Sandbox — rolls it fresh the first time. */
+  private shelfFor(shopId: string): ShelfLike {
+    if (this.runShopId() === shopId) {
+      ensureCurrentShopShelf();
+      return currentShopShelf() ?? { cards: [], gems: [], rerollCount: 0 };
+    }
+    return ensureShelf(shopId);
+  }
+
+  /** The shop id the detail/confirm overlays operate on — the run's single
+   * storefront in Run Mode (no picker to have set `selectedShop`), else the
+   * Sandbox's browsed `selectedShop`. */
+  private activeShopId(): string {
+    return this.runShopId() ?? this.selectedShop!;
+  }
+
   create(): void {
     this.W = SCREEN.width; this.H = SCREEN.height;
     this.cameras.main.setBackgroundColor(0x0b1420);
-    this.renderTabs();
+    const runShop = this.runShopId();
+    if (runShop) this.renderRunHeader(); else this.renderTabs();
     this.renderGoldBalance();
-    if (this.selectedShop === null) this.renderStorefront();
+    if (runShop) this.renderShelf(runShop);
+    else if (this.selectedShop === null) this.renderStorefront();
     else this.renderShelf(this.selectedShop);
     if (this.pendingBuy) this.renderConfirm();
     else if (this.detailCardIndex !== null) this.renderCardDetail();
     else if (this.detailGemIndex !== null) this.renderGemDetail();
+  }
+
+  /** Run-context header — no sandbox tabs (a run's shop is a committed node
+   * visit, not sandbox browsing). */
+  private renderRunHeader(): void {
+    this.add.text(12, 10, 'RUN · SHOP', { fontSize: '15px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
+    const link = this.add.text(this.W - 12, 10, 'SANDBOX ›', {
+      fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold',
+    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+    link.on('pointerdown', () => this.scene.start('MobilePrep'));
   }
 
   private renderTabs(): void {
@@ -75,84 +127,113 @@ export class MobileShopScene extends Phaser.Scene {
   }
 
   private renderGoldBalance(): void {
-    this.add.text(this.W - 12, 50, `GOLD ${demoState.gold}`, { fontSize: '12px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
+    this.add.text(this.W - 12, 50, `GOLD ${this.activeGold()}`, { fontSize: '12px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
   }
 
   // ---------- storefront ----------
 
   private renderStorefront(): void {
     this.add.text(12, 50, 'CHOOSE A SHOP', { fontSize: '11px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
-    let y = 70;
-    const h = 76;
-    for (const id of shopTypeIds) {
+    // 16 themes won't fit as full-width rows (they ran off the bottom), so the
+    // picker is a 2-column grid sized to the remaining screen height.
+    const top = 70;
+    const cols = 2;
+    const gap = 8;
+    const cellW = (this.W - 20 - gap * (cols - 1)) / cols;
+    const rows = Math.ceil(shopTypeIds.length / cols);
+    const h = Math.min(76, (this.H - top - 12 - gap * (rows - 1)) / rows);
+    shopTypeIds.forEach((id, i) => {
       const shop = shopCatalog[id]!;
-      const cell = this.add.rectangle(10, y, this.W - 20, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      const x = 10 + (i % cols) * (cellW + gap);
+      const y = top + Math.floor(i / cols) * (h + gap);
+      const cell = this.add.rectangle(x, y, cellW, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       cell.on('pointerdown', () => { ensureShelf(id); this.selectedShop = id; this.rerender(); });
-      this.add.text(22, y + 10, shop.name.toUpperCase(), { fontSize: '13px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
-      const tag = this.add.text(22, y + 30, shop.tagline, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, wordWrap: { width: this.W - 44 }, lineSpacing: 2 });
-      void tag;
-      this.add.text(this.W - 22, y + h - 16, `${shop.shelf.cards} CARDS · ${shop.shelf.gems} GEMS`, { fontSize: '9px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
-      y += h + 8;
-    }
+      this.add.text(x + 10, y + 8, shop.name.toUpperCase(), { fontSize: '12px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: cellW - 20 } });
+      this.add.text(x + 10, y + h - 14, `${shop.shelf.cards}C · ${shop.shelf.gems}G`, { fontSize: '9px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold' });
+    });
   }
 
   // ---------- shelf ----------
 
   private renderShelf(shopId: string): void {
     const shop = shopCatalog[shopId]!;
-    const shelf = ensureShelf(shopId);
+    const shelf = this.shelfFor(shopId);
+    const info = shopPoolInfo(shopId);
+    const runShop = this.runShopId() === shopId;
 
-    const back = this.add.rectangle(10, 50, 70, 24, 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-    this.add.text(45, 62, '‹ SHOPS', { fontSize: '9px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    back.on('pointerdown', () => { this.selectedShop = null; this.rerender(); });
+    const backLabel = runShop ? 'LEAVE' : '‹ SHOPS';
+    const backW = runShop ? 56 : 70;
+    const back = this.add.rectangle(10, 50, backW, 24, 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+    this.add.text(10 + backW / 2, 62, backLabel, { fontSize: '9px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+    back.on('pointerdown', () => {
+      if (runShop) { leaveCurrentShop(); this.scene.start('MobileRunMap'); }
+      else { this.selectedShop = null; this.rerender(); }
+    });
 
-    this.add.text(88, 50, shop.name.toUpperCase(), { fontSize: '14px', color: '#c69948', fontFamily: FONT.display, fontStyle: 'bold' });
+    this.add.text(18 + backW, 50, shop.name.toUpperCase(), { fontSize: '14px', color: '#c69948', fontFamily: FONT.display, fontStyle: 'bold' });
 
-    const canReroll = demoState.gold >= 1;
+    // A thin shop whose whole pool already fits the shelf can never reveal
+    // anything new on reroll (docs/run-shops-design.md §2b, USER-LOCKED).
     const rerollW = 92;
-    const rr = this.add.rectangle(this.W - 10 - rerollW, 76, rerollW, 24, canReroll ? 0xb78a46 : 0x16233a, canReroll ? 1 : 0.5)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
-    this.add.text(this.W - 10 - rerollW / 2, 88, 'REROLL · 1G', { fontSize: '9px', color: canReroll ? '#1a1208' : '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    if (canReroll) {
-      rr.setInteractive({ useHandCursor: true });
-      rr.on('pointerdown', () => { rerollShelf(shopId); this.rerender(); });
+    if (info.fullStock) {
+      this.add.rectangle(this.W - 10 - rerollW, 76, rerollW, 24, 0x16233a, 0.5).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
+      this.add.text(this.W - 10 - rerollW / 2, 88, 'FULL STOCK', { fontSize: '9px', color: '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+    } else {
+      const canReroll = this.activeGold() >= 1;
+      const rr = this.add.rectangle(this.W - 10 - rerollW, 76, rerollW, 24, canReroll ? 0xb78a46 : 0x16233a, canReroll ? 1 : 0.5)
+        .setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
+      this.add.text(this.W - 10 - rerollW / 2, 88, 'REROLL · 1G', { fontSize: '9px', color: canReroll ? '#1a1208' : '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      if (canReroll) {
+        rr.setInteractive({ useHandCursor: true });
+        rr.on('pointerdown', () => { runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
+      }
     }
 
     let y = 108;
-    this.add.text(12, y, `CARDS · ${shelf.cards.length}/${shop.shelf.cards}`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
-    y += 16;
-    const cardH = 66;
-    for (let i = 0; i < shop.shelf.cards; i++) {
-      const offer = shelf.cards[i];
-      if (!offer) { this.emptySlot(y, cardH); y += cardH + 6; continue; }
-      const base = skillBook[offer.skillId]!;
-      const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
-      new CardToken(this, 10 + (this.W - 20) / 2, y + cardH / 2, skill, { width: this.W - 20, height: cardH, side: 'left' });
-      const hit = this.add.rectangle(10 + (this.W - 20) / 2, y + cardH / 2, this.W - 20, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
-      hit.on('pointerdown', () => { this.detailCardIndex = i; this.detailTier = offer.tier; this.rerender(); });
-      const affordable = demoState.gold >= offer.price;
-      this.add.text(this.W - 16, y + 6, `${offer.price} G`, { fontSize: '10px', color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setBackgroundColor('#0b1420').setPadding(4, 2, 4, 2);
-      y += cardH + 6;
+    const cardSlots = info.cardSlots;
+    if (cardSlots > 0) {
+      this.add.text(12, y, `CARDS · ${shelf.cards.length}/${cardSlots}`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
+      y += 16;
+      const cardH = 66;
+      for (let i = 0; i < cardSlots; i++) {
+        const offer = shelf.cards[i];
+        if (!offer) { this.emptySlot(y, cardH); y += cardH + 6; continue; }
+        const base = skillBook[offer.skillId]!;
+        const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
+        new CardToken(this, 10 + (this.W - 20) / 2, y + cardH / 2, skill, { width: this.W - 20, height: cardH, side: 'left' });
+        const hit = this.add.rectangle(10 + (this.W - 20) / 2, y + cardH / 2, this.W - 20, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
+        hit.on('pointerdown', () => { this.detailCardIndex = i; this.detailTier = offer.tier; this.rerender(); });
+        const affordable = this.activeGold() >= offer.price;
+        this.add.text(this.W - 16, y + 6, `${offer.price} G`, { fontSize: '10px', color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setBackgroundColor('#0b1420').setPadding(4, 2, 4, 2);
+        y += cardH + 6;
+      }
+      y += 6;
     }
 
-    y += 6;
-    this.add.text(12, y, `GEMS · ${shelf.gems.length}/${shop.shelf.gems}`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
-    y += 16;
-    const gemH = 58;
-    for (let i = 0; i < shop.shelf.gems; i++) {
-      const offer = shelf.gems[i];
-      if (!offer) { this.emptySlot(y, gemH); y += gemH + 6; continue; }
-      const gem = gemBook[offer.gemId]!;
-      const cell = this.add.rectangle(10, y, this.W - 20, gemH, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8).setInteractive({ useHandCursor: true });
-      cell.on('pointerdown', () => { this.detailGemIndex = i; this.rerender(); });
-      this.add.rectangle(28, y + gemH / 2, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-      this.add.text(42, y + 8, gem.name, { fontSize: '11px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
-      const body = this.add.text(42, y + 24, stripCardTextMarkup(gem.text), { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: this.W - 100 } });
-      let s = stripCardTextMarkup(gem.text);
-      while (s.length > 1 && body.height > 24) { s = s.slice(0, -1); body.setText(`${s}…`); }
-      const affordable = demoState.gold >= offer.price;
-      this.add.text(this.W - 20, y + gemH - 18, `${offer.price} G`, { fontSize: '10px', color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
-      y += gemH + 6;
+    const gemSlots = info.gemSlots;
+    if (gemSlots > 0) {
+      this.add.text(12, y, `GEMS · ${shelf.gems.length}/${gemSlots}`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
+      y += 16;
+      const gemH = 58;
+      for (let i = 0; i < gemSlots; i++) {
+        const offer = shelf.gems[i];
+        if (!offer) { this.emptySlot(y, gemH); y += gemH + 6; continue; }
+        const gem = gemBook[offer.gemId]!;
+        const cell = this.add.rectangle(10, y, this.W - 20, gemH, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8).setInteractive({ useHandCursor: true });
+        cell.on('pointerdown', () => { this.detailGemIndex = i; this.rerender(); });
+        this.add.rectangle(28, y + gemH / 2, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
+        this.add.text(42, y + 8, gem.name, { fontSize: '11px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
+        const body = this.add.text(42, y + 24, stripCardTextMarkup(gem.text), { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: this.W - 100 } });
+        let s = stripCardTextMarkup(gem.text);
+        while (s.length > 1 && body.height > 24) { s = s.slice(0, -1); body.setText(`${s}…`); }
+        const affordable = this.activeGold() >= offer.price;
+        this.add.text(this.W - 20, y + gemH - 18, `${offer.price} G`, { fontSize: '10px', color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
+        y += gemH + 6;
+      }
+    }
+
+    if (cardSlots === 0 && gemSlots === 0) {
+      this.add.text(12, y, 'This shop has nothing to sell.', { fontSize: '11px', color: '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' });
     }
   }
 
@@ -164,8 +245,8 @@ export class MobileShopScene extends Phaser.Scene {
   // ---------- card detail overlay ----------
 
   private renderCardDetail(): void {
-    const shopId = this.selectedShop!;
-    const shelf = ensureShelf(shopId);
+    const shopId = this.activeShopId();
+    const shelf = this.shelfFor(shopId);
     const offer = shelf.cards[this.detailCardIndex!];
     if (!offer) { this.detailCardIndex = null; return; }
     const base = skillBook[offer.skillId]!;
@@ -189,8 +270,9 @@ export class MobileShopScene extends Phaser.Scene {
     }).setOrigin(0.5, 0);
     y += text.height + 16;
 
-    const affordable = demoState.gold >= offer.price;
-    const hasRoom = bagHasRoomFor(offer.skillId);
+    const runMode = this.runShopId() !== null;
+    const affordable = this.activeGold() >= offer.price;
+    const hasRoom = runMode ? currentRunBagHasRoomFor(offer.skillId) : bagHasRoomFor(offer.skillId);
     const canBuy = affordable && hasRoom;
     const btn = this.add.rectangle(centerX, y, this.W - 40, 40, canBuy ? 0xe8b446 : 0x16233a, canBuy ? 1 : 0.5).setOrigin(0.5, 0).setStrokeStyle(1, UI.border, canBuy ? 0.8 : 0.4);
     const label = !affordable ? `NEED ${offer.price} GOLD` : !hasRoom ? 'BAG FULL' : `BUY · ${offer.price} GOLD`;
@@ -208,8 +290,8 @@ export class MobileShopScene extends Phaser.Scene {
   // ---------- gem detail overlay ----------
 
   private renderGemDetail(): void {
-    const shopId = this.selectedShop!;
-    const shelf = ensureShelf(shopId);
+    const shopId = this.activeShopId();
+    const shelf = this.shelfFor(shopId);
     const offer = shelf.gems[this.detailGemIndex!];
     if (!offer) { this.detailGemIndex = null; return; }
     const gem: GemDef = gemBook[offer.gemId]!;
@@ -230,7 +312,7 @@ export class MobileShopScene extends Phaser.Scene {
     }).setOrigin(0.5, 0);
     y += body.height + 20;
 
-    const affordable = demoState.gold >= offer.price;
+    const affordable = this.activeGold() >= offer.price;
     const btn = this.add.rectangle(centerX, y, this.W - 40, 40, affordable ? 0xe8b446 : 0x16233a, affordable ? 1 : 0.5).setOrigin(0.5, 0).setStrokeStyle(1, UI.border, affordable ? 0.8 : 0.4);
     this.add.text(centerX, y + 20, affordable ? `BUY · ${offer.price} GOLD` : `NEED ${offer.price} GOLD`, { fontSize: '12px', color: affordable ? '#1a1208' : '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     if (affordable) {
@@ -246,8 +328,9 @@ export class MobileShopScene extends Phaser.Scene {
   // ---------- confirm ----------
 
   private renderConfirm(): void {
-    const shopId = this.selectedShop!;
-    const shelf = ensureShelf(shopId);
+    const shopId = this.activeShopId();
+    const shelf = this.shelfFor(shopId);
+    const runMode = this.runShopId() !== null;
     const buy = this.pendingBuy!;
     const name = buy.kind === 'card'
       ? (skillBook[shelf.cards[buy.index]?.skillId ?? '']?.name ?? 'card')
@@ -266,7 +349,9 @@ export class MobileShopScene extends Phaser.Scene {
     };
     mk(bx + 16, (bw - 40) / 2, 'CANCEL', 0x1b2940, '#e8e0c8', () => { this.pendingBuy = null; this.rerender(); });
     mk(bx + 24 + (bw - 40) / 2, (bw - 40) / 2, 'BUY', 0xe8b446, '#1a1208', () => {
-      const result = buy.kind === 'card' ? buyCard(shopId, buy.index) : buyGem(shopId, buy.index);
+      const result = runMode
+        ? (buy.kind === 'card' ? buyCurrentShopCard(buy.index) : buyCurrentShopGem(buy.index))
+        : (buy.kind === 'card' ? buyCard(shopId, buy.index) : buyGem(shopId, buy.index));
       this.pendingBuy = null;
       this.detailCardIndex = null;
       this.detailGemIndex = null;

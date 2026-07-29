@@ -8,6 +8,7 @@ import { FONT, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
 import { rebuildScene } from '../sceneRebuild';
+import { applyRunDraft, getActiveRun, isRunDrafting } from '../runStore';
 
 const F = DESKTOP_PROFILE.font;
 
@@ -25,22 +26,47 @@ const SET_LABEL: Record<DraftSetKey, string> = {
 export class DesktopDraftScene extends Phaser.Scene {
   private picks: Partial<Record<DraftSetKey, string>> = {};
   private draft!: StartDraft;
+  /** True when a Run Mode run is sitting in 'drafting' status — the discriminator
+   * between the sandbox draft (writes demoState) and the run-start draft
+   * (writes the active run via `applyRunDraft`). No separate context flag/
+   * param needed: the active run's own status IS the context. */
+  private runContext = false;
 
   constructor() { super('DesktopDraft'); }
 
   init(): void {
     this.picks = {};
+    this.runContext = isRunDrafting();
   }
 
   private rerender(): void { rebuildScene(this); }
 
   create(): void {
-    this.draft = rollStartDraft(demoState.seed);
-    renderDesktopBackground(this);
-    renderDesktopHeader(this, 'DRAFT', 'draft');
+    const seed = this.runContext ? getActiveRun()!.seed : demoState.seed;
+    this.draft = rollStartDraft(seed);
+    if (this.runContext) {
+      renderDesktopBackground(this);
+      this.renderRunTitle();
+    } else {
+      renderDesktopBackground(this);
+      renderDesktopHeader(this, 'DRAFT', 'draft');
+    }
     this.renderIntro();
     this.renderSets();
     this.renderStart();
+  }
+
+  /** Run-context header — no sandbox nav tabs (those would navigate away from
+   * the run mid-draft); mirrors the run map/prep scenes' plain title. */
+  private renderRunTitle(): void {
+    const gx = DESKTOP_LAYOUT.gutter;
+    this.add.text(gx, 24, 'WORLD1 / RUN MODE', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
+    });
+    this.add.text(gx, 44, 'DRAFT YOUR STARTING DECK', {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big}px`, color: UI.text,
+    });
+    this.add.rectangle(gx, DESKTOP_LAYOUT.contentTop - 14, SCREEN.width - gx * 2, 1, UI.border, 0.7).setOrigin(0, 0);
   }
 
   private renderIntro(): void {
@@ -106,8 +132,13 @@ export class DesktopDraftScene extends Phaser.Scene {
     if (ready) {
       btn.setInteractive({ useHandCursor: true });
       btn.on('pointerdown', () => {
-        applyDraftPicks(this.picks);
-        this.scene.start('DesktopPrep');
+        if (this.runContext) {
+          applyRunDraft(this.picks);
+          this.scene.start('DesktopRunMap');
+        } else {
+          applyDraftPicks(this.picks);
+          this.scene.start('DesktopPrep');
+        }
       });
     }
   }

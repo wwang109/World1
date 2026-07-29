@@ -7,6 +7,7 @@ import { FONT, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { renderActionBar, type ActionButton } from '../ui/ActionBar';
 import { rebuildScene } from '../sceneRebuild';
+import { applyRunDraft, getActiveRun, isRunDrafting } from '../runStore';
 
 const SET_LABEL: Record<DraftSetKey, string> = {
   offense: 'OFFENSE', defense: 'DEFENSE / SUSTAIN', support: 'SUPPORT / UTILITY', wildcard: 'WILDCARD',
@@ -26,12 +27,17 @@ export class MobileDraftScene extends Phaser.Scene {
   private picks: Partial<Record<DraftSetKey, string>> = {};
   private setIndex = 0;
   private draft!: StartDraft;
+  /** True when a Run Mode run is sitting in 'drafting' status — the
+   * discriminator between the sandbox draft (writes demoState) and the
+   * run-start draft (writes the active run via `applyRunDraft`). */
+  private runContext = false;
 
   constructor() { super('MobileDraft'); }
 
   init(): void {
     this.picks = {};
     this.setIndex = 0;
+    this.runContext = isRunDrafting();
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -39,8 +45,9 @@ export class MobileDraftScene extends Phaser.Scene {
   create(): void {
     this.W = SCREEN.width; this.H = SCREEN.height;
     this.cameras.main.setBackgroundColor(0x0b1420);
-    this.draft = rollStartDraft(demoState.seed);
-    this.renderTabs();
+    const seed = this.runContext ? getActiveRun()!.seed : demoState.seed;
+    this.draft = rollStartDraft(seed);
+    if (this.runContext) this.renderRunTabs(); else this.renderTabs();
     this.renderHeader();
     this.renderSet();
     this.renderFooter();
@@ -62,6 +69,17 @@ export class MobileDraftScene extends Phaser.Scene {
       r.on('pointerdown', fn);
       this.add.text(x + w / 2, 25, label, { fontSize: '9px', color: active ? '#1a1208' : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
+  }
+
+  /** Run-context header — no sandbox tabs (those would navigate away from the
+   * run mid-draft); a plain title + a small SANDBOX escape, mirroring the run
+   * map's own link. */
+  private renderRunTabs(): void {
+    this.add.text(12, 10, 'RUN · DRAFT', { fontSize: '13px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
+    const link = this.add.text(this.W - 12, 10, 'SANDBOX ›', {
+      fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold',
+    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+    link.on('pointerdown', () => this.scene.start('MobilePrep'));
   }
 
   private renderHeader(): void {
@@ -106,8 +124,13 @@ export class MobileDraftScene extends Phaser.Scene {
     } else if (ready) {
       buttons.push({
         label: 'START', primary: true, flex: 2, onPress: () => {
-          applyDraftPicks(this.picks);
-          this.scene.start('MobilePrep');
+          if (this.runContext) {
+            applyRunDraft(this.picks);
+            this.scene.start('MobileRunMap');
+          } else {
+            applyDraftPicks(this.picks);
+            this.scene.start('MobilePrep');
+          }
         },
       });
     } else {

@@ -32,6 +32,7 @@ export function cardMatchesFilter(skill: SkillDef, filter: CardFilter): boolean 
 }
 
 function gemMatchesClause(gem: GemDef, clause: GemFilterClause): boolean {
+  if (clause.all) return true;
   if (clause.ids && clause.ids.includes(gem.id)) return true;
   if (clause.actionKinds && gem.kind === 'effect' && gem.actions.some((a) => clause.actionKinds!.includes(a.kind))) {
     return true;
@@ -78,6 +79,15 @@ export const GOLD_PRICE_BY_TIER: Record<SkillTier, number> = {
 
 export function goldPriceOfCard(tier: SkillTier): number {
   return GOLD_PRICE_BY_TIER[tier];
+}
+
+/**
+ * Card price with a shop's `priceDelta` markup/discount folded in (floored at
+ * 1 gold so a discount can never make a card free). Omitted `priceDelta` ->
+ * `goldPriceOfCard(tier)` byte-identically (today's behavior).
+ */
+export function goldPriceOfCardForShop(tier: SkillTier, priceDelta = 0): number {
+  return Math.max(1, goldPriceOfCard(tier) + priceDelta);
 }
 
 /**
@@ -130,21 +140,37 @@ function sampleDistinct<T>(rng: Rng, pool: readonly T[], count: number): T[] {
   return result;
 }
 
-/** Bronze-heavy tier roll: 70% bronze / 25% silver / 5% gold. Diamond never appears in shops. */
-function rollOfferedTier(rng: Rng): SkillTier {
+/**
+ * Bronze/silver/gold split by node depth (see docs/run-shops-design.md §1):
+ * depths 1-3 -> 70/25/5 (today's byte-identical behavior, the sandbox
+ * default), 4-6 -> 45/45/10, 7-9 -> 25/55/20. Diamond never appears in shops.
+ * A `tierBias: 'silver'` shop (Relic Vault) overrides the depth split
+ * entirely with a fixed silver-heavy roll (see `ShopTypeDef.tierBias`).
+ */
+function tierThresholds(depth: number, tierBias?: 'silver'): { bronze: number; silver: number } {
+  if (tierBias === 'silver') return { bronze: 20, silver: 85 };
+  if (depth <= 3) return { bronze: 70, silver: 95 };
+  if (depth <= 6) return { bronze: 45, silver: 90 };
+  return { bronze: 25, silver: 80 };
+}
+
+function rollOfferedTier(rng: Rng, depth: number, tierBias?: 'silver'): SkillTier {
+  const { bronze, silver } = tierThresholds(depth, tierBias);
   const roll = rng.int(100);
-  if (roll < 70) return 'bronze';
-  if (roll < 95) return 'silver';
+  if (roll < bronze) return 'bronze';
+  if (roll < silver) return 'silver';
   return 'gold';
 }
 
 /**
  * Seeded shelf roll for one shop: up to `shelf.cards` distinct card offers and
- * up to `shelf.gems` distinct gem offers. Same (shopId, seed) -> identical
- * shelf, forever (no wall-clock or ambient randomness). RNG call order is
- * fixed: card picks, then each picked card's tier roll, then gem picks.
+ * up to `shelf.gems` distinct gem offers. Same (shopId, seed, depth) ->
+ * identical shelf, forever (no wall-clock or ambient randomness). RNG call
+ * order is fixed: card picks, then each picked card's tier roll, then gem
+ * picks. `depth` (1-indexed run depth) shifts the tier split — every non-run
+ * caller omits it and gets today's 70/25/5 behavior byte-identical.
  */
-export function rollShopStock(shopId: string, seed: number): ShopStock {
+export function rollShopStock(shopId: string, seed: number, depth = 1): ShopStock {
   const shop = shopCatalog[shopId];
   if (!shop) throw new Error(`rollShopStock: unknown shop id "${shopId}"`);
   const rng = new Rng(hashSeed('shop', shopId, seed));
@@ -152,8 +178,8 @@ export function rollShopStock(shopId: string, seed: number): ShopStock {
   const cardPool = cardPoolForShop(shopId);
   const pickedCards = sampleDistinct(rng, cardPool, shop.shelf.cards);
   const cards: CardOffer[] = pickedCards.map((skill) => {
-    const tier = rollOfferedTier(rng);
-    return { skillId: skill.id, tier, price: goldPriceOfCard(tier) };
+    const tier = rollOfferedTier(rng, depth, shop.tierBias);
+    return { skillId: skill.id, tier, price: goldPriceOfCardForShop(tier, shop.priceDelta) };
   });
 
   const gemPool = gemPoolForShop(shopId);
@@ -161,6 +187,53 @@ export function rollShopStock(shopId: string, seed: number): ShopStock {
   const gems: GemOffer[] = pickedGems.map((gem) => ({ gemId: gem.id, price: goldPriceOfGem(gem.id) }));
 
   return { shopId, seed, cards, gems };
+}
+
+// ---------------------------------------------------------------------------
+// Pool arithmetic — the "thin shops are fine" rule (docs/run-shops-design.md
+// §2b, USER-LOCKED): a theme's card/gem pool may be smaller than its declared
+// shelf size (`ShopTypeDef.shelf`); `rollShopStock` already caps a shelf at
+// `min(shelf, pool)` via `sampleDistinct`. This is the pure helper the shop
+// SCENES read to lay out 1-6 offers without dead "gap" slots and to know
+// when REROLL is pointless (the whole pool already fits the shelf, so a
+// reroll can only reshuffle order/tiers, never reveal something new).
+// ---------------------------------------------------------------------------
+
+export interface ShopPoolInfo {
+  cardPoolSize: number;
+  gemPoolSize: number;
+  /** How many card/gem SLOTS this shop can ever fill, capped by its declared
+   * shelf size — the number the UI should lay out columns/rows for (NOT the
+   * declared shelf size itself, which may exceed a thin theme's whole pool). */
+  cardSlots: number;
+  gemSlots: number;
+  /** True when the whole pool already fits the shelf on that axis — REROLL
+   * can only reshuffle order/tiers there, never reveal a new offer. */
+  cardsFull: boolean;
+  gemsFull: boolean;
+  /** True when BOTH axes are full — REROLL is pointless shop-wide (hide/
+   * disable it and label the shelf "FULL STOCK"). */
+  fullStock: boolean;
+}
+
+/** Pool-size/fullness info for a shop theme — pure, no RNG (pool membership
+ * doesn't depend on a seed, only on the card/gem book + the theme's filter). */
+export function shopPoolInfo(shopId: string): ShopPoolInfo {
+  const shop = shopCatalog[shopId];
+  if (!shop) throw new Error(`shopPoolInfo: unknown shop id "${shopId}"`);
+  const cardPoolSize = cardPoolForShop(shopId).length;
+  const gemPoolSize = gemPoolForShop(shopId).length;
+  const cardsFull = cardPoolSize <= shop.shelf.cards;
+  const gemsFull = gemPoolSize <= shop.shelf.gems;
+  return {
+    cardPoolSize,
+    gemPoolSize,
+    cardSlots: Math.min(shop.shelf.cards, cardPoolSize),
+    gemSlots: Math.min(shop.shelf.gems, gemPoolSize),
+    cardsFull,
+    gemsFull,
+    fullStock: cardsFull && gemsFull,
+  };
 }
 
 // ---------------------------------------------------------------------------

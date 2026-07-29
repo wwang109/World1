@@ -4,8 +4,14 @@ import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
 import { shopCatalog, shopTypeIds } from '../../data/shopTypes';
 import type { SkillDef, SkillTier } from '../../engine/types';
+import type { CardOffer, GemOffer } from '../../run/shop';
+import { shopPoolInfo } from '../../run/shop';
 import { bagHasRoomFor, buyCard, buyGem, ensureShelf, rerollShelf } from '../shopActions';
 import { demoState } from '../demoState';
+import {
+  buyCurrentShopCard, buyCurrentShopGem, currentNode, currentRunBagHasRoomFor, currentShopShelf,
+  ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, rerollCurrentShop,
+} from '../runStore';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
@@ -13,6 +19,10 @@ import { CardToken } from '../ui/CardToken';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
 import { rebuildScene } from '../sceneRebuild';
+
+/** Structural shape shared by `ShopShelfState` (demoState) and `RunShopShelf`
+ * (run) — the shop scene reads/writes through this either way. */
+interface ShelfLike { cards: CardOffer[]; gems: GemOffer[]; rerollCount: number }
 
 const F = DESKTOP_PROFILE.font;
 const BAD_HEX = `#${UI.bad.toString(16).padStart(6, '0')}`;
@@ -47,20 +57,59 @@ export class DesktopShopScene extends Phaser.Scene {
 
   private rerender(): void { rebuildScene(this); }
 
+  /** Run Mode: the current node IS a shop node — single storefront, no
+   * 5-shop picker, wallet/shelf come from the active run instead of
+   * `demoState`. Sandbox otherwise (unchanged). */
+  private runShopId(): string | null {
+    const node = currentNode();
+    return node?.kind === 'shop' && node.shopId ? node.shopId : null;
+  }
+
+  private activeGold(): number {
+    const runShop = this.runShopId();
+    return runShop ? (getActiveRun()?.gold ?? 0) : demoState.gold;
+  }
+
+  /** The current shelf for `shopId`, sourced from the run in Run Mode or
+   * `demoState.shopShelves` in the Sandbox — rolls it fresh the first time. */
+  private shelfFor(shopId: string): ShelfLike {
+    if (this.runShopId() === shopId) {
+      ensureCurrentShopShelf();
+      return currentShopShelf() ?? { cards: [], gems: [], rerollCount: 0 };
+    }
+    return ensureShelf(shopId);
+  }
+
   create(): void {
     renderDesktopBackground(this);
-    renderDesktopHeader(this, 'SHOP', 'shop');
+    const runShop = this.runShopId();
+    if (runShop) this.renderRunHeader();
+    else renderDesktopHeader(this, 'SHOP', 'shop');
     this.renderGoldBalance();
-    if (this.selectedShop === null) this.renderStorefront();
+    if (runShop) this.renderShelf(runShop);
+    else if (this.selectedShop === null) this.renderStorefront();
     else this.renderShelf(this.selectedShop);
     if (this.pendingBuy) this.renderConfirm();
     else if (this.detailCardIndex !== null) this.renderCardDetail();
     else if (this.detailGemIndex !== null) this.renderGemDetail();
   }
 
+  /** Run-context header — no sandbox nav tabs (a run's shop is a committed
+   * node visit, not sandbox browsing). */
+  private renderRunHeader(): void {
+    const gx = DESKTOP_LAYOUT.gutter;
+    this.add.text(gx, 24, 'WORLD1 / RUN MODE', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
+    });
+    this.add.text(gx, 44, 'SHOP', {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big}px`, color: UI.text,
+    });
+    this.add.rectangle(gx, DESKTOP_LAYOUT.contentTop - 14, SCREEN.width - gx * 2, 1, UI.border, 0.7).setOrigin(0, 0);
+  }
+
   private renderGoldBalance(): void {
     const gx = DESKTOP_LAYOUT.gutter;
-    this.add.text(SCREEN.width - gx, 102 + DESKTOP_LAYOUT.tabH / 2, `GOLD ${demoState.gold}`, {
+    this.add.text(SCREEN.width - gx, 102 + DESKTOP_LAYOUT.tabH / 2, `GOLD ${this.activeGold()}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.textAccent,
     }).setOrigin(1, 0.5);
   }
@@ -72,15 +121,20 @@ export class DesktopShopScene extends Phaser.Scene {
     const top = DESKTOP_LAYOUT.contentTop;
     this.add.text(gx, top, 'CHOOSE A SHOP', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent });
     const gridTop = top + F.label + 16;
-    const cols = 5;
     const gap = DESKTOP_LAYOUT.gap;
     const w = SCREEN.width - gx * 2;
+    // The catalog grew past one row (16 themes) — wrap into a grid sized so
+    // every storefront stays on-canvas and clickable.
+    const cols = 6;
+    const rows = Math.ceil(shopTypeIds.length / cols);
     const cellW = (w - gap * (cols - 1)) / cols;
-    const cellH = 220;
+    const availH = SCREEN.height - gridTop - DESKTOP_LAYOUT.gutter;
+    const cellH = Math.min(220, (availH - gap * (rows - 1)) / rows);
     shopTypeIds.forEach((id, i) => {
       const shop = shopCatalog[id]!;
-      const cx = gx + i * (cellW + gap);
-      const cell = this.add.rectangle(cx, gridTop, cellW, cellH, UI.panel, 0.94)
+      const cx = gx + (i % cols) * (cellW + gap);
+      const gridTopRow = gridTop + Math.floor(i / cols) * (cellH + gap);
+      const cell = this.add.rectangle(cx, gridTopRow, cellW, cellH, UI.panel, 0.94)
         .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true });
       cell.on('pointerover', () => cell.setStrokeStyle(2, UI.chip, 1));
       cell.on('pointerout', () => cell.setStrokeStyle(1, UI.border, 0.8));
@@ -89,14 +143,14 @@ export class DesktopShopScene extends Phaser.Scene {
         this.selectedShop = id;
         this.rerender();
       });
-      this.add.text(cx + 16, gridTop + 20, shop.name.toUpperCase(), {
+      this.add.text(cx + 16, gridTopRow + 16, shop.name.toUpperCase(), {
         fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.text,
       });
-      this.add.text(cx + 16, gridTop + 52, shop.tagline, {
+      this.add.text(cx + 16, gridTopRow + 44, shop.tagline, {
         fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
         wordWrap: { width: cellW - 32 }, lineSpacing: 3,
       });
-      this.add.text(cx + 16, gridTop + cellH - 30, `${shop.shelf.cards} CARDS · ${shop.shelf.gems} GEMS`, {
+      this.add.text(cx + 16, gridTopRow + cellH - 24, `${shop.shelf.cards} CARDS · ${shop.shelf.gems} GEMS`, {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
       });
     });
@@ -106,80 +160,124 @@ export class DesktopShopScene extends Phaser.Scene {
 
   private renderShelf(shopId: string): void {
     const shop = shopCatalog[shopId]!;
-    const shelf = ensureShelf(shopId);
+    const shelf = this.shelfFor(shopId);
+    const info = shopPoolInfo(shopId);
+    const runShop = this.runShopId() === shopId;
     const gx = DESKTOP_LAYOUT.gutter;
     const top = DESKTOP_LAYOUT.contentTop;
 
-    const back = this.add.rectangle(gx, top, 90, 28, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-    this.add.text(gx + 45, top + 14, '‹ SHOPS', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }).setOrigin(0.5);
-    back.on('pointerdown', () => { this.selectedShop = null; this.rerender(); });
+    const backLabel = runShop ? 'LEAVE SHOP' : '‹ SHOPS';
+    const backW = runShop ? 130 : 90;
+    const back = this.add.rectangle(gx, top, backW, 28, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+    this.add.text(gx + backW / 2, top + 14, backLabel, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }).setOrigin(0.5);
+    back.on('pointerdown', () => {
+      if (runShop) { leaveCurrentShop(); this.scene.start('DesktopRunMap'); }
+      else { this.selectedShop = null; this.rerender(); }
+    });
 
-    this.add.text(gx + 100, top, shop.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent });
-    this.add.text(gx + 100, top + F.name + 2, shop.tagline, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim });
+    const titleX = gx + backW + 16;
+    this.add.text(titleX, top, shop.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent });
+    this.add.text(titleX, top + F.name + 2, shop.tagline, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim });
 
+    // A thin shop whose WHOLE pool already fits the shelf can never reveal
+    // anything new on reroll (docs/run-shops-design.md §2b, USER-LOCKED) —
+    // hide it behind a "FULL STOCK" label rather than inviting a wasted gold.
     const rerollW = 120;
     const rerollX = SCREEN.width - gx - rerollW;
-    const canReroll = demoState.gold >= 1;
-    const reroll = this.add.rectangle(rerollX, top, rerollW, 32, canReroll ? UI.chip : UI.panelMuted, canReroll ? 1 : 0.5)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
-    this.add.text(rerollX + rerollW / 2, top + 16, 'REROLL · 1 G', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: canReroll ? UI.textOnChip : UI.textSoft,
-    }).setOrigin(0.5);
-    if (canReroll) {
-      reroll.setInteractive({ useHandCursor: true });
-      reroll.on('pointerdown', () => { rerollShelf(shopId); this.rerender(); });
+    if (info.fullStock) {
+      this.add.rectangle(rerollX, top, rerollW, 32, UI.panelMuted, 0.5).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
+      this.add.text(rerollX + rerollW / 2, top + 16, 'FULL STOCK', {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textSoft,
+      }).setOrigin(0.5);
+    } else {
+      const canReroll = this.activeGold() >= 1;
+      const reroll = this.add.rectangle(rerollX, top, rerollW, 32, canReroll ? UI.chip : UI.panelMuted, canReroll ? 1 : 0.5)
+        .setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
+      this.add.text(rerollX + rerollW / 2, top + 16, 'REROLL · 1 G', {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: canReroll ? UI.textOnChip : UI.textSoft,
+      }).setOrigin(0.5);
+      if (canReroll) {
+        reroll.setInteractive({ useHandCursor: true });
+        reroll.on('pointerdown', () => { runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
+      }
     }
 
     const rowTop = top + 64;
-    this.add.text(gx, rowTop, `CARDS · ${shelf.cards.length}/${shop.shelf.cards}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim });
-    const cardTop = rowTop + F.tiny + 8;
-    const cardCols = shop.shelf.cards;
-    const cardGap = DESKTOP_LAYOUT.gap;
-    const cardW = (SCREEN.width - gx * 2 - cardGap * (cardCols - 1)) / cardCols;
-    const cardH = 130;
-    for (let i = 0; i < cardCols; i++) {
-      const cx = gx + i * (cardW + cardGap);
-      const offer = shelf.cards[i];
-      if (!offer) { this.emptySlot(cx, cardTop, cardW, cardH); continue; }
-      const base = skillBook[offer.skillId]!;
-      const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
-      const tok = new CardToken(this, cx + cardW / 2, cardTop + cardH / 2, skill, { width: cardW, height: cardH, side: 'left' });
-      const hit = this.add.rectangle(cx + cardW / 2, cardTop + cardH / 2, cardW, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
-      hit.on('pointerdown', () => { this.detailCardIndex = i; this.detailTier = offer.tier; this.rerender(); });
-      const affordable = demoState.gold >= offer.price;
-      this.add.rectangle(cx, cardTop + cardH, cardW, 24, UI.panelMuted, 0.95).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.6);
-      this.add.text(cx + cardW / 2, cardTop + cardH + 12, `${offer.price} GOLD`, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: affordable ? UI.textAccent : BAD_HEX,
-      }).setOrigin(0.5);
-      void tok;
+    let cardTop = rowTop;
+    // cardSlots caps at the shop's WHOLE pool size, so a thin theme (e.g. a
+    // 1-card element stall) never renders permanent dead "SOLD OUT" gaps —
+    // only genuinely transient ones (bought out mid-visit) show up.
+    const cardCols = info.cardSlots;
+    if (cardCols > 0) {
+      this.add.text(gx, rowTop, `CARDS · ${shelf.cards.length}/${cardCols}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim });
+      cardTop = rowTop + F.tiny + 8;
+      const cardGap = DESKTOP_LAYOUT.gap;
+      const cardW = Math.min(220, (SCREEN.width - gx * 2 - cardGap * (cardCols - 1)) / cardCols);
+      const rowW = cardCols * cardW + (cardCols - 1) * cardGap;
+      const rowX = gx + (SCREEN.width - gx * 2 - rowW) / 2;
+      const cardH = 130;
+      for (let i = 0; i < cardCols; i++) {
+        const cx = rowX + i * (cardW + cardGap);
+        const offer = shelf.cards[i];
+        if (!offer) { this.emptySlot(cx, cardTop, cardW, cardH); continue; }
+        const base = skillBook[offer.skillId]!;
+        const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
+        const tok = new CardToken(this, cx + cardW / 2, cardTop + cardH / 2, skill, { width: cardW, height: cardH, side: 'left' });
+        const hit = this.add.rectangle(cx + cardW / 2, cardTop + cardH / 2, cardW, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
+        hit.on('pointerdown', () => { this.detailCardIndex = i; this.detailTier = offer.tier; this.rerender(); });
+        const affordable = this.activeGold() >= offer.price;
+        this.add.rectangle(cx, cardTop + cardH, cardW, 24, UI.panelMuted, 0.95).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.6);
+        this.add.text(cx + cardW / 2, cardTop + cardH + 12, `${offer.price} GOLD`, {
+          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: affordable ? UI.textAccent : BAD_HEX,
+        }).setOrigin(0.5);
+        void tok;
+      }
+      cardTop += cardH + 24;
     }
 
-    const gemRowTop = cardTop + cardH + 24 + 20;
-    this.add.text(gx, gemRowTop - F.tiny - 8, `GEMS · ${shelf.gems.length}/${shop.shelf.gems}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim });
-    const gemCols = shop.shelf.gems;
-    const gemGap = DESKTOP_LAYOUT.gap;
-    const gemW = (SCREEN.width - gx * 2 - gemGap * (gemCols - 1)) / gemCols;
-    const gemH = 96;
-    for (let i = 0; i < gemCols; i++) {
-      const cx = gx + i * (gemW + gemGap);
-      const offer = shelf.gems[i];
-      if (!offer) { this.emptySlot(cx, gemRowTop, gemW, gemH); continue; }
-      const gem = gemBook[offer.gemId]!;
-      const cell = this.add.rectangle(cx, gemRowTop, gemW, gemH, UI.panel, 0.94)
-        .setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8).setInteractive({ useHandCursor: true });
-      cell.on('pointerdown', () => { this.detailGemIndex = i; this.rerender(); });
-      this.add.rectangle(cx + 22, gemRowTop + 22, 14, 14, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-      this.add.text(cx + 38, gemRowTop + 12, gem.name, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text });
-      const body = this.add.text(cx + 16, gemRowTop + 40, stripCardTextMarkup(gem.text), {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-        wordWrap: { width: gemW - 32 }, lineSpacing: 2,
-      });
-      if (body.height > 30) { body.setText(`${body.text.slice(0, 60)}…`); }
-      const affordable = demoState.gold >= offer.price;
-      this.add.text(cx + gemW - 16, gemRowTop + gemH - 18, `${offer.price} GOLD`, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: affordable ? UI.textAccent : BAD_HEX,
-      }).setOrigin(1, 0);
+    const gemCols = info.gemSlots;
+    if (gemCols > 0) {
+      const gemRowTop = cardTop + (cardCols > 0 ? 20 : 0);
+      this.add.text(gx, gemRowTop - F.tiny - 8, `GEMS · ${shelf.gems.length}/${gemCols}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim });
+      const gemGap = DESKTOP_LAYOUT.gap;
+      const gemW = Math.min(260, (SCREEN.width - gx * 2 - gemGap * (gemCols - 1)) / gemCols);
+      const gemRowW = gemCols * gemW + (gemCols - 1) * gemGap;
+      const gemRowX = gx + (SCREEN.width - gx * 2 - gemRowW) / 2;
+      const gemH = 96;
+      for (let i = 0; i < gemCols; i++) {
+        const cx = gemRowX + i * (gemW + gemGap);
+        const offer = shelf.gems[i];
+        if (!offer) { this.emptySlot(cx, gemRowTop, gemW, gemH); continue; }
+        const gem = gemBook[offer.gemId]!;
+        const cell = this.add.rectangle(cx, gemRowTop, gemW, gemH, UI.panel, 0.94)
+          .setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8).setInteractive({ useHandCursor: true });
+        cell.on('pointerdown', () => { this.detailGemIndex = i; this.rerender(); });
+        this.add.rectangle(cx + 22, gemRowTop + 22, 14, 14, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
+        this.add.text(cx + 38, gemRowTop + 12, gem.name, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text });
+        const body = this.add.text(cx + 16, gemRowTop + 40, stripCardTextMarkup(gem.text), {
+          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+          wordWrap: { width: gemW - 32 }, lineSpacing: 2,
+        });
+        if (body.height > 30) { body.setText(`${body.text.slice(0, 60)}…`); }
+        const affordable = this.activeGold() >= offer.price;
+        this.add.text(cx + gemW - 16, gemRowTop + gemH - 18, `${offer.price} GOLD`, {
+          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: affordable ? UI.textAccent : BAD_HEX,
+        }).setOrigin(1, 0);
+      }
     }
+
+    if (cardCols === 0 && gemCols === 0) {
+      this.add.text(gx, rowTop, 'This shop has nothing to sell.', {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textSoft,
+      });
+    }
+  }
+
+  /** The shop id the detail/confirm overlays operate on — the run's single
+   * storefront in Run Mode (no picker to have set `selectedShop`), else the
+   * Sandbox's browsed `selectedShop`. */
+  private activeShopId(): string {
+    return this.runShopId() ?? this.selectedShop!;
   }
 
   private emptySlot(x: number, y: number, w: number, h: number): void {
@@ -190,8 +288,8 @@ export class DesktopShopScene extends Phaser.Scene {
   // ---------- card detail overlay ----------
 
   private renderCardDetail(): void {
-    const shopId = this.selectedShop!;
-    const shelf = ensureShelf(shopId);
+    const shopId = this.activeShopId();
+    const shelf = this.shelfFor(shopId);
     const offer = shelf.cards[this.detailCardIndex!];
     if (!offer) { this.detailCardIndex = null; return; }
     const base = skillBook[offer.skillId]!;
@@ -220,8 +318,9 @@ export class DesktopShopScene extends Phaser.Scene {
     }).setOrigin(0.5, 0);
     y = py + ph - 56;
 
-    const affordable = demoState.gold >= offer.price;
-    const hasRoom = bagHasRoomFor(offer.skillId);
+    const runMode = this.runShopId() !== null;
+    const affordable = this.activeGold() >= offer.price;
+    const hasRoom = runMode ? currentRunBagHasRoomFor(offer.skillId) : bagHasRoomFor(offer.skillId);
     const canBuy = affordable && hasRoom;
     const btn = this.add.rectangle(centerX, y, pw - 40, 40, canBuy ? UI.chip : UI.panelMuted, canBuy ? 1 : 0.5)
       .setOrigin(0.5, 0).setStrokeStyle(1, UI.border, canBuy ? 1 : 0.4);
@@ -237,8 +336,8 @@ export class DesktopShopScene extends Phaser.Scene {
   // ---------- gem detail overlay ----------
 
   private renderGemDetail(): void {
-    const shopId = this.selectedShop!;
-    const shelf = ensureShelf(shopId);
+    const shopId = this.activeShopId();
+    const shelf = this.shelfFor(shopId);
     const offer = shelf.gems[this.detailGemIndex!];
     if (!offer) { this.detailGemIndex = null; return; }
     const gem: GemDef = gemBook[offer.gemId]!;
@@ -264,7 +363,7 @@ export class DesktopShopScene extends Phaser.Scene {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.text, align: 'center', wordWrap: { width: pw - 40 }, lineSpacing: 4,
     }).setOrigin(0.5, 0);
 
-    const affordable = demoState.gold >= offer.price;
+    const affordable = this.activeGold() >= offer.price;
     const btnY = py + ph - 56;
     const btn = this.add.rectangle(centerX, btnY, pw - 40, 40, affordable ? UI.chip : UI.panelMuted, affordable ? 1 : 0.5)
       .setOrigin(0.5, 0).setStrokeStyle(1, UI.border, affordable ? 1 : 0.4);
@@ -281,8 +380,9 @@ export class DesktopShopScene extends Phaser.Scene {
   // ---------- confirm ----------
 
   private renderConfirm(): void {
-    const shopId = this.selectedShop!;
-    const shelf = ensureShelf(shopId);
+    const shopId = this.activeShopId();
+    const shelf = this.shelfFor(shopId);
+    const runMode = this.runShopId() !== null;
     const buy = this.pendingBuy!;
     const name = buy.kind === 'card'
       ? (skillBook[shelf.cards[buy.index]?.skillId ?? '']?.name ?? 'card')
@@ -301,7 +401,9 @@ export class DesktopShopScene extends Phaser.Scene {
     };
     mk(bx + 20, (bw - 60) / 2, 'CANCEL', UI.panelMuted, UI.text, () => { this.pendingBuy = null; this.rerender(); });
     mk(bx + 40 + (bw - 60) / 2, (bw - 60) / 2, 'BUY', UI.chip, UI.textOnChip, () => {
-      const result = buy.kind === 'card' ? buyCard(shopId, buy.index) : buyGem(shopId, buy.index);
+      const result = runMode
+        ? (buy.kind === 'card' ? buyCurrentShopCard(buy.index) : buyCurrentShopGem(buy.index))
+        : (buy.kind === 'card' ? buyCard(shopId, buy.index) : buyGem(shopId, buy.index));
       this.pendingBuy = null;
       this.detailCardIndex = null;
       this.detailGemIndex = null;

@@ -1,0 +1,406 @@
+import { describe, expect, it } from 'vitest';
+import { eventCatalog, eventCatalogIds, type EventChoiceOutcome, type EventOutcomeSpec } from '../../src/data/events';
+import { skillBook } from '../../src/data/skills';
+import { gemBook } from '../../src/data/gems';
+import {
+  applyBonusDraftPick,
+  resolveEventChoice,
+  rollEventForNode,
+} from '../../src/run/events';
+import {
+  applyDraftResult,
+  availableChoices,
+  chooseNode,
+  createRun,
+  currentEventNode,
+  leaveEvent,
+  leaveShop,
+  recordBattleResult,
+  type RunNode,
+  type RunState,
+} from '../../src/run/runState';
+import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
+
+function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
+  const draft = rollStartDraft(seed);
+  const picks: Partial<Record<DraftSetKey, string>> = {};
+  for (const key of DRAFT_SET_KEYS) picks[key] = draft[key][0]!.skillId;
+  return picks;
+}
+
+function startedRun(seed: number): RunState {
+  return applyDraftResult(createRun(seed), draftPicksFor(seed));
+}
+
+/** Walk to the first event node reachable from a fresh run, leaving any
+ * shop/fight nodes encountered along the way (fights always won). Returns
+ * the state with that event node `current` (uncommitted). */
+function stateAtFirstEvent(seed: number): { state: RunState; node: RunNode } {
+  let state = startedRun(seed);
+  for (let guard = 0; guard < 200; guard++) {
+    const choices = availableChoices(state);
+    if (choices.length === 0) throw new Error('no event node reachable for this seed');
+    const eventChoice = choices.find((n) => n.kind === 'event');
+    if (eventChoice) {
+      state = chooseNode(state, eventChoice.id);
+      return { state, node: eventChoice };
+    }
+    const node = choices[0]!;
+    state = chooseNode(state, node.id);
+    if (node.kind === 'shop') state = leaveShop(state);
+    else state = recordBattleResult(state, { won: true, goldEarned: 1 });
+  }
+  throw new Error('guard exceeded while looking for an event node');
+}
+
+/** Every non-gamble outcome kind in the vocabulary, for the catalog lint. */
+const OUTCOME_KINDS = new Set(['grantCard', 'grantGem', 'grantGold', 'loseGold', 'grantLevel', 'bonusDraft', 'nothing']);
+
+function isSafe(choice: { cost?: number; outcome: EventChoiceOutcome }): boolean {
+  if ((choice.cost ?? 0) > 0) return false;
+  if (choice.outcome.kind !== 'gamble') return true;
+  return choice.outcome.table.some((row) => row.outcome.kind === 'nothing');
+}
+
+describe('data/events: catalog lint', () => {
+  it('has exactly 20 events, each with a unique id', () => {
+    expect(eventCatalogIds.length).toBe(20);
+    expect(new Set(eventCatalogIds).size).toBe(20);
+  });
+
+  it('every event has a theme', () => {
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      expect(['training', 'cache', 'recruit', 'forge', 'market', 'omen']).toContain(event.theme);
+    }
+  });
+
+  it('every theme has at least 2 events', () => {
+    const counts: Record<string, number> = {};
+    for (const id of eventCatalogIds) {
+      const theme = eventCatalog[id]!.theme;
+      counts[theme] = (counts[theme] ?? 0) + 1;
+    }
+    for (const theme of ['training', 'cache', 'recruit', 'forge', 'market', 'omen']) {
+      expect(counts[theme] ?? 0).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('every event has 2-3 choices', () => {
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      expect(event.choices.length).toBeGreaterThanOrEqual(2);
+      expect(event.choices.length).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it('every event has a genuinely safe exit (cost 0, worst gamble branch is nothing)', () => {
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      expect(event.choices.some(isSafe)).toBe(true);
+    }
+  });
+
+  it('at most one gamble choice per event', () => {
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      const gambles = event.choices.filter((c) => c.outcome.kind === 'gamble');
+      expect(gambles.length).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('every outcome (and every gamble row) uses only vocabulary kinds, and gambles never nest', () => {
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      for (const choice of event.choices) {
+        if (choice.outcome.kind === 'gamble') {
+          for (const row of choice.outcome.table) {
+            expect(OUTCOME_KINDS.has(row.outcome.kind)).toBe(true);
+          }
+        } else {
+          expect(OUTCOME_KINDS.has(choice.outcome.kind)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('every gamble table sums to exactly 100', () => {
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      for (const choice of event.choices) {
+        if (choice.outcome.kind !== 'gamble') continue;
+        const total = choice.outcome.table.reduce((sum, row) => sum + row.weight, 0);
+        expect(total).toBe(100);
+      }
+    }
+  });
+
+  it('every fixed grantCard/grantGem id and filter resolves to a real, non-empty pool', () => {
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      const specs: EventOutcomeSpec[] = event.choices.flatMap((c) =>
+        c.outcome.kind === 'gamble' ? c.outcome.table.map((r) => r.outcome) : [c.outcome],
+      );
+      for (const spec of specs) {
+        if (spec.kind === 'grantCard') {
+          if (spec.cardId) expect(skillBook[spec.cardId]).toBeDefined();
+          if (spec.filter) {
+            const pool = Object.values(skillBook).filter((s) =>
+              spec.filter!.some((clause) => {
+                if (clause.properties && !clause.properties.includes(s.property)) return false;
+                if (clause.weapons && (!s.weapon || !clause.weapons.includes(s.weapon))) return false;
+                if (clause.elements && (!s.element || !clause.elements.includes(s.element))) return false;
+                if (clause.archetypes && !s.archetypes.some((a) => clause.archetypes!.includes(a))) return false;
+                return true;
+              }),
+            );
+            expect(pool.length).toBeGreaterThan(0);
+          }
+        }
+        if (spec.kind === 'grantGem' && spec.gemId) {
+          expect(gemBook[spec.gemId]).toBeDefined();
+        }
+      }
+    }
+  });
+
+  it('every bonusDraft filter resolves to a real, non-empty pool (thin filters allowed, empty is a bug)', () => {
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      const specs: EventOutcomeSpec[] = event.choices.flatMap((c) =>
+        c.outcome.kind === 'gamble' ? c.outcome.table.map((r) => r.outcome) : [c.outcome],
+      );
+      for (const spec of specs) {
+        if (spec.kind !== 'bonusDraft' || !spec.filter) continue;
+        const pool = Object.values(skillBook).filter((s) =>
+          spec.filter!.some((clause) => {
+            if (clause.properties && !clause.properties.includes(s.property)) return false;
+            if (clause.weapons && (!s.weapon || !clause.weapons.includes(s.weapon))) return false;
+            if (clause.elements && (!s.element || !clause.elements.includes(s.element))) return false;
+            if (clause.archetypes && !s.archetypes.some((a) => clause.archetypes!.includes(a))) return false;
+            return true;
+          }),
+        );
+        expect(pool.length).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+describe('run/events: rollEventForNode', () => {
+  it('is idempotent for the same node (a reload never re-draws)', () => {
+    const { state, node } = stateAtFirstEvent(3);
+    const a = rollEventForNode(state, node);
+    const b = rollEventForNode(a.state, node);
+    expect(b.event.id).toBe(a.event.id);
+    expect(b.state.eventBag).toEqual(a.state.eventBag);
+    expect(b.state.eventBagRefills).toBe(a.state.eventBagRefills);
+  });
+
+  it('throws on a non-event node', () => {
+    const state = startedRun(1);
+    const nonEvent = availableChoices(state).find((n) => n.kind !== 'event');
+    if (!nonEvent) return;
+    expect(() => rollEventForNode(state, nonEvent)).toThrow();
+  });
+
+  it('determinism: same run seed -> same event drawn at the same node, across ~20 seeds', () => {
+    for (let i = 0; i < 20; i++) {
+      const seed = i * 37 + 5;
+      const { state: stateA, node: nodeA } = stateAtFirstEvent(seed);
+      const { state: stateB, node: nodeB } = stateAtFirstEvent(seed);
+      expect(nodeB.id).toBe(nodeA.id);
+      const a = rollEventForNode(stateA, nodeA);
+      const b = rollEventForNode(stateB, nodeB);
+      expect(b.event.id).toBe(a.event.id);
+    }
+  });
+
+  it('the event bag never repeats a catalog id within one cycle', () => {
+    // Drive a synthetic sequence of distinct event nodes through the SAME
+    // state, forcing bag draws in order, and check no id repeats until the
+    // bag would need to refill.
+    let state = startedRun(9);
+    const drawn: string[] = [];
+    for (let i = 0; i < eventCatalogIds.length; i++) {
+      const fakeNode = { id: `fake-${i}`, depth: 1, wave: 1, kind: 'event' as const, eventSeed: i };
+      const result = rollEventForNode(state, fakeNode);
+      drawn.push(result.event.id);
+      state = result.state;
+    }
+    expect(new Set(drawn).size).toBe(eventCatalogIds.length);
+  });
+
+  it('respects the node theme: the resolved event always matches node.eventTheme', () => {
+    let state = startedRun(11);
+    const themes = ['training', 'cache', 'recruit', 'forge', 'market', 'omen'] as const;
+    for (let i = 0; i < 12; i++) {
+      const theme = themes[i % themes.length]!;
+      const fakeNode = { id: `themed-${i}`, depth: 1, wave: 1, kind: 'event' as const, eventSeed: i, eventTheme: theme };
+      const result = rollEventForNode(state, fakeNode);
+      expect(result.event.theme).toBe(theme);
+      state = result.state;
+    }
+  });
+
+  it('no-repeat holds WITHIN a theme across a run (refills only that theme once exhausted)', () => {
+    let state = startedRun(12);
+    const themePool = eventCatalogIds.filter((id) => eventCatalog[id]!.theme === 'cache');
+    const drawnFirstCycle: string[] = [];
+    for (let i = 0; i < themePool.length; i++) {
+      const fakeNode = { id: `cache-${i}`, depth: 1, wave: 1, kind: 'event' as const, eventSeed: i, eventTheme: 'cache' as const };
+      const result = rollEventForNode(state, fakeNode);
+      drawnFirstCycle.push(result.event.id);
+      state = result.state;
+    }
+    expect(new Set(drawnFirstCycle).size).toBe(themePool.length);
+    // Other themes' bags are untouched by cache draws.
+    expect(state.eventThemeBags?.training ?? []).toEqual([]);
+  });
+
+  it('idempotent per node with a theme set', () => {
+    let state = startedRun(13);
+    const fakeNode = { id: 'themed-idem', depth: 1, wave: 1, kind: 'event' as const, eventSeed: 1, eventTheme: 'forge' as const };
+    const a = rollEventForNode(state, fakeNode);
+    const b = rollEventForNode(a.state, fakeNode);
+    expect(b.event.id).toBe(a.event.id);
+    expect(b.state.eventThemeBags).toEqual(a.state.eventThemeBags);
+    expect(b.state.eventThemeBagRefills).toEqual(a.state.eventThemeBagRefills);
+  });
+
+  it('falls back to the untyped all-catalog bag when eventTheme is absent (defensive path)', () => {
+    let state = startedRun(14);
+    const fakeNode = { id: 'no-theme', depth: 1, wave: 1, kind: 'event' as const, eventSeed: 1 };
+    const result = rollEventForNode(state, fakeNode);
+    expect(eventCatalogIds).toContain(result.event.id);
+    expect(result.state.eventBag.length).toBe(eventCatalogIds.length - 1);
+  });
+
+  it('map-generated event nodes resolve to an event matching their eventTheme', () => {
+    for (let i = 0; i < 20; i++) {
+      const seed = i * 37 + 5;
+      let state = startedRun(seed);
+      for (let guard = 0; guard < 200; guard++) {
+        const choices = availableChoices(state);
+        if (choices.length === 0) break;
+        const eventNode = choices.find((n) => n.kind === 'event');
+        if (eventNode) {
+          const { event } = rollEventForNode(state, eventNode);
+          expect(event.theme).toBe(eventNode.eventTheme);
+          state = chooseNode(state, eventNode.id);
+          state = leaveEvent(state);
+          continue;
+        }
+        const node = choices[0]!;
+        state = chooseNode(state, node.id);
+        if (node.kind === 'shop') state = leaveShop(state);
+        else state = recordBattleResult(state, { won: true, goldEarned: 1 });
+      }
+    }
+  });
+});
+
+describe('run/events: resolveEventChoice', () => {
+  it('grantGold adds to the wallet', () => {
+    const { state } = stateAtFirstEvent(4);
+    const event = eventCatalog.overloaded_caravan!;
+    const withGold = { ...state, gold: 5 };
+    const { state: next, outcome } = resolveEventChoice(withGold, event.id, 'push');
+    expect(outcome).toEqual({ kind: 'grantGold', amount: 1, gambled: false });
+    expect(next.gold).toBe(6);
+  });
+
+  it('cost is deducted before the outcome resolves', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withGold = { ...state, gold: 10 };
+    const { state: next } = resolveEventChoice(withGold, 'wandering_tutor', 'pay');
+    expect(next.gold).toBe(7);
+    expect(next.heroLevel).toBe(state.heroLevel + 1);
+  });
+
+  it('loseGold floors at 0', () => {
+    const { state } = stateAtFirstEvent(4);
+    // Force the losing branch deterministically by trying every choiceId
+    // seed offset until we observe a loseGold outcome (The Gambler's stake).
+    let sawLoseGold = false;
+    for (let i = 0; i < 50 && !sawLoseGold; i++) {
+      const node = { ...currentEventNodeOrThrow(state), eventSeed: i };
+      const withNode: RunState = { ...state, map: replaceNode(state.map, node) };
+      const withGold = { ...withNode, gold: 1 };
+      const { outcome, state: next } = resolveEventChoice(withGold, 'gambler', 'stake');
+      if (outcome.kind === 'loseGold') {
+        sawLoseGold = true;
+        expect(next.gold).toBe(0); // floored, not negative
+      }
+    }
+    expect(sawLoseGold).toBe(true);
+  });
+
+  it('grantLevel matches the win-leveling path (+1 heroLevel)', () => {
+    const { state } = stateAtFirstEvent(4);
+    const { state: next } = resolveEventChoice(state, 'veterans_last_lesson', 'take_years');
+    expect(next.heroLevel).toBe(state.heroLevel + 1);
+  });
+
+  it('grantCard falls back to grantGold(2) with fellBack:true when the bag is full', () => {
+    const { state } = stateAtFirstEvent(4);
+    // Fill the bag completely with 1-slot bronze cards so no insert can fit.
+    const bagSlots = Array.from({ length: 10 }, (_, i) => ({
+      instanceId: `filler_${i}`,
+      skillId: 'sword_slash',
+      tier: 'bronze' as const,
+    }));
+    const fullBag: RunState = { ...state, bagSlots, gold: 0 };
+    const { state: next, outcome } = resolveEventChoice(fullBag, 'veterans_last_lesson', 'take_blade');
+    expect(outcome).toEqual({ kind: 'grantGold', amount: 2, fellBack: true, gambled: false });
+    expect(next.gold).toBe(2);
+  });
+
+  it('bonusDraft returns 5 rolled cards and applyBonusDraftPick installs the pick', () => {
+    const { state } = stateAtFirstEvent(4);
+    const { state: afterChoice, outcome } = resolveEventChoice({ ...state, gold: 5 }, 'overloaded_caravan', 'rummage');
+    expect(outcome.kind).toBe('bonusDraft');
+    if (outcome.kind !== 'bonusDraft') return;
+    expect(outcome.cards).toHaveLength(5);
+    expect(new Set(outcome.cards.map((c) => c.skillId)).size).toBe(5);
+    const { state: final, outcome: pickOutcome } = applyBonusDraftPick(afterChoice, outcome.cards[0]!);
+    expect(pickOutcome.kind).toBe('grantCard');
+    if (pickOutcome.kind !== 'grantCard') return;
+    expect(final.bagSlots.some((s) => s?.skillId === pickOutcome.skillId)).toBe(true);
+  });
+
+  it('a gamble outcome is flagged gambled:true', () => {
+    const { state } = stateAtFirstEvent(4);
+    const { outcome } = resolveEventChoice(state, 'abandoned_cache', 'open');
+    expect(outcome.gambled).toBe(true);
+  });
+
+  it('a non-gamble outcome is flagged gambled:false', () => {
+    const { state } = stateAtFirstEvent(4);
+    const { outcome } = resolveEventChoice({ ...state, gold: 5 }, 'crossroads_shrine', 'deface');
+    expect(outcome.gambled).toBe(false);
+  });
+
+  it('throws when no event node is currently active', () => {
+    const state = startedRun(4);
+    expect(() => resolveEventChoice(state, 'wandering_tutor', 'pay')).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Small helpers for the loseGold-floor test (needs an active event node with
+// a specific, swept `eventSeed`).
+// ---------------------------------------------------------------------------
+
+function currentEventNodeOrThrow(state: RunState): RunNode {
+  const node = currentEventNode(state);
+  if (!node) throw new Error('no active event node');
+  return node;
+}
+
+function replaceNode(map: RunState['map'], replacement: RunNode): RunState['map'] {
+  return {
+    ...map,
+    depths: map.depths.map((column) => column.map((n) => (n.id === replacement.id ? replacement : n))),
+  };
+}

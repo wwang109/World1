@@ -6,6 +6,7 @@ import type { SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup, buildEnemyEncounter, ENEMY_MODIFIER_IDS, ENEMY_TITLES, maxRankFor, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../../run/encounter';
 import { bankedPL, LEVEL_STAT_COST, spentPL, totalLevelPL, type LevelStat } from '../../run/leveling';
 import { cachedDamageBand } from '../battleApi';
+import { setBattleContext } from '../battleContext';
 import { demoState, MAX_FOES, syncPrimaryFoe, type EnemyFightConfig } from '../demoState';
 import { FONT, SCREEN, UI } from '../theme';
 import { renderActionBar } from '../ui/ActionBar';
@@ -392,7 +393,7 @@ export class MobilePrepScene extends Phaser.Scene {
           this.rerender();
         },
       },
-      { label: 'FIGHT', primary: true, flex: 2, onPress: () => this.scene.start('MobileBattle') },
+      { label: 'FIGHT', primary: true, flex: 2, onPress: () => { setBattleContext('demo'); this.scene.start('MobileBattle'); } },
     ]);
   }
 }

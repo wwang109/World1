@@ -879,6 +879,768 @@ const defs: SkillDef[] = [
       },
     },
   },
+  // ==========================================================================
+  // Card-book expansion (2026-07-29, +36 bronze) — see docs/card-book-expansion.md.
+  // Slices: wheel elements (fire/lightning/nature/frost), weapons (lance/bow),
+  // archetypes (defensive/support/healing/true). Each element/weapon gets a
+  // distinct play identity per the doc: fire=burn/DoT, lightning=speed/stagger,
+  // nature=poison/regen, frost=slow/control, lance=reach/guard, bow=multi-hit/
+  // precision. All authored at Bronze; tierUpgrades added only where the
+  // auto-scaler can't express a sane curve (DoT-sink cards and pure-aura cards).
+  // ==========================================================================
+
+  // ---- Fire (burn/DoT identity) ----
+  {
+    id: 'ember_lash',
+    name: 'Ember Lash',
+    archetypes: ['offense'],
+    property: 'magical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'fire',
+    effects: [
+      { kind: 'damage', power: 10 },
+      { kind: 'burn', stacks: 5 },
+    ],
+    text: 'Deal Fire damage +10 (+Magic Power) · {{Burn}} 5.',
+    // Moderate burn growth, rest into damage (same house style as fireball).
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'damage', power: 16 },
+          { kind: 'burn', stacks: 7 },
+        ],
+        text: 'Deal Fire damage +16 (+Magic Power) · {{Burn}} 7.',
+      },
+      gold: {
+        effects: [
+          { kind: 'damage', power: 24 },
+          { kind: 'burn', stacks: 8 },
+        ],
+        text: 'Deal Fire damage +24 (+Magic Power) · {{Burn}} 8.',
+      },
+      diamond: {
+        effects: [
+          { kind: 'damage', power: 32 },
+          { kind: 'burn', stacks: 9 },
+        ],
+        text: 'Deal Fire damage +32 (+Magic Power) · {{Burn}} 9.',
+      },
+    },
+  },
+  {
+    id: 'cinder_dart',
+    name: 'Cinder Dart',
+    archetypes: ['offense'],
+    property: 'magical',
+    size: 1,
+    speedWeight: 8,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'fire',
+    effects: [
+      { kind: 'damage', power: 12 },
+      { kind: 'burn', stacks: 3 },
+    ],
+    text: 'Deal Fire damage +12 (+Magic Power) · {{Burn}} 3. Light and quick (weight 8).',
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'damage', power: 18 },
+          { kind: 'burn', stacks: 5 },
+        ],
+        text: 'Deal Fire damage +18 (+Magic Power) · {{Burn}} 5. Light and quick (weight 8).',
+      },
+      gold: {
+        effects: [
+          { kind: 'damage', power: 26 },
+          { kind: 'burn', stacks: 6 },
+        ],
+        text: 'Deal Fire damage +26 (+Magic Power) · {{Burn}} 6. Light and quick (weight 8).',
+      },
+      diamond: {
+        effects: [
+          { kind: 'damage', power: 34 },
+          { kind: 'burn', stacks: 7 },
+        ],
+        text: 'Deal Fire damage +34 (+Magic Power) · {{Burn}} 7. Light and quick (weight 8).',
+      },
+    },
+  },
+  {
+    id: 'scorching_brand',
+    name: 'Scorching Brand',
+    archetypes: ['offense', 'debuff'],
+    property: 'magical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'fire',
+    effects: [
+      { kind: 'damage', power: 8 },
+      { kind: 'burn', stacks: 3 },
+      { kind: 'debuffStat', stat: 'armor', pct: 15, turns: 2 },
+    ],
+    text: 'Deal Fire damage +8 (+Magic Power) · {{Burn}} 3 · -15% enemy Armor (2 turns).',
+    // The armor debuff is frozen (control); burn grows moderately, damage sinks the rest.
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'damage', power: 14 },
+          { kind: 'burn', stacks: 5 },
+          { kind: 'debuffStat', stat: 'armor', pct: 15, turns: 2 },
+        ],
+        text: 'Deal Fire damage +14 (+Magic Power) · {{Burn}} 5 · -15% enemy Armor (2 turns).',
+      },
+      gold: {
+        effects: [
+          { kind: 'damage', power: 22 },
+          { kind: 'burn', stacks: 6 },
+          { kind: 'debuffStat', stat: 'armor', pct: 15, turns: 2 },
+        ],
+        text: 'Deal Fire damage +22 (+Magic Power) · {{Burn}} 6 · -15% enemy Armor (2 turns).',
+      },
+      diamond: {
+        effects: [
+          { kind: 'damage', power: 30 },
+          { kind: 'burn', stacks: 7 },
+          { kind: 'debuffStat', stat: 'armor', pct: 15, turns: 2 },
+        ],
+        text: 'Deal Fire damage +30 (+Magic Power) · {{Burn}} 7 · -15% enemy Armor (2 turns).',
+      },
+    },
+  },
+  {
+    id: 'wildfire_surge',
+    name: 'Wildfire Surge',
+    archetypes: ['offense'],
+    property: 'magical',
+    size: 2,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'fire',
+    effects: [
+      { kind: 'damage', power: 24 },
+      { kind: 'burn', stacks: 12 },
+    ],
+    text: 'Deal Fire damage +24 (+Magic Power) · {{Burn}} 12.',
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'damage', power: 36 },
+          { kind: 'burn', stacks: 14 },
+        ],
+        text: 'Deal Fire damage +36 (+Magic Power) · {{Burn}} 14.',
+      },
+      gold: {
+        effects: [
+          { kind: 'damage', power: 52 },
+          { kind: 'burn', stacks: 15 },
+        ],
+        text: 'Deal Fire damage +52 (+Magic Power) · {{Burn}} 15.',
+      },
+      diamond: {
+        effects: [
+          { kind: 'damage', power: 64 },
+          { kind: 'burn', stacks: 17 },
+        ],
+        text: 'Deal Fire damage +64 (+Magic Power) · {{Burn}} 17.',
+      },
+    },
+  },
+  {
+    id: 'inferno_eruption',
+    name: 'Inferno Eruption',
+    archetypes: ['offense'],
+    property: 'magical',
+    size: 3,
+    rarity: 'epic',
+    tier: 'bronze',
+    element: 'fire',
+    effects: [
+      { kind: 'damage', power: 56 },
+      { kind: 'burn', stacks: 20 },
+    ],
+    text: 'Deal Fire damage +56 (+Magic Power) · {{Burn}} 20.',
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'damage', power: 74 },
+          { kind: 'burn', stacks: 25 },
+        ],
+        text: 'Deal Fire damage +74 (+Magic Power) · {{Burn}} 25.',
+      },
+      gold: {
+        effects: [
+          { kind: 'damage', power: 98 },
+          { kind: 'burn', stacks: 28 },
+        ],
+        text: 'Deal Fire damage +98 (+Magic Power) · {{Burn}} 28.',
+      },
+      diamond: {
+        effects: [
+          { kind: 'damage', power: 118 },
+          { kind: 'burn', stacks: 32 },
+        ],
+        text: 'Deal Fire damage +118 (+Magic Power) · {{Burn}} 32.',
+      },
+    },
+  },
+
+  // ---- Lightning (speed/stagger identity) ----
+  {
+    id: 'static_jolt',
+    name: 'Static Jolt',
+    archetypes: ['offense'],
+    property: 'magical',
+    size: 1,
+    speedWeight: 6,
+    rarity: 'common',
+    tier: 'bronze',
+    element: 'lightning',
+    effects: [{ kind: 'damage', power: 16 }],
+    text: 'Deal Lightning damage +16 (+Magic Power). Very quick (weight 6).',
+  },
+  {
+    id: 'thunder_step',
+    name: 'Thunder Step',
+    archetypes: ['offense', 'support'],
+    property: 'magical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'lightning',
+    effects: [
+      { kind: 'buffStat', stat: 'speed', pct: 20, turns: 2 },
+      { kind: 'damage', power: 12 },
+    ],
+    text: 'Deal Lightning damage +12 (+Magic Power) · +20% Speed (2 turns).',
+  },
+  {
+    id: 'chain_spark',
+    name: 'Chain Spark',
+    archetypes: ['offense', 'debuff'],
+    property: 'magical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'lightning',
+    effects: [
+      { kind: 'damage', power: 16 },
+      { kind: 'slow', weight: 8 },
+    ],
+    text: "Deal Lightning damage +16 (+Magic Power) · {{Slow}} the enemy's next action by +8 weight.",
+  },
+  {
+    id: 'overcharge',
+    name: 'Overcharge',
+    archetypes: ['offense', 'debuff'],
+    property: 'magical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'lightning',
+    effects: [
+      { kind: 'damage', power: 16 },
+      { kind: 'disrupt', amount: 4 },
+    ],
+    text: 'Deal Lightning damage +16 (+Magic Power) · {{Disrupt}} 4 banked readiness.',
+  },
+  {
+    id: 'storm_surge',
+    name: 'Storm Surge',
+    archetypes: ['offense', 'support'],
+    property: 'magical',
+    size: 2,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'lightning',
+    effects: [
+      { kind: 'buffStat', stat: 'speed', pct: 30, turns: 2 },
+      { kind: 'damage', power: 36 },
+    ],
+    text: 'Deal Lightning damage +36 (+Magic Power) · +30% Speed (2 turns).',
+  },
+
+  // ---- Nature (poison/regen identity) ----
+  {
+    id: 'thorn_bite',
+    name: 'Thorn Bite',
+    archetypes: ['offense', 'debuff'],
+    property: 'magical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'nature',
+    effects: [
+      { kind: 'damage', power: 10 },
+      { kind: 'poison', stacks: 5 },
+    ],
+    text: 'Deal Nature damage +10 (+Magic Power) · {{Poison}} 5 (poison bypasses shields).',
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'damage', power: 16 },
+          { kind: 'poison', stacks: 7 },
+        ],
+        text: 'Deal Nature damage +16 (+Magic Power) · {{Poison}} 7 (poison bypasses shields).',
+      },
+      gold: {
+        effects: [
+          { kind: 'damage', power: 24 },
+          { kind: 'poison', stacks: 8 },
+        ],
+        text: 'Deal Nature damage +24 (+Magic Power) · {{Poison}} 8 (poison bypasses shields).',
+      },
+      diamond: {
+        effects: [
+          { kind: 'damage', power: 32 },
+          { kind: 'poison', stacks: 9 },
+        ],
+        text: 'Deal Nature damage +32 (+Magic Power) · {{Poison}} 9 (poison bypasses shields).',
+      },
+    },
+  },
+  {
+    id: 'verdant_touch',
+    name: 'Verdant Touch',
+    archetypes: ['healing'],
+    property: 'magical',
+    size: 1,
+    rarity: 'common',
+    tier: 'bronze',
+    element: 'nature',
+    effects: [{ kind: 'heal', power: 20 }],
+    text: '+20 HP (+Magic Power).',
+  },
+  {
+    id: 'blooming_vine',
+    name: 'Blooming Vine',
+    archetypes: ['offense', 'debuff'],
+    property: 'magical',
+    size: 1,
+    speedWeight: 12,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'nature',
+    effects: [
+      { kind: 'damage', power: 14 },
+      { kind: 'poison', stacks: 4 },
+    ],
+    text: 'Deal Nature damage +14 (+Magic Power) · {{Poison}} 4 (poison bypasses shields). Heavier and slower (weight 12).',
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'damage', power: 20 },
+          { kind: 'poison', stacks: 6 },
+        ],
+        text: 'Deal Nature damage +20 (+Magic Power) · {{Poison}} 6 (poison bypasses shields). Heavier and slower (weight 12).',
+      },
+      gold: {
+        effects: [
+          { kind: 'damage', power: 28 },
+          { kind: 'poison', stacks: 7 },
+        ],
+        text: 'Deal Nature damage +28 (+Magic Power) · {{Poison}} 7 (poison bypasses shields). Heavier and slower (weight 12).',
+      },
+      diamond: {
+        effects: [
+          { kind: 'damage', power: 36 },
+          { kind: 'poison', stacks: 8 },
+        ],
+        text: 'Deal Nature damage +36 (+Magic Power) · {{Poison}} 8 (poison bypasses shields). Heavier and slower (weight 12).',
+      },
+    },
+  },
+  {
+    id: 'overgrowth',
+    name: 'Overgrowth',
+    archetypes: ['healing', 'defensive'],
+    property: 'magical',
+    size: 2,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'nature',
+    effects: [
+      { kind: 'heal', power: 30 },
+      { kind: 'shield', power: 18 },
+    ],
+    text: '+30 HP (+Magic Power) · +18 Magic Shield (+Magic Power) — a thorned bark ward.',
+  },
+
+  // ---- Frost (slow/control identity) ----
+  {
+    id: 'glacial_spike',
+    name: 'Glacial Spike',
+    archetypes: ['offense', 'debuff'],
+    property: 'magical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'frost',
+    effects: [
+      { kind: 'damage', power: 12 },
+      { kind: 'debuffStat', stat: 'speed', pct: 20, turns: 2 },
+    ],
+    text: 'Deal Frost damage +12 (+Magic Power) · -20% enemy Speed (2 turns).',
+  },
+  {
+    id: 'frost_shackle',
+    name: 'Frost Shackle',
+    archetypes: ['offense', 'debuff'],
+    property: 'magical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'frost',
+    effects: [
+      { kind: 'damage', power: 14 },
+      { kind: 'slow', weight: 12 },
+    ],
+    text: "Deal Frost damage +14 (+Magic Power) · {{Slow}} the enemy's next action by +12 weight.",
+  },
+  {
+    id: 'deep_freeze',
+    name: 'Deep Freeze',
+    archetypes: ['offense', 'debuff'],
+    property: 'magical',
+    size: 2,
+    rarity: 'rare',
+    tier: 'bronze',
+    element: 'frost',
+    effects: [
+      { kind: 'damage', power: 24 },
+      { kind: 'debuffStat', stat: 'speed', pct: 40, turns: 3 },
+    ],
+    text: 'Deal Frost damage +24 (+Magic Power) · -40% enemy Speed (3 turns).',
+  },
+
+  // ---- Lance (reach/guard identity) ----
+  {
+    id: 'lance_thrust',
+    name: 'Lance Thrust',
+    archetypes: ['offense'],
+    property: 'physical',
+    weapon: 'lance',
+    size: 1,
+    rarity: 'common',
+    tier: 'bronze',
+    effects: [{ kind: 'damage', power: 20 }],
+    text: 'Deal Lance damage +20 (+Attack).',
+  },
+  {
+    id: 'braced_pike',
+    name: 'Braced Pike',
+    archetypes: ['offense', 'defensive'],
+    property: 'physical',
+    weapon: 'lance',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [
+      { kind: 'guard', property: 'physical', pct: 20, turns: 2 },
+      { kind: 'damage', power: 12 },
+    ],
+    text: 'Deal Lance damage +12 (+Attack) · -20% incoming physical damage (2 turns).',
+  },
+  {
+    id: 'piercing_reach',
+    name: 'Piercing Reach',
+    archetypes: ['offense', 'debuff'],
+    property: 'physical',
+    weapon: 'lance',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [
+      { kind: 'shieldBreak', amount: 16 },
+      { kind: 'damage', power: 16 },
+    ],
+    text: '{{Shatter}} 16 enemy shield, then deal Lance damage +16 (+Attack).',
+  },
+  {
+    id: 'impaling_charge',
+    name: 'Impaling Charge',
+    archetypes: ['offense', 'defensive'],
+    property: 'physical',
+    weapon: 'lance',
+    size: 2,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [
+      { kind: 'guard', property: 'physical', pct: 30, turns: 2 },
+      { kind: 'damage', power: 36 },
+    ],
+    text: 'Deal Lance damage +36 (+Attack) · -30% incoming physical damage (2 turns).',
+  },
+
+  // ---- Bow (multi-hit/precision identity) ----
+  {
+    id: 'rapid_volley',
+    name: 'Rapid Volley',
+    archetypes: ['offense'],
+    property: 'physical',
+    weapon: 'bow',
+    size: 1,
+    speedWeight: 16,
+    rarity: 'rare',
+    tier: 'bronze',
+    // Each hit priced alone must be a whole PL (10*5=50 deci = 5 PL): 2 hits
+    // (100) + extraHit premium (30) + weight16 heavier refund (-30) = 100.
+    effects: [
+      { kind: 'damage', power: 10 },
+      { kind: 'damage', power: 10 },
+    ],
+    text: 'Deal Bow damage +10 (+Attack), twice. Heavier and slower (weight 16).',
+  },
+  {
+    id: 'piercing_arrow',
+    name: 'Piercing Arrow',
+    archetypes: ['offense', 'debuff'],
+    property: 'physical',
+    weapon: 'bow',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [
+      { kind: 'damage', power: 8 },
+      { kind: 'expose', pct: 30, turns: 2 },
+    ],
+    text: 'Deal Bow damage +8 (+Attack) · {{Expose}} the enemy — +30% damage from all direct hits (2 turns).',
+  },
+  {
+    id: 'marksman_shot',
+    name: 'Marksman Shot',
+    archetypes: ['offense'],
+    property: 'physical',
+    weapon: 'bow',
+    size: 2,
+    rarity: 'common',
+    tier: 'bronze',
+    effects: [{ kind: 'damage', power: 48 }],
+    text: 'Deal Bow damage +48 (+Attack).',
+  },
+  {
+    id: 'barrage',
+    name: 'Barrage',
+    archetypes: ['offense'],
+    property: 'physical',
+    weapon: 'bow',
+    size: 2,
+    speedWeight: 26,
+    rarity: 'rare',
+    tier: 'bronze',
+    // Each hit priced alone must be a whole PL (24*5=120 deci = 12 PL): 2 hits
+    // (240) + extraHit premium (30) + weight26 heavier refund (-30) + size2
+    // grant (-140) = 100.
+    effects: [
+      { kind: 'damage', power: 24 },
+      { kind: 'damage', power: 24 },
+    ],
+    text: 'Deal Bow damage +24 (+Attack), twice. Heavier and slower (weight 26).',
+  },
+
+  // ---- Defensive (armor-stack identity) ----
+  {
+    id: 'bastion_stance',
+    name: 'Bastion Stance',
+    archetypes: ['defensive'],
+    property: 'physical',
+    weapon: 'sword',
+    size: 1,
+    rarity: 'common',
+    tier: 'bronze',
+    effects: [{ kind: 'shield', power: 20 }],
+    text: '+20 DEF (+Attack).',
+  },
+  {
+    id: 'aegis_wall',
+    name: 'Aegis Wall',
+    archetypes: ['defensive'],
+    property: 'physical',
+    weapon: 'axe',
+    size: 2,
+    speedWeight: 16,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [{ kind: 'shield', power: 44 }],
+    text: '+44 DEF (+Attack). Lighter stance (weight 16).',
+  },
+  {
+    id: 'sanctified_bulwark',
+    name: 'Sanctified Bulwark',
+    archetypes: ['defensive'],
+    property: 'magical',
+    element: 'holy',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [
+      { kind: 'guard', property: 'magical', pct: 20, turns: 2 },
+      { kind: 'shield', power: 12 },
+    ],
+    text: '+12 MDEF (+Magic Power) · -20% incoming magical damage (2 turns).',
+  },
+  {
+    id: 'fortress_bastion',
+    name: 'Fortress Bastion',
+    archetypes: ['defensive'],
+    property: 'physical',
+    weapon: 'sword',
+    size: 3,
+    rarity: 'epic',
+    tier: 'bronze',
+    effects: [{ kind: 'shield', power: 96 }],
+    text: '+96 DEF (+Attack).',
+  },
+
+  // ---- Support (buff-aura identity) ----
+  {
+    id: 'mending_aura',
+    name: 'Mending Aura',
+    archetypes: ['support'],
+    property: 'magical',
+    element: 'holy',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [],
+    aura: { affects: 'adjacent', archetypeFilter: 'healing', mods: { healFlat: 10 } },
+    text: 'Passive: adjacent Healing cards heal +10.',
+    // Pure aura (no scalable sink) — grows exactly like war_banner's damageFlat curve.
+    tierUpgrades: {
+      silver: {
+        aura: { affects: 'adjacent', archetypeFilter: 'healing', mods: { healFlat: 15 } },
+        text: 'Passive: adjacent Healing cards heal +15.',
+      },
+      gold: {
+        aura: { affects: 'adjacent', archetypeFilter: 'healing', mods: { healFlat: 20 } },
+        text: 'Passive: adjacent Healing cards heal +20.',
+      },
+      diamond: {
+        aura: { affects: 'adjacent', archetypeFilter: 'healing', mods: { healFlat: 25 } },
+        text: 'Passive: adjacent Healing cards heal +25.',
+      },
+    },
+  },
+  {
+    id: 'swift_march',
+    name: 'Swift March',
+    archetypes: ['support'],
+    property: 'magical',
+    element: 'dark',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [],
+    aura: { affects: 'adjacent', mods: { weightDelta: -5 } },
+    text: 'Passive: adjacent cards -5 weight (cast sooner).',
+    // Pure aura — weightDelta deepens and a self Speed buff sinks the rest
+    // (same shape as time_crystal, but untargeted and quicker-firing).
+    tierUpgrades: {
+      silver: {
+        aura: { affects: 'adjacent', mods: { weightDelta: -6 } },
+        effects: [{ kind: 'buffStat', stat: 'speed', pct: 15, turns: 2 }],
+        text: 'Passive: adjacent cards -6 weight (cast sooner). Self: +15% Speed (2 turns).',
+      },
+      gold: {
+        aura: { affects: 'adjacent', mods: { weightDelta: -8 } },
+        effects: [{ kind: 'buffStat', stat: 'speed', pct: 20, turns: 2 }],
+        text: 'Passive: adjacent cards -8 weight (cast sooner). Self: +20% Speed (2 turns).',
+      },
+      diamond: {
+        aura: { affects: 'adjacent', mods: { weightDelta: -10 } },
+        effects: [{ kind: 'buffStat', stat: 'speed', pct: 25, turns: 2 }],
+        text: 'Passive: adjacent cards -10 weight (cast sooner). Self: +25% Speed (2 turns).',
+      },
+    },
+  },
+  {
+    id: 'warlord_banner',
+    name: "Warlord's Banner",
+    archetypes: ['support'],
+    property: 'physical',
+    weapon: 'axe',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [],
+    aura: { affects: 'allBoard', mods: { damageFlat: 5 } },
+    text: 'Passive: ALL board cards deal +5 damage.',
+    // Pure aura at allBoard reach (2x cost); damageFlat grows and a self
+    // Attack buff sinks the rest.
+    tierUpgrades: {
+      silver: {
+        aura: { affects: 'allBoard', mods: { damageFlat: 6 } },
+        effects: [{ kind: 'buffStat', stat: 'attack', pct: 15, turns: 2 }],
+        text: 'Passive: ALL board cards deal +6 damage. Self: +15% Attack (2 turns).',
+      },
+      gold: {
+        aura: { affects: 'allBoard', mods: { damageFlat: 8 } },
+        effects: [{ kind: 'buffStat', stat: 'attack', pct: 20, turns: 2 }],
+        text: 'Passive: ALL board cards deal +8 damage. Self: +20% Attack (2 turns).',
+      },
+      diamond: {
+        aura: { affects: 'allBoard', mods: { damageFlat: 10 } },
+        effects: [{ kind: 'buffStat', stat: 'attack', pct: 25, turns: 2 }],
+        text: 'Passive: ALL board cards deal +10 damage. Self: +25% Attack (2 turns).',
+      },
+    },
+  },
+
+  // ---- Healing (sustain identity) ----
+  {
+    id: 'renewing_wave',
+    name: 'Renewing Wave',
+    archetypes: ['healing'],
+    property: 'true',
+    element: 'holy',
+    size: 1,
+    speedWeight: 14,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [{ kind: 'heal', power: 60 }],
+    text: '+60 TRUE HP. Heavier cast (weight 14).',
+  },
+  {
+    id: 'vital_surge',
+    name: 'Vital Surge',
+    archetypes: ['healing'],
+    property: 'physical',
+    weapon: 'beast',
+    size: 2,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [{ kind: 'heal', power: 48 }],
+    text: '+48 HP (+Attack).',
+  },
+
+  // ---- True (ignores-defense identity) ----
+  {
+    id: 'void_pierce',
+    name: 'Void Pierce',
+    archetypes: ['offense'],
+    property: 'true',
+    weapon: 'sword',
+    size: 1,
+    rarity: 'epic',
+    tier: 'bronze',
+    effects: [{ kind: 'damage', power: 10 }],
+    text: 'Deal TRUE damage +10 (+best stat) — the +10 ignores DEF/MDEF.',
+  },
+  {
+    id: 'annihilation_strike',
+    name: 'Annihilation Strike',
+    archetypes: ['offense'],
+    property: 'true',
+    element: 'dark',
+    size: 3,
+    rarity: 'epic',
+    tier: 'bronze',
+    effects: [{ kind: 'damage', power: 48 }],
+    text: 'Deal TRUE damage +48 (+best stat) — the +48 ignores DEF/MDEF.',
+  },
 ];
 
 export const skillBook: SkillBook = Object.fromEntries(defs.map((s) => [s.id, s]));

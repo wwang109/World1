@@ -37,6 +37,9 @@ export interface GemFilterClause {
   actionKinds?: readonly Action['kind'][];
   /** Hero-scope stat gem matches if it touches any of these stats. */
   heroStats?: readonly BuffableStat[];
+  /** Matches EVERY gem in the book, unconditionally — the "full gem book"
+   * mechanism (Gemcutter only; no other shop should set this). */
+  all?: boolean;
 }
 
 /** OR of clauses (each clause itself is a single-axis match, not AND'd). */
@@ -49,6 +52,19 @@ export interface ShopTypeDef {
   cardFilter: CardFilter;
   gemFilter: GemFilter;
   shelf: { cards: number; gems: number };
+  /** Node wave (1-indexed) below which map-gen's theme bag will never draw
+   * this shop (consumed by `src/run/runMap.ts`). Omitted = eligible from
+   * wave 1. */
+  minWave?: number;
+  /** Per-card gold markup/discount, folded into `goldPriceOfCard` by
+   * `src/run/shop.ts` (an economy-pacing knob, never a PL/balance number).
+   * Omitted = 0 (today's byte-identical pricing). */
+  priceDelta?: number;
+  /** Declarative tier-roll bias consumed by `rollOfferedTier` in
+   * `src/run/shop.ts`; `'silver'` shifts the roll to favor silver regardless
+   * of node depth (the "upgrade shop" feel). Omitted = the normal
+   * depth-based 70/25/5 -> 45/45/10 -> 25/55/20 split. */
+  tierBias?: 'silver';
 }
 
 const SHELF = { cards: 4, gems: 3 } as const;
@@ -154,6 +170,166 @@ const defs: ShopTypeDef[] = [
       },
     ],
     shelf: SHELF,
+  },
+
+  // ---- Build shops (v1.5 — docs/run-shops-design.md §3) ----
+  {
+    id: 'gemcutter',
+    name: 'Gemcutter',
+    tagline: 'Facets for every socket.',
+    cardFilter: [],
+    gemFilter: [{ all: true }],
+    shelf: { cards: 0, gems: 6 },
+    minWave: 2,
+  },
+  {
+    id: 'caravan',
+    name: 'Caravan',
+    tagline: 'Everything, once, at a price.',
+    // Empty clause -> every field wildcards -> matches the whole card book.
+    cardFilter: [{}],
+    gemFilter: [
+      {
+        ids: [
+          'swift_charm',
+          'brawlers_core',
+          'lightweight_core',
+          'empowering_core',
+          'restorative_core',
+          'quickening_sliver',
+        ],
+      },
+    ],
+    shelf: { cards: 6, gems: 2 },
+    priceDelta: 1,
+  },
+  {
+    id: 'bulwark',
+    name: 'Bulwark',
+    tagline: 'Nothing gets through.',
+    cardFilter: [
+      { archetypes: ['defensive'] },
+      { archetypes: ['support'] },
+      { properties: ['physical'], archetypes: ['defensive'] },
+    ],
+    gemFilter: [
+      {
+        ids: [
+          'bulwark_core',
+          'iron_bulwark_echo',
+          'mana_ward_echo',
+          'prism_barrier_echo',
+          'frost_ward_echo',
+          'ward_of_silence_echo',
+          'purify_echo',
+          'restorative_core',
+        ],
+      },
+    ],
+    shelf: { cards: 4, gems: 3 },
+  },
+  {
+    id: 'assassins_den',
+    name: "Assassins' Den",
+    tagline: 'Fast, quiet, lethal.',
+    cardFilter: [{ archetypes: ['offense'], weapons: ['bow', 'beast'] }, { properties: ['true'] }],
+    gemFilter: [
+      {
+        ids: [
+          'swift_charm',
+          'quickening_sliver',
+          'quickening_core',
+          'leeching_fang_echo',
+          'hunter_shot_echo',
+          'savage_bite_echo',
+          'rending_claws_echo',
+          'purging_strike_echo',
+          'soul_rend_echo',
+        ],
+      },
+    ],
+    shelf: { cards: 4, gems: 3 },
+  },
+  {
+    id: 'relic_vault',
+    name: 'Relic Vault',
+    tagline: 'Old power, honest price.',
+    // Empty clause -> matches the whole card book; the "upgrade" identity
+    // comes from tierBias, not a narrower card filter.
+    cardFilter: [{}],
+    gemFilter: [
+      {
+        ids: [
+          'archmages_core',
+          'concussive_shard',
+          'soul_rend_echo',
+          'restorative_core',
+          'bulwark_core',
+          'empowering_core',
+          'prism_barrier_echo',
+          'enfeebling_shard',
+        ],
+      },
+    ],
+    shelf: { cards: 3, gems: 2 },
+    priceDelta: 1,
+    minWave: 3,
+    tierBias: 'silver',
+  },
+
+  // ---- Element specialist stalls (thin-by-design — docs/run-shops-design.md
+  // §2b, USER-LOCKED: a narrow theme selling 1-7 cards is a specialist stall,
+  // not a bug. Each pairs an element's card filter with its matching echo
+  // gems, so the elemental wheel gets a shopping identity of its own.) ----
+  {
+    id: 'emberworks',
+    name: 'Emberworks',
+    tagline: 'Fire answers to nobody.',
+    cardFilter: [{ elements: ['fire'] }],
+    gemFilter: [{ ids: ['fireball_echo'] }],
+    shelf: { cards: 4, gems: 2 },
+  },
+  {
+    id: 'frosthold',
+    name: 'Frosthold',
+    tagline: 'Cold patience.',
+    cardFilter: [{ elements: ['frost'] }],
+    gemFilter: [{ ids: ['mana_ward_echo', 'frost_ward_echo'] }],
+    shelf: { cards: 4, gems: 2 },
+  },
+  {
+    id: 'stormspire',
+    name: 'Stormspire',
+    tagline: 'Thunder, sold by the bolt.',
+    cardFilter: [{ elements: ['lightning'] }],
+    gemFilter: [{ ids: ['arcane_bolt_echo'] }],
+    shelf: { cards: 4, gems: 2 },
+  },
+  {
+    id: 'grovekeep',
+    name: 'Grovekeep',
+    tagline: 'Roots outlast steel.',
+    cardFilter: [{ elements: ['nature'] }],
+    gemFilter: [{ ids: ['time_crystal_echo', 'second_wind_echo'] }],
+    shelf: { cards: 4, gems: 2 },
+  },
+  {
+    id: 'reliquary',
+    name: 'Reliquary',
+    tagline: 'Light kept in a jar.',
+    cardFilter: [{ elements: ['holy'] }],
+    gemFilter: [
+      { ids: ['mending_light_echo', 'ward_of_silence_echo', 'purify_echo', 'judgment_light_echo', 'prism_barrier_echo'] },
+    ],
+    shelf: { cards: 4, gems: 2 },
+  },
+  {
+    id: 'umbral_stall',
+    name: 'Umbral Stall',
+    tagline: 'Ask no questions.',
+    cardFilter: [{ elements: ['dark'] }],
+    gemFilter: [{ ids: ['shadow_bolt_echo', 'hex_of_frailty_echo', 'soul_rend_echo'] }],
+    shelf: { cards: 4, gems: 2 },
   },
 ];
 

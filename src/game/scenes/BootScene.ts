@@ -50,6 +50,12 @@ export class BootScene extends Phaser.Scene {
       : launch.scene === 'mobile-shop' ? 'MobileShop'
       : launch.scene === 'desktop-draft' ? 'DesktopDraft'
       : launch.scene === 'mobile-draft' ? 'MobileDraft'
+      : launch.scene === 'desktop-runmap' ? 'DesktopRunMap'
+      : launch.scene === 'mrunmap' ? 'MobileRunMap'
+      : launch.scene === 'desktop-runprep' ? 'DesktopRunPrep'
+      : launch.scene === 'mrunprep' ? 'MobileRunPrep'
+      : launch.scene === 'desktop-runevent' ? 'DesktopRunEvent'
+      : launch.scene === 'mrunevent' ? 'MobileRunEvent'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'bag' ? 'DesktopDeck'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'codex' ? 'DesktopWiki'
       : launch.prepView === 'loadout' ? defaultScene

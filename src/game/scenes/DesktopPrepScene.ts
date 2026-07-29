@@ -6,6 +6,7 @@ import type { SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup, buildEnemyEncounter, ENEMY_MODIFIER_IDS, ENEMY_TITLES, maxRankFor, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../../run/encounter';
 import { bankedPL, LEVEL_STAT_COST, spentPL, totalLevelPL, type LevelStat } from '../../run/leveling';
 import { cachedDamageBand } from '../battleApi';
+import { setBattleContext } from '../battleContext';
 import { demoState, MAX_FOES, syncPrimaryFoe, type EnemyFightConfig } from '../demoState';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
@@ -498,7 +499,7 @@ export class DesktopPrepScene extends Phaser.Scene {
     fight.on('pointerover', () => fight.setFillStyle(UI.chipDark).setStrokeStyle(2, UI.chip, 1));
     fight.on('pointerout', () => fight.setFillStyle(UI.chip).setStrokeStyle(2, UI.border, 1));
     this.text(x + w / 2, y + FIGHT_H / 2, 'FIGHT', F.title, UI.textOnChip, { bold: true, display: true, origin: [0.5, 0.5] });
-    fight.on('pointerdown', () => this.scene.start('DesktopBattle'));
+    fight.on('pointerdown', () => { setBattleContext('demo'); this.scene.start('DesktopBattle'); });
   }
 }
 

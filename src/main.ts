@@ -15,6 +15,12 @@ import { DesktopShopScene } from './game/scenes/DesktopShopScene';
 import { MobileShopScene } from './game/scenes/MobileShopScene';
 import { DesktopDraftScene } from './game/scenes/DesktopDraftScene';
 import { MobileDraftScene } from './game/scenes/MobileDraftScene';
+import { DesktopRunMapScene } from './game/scenes/DesktopRunMapScene';
+import { MobileRunMapScene } from './game/scenes/MobileRunMapScene';
+import { DesktopRunPrepScene } from './game/scenes/DesktopRunPrepScene';
+import { MobileRunPrepScene } from './game/scenes/MobileRunPrepScene';
+import { DesktopRunEventScene } from './game/scenes/DesktopRunEventScene';
+import { MobileRunEventScene } from './game/scenes/MobileRunEventScene';
 import { ACTIVE_PROFILE } from './game/layoutProfile';
 import { SCREEN } from './game/theme';
 
@@ -50,8 +56,8 @@ const game = new Phaser.Game({
   },
   scene: [
     BootScene, PrepScene, BattleScene, UiKitScene,
-    MobilePrepScene, MobileDeckBuildScene, MobileBattleScene, MobileWikiScene, MobileShopScene, MobileDraftScene,
-    DesktopWikiScene, DesktopPrepScene, DesktopDeckBuildScene, DesktopBattleScene, DesktopShopScene, DesktopDraftScene,
+    MobilePrepScene, MobileDeckBuildScene, MobileBattleScene, MobileWikiScene, MobileShopScene, MobileDraftScene, MobileRunMapScene, MobileRunPrepScene, MobileRunEventScene,
+    DesktopWikiScene, DesktopPrepScene, DesktopDeckBuildScene, DesktopBattleScene, DesktopShopScene, DesktopDraftScene, DesktopRunMapScene, DesktopRunPrepScene, DesktopRunEventScene,
   ],
 });
 
