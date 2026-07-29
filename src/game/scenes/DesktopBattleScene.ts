@@ -7,6 +7,7 @@ import {
   type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
 } from '../battleTimeline';
 import { fetchBattleLog } from '../battleApi';
+import { creditBattleGold } from '../battleGold';
 import type { BattleLog } from '../../run/resolveBattle';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
@@ -90,6 +91,11 @@ export class DesktopBattleScene extends Phaser.Scene {
   /** Playback speed multiplier (0.5 = half speed). Deliberately NOT reset in
    *  init() — the player's speed choice should survive REPLAY and re-entry. */
   private speedMult = 1;
+  /** Guards the gold payout to exactly once per fetched `BattleLog` — REPLAY
+   * re-renders the SAME log object (no re-fetch), so the identity check skips
+   * it; a fresh scene entry (init() runs) re-fetches a new log and credits again. */
+  private goldCreditedLog: BattleLog | null = null;
+  private goldPayout = 0;
 
   constructor() { super('DesktopBattle'); }
 
@@ -127,6 +133,8 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.outcomeStep = -1;
     this.playing = true;
     this.playTimer = undefined;
+    this.goldCreditedLog = null;
+    this.goldPayout = 0;
   }
 
   create(): void {
@@ -143,6 +151,12 @@ export class DesktopBattleScene extends Phaser.Scene {
       const log = await fetchBattleLog(input);
       if (!this.scene.isActive()) return;
       this.buildFight(input, log);
+      // Credit exactly once per fetched response — a REPLAY re-renders this
+      // SAME log object (no re-fetch), so the identity check skips it.
+      if (this.goldCreditedLog !== log) {
+        this.goldCreditedLog = log;
+        this.goldPayout = creditBattleGold(input, log);
+      }
       this.idx = 0;
       this.render();
       this.startPlayback();
@@ -566,7 +580,8 @@ export class DesktopBattleScene extends Phaser.Scene {
 
     this.add.rectangle(px, py, pw, ph, UI.panel, 0.97).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9);
     this.add.rectangle(px, py, pw, bannerH, good ? 0x143a1a : 0x3a1414, 0.95).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c);
-    this.add.text(px + pw / 2, py + bannerH / 2, this.outcome, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: good ? '#7fe08a' : '#f08a7a' }).setOrigin(0.5);
+    this.add.text(px + pw / 2 - 8, py + bannerH / 2, this.outcome, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: good ? '#7fe08a' : '#f08a7a' }).setOrigin(1, 0.5);
+    this.add.text(px + pw / 2 + 8, py + bannerH / 2 + 4, `+${this.goldPayout} GOLD`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: '#e8b446' }).setOrigin(0, 0.5);
 
     let cy = py + bannerH + 10;
     const totalMetrics = [

@@ -7,6 +7,7 @@ import {
   type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
 } from '../battleTimeline';
 import { fetchBattleLog } from '../battleApi';
+import { creditBattleGold } from '../battleGold';
 import type { BattleLog } from '../../run/resolveBattle';
 import { FONT, SCREEN, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
@@ -92,6 +93,11 @@ export class MobileBattleScene extends Phaser.Scene {
   /** Playback speed multiplier — cycles ×1 → ×2 → ×½ → ×1 via the footer
    * button; NOT reset on replay/restart so the player's pick persists. */
   private speedMult = 1;
+  /** Guards the gold payout to exactly once per fetched `BattleLog` — REPLAY
+   * re-renders the SAME log object (no re-fetch), so the identity check skips
+   * it; a fresh scene entry re-fetches a new log object and credits again. */
+  private goldCreditedLog: BattleLog | null = null;
+  private goldPayout = 0;
 
   constructor() { super('MobileBattle'); }
 
@@ -101,6 +107,8 @@ export class MobileBattleScene extends Phaser.Scene {
     this.focusedFoe = 0;
     this.autoFollow = true;
     this.lastFocusedFoe = -1;
+    this.goldCreditedLog = null;
+    this.goldPayout = 0;
     // The battle service owns combat, so the log is a round trip: show a status
     // line, then render once it lands. No local fallback exists by design.
     this.renderStatus('RESOLVING BATTLE…');
@@ -114,6 +122,12 @@ export class MobileBattleScene extends Phaser.Scene {
       const log = await fetchBattleLog(input);
       if (!this.scene.isActive()) return;
       this.buildFight(input, log);
+      // Credit exactly once per fetched response — a REPLAY re-renders this
+      // SAME log object (no re-fetch), so the identity check skips it.
+      if (this.goldCreditedLog !== log) {
+        this.goldCreditedLog = log;
+        this.goldPayout = creditBattleGold(input, log);
+      }
       this.idx = 0;
       this.render();
       this.startPlayback();
@@ -497,7 +511,8 @@ export class MobileBattleScene extends Phaser.Scene {
         this.boundedText(cellX + 6, y + 15, metrics, { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body }, cellW - 18).setDepth(D);
       });
       this.add.rectangle(deckX, by, this.W - 20, 52, good ? 0x143a1a : 0x3a1414, 0.92).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c).setDepth(D);
-      this.add.text(this.W / 2, by + 26, this.outcome, { fontSize: '26px', color: good ? '#7fe08a' : '#f08a7a', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5).setDepth(D);
+      this.add.text(this.W / 2 - 10, by + 26, this.outcome, { fontSize: '26px', color: good ? '#7fe08a' : '#f08a7a', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(1, 0.5).setDepth(D);
+      this.add.text(this.W / 2 + 6, by + 30, `+${this.goldPayout} GOLD`, { fontSize: '11px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5).setDepth(D);
     }
   }
 

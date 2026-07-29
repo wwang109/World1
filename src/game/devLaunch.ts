@@ -1,8 +1,10 @@
 import { enemies } from '../data/enemies';
 import { defaultTitleFor, ENEMY_TITLES, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../run/encounter';
-import { demoState, EMPTY_BOARD_OVERRIDES, MAX_FOES, resetDemoState, type DemoState, type EnemyFightConfig, type PrepView } from './demoState';
+import { demoState, EMPTY_BOARD_OVERRIDES, MAX_FOES, MAX_GOLD, resetDemoState, type DemoState, type EnemyFightConfig, type PrepView } from './demoState';
 
-export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mbattle' | 'mwiki' | 'desktop-wiki' | 'desktop-prep' | 'desktop-deck' | 'desktop-battle';
+export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mbattle' | 'mwiki'
+  | 'desktop-wiki' | 'desktop-prep' | 'desktop-deck' | 'desktop-battle'
+  | 'desktop-shop' | 'mobile-shop' | 'desktop-draft' | 'mobile-draft';
 
 export interface DevLaunchConfig {
   scene: LaunchScene;
@@ -17,6 +19,8 @@ export interface DevLaunchConfig {
   enemyTitle: EnemyTitle;
   enemyRank: number;
   enemyModifiers: string[];
+  /** `?gold=N` dev override for the starting wallet, clamped 0..MAX_GOLD. */
+  gold: number;
 }
 
 const PREP_VIEW_MAP: Record<string, PrepView> = {
@@ -51,6 +55,10 @@ function parseScene(value: string | null, view: string | null): LaunchScene {
   if (view === 'desktop-prep' || value === 'desktop-prep') return 'desktop-prep';
   if (view === 'desktop-deck' || value === 'desktop-deck') return 'desktop-deck';
   if (view === 'desktop-battle' || value === 'desktop-battle') return 'desktop-battle';
+  if (view === 'desktop-shop' || value === 'desktop-shop') return 'desktop-shop';
+  if (view === 'mobile-shop' || value === 'mobile-shop') return 'mobile-shop';
+  if (view === 'desktop-draft' || value === 'desktop-draft') return 'desktop-draft';
+  if (view === 'mobile-draft' || value === 'mobile-draft') return 'mobile-draft';
   return value === 'battle' || value === 'multi' ? 'battle' : 'prep';
 }
 
@@ -91,6 +99,12 @@ function parseLevel(value: string | null, fallback: number): number {
   return Number.isFinite(numeric) && value !== null ? Math.max(1, Math.floor(numeric)) : fallback;
 }
 
+/** `?gold=N` — clamped 0..MAX_GOLD; missing/invalid falls back to the current wallet. */
+function parseGold(value: string | null): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && value !== null ? Math.max(0, Math.min(MAX_GOLD, Math.floor(numeric))) : demoState.gold;
+}
+
 function parseTitle(value: string | null, fallback: EnemyTitle): EnemyTitle {
   return value && (ENEMY_TITLES as string[]).includes(value.toLowerCase()) ? (value.toLowerCase() as EnemyTitle) : fallback;
 }
@@ -117,6 +131,7 @@ function stateOverridesFromConfig(config: DevLaunchConfig): Partial<DemoState> {
     enemyTitle: config.enemyTitle,
     enemyRank: config.enemyRank,
     enemyModifiers: config.enemyModifiers,
+    gold: config.gold,
   };
 }
 
@@ -158,6 +173,7 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
     // Rank defaults to the title's preset rank unless explicitly overridden.
     enemyRank,
     enemyModifiers,
+    gold: parseGold(params.get('gold')),
   };
 }
 

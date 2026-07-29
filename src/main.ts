@@ -11,6 +11,10 @@ import { DesktopWikiScene } from './game/scenes/DesktopWikiScene';
 import { DesktopPrepScene } from './game/scenes/DesktopPrepScene';
 import { DesktopDeckBuildScene } from './game/scenes/DesktopDeckBuildScene';
 import { DesktopBattleScene } from './game/scenes/DesktopBattleScene';
+import { DesktopShopScene } from './game/scenes/DesktopShopScene';
+import { MobileShopScene } from './game/scenes/MobileShopScene';
+import { DesktopDraftScene } from './game/scenes/DesktopDraftScene';
+import { MobileDraftScene } from './game/scenes/MobileDraftScene';
 import { ACTIVE_PROFILE } from './game/layoutProfile';
 import { SCREEN } from './game/theme';
 
@@ -44,7 +48,11 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, PrepScene, BattleScene, UiKitScene, MobilePrepScene, MobileDeckBuildScene, MobileBattleScene, MobileWikiScene, DesktopWikiScene, DesktopPrepScene, DesktopDeckBuildScene, DesktopBattleScene],
+  scene: [
+    BootScene, PrepScene, BattleScene, UiKitScene,
+    MobilePrepScene, MobileDeckBuildScene, MobileBattleScene, MobileWikiScene, MobileShopScene, MobileDraftScene,
+    DesktopWikiScene, DesktopPrepScene, DesktopDeckBuildScene, DesktopBattleScene, DesktopShopScene, DesktopDraftScene,
+  ],
 });
 
 // Dev aid: lets Playwright smoke scripts hit-test Phaser input directly

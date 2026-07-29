@@ -95,14 +95,18 @@ export class MobileWikiScene extends Phaser.Scene {
   private renderTabs(): void {
     const tabs: Array<[string, boolean, () => void]> = [
       ['PREP', false, () => this.scene.start('MobilePrep')],
-      ['DECK BUILD', false, () => this.scene.start('MobileDeckBuild')],
+      ['DECK', false, () => this.scene.start('MobileDeckBuild')],
       ['WIKI', true, () => {}],
+      ['SHOP', false, () => this.scene.start('MobileShop')],
+      ['DRAFT', false, () => this.scene.start('MobileDraft')],
     ];
-    const w = (this.W - 20 - 12) / 3;
+    const gap = 5;
+    const w = (this.W - 20 - gap * (tabs.length - 1)) / tabs.length;
     tabs.forEach(([label, active, fn], i) => {
-      const r = this.add.rectangle(10 + i * (w + 6), 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      const x = 10 + i * (w + gap);
+      const r = this.add.rectangle(x, 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       r.on('pointerdown', fn);
-      this.add.text(10 + i * (w + 6) + w / 2, 25, label, { fontSize: '12px', color: active ? '#1a1208' : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(x + w / 2, 25, label, { fontSize: '9px', color: active ? '#1a1208' : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
   }
 

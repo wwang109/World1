@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { FONT, SCREEN, UI } from '../theme';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 
-export type DesktopPage = 'prep' | 'deck' | 'wiki';
+export type DesktopPage = 'prep' | 'deck' | 'wiki' | 'shop' | 'draft';
 
 const F = DESKTOP_PROFILE.font;
 
@@ -27,7 +27,9 @@ export function renderDesktopHeader(scene: Phaser.Scene, title: string, active: 
     fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big}px`, color: UI.text,
   });
 
-  const tabs: Array<[string, DesktopPage]> = [['PREP', 'prep'], ['DECK BUILD', 'deck'], ['WIKI', 'wiki']];
+  const tabs: Array<[string, DesktopPage]> = [
+    ['PREP', 'prep'], ['DECK BUILD', 'deck'], ['WIKI', 'wiki'], ['SHOP', 'shop'], ['DRAFT', 'draft'],
+  ];
   const tabY = 102;
   let x = gx;
   for (const [label, page] of tabs) {
@@ -43,7 +45,11 @@ export function renderDesktopHeader(scene: Phaser.Scene, title: string, active: 
       button.on('pointerover', () => button.setFillStyle(UI.slotHover));
       button.on('pointerout', () => button.setFillStyle(UI.panelAlt));
       button.on('pointerdown', () => {
-        const target = page === 'prep' ? 'DesktopPrep' : page === 'deck' ? 'DesktopDeck' : 'DesktopWiki';
+        const target = page === 'prep' ? 'DesktopPrep'
+          : page === 'deck' ? 'DesktopDeck'
+          : page === 'wiki' ? 'DesktopWiki'
+          : page === 'shop' ? 'DesktopShop'
+          : 'DesktopDraft';
         scene.scene.start(target);
       });
     }

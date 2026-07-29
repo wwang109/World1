@@ -84,13 +84,16 @@ export class MobilePrepScene extends Phaser.Scene {
   private renderTabs(): void {
     const tabs: Array<[string, () => void]> = [
       ['PREP', () => {}],
-      ['DECK BUILD', () => this.scene.start('MobileDeckBuild')],
+      ['DECK', () => this.scene.start('MobileDeckBuild')],
       ['WIKI', () => this.scene.start('MobileWiki')],
+      ['SHOP', () => this.scene.start('MobileShop')],
+      ['DRAFT', () => this.scene.start('MobileDraft')],
     ];
-    const w = (this.W - 20 - 12) / 3;
+    const gap = 5;
+    const w = (this.W - 20 - gap * (tabs.length - 1)) / tabs.length;
     tabs.forEach(([label, fn], i) => {
       const active = i === 0;
-      this.button(10 + i * (w + 6), 8, w, 34, label, active ? 0xb78a46 : 0x131f32, active ? '#1a1208' : UI.textDim, fn, 12);
+      this.button(10 + i * (w + gap), 8, w, 34, label, active ? 0xb78a46 : 0x131f32, active ? '#1a1208' : UI.textDim, fn, 9);
     });
   }
 

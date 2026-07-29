@@ -8,9 +8,10 @@ explicitly as `[ ]` so "missing" is always distinguishable from "regressed".
 Legend: `[x]` built and verified · `[ ]` known gap (intentional, not a
 regression) · **D** desktop (1440×900) · **M** mobile (412×892).
 
-Launch routes: `?scene=desktop-prep|desktop-deck|desktop-wiki|desktop-battle`
-· `?scene=mprep|mdeck|mwiki|mbattle` · extras: `seed`, `enemy`, `enemies`,
-`title`, `rank`, `enemyLevel`, `heroLevel`, `mods=diamond,swift`, `board=empty`.
+Launch routes: `?scene=desktop-prep|desktop-deck|desktop-wiki|desktop-battle|desktop-shop|desktop-draft`
+· `?scene=mprep|mdeck|mwiki|mbattle|mobile-shop|mobile-draft` · extras: `seed`,
+`enemy`, `enemies`, `title`, `rank`, `enemyLevel`, `heroLevel`,
+`mods=diamond,swift`, `board=empty`, `gold` (starting wallet, clamped 0..999).
 
 ---
 
@@ -89,8 +90,31 @@ Both are dumb playback heads over the shared `battleTimeline.ts` model
 | Auto-playback 450ms/step (160ms after DOWN) | [x] | [x] |
 | Playback speed control ×½ / ×1 / ×2 (persists across REPLAY) | [x] | [x] |
 | Victory/defeat banner + compact BATTLE LEDGER card output summary | [x] | [x] |
+| Gold payout (`battleGoldReward`, base + win bonus) shown in the banner, credited exactly once per fetched result | [x] | [x] |
 | PREP / REPLAY / END controls | [x] | [x] |
 | Per-step redraw destroys old objects (no texture leak) | [x] | [x] |
+
+## SHOP (D: `DesktopShopScene` · M: `MobileShopScene`)
+
+| Feature | D | M |
+|---|---|---|
+| Storefront picker: 5 themed shops (name + tagline), tap to browse | [x] | [x] |
+| Shelf view: up to 4 card offers (CardToken) + 3 gem offers, gold price tags | [x] | [x] |
+| Gold balance always visible in the header | [x] | [x] |
+| Tap a card/gem → inspect/detail overlay (mirrors Wiki detail) with a BUY button | [x] | [x] |
+| BUY → confirm dialog (mirrors deck-build trash-confirm) → deducts gold, lands the card in the bag (nearest-fit, respects capacity) or gem in the pouch; offer leaves the shelf (finite stock) | [x] | [x] |
+| Can't-afford / bag-full → BUY disabled/dimmed, no dead taps | [x] | [x] |
+| REROLL (costs 1 gold) → a brand-new shelf from a deterministic seed sequence (`rollShopStock(shopId, baseSeed + rerollCount)`) | [x] | [x] |
+| Nav tabs PREP / DECK / WIKI / SHOP / DRAFT | [x] | [x] |
+
+## DRAFT (D: `DesktopDraftScene` · M: `MobileDraftScene`)
+
+| Feature | D | M |
+|---|---|---|
+| 4 sets of 5 bronze cards (`rollStartDraft`): OFFENSE / DEFENSE / SUPPORT / WILDCARD | [x] *(all four rows at once)* | [x] *(one set at a time, SET n/4 + BACK/NEXT)* |
+| Tap a card to pick it for its set; changeable any time before START | [x] | [x] |
+| START (enabled only once all 4 sets are picked) replaces the board/bag with the 4 picks and zeroes gold, then goes to Prep | [x] | [x] |
+| Nav tabs PREP / DECK / WIKI / SHOP / DRAFT | [x] | [x] |
 
 ## Shared systems (engine/run/data — not screens, but what screens rely on)
 

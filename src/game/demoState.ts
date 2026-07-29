@@ -2,6 +2,7 @@ import { gemBook } from '../data/gems';
 import type { BoardPiece, Gem, SkillTier } from '../engine/types';
 import type { EnemyTitle } from '../run/encounter';
 import type { Allocation } from '../run/leveling';
+import type { CardOffer, GemOffer } from '../run/shop';
 
 export type PrepView = 'loadout' | 'bag' | 'codex' | 'opponents' | 'balance';
 export type GemInventorySlot = string;
@@ -18,6 +19,18 @@ export type InventorySlot = OwnedCard | null;
 
 /** Hard cap on enemyTeam size — the prep foe pickers stop offering + FOE here. */
 export const MAX_FOES = 5;
+
+/** Session gold wallet is clamped to this ceiling (dev `?gold=` override too). */
+export const MAX_GOLD = 999;
+
+/** One shop's persisted-for-the-session shelf: bought offers are spliced out
+ * (finite stock) and never re-roll on their own — only REROLL (costs 1 gold,
+ * bumps `rerollCount`) replaces the whole shelf. Keyed by shop id. */
+export interface ShopShelfState {
+  cards: CardOffer[];
+  gems: GemOffer[];
+  rerollCount: number;
+}
 
 export interface EnemyFightConfig {
   enemyId: string;
@@ -59,6 +72,11 @@ export interface DemoState {
   enemyRank: number;
   /** Rogue-like affixes on the PRIMARY enemy (mirror of enemyTeam[0].modifiers). */
   enemyModifiers: string[];
+  /** Session gold wallet — credited by battle results, spent in shops. */
+  gold: number;
+  /** Per-shop persisted shelf state (bought offers stay gone; REROLL replaces
+   * the whole shelf). Empty until a shop is first browsed. */
+  shopShelves: Record<string, ShopShelfState>;
 }
 
 /**
@@ -145,6 +163,8 @@ export const DEFAULT_DEMO_STATE: DemoState = {
   enemyTitle: 'elite',
   enemyRank: 2,
   enemyModifiers: [],
+  gold: 0,
+  shopShelves: {},
 };
 
 /**
@@ -211,6 +231,14 @@ function cloneAllocation(alloc: Allocation): Allocation {
   return { ...alloc };
 }
 
+function cloneShopShelves(shelves: Record<string, ShopShelfState>): Record<string, ShopShelfState> {
+  const out: Record<string, ShopShelfState> = {};
+  for (const [id, shelf] of Object.entries(shelves)) {
+    out[id] = { cards: shelf.cards.map((c) => ({ ...c })), gems: shelf.gems.map((g) => ({ ...g })), rerollCount: shelf.rerollCount };
+  }
+  return out;
+}
+
 /** Mutable demo session state shared between Prep and Battle scenes. */
 export const demoState: DemoState = {
   pieces: clonePieces(DEFAULT_DEMO_STATE.pieces),
@@ -231,6 +259,8 @@ export const demoState: DemoState = {
   enemyTitle: DEFAULT_DEMO_STATE.enemyTitle,
   enemyRank: DEFAULT_DEMO_STATE.enemyRank,
   enemyModifiers: [...DEFAULT_DEMO_STATE.enemyModifiers],
+  gold: DEFAULT_DEMO_STATE.gold,
+  shopShelves: cloneShopShelves(DEFAULT_DEMO_STATE.shopShelves),
 };
 
 export function resetDemoState(overrides: Partial<DemoState> = {}): void {
@@ -268,6 +298,8 @@ export function resetDemoState(overrides: Partial<DemoState> = {}): void {
   demoState.enemyTitle = activeEnemy.title;
   demoState.enemyRank = activeEnemy.rank;
   demoState.enemyModifiers = [...activeEnemy.modifiers];
+  demoState.gold = Math.max(0, Math.min(MAX_GOLD, overrides.gold ?? DEFAULT_DEMO_STATE.gold));
+  demoState.shopShelves = cloneShopShelves(overrides.shopShelves ?? DEFAULT_DEMO_STATE.shopShelves);
 }
 
 export function createOwnedCard(skillId: string, tier: SkillTier): OwnedCard {

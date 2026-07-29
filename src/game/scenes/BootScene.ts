@@ -46,6 +46,10 @@ export class BootScene extends Phaser.Scene {
       : launch.scene === 'desktop-prep' ? 'DesktopPrep'
       : launch.scene === 'desktop-deck' ? 'DesktopDeck'
       : launch.scene === 'desktop-battle' ? 'DesktopBattle'
+      : launch.scene === 'desktop-shop' ? 'DesktopShop'
+      : launch.scene === 'mobile-shop' ? 'MobileShop'
+      : launch.scene === 'desktop-draft' ? 'DesktopDraft'
+      : launch.scene === 'mobile-draft' ? 'MobileDraft'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'bag' ? 'DesktopDeck'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'codex' ? 'DesktopWiki'
       : launch.prepView === 'loadout' ? defaultScene
