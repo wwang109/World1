@@ -125,10 +125,17 @@ export class CardToken extends Phaser.GameObjects.Container {
       this.add(t);
     };
 
-    // slot number — inward TOP corner
+    // slot number — inward TOP corner. When there's no slot yet (an OFFER —
+    // draft/shop/event card, not yet placed on a board), the same corner
+    // instead advertises a multi-slot card's span so a player can never pick
+    // a size-N card without knowing it eats N board slots.
     if (opts.slotLabel && spec.showSlotLabel) {
       scrimLabel(scene.add.text(spec.slotLabel.x, spec.slotLabel.y, opts.slotLabel, {
         fontSize: '10px', color: '#e6ecf5', fontFamily: FONT.body, fontStyle: 'bold',
+      }).setOrigin(spec.cornerOriginX, 0));
+    } else if (!opts.slotLabel && skill.size > 1 && spec.showSlotLabel) {
+      scrimLabel(scene.add.text(spec.slotLabel.x, spec.slotLabel.y, `×${skill.size} SLOTS`, {
+        fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold',
       }).setOrigin(spec.cornerOriginX, 0));
     }
 

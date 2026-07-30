@@ -3,6 +3,7 @@ import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
 import { shopCatalog, shopTypeIds } from '../../data/shopTypes';
+import { setDeckBuildContext } from '../deckBuildContext';
 import type { SkillTier } from '../../engine/types';
 import type { CardOffer, GemOffer } from '../../run/shop';
 import { shopPoolInfo } from '../../run/shop';
@@ -99,19 +100,16 @@ export class MobileShopScene extends Phaser.Scene {
   }
 
   /** Run-context header — no sandbox tabs (a run's shop is a committed node
-   * visit, not sandbox browsing). */
+   * visit, not sandbox browsing); Run Mode and the Sandbox are separate
+   * products, so no escape link either. */
   private renderRunHeader(): void {
     this.add.text(12, 10, 'RUN · SHOP', { fontSize: '15px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
-    const link = this.add.text(this.W - 12, 10, 'SANDBOX ›', {
-      fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-    link.on('pointerdown', () => this.scene.start('MobilePrep'));
   }
 
   private renderTabs(): void {
     const tabs: Array<[string, boolean, () => void]> = [
       ['PREP', false, () => this.scene.start('MobilePrep')],
-      ['DECK', false, () => this.scene.start('MobileDeckBuild')],
+      ['DECK', false, () => { setDeckBuildContext('demo'); this.scene.start('MobileDeckBuild'); }],
       ['WIKI', false, () => this.scene.start('MobileWiki')],
       ['SHOP', true, () => {}],
       ['DRAFT', false, () => this.scene.start('MobileDraft')],

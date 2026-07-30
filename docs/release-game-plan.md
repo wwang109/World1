@@ -64,8 +64,15 @@ Menu → DRAFT (4-set start draft, existing scenes)
   - Post-battle: the CONTINUE flow surfaces the level gained and the new
     banked total (level-up feedback), landing back on the map with the badge
     lit.
-  - Allocation is **additive-only within a run** (no respec/refund in v1);
-    the sandbox keeps its auto-trim-on-level-down behavior.
+  - Allocation is a **confirmable scratch edit** (locked design, 2026-07-29,
+    supersedes the earlier "additive-only, no respec in v1" line): the panel
+    lets the player add AND subtract stat buys freely before confirming
+    (`src/run/runState.ts#setHeroAllocation`/`heroAllocationCost`), and a
+    confirm may lower a stat back toward zero relative to the last confirmed
+    allocation — the only floor is that the confirmed allocation must fit the
+    run's currently banked PL. Effectively free respec at any time between
+    fights. The sandbox keeps its own separate auto-trim-on-level-down
+    behavior.
 
 ## Architecture
 

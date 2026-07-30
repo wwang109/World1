@@ -163,11 +163,17 @@ const defs: EventDef[] = [
       {
         id: 'stake',
         label: 'Stake 3 gold on the cut',
+        // The stake is an UPFRONT cost, not a `loseGold` branch: modelling it as
+        // loseGold made this a free coin-flip for +3 (loseGold floors at 0, so a
+        // broke player risked nothing) and the choice rendered as FREE. With a
+        // cost the scene gates it on affordability and the win pays the stake
+        // back doubled.
+        cost: 3,
         outcome: {
           kind: 'gamble',
           table: [
-            { weight: 50, outcome: { kind: 'grantGold', amount: 3 } },
-            { weight: 50, outcome: { kind: 'loseGold', amount: 3 } },
+            { weight: 50, outcome: { kind: 'grantGold', amount: 6 } },
+            { weight: 50, outcome: { kind: 'nothing' } },
           ],
         },
       },

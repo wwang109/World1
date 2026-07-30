@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { enemies } from '../../data/enemies';
+import { setDeckBuildContext } from '../deckBuildContext';
 import type { SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup, buildEnemyEncounter, ENEMY_MODIFIER_IDS, ENEMY_TITLES, maxRankFor, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../../run/encounter';
 import { bankedPL, LEVEL_STAT_COST, spentPL, totalLevelPL, type LevelStat } from '../../run/leveling';
@@ -85,7 +86,7 @@ export class MobilePrepScene extends Phaser.Scene {
   private renderTabs(): void {
     const tabs: Array<[string, () => void]> = [
       ['PREP', () => {}],
-      ['DECK', () => this.scene.start('MobileDeckBuild')],
+      ['DECK', () => { setDeckBuildContext('demo'); this.scene.start('MobileDeckBuild'); }],
       ['WIKI', () => this.scene.start('MobileWiki')],
       ['SHOP', () => this.scene.start('MobileShop')],
       ['DRAFT', () => this.scene.start('MobileDraft')],

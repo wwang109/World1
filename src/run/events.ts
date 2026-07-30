@@ -7,7 +7,7 @@
 
 import { hashSeed, Rng } from '../engine/rng';
 import type { SkillTier } from '../engine/types';
-import { eventCatalog, eventCatalogIds, type EventChoiceOutcome, type EventDef, type EventOutcomeSpec, type EventTheme, type GambleRow } from '../data/events';
+import { eventCatalog, eventCatalogIds, type EventChoiceDef, type EventChoiceOutcome, type EventDef, type EventOutcomeSpec, type EventTheme, type GambleRow } from '../data/events';
 import type { DraftCard } from './draft';
 import { skillBook } from '../data/skills';
 import { gemBook } from '../data/gems';
@@ -56,6 +56,37 @@ function toDraftCard(skillId: string): DraftCard {
 }
 
 // ---------------------------------------------------------------------------
+// Affordability — a Wave-1 stop happens before any fight (gold is always 0
+// there), so an event whose only "does something" choice costs gold reads as
+// a broken/dead button. `rollEventForNode` skips events that would offer
+// nothing playable at the player's CURRENT gold; `isEventChoiceAffordable` is
+// the single predicate authority both this resolver and the UI use, so a
+// dimmed button in the scene always agrees with what the resolver would let
+// the player actually pick.
+// ---------------------------------------------------------------------------
+
+/** Whether `choice` is payable right now — the SAME gate the UI should use to
+ * dim an individual choice button (`choice.cost` omitted/0 always affords). */
+export function isEventChoiceAffordable(state: RunState, choice: EventChoiceDef): boolean {
+  return (choice.cost ?? 0) <= state.gold;
+}
+
+/** An event is eligible to be OFFERED at `state.gold` if at least one of its
+ * choices is both affordable AND not the `nothing` no-op outcome — an event
+ * whose only affordable option is the safe "walk away" exit is exactly the
+ * dead-end case this guards against. (A `gamble` choice's outcome.kind is
+ * `'gamble'`, never `'nothing'`, so a free gamble always counts as "does
+ * something interesting" even though one of its rows may resolve to nothing.) */
+function hasAffordableChoice(state: RunState, event: EventDef): boolean {
+  return event.choices.some((c) => isEventChoiceAffordable(state, c) && c.outcome.kind !== 'nothing');
+}
+
+/** First id in `ids` (fixed order) eligible at `state.gold`, or -1. */
+function firstEligibleIndex(ids: readonly string[], state: RunState): number {
+  return ids.findIndex((id) => hasAffordableChoice(state, eventCatalog[id]!));
+}
+
+// ---------------------------------------------------------------------------
 // Event draw — a per-run no-repeat bag over `eventCatalogIds`, mirroring the
 // map-gen shop theme bag but stored/refilled on `RunState` itself (which
 // event nodes actually get visited is path-dependent, so the bag can't be
@@ -67,6 +98,18 @@ function toDraftCard(skillId: string): DraftCard {
 // once ITS theme is exhausted — so two different themes exhaust and refill
 // independently. Nodes without an `eventTheme` (older/defensive state) fall
 // back to the original all-catalog `state.eventBag`/`eventBagRefills` pair.
+//
+// Within a bag, the draw takes the FIRST bag entry that's eligible at the
+// player's current gold (see `hasAffordableChoice`), not necessarily bag[0] —
+// entries the draw skips stay in the bag (order otherwise preserved) so they
+// remain available to later nodes once affordable again; the no-repeat
+// guarantee is about which id a given node's draw commits to, not the scan
+// order. If nothing in the bag is eligible (a gold-heavy theme at 0 gold),
+// the draw widens to the first eligible id in the WHOLE catalog (fixed
+// catalog order) without touching the theme bag at all — a deliberately rare,
+// last-resort path that never throws, even if (in a content bug) literally
+// nothing in the catalog is eligible: it then just falls back to the bag's
+// own head rather than leaving the node unresolved.
 // ---------------------------------------------------------------------------
 
 /** Catalog ids for one theme, in fixed catalog order. */
@@ -75,8 +118,10 @@ function idsForTheme(theme: EventTheme): readonly string[] {
 }
 
 /** Draws (idempotently) the event for `node` — repeated calls for the same
- * node return the SAME event without consuming the bag again. Throws if
- * `node` isn't an event node. */
+ * node return the SAME event without consuming the bag again (the
+ * affordability check only runs on this FIRST roll; the memo is authoritative
+ * afterward, so a reload/gold change never re-draws a different event for an
+ * already-resolved node). Throws if `node` isn't an event node. */
 export function rollEventForNode(state: RunState, node: RunNode): { state: RunState; event: EventDef } {
   if (node.kind !== 'event') {
     throw new Error(`rollEventForNode: node "${node.id}" is not an event node`);
@@ -91,7 +136,7 @@ export function rollEventForNode(state: RunState, node: RunNode): { state: RunSt
   const theme = node.eventTheme;
   if (theme === undefined) {
     // Defensive fallback (no theme on the node) — today's original
-    // all-catalog no-repeat bag behavior, unchanged.
+    // all-catalog no-repeat bag, now affordability-aware.
     let bag = state.eventBag;
     let refills = state.eventBagRefills;
     if (bag.length === 0) {
@@ -99,13 +144,28 @@ export function rollEventForNode(state: RunState, node: RunNode): { state: RunSt
       bag = sampleDistinct(rng, eventCatalogIds, eventCatalogIds.length);
       refills += 1;
     }
-    const eventId = bag[0]!;
+    const eligibleIdx = firstEligibleIndex(bag, state);
+    if (eligibleIdx === -1) {
+      // The whole catalog is this bag's pool already — nothing eligible
+      // anywhere means a content bug (every event's every choice is
+      // gold-gated or `nothing`). Never throw: fall back to the bag's head.
+      const eventId = bag[0]!;
+      const event = eventCatalog[eventId];
+      if (!event) throw new Error(`rollEventForNode: unknown catalog event id "${eventId}"`);
+      const nextState: RunState = {
+        ...state,
+        eventBag: bag.slice(1),
+        eventBagRefills: refills,
+        eventInstances: { ...state.eventInstances, [node.id]: eventId },
+      };
+      return { state: nextState, event };
+    }
+    const eventId = bag[eligibleIdx]!;
     const event = eventCatalog[eventId];
     if (!event) throw new Error(`rollEventForNode: unknown catalog event id "${eventId}"`);
-
     const nextState: RunState = {
       ...state,
-      eventBag: bag.slice(1),
+      eventBag: [...bag.slice(0, eligibleIdx), ...bag.slice(eligibleIdx + 1)],
       eventBagRefills: refills,
       eventInstances: { ...state.eventInstances, [node.id]: eventId },
     };
@@ -122,13 +182,32 @@ export function rollEventForNode(state: RunState, node: RunNode): { state: RunSt
     bag = sampleDistinct(rng, themePool, themePool.length);
     refills += 1;
   }
-  const eventId = bag[0]!;
+
+  const eligibleIdx = firstEligibleIndex(bag, state);
+  if (eligibleIdx === -1) {
+    // Nothing currently in this theme's bag is eligible at this gold. Persist
+    // the (possibly just-refilled) bag as-is — it wasn't consumed, only
+    // scanned — and widen the draw to the first eligible id in the WHOLE
+    // catalog, graceful and non-throwing even if that also comes up empty.
+    const eventId = eventCatalogIds[firstEligibleIndex(eventCatalogIds, state)] ?? bag[0] ?? eventCatalogIds[0]!;
+    const event = eventCatalog[eventId];
+    if (!event) throw new Error(`rollEventForNode: unknown catalog event id "${eventId}"`);
+    const nextState: RunState = {
+      ...state,
+      eventThemeBags: { ...themeBags, [theme]: bag },
+      eventThemeBagRefills: { ...themeRefills, [theme]: refills },
+      eventInstances: { ...state.eventInstances, [node.id]: eventId },
+    };
+    return { state: nextState, event };
+  }
+
+  const eventId = bag[eligibleIdx]!;
   const event = eventCatalog[eventId];
   if (!event) throw new Error(`rollEventForNode: unknown catalog event id "${eventId}"`);
 
   const nextState: RunState = {
     ...state,
-    eventThemeBags: { ...themeBags, [theme]: bag.slice(1) },
+    eventThemeBags: { ...themeBags, [theme]: [...bag.slice(0, eligibleIdx), ...bag.slice(eligibleIdx + 1)] },
     eventThemeBagRefills: { ...themeRefills, [theme]: refills },
     eventInstances: { ...state.eventInstances, [node.id]: eventId },
   };

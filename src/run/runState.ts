@@ -12,7 +12,7 @@ import { skillBook } from '../data/skills';
 import { HERO_BOARD_SLOTS } from '../data/heroes';
 import { DRAFT_SET_KEYS, type DraftSetKey } from './draft';
 import { buildEnemyEncounter, type EncounterUnit, type EnemyTitle } from './encounter';
-import { bankedPL, LEVEL_STAT_COST, type Allocation, type LevelStat } from './leveling';
+import { canAfford, spentPL, type Allocation, type LevelStat } from './leveling';
 import type { EventTheme } from '../data/events';
 import { generateRunMap, WAVE_COUNT, type RunMap, type RunNode, type RunNodeKind } from './runMap';
 import { Rng } from '../engine/rng';
@@ -72,7 +72,7 @@ export interface RunState {
    * `eventTheme` — see `rollEventForNode` in run/events.ts): remaining
    * shuffled ids from that theme's slice of the catalog, refilled once THAT
    * theme is exhausted. Optional/absent means "no theme drawn from yet"
-   * (same inert-default idiom as `tutorialSeen`) — `createRun` sets both to
+   * (an inert default) — `createRun` sets both to
    * `{}` for new runs; older/defensive state without these keys just treats
    * every theme as fresh. */
   eventThemeBags?: Partial<Record<EventTheme, string[]>>;
@@ -87,18 +87,6 @@ export interface RunState {
   heroAllocation: Allocation;
   wins: number;
   losses: number;
-  /** Step ids from the run tutorial (`src/game/tutorial`) already shown this
-   * run. OPTIONAL/absent means "none yet" — existing runs/tests built before
-   * the tutorial shipped never carry this field, and every reader treats
-   * `undefined` the same as `[]` (see `isTutorialStepSeen`). Never read by
-   * any engine/run decision — purely consumed by the game layer's tutorial
-   * controller, so it can never affect a battle's outcome or seed a
-   * different `simulate()` input. */
-  tutorialSeen?: string[];
-  /** Set once the player hits SKIP TUTORIAL — once true, no further step ever
-   * arms again this run (see `markTutorialSeen`). OPTIONAL/absent means "not
-   * skipped" (inert default, same reasoning as `tutorialSeen`). */
-  tutorialSkipped?: boolean;
 }
 
 /** Board width for the run's deck rail — same as the sandbox hero board. */
@@ -206,8 +194,6 @@ export function createRun(seed: number): RunState {
     heroAllocation: {},
     wins: 0,
     losses: 0,
-    tutorialSeen: [],
-    tutorialSkipped: false,
   };
 }
 
@@ -522,69 +508,59 @@ export function buyRunGem(state: RunState, nodeId: string, index: number): RunBu
 // Hero PL-budget stat allocation — the run never auto-spends a level's 3 PL;
 // the player buys stat points by hand, ANY time between fights (locked
 // design, see docs/release-game-plan.md "Hero leveling & stat allocation").
-// Additive-only within a run: no sell/respec entry point exists here (unlike
-// the Sandbox's LV stepper, which un-buys on a level DOWN — a run's level
-// only ever goes up via `recordBattleResult`/`grantLevel`, so there's nothing
-// to reconcile). No-op (returns `state` unchanged) if the buy isn't affordable
-// — callers never need to pre-check `bankedPL` themselves.
+//
+// `setHeroAllocation` is the confirm-time entry point: the UI drives a SCRATCH
+// `Allocation` locally (add AND subtract buys via +/- however it likes,
+// pricing it live with `heroAllocationCost`) and calls this ONCE to commit.
+// A confirm may lower a stat back toward zero relative to the run's LAST
+// CONFIRMED allocation — there is no "can't un-spend below a previous
+// confirm" floor (locked design, 2026-07-29: free add/subtract until confirm,
+// any time between fights — this supersedes the older "additive-only, no
+// respec in v1" line in docs/release-game-plan.md, updated to match).
+// `buyHeroStatAllocation` (the old additive-only "+1 buy" entry point some
+// callers still use) is now implemented in terms of `setHeroAllocation`, so
+// there is exactly one validation path for the whole economy.
 // ---------------------------------------------------------------------------
+
+/** PL a (possibly scratch, uncommitted) allocation would spend — the pure
+ * pricing function the stat panel calls on every +/- click to show PL SPENT
+ * live, without touching `RunState`. Thin wrapper over `leveling.ts#spentPL`
+ * so `src/run/runState.ts` stays the one place callers import the run's
+ * allocation API from. */
+export function heroAllocationCost(alloc: Allocation): number {
+  return spentPL(alloc);
+}
+
+/**
+ * Commit a whole SCRATCH `Allocation` (replaces `state.heroAllocation`
+ * entirely — not a delta/buy like `buyHeroStatAllocation`). Validates `next`
+ * against the run's total earned PL (`totalLevelPL(heroLevel)`, via
+ * `leveling.ts#canAfford`) and rejects — returning the SAME `state` reference,
+ * a no-op, NOT a throw (mirrors `buyHeroStatAllocation`'s existing idiom, so
+ * the UI never needs a pre-check either) — if:
+ *   - `next` spends more PL than the run has banked at `state.heroLevel`, or
+ *   - any stat's buy count in `next` is negative (a scratch edit may go DOWN
+ *     to 0, but a stat can never bank negative buys).
+ * Otherwise returns a new `RunState` with `heroAllocation` replaced by `next`
+ * wholesale (stats not present in `next` are treated as 0, same as
+ * `Allocation`'s existing `Partial<Record<...>>` semantics elsewhere).
+ */
+export function setHeroAllocation(state: RunState, next: Allocation): RunState {
+  for (const stat of Object.keys(next) as LevelStat[]) {
+    if ((next[stat] ?? 0) < 0) return state;
+  }
+  if (!canAfford(state.heroLevel, next)) return state;
+  return { ...state, heroAllocation: { ...next } };
+}
 
 /** Spend one buy of `stat` from the run's banked PL (see `LEVEL_STAT_COST`).
  * Pure — returns a NEW `RunState`, or the SAME `state` reference if the run
  * can't afford it (a no-op, not a throw — the UI just leaves the `+` button
- * looking unaffordable rather than needing a pre-check). */
+ * looking unaffordable rather than needing a pre-check). Implemented as a
+ * `+1` scratch edit through `setHeroAllocation`. */
 export function buyHeroStatAllocation(state: RunState, stat: LevelStat): RunState {
-  const cost = LEVEL_STAT_COST[stat].pl;
-  if (bankedPL(state.heroLevel, state.heroAllocation) < cost) return state;
-  return {
-    ...state,
-    heroAllocation: { ...state.heroAllocation, [stat]: (state.heroAllocation[stat] ?? 0) + 1 },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Run tutorial progress — pure, inert-when-absent bookkeeping for the small
-// skippable tutorial (`src/game/tutorial`). This module makes NO decisions
-// about which step fires when or what it says (that lives entirely in the
-// game layer's step registry/controller) — it only records "seen" ids and
-// the one-way "skipped" flag so progress survives the scene-rebuild idiom
-// and reloads once `src/meta` persistence exists.
-// ---------------------------------------------------------------------------
-
-/** Whether tutorial step `id` has already been shown this run. `undefined`
- * `tutorialSeen` (a run created before the tutorial shipped, or one that
- * hasn't seen any step yet) reads the same as an empty list. */
-export function isTutorialStepSeen(state: RunState, id: string): boolean {
-  return (state.tutorialSeen ?? []).includes(id);
-}
-
-/** Whether the player has hit SKIP TUTORIAL this run. `undefined` reads as
- * "not skipped" — the inert default for runs predating the tutorial. */
-export function isTutorialSkipped(state: RunState): boolean {
-  return state.tutorialSkipped === true;
-}
-
-/**
- * Records that tutorial step `id` has now been shown. Pure and idempotent:
- * returns the SAME `state` reference (no-op) if the run is already skipped
- * or the step was already marked seen — callers never need to pre-check.
- * A skipped run can never re-arm a step through this function, by design.
- */
-export function markTutorialSeen(state: RunState, id: string): RunState {
-  if (isTutorialSkipped(state)) return state;
-  if (isTutorialStepSeen(state, id)) return state;
-  return { ...state, tutorialSeen: [...(state.tutorialSeen ?? []), id] };
-}
-
-/**
- * Skips the tutorial for the rest of the run — one-way, remembered from the
- * moment it's pressed. Pure/idempotent (no-op if already skipped). Does NOT
- * clear `tutorialSeen` (steps already shown stay recorded; there's simply
- * nothing left to show).
- */
-export function markTutorialSkipped(state: RunState): RunState {
-  if (isTutorialSkipped(state)) return state;
-  return { ...state, tutorialSkipped: true };
+  const next: Allocation = { ...state.heroAllocation, [stat]: (state.heroAllocation[stat] ?? 0) + 1 };
+  return setHeroAllocation(state, next);
 }
 
 export { WAVE_COUNT };

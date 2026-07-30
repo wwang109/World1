@@ -8,6 +8,8 @@ import { applyTier } from '../../engine/cards';
 import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { choiceOutcomeHint, outcomeHeadline } from '../ui/eventOutcomeText';
+import { addHoverTipZone } from '../ui/hoverTip';
+import { gemHoverEntry } from '../ui/gemGlossary';
 import { rebuildScene } from '../sceneRebuild';
 import {
   applyCurrentBonusDraftPick,
@@ -164,6 +166,7 @@ export class MobileRunEventScene extends Phaser.Scene {
         this.add.rectangle(30, y, chipW, 52, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.9);
         this.add.rectangle(30 + 22, y + 26, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
         this.add.text(30 + 40, y + 17, gem.name, { fontSize: '12px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
+        addHoverTipZone(this, { x: 30, y, w: chipW, h: 52 }, [gemHoverEntry(gem)]);
         y += 52 + 16;
       }
     }

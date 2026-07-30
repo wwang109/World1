@@ -9,6 +9,8 @@ import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { choiceOutcomeHint, outcomeHeadline } from '../ui/eventOutcomeText';
+import { addHoverTipZone } from '../ui/hoverTip';
+import { gemHoverEntry } from '../ui/gemGlossary';
 import { rebuildScene } from '../sceneRebuild';
 import {
   applyCurrentBonusDraftPick,
@@ -214,6 +216,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
         this.add.text(px + pw / 2 - chipW / 2 + 44, chipY + 18, gem.name, {
           fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text,
         });
+        addHoverTipZone(this, { x: px + pw / 2 - chipW / 2, y: chipY, w: chipW, h: 56 }, [gemHoverEntry(gem)]);
         cursor += 56 + 16;
       }
     }

@@ -11,8 +11,7 @@ regression) · **D** desktop (1440×900) · **M** mobile (412×892).
 Launch routes: `?scene=desktop-prep|desktop-deck|desktop-wiki|desktop-battle|desktop-shop|desktop-draft|desktop-runmap|desktop-runprep`
 · `?scene=mprep|mdeck|mwiki|mbattle|mobile-shop|mobile-draft|mrunmap|mrunprep` · extras: `seed`,
 `enemy`, `enemies`, `title`, `rank`, `enemyLevel`, `heroLevel`,
-`mods=diamond,swift`, `board=empty`, `gold` (starting wallet, clamped 0..999),
-`tutorial=off|reset` (run-tutorial dev/QA override, applied the next run starts).
+`mods=diamond,swift`, `board=empty`, `gold` (starting wallet, clamped 0..999).
 
 ---
 
@@ -133,7 +132,7 @@ the active run's own state — `isRunDrafting()`, `currentNode()?.kind`,
 | RUN MAP: header DEPTH/GOLD/HERO LV/W-L; victory/defeat banner ends the run (NEW RUN) | [x] | [x] |
 | RUN MAP: a fresh run (status `drafting`) routes straight to the Draft scene in run context | [x] | [x] |
 | DRAFT (run context): same 4-set UI as Sandbox; START installs picks via `applyRunDraft` (not `demoState`) and routes to the run map | [x] | [x] |
-| RUN PREP (new, reached by picking a fight/elite/boss node): read-only rolled foe (title chip/LV/stat sheet/tier-resolved skill board, no dials/foe picker/+FOE), read-only YOUR DECK column, hero LV + gold header, one FIGHT button (no ‹ MAP — the node is committed), small SANDBOX escape link | [x] | [x] |
+| RUN PREP (new, reached by picking a fight/elite/boss node): read-only rolled foe (title chip/LV/stat sheet/tier-resolved skill board, no dials/foe picker/+FOE), read-only YOUR DECK column, hero LV + gold header, one FIGHT button (no ‹ MAP — the node is committed) | [x] | [x] |
 | BATTLE (run context): FIGHT launches the existing Battle scenes against the run's current node (`battleContext.ts` source discriminator, not a forked scene) | [x] | [x] |
 | BATTLE (run context): on result, gold = `battleGoldReward` on a WIN, 0 on a LOSS (run rule — sandbox's loss-still-pays-base is unchanged), credited exactly once per fetched result via `resolveRunBattleResult` | [x] | [x] |
 | BATTLE (run context) banner buttons: REPLAY + CONTINUE › (map, or the victory/defeat banner the map scene already renders if it was the boss) — no PREP/END | [x] | [x] |
@@ -141,41 +140,18 @@ the active run's own state — `isRunDrafting()`, `currentNode()?.kind`,
 | SHOP (run context): LEAVE SHOP calls `leaveShop` and returns to the map | [x] | [x] |
 | Shop theme bag: no-repeat-until-all-5-seen per run (draw-without-replacement, reshuffled when empty) | [x] | [x] *(shared `runMap.ts` logic)* |
 | Shop stock tier split shifts with node depth (1-3: 70/25/5 · 4-6: 45/45/10 · 7-9: 25/55/20; sandbox callers omit depth, unchanged 70/25/5) | [x] | [x] *(shared `run/shop.ts` logic)* |
-| Deck rearranging between fights (bag <-> board in run context) | [ ] *(later phase — v1 deck is read-only between fights)* | [ ] |
+| DECK / BAG entry point on the Run Map and Run Prep headers opens the shared Deck Build scene in RUN CONTEXT (`deckBuildContext.ts` source discriminator, mirrors Shop/Draft/Battle) — reads/writes the run's `pieces`/`bagSlots`/`gemInventory` via `runStore`, not `demoState`; run-context header is a plain title + "‹ MAP" back link (no sandbox nav tabs) | [x] | [x] |
 | Fog-of-war zone map, multiple zones, meta persistence | [ ] *(out of scope for v1, see release-game-plan.md)* | [ ] |
 | WAVE-shaped map: "WAVE n/5" header, alternating wave bands + labels over the trail, MANDATORY tag on single-node fight/boss columns | [x] | [x] |
-| Map choice panels label their theme: shops show "FIGHT/SHOP/EVENT · NAME"; fight/boss show the FIGHT_TABLE-derived preview (enemy · LV n · TITLE) | [x] | [x] *(event theme label pending `src/data/events.ts` `theme` field — TODO left in both map scenes)* |
+| Map choice panels: compact content-fit rows (density pass, no big empty rectangles) — kind + theme title, plus a one-line hint (shop: tagline + shelf shape "N cards/N gems"; event: theme; fight/boss: enemy · LV n · TITLE) | [x] | [x] *(event theme label pending `src/data/events.ts` `theme` field — TODO left in both map scenes)* |
 | EVENT nodes (`DesktopRunEventScene`/`MobileRunEventScene`, `?scene=desktop-runevent` / `mrunevent`): title/body panel, 2-3 cost+reward-hint choice buttons (disabled when unaffordable), outcome panel showing the granted card/gem token or gold/level result (`fellBack` note on a full bag), `bonusDraft` opens a single-set CardToken picker row (1-5 cards) before its own outcome, CONTINUE › back to the map | [x] | [x] |
 | Picking an event node now routes to the RunEvent scene (`runStore.pickNode` no longer auto-resolves it) | [x] | [x] |
-| STAT / LEVEL allocation panel (`RunStatPanel.ts`, shared builder): priced HP/ATK/MAG/DEF/RES/SPD grid via `LEVEL_STAT_COST`, PL SPENT/BANKED readout, additive-only (no respec) | [x] | [x] |
+| STAT / LEVEL allocation panel (`RunStatPanel.ts`, shared builder): priced HP/ATK/MAG/DEF/RES/SPD grid via `LEVEL_STAT_COST`, CONFIRMABLE SCRATCH EDIT — +/− steppers operate on a local uncommitted allocation (PL SPENT/BANKED updates live), CONFIRM commits via `commitHeroAllocation` (`runState.ts#setHeroAllocation`), CANCEL discards; nothing is written to the run until CONFIRM | [x] | [x] |
 | Panel reachable from BOTH the Run Map and Run Prep headers via a pulsing "n PL TO SPEND" badge (`renderBankedPlBadge`), hidden when no PL is banked | [x] | [x] |
+| Hover/tap explanations (`ui/hoverTip.ts`): hero/foe STAT labels (battle statlines, Run Prep foe panel, stat allocation grid) explain what each stat does; the battle turnline explains turn-order math; HIT/DEBUFF/BUFF rows with D: math show "how this was reached" (reads the already-formatted log string, never recomputes); GEMS (pouch, socket panel, event reward chip) show effect text/rarity/+PL (`ui/gemGlossary.ts`) | [x] | [x] |
+| Draft cards / shop shelves / event card grants advertise a size-N card's board footprint with a "×N SLOTS" badge (`CardToken`, shown whenever no slot is yet assigned) — a player can never draft/buy a multi-slot card unaware | [x] | [x] |
 | Post-battle (run context): banner shows "LEVEL UP → LV n · m PL BANKED" alongside the gold payout (the hero levels after every fight, win or lose) | [x] | [x] |
 | Variable-size shop shelves: 1-6 card/gem offers lay out without dead gaps; a shop with 0 cards or 0 gems skips that row cleanly; `shopPoolInfo` (`src/run/shop.ts`) caps slot counts at the theme's whole pool and flags `fullStock` (both axes fit the shelf) so REROLL is hidden/relabeled "FULL STOCK" instead of inviting a wasted gold | [x] | [x] |
-
-## RUN TUTORIAL (`src/game/tutorial` — battle scenes + Run Map/Run Prep headers, RUN CONTEXT ONLY)
-
-Small skippable tutorial teaching the three things the numbers don't explain
-on their own (see `docs/run-tutorial-design.md`). A step REGISTRY
-(`tutorial/steps.ts`) + a tiny pure controller (`tutorial/controller.ts`)
-decide what fires when, reading `RunState.tutorialSeen`/`tutorialSkipped`
-(`src/run/runState.ts`); the battle/map/prep scenes only ever make one
-`notifyTutorialMoment(moment, payload)` call per relevant moment and render
-whatever comes back (`tutorial/overlay.ts`) — no tutorial conditionals are
-scattered through combat rendering. The tutorial NEVER arms in the Sandbox
-(`battleContext !== 'run'`) and never recomputes combat/PL math — every
-number in its copy is read off the already-rendered log line/badge/grid.
-
-| Feature | D | M |
-|---|---|---|
-| Lesson 1 (stats -> damage): fires on the first HIT event, anchored to that row — explains ATK/MAG vs DEF/RES vs true, points at the tap-to-expand D: math | [x] | [x] |
-| Lesson 1, beat 2: fires on the first hit whose D: math carries an AFFINITY term — explains the ±50%/−25% matchup swing | [x] | [x] |
-| Lesson 2 (Speed -> who acts): fires at the first turnline — score = bank + Speed − card weight, loser banks Speed, size-N cards busy their caster N−1 turns | [x] | [x] |
-| Lesson 3 (PL growth): fires on the first post-battle level-up banner ("+1 level = 3 PL"), then the "n PL TO SPEND" badge on Run Map/Run Prep, then the priced allocation grid + the PL SPENT/BANKED line inside `RunStatPanel` ("cards cost PL too") | [x] | [x] |
-| Persistent SKIP TUTORIAL control on every pointer card; remembered for the rest of the run (`RunState.tutorialSkipped`) | [x] | [x] |
-| Run Map entry chip: "TUTORIAL: ON · skip" whenever a fresh/in-progress run still has steps left, never gates START or any screen | [x] | [x] |
-| `?tutorial=off` (pre-skip) / `?tutorial=reset` launch flags (`devLaunch.ts` idiom) | [x] | [x] |
-| Missing anchor -> silent no-op (never throws, never blocks a fight) | [x] | [x] |
-| Determinism: `RunState.tutorialSeen`/`tutorialSkipped` are excluded from every battle input — a fight resolves byte-identically with the tutorial on, mid-way, or skipped (`tests/run/tutorial.test.ts`) | [x] | [x] |
 
 ## Shared systems (engine/run/data — not screens, but what screens rely on)
 

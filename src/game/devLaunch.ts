@@ -1,7 +1,6 @@
 import { enemies } from '../data/enemies';
 import { defaultTitleFor, ENEMY_TITLES, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../run/encounter';
 import { demoState, EMPTY_BOARD_OVERRIDES, MAX_FOES, MAX_GOLD, resetDemoState, type DemoState, type EnemyFightConfig, type PrepView } from './demoState';
-import { setPendingTutorialFlag } from './runStore';
 
 export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mbattle' | 'mwiki'
   | 'desktop-wiki' | 'desktop-prep' | 'desktop-deck' | 'desktop-battle'
@@ -24,9 +23,6 @@ export interface DevLaunchConfig {
   enemyModifiers: string[];
   /** `?gold=N` dev override for the starting wallet, clamped 0..MAX_GOLD. */
   gold: number;
-  /** `?tutorial=off|reset` — see `runStore.ts#setPendingTutorialFlag`.
-   * `undefined` = no override (default run-tutorial behavior). */
-  tutorial?: 'off' | 'reset';
 }
 
 const PREP_VIEW_MAP: Record<string, PrepView> = {
@@ -117,11 +113,6 @@ function parseGold(value: string | null): number {
   return Number.isFinite(numeric) && value !== null ? Math.max(0, Math.min(MAX_GOLD, Math.floor(numeric))) : demoState.gold;
 }
 
-/** `?tutorial=off` (pre-skip) / `?tutorial=reset` — anything else is "no override". */
-function parseTutorialFlag(value: string | null): 'off' | 'reset' | undefined {
-  return value === 'off' || value === 'reset' ? value : undefined;
-}
-
 function parseTitle(value: string | null, fallback: EnemyTitle): EnemyTitle {
   return value && (ENEMY_TITLES as string[]).includes(value.toLowerCase()) ? (value.toLowerCase() as EnemyTitle) : fallback;
 }
@@ -191,16 +182,11 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
     enemyRank,
     enemyModifiers,
     gold: parseGold(params.get('gold')),
-    tutorial: parseTutorialFlag(params.get('tutorial')),
   };
 }
 
 export function applyDevLaunchConfig(search = window.location.search): DevLaunchConfig {
   const config = readDevLaunchConfig(search);
   resetDemoState(stateOverridesFromConfig(config));
-  // Applies to the NEXT (and every) run started this session — see
-  // `runStore.ts#setPendingTutorialFlag`; a run isn't created until the
-  // player hits START on the Run Map, so this can't touch `RunState` yet.
-  setPendingTutorialFlag(config.tutorial);
   return config;
 }

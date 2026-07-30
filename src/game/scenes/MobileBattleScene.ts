@@ -8,15 +8,19 @@ import {
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
 import { getBattleContext, getBattleTimelineInput } from '../battleContext';
-import { currentBankedPL, currentHeroLevel, notifyTutorialMoment, resolveRunBattleResult, skipTutorial } from '../runStore';
+import { currentBankedPL, currentHeroLevel, resolveRunBattleResult } from '../runStore';
 import type { BattleLog } from '../../run/resolveBattle';
 import { FONT, SCREEN, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { footerY, renderActionBar, type ActionButton } from '../ui/ActionBar';
+import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
+import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
-import { renderTutorialCard } from '../tutorial/overlay';
-import { armCards } from '../tutorial/controller';
-import type { ArmedTutorialCard, TutorialAnchorId, TutorialAnchorRect } from '../tutorial/types';
+
+/** Hover copy for every stat shown on a battle statline, in one shared tip. */
+const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
+/** Hover copy for the turnline — read once, shown on every render. */
+const TURNLINE_ENTRY = { title: 'Turn order', body: 'Each side’s turn score is banked readiness + Speed − the queued card’s weight; higher performs. The loser banks their Speed for next time. A size-N card busies its caster N−1 extra turns.' };
 
 /** Everything a rendered HP bar hands back so FX can target it after the fact. */
 interface HpBarHandles {
@@ -102,10 +106,6 @@ export class MobileBattleScene extends Phaser.Scene {
    * it; a fresh scene entry re-fetches a new log object and credits again. */
   private goldCreditedLog: BattleLog | null = null;
   private goldPayout = 0;
-  /** Queued tutorial pointer card(s) armed by the current render pass (run
-   * context only — see `notifyBattleTutorialMoments`); shown one at a time. */
-  private activeTutorialCards: ArmedTutorialCard[] = [];
-  private tutorialCardIndex = 0;
 
   constructor() { super('MobileBattle'); }
 
@@ -117,8 +117,6 @@ export class MobileBattleScene extends Phaser.Scene {
     this.lastFocusedFoe = -1;
     this.goldCreditedLog = null;
     this.goldPayout = 0;
-    this.activeTutorialCards = [];
-    this.tutorialCardIndex = 0;
     // The battle service owns combat, so the log is a round trip: show a status
     // line, then render once it lands. No local fallback exists by design.
     this.renderStatus('RESOLVING BATTLE…');
@@ -301,7 +299,7 @@ export class MobileBattleScene extends Phaser.Scene {
       }),
     ].filter(Boolean).join('   ·   ');
     if (turnStats) this.boundedText(66, 9, turnStats, { fontSize: '11px', color: '#cdd4de', fontFamily: FONT.body }, this.W - 78);
-    const turnlineAnchor: TutorialAnchorRect = { x: 12, y: 6, w: this.W - 24, h: 16 };
+    addHoverTipZone(this, { x: 12, y: 6, w: this.W - 24, h: 16 }, [TURNLINE_ENTRY]);
 
     // Rolling transcript: every line up through the current step's line —
     // earlier turns show all their lines; the current turn only shows up to
@@ -324,8 +322,6 @@ export class MobileBattleScene extends Phaser.Scene {
     const visible = feed.slice(-maxRows);
     let ly = headerBottom;
     let prevTurn = -1;
-    let hitRowAnchor: TutorialAnchorRect | undefined;
-    let hitRowHasMatchup: boolean | undefined;
     for (const { t, local, line } of visible) {
       if (ly > dockH - 16) break;
       const key = `${t}:${local}`;
@@ -339,13 +335,10 @@ export class MobileBattleScene extends Phaser.Scene {
         this.add.text(this.W - 12, ly, this.expanded.has(key) ? '▲' : '▾', { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(1, 0);
         const zone = this.add.rectangle(0, ly - 3, this.W, rowH, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
         zone.on('pointerdown', () => { if (this.expanded.has(key)) this.expanded.delete(key); else this.expanded.add(key); this.render(); });
-      }
-      // Tutorial anchor: the CURRENT step's row, when it's a HIT — reads the
-      // already-formatted D: string for an AFFINITY term rather than
-      // recomputing the matchup bonus.
-      if (t === turn && local === step.lineIndex && line.tag === 'HIT') {
-        hitRowAnchor = { x: tagX, y: ly - 3, w: this.W - 12 - tagX, h: rowH };
-        hitRowHasMatchup = line.detail?.includes('AFFINITY') ?? false;
+        // Hover (desktop)/tap (mobile, alongside the expand toggle above):
+        // how this number was reached — the ALREADY-formatted D: string the
+        // log computed, never recomputed here.
+        attachHoverTip(this, zone, { x: 0, y: ly - 3, w: this.W, h: rowH }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
       }
       ly += rowH;
       if (line.detail && this.expanded.has(key) && ly < dockH - 12) {
@@ -376,6 +369,7 @@ export class MobileBattleScene extends Phaser.Scene {
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
     );
     this.boundedText(120, hpY + 17, this.heroStatLine, { fontSize: '9px', color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
+    addHoverTipZone(this, { x: 120, y: hpY + 17, w: this.W - 120 - 84, h: 12 }, ALL_STAT_ENTRIES);
     const foeBars: Array<HpBarHandles | undefined> = [];
     /** Tab-mode float anchor for foes whose full bar isn't on screen. */
     const tabAnchors: Array<{ x: number; y: number } | undefined> = [];
@@ -392,6 +386,7 @@ export class MobileBattleScene extends Phaser.Scene {
         animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
       );
       this.boundedText(120, barY + 17, foeModel.statLine, { fontSize: '9px', color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
+      addHoverTipZone(this, { x: 120, y: barY + 17, w: this.W - 120 - 84, h: 12 }, ALL_STAT_ENTRIES);
     };
     let boardsTop: number;
     if (!tabbed) {
@@ -490,7 +485,6 @@ export class MobileBattleScene extends Phaser.Scene {
     this.renderScrubber(gutterX + gutterW / 2, top, colH);
     renderActionBar(this, this.W, this.H, this.footerButtons());
 
-    let levelUpAnchor: TutorialAnchorRect | undefined;
     if (isOutcomeStep) {
       // The result overlay is a LAYER over the board, so give it an explicit
       // depth instead of relying on draw order, and make the scrim opaque
@@ -542,66 +536,11 @@ export class MobileBattleScene extends Phaser.Scene {
       if (getBattleContext() === 'run') {
         // The hero levels after EVERY fight, win or lose (locked design) —
         // `resolveRunBattleResult` already applied it before this renders.
-        const levelUpText = this.add.text(this.W / 2, by + 50, `LEVEL UP → LV ${currentHeroLevel()} · ${currentBankedPL()} PL BANKED`, {
+        this.add.text(this.W / 2, by + 50, `LEVEL UP → LV ${currentHeroLevel()} · ${currentBankedPL()} PL BANKED`, {
           fontSize: '10px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold',
         }).setOrigin(0.5).setDepth(D);
-        levelUpAnchor = {
-          x: levelUpText.x - levelUpText.width / 2, y: levelUpText.y - levelUpText.height / 2,
-          w: levelUpText.width, h: levelUpText.height,
-        };
       }
     }
-
-    // ---- tutorial (run context only) ----
-    if (getBattleContext() === 'run') {
-      this.notifyBattleTutorialMoments({ turnlineAnchor, hitRowAnchor, hitRowHasMatchup }, isOutcomeStep);
-      this.renderTutorialOverlay({ hitRow: hitRowAnchor, turnline: turnlineAnchor, levelUpLine: levelUpAnchor });
-    }
-  }
-
-  /** One notify() call per relevant moment this render pass exposes — every
-   * call is idempotent beyond the first fire (see `notifyTutorialMoment`),
-   * so calling them every render is safe; each only ever arms its step(s)
-   * once across the whole run. Only ever called in run context (checked by
-   * the caller) — the tutorial never arms in the Sandbox. */
-  private notifyBattleTutorialMoments(
-    logAnchors: { turnlineAnchor: TutorialAnchorRect; hitRowAnchor?: TutorialAnchorRect; hitRowHasMatchup?: boolean },
-    isOutcomeStep: boolean,
-  ): void {
-    if (this.activeTutorialCards.length > 0) return; // one card queue at a time.
-    let fired: ArmedTutorialCard[] = [];
-    if (logAnchors.hitRowAnchor) {
-      fired = fired.concat(armCards(notifyTutorialMoment('battle:hit', {}), {}));
-      const matchupPayload = { hasMatchup: logAnchors.hitRowHasMatchup === true };
-      fired = fired.concat(armCards(notifyTutorialMoment('battle:hitMatchup', matchupPayload), matchupPayload));
-    }
-    const turnlinePayload = { hasSpan: this.heroPieces.some((p) => p.skill.size > 1) };
-    fired = fired.concat(armCards(notifyTutorialMoment('battle:turnline', turnlinePayload), turnlinePayload));
-    if (isOutcomeStep) {
-      const levelUpPayload = { level: currentHeroLevel(), banked: currentBankedPL() };
-      fired = fired.concat(armCards(notifyTutorialMoment('battle:levelUp', levelUpPayload), levelUpPayload));
-    }
-    if (fired.length > 0) { this.activeTutorialCards = fired; this.tutorialCardIndex = 0; }
-  }
-
-  /** Draws the current queued tutorial card (if any) against whichever of
-   * this frame's anchors matches its `anchor` id — a missing anchor is a
-   * silent no-op (see `renderTutorialCard`). */
-  private renderTutorialOverlay(anchors: Partial<Record<TutorialAnchorId, TutorialAnchorRect>>): void {
-    const card = this.activeTutorialCards[this.tutorialCardIndex];
-    renderTutorialCard(this, card, card ? anchors[card.step.anchor] : undefined, () => {
-      this.tutorialCardIndex += 1;
-      if (this.tutorialCardIndex >= this.activeTutorialCards.length) {
-        this.activeTutorialCards = [];
-        this.tutorialCardIndex = 0;
-      }
-      this.render();
-    }, () => {
-      skipTutorial();
-      this.activeTutorialCards = [];
-      this.tutorialCardIndex = 0;
-      this.render();
-    });
   }
 
   /**

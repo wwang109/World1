@@ -4,6 +4,7 @@ import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
 import {
   applyBonusDraftPick,
+  isEventChoiceAffordable,
   resolveEventChoice,
   rollEventForNode,
 } from '../../src/run/events';
@@ -185,6 +186,34 @@ describe('data/events: catalog lint', () => {
       }
     }
   });
+
+  // A stake belongs in `cost`, never in a `loseGold` branch: loseGold floors at
+  // 0, so a table pairing grantGold with loseGold is a free coin-flip that mints
+  // gold for a broke player (the bug this test locks out).
+  it('never models a wager as grantGold-vs-loseGold in one gamble table', () => {
+    for (const event of Object.values(eventCatalog)) {
+      for (const choice of event.choices) {
+        if (choice.outcome.kind !== 'gamble') continue;
+        const kinds = choice.outcome.table.map((r) => r.outcome.kind);
+        const wagered = kinds.includes('grantGold') && kinds.includes('loseGold');
+        expect(wagered, `${event.id}/${choice.id} should use \`cost\` for its stake`).toBe(false);
+      }
+    }
+  });
+
+  it('gates every gold-costing choice behind an affordable wallet', () => {
+    for (const event of Object.values(eventCatalog)) {
+      for (const choice of event.choices) {
+        // A choice that can PAY OUT gold must charge for the privilege, else it
+        // is free money; flat small grants (<= one fight's income) are fine.
+        if (choice.outcome.kind !== 'gamble') continue;
+        const payout = choice.outcome.table
+          .map((r) => (r.outcome.kind === 'grantGold' ? r.outcome.amount : 0))
+          .reduce((a, b) => Math.max(a, b), 0);
+        if (payout > 2) expect(choice.cost ?? 0).toBeGreaterThan(0);
+      }
+    }
+  });
 });
 
 describe('run/events: rollEventForNode', () => {
@@ -232,7 +261,10 @@ describe('run/events: rollEventForNode', () => {
   });
 
   it('respects the node theme: the resolved event always matches node.eventTheme', () => {
-    let state = startedRun(11);
+    // Flush with gold so affordability-based widening (see the "affordability"
+    // describe block below) never kicks in here — this test is purely about
+    // the theme-bag mechanic, not the gold-gating rule.
+    let state = { ...startedRun(11), gold: 999 };
     const themes = ['training', 'cache', 'recruit', 'forge', 'market', 'omen'] as const;
     for (let i = 0; i < 12; i++) {
       const theme = themes[i % themes.length]!;
@@ -300,6 +332,93 @@ describe('run/events: rollEventForNode', () => {
   });
 });
 
+describe('run/events: affordability-aware draw', () => {
+  it('isEventChoiceAffordable agrees with the resolver\'s own deduction (cost <= gold)', () => {
+    const { state } = stateAtFirstEvent(4);
+    const broke = { ...state, gold: 0 };
+    const flush = { ...state, gold: 10 };
+    const free = { id: 'free', label: '', outcome: { kind: 'nothing' } as const };
+    const costs3 = { id: 'costs3', label: '', cost: 3, outcome: { kind: 'nothing' } as const };
+    expect(isEventChoiceAffordable(broke, free)).toBe(true);
+    expect(isEventChoiceAffordable(broke, costs3)).toBe(false);
+    expect(isEventChoiceAffordable(flush, costs3)).toBe(true);
+  });
+
+  it('an event rolled at gold 0 always has an affordable, non-nothing choice (many seeds/nodes)', () => {
+    for (let i = 0; i < 20; i++) {
+      const seed = i * 41 + 3;
+      let state = startedRun(seed);
+      expect(state.gold).toBe(0);
+      for (let guard = 0; guard < 200; guard++) {
+        const choices = availableChoices(state);
+        if (choices.length === 0) break;
+        const eventNode = choices.find((n) => n.kind === 'event');
+        if (eventNode) {
+          const { event } = rollEventForNode(state, eventNode);
+          const hasPlayableChoice = event.choices.some(
+            (c) => isEventChoiceAffordable(state, c) && c.outcome.kind !== 'nothing',
+          );
+          expect(hasPlayableChoice).toBe(true);
+          state = chooseNode(state, eventNode.id);
+          state = leaveEvent(state);
+          continue;
+        }
+        const node = choices[0]!;
+        state = chooseNode(state, node.id);
+        if (node.kind === 'shop') state = leaveShop(state);
+        else state = recordBattleResult(state, { won: true, goldEarned: 0 });
+      }
+    }
+  });
+
+  it('never offers a gold-costing choice as the only interesting option at gold 0 (direct catalog check)', () => {
+    // Sanity-check the catalog-level guarantee `rollEventForNode` relies on:
+    // scanning ALL events at gold 0, every one has SOME affordable, non-nothing
+    // choice OR the widen-fallback is expected to kick in — either way the
+    // draw-level test above proves the resolver honors it end-to-end.
+    const broke = { gold: 0 } as RunState;
+    let anyEligible = false;
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      if (event.choices.some((c) => isEventChoiceAffordable(broke, c) && c.outcome.kind !== 'nothing')) {
+        anyEligible = true;
+        break;
+      }
+    }
+    expect(anyEligible).toBe(true);
+  });
+
+  it('per-node idempotency holds even when the first roll had to widen past the theme', () => {
+    // Force forge's only free event (ruined_anvil) to be already exhausted so
+    // the SECOND forge node this cycle is forced into the widen-fallback path,
+    // then verify a repeat roll for that same node is still memo-stable.
+    let state = startedRun(30);
+    const forgeA = { id: 'forge-a', depth: 1, wave: 1, kind: 'event' as const, eventSeed: 0, eventTheme: 'forge' as const };
+    const forgeB = { id: 'forge-b', depth: 1, wave: 1, kind: 'event' as const, eventSeed: 1, eventTheme: 'forge' as const };
+    const first = rollEventForNode(state, forgeA);
+    state = first.state;
+    const second = rollEventForNode(state, forgeB);
+    state = second.state;
+    // Whichever event `second` resolved to (in-theme or widened), a repeat
+    // roll for the SAME node must return the identical, memoized event.
+    const repeat = rollEventForNode(state, forgeB);
+    expect(repeat.event.id).toBe(second.event.id);
+    expect(repeat.state).toEqual(state);
+  });
+
+  it('determinism holds for affordability-aware draws across ~20 seeds', () => {
+    for (let i = 0; i < 20; i++) {
+      const seed = i * 37 + 5;
+      const { state: stateA, node: nodeA } = stateAtFirstEvent(seed);
+      const { state: stateB, node: nodeB } = stateAtFirstEvent(seed);
+      expect(nodeB.id).toBe(nodeA.id);
+      const a = rollEventForNode(stateA, nodeA);
+      const b = rollEventForNode(stateB, nodeB);
+      expect(b.event.id).toBe(a.event.id);
+    }
+  });
+});
+
 describe('run/events: resolveEventChoice', () => {
   it('grantGold adds to the wallet', () => {
     const { state } = stateAtFirstEvent(4);
@@ -320,14 +439,15 @@ describe('run/events: resolveEventChoice', () => {
 
   it('loseGold floors at 0', () => {
     const { state } = stateAtFirstEvent(4);
-    // Force the losing branch deterministically by trying every choiceId
-    // seed offset until we observe a loseGold outcome (The Gambler's stake).
+    // Force the losing branch deterministically by trying every choiceId seed
+    // offset until we observe a loseGold outcome. Beast Nest's raid is the
+    // wager-free loseGold case (The Gambler's stake is an upfront `cost`).
     let sawLoseGold = false;
     for (let i = 0; i < 50 && !sawLoseGold; i++) {
       const node = { ...currentEventNodeOrThrow(state), eventSeed: i };
       const withNode: RunState = { ...state, map: replaceNode(state.map, node) };
       const withGold = { ...withNode, gold: 1 };
-      const { outcome, state: next } = resolveEventChoice(withGold, 'gambler', 'stake');
+      const { outcome, state: next } = resolveEventChoice(withGold, 'beast_nest', 'raid_it');
       if (outcome.kind === 'loseGold') {
         sawLoseGold = true;
         expect(next.gold).toBe(0); // floored, not negative

@@ -3,36 +3,34 @@ import type { EventDef } from '../data/events';
 import type { DraftCard, DraftSetKey } from '../run/draft';
 import type { EncounterUnit } from '../run/encounter';
 import { applyBonusDraftPick, resolveEventChoice, rollEventForNode, type EventOutcome } from '../run/events';
-import { bankedPL, type Allocation, type LevelStat } from '../run/leveling';
+import { bankedPL, type Allocation } from '../run/leveling';
 import { battleGoldReward, type BattleFoeSummary } from '../run/shop';
 import type { BattleLog } from '../run/resolveBattle';
 import type { BattleTimelineInput } from './battleTimeline';
 import {
   applyDraftResult,
   availableChoices,
-  buyHeroStatAllocation,
   buyRunCard,
   buyRunGem,
   chooseNode,
   createRun,
   ensureRunShopShelf,
-  isTutorialSkipped,
+  heroAllocationCost,
   leaveEvent,
   leaveShop,
-  markTutorialSkipped,
   recordBattleResult,
   rerollRunShop,
+  setHeroAllocation,
   WAVE_COUNT,
   rollEncounter,
   runBagHasRoomFor,
+  type RunBagSlot,
+  type RunBoardPiece,
   type RunNode,
   type RunNodeKind,
   type RunShopShelf,
   type RunState,
 } from '../run/runState';
-import { notifyTutorial } from './tutorial/controller';
-import { TUTORIAL_STEPS } from './tutorial/steps';
-import type { TutorialMoment, TutorialStepDef } from './tutorial/types';
 
 /**
  * Run store — the Run Mode counterpart of `demoState`: a module-level
@@ -66,28 +64,12 @@ export function rerollPendingSeed(): void {
 }
 
 /**
- * `?tutorial=off|reset` dev/QA launch flag (see `devLaunch.ts`'s
- * `readDevLaunchConfig`) — applied the next time (and every time) a run
- * starts this session. `'off'` pre-skips the tutorial for QA runs that don't
- * want it; `'reset'` is a no-op today (a fresh run already starts unskipped/
- * unseen — there is no `src/meta` persistence yet to actually reset), kept as
- * an explicit flag so it's a stable no-op rather than an unknown value.
- */
-let pendingTutorialFlag: 'off' | 'reset' | undefined;
-
-export function setPendingTutorialFlag(flag: 'off' | 'reset' | undefined): void {
-  pendingTutorialFlag = flag;
-}
-
-/**
  * Start a brand-new run at `seed` — status lands in `'drafting'`; the RUN MAP
  * scene routes straight to the Draft scenes (in run context) instead of
  * surfacing any node choices until `applyRunDraft` installs the real picks.
  */
 export function startRun(seed: number): void {
-  let run = createRun(seed);
-  if (pendingTutorialFlag === 'off') run = markTutorialSkipped(run);
-  activeRun = run;
+  activeRun = createRun(seed);
 }
 
 /** Installs the player's actual draft picks (one per `DRAFT_SET_KEYS` set)
@@ -298,9 +280,56 @@ export function leaveCurrentEvent(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Deck/bag access between fights — lets the Deck Build scenes serve RUN
+// CONTEXT (source discriminator, same idiom as Shop/Draft's `runContext`
+// flag) by reading/writing `RunState.pieces`/`bagSlots`/`gemInventory`
+// straight through this module instead of a forked scene. Every setter is a
+// PLAIN replace (no validation) — the Deck Build scenes already own the
+// placement rules via `src/run/loadout.ts`'s pure `moveWithinStrip`/
+// `shiftInsert`/`socketGem`/etc., which only ever produce legal shapes; this
+// module is just the run's storage slot for whatever they compute, exactly
+// like `demoState`'s fields are for the Sandbox.
+// ---------------------------------------------------------------------------
+
+/** The run's current board pieces (empty array with no active run). */
+export function currentRunPieces(): RunBoardPiece[] {
+  return activeRun?.pieces ?? [];
+}
+
+/** Replaces the run's board pieces wholesale. No-op with no active run. */
+export function setCurrentRunPieces(pieces: RunBoardPiece[]): void {
+  if (!activeRun) return;
+  activeRun = { ...activeRun, pieces };
+}
+
+/** The run's current bag slots (empty array with no active run). */
+export function currentRunBagSlots(): RunBagSlot[] {
+  return activeRun?.bagSlots ?? [];
+}
+
+/** Replaces the run's bag slots wholesale. No-op with no active run. */
+export function setCurrentRunBagSlots(bagSlots: RunBagSlot[]): void {
+  if (!activeRun) return;
+  activeRun = { ...activeRun, bagSlots };
+}
+
+/** The run's current gem pouch (ids, may repeat). Empty with no active run. */
+export function currentRunGemInventory(): string[] {
+  return activeRun?.gemInventory ?? [];
+}
+
+/** Replaces the run's gem pouch wholesale. No-op with no active run. */
+export function setCurrentRunGemInventory(gemInventory: string[]): void {
+  if (!activeRun) return;
+  activeRun = { ...activeRun, gemInventory };
+}
+
+// ---------------------------------------------------------------------------
 // Hero PL-budget stat allocation — reachable from the Run Map AND Run Prep
-// (see docs/release-game-plan.md "Hero leveling & stat allocation"). Additive
-// -only within a run; no sell/respec wrapper exists here on purpose.
+// (see docs/release-game-plan.md "Hero leveling & stat allocation"). The
+// player edits a SCRATCH allocation locally (`RunStatPanel.ts`) and commits it
+// wholesale via `commitHeroAllocation` — no partial writes to `RunState`
+// happen before CONFIRM.
 // ---------------------------------------------------------------------------
 
 /** The run's current hero level, or 1 if there's no active run. */
@@ -308,7 +337,8 @@ export function currentHeroLevel(): number {
   return activeRun?.heroLevel ?? 1;
 }
 
-/** The run's current hero PL allocation (buy counts per stat). */
+/** The run's current COMMITTED hero PL allocation (buy counts per stat) — the
+ * stat panel seeds its scratch edit from this. */
 export function currentHeroAllocation(): Allocation {
   return activeRun?.heroAllocation ?? {};
 }
@@ -319,47 +349,21 @@ export function currentBankedPL(): number {
   return activeRun ? bankedPL(activeRun.heroLevel, activeRun.heroAllocation) : 0;
 }
 
-/** Spend one buy of `stat` from the run's banked PL. No-op if unaffordable
- * or there's no active run — see `buyHeroStatAllocation`. */
-export function buyCurrentHeroStat(stat: LevelStat): void {
+/** PL a (possibly scratch, uncommitted) allocation would spend — pure
+ * pricing read, thin wrapper over `runState.ts#heroAllocationCost`, so the
+ * stat panel never imports `src/run` directly. */
+export function heroAllocationScratchCost(alloc: Allocation): number {
+  return heroAllocationCost(alloc);
+}
+
+/** Commits a whole scratch `Allocation` (replaces the run's allocation
+ * wholesale) — the stat panel's CONFIRM button. No-op (silently rejects,
+ * mirroring `setHeroAllocation`) if it overspends the run's banked PL or if
+ * there's no active run. */
+export function commitHeroAllocation(next: Allocation): void {
   if (!activeRun) return;
-  activeRun = buyHeroStatAllocation(activeRun, stat);
-}
-
-// ---------------------------------------------------------------------------
-// Run tutorial — thin wrapper over `src/run/runState`'s pure tutorial
-// helpers + `tutorial/controller.ts`'s pure `notifyTutorial`, keyed to the
-// active run exactly like every other action in this module. Scenes never
-// touch `RunState.tutorialSeen`/`tutorialSkipped` directly. Callers (battle
-// scenes) are responsible for only invoking `notifyTutorialMoment` while
-// `getBattleContext() === 'run'` (checked at the call site, not here, to
-// avoid an import cycle with `battleContext.ts`, which already imports this
-// module) — the tutorial must never arm in the Sandbox.
-// ---------------------------------------------------------------------------
-
-/** Fires a tutorial moment for the active run: returns the (possibly empty)
- * steps that just armed, each ALREADY marked seen (see `notifyTutorial`).
- * No-op (returns `[]`) with no active run. */
-export function notifyTutorialMoment(moment: TutorialMoment, payload: Record<string, unknown> = {}): TutorialStepDef[] {
-  if (!activeRun) return [];
-  const { state, steps } = notifyTutorial(activeRun, moment, payload);
-  activeRun = state;
-  return steps;
-}
-
-/** SKIP TUTORIAL — remembered for the rest of the run. No-op with no active run. */
-export function skipTutorial(): void {
-  if (!activeRun) return;
-  activeRun = markTutorialSkipped(activeRun);
-}
-
-/** Whether the Run Map's "TUTORIAL: ON · skip" entry chip should show: an
- * active run that hasn't skipped and still has at least one step left to
- * show. Never gates anything else — just a visibility check for the chip. */
-export function tutorialChipVisible(): boolean {
-  if (!activeRun || isTutorialSkipped(activeRun)) return false;
-  return (activeRun.tutorialSeen ?? []).length < TUTORIAL_STEPS.length;
+  activeRun = setHeroAllocation(activeRun, next);
 }
 
 export { WAVE_COUNT };
-export type { RunNode, RunNodeKind, RunState };
+export type { RunBagSlot, RunBoardPiece, RunNode, RunNodeKind, RunState };

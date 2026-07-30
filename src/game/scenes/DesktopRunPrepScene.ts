@@ -9,14 +9,15 @@ import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { renderBankedPlBadge, renderRunStatPanel } from '../ui/RunStatPanel';
+import { addHoverTipZone } from '../ui/hoverTip';
+import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
+import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene } from '../sceneRebuild';
-import { renderTutorialCard } from '../tutorial/overlay';
-import { armCards } from '../tutorial/controller';
-import type { ArmedTutorialCard, TutorialAnchorId, TutorialAnchorRect } from '../tutorial/types';
 import {
-  currentBankedPL, currentEncounter, currentNode, enemyNameFor, getActiveRun,
-  notifyTutorialMoment, skipTutorial, type RunNodeKind,
+  currentEncounter, currentNode, enemyNameFor, getActiveRun, type RunNodeKind,
 } from '../runStore';
+
+const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
 
 const F = DESKTOP_PROFILE.font;
 
@@ -44,15 +45,11 @@ const KIND_LABEL: Record<RunNodeKind, string> = {
  */
 export class DesktopRunPrepScene extends Phaser.Scene {
   private statPanelOpen = false;
-  private activeTutorialCards: ArmedTutorialCard[] = [];
-  private tutorialCardIndex = 0;
 
   constructor() { super('DesktopRunPrep'); }
 
   init(): void {
     this.statPanelOpen = false;
-    this.activeTutorialCards = [];
-    this.tutorialCardIndex = 0;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -60,7 +57,6 @@ export class DesktopRunPrepScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(UI.bg);
     this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.bg).setOrigin(0, 0);
-    this.renderSandboxLink();
 
     const run = getActiveRun();
     const node = currentNode();
@@ -73,64 +69,34 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     }
 
     this.renderTitle(node.kind);
-    const badgeAnchor = this.renderHeaderStats(run);
+    this.renderHeaderStats(run);
+    this.renderDeckButton();
     this.renderFoePanel(node.kind, encounter);
     this.renderColumns(run, encounter);
     this.renderFightButton();
-    let statGridAnchor: TutorialAnchorRect | undefined;
-    let plLineAnchor: TutorialAnchorRect | undefined;
     if (this.statPanelOpen) {
-      const anchors = renderRunStatPanel(this, {
+      renderRunStatPanel(this, {
         compact: false,
-        onClose: () => { this.statPanelOpen = false; this.rerender(); },
+        onCancel: () => { this.statPanelOpen = false; this.rerender(); },
+        onConfirm: () => { this.statPanelOpen = false; this.rerender(); },
         onChanged: () => this.rerender(),
       });
-      statGridAnchor = anchors.gridAnchor;
-      plLineAnchor = anchors.plLineAnchor;
     }
-    this.notifyPrepTutorialMoments(badgeAnchor);
-    this.renderTutorialOverlay({ plBadge: badgeAnchor, statGrid: statGridAnchor, plSpentLine: plLineAnchor });
   }
 
-  /** One notify() call per relevant moment this render pass exposes — every
-   * call is idempotent beyond the first fire (see `notifyTutorialMoment`). */
-  private notifyPrepTutorialMoments(badgeAnchor: TutorialAnchorRect | undefined): void {
-    if (this.activeTutorialCards.length > 0) return;
-    let fired: ArmedTutorialCard[] = [];
-    if (badgeAnchor) {
-      const payload = { banked: currentBankedPL() };
-      fired = fired.concat(armCards(notifyTutorialMoment('runmap:plBadge', payload), payload));
-    }
-    if (this.statPanelOpen) fired = fired.concat(armCards(notifyTutorialMoment('runmap:statPanelOpen', {}), {}));
-    if (fired.length > 0) { this.activeTutorialCards = fired; this.tutorialCardIndex = 0; }
-  }
-
-  /** Draws the current queued tutorial card (if any); a missing anchor is a
-   * silent no-op (see `renderTutorialCard`). */
-  private renderTutorialOverlay(anchors: Partial<Record<TutorialAnchorId, TutorialAnchorRect>>): void {
-    const card = this.activeTutorialCards[this.tutorialCardIndex];
-    renderTutorialCard(this, card, card ? anchors[card.step.anchor] : undefined, () => {
-      this.tutorialCardIndex += 1;
-      if (this.tutorialCardIndex >= this.activeTutorialCards.length) {
-        this.activeTutorialCards = [];
-        this.tutorialCardIndex = 0;
-      }
-      this.rerender();
-    }, () => {
-      skipTutorial();
-      this.activeTutorialCards = [];
-      this.tutorialCardIndex = 0;
-      this.rerender();
-    });
-  }
-
-  private renderSandboxLink(): void {
-    const link = this.add.text(SCREEN.width - GX, 20, 'SANDBOX ›', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textDim,
-    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-    link.on('pointerover', () => link.setColor(UI.textAccent));
-    link.on('pointerout', () => link.setColor(UI.textDim));
-    link.on('pointerdown', () => this.scene.start('DesktopPrep'));
+  /** DECK / BAG entry point — opens the shared Deck Build scene in RUN
+   * context (task item #3). */
+  private renderDeckButton(): void {
+    const w = 132; const h = 30;
+    // Right of the title block — at GX it overlapped "WORLD1 / RUN MODE".
+    const x = GX + 210; const y = 22;
+    const btn = this.add.rectangle(x, y, w, h, UI.panelAlt, 1).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.9).setInteractive({ useHandCursor: true });
+    this.add.text(x + w / 2, y + h / 2, 'DECK / BAG', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+    }).setOrigin(0.5);
+    btn.on('pointerover', () => btn.setFillStyle(UI.slotHover));
+    btn.on('pointerout', () => btn.setFillStyle(UI.panelAlt));
+    btn.on('pointerdown', () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); });
   }
 
   private renderTitle(kind: RunNodeKind): void {
@@ -143,27 +109,32 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     this.add.rectangle(GX, CONTENT_TOP - 16, SCREEN.width - GX * 2, 1, UI.border, 0.7).setOrigin(0, 0);
   }
 
-  private renderHeaderStats(run: NonNullable<ReturnType<typeof getActiveRun>>): TutorialAnchorRect | undefined {
+  private renderHeaderStats(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
     const runDepth = run.map.depths.length - 1;
     const parts = [`DEPTH ${run.depth} / ${runDepth}`, `GOLD ${run.gold}`, `HERO LV ${run.heroLevel}`];
     const badgeX = SCREEN.width - GX;
     const badgeY = 20;
     const badgeW = renderBankedPlBadge(this, badgeX, badgeY, F.tiny, () => { this.statPanelOpen = true; this.rerender(); });
-    const badgeAnchor: TutorialAnchorRect | undefined = badgeW > 0
-      ? { x: badgeX - badgeW, y: badgeY, w: badgeW, h: F.tiny + 12 }
-      : undefined;
     this.add.text(SCREEN.width - GX - (badgeW > 0 ? badgeW + 14 : 0), 44 + F.big - F.name, parts.join('   ·   '), {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent,
     }).setOrigin(1, 0);
-    return badgeAnchor;
   }
 
+  /** Content-fit foe panel (density pass — the old version stretched to the
+   * full column height, leaving a mostly-empty rectangle below the DMG/turn
+   * line). Uses the freed space for a matchup hint + the foe's card list. */
   private renderFoePanel(kind: RunNodeKind, encounter: NonNullable<ReturnType<typeof currentEncounter>>): void {
     const panelX = GX;
     const panelTop = CONTENT_TOP;
-    const panelH = CONTENT_BOTTOM - panelTop;
     const innerX = panelX + PANEL_PAD;
     const innerW = PANEL_W - PANEL_PAD * 2;
+    const cardNames = encounter.setup.pieces
+      .map((p) => skillBook[p.skillId]?.name)
+      .filter((n): n is string => Boolean(n));
+    const cardListRows = Math.ceil(cardNames.length / 1);
+    const panelH = PANEL_PAD * 2 + F.label + 10 + 16 + 26 + 12 + F.name + 6 + F.small + 14
+      + F.body + 7 + F.small + 7 + F.body + 16 + F.tiny + 6 + cardListRows * (F.small + 4);
+
     this.add.rectangle(panelX, panelTop, PANEL_W, panelH, UI.panel, 0.92).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
 
     let cursor = panelTop + PANEL_PAD;
@@ -193,10 +164,12 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     this.add.text(innerX, cursor, `HP ${s.maxHp} · SPD ${s.speed} · ATK ${s.attack} · MAG ${s.magicPower}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.text,
     });
+    addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: F.body + 4 }, ALL_STAT_ENTRIES);
     cursor += F.body + 7;
     this.add.text(innerX, cursor, `DEF ${s.armor} · RES ${s.magicResist} · ${encounter.setup.pieces.length} cards`, {
       fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
     });
+    addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: F.small + 4 }, ALL_STAT_ENTRIES);
     cursor += F.small + 7;
     const bandText = this.add.text(innerX, cursor, 'DMG/turn …', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.textAccent,
@@ -208,6 +181,21 @@ export class DesktopRunPrepScene extends Phaser.Scene {
       if (!this.scene.isActive() || !bandText.active) return;
       bandText.setText('DMG/turn n/a').setColor(UI.textDim);
     });
+    cursor += F.body + 16;
+
+    // Matchup hint + card list — fills the space the old full-height panel
+    // left empty with information a player can actually use to prep.
+    const affinity = encounter.setup.elementAffinity ?? encounter.setup.weaponAffinity;
+    this.add.text(innerX, cursor, affinity ? `AFFINITY · ${affinity.toUpperCase()}` : 'CARDS', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim,
+    });
+    cursor += F.tiny + 6;
+    for (const cardName of cardNames) {
+      this.add.text(innerX, cursor, `· ${cardName}`, {
+        fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textSoft, wordWrap: { width: innerW },
+      });
+      cursor += F.small + 4;
+    }
   }
 
   private renderColumns(run: NonNullable<ReturnType<typeof getActiveRun>>, encounter: NonNullable<ReturnType<typeof currentEncounter>>): void {

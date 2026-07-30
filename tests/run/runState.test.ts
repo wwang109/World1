@@ -11,18 +11,20 @@ import {
   currentShopNode,
   ensureRunShopShelf,
   FIGHT_TABLE,
+  heroAllocationCost,
   leaveEvent,
   leaveShop,
   recordBattleResult,
   rerollRunShop,
   rollEncounter,
   runBagHasRoomFor,
+  setHeroAllocation,
   type RunState,
 } from '../../src/run/runState';
 import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
 import { rollShopStock } from '../../src/run/shop';
 import { totalColumns, WAVE_COUNT } from '../../src/run/runMap';
-import { bankedPL } from '../../src/run/leveling';
+import { bankedPL, LEVEL_STAT_COST } from '../../src/run/leveling';
 
 function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
   const draft = rollStartDraft(seed);
@@ -404,5 +406,65 @@ describe('run/runState: buyHeroStatAllocation', () => {
     for (let i = 0; i < 10; i++) state = buyHeroStatAllocation(state, 'speed');
     expect(bankedPL(state.heroLevel, state.heroAllocation)).toBeGreaterThanOrEqual(0);
     expect(state.heroAllocation.speed).toBe(4); // floor(9/2)
+  });
+});
+
+describe('run/runState: heroAllocationCost + setHeroAllocation (confirmable scratch edit)', () => {
+  it('heroAllocationCost prices an allocation against LEVEL_STAT_COST', () => {
+    expect(heroAllocationCost({})).toBe(0);
+    expect(heroAllocationCost({ attack: 2 })).toBe(2 * LEVEL_STAT_COST.attack.pl);
+    expect(heroAllocationCost({ attack: 2, speed: 1 })).toBe(
+      2 * LEVEL_STAT_COST.attack.pl + 1 * LEVEL_STAT_COST.speed.pl,
+    );
+  });
+
+  it('accepts an in-budget scratch allocation', () => {
+    const state = { ...startedRun(1), heroLevel: 2 }; // 3 PL banked
+    const next = setHeroAllocation(state, { attack: 3 }); // 3 PL spent
+    expect(next.heroAllocation).toEqual({ attack: 3 });
+    expect(next).not.toBe(state);
+  });
+
+  it('rejects (no-op, same reference) an over-budget allocation', () => {
+    const state = { ...startedRun(1), heroLevel: 2 }; // 3 PL banked
+    const result = setHeroAllocation(state, { attack: 4 }); // 4 PL > 3 banked
+    expect(result).toBe(state);
+  });
+
+  it('rejects (no-op, same reference) an allocation with a negative buy count', () => {
+    const state = { ...startedRun(1), heroLevel: 3 }; // 6 PL banked
+    const result = setHeroAllocation(state, { attack: -1 });
+    expect(result).toBe(state);
+  });
+
+  it('allows a confirm that LOWERS a stat back toward zero relative to the last confirmed allocation', () => {
+    const state = { ...startedRun(1), heroLevel: 3, heroAllocation: { attack: 6 } }; // fully spent
+    const lowered = setHeroAllocation(state, { attack: 2, armor: 4 }); // same total PL, different split
+    expect(lowered.heroAllocation).toEqual({ attack: 2, armor: 4 });
+    const toZero = setHeroAllocation(lowered, {});
+    expect(toZero.heroAllocation).toEqual({});
+  });
+
+  it('buyHeroStatAllocation still behaves exactly as before (implemented via setHeroAllocation)', () => {
+    const state = { ...startedRun(1), heroLevel: 2 }; // 3 PL banked
+    const once = buyHeroStatAllocation(state, 'attack');
+    expect(once.heroAllocation.attack).toBe(1);
+    const twice = buyHeroStatAllocation(once, 'attack');
+    expect(twice.heroAllocation.attack).toBe(2);
+    expect(twice).not.toBe(once);
+    const unaffordable = startedRun(1); // heroLevel 1 -> 0 PL banked
+    const noop = buyHeroStatAllocation(unaffordable, 'attack');
+    expect(noop).toBe(unaffordable);
+  });
+
+  it('a committed allocation still reaches the battle request unchanged', () => {
+    const state = { ...startedRun(1), heroLevel: 3 };
+    const next = setHeroAllocation(state, { attack: 2, maxHp: 4 });
+    // heroAllocation is the single source of truth read by anything building
+    // the player's combat stats (see leveling.ts#applyPlayerLevelAllocation) —
+    // confirming just replaces it wholesale, nothing else in state changes.
+    expect(next.heroAllocation).toEqual({ attack: 2, maxHp: 4 });
+    expect(next.pieces).toEqual(state.pieces);
+    expect(next.gold).toBe(state.gold);
   });
 });

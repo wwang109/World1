@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { skillBook } from '../../data/skills';
+import { setDeckBuildContext } from '../deckBuildContext';
 import { applyDraftPicks } from '../draftActions';
 import { DRAFT_SET_KEYS, rollStartDraft, type DraftSetKey, type StartDraft } from '../../run/draft';
 import { demoState } from '../demoState';
@@ -56,7 +57,7 @@ export class MobileDraftScene extends Phaser.Scene {
   private renderTabs(): void {
     const tabs: Array<[string, boolean, () => void]> = [
       ['PREP', false, () => this.scene.start('MobilePrep')],
-      ['DECK', false, () => this.scene.start('MobileDeckBuild')],
+      ['DECK', false, () => { setDeckBuildContext('demo'); this.scene.start('MobileDeckBuild'); }],
       ['WIKI', false, () => this.scene.start('MobileWiki')],
       ['SHOP', false, () => this.scene.start('MobileShop')],
       ['DRAFT', true, () => {}],
@@ -72,14 +73,10 @@ export class MobileDraftScene extends Phaser.Scene {
   }
 
   /** Run-context header — no sandbox tabs (those would navigate away from the
-   * run mid-draft); a plain title + a small SANDBOX escape, mirroring the run
-   * map's own link. */
+   * run mid-draft) and no SANDBOX escape link either: Run Mode and the
+   * Sandbox are separate products. Plain title only. */
   private renderRunTabs(): void {
     this.add.text(12, 10, 'RUN · DRAFT', { fontSize: '13px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
-    const link = this.add.text(this.W - 12, 10, 'SANDBOX ›', {
-      fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-    link.on('pointerdown', () => this.scene.start('MobilePrep'));
   }
 
   private renderHeader(): void {

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { setDeckBuildContext } from '../deckBuildContext';
 import { gemPowerLevel, instancePowerLevelDeci, powerLevelDeci } from '../../engine/balance';
 import { applyTier } from '../../engine/cards';
 import type { SkillDef, SkillTier } from '../../engine/types';
@@ -95,7 +96,7 @@ export class MobileWikiScene extends Phaser.Scene {
   private renderTabs(): void {
     const tabs: Array<[string, boolean, () => void]> = [
       ['PREP', false, () => this.scene.start('MobilePrep')],
-      ['DECK', false, () => this.scene.start('MobileDeckBuild')],
+      ['DECK', false, () => { setDeckBuildContext('demo'); this.scene.start('MobileDeckBuild'); }],
       ['WIKI', true, () => {}],
       ['SHOP', false, () => this.scene.start('MobileShop')],
       ['DRAFT', false, () => this.scene.start('MobileDraft')],

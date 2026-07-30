@@ -1,26 +1,21 @@
 import Phaser from 'phaser';
 import { shopCatalog } from '../../data/shopTypes';
+import { eventThemeBlurb } from '../ui/eventThemeBlurb';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
 import { renderBankedPlBadge, renderRunStatPanel } from '../ui/RunStatPanel';
-import { renderTutorialCard, renderTutorialEntryChip } from '../tutorial/overlay';
-import { armCards } from '../tutorial/controller';
-import type { ArmedTutorialCard, TutorialAnchorId, TutorialAnchorRect } from '../tutorial/types';
+import { setDeckBuildContext } from '../deckBuildContext';
 import {
   choices,
   clearRun,
-  currentBankedPL,
   enemyNameFor,
   getActiveRun,
   getPendingSeed,
-  notifyTutorialMoment,
   pickNode,
   previewEncounter,
   rerollPendingSeed,
-  skipTutorial,
   startRun,
-  tutorialChipVisible,
   WAVE_COUNT,
   type RunNode,
   type RunNodeKind,
@@ -56,15 +51,11 @@ const KIND_LABEL: Record<RunNodeKind, string> = {
  */
 export class DesktopRunMapScene extends Phaser.Scene {
   private statPanelOpen = false;
-  private activeTutorialCards: ArmedTutorialCard[] = [];
-  private tutorialCardIndex = 0;
 
   constructor() { super('DesktopRunMap'); }
 
   init(): void {
     this.statPanelOpen = false;
-    this.activeTutorialCards = [];
-    this.tutorialCardIndex = 0;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -72,7 +63,6 @@ export class DesktopRunMapScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(UI.bg);
     this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.bg).setOrigin(0, 0);
-    this.renderSandboxLink();
 
     const run = getActiveRun();
     if (!run) {
@@ -92,65 +82,17 @@ export class DesktopRunMapScene extends Phaser.Scene {
     }
 
     this.renderTitle('RUN');
-    const badgeAnchor = this.renderHeaderStats(run);
+    this.renderHeaderStats(run);
+    this.renderDeckButton();
     this.renderTrail(run);
-    if (tutorialChipVisible()) {
-      renderTutorialEntryChip(this, SCREEN.width - GX, SCREEN.height - 24, F.tiny, () => { skipTutorial(); this.rerender(); });
-    }
-    let statGridAnchor: TutorialAnchorRect | undefined;
-    let plLineAnchor: TutorialAnchorRect | undefined;
     if (this.statPanelOpen) {
-      const anchors = renderRunStatPanel(this, {
+      renderRunStatPanel(this, {
         compact: false,
-        onClose: () => { this.statPanelOpen = false; this.rerender(); },
+        onCancel: () => { this.statPanelOpen = false; this.rerender(); },
+        onConfirm: () => { this.statPanelOpen = false; this.rerender(); },
         onChanged: () => this.rerender(),
       });
-      statGridAnchor = anchors.gridAnchor;
-      plLineAnchor = anchors.plLineAnchor;
     }
-    this.notifyMapTutorialMoments(badgeAnchor);
-    this.renderTutorialOverlay({ plBadge: badgeAnchor, statGrid: statGridAnchor, plSpentLine: plLineAnchor });
-  }
-
-  /** One notify() call per relevant moment this render pass exposes — every
-   * call is idempotent beyond the first fire (see `notifyTutorialMoment`). */
-  private notifyMapTutorialMoments(badgeAnchor: TutorialAnchorRect | undefined): void {
-    if (this.activeTutorialCards.length > 0) return;
-    let fired: ArmedTutorialCard[] = [];
-    if (badgeAnchor) {
-      const payload = { banked: currentBankedPL() };
-      fired = fired.concat(armCards(notifyTutorialMoment('runmap:plBadge', payload), payload));
-    }
-    if (this.statPanelOpen) fired = fired.concat(armCards(notifyTutorialMoment('runmap:statPanelOpen', {}), {}));
-    if (fired.length > 0) { this.activeTutorialCards = fired; this.tutorialCardIndex = 0; }
-  }
-
-  /** Draws the current queued tutorial card (if any); a missing anchor is a
-   * silent no-op (see `renderTutorialCard`). */
-  private renderTutorialOverlay(anchors: Partial<Record<TutorialAnchorId, TutorialAnchorRect>>): void {
-    const card = this.activeTutorialCards[this.tutorialCardIndex];
-    renderTutorialCard(this, card, card ? anchors[card.step.anchor] : undefined, () => {
-      this.tutorialCardIndex += 1;
-      if (this.tutorialCardIndex >= this.activeTutorialCards.length) {
-        this.activeTutorialCards = [];
-        this.tutorialCardIndex = 0;
-      }
-      this.rerender();
-    }, () => {
-      skipTutorial();
-      this.activeTutorialCards = [];
-      this.tutorialCardIndex = 0;
-      this.rerender();
-    });
-  }
-
-  private renderSandboxLink(): void {
-    const link = this.add.text(SCREEN.width - GX, 20, 'SANDBOX ›', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textDim,
-    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-    link.on('pointerover', () => link.setColor(UI.textAccent));
-    link.on('pointerout', () => link.setColor(UI.textDim));
-    link.on('pointerdown', () => this.scene.start('DesktopPrep'));
   }
 
   private renderTitle(label: string): void {
@@ -162,7 +104,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
     });
   }
 
-  private renderHeaderStats(run: NonNullable<ReturnType<typeof getActiveRun>>): TutorialAnchorRect | undefined {
+  private renderHeaderStats(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
     const runDepth = run.map.depths.length - 1;
     const nextCol = run.map.depths[run.depth + 1];
     const wave = nextCol?.[0]?.wave ?? run.map.depths[run.depth]?.[0]?.wave ?? 1;
@@ -176,14 +118,28 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const badgeX = SCREEN.width - GX;
     const badgeY = 20;
     const badgeW = renderBankedPlBadge(this, badgeX, badgeY, F.tiny, () => { this.statPanelOpen = true; this.rerender(); });
-    const badgeAnchor: TutorialAnchorRect | undefined = badgeW > 0
-      ? { x: badgeX - badgeW, y: badgeY, w: badgeW, h: F.tiny + 12 }
-      : undefined;
     this.add.text(SCREEN.width - GX - (badgeW > 0 ? badgeW + 14 : 0), 44 + F.big - F.name, parts.join('   ·   '), {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent,
     }).setOrigin(1, 0);
     this.add.rectangle(GX, CONTENT_TOP - 16, SCREEN.width - GX * 2, 1, UI.border, 0.7).setOrigin(0, 0);
-    return badgeAnchor;
+  }
+
+  /** DECK / BAG entry point — opens the shared Deck Build scene in RUN
+   * context (reads/writes the run's pieces/bagSlots/gemInventory via
+   * `runStore`, not `demoState`). The only way into deck management between
+   * fights (task item #3). */
+  private renderDeckButton(): void {
+    const w = 132; const h = 30;
+    // Right of the RUN title block (which occupies GX..~GX+150 on two lines) —
+    // at GX it drew straight over "WORLD1 / RUN MODE".
+    const x = GX + 210; const y = 22;
+    const btn = this.add.rectangle(x, y, w, h, UI.panelAlt, 1).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.9).setInteractive({ useHandCursor: true });
+    this.add.text(x + w / 2, y + h / 2, 'DECK / BAG', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+    }).setOrigin(0.5);
+    btn.on('pointerover', () => btn.setFillStyle(UI.slotHover));
+    btn.on('pointerout', () => btn.setFillStyle(UI.panelAlt));
+    btn.on('pointerdown', () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); });
   }
 
   // ---------- the trail ----------
@@ -266,7 +222,9 @@ export class DesktopRunMapScene extends Phaser.Scene {
       availableH -= F.tiny + 6;
     }
     const gap = 12;
-    const panelH = Math.min(170, (availableH - gap * (options.length - 1)) / options.length);
+    // Density pass: compact content-fit rows (name + one hint line) instead of
+    // stretching to a big mostly-empty box — cap at 92 (was 170).
+    const panelH = Math.min(92, (availableH - gap * (options.length - 1)) / options.length);
     let y = top;
     for (const node of options) {
       this.renderChoicePanel(x, y, w, panelH, node);
@@ -298,8 +256,11 @@ export class DesktopRunMapScene extends Phaser.Scene {
 
     if (node.kind === 'shop') {
       if (shop) {
-        this.add.text(x + 20, y + h - 28, shop.tagline, {
+        this.add.text(x + 20, y + 14 + F.name + 4, shop.tagline, {
           fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim, wordWrap: { width: w - 40 },
+        });
+        this.add.text(x + 20, y + h - 20, `${shop.shelf.cards} CARDS · ${shop.shelf.gems} GEMS`, {
+          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textSoft,
         });
       }
     } else if (node.kind === 'fight' || node.kind === 'boss') {
@@ -310,6 +271,10 @@ export class DesktopRunMapScene extends Phaser.Scene {
           fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textAccent, wordWrap: { width: w - 40 },
         });
       }
+    } else if (node.kind === 'event') {
+      this.add.text(x + 20, y + 14 + F.name + 6, eventThemeBlurb(node.eventTheme), {
+        fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim,
+      });
     }
   }
 

@@ -8,13 +8,21 @@ import { moveWithinStrip, shiftInsert, socketGem, swapGem, unsocketGem } from '.
 import { gemBook } from '../../data/gems';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { GEM_RARITY_COLOR } from '../theme';
-import { demoState, type OwnedCard } from '../demoState';
+import { demoState, type OwnedBoardPiece, type OwnedCard, type InventorySlot } from '../demoState';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { renderDesktopBackground, renderDesktopHeader, DESKTOP_LAYOUT } from '../ui/DesktopNav';
+import { addHoverTipZone } from '../ui/hoverTip';
+import { gemHoverEntry } from '../ui/gemGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { rebuildScene } from '../sceneRebuild';
+import { getDeckBuildContext } from '../deckBuildContext';
+import {
+  currentHeroAllocation, currentHeroLevel,
+  currentRunBagSlots, currentRunGemInventory, currentRunPieces,
+  setCurrentRunBagSlots, setCurrentRunGemInventory, setCurrentRunPieces,
+} from '../runStore';
 
 const SLOTS = 10;
 const F = DESKTOP_PROFILE.font;
@@ -47,6 +55,12 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
   private holdingH = 0;
   private trashTop = 0;
   private trashH = 0;
+  /** RUN CONTEXT ONLY — whether this render pass serves Run Mode (reads/
+   * writes the active run's pieces/bagSlots/gemInventory) or the Sandbox
+   * (`demoState`), decided by `deckBuildContext.ts` (same idiom as
+   * `battleContext.ts`), captured once per `create()` so a mid-render context
+   * flip elsewhere never tears a single frame. */
+  private runContext = false;
 
   constructor() { super('DesktopDeck'); }
 
@@ -54,6 +68,17 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
   private rerender(): void {
     rebuildScene(this);
   }
+
+  // ---------- data source (Sandbox demoState vs. the active run) ----------
+
+  private get pieces(): OwnedBoardPiece[] { return this.runContext ? currentRunPieces() : demoState.pieces; }
+  private set pieces(next: OwnedBoardPiece[]) { if (this.runContext) setCurrentRunPieces(next); else demoState.pieces = next; }
+  private get bagSlots(): InventorySlot[] { return this.runContext ? currentRunBagSlots() : demoState.bagSlots; }
+  private set bagSlots(next: InventorySlot[]) { if (this.runContext) setCurrentRunBagSlots(next); else demoState.bagSlots = next; }
+  private get gemInventory(): string[] { return this.runContext ? currentRunGemInventory() : demoState.gemInventory; }
+  private set gemInventory(next: string[]) { if (this.runContext) setCurrentRunGemInventory(next); else demoState.gemInventory = next; }
+  private get heroLevel(): number { return this.runContext ? currentHeroLevel() : demoState.heroLevel; }
+  private get heroAllocation() { return this.runContext ? currentHeroAllocation() : demoState.heroAllocation; }
 
   init(): void {
     // NOTE: `hold` and `pendingTrash` are deliberately NOT reset here — this
@@ -65,14 +90,15 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.holdingH = 0;
     this.trashTop = 0;
     this.trashH = 0;
+    this.runContext = getDeckBuildContext() === 'run';
   }
 
   create(): void {
     this.draggables = [];
-    const hero = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces.map((p) => ({ ...p })), demoState.heroAllocation).setup;
+    const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
     this.heroStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower };
     renderDesktopBackground(this);
-    renderDesktopHeader(this, 'DECK BUILD', 'deck');
+    if (this.runContext) this.renderRunTitle(); else renderDesktopHeader(this, 'DECK BUILD', 'deck');
     this.renderMeta(hero.stats);
     this.renderHolding();
     this.renderColumns();
@@ -80,6 +106,24 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     if (this.pendingTrash) this.renderConfirm();
     if (this.socketFor) this.renderSocketPanel();
     this.wireDrag();
+  }
+
+  /** Run-context header — no sandbox nav tabs (those would navigate away from
+   * the run); a plain title + a back link to the Run Map, mirroring
+   * RunPrep/RunEvent's own header idiom. */
+  private renderRunTitle(): void {
+    const gx = DESKTOP_LAYOUT.gutter;
+    this.add.text(gx, 24, 'WORLD1 / RUN MODE', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${DESKTOP_PROFILE.font.label}px`, color: UI.textAccent,
+    });
+    this.add.text(gx, 44, 'DECK / BAG', {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${DESKTOP_PROFILE.font.big}px`, color: UI.text,
+    });
+    const back = this.add.text(SCREEN.width - gx, 44 + DESKTOP_PROFILE.font.big - DESKTOP_PROFILE.font.name, '‹ MAP', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${DESKTOP_PROFILE.font.name}px`, color: UI.textAccent,
+    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+    back.on('pointerdown', () => this.scene.start('DesktopRunMap'));
+    this.add.rectangle(gx, DESKTOP_LAYOUT.contentTop - 14, SCREEN.width - gx * 2, 1, UI.border, 0.7).setOrigin(0, 0);
   }
 
   /** Manual pointer-drag: hit-test tokens ourselves. Drop resolves against
@@ -139,7 +183,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
 
   private deckOccupied(): boolean[] {
     const occ = Array<boolean>(SLOTS).fill(false);
-    for (const p of demoState.pieces) {
+    for (const p of this.pieces) {
       const size = this.sizeOf(p.skillId);
       for (let i = p.slot; i < p.slot + size && i < SLOTS; i++) occ[i] = true;
     }
@@ -148,7 +192,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
 
   private bagOccupied(): boolean[] {
     const occ = Array<boolean>(SLOTS).fill(false);
-    demoState.bagSlots.forEach((card, index) => {
+    this.bagSlots.forEach((card, index) => {
       if (!card) return;
       const size = this.sizeOf(card.skillId);
       for (let i = index; i < index + size && i < SLOTS; i++) occ[i] = true;
@@ -159,8 +203,8 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
   // ---------- moves (real demoState) ----------
 
   private removeSource(src: Source): void {
-    if (src.where === 'deck') demoState.pieces = demoState.pieces.filter((p) => p.instanceId !== src.instanceId);
-    else if (src.where === 'bag') demoState.bagSlots[src.index] = null;
+    if (src.where === 'deck') this.pieces = this.pieces.filter((p) => p.instanceId !== src.instanceId);
+    else if (src.where === 'bag') this.bagSlots[src.index] = null;
     else this.hold = null;
   }
 
@@ -178,9 +222,9 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const gx = DESKTOP_LAYOUT.gutter;
     const used = this.deckOccupied().filter(Boolean).length;
     let plDeci = 0;
-    for (const p of demoState.pieces) { const s = skillBook[p.skillId]; if (s) plDeci += instancePowerLevelDeci(s, { gem: p.gem ?? null }); }
-    const gems = demoState.pieces.filter((p) => p.gem).length;
-    const meta = `LV ${demoState.heroLevel} · HP ${stats.maxHp} · ATK ${stats.attack} · MAG ${stats.magicPower} · SPD ${stats.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
+    for (const p of this.pieces) { const s = skillBook[p.skillId]; if (s) plDeci += instancePowerLevelDeci(s, { gem: p.gem ?? null }); }
+    const gems = this.pieces.filter((p) => p.gem).length;
+    const meta = `LV ${this.heroLevel} · HP ${stats.maxHp} · ATK ${stats.attack} · MAG ${stats.magicPower} · SPD ${stats.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
     // Right-aligned on the tab row's centerline — clear of both the tab
     // buttons on the left and the divider below.
     this.add.text(SCREEN.width - gx, 102 + DESKTOP_LAYOUT.tabH / 2, meta, {
@@ -245,8 +289,8 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.add.text(deckX + colW / 2, top - 18, `ACTIVE DECK · ${deckUsed}/${SLOTS}`, { fontSize: `${F.label}px`, color: ACCENT_TEXT, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
     this.add.text(bagX + colW / 2, top - 18, `BAG · ${bagUsed}/${SLOTS}`, { fontSize: `${F.label}px`, color: ACCENT_TEXT, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
 
-    const deckSkills = demoState.pieces.map((p) => skillBook[p.skillId]).filter((s): s is SkillDef => Boolean(s));
-    const bagSkills = demoState.bagSlots.map((c) => (c ? skillBook[c.skillId] : undefined)).filter((s): s is SkillDef => Boolean(s));
+    const deckSkills = this.pieces.map((p) => skillBook[p.skillId]).filter((s): s is SkillDef => Boolean(s));
+    const bagSkills = this.bagSlots.map((c) => (c ? skillBook[c.skillId] : undefined)).filter((s): s is SkillDef => Boolean(s));
     const rowTop = (row: number): number => top + row * (rowH + gap);
     const empty = (colX: number, row: number, side: 'left' | 'right'): void => {
       this.add.rectangle(colX + colW / 2, rowTop(row) + rowH / 2, colW, rowH, UI.slot, 0.45).setOrigin(0.5).setStrokeStyle(1, UI.border, 0.35);
@@ -256,7 +300,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
 
     // DECK (left)
     const deckOcc = this.deckOccupied();
-    const deckBySlot = new Map(demoState.pieces.map((p) => [p.slot, p]));
+    const deckBySlot = new Map(this.pieces.map((p) => [p.slot, p]));
     for (let row = 0; row < SLOTS; row++) {
       const piece = deckBySlot.get(row);
       if (piece) {
@@ -277,7 +321,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     // BAG (right)
     const bagOcc = this.bagOccupied();
     for (let row = 0; row < SLOTS; row++) {
-      const card = demoState.bagSlots[row];
+      const card = this.bagSlots[row];
       if (card) {
         const skill = skillBook[card.skillId]!;
         const span = this.sizeOf(card.skillId);
@@ -346,25 +390,25 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
   private toDeck(src: Source, preferRow: number): boolean {
     const size = this.sizeOf(src.card.skillId);
     const sourcePiece = src.where === 'deck'
-      ? demoState.pieces.find((p) => p.instanceId === src.instanceId)
+      ? this.pieces.find((p) => p.instanceId === src.instanceId)
       : undefined;
     if (src.where === 'deck' && sourcePiece) {
-      const others = demoState.pieces.filter((p) => p.instanceId !== src.instanceId)
+      const others = this.pieces.filter((p) => p.instanceId !== src.instanceId)
         .map((p) => ({ id: p.instanceId, start: p.slot, size: this.sizeOf(p.skillId) }));
       const plan = moveWithinStrip(others, size, sourcePiece.slot, preferRow, SLOTS);
       if (!plan) return false;
-      demoState.pieces = demoState.pieces
+      this.pieces = this.pieces
         .filter((p) => p.instanceId !== src.instanceId)
         .map((p) => { const moved = plan.moved.find((item) => item.id === p.instanceId); return moved ? { ...p, slot: moved.start } : p; })
         .concat({ ...sourcePiece, slot: plan.movedStart })
         .sort((a, b) => a.slot - b.slot);
       return true;
     }
-    const others = demoState.pieces.map((p) => ({ id: p.instanceId, start: p.slot, size: this.sizeOf(p.skillId) }));
+    const others = this.pieces.map((p) => ({ id: p.instanceId, start: p.slot, size: this.sizeOf(p.skillId) }));
     const plan = shiftInsert(others, size, preferRow, SLOTS);
     if (!plan) return false;
     this.removeSource(src);
-    demoState.pieces = demoState.pieces
+    this.pieces = this.pieces
       .map((p) => { const moved = plan.moved.find((item) => item.id === p.instanceId); return moved ? { ...p, slot: moved.start } : p; })
       .concat({ instanceId: src.card.instanceId, skillId: src.card.skillId, tier: src.card.tier, slot: plan.movedStart })
       .sort((a, b) => a.slot - b.slot);
@@ -376,34 +420,34 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const size = this.sizeOf(src.card.skillId);
     if (src.where === 'bag') {
       const origin = src.index;
-      const others = demoState.bagSlots.flatMap((card, index) => card && index !== origin
+      const others = this.bagSlots.flatMap((card, index) => card && index !== origin
         ? [{ id: String(index), start: index, size: this.sizeOf(card.skillId) }] : []);
       const plan = moveWithinStrip(others, size, origin, preferRow, SLOTS);
       if (!plan) return false;
-      const cards = demoState.bagSlots.map((card, index) => ({ card, index })).filter((item) => item.index !== origin);
+      const cards = this.bagSlots.map((card, index) => ({ card, index })).filter((item) => item.index !== origin);
       const next: Array<OwnedCard | null> = Array(SLOTS).fill(null);
       for (const item of cards) {
         const moved = plan.moved.find((entry) => entry.id === String(item.index));
         if (moved) next[moved.start] = item.card;
       }
       next[plan.movedStart] = src.card;
-      demoState.bagSlots = next;
+      this.bagSlots = next;
       return true;
     }
-    const others = demoState.bagSlots.flatMap((card, index) => card
+    const others = this.bagSlots.flatMap((card, index) => card
       ? [{ id: String(index), start: index, size: this.sizeOf(card.skillId) }] : []);
     const plan = shiftInsert(others, size, preferRow, SLOTS);
     if (!plan) return false;
     this.removeSource(src);
     const next: Array<OwnedCard | null> = Array(SLOTS).fill(null);
-    for (const item of demoState.bagSlots) {
+    for (const item of this.bagSlots) {
       if (!item) continue;
-      const index = demoState.bagSlots.indexOf(item);
+      const index = this.bagSlots.indexOf(item);
       const moved = plan.moved.find((entry) => entry.id === String(index));
       if (moved) next[moved.start] = item;
     }
     next[plan.movedStart] = { ...src.card };
-    demoState.bagSlots = next;
+    this.bagSlots = next;
     return true;
   }
 
@@ -412,10 +456,10 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
    * Every card has one socket (availability-by-tier is a future rule): shows
    * the current gem with UNSOCKET, and the pouch inventory with SOCKET/SWAP.
    * All mutations go through run/loadout's socketGem/swapGem/unsocketGem;
-   * displaced gems return to `demoState.gemInventory`.
+   * displaced gems return to `this.gemInventory`.
    */
   private renderSocketPanel(): void {
-    const piece = demoState.pieces.find((p) => p.instanceId === this.socketFor);
+    const piece = this.pieces.find((p) => p.instanceId === this.socketFor);
     if (!piece) { this.socketFor = null; return; }
     const skill = skillBook[piece.skillId];
     if (!skill) { this.socketFor = null; return; }
@@ -424,7 +468,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const scrim = this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
     scrim.on('pointerdown', close);
 
-    const pouch = demoState.gemInventory.map((id) => gemBook[id]).filter((g): g is NonNullable<typeof g> => Boolean(g));
+    const pouch = this.gemInventory.map((id) => gemBook[id]).filter((g): g is NonNullable<typeof g> => Boolean(g));
     const rowH = 52;
     const pw = 520;
     const listH = Math.max(1, pouch.length) * (rowH + 8);
@@ -449,11 +493,12 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       this.add.rectangle(px + 40, curY + rowH / 2, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
       this.add.text(px + 56, curY + 8, `${gemDef?.name ?? gem.id} — ${bonus}`, { fontSize: `${F.small}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' });
       this.add.text(px + 56, curY + 28, `card PL ${basePl} + ${gemPowerLevel(gem)} gem = ${totalPl}`, { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body });
+      if (gemDef) addHoverTipZone(this, { x: px + 20, y: curY, w: pw - 40, h: rowH }, [gemHoverEntry(gemDef)]);
       const un = this.add.rectangle(px + pw - 130, curY + 8, 96, rowH - 16, UI.badSoft).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
       this.add.text(px + pw - 82, curY + rowH / 2, 'UNSOCKET', { fontSize: `${F.tiny}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       un.on('pointerdown', () => {
         const removed = unsocketGem(piece);
-        if (removed) demoState.gemInventory = [...demoState.gemInventory, removed.id];
+        if (removed) this.gemInventory = [...this.gemInventory, removed.id];
         close();
       });
     } else {
@@ -475,14 +520,15 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       const desc = this.add.text(px + 56, rowY + 28, stripCardTextMarkup(gem.text), { fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold' });
       let s = stripCardTextMarkup(gem.text);
       while (s.length > 1 && desc.width > pw - 220) { s = s.slice(0, -1); desc.setText(`${s}…`); }
+      addHoverTipZone(this, { x: px + 20, y: rowY, w: pw - 40, h: rowH }, [gemHoverEntry(gem)]);
       const act = this.add.rectangle(px + pw - 130, rowY + 8, 96, rowH - 16, UI.chip).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
       this.add.text(px + pw - 82, rowY + rowH / 2, piece.gem ? 'SWAP' : 'SOCKET', { fontSize: `${F.tiny}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       act.on('pointerdown', () => {
         // consume ONE copy of this gem id from the pouch
-        const at = demoState.gemInventory.indexOf(gem.id);
-        if (at >= 0) demoState.gemInventory = demoState.gemInventory.filter((_, i) => i !== at);
+        const at = this.gemInventory.indexOf(gem.id);
+        if (at >= 0) this.gemInventory = this.gemInventory.filter((_, i) => i !== at);
         const displaced = piece.gem ? swapGem(piece, gem) : (socketGem(piece, gem), null);
-        if (displaced) demoState.gemInventory = [...demoState.gemInventory, displaced.id];
+        if (displaced) this.gemInventory = [...this.gemInventory, displaced.id];
         close();
       });
     });

@@ -8,14 +8,15 @@ import { FONT, SCREEN, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { renderActionBar } from '../ui/ActionBar';
 import { renderBankedPlBadge, renderRunStatPanel } from '../ui/RunStatPanel';
+import { addHoverTipZone } from '../ui/hoverTip';
+import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
+import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene } from '../sceneRebuild';
-import { renderTutorialCard } from '../tutorial/overlay';
-import { armCards } from '../tutorial/controller';
-import type { ArmedTutorialCard, TutorialAnchorId, TutorialAnchorRect } from '../tutorial/types';
 import {
-  currentBankedPL, currentEncounter, currentNode, enemyNameFor, getActiveRun,
-  notifyTutorialMoment, skipTutorial, type RunNodeKind,
+  currentEncounter, currentNode, enemyNameFor, getActiveRun, type RunNodeKind,
 } from '../runStore';
+
+const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
 
 const KIND_COLOR: Record<RunNodeKind, number> = {
   fight: 0x4a7ab5, event: UI.chip, shop: UI.good, boss: UI.bad,
@@ -34,15 +35,11 @@ export class MobileRunPrepScene extends Phaser.Scene {
   private W = SCREEN.width;
   private H = SCREEN.height;
   private statPanelOpen = false;
-  private activeTutorialCards: ArmedTutorialCard[] = [];
-  private tutorialCardIndex = 0;
 
   constructor() { super('MobileRunPrep'); }
 
   init(): void {
     this.statPanelOpen = false;
-    this.activeTutorialCards = [];
-    this.tutorialCardIndex = 0;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -50,7 +47,6 @@ export class MobileRunPrepScene extends Phaser.Scene {
   create(): void {
     this.W = SCREEN.width; this.H = SCREEN.height;
     this.cameras.main.setBackgroundColor(0x0b1420);
-    this.renderSandboxLink();
 
     const run = getActiveRun();
     const node = currentNode();
@@ -60,77 +56,33 @@ export class MobileRunPrepScene extends Phaser.Scene {
       return;
     }
 
-    const badgeAnchor = this.renderHeader(run, node.kind);
+    this.renderHeader(run, node.kind);
     const boardsTop = this.renderFoeCard(node.kind, encounter);
     this.renderColumns(run, encounter, boardsTop);
     this.renderFooter();
-    let statGridAnchor: TutorialAnchorRect | undefined;
-    let plLineAnchor: TutorialAnchorRect | undefined;
     if (this.statPanelOpen) {
-      const anchors = renderRunStatPanel(this, {
+      renderRunStatPanel(this, {
         compact: true,
-        onClose: () => { this.statPanelOpen = false; this.rerender(); },
+        onCancel: () => { this.statPanelOpen = false; this.rerender(); },
+        onConfirm: () => { this.statPanelOpen = false; this.rerender(); },
         onChanged: () => this.rerender(),
       });
-      statGridAnchor = anchors.gridAnchor;
-      plLineAnchor = anchors.plLineAnchor;
     }
-    this.notifyPrepTutorialMoments(badgeAnchor);
-    this.renderTutorialOverlay({ plBadge: badgeAnchor, statGrid: statGridAnchor, plSpentLine: plLineAnchor });
   }
 
-  /** One notify() call per relevant moment this render pass exposes — every
-   * call is idempotent beyond the first fire (see `notifyTutorialMoment`). */
-  private notifyPrepTutorialMoments(badgeAnchor: TutorialAnchorRect | undefined): void {
-    if (this.activeTutorialCards.length > 0) return;
-    let fired: ArmedTutorialCard[] = [];
-    if (badgeAnchor) {
-      const payload = { banked: currentBankedPL() };
-      fired = fired.concat(armCards(notifyTutorialMoment('runmap:plBadge', payload), payload));
-    }
-    if (this.statPanelOpen) fired = fired.concat(armCards(notifyTutorialMoment('runmap:statPanelOpen', {}), {}));
-    if (fired.length > 0) { this.activeTutorialCards = fired; this.tutorialCardIndex = 0; }
-  }
-
-  /** Draws the current queued tutorial card (if any); a missing anchor is a
-   * silent no-op (see `renderTutorialCard`). */
-  private renderTutorialOverlay(anchors: Partial<Record<TutorialAnchorId, TutorialAnchorRect>>): void {
-    const card = this.activeTutorialCards[this.tutorialCardIndex];
-    renderTutorialCard(this, card, card ? anchors[card.step.anchor] : undefined, () => {
-      this.tutorialCardIndex += 1;
-      if (this.tutorialCardIndex >= this.activeTutorialCards.length) {
-        this.activeTutorialCards = [];
-        this.tutorialCardIndex = 0;
-      }
-      this.rerender();
-    }, () => {
-      skipTutorial();
-      this.activeTutorialCards = [];
-      this.tutorialCardIndex = 0;
-      this.rerender();
-    });
-  }
-
-  private renderSandboxLink(): void {
-    const link = this.add.text(this.W - 12, 10, 'SANDBOX ›', {
-      fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-    link.on('pointerdown', () => this.scene.start('MobilePrep'));
-  }
-
-  private renderHeader(run: NonNullable<ReturnType<typeof getActiveRun>>, kind: RunNodeKind): TutorialAnchorRect | undefined {
+  private renderHeader(run: NonNullable<ReturnType<typeof getActiveRun>>, kind: RunNodeKind): void {
     const runDepth = run.map.depths.length - 1;
     const badgeX = this.W - 12; const badgeY = 10; const badgeFont = 9;
-    const badgeW = renderBankedPlBadge(this, badgeX, badgeY, badgeFont, () => { this.statPanelOpen = true; this.rerender(); });
-    const badgeAnchor: TutorialAnchorRect | undefined = badgeW > 0
-      ? { x: badgeX - badgeW, y: badgeY, w: badgeW, h: badgeFont + 12 }
-      : undefined;
+    renderBankedPlBadge(this, badgeX, badgeY, badgeFont, () => { this.statPanelOpen = true; this.rerender(); });
     this.add.text(12, 10, `PREP · ${KIND_LABEL[kind]}`, { fontSize: '15px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
     this.add.text(12, 30, `DEPTH ${run.depth} / ${runDepth}   ·   GOLD ${run.gold}   ·   HERO LV ${run.heroLevel}`, {
       fontSize: '10px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold',
     });
+    const deckW = 74; const deckH = 20;
+    const deckBtn = this.add.rectangle(this.W - 12 - deckW, 30, deckW, deckH, 0x16233a, 1).setOrigin(0, 0).setStrokeStyle(1, 0xb78a46, 0.8).setInteractive({ useHandCursor: true });
+    this.add.text(this.W - 12 - deckW / 2, 30 + deckH / 2, 'DECK/BAG', { fontSize: '8px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+    deckBtn.on('pointerdown', () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); });
     this.add.rectangle(10, 50, this.W - 20, 1, UI.border, 0.6).setOrigin(0, 0);
-    return badgeAnchor;
   }
 
   /** Compact foe summary card; returns the y the board columns start at. */
@@ -150,6 +102,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
     this.add.text(20, y + 40, `DEF ${s.armor} · RES ${s.magicResist} · ${encounter.setup.pieces.length} cards`, {
       fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body,
     });
+    addHoverTipZone(this, { x: 10, y: y + 22, w: this.W - 20, h: 32 }, ALL_STAT_ENTRIES);
     return y + h + 8;
   }
 

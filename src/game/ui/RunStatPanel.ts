@@ -1,40 +1,57 @@
 import Phaser from 'phaser';
-import { LEVEL_STAT_COST, spentPL, totalLevelPL, type LevelStat } from '../../run/leveling';
-import { buyCurrentHeroStat, currentBankedPL, currentHeroAllocation, currentHeroLevel } from '../runStore';
+import { LEVEL_STAT_COST, totalLevelPL, type Allocation, type LevelStat } from '../../run/leveling';
+import { commitHeroAllocation, currentBankedPL, currentHeroAllocation, currentHeroLevel, heroAllocationScratchCost } from '../runStore';
 import { FONT, SCREEN, UI } from '../theme';
-import type { TutorialAnchorRect } from '../tutorial/types';
-
-/** Anchor rects this panel exposes for the run tutorial's PL lesson (see
- * `src/game/tutorial`) — the priced allocation grid and the PL SPENT/BANKED
- * readout it sits under. Callers pass these straight through to
- * `renderTutorialCard`; this module has no tutorial logic of its own. */
-export interface RunStatPanelAnchors { gridAnchor: TutorialAnchorRect; plLineAnchor: TutorialAnchorRect; }
+import { addHoverTipZone } from './hoverTip';
+import { statHoverEntry } from './statGlossary';
 
 /**
  * Run Mode's stat/level allocation overlay — the one place a player spends
  * banked PL (see docs/release-game-plan.md "Hero leveling & stat allocation",
  * a HARD user requirement). Reachable from BOTH the Run Map and Run Prep
  * headers via the "n PL TO SPEND" badge (`renderBankedPlBadge` below).
- * Additive-only: every button is a `+` buy through `buyCurrentHeroStat`
- * (`src/run/runState.ts#buyHeroStatAllocation`) — no sell/respec here, unlike
- * the Sandbox's LV stepper (a run's level only ever goes up).
+ *
+ * CONFIRMABLE SCRATCH EDIT (2026-07-29 rework): +/- steppers operate on a
+ * local, uncommitted `Allocation` (`scratch`, module-level so it survives the
+ * scene-rebuild idiom's re-render without any scene owning it) — PL SPENT/
+ * BANKED updates live against the scratch as the player clicks, nothing is
+ * written to the run until CONFIRM (`commitHeroAllocation` → `src/run/
+ * runState.ts#setHeroAllocation`). CANCEL discards the scratch and reverts to
+ * the run's last-confirmed allocation. `scratch` is reset to `null` on every
+ * close (cancel OR confirm) so the NEXT open always reseeds fresh off the
+ * run's current committed allocation — never stale across sessions.
  *
  * One shared implementation for both platforms — `compact` picks the mobile-
  * friendly sizing (narrower panel, smaller type, 2-column grid) vs desktop's
- * roomier 3-column grid. Renders as a full-screen scrim + centered panel;
- * `onChanged` is called after every buy so the calling scene can `rerender()`
- * itself (this module never rebuilds a scene on its own).
+ * roomier 3-column grid.
  */
+
+let scratch: Allocation | null = null;
+
+/** Lazily seeds the scratch allocation from the run's current committed
+ * allocation the first time the panel opens after a close. */
+function ensureScratch(): Allocation {
+  if (!scratch) scratch = { ...currentHeroAllocation() };
+  return scratch;
+}
+
+/** Discards any in-progress scratch edit — called on both CANCEL and CONFIRM
+ * so the next open reseeds fresh. Exported so a scene can force-discard (e.g.
+ * navigating away) without importing the module's internal state. */
+export function discardStatPanelScratch(): void {
+  scratch = null;
+}
+
 export function renderRunStatPanel(
   scene: Phaser.Scene,
-  opts: { compact: boolean; onClose: () => void; onChanged: () => void },
-): RunStatPanelAnchors {
-  const { compact, onClose, onChanged } = opts;
+  opts: { compact: boolean; onCancel: () => void; onConfirm: () => void; onChanged: () => void },
+): void {
+  const { compact, onCancel, onConfirm, onChanged } = opts;
   const level = currentHeroLevel();
-  const alloc = currentHeroAllocation();
-  const banked = currentBankedPL();
+  const alloc = ensureScratch();
   const total = totalLevelPL(level);
-  const spent = spentPL(alloc);
+  const spent = heroAllocationScratchCost(alloc);
+  const banked = total - spent;
 
   const rows: Array<[LevelStat, string]> = [
     ['maxHp', 'HP'], ['attack', 'ATK'], ['magicPower', 'MAG'],
@@ -42,12 +59,12 @@ export function renderRunStatPanel(
   ];
   const cols = compact ? 2 : 3;
   const cellH = compact ? 46 : 40;
-  const btn = compact ? 26 : 32;
+  const btn = compact ? 24 : 28;
   const gap = compact ? 6 : 10;
 
   const pw = Math.min(SCREEN.width - 40, compact ? SCREEN.width - 32 : 460);
   const gridRows = Math.ceil(rows.length / cols);
-  const ph = (compact ? 96 : 100) + gridRows * (cellH + gap) + (compact ? 60 : 66);
+  const ph = (compact ? 96 : 100) + gridRows * (cellH + gap) + (compact ? 66 : 74);
   const px = (SCREEN.width - pw) / 2;
   const py = Math.max(compact ? 16 : 30, (SCREEN.height - ph) / 2);
 
@@ -55,8 +72,10 @@ export function renderRunStatPanel(
   const smallSize = compact ? 9 : 11;
   const labelSize = compact ? 10 : 12;
 
+  const cancelAndClose = (): void => { discardStatPanelScratch(); onCancel(); };
+
   const scrim = scene.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.78).setOrigin(0, 0).setInteractive().setDepth(5000);
-  scrim.on('pointerdown', onClose);
+  scrim.on('pointerdown', cancelAndClose);
   const panel = scene.add.rectangle(px, py, pw, ph, UI.panelAlt, 0.98).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 1).setInteractive().setDepth(5001);
   void panel; // swallows scrim clicks under the panel
 
@@ -67,10 +86,6 @@ export function renderRunStatPanel(
   scene.add.text(innerX, cursor, 'STAT ALLOCATION', {
     fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${nameSize}px`, color: UI.text,
   }).setDepth(5002);
-  const closeBtn = scene.add.text(px + pw - 20, cursor + 2, '✕ CLOSE', {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: UI.textDim,
-  }).setOrigin(1, 0).setInteractive({ useHandCursor: true }).setDepth(5002);
-  closeBtn.on('pointerdown', onClose);
   cursor += nameSize + 8;
 
   scene.add.text(innerX, cursor, `HERO LV ${level}`, {
@@ -79,12 +94,13 @@ export function renderRunStatPanel(
   const plLineText = scene.add.text(px + pw - 20, cursor, `PL ${spent}/${total} SPENT · ${banked} BANKED`, {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: banked > 0 ? UI.textAccent : UI.textDim,
   }).setOrigin(1, 0).setDepth(5002);
-  const plLineAnchor: TutorialAnchorRect = { x: plLineText.x - plLineText.width, y: plLineText.y, w: plLineText.width, h: plLineText.height };
+  addHoverTipZone(scene, { x: plLineText.x - plLineText.width, y: plLineText.y, w: plLineText.width, h: plLineText.height }, [
+    { title: 'PL spent / banked', body: 'Every hero level grants 3 PL. Buy stats with +/-, then CONFIRM to spend it — nothing is written to the run until you confirm. Unaffordable buys are disabled.' },
+  ]);
   cursor += labelSize + 10;
   scene.add.rectangle(innerX, cursor, innerW, 1, UI.border, 0.5).setOrigin(0, 0).setDepth(5002);
   cursor += 14;
 
-  const gridTop = cursor;
   const cellW = (innerW - gap * (cols - 1)) / cols;
   rows.forEach(([stat, label], i) => {
     const col = i % cols;
@@ -94,39 +110,84 @@ export function renderRunStatPanel(
     const buys = alloc[stat] ?? 0;
     const cost = LEVEL_STAT_COST[stat];
     const canBuy = banked >= cost.pl;
+    const canSell = buys > 0;
     const gained = buys * cost.gain;
 
-    scene.add.rectangle(cx + btn + 4, cy, cellW - (btn + 4), cellH, UI.panelMuted, 0.7).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4).setDepth(5002);
-    scene.add.text(cx + btn + 14, cy + cellH / 2 - 8, label, {
+    const labelW = cellW - (btn * 2 + 8);
+    scene.add.rectangle(cx + btn + 4, cy, labelW, cellH, UI.panelMuted, 0.7).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4).setDepth(5002);
+    const labelText = scene.add.text(cx + btn + 14, cy + cellH / 2 - 8, label, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: UI.textDim,
     }).setDepth(5002);
+    addHoverTipZone(scene, { x: cx + btn + 4, y: cy, w: labelW, h: cellH }, [statHoverEntry(label)]);
+    void labelText;
     scene.add.text(cx + btn + 14, cy + cellH / 2 + 6, gained > 0 ? `+${gained}` : '·', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: gained > 0 ? UI.textAccent : UI.textSoft,
     }).setDepth(5002);
-    scene.add.text(cx + cellW - 10, cy + cellH / 2, `${cost.pl} PL`, {
+    scene.add.text(cx + btn + 4 + labelW - 6, cy + cellH / 2, `${cost.pl}PL`, {
       fontFamily: FONT.body, fontSize: `${smallSize - 1}px`, color: UI.textSoft,
     }).setOrigin(1, 0.5).setDepth(5002);
 
+    // MINUS (left)
+    const minusFill = canSell ? UI.panelAlt : UI.panelMuted;
+    const minusBtn = scene.add.rectangle(cx, cy, btn, cellH, minusFill, canSell ? 1 : 0.4).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.border, canSell ? 0.7 : 0.25).setDepth(5002);
+    scene.add.text(cx + btn / 2, cy + cellH / 2, '−', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${labelSize + 2}px`, color: canSell ? UI.text : UI.textSoft,
+    }).setOrigin(0.5).setDepth(5002);
+    if (canSell) {
+      minusBtn.setInteractive({ useHandCursor: true });
+      minusBtn.on('pointerdown', () => {
+        const next = { ...ensureScratch(), [stat]: Math.max(0, (alloc[stat] ?? 0) - 1) };
+        scratch = next;
+        onChanged();
+      });
+    }
+
+    // PLUS (right)
+    const plusX = cx + btn + 4 + labelW + 4;
     const plusFill = canBuy ? UI.panelAlt : UI.panelMuted;
-    const plusColor = canBuy ? UI.text : UI.textSoft;
-    const plusBtn = scene.add.rectangle(cx, cy, btn, cellH, plusFill, canBuy ? 1 : 0.4).setOrigin(0, 0)
+    const plusBtn = scene.add.rectangle(plusX, cy, btn, cellH, plusFill, canBuy ? 1 : 0.4).setOrigin(0, 0)
       .setStrokeStyle(1, UI.border, canBuy ? 0.7 : 0.25).setDepth(5002);
-    scene.add.text(cx + btn / 2, cy + cellH / 2, '+', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${labelSize + 2}px`, color: plusColor,
+    scene.add.text(plusX + btn / 2, cy + cellH / 2, '+', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${labelSize + 2}px`, color: canBuy ? UI.text : UI.textSoft,
     }).setOrigin(0.5).setDepth(5002);
     if (canBuy) {
       plusBtn.setInteractive({ useHandCursor: true });
-      plusBtn.on('pointerdown', () => { buyCurrentHeroStat(stat); onChanged(); });
+      plusBtn.on('pointerdown', () => {
+        const next = { ...ensureScratch(), [stat]: (alloc[stat] ?? 0) + 1 };
+        scratch = next;
+        onChanged();
+      });
     }
   });
-  const gridAnchor: TutorialAnchorRect = { x: innerX, y: gridTop, w: innerW, h: gridRows * (cellH + gap) - gap };
   cursor += gridRows * (cellH + gap) + 6;
 
-  scene.add.text(innerX, cursor, 'Additive only — no respec in a run. Buy any time between fights.', {
+  // CONFIRM / CANCEL row.
+  const btnH = compact ? 34 : 38;
+  const btnW = (innerW - 10) / 2;
+  const cancelBtn = scene.add.rectangle(innerX, cursor, btnW, btnH, UI.panelMuted, 1).setOrigin(0, 0)
+    .setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true }).setDepth(5002);
+  scene.add.text(innerX + btnW / 2, cursor + btnH / 2, 'CANCEL', {
+    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${labelSize}px`, color: UI.text,
+  }).setOrigin(0.5).setDepth(5002);
+  cancelBtn.on('pointerdown', cancelAndClose);
+
+  const confirmX = innerX + btnW + 10;
+  const confirmBtn = scene.add.rectangle(confirmX, cursor, btnW, btnH, UI.chip, 1).setOrigin(0, 0)
+    .setStrokeStyle(1, UI.border, 1).setInteractive({ useHandCursor: true }).setDepth(5002);
+  scene.add.text(confirmX + btnW / 2, cursor + btnH / 2, 'CONFIRM', {
+    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${labelSize}px`, color: UI.textOnChip,
+  }).setOrigin(0.5).setDepth(5002);
+  confirmBtn.on('pointerdown', () => {
+    commitHeroAllocation(ensureScratch());
+    discardStatPanelScratch();
+    onConfirm();
+  });
+  cursor += btnH + 6;
+
+  scene.add.text(innerX, cursor, 'Add or subtract freely, then CONFIRM to spend. CANCEL discards.', {
     fontFamily: FONT.body, fontSize: `${smallSize - 1}px`, color: UI.textSoft, wordWrap: { width: innerW },
   }).setDepth(5002);
-
-  return { gridAnchor, plLineAnchor };
 }
 
 /**

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { FONT, SCREEN, UI } from '../theme';
 import { DESKTOP_PROFILE } from '../layoutProfile';
+import { setDeckBuildContext } from '../deckBuildContext';
 
 export type DesktopPage = 'prep' | 'deck' | 'wiki' | 'shop' | 'draft';
 
@@ -45,6 +46,7 @@ export function renderDesktopHeader(scene: Phaser.Scene, title: string, active: 
       button.on('pointerover', () => button.setFillStyle(UI.slotHover));
       button.on('pointerout', () => button.setFillStyle(UI.panelAlt));
       button.on('pointerdown', () => {
+        if (page === 'deck') setDeckBuildContext('demo');
         const target = page === 'prep' ? 'DesktopPrep'
           : page === 'deck' ? 'DesktopDeck'
           : page === 'wiki' ? 'DesktopWiki'
