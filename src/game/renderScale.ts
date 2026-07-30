@@ -28,9 +28,15 @@ export const DESIGN = {
   height: ACTIVE_PROFILE.canvas.height,
 } as const;
 
-/** Upper bound on the buffer multiplier — 3x a 1440-wide canvas is already a
- * 4320px-wide texture; beyond that the memory cost outruns the visible gain. */
-const MAX_SCALE = 3;
+/**
+ * Upper bound on the buffer multiplier. 3x clamped on setups that are common
+ * rather than exotic — a 2560x1440 window at DPR 2 wants 3.2x, and a 1920x1080
+ * one at DPR 3 wants 3.6x — leaving text just short of native there. 4x covers
+ * both exactly (2560x1440 @2x lands on a 4608x2880 buffer, ~53MB RGBA) and
+ * still bounds the worst case, since past ~4x the extra pixels are below the
+ * resolving power of the display anyway.
+ */
+const MAX_SCALE = 4;
 
 /**
  * How many physical pixels one design pixel will occupy: the FIT ratio the
@@ -62,19 +68,22 @@ export function applyRenderScale(scene: Phaser.Scene, scale: number): void {
 }
 
 /**
- * Wires `applyRenderScale` to every scene in the game, now and forever: each
- * scene's CREATE event fires on first start AND on every `rebuildScene`, so
- * the zoom survives the project's re-render idiom without touching a single
- * scene file.
+ * Wires `applyRenderScale` to every scene: the zoom is set from each scene's
+ * CREATE event on first start, and survives the project's `rebuildScene` idiom
+ * because that helper only destroys children and re-runs `create()` — it never
+ * touches the camera (and does NOT re-emit CREATE). If a scene ever starts
+ * resetting its own camera in `create()`, it must reapply the scale itself.
  */
 export function installRenderScale(game: Phaser.Game, scale: number): void {
   const hook = (scene: Phaser.Scene): void => {
     scene.events.on(Phaser.Scenes.Events.CREATE, () => applyRenderScale(scene, scale));
-    // A scene already mid-create when we attach (the boot scene) needs it now.
     applyRenderScale(scene, scale);
   };
-  for (const scene of game.scene.scenes) hook(scene);
-  game.scene.scenes.length === 0
-    ? game.events.once(Phaser.Core.Events.READY, () => { for (const s of game.scene.scenes) hook(s); })
-    : undefined;
+  // `game.scene.scenes` is ALWAYS empty here: this runs synchronously after the
+  // Phaser.Game constructor, and the SceneManager only populates its list from
+  // `bootQueue` on Core READY, which itself waits for DOMContentLoaded. So wait
+  // for READY rather than iterating an empty list.
+  game.events.once(Phaser.Core.Events.READY, () => {
+    for (const scene of game.scene.scenes) hook(scene);
+  });
 }

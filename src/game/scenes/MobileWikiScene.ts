@@ -198,7 +198,10 @@ export class MobileWikiScene extends Phaser.Scene {
       const token = new CardToken(this, baseX, top + baseY + ROW_H / 2, skill, { width: cardW, height: ROW_H, side: col === 0 ? 'left' : 'right' });
       token.setMask(mask);
       const plDeci = instancePowerLevelDeci(skill, { gem: null });
-      const plText = this.add.text(baseX + (col === 0 ? cardW / 2 - 8 : -cardW / 2 + 8), top + baseY + 8, `PL ${(plDeci / 10).toFixed(0)}`, {
+      // CardToken owns that same inward TOP corner for a multi-slot card's
+      // "xN SLOTS" badge, so drop PL a row below it rather than overlap.
+      const plY = top + baseY + (skill.size > 1 ? 24 : 8);
+      const plText = this.add.text(baseX + (col === 0 ? cardW / 2 - 8 : -cardW / 2 + 8), plY, `PL ${(plDeci / 10).toFixed(0)}`, {
         fontSize: '10px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold',
       }).setOrigin(col === 0 ? 1 : 0, 0).setBackgroundColor('#0b1420').setPadding(4, 2, 4, 2);
       plText.setMask(mask);
