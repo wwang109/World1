@@ -25,14 +25,34 @@ knob; PL stays the only balance currency.
   Diamond still never appears in shops (it stays a tier-up aspiration).
   Sandbox callers pass depth 1 and get today's behavior byte-identical.
 
-## 2. Gold curve sanity (existing knobs, no changes needed for v1)
+## 2. Gold curve (rev. 2026-07-30 — daily income)
 
-Income: ~7 fights/run × (1 base + 1–3 win bonus) ≈ **14–21 gold** on a good
-run, front-loaded 2g/fight early. Prices: cards 2–5g, gems 1–3g, reroll 1g.
-So a run affords roughly **4–6 purchases** across 2–3 shop visits — enough to
-pivot a draft, not enough to buy a whole deck. That matches the intent
-(the draft is your spine; shops are your steering). Revisit only after real
-runs, and only by moving prices/win-bonus, never PL.
+**USER-LOCKED: basic income of +1 gold per DAY, where a day = every node you
+commit to** (`DAILY_INCOME` in `src/run/runState.ts`, awarded in `chooseNode`).
+A fight day pays that daily 1 **plus** the fight's base 1 = 2 minimum on a win,
+with the difficulty win bonus still stacking. A **loss still earns the day's 1**
+— which supersedes the older "a loss pays nothing" line; only the fight's own
+gold is withheld.
+
+Measured against the shipped code over 20 seeds (always taking the standard
+fight option):
+
+| Run outcome | Gold | Was |
+|---|---|---|
+| All wins | **27–31** (avg 28) | 14–20 |
+| Alternating win/lose | **23–27** | ~7–14 |
+| All losses | **16–20** | 0 |
+
+Prices are unchanged (cards 2–5g +priceDelta, gems 1–3g, reroll 1g), so a run
+now affords roughly **8–12 purchases** instead of 4–6.
+
+**Open pacing question (not yet acted on):** that is a lot more buying power,
+and the all-loss floor of ~17 gold is the bigger change in character — losing
+every fight still funds 4–6 purchases, so gold no longer expresses how well the
+run is going. If that reads as too soft, the honest dials are: raise card
+prices, cut the win bonus, or make the daily income smaller than the fight base
+(e.g. daily 1 but fight base 2, so fights remain the real earner). All three are
+economy-pacing knobs — **never** repair pacing by touching PL.
 
 ## 2b. Pool-size reality check (READ BEFORE ADDING A THEME)
 

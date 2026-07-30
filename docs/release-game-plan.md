@@ -41,8 +41,17 @@ Menu → DRAFT (4-set start draft, existing scenes)
   (fight n → level n; titles normal/normal/elite/elite/boss) through the
   existing encounter dials — no new balance machinery; the PL economy stays
   the single authority.
-- Gold: existing `battleGoldReward` (base + win bonus) on wins only; shops and
-  reroll prices unchanged from Shops v1.
+- Gold *(rev. 2026-07-30, user-locked)*: **+1 basic income per DAY, where a day
+  is every node you commit to** (`DAILY_INCOME`, awarded in `chooseNode`). A
+  fight day pays daily 1 + the fight's base 1 = **2 minimum on a win**, plus the
+  difficulty win bonus. **A loss still earns that day's 1** — this supersedes the
+  earlier "a loss pays nothing" rule; only the fight's own gold is withheld.
+  Measured totals and the resulting pacing question: see
+  [`run-shops-design.md`](run-shops-design.md) §2.
+- Fights *(rev. 2026-07-30, user-locked)*: each wave's mandatory fight column
+  offers a **choice of two foes** — `fightOption: 'standard' | 'hard'`, the hard
+  one a title rung and a level above, paying more. Wave 5's boss is a single
+  node.
 - Determinism: the whole run derives from one run seed — map generation,
   encounter rolls, event rolls, shop stock (`rollShopStock`), and fight seeds.
 

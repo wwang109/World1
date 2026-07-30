@@ -28,7 +28,20 @@ export interface RunNode {
   kind: RunNodeKind;
   /** 1..WAVE_COUNT — set on fight/boss nodes only (one fight per wave, lockstep with hero level). */
   fightNumber?: number;
-  /** Seed for `rollEncounter` — fight/boss nodes only. */
+  /**
+   * Fight nodes only (waves 1-4; the wave-5 boss column has no option — it's
+   * a single mandatory node): which of the mandatory fight column's TWO risk
+   * options this node is. `'standard'` is exactly `FIGHT_TABLE[fightNumber]`
+   * (today's byte-identical encounter); `'hard'` is one title rung up + 1
+   * level (see `fightTableEntryForNode` in runState.ts) and therefore pays
+   * more via `battleGoldReward`'s difficulty score — USER-LOCKED
+   * (2026-07-30): "the mandatory fight column now presents 2 fight options —
+   * a safer one and a harder one that pays more". Undefined on boss nodes.
+   */
+  fightOption?: 'standard' | 'hard';
+  /** Seed for `rollEncounter` — fight/boss nodes only. Each of a fight
+   * column's two options gets its OWN distinct seed (derived from that
+   * option's own node id), so the two previews differ and are reproducible. */
   encounterSeed?: number;
   /** Seed for `rollEventForNode` — event nodes only. */
   eventSeed?: number;
@@ -235,16 +248,38 @@ export function generateRunMap(seed: number): RunMap {
       stopColIdx += 1;
     }
 
-    // Mandatory fight (waves 1-4) or boss (wave 5) column — always 1 node,
-    // fightNumber == wave (hero LV is lockstep: entering fight n, hero is LV n).
+    // Mandatory fight (waves 1-4) or boss (wave 5) column — fightNumber ==
+    // wave (hero LV is lockstep: entering fight n, hero is LV n). Wave 5's
+    // boss column stays a single mandatory node (no choice); waves 1-4 now
+    // offer TWO fight options (standard + hard, USER-LOCKED 2026-07-30) so
+    // the player picks their risk — run length/ladder/boss are unchanged.
     depth += 1;
     const isBossWave = w === WAVE_COUNT;
-    const id = `d${depth}-0`;
-    depths.push([{
-      id, depth, wave: w, kind: isBossWave ? 'boss' : 'fight',
-      fightNumber: w,
-      encounterSeed: hashSeed('encounter', seed, id),
-    }]);
+    if (isBossWave) {
+      const id = `d${depth}-0`;
+      depths.push([{
+        id, depth, wave: w, kind: 'boss',
+        fightNumber: w,
+        encounterSeed: hashSeed('encounter', seed, id),
+      }]);
+    } else {
+      const idStandard = `d${depth}-0`;
+      const idHard = `d${depth}-1`;
+      depths.push([
+        {
+          id: idStandard, depth, wave: w, kind: 'fight',
+          fightNumber: w,
+          fightOption: 'standard',
+          encounterSeed: hashSeed('encounter', seed, idStandard),
+        },
+        {
+          id: idHard, depth, wave: w, kind: 'fight',
+          fightNumber: w,
+          fightOption: 'hard',
+          encounterSeed: hashSeed('encounter', seed, idHard),
+        },
+      ]);
+    }
   }
 
   return { seed, depths };

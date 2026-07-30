@@ -93,6 +93,24 @@ export interface RunState {
 const RUN_BOARD_SLOTS = HERO_BOARD_SLOTS;
 
 /**
+ * Basic daily income — USER-LOCKED (2026-07-30): "there should be a basic
+ * income +1 so everyday you earn 1 gold unless its a fight which nets you 2
+ * total on that day." A "day" is every node the player commits to
+ * (`chooseNode`) — event, shop, fight, or boss all count. Exported as a knob
+ * so balance-designer can retune the run's pacing without touching the
+ * award site. Awarded exactly once per node (see `chooseNode`): a node can
+ * only ever be the argument to `chooseNode` once per run (it must first be
+ * in `availableChoices`, which goes empty the instant `currentNodeId` is set
+ * and only advances past that node once it's resolved), so there is no
+ * separate "already granted" bookkeeping to maintain. A fight day therefore
+ * pays this +1 PLUS the fight's own `battleGoldReward.base` (1) on a win —
+ * 2 gold minimum — with the difficulty-scaled win bonus stacking on top; a
+ * loss still earns this day's +1 even though `recordBattleResult` credits 0
+ * fight gold on a loss (no longer literally zero income on a loss).
+ */
+export const DAILY_INCOME = 1;
+
+/**
  * Deterministic enemy pools for `rollEncounter`: every non-boss-tagged enemy
  * id (used for BOTH fight and elite nodes — the elite TITLE, not the enemy's
  * own `isElite` tag, is what makes a node harder) and every boss-tagged id
@@ -133,6 +151,33 @@ export const FIGHT_TABLE: readonly FightTableEntry[] = [
 export function fightTableEntry(fightNumber: number): FightTableEntry {
   const idx = Math.max(1, Math.min(WAVE_COUNT, Math.floor(fightNumber))) - 1;
   return FIGHT_TABLE[idx]!;
+}
+
+/** One-rung title bump for a fight column's harder option B (normal -> elite,
+ * elite -> boss) — USER-LOCKED (2026-07-30): "Bump the title one rung...
+ * reuse the existing title presets/level dials." `mob`/`boss` inputs are
+ * defensive fallbacks only; `FIGHT_TABLE` never assigns them to a
+ * two-option (waves 1-4) fight node. */
+const TITLE_BUMP: Record<EnemyTitle, EnemyTitle> = {
+  mob: 'normal',
+  normal: 'elite',
+  elite: 'boss',
+  boss: 'boss',
+};
+
+/**
+ * `FIGHT_TABLE` entry for a fight/boss NODE, honoring its `fightOption`
+ * (see `RunNode.fightOption` in runMap.ts): `'hard'` bumps the title one rung
+ * via `TITLE_BUMP` and adds **+1 level** over the node's base `FIGHT_TABLE`
+ * entry; `'standard'`/undefined (boss nodes) returns `fightTableEntry(node.
+ * fightNumber)` byte-identically. The one place `rollEncounter` reads a
+ * node's level/title from, so every caller (preview + committed) stays in
+ * lockstep automatically.
+ */
+export function fightTableEntryForNode(node: Pick<RunNode, 'fightNumber' | 'fightOption'>): FightTableEntry {
+  const base = fightTableEntry(node.fightNumber!);
+  if (node.fightOption !== 'hard') return base;
+  return { level: base.level + 1, title: TITLE_BUMP[base.title] };
 }
 
 /**
@@ -261,6 +306,7 @@ export function chooseNode(state: RunState, nodeId: string): RunState {
     ...state,
     depth: node.depth,
     currentNodeId: node.id,
+    gold: state.gold + DAILY_INCOME,
   };
 }
 
@@ -286,7 +332,7 @@ export function rollEncounter(state: RunState): EncounterUnit {
     throw new Error(`rollEncounter: no enemies available for node kind "${node.kind}"`);
   }
   const enemyId = pool[rng.int(pool.length)]!;
-  const entry = fightTableEntry(node.fightNumber!);
+  const entry = fightTableEntryForNode(node);
   return buildEnemyEncounter(enemyId, entry.level, entry.title);
 }
 

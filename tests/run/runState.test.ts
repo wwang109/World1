@@ -9,8 +9,10 @@ import {
   createRun,
   currentEventNode,
   currentShopNode,
+  DAILY_INCOME,
   ensureRunShopShelf,
   FIGHT_TABLE,
+  fightTableEntryForNode,
   heroAllocationCost,
   leaveEvent,
   leaveShop,
@@ -22,8 +24,8 @@ import {
   type RunState,
 } from '../../src/run/runState';
 import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
-import { rollShopStock } from '../../src/run/shop';
-import { totalColumns, WAVE_COUNT } from '../../src/run/runMap';
+import { battleGoldReward, rollShopStock } from '../../src/run/shop';
+import { totalColumns, WAVE_COUNT, type RunNode } from '../../src/run/runMap';
 import { bankedPL, LEVEL_STAT_COST } from '../../src/run/leveling';
 
 function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
@@ -466,5 +468,229 @@ describe('run/runState: heroAllocationCost + setHeroAllocation (confirmable scra
     expect(next.heroAllocation).toEqual({ attack: 2, maxHp: 4 });
     expect(next.pieces).toEqual(state.pieces);
     expect(next.gold).toBe(state.gold);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Daily income (+1 gold per node committed) — USER-LOCKED 2026-07-30.
+// ---------------------------------------------------------------------------
+
+describe('run/runState: daily income (+1 gold per node committed)', () => {
+  it('DAILY_INCOME is 1 and chooseNode awards it exactly once per node, every kind', () => {
+    expect(DAILY_INCOME).toBe(1);
+    let state = startedRun(31);
+    for (let guard = 0; guard < 200; guard++) {
+      const choices = availableChoices(state);
+      if (choices.length === 0) break;
+      const node = choices[0]!;
+      const before = state.gold;
+      state = chooseNode(state, node.id);
+      expect(state.gold).toBe(before + DAILY_INCOME);
+      if (node.kind === 'shop') {
+        state = leaveShop(state);
+      } else if (node.kind === 'event') {
+        state = leaveEvent(state);
+      } else {
+        rollEncounter(state);
+        state = recordBattleResult(state, { won: true, goldEarned: 5 });
+        if (node.kind === 'boss') break;
+      }
+    }
+  });
+
+  it('availableChoices (mere preview) never awards gold', () => {
+    const state = startedRun(31);
+    const before = state.gold;
+    availableChoices(state);
+    availableChoices(state);
+    expect(state.gold).toBe(before);
+  });
+
+  it('a fight win nets exactly DAILY_INCOME + base(1) + winBonus for that day (2 minimum, bonus on top)', () => {
+    const state0 = stateAtFirstFight(11); // chooseNode already credited this day's DAILY_INCOME
+    const goldAfterChoose = state0.gold;
+    const encounter = rollEncounter(state0);
+    const reward = battleGoldReward(
+      [{ level: encounter.level, title: encounter.title, rank: encounter.rank }],
+      state0.heroLevel,
+    );
+    const state = recordBattleResult(state0, { won: true, goldEarned: reward.base + reward.winBonus });
+    expect(reward.base).toBe(1);
+    expect(reward.winBonus).toBeGreaterThanOrEqual(1);
+    expect(state.gold).toBe(goldAfterChoose + reward.base + reward.winBonus);
+    expect(state.gold).toBeGreaterThanOrEqual(goldAfterChoose + 2); // 2 gold minimum on a win day
+  });
+
+  it('a fight loss still nets exactly DAILY_INCOME for that day (no longer literally zero income)', () => {
+    const state0 = stateAtFirstFight(11);
+    const goldAfterChoose = state0.gold;
+    const state = recordBattleResult(state0, { won: false, goldEarned: 5 });
+    expect(state.gold).toBe(goldAfterChoose);
+    expect(state.gold).toBeGreaterThanOrEqual(DAILY_INCOME);
+  });
+
+  it('total run income over ~20 seeds matches a computed expectation (daily income per node + fight rewards on wins)', () => {
+    for (const seed of Array.from({ length: 20 }, (_, i) => i * 37 + 5)) {
+      let state = startedRun(seed);
+      let expectedGold = 0;
+      for (let guard = 0; guard < 200; guard++) {
+        const choices = availableChoices(state);
+        if (choices.length === 0) break;
+        const node = choices[0]!;
+        state = chooseNode(state, node.id);
+        expectedGold += DAILY_INCOME;
+        if (node.kind === 'shop') {
+          state = leaveShop(state);
+        } else if (node.kind === 'event') {
+          state = leaveEvent(state);
+        } else {
+          const encounter = rollEncounter(state);
+          const reward = battleGoldReward(
+            [{ level: encounter.level, title: encounter.title, rank: encounter.rank }],
+            state.heroLevel,
+          );
+          expectedGold += reward.base + reward.winBonus;
+          state = recordBattleResult(state, { won: true, goldEarned: reward.base + reward.winBonus });
+          if (node.kind === 'boss') break;
+        }
+      }
+      expect(state.gold).toBe(expectedGold);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fight columns offer a choice of TWO foes (waves 1-4) — USER-LOCKED 2026-07-30.
+// ---------------------------------------------------------------------------
+
+describe('run/runState: fight column offers 2 foe options (waves 1-4)', () => {
+  /** The 2-node fight column for `wave` (1-4) straight off the map — no run
+   * walking required, mirroring `runStore.ts#previewEncounter`'s idiom of
+   * building a throwaway `currentNodeId` to preview a not-yet-chosen node. */
+  function fightNodesForWave(state: RunState, wave: number): RunNode[] {
+    for (const column of state.map.depths) {
+      if (column.length === 2 && column[0]?.kind === 'fight' && column[0].wave === wave) {
+        return [...column];
+      }
+    }
+    throw new Error(`no 2-option fight column found for wave ${wave}`);
+  }
+
+  const SEEDS = [1, 2, 3, 11, 42, 100];
+
+  it('waves 1-4 fight columns have exactly 2 fight nodes with equal fightNumber; wave 5 has exactly 1 boss node', () => {
+    for (const seed of SEEDS) {
+      const state = startedRun(seed);
+      for (let wave = 1; wave <= 4; wave++) {
+        const nodes = fightNodesForWave(state, wave);
+        expect(nodes).toHaveLength(2);
+        expect(nodes[0]!.fightNumber).toBe(wave);
+        expect(nodes[1]!.fightNumber).toBe(wave);
+        expect(nodes.every((n) => n.kind === 'fight')).toBe(true);
+      }
+      const bossColumn = state.map.depths.find(
+        (column) => column.length >= 1 && column[0]?.kind === 'boss',
+      )!;
+      expect(bossColumn).toHaveLength(1);
+      expect(bossColumn[0]!.wave).toBe(WAVE_COUNT);
+      expect(bossColumn[0]!.fightNumber).toBe(WAVE_COUNT);
+    }
+  });
+
+  it("option B's title/level is one rung above option A's (normal->elite, elite->boss; +1 level), for every wave 1-4", () => {
+    const rung: Record<string, string> = { normal: 'elite', elite: 'boss' };
+    for (const seed of SEEDS) {
+      const state = startedRun(seed);
+      for (let wave = 1; wave <= 4; wave++) {
+        const nodes = fightNodesForWave(state, wave);
+        const standard = nodes.find((n) => n.fightOption === 'standard')!;
+        const hard = nodes.find((n) => n.fightOption === 'hard')!;
+        expect(standard).toBeDefined();
+        expect(hard).toBeDefined();
+        const entryStandard = fightTableEntryForNode(standard);
+        const entryHard = fightTableEntryForNode(hard);
+        expect(entryHard.level).toBe(entryStandard.level + 1);
+        expect(entryHard.title).toBe(rung[entryStandard.title]);
+        // The standard option is exactly today's FIGHT_TABLE entry.
+        expect(entryStandard).toEqual(FIGHT_TABLE[wave - 1]);
+      }
+    }
+  });
+
+  it("option B's battleGoldReward >= option A's, for every wave 1-4, across seeds", () => {
+    for (const seed of SEEDS) {
+      const state = startedRun(seed);
+      for (let wave = 1; wave <= 4; wave++) {
+        const nodes = fightNodesForWave(state, wave);
+        const standard = nodes.find((n) => n.fightOption === 'standard')!;
+        const hard = nodes.find((n) => n.fightOption === 'hard')!;
+        const encounterStandard = rollEncounter({ ...state, currentNodeId: standard.id });
+        const encounterHard = rollEncounter({ ...state, currentNodeId: hard.id });
+        const rewardStandard = battleGoldReward(
+          [{ level: encounterStandard.level, title: encounterStandard.title, rank: encounterStandard.rank }],
+          state.heroLevel,
+        );
+        const rewardHard = battleGoldReward(
+          [{ level: encounterHard.level, title: encounterHard.title, rank: encounterHard.rank }],
+          state.heroLevel,
+        );
+        expect(rewardHard.winBonus).toBeGreaterThanOrEqual(rewardStandard.winBonus);
+      }
+    }
+  });
+
+  it('both options are deterministic per seed and distinct from each other', () => {
+    for (const seed of SEEDS) {
+      const stateA = startedRun(seed);
+      const stateB = startedRun(seed);
+      for (let wave = 1; wave <= 4; wave++) {
+        const nodesA = fightNodesForWave(stateA, wave);
+        const nodesB = fightNodesForWave(stateB, wave);
+        expect(nodesA).toEqual(nodesB);
+        expect(nodesA[0]!.id).not.toBe(nodesA[1]!.id);
+        expect(nodesA[0]!.encounterSeed).not.toBe(nodesA[1]!.encounterSeed);
+        const encounterStd = rollEncounter({ ...stateA, currentNodeId: nodesA[0]!.id });
+        const encounterStdAgain = rollEncounter({ ...stateA, currentNodeId: nodesA[0]!.id });
+        expect(encounterStd).toEqual(encounterStdAgain);
+      }
+    }
+  });
+
+  it('choosing either fight option advances the run identically (same depth/wave progression, same hero level, both reach victory)', () => {
+    let stateA = startedRun(7);
+    let stateB = startedRun(7);
+    for (let guard = 0; guard < 200; guard++) {
+      const choicesA = availableChoices(stateA);
+      if (choicesA.length === 0) break;
+      if (choicesA.length === 2 && choicesA[0]!.kind === 'fight') {
+        const standard = choicesA.find((n) => n.fightOption === 'standard')!;
+        const hard = choicesA.find((n) => n.fightOption === 'hard')!;
+        stateA = chooseNode(stateA, standard.id);
+        stateB = chooseNode(stateB, hard.id);
+        expect(stateA.depth).toBe(stateB.depth);
+        stateA = recordBattleResult(stateA, { won: true, goldEarned: 5 });
+        stateB = recordBattleResult(stateB, { won: true, goldEarned: 5 });
+        expect(stateA.heroLevel).toBe(stateB.heroLevel);
+        expect(stateA.status).toBe(stateB.status);
+        continue;
+      }
+      const node = choicesA[0]!;
+      stateA = chooseNode(stateA, node.id);
+      stateB = chooseNode(stateB, node.id);
+      expect(stateA.depth).toBe(stateB.depth);
+      if (node.kind === 'shop') {
+        stateA = leaveShop(stateA);
+        stateB = leaveShop(stateB);
+      } else if (node.kind === 'event') {
+        stateA = leaveEvent(stateA);
+        stateB = leaveEvent(stateB);
+      } else {
+        stateA = recordBattleResult(stateA, { won: true, goldEarned: 5 });
+        stateB = recordBattleResult(stateB, { won: true, goldEarned: 5 });
+        if (node.kind === 'boss') break;
+      }
+    }
+    expect(stateA.status).toBe('victory');
+    expect(stateB.status).toBe('victory');
   });
 });

@@ -26,17 +26,18 @@ describe('run/runMap: wave structure', () => {
     it(`seed ${seed}: exactly WAVE_COUNT (${WAVE_COUNT}) fight/boss columns, one per wave, boss last`, () => {
       const map = generateRunMap(seed);
       const columns = totalColumns(map);
-      const fightColumns: { depth: number; wave: number; kind: string }[] = [];
+      const fightColumns: { depth: number; wave: number; kind: string; nodeCount: number }[] = [];
       for (let d = 1; d <= columns; d++) {
         const column = map.depths[d]!;
-        if (column.length === 1 && (column[0]!.kind === 'fight' || column[0]!.kind === 'boss')) {
-          fightColumns.push({ depth: d, wave: column[0]!.wave, kind: column[0]!.kind });
+        const isFightOrBoss = column.every((n) => n.kind === 'fight' || n.kind === 'boss');
+        if (isFightOrBoss) {
+          fightColumns.push({ depth: d, wave: column[0]!.wave, kind: column[0]!.kind, nodeCount: column.length });
         }
       }
       expect(fightColumns).toHaveLength(WAVE_COUNT);
       fightColumns.forEach((f, i) => {
         expect(f.wave).toBe(i + 1);
-        expect(map.depths[f.depth]![0]!.fightNumber).toBe(i + 1);
+        for (const node of map.depths[f.depth]!) expect(node.fightNumber).toBe(i + 1);
       });
       expect(fightColumns[WAVE_COUNT - 1]!.kind).toBe('boss');
       for (let i = 0; i < WAVE_COUNT - 1; i++) expect(fightColumns[i]!.kind).toBe('fight');
@@ -44,12 +45,35 @@ describe('run/runMap: wave structure', () => {
       expect(fightColumns[WAVE_COUNT - 1]!.depth).toBe(columns);
     });
 
+    it(`seed ${seed}: waves 1-4's fight column offers exactly 2 fight options (same fightNumber); wave 5's boss column is a single node`, () => {
+      const map = generateRunMap(seed);
+      const columns = totalColumns(map);
+      for (let d = 1; d <= columns; d++) {
+        const column = map.depths[d]!;
+        if (!column.every((n) => n.kind === 'fight' || n.kind === 'boss')) continue;
+        if (column[0]!.kind === 'boss') {
+          expect(column).toHaveLength(1);
+          expect(column[0]!.wave).toBe(WAVE_COUNT);
+          expect(column[0]!.fightOption).toBeUndefined();
+        } else {
+          expect(column).toHaveLength(2);
+          const [a, b] = column;
+          expect(a!.fightNumber).toBe(b!.fightNumber);
+          expect(a!.wave).toBe(b!.wave);
+          expect(a!.id).not.toBe(b!.id);
+          expect(a!.encounterSeed).not.toBe(b!.encounterSeed);
+          const options = [a!.fightOption, b!.fightOption].sort();
+          expect(options).toEqual(['hard', 'standard']);
+        }
+      }
+    });
+
     it(`seed ${seed}: every stop column offers 2-3 event/shop choices, all same wave`, () => {
       const map = generateRunMap(seed);
       const columns = totalColumns(map);
       for (let d = 1; d <= columns; d++) {
         const column = map.depths[d]!;
-        const isFightColumn = column.length === 1 && (column[0]!.kind === 'fight' || column[0]!.kind === 'boss');
+        const isFightColumn = column.every((n) => n.kind === 'fight' || n.kind === 'boss');
         if (isFightColumn) continue;
         expect(column.length).toBeGreaterThanOrEqual(2);
         expect(column.length).toBeLessThanOrEqual(3);
@@ -66,7 +90,7 @@ describe('run/runMap: wave structure', () => {
       const columns = totalColumns(map);
       for (let d = 1; d <= columns; d++) {
         const column = map.depths[d]!;
-        const isFightColumn = column.length === 1 && (column[0]!.kind === 'fight' || column[0]!.kind === 'boss');
+        const isFightColumn = column.every((n) => n.kind === 'fight' || n.kind === 'boss');
         if (isFightColumn) continue;
         expect(column.every((n) => n.kind === 'shop')).toBe(false);
       }
@@ -159,7 +183,7 @@ describe('run/runMap: event themes', () => {
       const columns = totalColumns(map);
       for (let d = 1; d <= columns; d++) {
         const column = map.depths[d]!;
-        const isFightColumn = column.length === 1 && (column[0]!.kind === 'fight' || column[0]!.kind === 'boss');
+        const isFightColumn = column.every((n) => n.kind === 'fight' || n.kind === 'boss');
         if (isFightColumn) continue;
         const themes = column.filter((n) => n.kind === 'event').map((n) => n.eventTheme!);
         // A column never has more than 3 event slots (well under the
