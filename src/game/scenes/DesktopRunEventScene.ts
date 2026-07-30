@@ -97,16 +97,18 @@ export class DesktopRunEventScene extends Phaser.Scene {
     const rowH = 62;
     const rowGap = 10;
     const headerH = 44;
-    const panelH = 400;
+    const minimumPanelH = 400;
 
-    this.add.rectangle(px, py, pw, panelH, UI.panel, 0.94).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.8);
-    this.add.rectangle(px, py, 7, panelH, UI.chip, 0.96).setOrigin(0, 0);
-    this.add.text(innerX, py + 15, 'EVENT PLANNER', {
+    const panel = this.add.rectangle(px, py, pw, minimumPanelH, UI.panel, 0.94).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.8);
+    const rail = this.add.rectangle(px, py, 7, minimumPanelH, UI.chip, 0.96).setOrigin(0, 0);
+    const plannerLabel = this.add.text(innerX, py + 15, 'EVENT PLANNER', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
     });
-    this.add.text(px + pw - inset, py + 15, `${event.choices.length} PATH${event.choices.length === 1 ? '' : 'S'}`, {
+    const pathCount = this.add.text(px + pw - inset, py + 15, `${event.choices.length} PATH${event.choices.length === 1 ? '' : 'S'}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textSoft,
     }).setOrigin(1, 0);
+    auditTextBlock(plannerLabel, { name: 'Run event planner label', maxWidth: 180, maxHeight: F.tiny * 2, minFontSize: 8 });
+    auditTextBlock(pathCount, { name: 'Run event path count', maxWidth: 180, maxHeight: F.tiny * 2, minFontSize: 8 });
     this.add.rectangle(innerX, py + headerH, innerW, 1, UI.border, 0.55).setOrigin(0, 0);
 
     const titleY = py + headerH + 12;
@@ -162,6 +164,10 @@ export class DesktopRunEventScene extends Phaser.Scene {
       }
       cursor += rowH + rowGap;
     });
+
+    const panelH = Math.max(minimumPanelH, cursor - py - rowGap + 28);
+    panel.setSize(pw, panelH);
+    rail.setSize(7, panelH);
   }
 
   // ---------- bonusDraft picker ----------
@@ -174,11 +180,12 @@ export class DesktopRunEventScene extends Phaser.Scene {
     const title = this.add.text(px + 32, py + 16, 'PICK ONE TO KEEP', {
       fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent,
     });
-    this.add.text(px + pw - 32, py + 19, 'EVENT REWARD', {
+    const rewardLabel = this.add.text(px + pw - 32, py + 19, 'EVENT REWARD', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textSoft,
     }).setOrigin(1, 0);
     this.add.rectangle(px + 32, py + 48, pw - 64, 1, UI.border, 0.55).setOrigin(0, 0);
     auditTextBlock(title, { name: 'Run event bonus draft title', maxWidth: pw - 64, maxHeight: F.name * 2, minFontSize: 10 });
+    auditTextBlock(rewardLabel, { name: 'Run event reward label', maxWidth: 180, maxHeight: F.tiny * 2, minFontSize: 8 });
 
     const cards = this.bonusDraftCards;
     const n = Math.max(1, cards.length);
@@ -211,10 +218,11 @@ export class DesktopRunEventScene extends Phaser.Scene {
     const ph = 500;
     this.add.rectangle(px, py, pw, ph, UI.panel, 0.94).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.8);
     this.add.rectangle(px, py, 7, ph, UI.chip, 0.96).setOrigin(0, 0);
-    this.add.text(px + 32, py + 16, 'EVENT RESOLVED', {
+    const resolvedLabel = this.add.text(px + 32, py + 16, 'EVENT RESOLVED', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
     });
     this.add.rectangle(px + 32, py + 42, pw - 64, 1, UI.border, 0.55).setOrigin(0, 0);
+    auditTextBlock(resolvedLabel, { name: 'Run event resolved label', maxWidth: 180, maxHeight: F.tiny * 2, minFontSize: 8 });
     const { headline, detail } = outcomeHeadline(outcome);
     let cursor = py + 62;
     const headlineText = this.add.text(px + pw / 2, cursor, headline, {
