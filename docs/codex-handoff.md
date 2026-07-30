@@ -145,6 +145,26 @@ _UI/design work Claude is handing over. Codex picks these up._
 
 ## Session log (newest first)
 
+### 2026-07-30 — Codex — Add shared Run Mode presentation helpers
+- CHANGED: Added shared progress, route-board, and choice-panel helpers for the forthcoming desktop/mobile Run Map and Run Event scene integration.
+- FILES: src/game/ui/RunProgressStrip.ts, src/game/ui/RunRouteBoard.ts, src/game/ui/RunChoicePanel.ts
+- DESIGN: Snapshot helpers consume only `RunState` re-exported from `runStore`; rendering stays presentation-only. The strip derives its displayed DAY/WAVE from the existing next-column → current-column → wave-1 fallback. The route board has no node hit targets; choice panels expose one enabled-only surface and audit their text/control fit.
+- VERIFY: npm run typecheck = pass · npm run build = pass (existing Vite chunk-size warning) · npm test = pass (boundaries OK, 42 files / 701 tests).
+- ASSUMPTIONS: Map depth zero remains the existing unused root placeholder, so the route snapshot mirrors the existing map's cleared/current/future column treatment.
+- REQUESTS TO CLAUDE: none.
+- OPEN: Later Run Map/Event integration should exercise these shared renderers with `layoutAudit=1`; this helper-only task has no scene route to capture yet.
+- Claude review: Pending.
+
+### 2026-07-30 — Codex — Correct Run Route current-column marker
+- CHANGED: Updated the shared route snapshot so its `current` marker follows the next actionable map column (`run.depth + 1`), with earlier columns rendered as cleared.
+- FILES: src/game/ui/RunRouteBoard.ts
+- DESIGN: `depths[0]` is the unused root placeholder, so a visual board that omits it must mark depth 1 current at run depth 0. Snapshot metadata remains `currentDepth: run.depth` and `nextDepth: run.depth + 1`.
+- VERIFY: npm run typecheck = pass · npm run build = pass (existing Vite chunk-size warning) · npm test = pass (boundaries OK, 42 files / 701 tests).
+- ASSUMPTIONS: The route marker represents the actionable/display column, consistent with the progress strip's next-column wave fallback.
+- REQUESTS TO CLAUDE: none.
+- OPEN: `layoutAudit=1` remains a later scene-integration verification item, not a Task 1 helper defect.
+- Claude review: Pending.
+
 ### 2026-07-30 — Codex — Verify complete Run Mode flow
 - CHANGED: Recorded the completed Run Map/Run Event UI verification handoff; no production scene, engine, data, or test files were changed in this task.
 - FILES: `docs/codex-handoff.md`.
@@ -1563,24 +1583,4 @@ _UI/design work Claude is handing over. Codex picks these up._
 - ASSUMPTIONS: The board area is the correct dimming scope; the top log and bottom actions remain active/readable.
 - REQUESTS TO CLAUDE: none
 - OPEN: None.
-- Claude review: Pending.
-
-### 2026-07-30 — Codex — Add shared Run Mode presentation helpers
-- CHANGED: Added shared progress, route-board, and choice-panel helpers for the forthcoming desktop/mobile Run Map and Run Event scene integration.
-- FILES: src/game/ui/RunProgressStrip.ts, src/game/ui/RunRouteBoard.ts, src/game/ui/RunChoicePanel.ts
-- DESIGN: Snapshot helpers consume only `RunState` re-exported from `runStore`; rendering stays presentation-only. The strip derives its displayed DAY/WAVE from the existing next-column → current-column → wave-1 fallback. The route board has no node hit targets; choice panels expose one enabled-only surface and audit their text/control fit.
-- VERIFY: npm run typecheck = pass · npm run build = pass (existing Vite chunk-size warning) · npm test = pass (boundaries OK, 42 files / 701 tests).
-- ASSUMPTIONS: Map depth zero remains the existing unused root placeholder, so the route snapshot mirrors the existing map's cleared/current/future column treatment.
-- REQUESTS TO CLAUDE: none.
-- OPEN: Later Run Map/Event integration should exercise these shared renderers with `layoutAudit=1`; this helper-only task has no scene route to capture yet.
-- Claude review: Pending.
-
-### 2026-07-30 — Codex — Correct Run Route current-column marker
-- CHANGED: Updated the shared route snapshot so its `current` marker follows the next actionable map column (`run.depth + 1`), with earlier columns rendered as cleared.
-- FILES: src/game/ui/RunRouteBoard.ts
-- DESIGN: `depths[0]` is the unused root placeholder, so a visual board that omits it must mark depth 1 current at run depth 0. Snapshot metadata remains `currentDepth: run.depth` and `nextDepth: run.depth + 1`.
-- VERIFY: npm run typecheck = pass · npm run build = pass (existing Vite chunk-size warning) · npm test = pass (boundaries OK, 42 files / 701 tests).
-- ASSUMPTIONS: The route marker represents the actionable/display column, consistent with the progress strip's next-column wave fallback.
-- REQUESTS TO CLAUDE: none.
-- OPEN: `layoutAudit=1` remains a later scene-integration verification item, not a Task 1 helper defect.
 - Claude review: Pending.
