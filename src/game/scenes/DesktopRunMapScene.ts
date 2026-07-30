@@ -4,6 +4,9 @@ import { eventThemeBlurb } from '../ui/eventThemeBlurb';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
+import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
+import { renderRunProgressStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
 import { renderBankedPlBadge, renderRunStatPanel } from '../ui/RunStatPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
@@ -16,7 +19,6 @@ import {
   previewEncounter,
   rerollPendingSeed,
   startRun,
-  WAVE_COUNT,
   type RunNode,
   type RunNodeKind,
 } from '../runStore';
@@ -105,23 +107,10 @@ export class DesktopRunMapScene extends Phaser.Scene {
   }
 
   private renderHeaderStats(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    const runDepth = run.map.depths.length - 1;
-    const nextCol = run.map.depths[run.depth + 1];
-    const wave = nextCol?.[0]?.wave ?? run.map.depths[run.depth]?.[0]?.wave ?? 1;
-    const parts = [
-      `WAVE ${wave} / ${WAVE_COUNT}`,
-      `DEPTH ${run.depth} / ${runDepth}`,
-      `GOLD ${run.gold}`,
-      `HERO LV ${run.heroLevel}`,
-      `${run.wins}W · ${run.losses}L`,
-    ];
     const badgeX = SCREEN.width - GX;
     const badgeY = 20;
-    const badgeW = renderBankedPlBadge(this, badgeX, badgeY, F.tiny, () => { this.statPanelOpen = true; this.rerender(); });
-    this.add.text(SCREEN.width - GX - (badgeW > 0 ? badgeW + 14 : 0), 44 + F.big - F.name, parts.join('   ·   '), {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent,
-    }).setOrigin(1, 0);
-    this.add.rectangle(GX, CONTENT_TOP - 16, SCREEN.width - GX * 2, 1, UI.border, 0.7).setOrigin(0, 0);
+    renderBankedPlBadge(this, badgeX, badgeY, F.tiny, () => { this.statPanelOpen = true; this.rerender(); });
+    renderRunProgressStrip(this, { x: GX, y: 92, w: SCREEN.width - GX * 2 }, snapshotRunProgress(run));
   }
 
   /** DECK / BAG entry point — opens the shared Deck Build scene in RUN
@@ -147,63 +136,20 @@ export class DesktopRunMapScene extends Phaser.Scene {
   private renderTrail(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
     const area = SCREEN.width - GX * 2;
     const gap = DESKTOP_PROFILE.gap;
-    const nextDepth = run.depth + 1;
-    const runDepth = run.map.depths.length - 1;
     const choiceColW = 420;
-    const thinCols = runDepth - 1;
-    const thinColW = (area - choiceColW - gap * thinCols) / thinCols;
     const top = CONTENT_TOP;
     const bottom = SCREEN.height - DESKTOP_PROFILE.safe.bottom;
-    const trailY = top + 34;
+    const route = snapshotRunRoute(run);
+    const bounds = { x: GX, y: top, w: area, h: bottom - top };
+    renderRunRouteBoard(this, bounds, route, { mode: 'desktop' });
 
-    // Wave grouping — a subtle alternating band per wave behind the trail,
-    // plus a "Wn" label centered over that wave's column span, so the player
-    // can see how many waves remain and how columns group into them.
-    const waveOf = (d: number): number => run.map.depths[d]?.[0]?.wave ?? 1;
-    let x = GX;
-    let waveStartX = x;
-    let waveStartDepth = 1;
-    for (let depth = 1; depth <= runDepth; depth++) {
-      const isNext = depth === nextDepth;
-      const w = isNext ? choiceColW : thinColW;
-      const endsWave = depth === runDepth || waveOf(depth + 1) !== waveOf(depth);
-      if (endsWave) {
-        const spanW = x + w - waveStartX;
-        const wv = waveOf(depth);
-        this.add.rectangle(waveStartX, top - 10, spanW, bottom - (top - 10), wv % 2 === 0 ? 0x0d1b28 : UI.panelMuted, 0.18).setOrigin(0, 0);
-        this.add.text(waveStartX + spanW / 2, top - 10, `WAVE ${wv}`, {
-          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textSoft,
-        }).setOrigin(0.5, 0);
-        waveStartX = x + w + gap;
-        waveStartDepth = depth + 1;
-      }
-      x += w + gap;
-    }
-    void waveStartDepth;
-
-    x = GX;
-    for (let depth = 1; depth <= runDepth; depth++) {
-      const isNext = depth === nextDepth;
-      const w = isNext ? choiceColW : thinColW;
-      this.add.text(x + w / 2, top + 6, `D${depth}`, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim,
-      }).setOrigin(0.5, 0);
-
-      if (isNext) {
-        this.renderChoiceColumn(x, top + 34, w, bottom - (top + 34));
-      } else if (depth < run.depth) {
-        this.add.circle(x + w / 2, trailY, 5, 0x8d724a, 0.6);
-      } else if (depth === run.depth) {
-        this.add.circle(x + w / 2, trailY, 7, 0, 0).setStrokeStyle(2, UI.chip, 1);
-        this.add.circle(x + w / 2, trailY, 3, UI.chip, 1);
-      } else {
-        const count = run.map.depths[depth]?.length ?? 0;
-        for (let i = 0; i < count; i++) {
-          this.add.rectangle(x + w / 2, trailY + i * 16, 14, 10, UI.panelMuted, 0.35).setStrokeStyle(1, UI.border, 0.2);
-        }
-      }
-      x += w + gap;
-    }
+    const columnCount = route.columns.length;
+    if (columnCount === 0) return;
+    const currentIndex = Math.max(0, route.nextDepth - 1);
+    const cellW = Math.max(0, (area - gap * 2) / columnCount);
+    const currentX = GX + gap + cellW * (currentIndex + 0.5);
+    const choiceX = Phaser.Math.Clamp(currentX - choiceColW / 2, GX, GX + area - choiceColW);
+    this.renderChoiceColumn(choiceX, top + 42, choiceColW, bottom - (top + 42));
   }
 
   private renderChoiceColumn(x: number, top: number, w: number, availableH: number): void {
@@ -227,55 +173,57 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const panelH = Math.min(92, (availableH - gap * (options.length - 1)) / options.length);
     let y = top;
     for (const node of options) {
-      this.renderChoicePanel(x, y, w, panelH, node);
+      renderRunChoicePanel(this, { x, y, w, h: panelH }, this.choiceViewModel(node), {
+        font: F,
+        onSelect: () => {
+          pickNode(node.id);
+          const sceneName = node.kind === 'shop' ? 'DesktopShop' : node.kind === 'event' ? 'DesktopRunEvent' : 'DesktopRunPrep';
+          this.scene.start(sceneName);
+        },
+      });
       y += panelH + gap;
     }
   }
 
-  private renderChoicePanel(x: number, y: number, w: number, h: number, node: RunNode): void {
-    const color = KIND_COLOR[node.kind];
-    const cell = this.add.rectangle(x, y, w, h, UI.panel, 0.95).setOrigin(0, 0)
-      .setStrokeStyle(2, color, 0.9).setInteractive({ useHandCursor: true });
-    cell.on('pointerover', () => cell.setFillStyle(UI.slotHover, 0.95));
-    cell.on('pointerout', () => cell.setFillStyle(UI.panel, 0.95));
-    cell.on('pointerdown', () => {
-      pickNode(node.id);
-      const sceneName = node.kind === 'shop' ? 'DesktopShop' : node.kind === 'event' ? 'DesktopRunEvent' : 'DesktopRunPrep';
-      this.scene.start(sceneName);
-    });
-
-    this.add.rectangle(x, y, 6, h, color).setOrigin(0, 0);
+  private choiceViewModel(node: RunNode): RunChoiceViewModel {
     const shop = node.kind === 'shop' && node.shopId ? shopCatalog[node.shopId] : undefined;
     // Event themes are assigned at map-gen (not by rolling the event), so a
     // choice can advertise what it offers without consuming the event bag.
     const themeSuffix = shop ? shop.name.toUpperCase() : node.eventTheme?.toUpperCase();
     const titleLabel = themeSuffix ? `${KIND_LABEL[node.kind]} · ${themeSuffix}` : KIND_LABEL[node.kind];
-    this.add.text(x + 20, y + 14, titleLabel, {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.text,
-    });
 
     if (node.kind === 'shop') {
-      if (shop) {
-        this.add.text(x + 20, y + 14 + F.name + 4, shop.tagline, {
-          fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim, wordWrap: { width: w - 40 },
-        });
-        this.add.text(x + 20, y + h - 20, `${shop.shelf.cards} CARDS · ${shop.shelf.gems} GEMS`, {
-          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textSoft,
-        });
-      }
-    } else if (node.kind === 'fight' || node.kind === 'boss') {
-      const encounter = previewEncounter(node);
-      if (encounter) {
-        const name = enemyNameFor(encounter.enemyId);
-        this.add.text(x + 20, y + 14 + F.name + 6, `${name} · LV ${encounter.effectiveLevel} · ${encounter.title.toUpperCase()}`, {
-          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textAccent, wordWrap: { width: w - 40 },
-        });
-      }
-    } else if (node.kind === 'event') {
-      this.add.text(x + 20, y + 14 + F.name + 6, eventThemeBlurb(node.eventTheme), {
-        fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textDim,
-      });
+      return {
+        nodeId: node.id,
+        kind: node.kind,
+        title: titleLabel,
+        detail: shop?.tagline ?? '',
+        footer: shop ? `${shop.shelf.cards} CARDS · ${shop.shelf.gems} GEMS` : undefined,
+        accent: KIND_COLOR[node.kind],
+        enabled: true,
+      };
     }
+
+    if (node.kind === 'fight' || node.kind === 'boss') {
+      const encounter = previewEncounter(node);
+      return {
+        nodeId: node.id,
+        kind: node.kind,
+        title: titleLabel,
+        detail: encounter ? `${enemyNameFor(encounter.enemyId)} · LV ${encounter.effectiveLevel} · ${encounter.title.toUpperCase()}` : '',
+        accent: KIND_COLOR[node.kind],
+        enabled: true,
+      };
+    }
+
+    return {
+      nodeId: node.id,
+      kind: node.kind,
+      title: titleLabel,
+      detail: eventThemeBlurb(node.eventTheme),
+      accent: KIND_COLOR[node.kind],
+      enabled: true,
+    };
   }
 
   // ---------- start-run panel ----------
