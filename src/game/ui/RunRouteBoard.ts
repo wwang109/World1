@@ -21,13 +21,14 @@ function trackObject(track: Phaser.GameObjects.GameObject[] | undefined, object:
 }
 
 export function snapshotRunRoute(run: Readonly<RunState>): RunRouteSnapshot {
+  const actionableDepth = run.depth + 1;
   const columns = run.map.depths.slice(1).map((nodes, index) => {
     const depth = index + 1;
     return {
       depth,
       wave: nodes[0]?.wave ?? 1,
       nodeCount: nodes.length,
-      state: depth < run.depth ? 'cleared' : depth === run.depth ? 'current' : 'future',
+      state: depth < actionableDepth ? 'cleared' : depth === actionableDepth ? 'current' : 'future',
     } satisfies RunRouteColumnSnapshot;
   });
 
