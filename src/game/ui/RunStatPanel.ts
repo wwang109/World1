@@ -96,7 +96,7 @@ export function renderRunStatPanel(
   }).setOrigin(1, 0).setDepth(5002);
   addHoverTipZone(scene, { x: plLineText.x - plLineText.width, y: plLineText.y, w: plLineText.width, h: plLineText.height }, [
     { title: 'PL spent / banked', body: 'Every hero level grants 3 PL. Buy stats with +/-, then CONFIRM to spend it — nothing is written to the run until you confirm. Unaffordable buys are disabled.' },
-  ]);
+  ], 5003);
   cursor += labelSize + 10;
   scene.add.rectangle(innerX, cursor, innerW, 1, UI.border, 0.5).setOrigin(0, 0).setDepth(5002);
   cursor += 14;
@@ -115,11 +115,11 @@ export function renderRunStatPanel(
 
     const labelW = cellW - (btn * 2 + 8);
     scene.add.rectangle(cx + btn + 4, cy, labelW, cellH, UI.panelMuted, 0.7).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4).setDepth(5002);
-    const labelText = scene.add.text(cx + btn + 14, cy + cellH / 2 - 8, label, {
+    scene.add.text(cx + btn + 14, cy + cellH / 2 - 8, label, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: UI.textDim,
     }).setDepth(5002);
-    addHoverTipZone(scene, { x: cx + btn + 4, y: cy, w: labelW, h: cellH }, [statHoverEntry(label)]);
-    void labelText;
+    // 5003: above the modal panel/scrim, else the pointer never reaches it.
+    addHoverTipZone(scene, { x: cx + btn + 4, y: cy, w: labelW, h: cellH }, [statHoverEntry(label)], 5003);
     scene.add.text(cx + btn + 14, cy + cellH / 2 + 6, gained > 0 ? `+${gained}` : '·', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: gained > 0 ? UI.textAccent : UI.textSoft,
     }).setDepth(5002);

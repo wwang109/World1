@@ -97,10 +97,16 @@ export function addHoverTipZone(
   scene: Phaser.Scene,
   rect: { x: number; y: number; w: number; h: number },
   entries: readonly HoverTipEntry[],
+  /** Depth for the hit zone. MUST exceed any interactive object drawn over
+   * this spot: Phaser's hit test is top-only, so a zone left at the default
+   * depth 0 under a modal panel (depth 5000+, itself `setInteractive`) never
+   * receives the pointer and its tip can never fire. */
+  depth = 0,
 ): Phaser.GameObjects.Rectangle | undefined {
   if (entries.length === 0) return undefined;
   const zone = scene.add.rectangle(rect.x, rect.y, rect.w, rect.h, 0xffffff, 0.001)
     .setOrigin(0, 0)
+    .setDepth(depth)
     .setInteractive({ useHandCursor: true });
   attachHoverTip(scene, zone, rect, entries);
   return zone;
