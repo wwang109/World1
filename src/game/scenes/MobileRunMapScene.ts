@@ -1,8 +1,12 @@
 import Phaser from 'phaser';
 import { shopCatalog } from '../../data/shopTypes';
 import { eventThemeBlurb } from '../ui/eventThemeBlurb';
+import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
+import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
+import { renderRunProgressStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
 import { renderBankedPlBadge, renderRunStatPanel } from '../ui/RunStatPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
@@ -15,10 +19,11 @@ import {
   previewEncounter,
   rerollPendingSeed,
   startRun,
-  WAVE_COUNT,
   type RunNode,
   type RunNodeKind,
 } from '../runStore';
+
+const F = MOBILE_PROFILE.font;
 
 /** Steel-blue / gold-bronze / green / red — same palette as the desktop map. */
 const KIND_COLOR: Record<RunNodeKind, number> = {
@@ -104,114 +109,104 @@ export class MobileRunMapScene extends Phaser.Scene {
   }
 
   private renderHeaderStats(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    const runDepth = run.map.depths.length - 1;
-    const nextCol = run.map.depths[run.depth + 1];
-    const wave = nextCol?.[0]?.wave ?? run.map.depths[run.depth]?.[0]?.wave ?? 1;
-    const badgeX = this.W - 12; const badgeY = 34; const badgeFont = 9;
-    renderBankedPlBadge(this, badgeX, badgeY, badgeFont, () => { this.statPanelOpen = true; this.rerender(); });
-    this.add.text(12, 34, `WAVE ${wave}/${WAVE_COUNT}   ·   D${run.depth}/${runDepth}   ·   GOLD ${run.gold}`, {
-      fontSize: '11px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold',
+    renderRunProgressStrip(this, { x: 12, y: 42, w: this.W - 24 }, snapshotRunProgress(run));
+    renderBankedPlBadge(this, this.W - 12, 82, F.tiny, () => { this.statPanelOpen = true; this.rerender(); });
+    this.add.text(12, 84, `GOLD ${run.gold}`, {
+      fontSize: `${F.small}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
     });
-    this.add.text(12, 50, `HERO LV ${run.heroLevel}   ·   ${run.wins}W · ${run.losses}L`, {
-      fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold',
+    this.add.text(94, 84, `HERO LV ${run.heroLevel}`, {
+      fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold',
     });
-    this.add.rectangle(10, 70, this.W - 20, 1, UI.border, 0.6).setOrigin(0, 0);
+    this.add.text(192, 84, `W ${run.wins} / L ${run.losses}`, {
+      fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold',
+    });
   }
 
   // ---------- the trail ----------
 
   private renderTrail(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    const nextDepth = run.depth + 1;
-    const runDepth = run.map.depths.length - 1;
-    let y = 82;
-    const gap = 6;
-    let lastWave = -1;
-    for (let depth = 1; depth <= runDepth; depth++) {
-      const wave = run.map.depths[depth]?.[0]?.wave ?? 1;
-      if (wave !== lastWave) {
-        this.add.text(12, y, `— WAVE ${wave} —`, { fontSize: '8px', color: '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' });
-        y += 14;
-        lastWave = wave;
-      }
-      if (depth === nextDepth) {
-        y = this.renderChoiceBlock(y);
-        continue;
-      }
-      const rowH = 18;
-      this.add.text(12, y + 3, `D${depth}`, { fontSize: '8px', color: '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' });
-      if (depth < run.depth) {
-        this.add.circle(50, y + 8, 4, 0x5a6880, 0.6);
-      } else if (depth === run.depth) {
-        this.add.circle(50, y + 8, 5, 0, 0).setStrokeStyle(2, 0xe8b446, 1);
-        this.add.circle(50, y + 8, 2, 0xe8b446, 1);
-      } else {
-        const count = run.map.depths[depth]?.length ?? 0;
-        for (let i = 0; i < count; i++) {
-          this.add.rectangle(46 + i * 12, y + 8, 8, 8, 0x101a2a, 0.35).setStrokeStyle(1, UI.border, 0.2);
-        }
-      }
-      y += rowH + gap;
-    }
+    const routeBounds = { x: 10, y: 108, w: this.W - 20, h: 310 };
+    const route = snapshotRunRoute(run);
+    renderRunRouteBoard(this, routeBounds, route, { mode: 'mobile' });
+
+    if (route.columns.length === 0) return;
+    // Match the route renderer's mobile lane placement so the current stop
+    // sits directly above the stack of available next-node choices.
+    const laneX = routeBounds.x + Math.max(F.label + MOBILE_PROFILE.gap * 2, routeBounds.w * 0.58);
+    const choiceW = 330;
+    const choiceX = Phaser.Math.Clamp(laneX - choiceW / 2, 10, this.W - 10 - choiceW);
+    this.renderChoiceBlock(choiceX, 438, choiceW, this.H - 10 - 438);
   }
 
-  private renderChoiceBlock(top: number): number {
+  private renderChoiceBlock(x: number, top: number, w: number, availableH: number): void {
     const options = choices();
-    let y = top;
     if (options.length === 0) {
-      this.add.text(12, y, '···', { fontSize: '13px', color: '#5a6880', fontFamily: FONT.body });
-      return y + 24;
+      this.add.text(x + w / 2, top + 20, '···', {
+        fontSize: `${F.label}px`, color: UI.textSoft, fontFamily: FONT.body,
+      }).setOrigin(0.5, 0);
+      return;
     }
     if (options.length === 1) {
-      this.add.text(12, y, 'MANDATORY', { fontSize: '8px', color: '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' });
-      y += 12;
+      this.add.text(x + w / 2, top, 'MANDATORY', {
+        fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body, fontStyle: 'bold',
+      }).setOrigin(0.5, 0);
+      top += F.tiny + 6;
+      availableH -= F.tiny + 6;
     }
-    // Density pass: compact content-fit rows (was 96, mostly empty for a
-    // one-line hint) — name + one hint line fits in 72.
-    const h = 72;
-    const gap = 8;
+    const gap = 10;
+    const h = Math.min(94, (availableH - gap * (options.length - 1)) / options.length);
+    let y = top;
     for (const node of options) {
-      this.renderChoicePanel(y, h, node);
+      renderRunChoicePanel(this, { x, y, w, h }, this.choiceViewModel(node), {
+        font: F,
+        onSelect: () => {
+          pickNode(node.id);
+          const sceneName = node.kind === 'shop' ? 'MobileShop' : node.kind === 'event' ? 'MobileRunEvent' : 'MobileRunPrep';
+          this.scene.start(sceneName);
+        },
+      });
       y += h + gap;
     }
-    return y;
   }
 
-  private renderChoicePanel(y: number, h: number, node: RunNode): void {
-    const color = KIND_COLOR[node.kind];
-    const x = 10;
-    const w = this.W - 20;
-    const cell = this.add.rectangle(x, y, w, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(2, color, 0.9).setInteractive({ useHandCursor: true });
-    cell.on('pointerdown', () => {
-      pickNode(node.id);
-      const sceneName = node.kind === 'shop' ? 'MobileShop' : node.kind === 'event' ? 'MobileRunEvent' : 'MobileRunPrep';
-      this.scene.start(sceneName);
-    });
-    this.add.rectangle(x, y, 6, h, color).setOrigin(0, 0);
+  private choiceViewModel(node: RunNode): RunChoiceViewModel {
     const shop = node.kind === 'shop' && node.shopId ? shopCatalog[node.shopId] : undefined;
     // Event themes come from map-gen, so labelling costs no event-bag draw.
     const themeSuffix = shop ? shop.name.toUpperCase() : node.eventTheme?.toUpperCase();
     const titleLabel = themeSuffix ? `${KIND_LABEL[node.kind]} · ${themeSuffix}` : KIND_LABEL[node.kind];
-    this.add.text(x + 18, y + 12, titleLabel, { fontSize: '14px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
 
     if (node.kind === 'shop') {
-      if (shop) {
-        this.add.text(x + 18, y + 30, `${shop.tagline}  ·  ${shop.shelf.cards} cards / ${shop.shelf.gems} gems`, {
-          fontSize: '8px', color: '#8a94a6', fontFamily: FONT.body, wordWrap: { width: w - 36 },
-        });
-      }
-    } else if (node.kind === 'fight' || node.kind === 'boss') {
-      const encounter = previewEncounter(node);
-      if (encounter) {
-        const name = enemyNameFor(encounter.enemyId);
-        this.add.text(x + 18, y + 34, `${name} · LV ${encounter.effectiveLevel} · ${encounter.title.toUpperCase()}`, {
-          fontSize: '10px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: w - 36 },
-        });
-      }
-    } else if (node.kind === 'event') {
-      this.add.text(x + 18, y + 34, eventThemeBlurb(node.eventTheme), {
-        fontSize: '8px', color: '#8a94a6', fontFamily: FONT.body,
-      });
+      return {
+        nodeId: node.id,
+        kind: node.kind,
+        title: titleLabel,
+        detail: shop?.tagline ?? '',
+        footer: shop ? `${shop.shelf.cards} CARDS · ${shop.shelf.gems} GEMS` : undefined,
+        accent: KIND_COLOR[node.kind],
+        enabled: true,
+      };
     }
+
+    if (node.kind === 'fight' || node.kind === 'boss') {
+      const encounter = previewEncounter(node);
+      return {
+        nodeId: node.id,
+        kind: node.kind,
+        title: titleLabel,
+        detail: encounter ? `${enemyNameFor(encounter.enemyId)} · LV ${encounter.effectiveLevel} · ${encounter.title.toUpperCase()}` : '',
+        accent: KIND_COLOR[node.kind],
+        enabled: true,
+      };
+    }
+
+    return {
+      nodeId: node.id,
+      kind: node.kind,
+      title: titleLabel,
+      detail: eventThemeBlurb(node.eventTheme),
+      accent: KIND_COLOR[node.kind],
+      enabled: true,
+    };
   }
 
   // ---------- start-run panel ----------
