@@ -5,11 +5,15 @@ import type { EventChoiceDef, EventDef } from '../../data/events';
 import type { DraftCard } from '../../run/draft';
 import type { EventOutcome } from '../../run/events';
 import { applyTier } from '../../engine/cards';
+import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
+import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
 import { choiceOutcomeHint, outcomeHeadline } from '../ui/eventOutcomeText';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { gemHoverEntry } from '../ui/gemGlossary';
+import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
+import { renderRunProgressStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { rebuildScene } from '../sceneRebuild';
 import {
   applyCurrentBonusDraftPick,
@@ -18,6 +22,8 @@ import {
   leaveCurrentEvent,
   resolveCurrentEventChoice,
 } from '../runStore';
+
+const F = MOBILE_PROFILE.font;
 
 /**
  * Mobile Run Event — the vertical counterpart of `DesktopRunEventScene`:
@@ -54,47 +60,66 @@ export class MobileRunEventScene extends Phaser.Scene {
       return;
     }
 
-    this.renderHeader(run);
+    this.renderHeader(run, event);
     if (this.phase === 'outcome' && this.outcome) this.renderOutcome(this.outcome);
     else if (this.phase === 'bonusDraftPick') this.renderBonusDraftPicker();
     else this.renderChoices(run.gold, event);
   }
 
-  private renderHeader(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    this.add.text(12, 10, 'EVENT', { fontSize: '18px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
-    this.add.text(this.W - 12, 14, `GOLD ${run.gold}`, { fontSize: '11px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
-    this.add.rectangle(10, 36, this.W - 20, 1, UI.border, 0.6).setOrigin(0, 0);
+  private renderHeader(run: NonNullable<ReturnType<typeof getActiveRun>>, event: EventDef): void {
+    const eyebrow = this.add.text(12, 10, 'RUN MODE', {
+      fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
+    });
+    const gold = this.add.text(this.W - 12, 10, `GOLD ${run.gold}`, {
+      fontSize: `${F.small}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
+    }).setOrigin(1, 0);
+    const title = this.add.text(12, 24, 'EVENT', {
+      fontSize: `${F.title}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold',
+    });
+    renderRunProgressStrip(this, { x: 12, y: 49, w: this.W - 24 }, snapshotRunProgress(run), { compact: true });
+    const status = this.add.text(12, 78, `EVENT SELECT · ${event.choices.length} PATH${event.choices.length === 1 ? '' : 'S'}`, {
+      fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body, fontStyle: 'bold',
+    });
+    this.add.rectangle(10, 96, this.W - 20, 1, UI.border, 0.6).setOrigin(0, 0);
+    auditTextBlock(eyebrow, { name: 'Mobile run event eyebrow', maxWidth: 100, maxHeight: F.tiny * 2, minFontSize: 8 });
+    auditTextBlock(gold, { name: 'Mobile run event gold', maxWidth: 110, maxHeight: F.small * 2, minFontSize: 8 });
+    auditTextBlock(title, { name: 'Mobile run event header', maxWidth: 140, maxHeight: F.title * 2, minFontSize: 12 });
+    auditTextBlock(status, { name: 'Mobile run event status', maxWidth: this.W - 24, maxHeight: F.tiny * 2, minFontSize: 8 });
   }
 
   // ---------- choosing ----------
 
   private renderChoices(gold: number, event: EventDef): void {
-    let y = 50;
-    this.add.text(12, y, event.title, { fontSize: '15px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: this.W - 24 } });
-    y += 26;
-    const body = this.add.text(12, y, event.body, {
-      fontSize: '10px', color: '#9aa4b6', fontFamily: FONT.body, wordWrap: { width: this.W - 24 }, lineSpacing: 3,
+    let y = 112;
+    const title = this.add.text(12, y, event.title, {
+      fontSize: `${F.title}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: this.W - 24 },
     });
+    auditTextBlock(title, { name: 'Mobile run event title', maxWidth: this.W - 24, maxHeight: F.title * 2, minFontSize: 12 });
+    y += title.height + 8;
+    const body = this.add.text(12, y, event.body, {
+      fontSize: `${F.body}px`, color: UI.textDim, fontFamily: FONT.body, wordWrap: { width: this.W - 24 }, lineSpacing: 3,
+    });
+    auditTextBlock(body, { name: 'Mobile run event body', maxWidth: this.W - 24, maxHeight: F.body * 8 + 16, minFontSize: 9 });
     y += body.height + 16;
 
-    const rowH = 70;
+    const rowH = 80;
     const gap = 8;
     event.choices.forEach((choice: EventChoiceDef) => {
       const cost = choice.cost ?? 0;
       const affordable = gold >= cost;
-      const fill = affordable ? 0x16233a : 0x101a2a;
-      const btn = this.add.rectangle(10, y, this.W - 20, rowH, fill, affordable ? 1 : 0.55).setOrigin(0, 0).setStrokeStyle(1, UI.border, affordable ? 0.8 : 0.3);
-      this.add.text(20, y + 10, choice.label, {
-        fontSize: '12px', color: affordable ? '#e8e0c8' : '#5a6880', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: this.W - 40 },
-      });
       const costLabel = cost > 0 ? `COST ${cost} GOLD` : 'FREE';
-      this.add.text(20, y + rowH - 18, costLabel, { fontSize: '9px', color: affordable ? '#8a94a6' : '#c36a57', fontFamily: FONT.body });
-      this.add.text(this.W - 20, y + rowH - 18, `→ ${choiceOutcomeHint(choice.outcome)}`, {
-        fontSize: '9px', color: affordable ? '#c69948' : '#5a6880', fontFamily: FONT.body, fontStyle: 'bold',
-      }).setOrigin(1, 0);
-      if (affordable) {
-        btn.setInteractive({ useHandCursor: true });
-        btn.on('pointerdown', () => {
+      const model: RunChoiceViewModel = {
+        nodeId: `event-${choice.id}`,
+        kind: 'event',
+        title: choice.label,
+        detail: `REWARD · ${choiceOutcomeHint(choice.outcome)}`,
+        footer: costLabel,
+        accent: UI.chip,
+        enabled: affordable,
+      };
+      renderRunChoicePanel(this, { x: 10, y, w: this.W - 20, h: rowH }, model, {
+        font: F,
+        onSelect: () => {
           const outcome = resolveCurrentEventChoice(event.id, choice.id);
           if (!outcome) return;
           if (outcome.kind === 'bonusDraft') {
@@ -105,8 +130,8 @@ export class MobileRunEventScene extends Phaser.Scene {
             this.outcome = outcome;
           }
           this.rerender();
-        });
-      }
+        },
+      });
       y += rowH + gap;
     });
   }
@@ -114,9 +139,18 @@ export class MobileRunEventScene extends Phaser.Scene {
   // ---------- bonusDraft picker ----------
 
   private renderBonusDraftPicker(): void {
-    this.add.text(12, 50, 'PICK ONE TO KEEP', { fontSize: '14px', color: '#c69948', fontFamily: FONT.display, fontStyle: 'bold' });
-    let y = 80;
-    const h = 78;
+    const title = this.add.text(12, 112, 'PICK ONE TO KEEP', {
+      fontSize: `${F.name}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold',
+    });
+    const rewardLabel = this.add.text(this.W - 12, 114, 'EVENT REWARD', {
+      fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body, fontStyle: 'bold',
+    }).setOrigin(1, 0);
+    this.add.rectangle(12, 136, this.W - 24, 1, UI.border, 0.55).setOrigin(0, 0);
+    auditTextBlock(title, { name: 'Mobile run event bonus draft title', maxWidth: this.W - 150, maxHeight: F.name * 2, minFontSize: 10 });
+    auditTextBlock(rewardLabel, { name: 'Mobile run event reward label', maxWidth: 120, maxHeight: F.tiny * 2, minFontSize: 8 });
+
+    let y = 150;
+    const h = 70;
     const gap = 8;
     for (const card of this.bonusDraftCards) {
       const skill = skillBook[card.skillId];
@@ -124,6 +158,11 @@ export class MobileRunEventScene extends Phaser.Scene {
       const shown = card.tier === skill.tier ? skill : applyTier(skill, card.tier);
       new CardToken(this, 10 + (this.W - 20) / 2, y + h / 2, shown, { width: this.W - 20, height: h, side: 'left' });
       const hit = this.add.rectangle(10 + (this.W - 20) / 2, y + h / 2, this.W - 20, h, 0xffffff, 0).setInteractive({ useHandCursor: true });
+      const select = this.add.text(this.W - 20, y + 8, 'SELECT', {
+        fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
+      }).setOrigin(1, 0);
+      auditControlLabel(hit, select, { name: `Mobile run event ${card.skillId} bonus pick`, horizontalPadding: 12, verticalPadding: 5, minFontSize: 8 });
+      auditTextBlock(select, { name: `Mobile run event ${card.skillId} select label`, maxWidth: 64, maxHeight: F.tiny * 2, minFontSize: 8 });
       hit.on('pointerdown', () => {
         const outcome = applyCurrentBonusDraftPick(card);
         if (!outcome) return;
@@ -138,15 +177,25 @@ export class MobileRunEventScene extends Phaser.Scene {
   // ---------- outcome ----------
 
   private renderOutcome(outcome: EventOutcome): void {
-    let y = 60;
+    const resolved = this.add.text(12, 112, 'EVENT RESOLVED', {
+      fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
+    });
+    this.add.rectangle(12, 134, this.W - 24, 1, UI.border, 0.55).setOrigin(0, 0);
+    auditTextBlock(resolved, { name: 'Mobile run event resolved label', maxWidth: 160, maxHeight: F.tiny * 2, minFontSize: 8 });
+
+    let y = 152;
     const { headline, detail } = outcomeHeadline(outcome);
-    this.add.text(this.W / 2, y, headline, {
-      fontSize: '16px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold', align: 'center', wordWrap: { width: this.W - 40 },
+    const headlineText = this.add.text(this.W / 2, y, headline, {
+      fontSize: `${F.title}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', align: 'center', wordWrap: { width: this.W - 40 },
     }).setOrigin(0.5, 0);
-    y += 30;
+    auditTextBlock(headlineText, { name: 'Mobile run event outcome headline', maxWidth: this.W - 40, maxHeight: F.title * 2, minFontSize: 12 });
+    y += headlineText.height + 8;
     if (detail) {
-      this.add.text(this.W / 2, y, detail, { fontSize: '10px', color: '#9aa4b6', fontFamily: FONT.body, align: 'center' }).setOrigin(0.5, 0);
-      y += 22;
+      const detailText = this.add.text(this.W / 2, y, detail, {
+        fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body, align: 'center', wordWrap: { width: this.W - 40 },
+      }).setOrigin(0.5, 0);
+      auditTextBlock(detailText, { name: 'Mobile run event outcome detail', maxWidth: this.W - 40, maxHeight: F.small * 2, minFontSize: 8 });
+      y += detailText.height + 10;
     }
     y += 12;
 
@@ -154,7 +203,7 @@ export class MobileRunEventScene extends Phaser.Scene {
       const skill = skillBook[outcome.skillId];
       if (skill) {
         const shown = outcome.tier === skill.tier ? skill : applyTier(skill, outcome.tier);
-        const cardW = 140;
+        const cardW = 126;
         const cardH = Math.round(cardW * (690 / 420));
         new CardToken(this, this.W / 2, y + cardH / 2, shown, { width: cardW, height: cardH, side: 'left' });
         y += cardH + 16;
@@ -162,19 +211,25 @@ export class MobileRunEventScene extends Phaser.Scene {
     } else if (outcome.kind === 'grantGem') {
       const gem = gemBook[outcome.gemId];
       if (gem) {
-        const chipW = this.W - 60;
-        this.add.rectangle(30, y, chipW, 52, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.9);
-        this.add.rectangle(30 + 22, y + 26, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-        this.add.text(30 + 40, y + 17, gem.name, { fontSize: '12px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
-        addHoverTipZone(this, { x: 30, y, w: chipW, h: 52 }, [gemHoverEntry(gem)]);
+        const chipW = this.W - 40;
+        this.add.rectangle(20, y, chipW, 52, UI.panelMuted, 0.94).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.9);
+        this.add.rectangle(42, y + 26, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
+        const gemName = this.add.text(60, y + 17, gem.name, {
+          fontSize: `${F.body}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: chipW - 78 },
+        });
+        auditTextBlock(gemName, { name: 'Mobile run event gem name', maxWidth: chipW - 78, maxHeight: F.body * 2, minFontSize: 9 });
+        addHoverTipZone(this, { x: 20, y, w: chipW, h: 52 }, [gemHoverEntry(gem)]);
         y += 52 + 16;
       }
     }
 
-    const btnW = this.W - 60;
-    const btnY = this.H - 90;
-    const btn = this.add.rectangle(30, btnY, btnW, 44, 0xb78a46, 1).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    this.add.text(this.W / 2, btnY + 22, 'CONTINUE ›', { fontSize: '15px', color: '#1a1208', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
+    const btnW = this.W - 20;
+    const btnY = this.H - MOBILE_PROFILE.safe.bottom - 44;
+    const btn = this.add.rectangle(10, btnY, btnW, 44, UI.chip, 1).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
+    const btnText = this.add.text(this.W / 2, btnY + 22, 'CONTINUE ›', {
+      fontSize: `${F.name}px`, color: UI.textOnChip, fontFamily: FONT.display, fontStyle: 'bold',
+    }).setOrigin(0.5);
+    auditControlLabel(btn, btnText, { name: 'Mobile run event continue', horizontalPadding: 14, verticalPadding: 6, minFontSize: 8 });
     btn.on('pointerdown', () => { leaveCurrentEvent(); this.scene.start('MobileRunMap'); });
   }
 }
