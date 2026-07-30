@@ -111,25 +111,25 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     let start = { x: 0, y: 0 };
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (this.pendingTrash || this.socketFor) return; // dialog/panel owns input
-      const hit = this.draggables.find((d) => d.bounds.contains(p.x, p.y));
+      const hit = this.draggables.find((d) => d.bounds.contains(p.worldX, p.worldY));
       if (!hit) return;
       dragging = { token: hit.token, src: hit.src, home: { x: hit.token.x, y: hit.token.y } };
       totalMove = 0;
-      start = { x: p.x, y: p.y };
+      start = { x: p.worldX, y: p.worldY };
       ghost = hit.token.spawnGhost(); // dimmed copy + dashed outline stays in the source slot
       hit.token.setDepth(1000).setAlpha(0.9);
       dropHint = this.add.rectangle(0, 0, 10, 10, 0xe8b446, 0.12).setOrigin(0, 0).setStrokeStyle(2, 0xe8b446, 0.9).setVisible(false).setDepth(900);
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!dragging) return;
-      totalMove = Math.max(totalMove, Math.hypot(p.x - start.x, p.y - start.y));
-      dragging.token.setPosition(p.x, p.y);
+      totalMove = Math.max(totalMove, Math.hypot(p.worldX - start.x, p.worldY - start.y));
+      dragging.token.setPosition(p.worldX, p.worldY);
       // gold drop-target highlight (mockup "drop to place") on the hovered slot
       if (dropHint) {
         const { top, colH, colW, rowH, gap, deckX, bagX } = this.layout;
-        if (p.y >= top && p.y <= top + colH) {
-          const row = Math.max(0, Math.min(SLOTS - 1, Math.floor((p.y - top) / (rowH + gap))));
-          const x = p.x >= bagX ? bagX : deckX;
+        if (p.worldY >= top && p.worldY <= top + colH) {
+          const row = Math.max(0, Math.min(SLOTS - 1, Math.floor((p.worldY - top) / (rowH + gap))));
+          const x = p.worldX >= bagX ? bagX : deckX;
           dropHint.setVisible(true).setPosition(x, top + row * (rowH + gap)).setSize(colW, rowH);
         } else dropHint.setVisible(false);
       }
@@ -147,7 +147,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         this.rerender();
         return;
       }
-      this.resolveDrop(src, p.x, p.y);
+      this.resolveDrop(src, p.worldX, p.worldY);
       this.rerender(); // mutations applied above; re-render (snaps back if no move)
     });
   }
@@ -581,17 +581,17 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       let startScroll = 0;
       const inList = (x: number, y: number): boolean => x >= px + 14 && x <= px + 14 + (pw - 28) && y >= listTop && y <= listTop + listH;
       this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-        if (!inList(p.x, p.y)) return;
-        dragging = true; startY = p.y; startScroll = scrollY;
+        if (!inList(p.worldX, p.worldY)) return;
+        dragging = true; startY = p.worldY; startScroll = scrollY;
       });
       this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
         if (!dragging) return;
-        scrollY = Phaser.Math.Clamp(startScroll + (p.y - startY), -maxScroll, 0);
+        scrollY = Phaser.Math.Clamp(startScroll + (p.worldY - startY), -maxScroll, 0);
         rowContainers.forEach((c, i) => c.setY(listTop + scrollY + i * (rowH + rowGap)));
       });
       this.input.on('pointerup', () => { dragging = false; });
       this.input.on('wheel', (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
-        if (!inList(pointer.x, pointer.y)) return;
+        if (!inList(pointer.worldX, pointer.worldY)) return;
         scrollY = Phaser.Math.Clamp(scrollY - dy, -maxScroll, 0);
         rowContainers.forEach((c, i) => c.setY(listTop + scrollY + i * (rowH + rowGap)));
       });

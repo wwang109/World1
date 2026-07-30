@@ -292,14 +292,14 @@ export class MobileWikiScene extends Phaser.Scene {
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (this.detailOpen) return;
       const { top, height } = this.viewport;
-      if (p.y < top || p.y > top + height) return;
+      if (p.worldY < top || p.worldY > top + height) return;
       dragging = true;
-      startY = p.y; startX = p.x; startScroll = this.scrollY; totalMove = 0;
+      startY = p.worldY; startX = p.worldX; startScroll = this.scrollY; totalMove = 0;
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!dragging) return;
-      const dy = p.y - startY;
-      totalMove = Math.max(totalMove, Math.hypot(p.x - startX, p.y - startY));
+      const dy = p.worldY - startY;
+      totalMove = Math.max(totalMove, Math.hypot(p.worldX - startX, p.worldY - startY));
       this.scrollY = Phaser.Math.Clamp(startScroll + dy, -this.maxScroll, 0);
       if (this.view === 'cards') this.applyScroll();
       else this.applyGemScroll();
@@ -308,9 +308,9 @@ export class MobileWikiScene extends Phaser.Scene {
       if (!dragging) return;
       dragging = false;
       if (totalMove < 8) {
-        const localY = p.y - this.viewport.top - this.scrollY;
+        const localY = p.worldY - this.viewport.top - this.scrollY;
         if (this.view === 'cards') {
-          const row = this.rows.find((r) => p.x >= r.baseX - r.token.width / 2 && p.x <= r.baseX + r.token.width / 2 && localY >= r.baseY && localY < r.baseY + r.h);
+          const row = this.rows.find((r) => p.worldX >= r.baseX - r.token.width / 2 && p.worldX <= r.baseX + r.token.width / 2 && localY >= r.baseY && localY < r.baseY + r.h);
           if (row) this.openDetail(row.skill);
         } else {
           const row = this.gemRows.find((r) => localY >= r.baseY && localY < r.baseY + r.h);

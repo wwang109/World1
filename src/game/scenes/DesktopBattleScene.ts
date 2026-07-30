@@ -521,8 +521,8 @@ export class DesktopBattleScene extends Phaser.Scene {
       const i = railLen <= 0 ? 0 : Math.round(Math.max(0, Math.min(1, (px - x) / railLen)) * (n - 1));
       if (i !== this.idx) { this.idx = i; this.render(); }
     };
-    zone.on('pointerdown', (p: Phaser.Input.Pointer) => { this.stopPlayback(); setFromX(p.x); });
-    zone.on('pointermove', (p: Phaser.Input.Pointer) => { if (p.isDown) setFromX(p.x); });
+    zone.on('pointerdown', (p: Phaser.Input.Pointer) => { this.stopPlayback(); setFromX(p.worldX); });
+    zone.on('pointermove', (p: Phaser.Input.Pointer) => { if (p.isDown) setFromX(p.worldX); });
   }
 
   /** Footer buttons EXCLUDING the speed segment (drawn separately, always in

@@ -569,8 +569,8 @@ export class MobileBattleScene extends Phaser.Scene {
       const i = railLen <= 0 ? 0 : Math.round(Math.max(0, Math.min(1, (y - top) / railLen)) * (n - 1));
       if (i !== this.idx) { this.idx = i; this.render(); }
     };
-    zone.on('pointerdown', (p: Phaser.Input.Pointer) => { this.stopPlayback(); setFromY(p.y); });
-    zone.on('pointermove', (p: Phaser.Input.Pointer) => { if (p.isDown) setFromY(p.y); });
+    zone.on('pointerdown', (p: Phaser.Input.Pointer) => { this.stopPlayback(); setFromY(p.worldY); });
+    zone.on('pointermove', (p: Phaser.Input.Pointer) => { if (p.isDown) setFromY(p.worldY); });
   }
 
   /**

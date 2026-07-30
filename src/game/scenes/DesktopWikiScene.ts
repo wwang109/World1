@@ -314,14 +314,14 @@ export class DesktopWikiScene extends Phaser.Scene {
     let startScroll = 0;
     let totalMove = 0;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (!this.inViewport(p.x, p.y)) return;
+      if (!this.inViewport(p.worldX, p.worldY)) return;
       dragging = true;
-      startY = p.y; startX = p.x; startScroll = this.scrollY; totalMove = 0;
+      startY = p.worldY; startX = p.worldX; startScroll = this.scrollY; totalMove = 0;
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!dragging) return;
-      const dy = p.y - startY;
-      totalMove = Math.max(totalMove, Math.hypot(p.x - startX, p.y - startY));
+      const dy = p.worldY - startY;
+      totalMove = Math.max(totalMove, Math.hypot(p.worldX - startX, p.worldY - startY));
       this.scrollY = Phaser.Math.Clamp(startScroll + dy, -this.maxScroll, 0);
       this.applyScroll();
     });
@@ -329,14 +329,14 @@ export class DesktopWikiScene extends Phaser.Scene {
       if (!dragging) return;
       dragging = false;
       if (totalMove < 8) {
-        const localY = p.y - this.viewport.top - this.scrollY;
-        const row = this.galleryCards.find((r) => p.x >= r.baseX - r.w / 2 && p.x <= r.baseX + r.w / 2
+        const localY = p.worldY - this.viewport.top - this.scrollY;
+        const row = this.galleryCards.find((r) => p.worldX >= r.baseX - r.w / 2 && p.worldX <= r.baseX + r.w / 2
           && localY >= r.baseY && localY < r.baseY + r.h);
         if (row) this.selectCard(row.skill);
       }
     });
     this.input.on('wheel', (pointer: Phaser.Input.Pointer, _objs: unknown, _dx: number, dy: number) => {
-      if (!this.inViewport(pointer.x, pointer.y)) return;
+      if (!this.inViewport(pointer.worldX, pointer.worldY)) return;
       this.scrollY = Phaser.Math.Clamp(this.scrollY - dy, -this.maxScroll, 0);
       this.applyScroll();
     });
