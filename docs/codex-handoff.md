@@ -145,6 +145,16 @@ _UI/design work Claude is handing over. Codex picks these up._
 
 ## Session log (newest first)
 
+### 2026-07-30 — Codex — Verify complete Run Mode flow
+- CHANGED: Recorded the completed Run Map/Run Event UI verification handoff; no production scene, engine, data, or test files were changed in this task.
+- FILES: `docs/codex-handoff.md`.
+- DESIGN: The shared progress strip presents `DAY n / 5` from the existing five-wave map/run progression (the current actionable day/next map column); it does not add or persist a separate day field. Desktop and mobile retain the same route, choice, event, deck/bag, and stat-allocation contracts introduced by Tasks 1–5.
+- VERIFY: `npm.cmd run typecheck` clean · `npm.cmd run build` passed (existing Vite >500 kB chunk-size warning only) · `npm.cmd test` passed: boundaries OK, 43 files / 702 tests. With `layoutAudit=1`, desktop and mobile Run Maps plus both Run Event flows had no `[layout-audit]`/console errors. Inspected desktop/mobile map day strips, route boards, choices, DECK / BAG entry, post-battle `3 PL TO SPEND` stat overlays, affordable and disabled choices, bonus-draft rows, reward outcomes, and `CONTINUE ›` return. Ran the committed Run Prep → Battle flow on both profiles; combat retained its existing playback, ledger, victory, and Run `CONTINUE ›` treatment.
+- ASSUMPTIONS: Task 6 verifies the Task 1–5 implementation already committed through `984b96b`; the feature inventory already accurately records the Run Map/Run Event additions, so no duplicate inventory edit was needed. Browser capture briefly returned an uncomposited desktop canvas during initial boot, then composited both desktop and mobile WebGL frames normally; the final visual checks are from those composited states.
+- REQUESTS TO CLAUDE: none.
+- OPEN: None.
+- Claude review: Pending.
+
 ### 2026-07-29 — Codex — add authored art for all remaining cards
 - CHANGED: Generated and saved portrait anime-TCG art for the 37 cards that were missing authored artwork: Twin Slash; the Fire set (Ember Lash, Cinder Dart, Scorching Brand, Wildfire Surge, Inferno Eruption); the Lightning set (Static Jolt, Thunder Step, Chain Spark, Overcharge, Storm Surge); the Nature set (Thorn Bite, Verdant Touch, Blooming Vine, Overgrowth); the Frost set (Glacial Spike, Frost Shackle, Deep Freeze); the Lance set (Lance Thrust, Braced Pike, Piercing Reach, Impaling Charge); the Bow set (Rapid Volley, Piercing Arrow, Marksman Shot, Barrage); the defensive set (Bastion Stance, Aegis Wall, Sanctified Bulwark, Fortress Bastion); the support/healing set (Mending Aura, Swift March, Warlord's Banner, Renewing Wave, Vital Surge); and the true-damage set (Void Pierce, Annihilation Strike).
 - FILES: `public/game-art/cards/{37 new *-anime.png assets}`, `src/game/ui/cardArtCatalog.ts`, `docs/superpowers/specs/2026-07-29-missing-card-art-design.md`, `docs/superpowers/plans/2026-07-29-missing-card-art.md`
@@ -1553,4 +1563,24 @@ _UI/design work Claude is handing over. Codex picks these up._
 - ASSUMPTIONS: The board area is the correct dimming scope; the top log and bottom actions remain active/readable.
 - REQUESTS TO CLAUDE: none
 - OPEN: None.
+- Claude review: Pending.
+
+### 2026-07-30 — Codex — Add shared Run Mode presentation helpers
+- CHANGED: Added shared progress, route-board, and choice-panel helpers for the forthcoming desktop/mobile Run Map and Run Event scene integration.
+- FILES: src/game/ui/RunProgressStrip.ts, src/game/ui/RunRouteBoard.ts, src/game/ui/RunChoicePanel.ts
+- DESIGN: Snapshot helpers consume only `RunState` re-exported from `runStore`; rendering stays presentation-only. The strip derives its displayed DAY/WAVE from the existing next-column → current-column → wave-1 fallback. The route board has no node hit targets; choice panels expose one enabled-only surface and audit their text/control fit.
+- VERIFY: npm run typecheck = pass · npm run build = pass (existing Vite chunk-size warning) · npm test = pass (boundaries OK, 42 files / 701 tests).
+- ASSUMPTIONS: Map depth zero remains the existing unused root placeholder, so the route snapshot mirrors the existing map's cleared/current/future column treatment.
+- REQUESTS TO CLAUDE: none.
+- OPEN: Later Run Map/Event integration should exercise these shared renderers with `layoutAudit=1`; this helper-only task has no scene route to capture yet.
+- Claude review: Pending.
+
+### 2026-07-30 — Codex — Correct Run Route current-column marker
+- CHANGED: Updated the shared route snapshot so its `current` marker follows the next actionable map column (`run.depth + 1`), with earlier columns rendered as cleared.
+- FILES: src/game/ui/RunRouteBoard.ts
+- DESIGN: `depths[0]` is the unused root placeholder, so a visual board that omits it must mark depth 1 current at run depth 0. Snapshot metadata remains `currentDepth: run.depth` and `nextDepth: run.depth + 1`.
+- VERIFY: npm run typecheck = pass · npm run build = pass (existing Vite chunk-size warning) · npm test = pass (boundaries OK, 42 files / 701 tests).
+- ASSUMPTIONS: The route marker represents the actionable/display column, consistent with the progress strip's next-column wave fallback.
+- REQUESTS TO CLAUDE: none.
+- OPEN: `layoutAudit=1` remains a later scene-integration verification item, not a Task 1 helper defect.
 - Claude review: Pending.
