@@ -8,9 +8,11 @@ import { applyTier } from '../../engine/cards';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
+import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
 import { choiceOutcomeHint, outcomeHeadline } from '../ui/eventOutcomeText';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { gemHoverEntry } from '../ui/gemGlossary';
+import { renderRunProgressStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { rebuildScene } from '../sceneRebuild';
 import {
   applyCurrentBonusDraftPick,
@@ -75,13 +77,13 @@ export class DesktopRunEventScene extends Phaser.Scene {
     this.add.text(SCREEN.width - GX, 44 + F.big - F.name, `GOLD ${run.gold}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent,
     }).setOrigin(1, 0);
-    this.add.rectangle(GX, 150 - 16, SCREEN.width - GX * 2, 1, UI.border, 0.7).setOrigin(0, 0);
+    renderRunProgressStrip(this, { x: GX, y: 92, w: SCREEN.width - GX * 2 }, snapshotRunProgress(run));
   }
 
   private panelGeometry(): { px: number; py: number; pw: number } {
-    const pw = 720;
+    const pw = 760;
     const px = (SCREEN.width - pw) / 2;
-    const py = 170;
+    const py = 156;
     return { px, py, pw };
   }
 
@@ -89,39 +91,58 @@ export class DesktopRunEventScene extends Phaser.Scene {
 
   private renderChoicePanel(gold: number, event: EventDef): void {
     const { px, py, pw } = this.panelGeometry();
-    const innerX = px + 28;
-    const innerW = pw - 56;
-    let cursor = py;
+    const inset = 32;
+    const innerX = px + inset;
+    const innerW = pw - inset * 2;
+    const rowH = 62;
+    const rowGap = 10;
+    const headerH = 44;
+    const panelH = 400;
 
-    this.add.rectangle(px, py, pw, 440, UI.panel, 0.94).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.8);
-    cursor += 26;
-    this.add.text(px + pw / 2, cursor, event.title, {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.text, align: 'center', wordWrap: { width: innerW },
-    }).setOrigin(0.5, 0);
-    cursor += F.title + 16;
-    const body = this.add.text(px + pw / 2, cursor, event.body, {
-      fontFamily: FONT.body, fontSize: `${F.body}px`, color: UI.textDim, align: 'center', wordWrap: { width: innerW }, lineSpacing: 4,
-    }).setOrigin(0.5, 0);
-    cursor += body.height + 28;
+    this.add.rectangle(px, py, pw, panelH, UI.panel, 0.94).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.8);
+    this.add.rectangle(px, py, 7, panelH, UI.chip, 0.96).setOrigin(0, 0);
+    this.add.text(innerX, py + 15, 'EVENT PLANNER', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+    });
+    this.add.text(px + pw - inset, py + 15, `${event.choices.length} PATH${event.choices.length === 1 ? '' : 'S'}`, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textSoft,
+    }).setOrigin(1, 0);
+    this.add.rectangle(innerX, py + headerH, innerW, 1, UI.border, 0.55).setOrigin(0, 0);
 
-    const btnH = 68;
-    const gap = 14;
+    const titleY = py + headerH + 12;
+    const title = this.add.text(innerX, titleY, event.title, {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.text, wordWrap: { width: innerW },
+    });
+    auditTextBlock(title, { name: 'Run event title', maxWidth: innerW, maxHeight: F.title * 2, minFontSize: 12 });
+    const bodyY = titleY + title.height + 10;
+    const body = this.add.text(innerX, bodyY, event.body, {
+      fontFamily: FONT.body, fontSize: `${F.body}px`, color: UI.textDim, wordWrap: { width: innerW }, lineSpacing: 4,
+    });
+    auditTextBlock(body, { name: 'Run event body', maxWidth: innerW, maxHeight: F.body * 5 + 16, minFontSize: 10 });
+    let cursor = bodyY + body.height + 24;
+
     event.choices.forEach((choice: EventChoiceDef) => {
       const cost = choice.cost ?? 0;
       const affordable = gold >= cost;
       const fill = affordable ? UI.panelAlt : UI.panelMuted;
-      const btn = this.add.rectangle(innerX, cursor, innerW, btnH, fill, affordable ? 1 : 0.55)
+      const btn = this.add.rectangle(innerX, cursor, innerW, rowH, fill, affordable ? 1 : 0.55)
         .setOrigin(0, 0).setStrokeStyle(1, UI.border, affordable ? 0.9 : 0.35);
-      this.add.text(innerX + 18, cursor + 14, choice.label, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: affordable ? UI.text : UI.textSoft,
+      const rail = this.add.rectangle(innerX, cursor, 4, rowH, UI.chip, affordable ? 0.96 : 0.4).setOrigin(0, 0);
+      void rail;
+      const label = this.add.text(innerX + 16, cursor + 9, choice.label, {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: affordable ? UI.text : UI.textSoft, wordWrap: { width: innerW - 32 },
       });
       const costLabel = cost > 0 ? `COST ${cost} GOLD` : 'FREE';
-      this.add.text(innerX + 18, cursor + 14 + F.body + 4, costLabel, {
+      const costText = this.add.text(innerX + 16, cursor + rowH - 11, costLabel, {
         fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: affordable ? UI.textDim : UI.textSoft,
-      });
-      this.add.text(innerX + innerW - 18, cursor + btnH / 2, `→ ${choiceOutcomeHint(choice.outcome)}`, {
+      }).setOrigin(0, 1);
+      const hint = this.add.text(innerX + innerW - 16, cursor + rowH - 11, `→ ${choiceOutcomeHint(choice.outcome)}`, {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: affordable ? UI.textAccent : UI.textSoft,
-      }).setOrigin(1, 0.5);
+      }).setOrigin(1, 1);
+      auditControlLabel(btn, label, { name: `Run event ${choice.id} choice`, horizontalPadding: 16, verticalPadding: 7, minFontSize: 8 });
+      auditTextBlock(label, { name: `Run event ${choice.id} label`, maxWidth: innerW - 32, maxHeight: F.body * 2, minFontSize: 8 });
+      auditTextBlock(costText, { name: `Run event ${choice.id} cost`, maxWidth: innerW / 2 - 16, maxHeight: F.tiny * 2, minFontSize: 8 });
+      auditTextBlock(hint, { name: `Run event ${choice.id} outcome hint`, maxWidth: innerW / 2 - 16, maxHeight: F.small * 2, minFontSize: 8 });
       if (affordable) {
         btn.setInteractive({ useHandCursor: true });
         btn.on('pointerover', () => btn.setFillStyle(UI.slotHover));
@@ -139,7 +160,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
           this.rerender();
         });
       }
-      cursor += btnH + gap;
+      cursor += rowH + rowGap;
     });
   }
 
@@ -147,17 +168,23 @@ export class DesktopRunEventScene extends Phaser.Scene {
 
   private renderBonusDraftPicker(): void {
     const { px, py, pw } = this.panelGeometry();
-    const ph = 220;
+    const ph = 300;
     this.add.rectangle(px, py, pw, ph, UI.panel, 0.94).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.8);
-    this.add.text(px + pw / 2, py + 20, 'PICK ONE TO KEEP', {
+    this.add.rectangle(px, py, 7, ph, UI.chip, 0.96).setOrigin(0, 0);
+    const title = this.add.text(px + 32, py + 16, 'PICK ONE TO KEEP', {
       fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent,
-    }).setOrigin(0.5, 0);
+    });
+    this.add.text(px + pw - 32, py + 19, 'EVENT REWARD', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textSoft,
+    }).setOrigin(1, 0);
+    this.add.rectangle(px + 32, py + 48, pw - 64, 1, UI.border, 0.55).setOrigin(0, 0);
+    auditTextBlock(title, { name: 'Run event bonus draft title', maxWidth: pw - 64, maxHeight: F.name * 2, minFontSize: 10 });
 
     const cards = this.bonusDraftCards;
     const n = Math.max(1, cards.length);
     const gap = DESKTOP_PROFILE.gap;
-    const cardTop = py + 60;
-    const cardH = ph - 80;
+    const cardTop = py + 70;
+    const cardH = ph - 92;
     const cardW = (pw - 56 - gap * (n - 1)) / n;
     cards.forEach((card, i) => {
       const skill = skillBook[card.skillId];
@@ -181,19 +208,26 @@ export class DesktopRunEventScene extends Phaser.Scene {
 
   private renderOutcomePanel(outcome: EventOutcome): void {
     const { px, py, pw } = this.panelGeometry();
-    const ph = 320;
+    const ph = 500;
     this.add.rectangle(px, py, pw, ph, UI.panel, 0.94).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.8);
+    this.add.rectangle(px, py, 7, ph, UI.chip, 0.96).setOrigin(0, 0);
+    this.add.text(px + 32, py + 16, 'EVENT RESOLVED', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+    });
+    this.add.rectangle(px + 32, py + 42, pw - 64, 1, UI.border, 0.55).setOrigin(0, 0);
     const { headline, detail } = outcomeHeadline(outcome);
-    let cursor = py + 26;
-    this.add.text(px + pw / 2, cursor, headline, {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.text, align: 'center', wordWrap: { width: pw - 56 },
+    let cursor = py + 62;
+    const headlineText = this.add.text(px + pw / 2, cursor, headline, {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.text, align: 'center', wordWrap: { width: pw - 64 },
     }).setOrigin(0.5, 0);
-    cursor += F.title + 10;
+    auditTextBlock(headlineText, { name: 'Run event outcome headline', maxWidth: pw - 64, maxHeight: F.title * 2, minFontSize: 12 });
+    cursor += headlineText.height + 8;
     if (detail) {
-      this.add.text(px + pw / 2, cursor, detail, {
+      const detailText = this.add.text(px + pw / 2, cursor, detail, {
         fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim, align: 'center',
       }).setOrigin(0.5, 0);
-      cursor += F.small + 10;
+      auditTextBlock(detailText, { name: 'Run event outcome detail', maxWidth: pw - 64, maxHeight: F.small * 2, minFontSize: 8 });
+      cursor += detailText.height + 10;
     }
     cursor += 12;
 
@@ -201,7 +235,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
       const skill = skillBook[outcome.skillId];
       if (skill) {
         const shown = outcome.tier === skill.tier ? skill : applyTier(skill, outcome.tier);
-        const cardW = 150;
+        const cardW = 142;
         const cardH = Math.round(cardW * (690 / 420));
         new CardToken(this, px + pw / 2, cursor + cardH / 2, shown, { width: cardW, height: cardH, side: 'left' });
         cursor += cardH + 16;
@@ -224,9 +258,10 @@ export class DesktopRunEventScene extends Phaser.Scene {
     const btnW = 220;
     const btnY = py + ph - 60;
     const btn = this.add.rectangle(px + pw / 2 - btnW / 2, btnY, btnW, 44, UI.chip, 1).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    this.add.text(px + pw / 2, btnY + 22, 'CONTINUE ›', {
+    const btnText = this.add.text(px + pw / 2, btnY + 22, 'CONTINUE ›', {
       fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textOnChip,
     }).setOrigin(0.5);
+    auditControlLabel(btn, btnText, { name: 'Run event continue', horizontalPadding: 14, verticalPadding: 6, minFontSize: 8 });
     btn.on('pointerdown', () => { leaveCurrentEvent(); this.scene.start('DesktopRunMap'); });
   }
 }
