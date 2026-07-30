@@ -5,6 +5,7 @@ import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
 import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
+import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRunProgressStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
 import { renderBankedPlBadge, renderRunStatPanel } from '../ui/RunStatPanel';
@@ -98,12 +99,14 @@ export class DesktopRunMapScene extends Phaser.Scene {
   }
 
   private renderTitle(label: string): void {
-    this.add.text(GX, 24, 'WORLD1 / RUN MODE', {
+    const eyebrow = this.add.text(GX, 24, 'WORLD1 / RUN MODE', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
     });
-    this.add.text(GX, 44, label, {
+    const title = this.add.text(GX, 44, label, {
       fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big}px`, color: UI.text,
     });
+    auditTextBlock(eyebrow, { name: 'Desktop run map eyebrow', maxWidth: 180, maxHeight: F.label * 2, minFontSize: 8 });
+    auditTextBlock(title, { name: 'Desktop run map title', maxWidth: 180, maxHeight: F.big * 2, minFontSize: 12 });
   }
 
   private renderHeaderStats(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
@@ -123,9 +126,11 @@ export class DesktopRunMapScene extends Phaser.Scene {
     // at GX it drew straight over "WORLD1 / RUN MODE".
     const x = GX + 210; const y = 22;
     const btn = this.add.rectangle(x, y, w, h, UI.panelAlt, 1).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.9).setInteractive({ useHandCursor: true });
-    this.add.text(x + w / 2, y + h / 2, 'DECK / BAG', {
+    const label = this.add.text(x + w / 2, y + h / 2, 'DECK / BAG', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
     }).setOrigin(0.5);
+    auditControlLabel(btn, label, { name: 'Desktop run map deck bag', horizontalPadding: 12, verticalPadding: 5, minFontSize: 8 });
+    auditTextBlock(label, { name: 'Desktop run map deck bag label', maxWidth: w - 24, maxHeight: h - 10, minFontSize: 8 });
     btn.on('pointerover', () => btn.setFillStyle(UI.slotHover));
     btn.on('pointerout', () => btn.setFillStyle(UI.panelAlt));
     btn.on('pointerdown', () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); });
@@ -160,10 +165,17 @@ export class DesktopRunMapScene extends Phaser.Scene {
       }).setOrigin(0.5, 0);
       return;
     }
+    const planner = this.add.text(x + w / 2, top, 'CHOOSE YOUR NEXT STOP', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+    }).setOrigin(0.5, 0);
+    auditTextBlock(planner, { name: 'Desktop run map choice planner', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
+    top += F.tiny + 8;
+    availableH -= F.tiny + 8;
     if (options.length === 1) {
-      this.add.text(x + w / 2, top, 'MANDATORY', {
+      const mandatory = this.add.text(x + w / 2, top, 'MANDATORY', {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textSoft,
       }).setOrigin(0.5, 0);
+      auditTextBlock(mandatory, { name: 'Desktop run map mandatory label', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
       top += F.tiny + 6;
       availableH -= F.tiny + 6;
     }

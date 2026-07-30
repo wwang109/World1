@@ -145,6 +145,16 @@ _UI/design work Claude is handing over. Codex picks these up._
 
 ## Session log (newest first)
 
+### 2026-07-30 — Codex — Final review fixes for Run Mode event/day UI
+- CHANGED: Restored shared Run Mode progress-strip status rendering (DAY/WAVE plus GOLD, HERO LV, and W/L) from the existing run snapshot; derived marker count from the snapshot's map waves rather than `WAVE_COUNT`; audited progress and route text; added visible `CHOOSE YOUR NEXT STOP`, shared SELECT/LOCKED choice affordances, and `EVENT SELECT` hierarchy; and added run-context DECK / BAG access to both Run Event headers using `setDeckBuildContext('run')` and the existing Deck scenes.
+- FILES: src/game/ui/RunProgressStrip.ts, src/game/ui/RunRouteBoard.ts, src/game/ui/RunChoicePanel.ts, src/game/scenes/DesktopRunMapScene.ts, src/game/scenes/MobileRunMapScene.ts, src/game/scenes/DesktopRunEventScene.ts, src/game/scenes/MobileRunEventScene.ts, docs/feature-inventory.md, docs/codex-handoff.md, .superpowers/sdd/2026-07-30-run-mode-event-day-ui/progress.md, .superpowers/sdd/2026-07-30-run-mode-event-day-ui/task-6-report.md
+- DESIGN: Map and Event now share the same compact day/wave/status chrome without duplicate mobile status labels. One choice panel remains the only hit target; selectable rows say SELECT, unaffordable rows stay dimmed and say LOCKED while retaining their cost and outcome copy.
+- VERIFY: `npm.cmd run typecheck` = pass · `npm.cmd run build` = pass (existing Vite >500 kB advisory only) · `npm.cmd test` = pass (boundaries OK; 43 files / 702 tests) · `git diff --check` = pass. Focused `layoutAudit=1` browser checks passed for Desktop Run Map and Run Event and Mobile Run Map and Run Event: DAY/WAVE, GOLD/HERO LV/W-L, route labels, planner labels, enabled SELECT, zero-gold LOCKED choice, and both Event DECK / BAG routes rendered with no console or `[layout-audit]` errors.
+- ASSUMPTIONS: Map-generated wave labels are the authoritative presentation source for the number of progress markers; the existing event/map interactions and runStore state transitions remain unchanged.
+- REQUESTS TO CLAUDE: none.
+- OPEN: none.
+- Claude review: Pending.
+
 ### 2026-07-30 — Codex — Verify complete Run Mode flow
 - CHANGED: Recorded the completed Run Map/Run Event UI verification handoff; no production scene, engine, data, or test files were changed in this task.
 - FILES: `docs/codex-handoff.md`.

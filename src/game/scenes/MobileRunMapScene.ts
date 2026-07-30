@@ -5,6 +5,7 @@ import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
 import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
+import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRunProgressStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
 import { renderBankedPlBadge, renderRunStatPanel } from '../ui/RunStatPanel';
@@ -95,7 +96,8 @@ export class MobileRunMapScene extends Phaser.Scene {
   }
 
   private renderTitle(): void {
-    this.add.text(12, 10, 'RUN', { fontSize: '18px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
+    const title = this.add.text(12, 10, 'RUN', { fontSize: '18px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
+    auditTextBlock(title, { name: 'Mobile run map title', maxWidth: 100, maxHeight: F.big * 2, minFontSize: 12 });
   }
 
   /** DECK / BAG entry point — opens the shared Deck Build scene in RUN
@@ -104,22 +106,15 @@ export class MobileRunMapScene extends Phaser.Scene {
     const w = 92; const h = 22;
     const x = this.W - 12 - w; const y = 10;
     const btn = this.add.rectangle(x, y, w, h, 0x16233a, 1).setOrigin(0, 0).setStrokeStyle(1, 0xb78a46, 0.8).setInteractive({ useHandCursor: true });
-    this.add.text(x + w / 2, y + h / 2, 'DECK / BAG', { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+    const label = this.add.text(x + w / 2, y + h / 2, 'DECK / BAG', { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+    auditControlLabel(btn, label, { name: 'Mobile run map deck bag', horizontalPadding: 8, verticalPadding: 5, minFontSize: 8 });
+    auditTextBlock(label, { name: 'Mobile run map deck bag label', maxWidth: w - 16, maxHeight: h - 10, minFontSize: 8 });
     btn.on('pointerdown', () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); });
   }
 
   private renderHeaderStats(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
     renderRunProgressStrip(this, { x: 12, y: 42, w: this.W - 24 }, snapshotRunProgress(run));
-    renderBankedPlBadge(this, this.W - 12, 82, F.tiny, () => { this.statPanelOpen = true; this.rerender(); });
-    this.add.text(12, 84, `GOLD ${run.gold}`, {
-      fontSize: `${F.small}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
-    });
-    this.add.text(94, 84, `HERO LV ${run.heroLevel}`, {
-      fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold',
-    });
-    this.add.text(192, 84, `W ${run.wins} / L ${run.losses}`, {
-      fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold',
-    });
+    renderBankedPlBadge(this, this.W - 12, 96, F.tiny, () => { this.statPanelOpen = true; this.rerender(); });
   }
 
   // ---------- the trail ----------
@@ -146,10 +141,17 @@ export class MobileRunMapScene extends Phaser.Scene {
       }).setOrigin(0.5, 0);
       return;
     }
+    const planner = this.add.text(x + w / 2, top, 'CHOOSE YOUR NEXT STOP', {
+      fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
+    }).setOrigin(0.5, 0);
+    auditTextBlock(planner, { name: 'Mobile run map choice planner', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
+    top += F.tiny + 8;
+    availableH -= F.tiny + 8;
     if (options.length === 1) {
-      this.add.text(x + w / 2, top, 'MANDATORY', {
+      const mandatory = this.add.text(x + w / 2, top, 'MANDATORY', {
         fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body, fontStyle: 'bold',
       }).setOrigin(0.5, 0);
+      auditTextBlock(mandatory, { name: 'Mobile run map mandatory label', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
       top += F.tiny + 6;
       availableH -= F.tiny + 6;
     }

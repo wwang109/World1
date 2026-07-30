@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { DESKTOP_PROFILE, MOBILE_PROFILE } from '../layoutProfile';
 import { type RunState } from '../runStore';
 import { FONT, UI } from '../theme';
+import { auditTextBlock } from './controlLayoutAudit';
 
 export interface RunRouteColumnSnapshot {
   depth: number;
@@ -83,6 +84,12 @@ export function renderRunRouteBoard(
     }).setOrigin(horizontal ? 0.5 : 0, 0);
     trackObject(opts.track, band);
     trackObject(opts.track, waveLabel);
+    auditTextBlock(waveLabel, {
+      name: `Run route wave ${column.wave}`,
+      maxWidth: horizontal ? Math.max(profile.font.tiny * 5, bandSize - profile.gap * 2) : Math.max(profile.font.tiny * 6, crossSize - profile.gap * 2),
+      maxHeight: profile.font.tiny * 2,
+      minFontSize: 8,
+    });
     waveStart = index + 1;
   }
 
@@ -104,6 +111,12 @@ export function renderRunRouteBoard(
       color: UI.textDim,
     }).setOrigin(horizontal ? 0.5 : 0, horizontal ? 1 : 0.5);
     trackObject(opts.track, depthLabel);
+    auditTextBlock(depthLabel, {
+      name: `Run route depth ${column.depth}`,
+      maxWidth: horizontal ? Math.max(profile.font.tiny * 3, cellSize - profile.gap) : Math.max(profile.font.tiny * 3, routeCross - crossStart - profile.gap),
+      maxHeight: profile.font.tiny * 2,
+      minFontSize: 8,
+    });
 
     if (column.state === 'cleared') {
       const pip = scene.add.circle(point.x, point.y, horizontal ? 5 : 4, UI.chip, 0.62);

@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { ACTIVE_PROFILE } from '../layoutProfile';
-import { WAVE_COUNT, type RunState } from '../runStore';
+import { type RunState } from '../runStore';
 import { FONT, SCREEN, UI } from '../theme';
+import { auditTextBlock } from './controlLayoutAudit';
 
 export interface RunProgressSnapshot {
   currentWave: number;
@@ -23,10 +24,11 @@ export function snapshotRunProgress(run: Readonly<RunState>): RunProgressSnapsho
   const currentColumn = run.map.depths[run.depth];
   const nextColumn = run.map.depths[run.depth + 1];
   const currentWave = nextColumn?.[0]?.wave ?? currentColumn?.[0]?.wave ?? 1;
+  const waveCount = Math.max(1, ...run.map.depths.flatMap((nodes) => nodes.map((node) => node.wave)));
 
   return {
     currentWave,
-    waveCount: WAVE_COUNT,
+    waveCount,
     currentDepth: run.depth,
     totalDepth: run.map.depths.length - 1,
     gold: run.gold,
@@ -47,6 +49,7 @@ export function renderRunProgressStrip(
   const width = Math.min(bounds.w, SCREEN.width);
   const labelSize = compact ? font.small : font.label;
   const markerY = bounds.y + (compact ? font.small + 13 : font.label + 18);
+  const statusY = markerY + (compact ? 8 : 9);
   const dayCopy = compact
     ? `D${snapshot.currentWave}/${snapshot.waveCount}`
     : `DAY ${snapshot.currentWave} / ${snapshot.waveCount}`;
@@ -70,11 +73,40 @@ export function renderRunProgressStrip(
   trackObject(opts.track, day);
   trackObject(opts.track, wave);
   trackObject(opts.track, line);
+  auditTextBlock(day, { name: 'Run progress day', maxWidth: width * 0.46, maxHeight: labelSize * 2, minFontSize: 8 });
+  auditTextBlock(wave, { name: 'Run progress wave', maxWidth: width * 0.46, maxHeight: labelSize * 2, minFontSize: 8 });
+
+  const gold = scene.add.text(bounds.x, statusY, `GOLD ${snapshot.gold}`, {
+    fontFamily: FONT.body,
+    fontStyle: 'bold',
+    fontSize: `${compact ? font.tiny : font.small}px`,
+    color: UI.textAccent,
+  });
+  const heroLevel = scene.add.text(gold.x + gold.width + (compact ? 12 : 16), statusY, `HERO LV ${snapshot.heroLevel}`, {
+    fontFamily: FONT.body,
+    fontStyle: 'bold',
+    fontSize: `${compact ? font.tiny : font.small}px`,
+    color: UI.textDim,
+  });
+  const record = scene.add.text(heroLevel.x + heroLevel.width + (compact ? 12 : 16), statusY, `W ${snapshot.wins} / L ${snapshot.losses}`, {
+    fontFamily: FONT.body,
+    fontStyle: 'bold',
+    fontSize: `${compact ? font.tiny : font.small}px`,
+    color: UI.textDim,
+  });
+  trackObject(opts.track, gold);
+  trackObject(opts.track, heroLevel);
+  trackObject(opts.track, record);
+  const statusFont = compact ? font.tiny : font.small;
+  auditTextBlock(gold, { name: 'Run progress gold', maxWidth: width * 0.3, maxHeight: statusFont * 2, minFontSize: 8 });
+  auditTextBlock(heroLevel, { name: 'Run progress hero level', maxWidth: width * 0.3, maxHeight: statusFont * 2, minFontSize: 8 });
+  auditTextBlock(record, { name: 'Run progress win loss', maxWidth: width * 0.3, maxHeight: statusFont * 2, minFontSize: 8 });
 
   const markerInset = compact ? 8 : 12;
   const markerSpan = Math.max(0, width - markerInset * 2);
-  for (let waveIndex = 1; waveIndex <= WAVE_COUNT; waveIndex++) {
-    const x = bounds.x + markerInset + markerSpan * ((waveIndex - 1) / (WAVE_COUNT - 1));
+  const markerDivisor = Math.max(1, snapshot.waveCount - 1);
+  for (let waveIndex = 1; waveIndex <= snapshot.waveCount; waveIndex++) {
+    const x = bounds.x + markerInset + markerSpan * ((waveIndex - 1) / markerDivisor);
     if (waveIndex < snapshot.currentWave) {
       const marker = scene.add.circle(x, markerY, compact ? 3 : 4, UI.chip, 0.68);
       trackObject(opts.track, marker);

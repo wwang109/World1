@@ -28,6 +28,8 @@ export function renderRunChoicePanel(
   const inset = Math.max(14, opts.font.small + 6);
   const contentX = bounds.x + railW + inset;
   const contentW = Math.max(0, bounds.w - railW - inset * 2);
+  const actionCopy = model.enabled ? 'SELECT' : 'LOCKED';
+  const actionReserve = Math.max(56, opts.font.tiny * 6 + 8);
   const fill = model.enabled ? UI.panel : UI.panelMuted;
   const alpha = model.enabled ? 0.95 : 0.56;
   const panel = scene.add.rectangle(bounds.x, bounds.y, bounds.w, bounds.h, fill, alpha)
@@ -39,8 +41,14 @@ export function renderRunChoicePanel(
     fontStyle: 'bold',
     fontSize: `${opts.font.name}px`,
     color: model.enabled ? UI.text : UI.textSoft,
-    wordWrap: { width: contentW },
+    wordWrap: { width: Math.max(0, contentW - actionReserve) },
   });
+  const action = scene.add.text(bounds.x + bounds.w - inset, bounds.y + inset, actionCopy, {
+    fontFamily: FONT.body,
+    fontStyle: 'bold',
+    fontSize: `${opts.font.tiny}px`,
+    color: model.enabled ? UI.textAccent : UI.textSoft,
+  }).setOrigin(1, 0);
   const detailY = bounds.y + inset + title.height + 5;
   const detailMaxH = Math.max(opts.font.tiny, bounds.h - (detailY - bounds.y) - inset - (model.footer ? opts.font.tiny + 7 : 0));
   const detail = scene.add.text(contentX, detailY, model.detail, {
@@ -64,6 +72,7 @@ export function renderRunChoicePanel(
   trackObject(opts.track, panel);
   trackObject(opts.track, rail);
   trackObject(opts.track, title);
+  trackObject(opts.track, action);
   trackObject(opts.track, detail);
   if (footer) trackObject(opts.track, footer);
 
@@ -73,7 +82,8 @@ export function renderRunChoicePanel(
     verticalPadding: inset,
     minFontSize: 8,
   });
-  auditTextBlock(title, { name: `${model.nodeId} title`, maxWidth: contentW, maxHeight: Math.max(opts.font.name * 2, bounds.h * 0.42), minFontSize: 8 });
+  auditTextBlock(title, { name: `${model.nodeId} title`, maxWidth: Math.max(0, contentW - actionReserve), maxHeight: Math.max(opts.font.name * 2, bounds.h * 0.42), minFontSize: 8 });
+  auditTextBlock(action, { name: `${model.nodeId} ${actionCopy.toLowerCase()} affordance`, maxWidth: actionReserve, maxHeight: opts.font.tiny * 2, minFontSize: 8 });
   auditTextBlock(detail, { name: `${model.nodeId} detail`, maxWidth: contentW, maxHeight: detailMaxH, minFontSize: 8 });
   if (footer) auditTextBlock(footer, { name: `${model.nodeId} footer`, maxWidth: contentW, maxHeight: opts.font.tiny * 2, minFontSize: 8 });
 
