@@ -1,6 +1,7 @@
 # AGENTS.md — Codex CLI working agreement (UI & design)
 
-This repo is a TypeScript/Phaser 1v1 roguelite. It's developed by **two agents**:
+This repo is a TypeScript/PixiJS 1v1 roguelite (this branch replaced Phaser
+with PixiJS 8 for crisp, DPR-native text rendering). It's developed by **two agents**:
 - **Claude Code** owns the engine, data, balance, run/meta logic, and tests
   (see `CLAUDE.md`). Claude treats the combat sim as sacred and deterministic.
 - **You (Codex CLI)** own the **UI and visual/UX design** — everything the
@@ -10,7 +11,7 @@ This repo is a TypeScript/Phaser 1v1 roguelite. It's developed by **two agents**
 > docs below. They are written FOR you.
 
 ## Your two working docs
-1. **`docs/codex-ui-guide.md`** — your handbook: the Phaser architecture, the
+1. **`docs/codex-ui-guide.md`** — your handbook: the renderer architecture, the
    design system, the scene inventory, the playback model, how to add UI, how
    to verify, the hard rules, and a prioritized **UI/design backlog**. Start here.
 2. **`docs/codex-handoff.md`** — the shared ledger between you and Claude.
@@ -25,8 +26,9 @@ This repo is a TypeScript/Phaser 1v1 roguelite. It's developed by **two agents**
    `BattleScene`.
 
 ## Hard rules (breaking these breaks the build — non-negotiable)
-- **Only `src/game/` may import `phaser`.** A checker (`scripts/check-boundaries.mjs`)
-  fails `npm test` if any other layer imports it. Never import Phaser outside `src/game`.
+- **Only `src/game/` may import `pixi.js`.** A checker (`scripts/check-boundaries.mjs`)
+  fails `npm test` if any other layer imports it (phaser stays forbidden too).
+  Never import pixi.js outside `src/game`.
 - **Never edit `src/engine/`, `src/data/`, or `tests/`.** Those are Claude's.
   If you need an engine change (e.g. a new field on an event, a new value in the
   log), **do not hack around it in the scene** — write a request in

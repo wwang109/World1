@@ -4,6 +4,14 @@ Your handbook for the UI/UX and visual design of World1. You own `src/game/`.
 Everything here is grounded in the current code — when you change the system,
 update this doc and log it in `docs/codex-handoff.md`.
 
+> **Branch note (pixi-text-rendering):** this branch replaced Phaser with
+> **PixiJS 8**. The concepts below (scenes, playback head, design canvas,
+> event log) are unchanged, but Phaser-specific API snippets are historical.
+> The Pixi equivalents live in `src/game/pixi/` — `Scene.ts` (Scene base +
+> SceneManager, 1280×720 design space scaled to a DPR-native canvas), `ui.ts`
+> (`makeText`/`makeRect`/`TextButton`, web-font stack), and `fx.ts` (tweens).
+> Bootstrap is `src/main.ts` (`Application.init` + font preload).
+
 ---
 
 ## 1. Architecture (how the UI relates to everything else)

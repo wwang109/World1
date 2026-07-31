@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { Sprite, Text, Texture } from 'pixi.js';
 import { simulate, type CombatResult } from '../../engine/combat/simulate';
 import type { CombatEvent, ComparisonSide } from '../../engine/combat/events';
 import type { Side, Property } from '../../engine/types';
@@ -8,17 +8,19 @@ import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../../data/heroes';
 import { demoState } from '../demoState';
 import { CardView, SLOT_W } from '../ui/CardView';
 import { UI, PROPERTY_COLOR, ELEMENT_ICON, WEAPON_ICON, STATUS_ICON } from '../theme';
+import { Scene } from '../pixi/Scene';
+import { makeText, makeRect, TextButton } from '../pixi/ui';
 
 interface SideView {
   name: string;
   maxHp: number;
   hp: number;
   shield: number;
-  hpBar: Phaser.GameObjects.Rectangle;
-  shieldBar: Phaser.GameObjects.Rectangle;
-  hpText: Phaser.GameObjects.Text;
-  statusText: Phaser.GameObjects.Text;
-  scoreText: Phaser.GameObjects.Text;
+  hpBar: Sprite;
+  shieldBar: Sprite;
+  hpText: Text;
+  statusText: Text;
+  scoreText: Text;
   statuses: { status: string; turns: number; property?: Property; charges?: number }[];
   cards: Map<number, CardView>;
   barY: number;
@@ -45,21 +47,30 @@ const DELAYS: Record<string, number> = {
   noPerformer: 350,
 };
 
-export class BattleScene extends Phaser.Scene {
+// Survives scene restarts (each restart builds a fresh BattleScene instance).
+let battleSpeed = 1;
+
+/** Solid bar whose width can be set directly (white texture, tinted). */
+function makeBar(color: number, w: number, h: number): Sprite {
+  const bar = new Sprite(Texture.WHITE);
+  bar.tint = color;
+  bar.anchor.set(0, 0.5);
+  bar.width = w;
+  bar.height = h;
+  return bar;
+}
+
+export class BattleScene extends Scene {
   private result!: CombatResult;
   private views!: Record<Side, SideView>;
   private eventIdx = 0;
-  private speedFactor = 1;
+  private speedFactor = battleSpeed;
   private skipping = false;
   private finished = false;
-  private turnText!: Phaser.GameObjects.Text;
-  private bannerText!: Phaser.GameObjects.Text;
+  private turnText!: Text;
+  private bannerText!: Text;
   private logLines: string[] = [];
-  private logText!: Phaser.GameObjects.Text;
-
-  constructor() {
-    super('Battle');
-  }
+  private logText!: Text;
 
   create(): void {
     this.eventIdx = 0;
@@ -94,20 +105,31 @@ export class BattleScene extends Phaser.Scene {
       player: this.buildSideView('Hero', BASE_HERO_STATS.maxHp, 'player', 640, 520, demoState.pieces, HERO_BOARD_SLOTS),
     };
 
-    this.turnText = this.add
-      .text(640, 300, '', { fontSize: '15px', color: UI.textDim, fontFamily: 'monospace' })
-      .setOrigin(0.5);
-    this.bannerText = this.add
-      .text(640, 336, 'battle begins…', { fontSize: '18px', color: UI.text, fontFamily: 'monospace', align: 'center' })
-      .setOrigin(0.5);
-    this.add.text(24, 96, 'COMBAT LOG', { fontSize: '12px', color: UI.text, fontFamily: 'monospace', fontStyle: 'bold' });
-    this.add.rectangle(24, 112, 330, 560, 0x14141c).setOrigin(0, 0).setStrokeStyle(1, 0x2a2a36);
-    this.logText = this.add.text(32, 120, '', {
-      fontSize: '11px',
-      color: UI.textDim,
-      fontFamily: 'monospace',
-      lineSpacing: 3,
+    this.turnText = makeText('', { size: 15, color: UI.textDim });
+    this.turnText.anchor.set(0.5);
+    this.turnText.position.set(640, 300);
+    this.addChild(this.turnText);
+
+    this.bannerText = makeText('battle begins…', { size: 18, align: 'center' });
+    this.bannerText.anchor.set(0.5);
+    this.bannerText.position.set(640, 336);
+    this.addChild(this.bannerText);
+
+    const logTitle = makeText('COMBAT LOG', { size: 12, bold: true });
+    logTitle.position.set(24, 96);
+    this.addChild(logTitle);
+
+    const logPanel = makeRect(330, 560, 0x14141c, {
+      stroke: { width: 1, color: 0x2a2a36 },
+      originX: 0,
+      originY: 0,
     });
+    logPanel.position.set(24, 112);
+    this.addChild(logPanel);
+
+    this.logText = makeText('', { size: 11, color: UI.textDim, lineSpacing: 3 });
+    this.logText.position.set(32, 120);
+    this.addChild(this.logText);
 
     this.buildControls();
     this.scheduleNext(400);
@@ -122,31 +144,52 @@ export class BattleScene extends Phaser.Scene {
     pieces: { skillId: string; slot: number }[],
     boardSize: number,
   ): SideView {
-    this.add.text(640 - BAR_W / 2, barY - 24, name, { fontSize: '15px', color: UI.text, fontFamily: 'monospace', fontStyle: 'bold' });
-    this.add.rectangle(640, barY, BAR_W, 18, UI.hpBack);
-    const hpBar = this.add.rectangle(640 - BAR_W / 2, barY, BAR_W, 18, side === 'player' ? UI.hp : 0xc05050).setOrigin(0, 0.5);
-    const shieldBar = this.add.rectangle(640 - BAR_W / 2, barY - 14, 0, 6, 0xbbbbdd).setOrigin(0, 0.5);
-    const hpText = this.add
-      .text(640 + BAR_W / 2 + 12, barY, `${maxHp}/${maxHp}`, { fontSize: '13px', color: UI.text, fontFamily: 'monospace' })
-      .setOrigin(0, 0.5);
-    const statusText = this.add
-      .text(640 - BAR_W / 2, barY + 18, '', { fontSize: '12px', color: UI.textDim, fontFamily: 'monospace' })
-      .setOrigin(0, 0.5);
-    const scoreText = this.add
-      .text(640 + BAR_W / 2 + 12, barY + 18, '', { fontSize: '12px', color: '#ffd76a', fontFamily: 'monospace' })
-      .setOrigin(0, 0.5);
+    const nameText = makeText(name, { size: 15, bold: true });
+    nameText.position.set(640 - BAR_W / 2, barY - 24);
+    this.addChild(nameText);
+
+    const hpBack = makeRect(BAR_W, 18, UI.hpBack);
+    hpBack.position.set(640, barY);
+    this.addChild(hpBack);
+
+    const hpBar = makeBar(side === 'player' ? UI.hp : 0xc05050, BAR_W, 18);
+    hpBar.position.set(640 - BAR_W / 2, barY);
+    this.addChild(hpBar);
+
+    const shieldBar = makeBar(0xbbbbdd, 0, 6);
+    shieldBar.position.set(640 - BAR_W / 2, barY - 14);
+    this.addChild(shieldBar);
+
+    const hpText = makeText(`${maxHp}/${maxHp}`, { size: 13 });
+    hpText.anchor.set(0, 0.5);
+    hpText.position.set(640 + BAR_W / 2 + 12, barY);
+    this.addChild(hpText);
+
+    const statusText = makeText('', { size: 12, color: UI.textDim });
+    statusText.anchor.set(0, 0.5);
+    statusText.position.set(640 - BAR_W / 2, barY + 18);
+    this.addChild(statusText);
+
+    const scoreText = makeText('', { size: 12, color: '#ffd76a' });
+    scoreText.anchor.set(0, 0.5);
+    scoreText.position.set(640 + BAR_W / 2 + 12, barY + 18);
+    this.addChild(scoreText);
 
     const cards = new Map<number, CardView>();
     const boardX = (1280 - boardSize * SLOT_W * 0.9) / 2;
     for (let s = 0; s < boardSize; s++) {
-      this.add.rectangle(boardX + s * SLOT_W * 0.9 + (SLOT_W * 0.9) / 2, boardY, SLOT_W * 0.9 - 4, 96 * 0.9 + 6, UI.slot).setStrokeStyle(1, 0x3a3a46);
+      const slot = makeRect(SLOT_W * 0.9 - 4, 96 * 0.9 + 6, UI.slot, { stroke: { width: 1, color: 0x3a3a46 } });
+      slot.position.set(boardX + s * SLOT_W * 0.9 + (SLOT_W * 0.9) / 2, boardY);
+      this.addChild(slot);
     }
     for (const piece of pieces) {
       const skill = skillBook[piece.skillId];
       if (!skill) continue;
       const x = boardX + piece.slot * SLOT_W * 0.9 + (skill.size * SLOT_W * 0.9) / 2;
-      const card = new CardView(this, x, boardY, skill, { mini: false });
-      card.setScale(0.9);
+      const card = new CardView(skill);
+      card.scale.set(0.9);
+      card.position.set(x, boardY);
+      this.addChild(card);
       cards.set(piece.slot, card);
     }
     return { name, maxHp, hp: maxHp, shield: 0, hpBar, shieldBar, hpText, statusText, scoreText, statuses: [], cards, barY, boardY };
@@ -159,7 +202,7 @@ export class BattleScene extends Phaser.Scene {
       while (this.eventIdx < this.result.events.length) this.applyEvent(this.result.events[this.eventIdx++]!, true);
       return;
     }
-    this.time.delayedCall(delay / this.speedFactor, () => {
+    this.delay(delay / this.speedFactor, () => {
       if (this.eventIdx >= this.result.events.length) return;
       const event = this.result.events[this.eventIdx++]!;
       this.applyEvent(event, false);
@@ -170,7 +213,7 @@ export class BattleScene extends Phaser.Scene {
   private log(line: string): void {
     this.logLines.push(line);
     if (this.logLines.length > 36) this.logLines.shift();
-    this.logText.setText(this.logLines.join('\n'));
+    this.logText.text = this.logLines.join('\n');
   }
 
   private fmtSide(side: ComparisonSide, label: string): string {
@@ -184,11 +227,11 @@ export class BattleScene extends Phaser.Scene {
     const view = 'side' in e ? this.views[e.side as Side] : null;
     switch (e.kind) {
       case 'comparison': {
-        this.turnText.setText(`— turn ${e.turn} —`);
+        this.turnText.text = `— turn ${e.turn} —`;
         const who = e.performer === 'player' ? '▶ HERO performs' : e.performer === 'enemy' ? '▶ ENEMY performs' : '▶ nobody can act';
-        this.bannerText.setText(`${this.fmtSide(e.player, 'YOU')}\n${this.fmtSide(e.enemy, 'FOE')}\n${who}`);
-        this.views.player.scoreText.setText(e.player.state === 'ready' ? `score ${e.player.score}` : e.player.state);
-        this.views.enemy.scoreText.setText(e.enemy.state === 'ready' ? `score ${e.enemy.score}` : e.enemy.state);
+        this.bannerText.text = `${this.fmtSide(e.player, 'YOU')}\n${this.fmtSide(e.enemy, 'FOE')}\n${who}`;
+        this.views.player.scoreText.text = e.player.state === 'ready' ? `score ${e.player.score}` : e.player.state;
+        this.views.enemy.scoreText.text = e.enemy.state === 'ready' ? `score ${e.enemy.score}` : e.enemy.state;
         this.log(`── turn ${e.turn} ──`);
         break;
       }
@@ -199,7 +242,7 @@ export class BattleScene extends Phaser.Scene {
         const card = this.views[e.side].cards.get(e.slot);
         if (card && !instant) {
           card.setHighlight(true, 0xffe27a);
-          this.tweens.add({ targets: card, scale: 1.02, duration: 140, yoyo: true, onComplete: () => card.setHighlight(false) });
+          this.tweens.add({ target: card, to: { scale: 1.02 }, duration: 140, yoyo: true, onComplete: () => card.setHighlight(false) });
         }
         break;
       }
@@ -341,41 +384,36 @@ export class BattleScene extends Phaser.Scene {
     const v = this.views[side];
     v.hpBar.width = Math.max(0, (v.hp / v.maxHp) * BAR_W);
     v.shieldBar.width = Math.max(0, Math.min(1, v.shield / v.maxHp) * BAR_W);
-    v.hpText.setText(`${v.hp}/${v.maxHp}${v.shield > 0 ? ` +${v.shield}🛡` : ''}`);
+    v.hpText.text = `${v.hp}/${v.maxHp}${v.shield > 0 ? ` +${v.shield}🛡` : ''}`;
   }
 
   private refreshStatuses(side: Side): void {
     const v = this.views[side];
-    v.statusText.setText(
-      v.statuses
-        .map((s) => {
-          const icon = STATUS_ICON[s.status] ?? s.status;
-          if (s.status === 'negate') return `${icon}×${s.charges ?? 0}`;
-          return `${icon}${s.turns > 0 ? s.turns : ''}`;
-        })
-        .join(' '),
-    );
+    v.statusText.text = v.statuses
+      .map((s) => {
+        const icon = STATUS_ICON[s.status] ?? s.status;
+        if (s.status === 'negate') return `${icon}×${s.charges ?? 0}`;
+        return `${icon}${s.turns > 0 ? s.turns : ''}`;
+      })
+      .join(' ');
   }
 
   private floatText(view: SideView, text: string, color: number): void {
-    const t = this.add
-      .text(640 + (Math.random() * 120 - 60), view.barY + 8, text, {
-        fontSize: '20px',
-        color: `#${color.toString(16).padStart(6, '0')}`,
-        fontFamily: 'monospace',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
-      .setDepth(15);
-    this.tweens.add({ targets: t, y: view.barY - 34, alpha: 0, duration: 900, onComplete: () => t.destroy() });
+    const t = makeText(text, { size: 20, color: `#${color.toString(16).padStart(6, '0')}`, bold: true });
+    t.anchor.set(0.5);
+    t.position.set(640 + (Math.random() * 120 - 60), view.barY + 8);
+    t.zIndex = 15;
+    this.addChild(t);
+    this.tweens.add({ target: t, to: { y: view.barY - 34, alpha: 0 }, duration: 900, onComplete: () => t.destroy() });
   }
 
   private banner(text: string, color: string): void {
-    const b = this.add
-      .text(640, 372, text, { fontSize: '20px', color, fontFamily: 'monospace', fontStyle: 'bold', align: 'center' })
-      .setOrigin(0.5)
-      .setDepth(15);
-    if (!this.finished) this.tweens.add({ targets: b, alpha: 0, delay: 2200, duration: 600, onComplete: () => b.destroy() });
+    const b = makeText(text, { size: 20, color, bold: true, align: 'center' });
+    b.anchor.set(0.5);
+    b.position.set(640, 372);
+    b.zIndex = 15;
+    this.addChild(b);
+    if (!this.finished) this.tweens.add({ target: b, to: { alpha: 0 }, delay: 2200, duration: 600, onComplete: () => b.destroy() });
   }
 
   // ---------- controls ----------
@@ -383,31 +421,22 @@ export class BattleScene extends Phaser.Scene {
   private buildControls(): void {
     let x = 1060;
     for (const factor of [1, 2, 4]) {
-      const btn = this.add
-        .text(x, 688, `×${factor}`, {
-          fontSize: '14px',
-          color: this.speedFactor === factor ? '#ffd76a' : UI.textDim,
-          backgroundColor: '#24242e',
-          padding: { x: 8, y: 5 },
-          fontFamily: 'monospace',
-        })
-        .setInteractive({ useHandCursor: true });
+      const btn = new TextButton(`×${factor}`, {
+        size: 14,
+        color: this.speedFactor === factor ? '#ffd76a' : UI.textDim,
+        bg: 0x24242e,
+      });
+      btn.position.set(x, 688);
+      this.addChild(btn);
       btn.on('pointerdown', () => {
-        this.speedFactor = factor;
-        this.scene.restart();
-        this.skipping = false;
+        battleSpeed = factor;
+        this.mgr.restart();
       });
       x += 46;
     }
-    const skip = this.add
-      .text(x + 8, 688, '⏭ skip', {
-        fontSize: '14px',
-        color: UI.textDim,
-        backgroundColor: '#24242e',
-        padding: { x: 8, y: 5 },
-        fontFamily: 'monospace',
-      })
-      .setInteractive({ useHandCursor: true });
+    const skip = new TextButton('⏭ skip', { size: 14, color: UI.textDim, bg: 0x24242e });
+    skip.position.set(x + 8, 688);
+    this.addChild(skip);
     skip.on('pointerdown', () => {
       this.skipping = true;
       while (this.eventIdx < this.result.events.length) this.applyEvent(this.result.events[this.eventIdx++]!, true);
@@ -416,25 +445,18 @@ export class BattleScene extends Phaser.Scene {
 
   private showEndButtons(): void {
     const mk = (x: number, label: string, cb: () => void) => {
-      const btn = this.add
-        .text(x, 420, label, {
-          fontSize: '16px',
-          color: '#ffffff',
-          backgroundColor: '#2a4a6a',
-          padding: { x: 12, y: 8 },
-          fontFamily: 'monospace',
-        })
-        .setOrigin(0.5)
-        .setDepth(16)
-        .setInteractive({ useHandCursor: true });
+      const btn = new TextButton(label, { size: 16, color: '#ffffff', bg: 0x2a4a6a, padX: 12, padY: 8 }).center();
+      btn.position.set(x, 420);
+      btn.zIndex = 16;
+      this.addChild(btn);
       btn.on('pointerdown', cb);
       return btn;
     };
-    mk(500, '↩ back to prep', () => this.scene.start('Prep'));
-    mk(660, '↻ replay', () => this.scene.restart());
+    mk(500, '↩ back to prep', () => this.mgr.start('Prep'));
+    mk(660, '↻ replay', () => this.mgr.restart());
     mk(790, '🎲 new seed', () => {
       demoState.seed = Math.floor(Math.random() * 1_000_000);
-      this.scene.restart();
+      this.mgr.restart();
     });
   }
 }

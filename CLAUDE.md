@@ -7,12 +7,15 @@ summaries, and keeps every agent on the correct path.
 
 Adapted from the tier structure of
 [claude-code-game-studios](https://github.com/donchitos/claude-code-game-studios),
-right-sized for this project's TypeScript/Phaser stack.
+right-sized for this project's TypeScript/PixiJS stack.
 
 ## Technology Stack
 
 - **Language**: TypeScript (strict; `noUncheckedIndexedAccess`, `isolatedModules`)
-- **Engine**: Phaser 3 (rendering/scenes only)
+- **Renderer**: PixiJS 8 (rendering/scenes only). This branch replaced Phaser 3
+  with Pixi + a self-hosted web font (`@fontsource/jetbrains-mono`) so text is
+  rasterized at device resolution — crisp on small/high-DPI screens where the
+  Phaser `Scale.FIT` CSS-stretched canvas went blurry.
 - **Build**: Vite 7 · **Tests**: Vitest 3 · **Scripts**: tsx
 - **Version Control**: Git, feature branches, PRs
 
@@ -28,16 +31,16 @@ right-sized for this project's TypeScript/Phaser stack.
 
 ## Architecture — strict layer boundaries
 
-Only `src/game` may import Phaser. Enforced by `scripts/check-boundaries.mjs`
-(run inside `npm test`). Never violate this — it keeps the sim testable and
-deterministic.
+Only `src/game` may import pixi.js (previously Phaser). Enforced by
+`scripts/check-boundaries.mjs` (run inside `npm test`). Never violate this —
+it keeps the sim testable and deterministic.
 
 ```
 src/engine/   Pure deterministic combat sim. NO Phaser. Integer-only state.
 src/data/     Content: skills, enemies, heroes. No logic.
 src/run/      In-run state: loadout/board placement, mapgen, shop, leveling. Pure TS.
 src/meta/     Persistence, account progression. Pure TS. (not built yet)
-src/game/     Phaser scenes + playback rendering ONLY.
+src/game/     Pixi scenes + playback rendering ONLY.
 scripts/      fight.ts, balance.ts, check-boundaries.mjs
 tests/        vitest suites
 ```

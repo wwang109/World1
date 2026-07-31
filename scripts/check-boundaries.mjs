@@ -1,11 +1,19 @@
 // Layering rule: src/engine, src/data, src/run, src/meta must never import
-// Phaser or anything from src/game. This keeps the simulation headless and
-// deterministic (testable via vitest, runnable in the balance harness).
+// the renderer (pixi.js — or phaser, which this branch replaced) or anything
+// from src/game. This keeps the simulation headless and deterministic
+// (testable via vitest, runnable in the balance harness).
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const PURE_DIRS = ['src/engine', 'src/data', 'src/run', 'src/meta'];
-const FORBIDDEN = [/from\s+['"]phaser['"]/, /import\s+['"]phaser['"]/, /from\s+['"][^'"]*\/game\//, /from\s+['"][^'"]*src\/game/];
+const FORBIDDEN = [
+  /from\s+['"]phaser['"]/,
+  /import\s+['"]phaser['"]/,
+  /from\s+['"]pixi\.js['"]/,
+  /import\s+['"]pixi\.js['"]/,
+  /from\s+['"][^'"]*\/game\//,
+  /from\s+['"][^'"]*src\/game/,
+];
 
 function walk(dir, out = []) {
   let entries;
@@ -33,7 +41,7 @@ for (const dir of PURE_DIRS) {
 }
 
 if (violations.length > 0) {
-  console.error('Layer boundary violations (pure layers must not import phaser/src/game):');
+  console.error('Layer boundary violations (pure layers must not import pixi.js/phaser/src/game):');
   for (const v of violations) console.error('  ' + v);
   process.exit(1);
 }

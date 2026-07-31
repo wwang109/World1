@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { Container, Graphics, Text, type Container as PixiContainer, type FederatedPointerEvent } from 'pixi.js';
 import { powerLevel } from '../../engine/balance';
 import { ELEMENT_BEATS, WEAPON_BEATS } from '../../engine/elements';
 import { ELEMENT_ICON, WEAPON_ICON } from '../theme';
@@ -10,37 +10,38 @@ import type { BoardPiece } from '../../engine/types';
 import { demoState } from '../demoState';
 import { CardView, SLOT_W, CARD_H } from '../ui/CardView';
 import { UI } from '../theme';
+import { Scene } from '../pixi/Scene';
+import { makeText, TextButton } from '../pixi/ui';
 
 const BOARD_Y = 400;
 const BOARD_X = (1280 - HERO_BOARD_SLOTS * SLOT_W) / 2;
 const POOL_Y = 560;
 
-export class PrepScene extends Phaser.Scene {
-  private slotRects: Phaser.GameObjects.Rectangle[] = [];
+interface DragSource {
+  fromBoard: boolean;
+  piece?: BoardPiece;
+  skillId: string;
+}
+
+export class PrepScene extends Scene {
+  private slotRects: Graphics[] = [];
   private boardCards: CardView[] = [];
   private poolCards: CardView[] = [];
-  private enemyPreview: Phaser.GameObjects.GameObject[] = [];
-  private tooltip!: Phaser.GameObjects.Container;
-  private tooltipText!: Phaser.GameObjects.Text;
+  private enemyPreview: PixiContainer[] = [];
+  private tooltip!: Container;
+  private tooltipBg!: Graphics;
+  private tooltipText!: Text;
   private dragGhost: CardView | null = null;
-  private dragSource: { fromBoard: boolean; piece?: BoardPiece; skillId: string } | null = null;
-
-  constructor() {
-    super('Prep');
-  }
+  private dragSource: DragSource | null = null;
+  private dragOffset = { x: 0, y: 0 };
 
   create(): void {
-    this.add.text(24, 16, 'WORLD1 — combat demo', {
-      fontSize: '26px',
-      color: UI.text,
-      fontFamily: 'monospace',
-      fontStyle: 'bold',
-    });
-    this.add.text(24, 48, 'arrange your board · pick an enemy · fight', {
-      fontSize: '13px',
-      color: UI.textDim,
-      fontFamily: 'monospace',
-    });
+    const title = makeText('WORLD1 — combat demo', { size: 26, bold: true });
+    title.position.set(24, 16);
+    this.addChild(title);
+    const subtitle = makeText('arrange your board · pick an enemy · fight', { size: 13, color: UI.textDim });
+    subtitle.position.set(24, 48);
+    this.addChild(subtitle);
 
     this.buildEnemyPicker();
     this.buildBoardSlots();
@@ -50,29 +51,44 @@ export class PrepScene extends Phaser.Scene {
     this.renderEnemyPreview();
     this.buildButtons();
 
-    this.add
-      .text(BOARD_X, BOARD_Y - CARD_H / 2 - 22, 'YOUR BOARD — left to right = cast order · touching cards share auras', {
-        fontSize: '12px',
-        color: UI.textDim,
-        fontFamily: 'monospace',
-      });
+    const boardHint = makeText('YOUR BOARD — left to right = cast order · touching cards share auras', {
+      size: 12,
+      color: UI.textDim,
+    });
+    boardHint.position.set(BOARD_X, BOARD_Y - CARD_H / 2 - 22);
+    this.addChild(boardHint);
+
+    // Drag moves/releases are handled scene-wide so a fast pointer can't
+    // escape the card mid-drag.
+    this.on('pointermove', (e: FederatedPointerEvent) => {
+      if (!this.dragGhost) return;
+      const p = this.toLocal(e.global);
+      this.moveDrag(p.x + this.dragOffset.x, p.y + this.dragOffset.y);
+    });
+    this.on('pointerup', () => this.endDrag());
+    this.on('pointerupoutside', () => this.endDrag());
   }
 
   // ---------- board ----------
 
+  private paintSlot(g: Graphics, fill: number): void {
+    g.clear()
+      .rect(-(SLOT_W - 4) / 2, -(CARD_H + 8) / 2, SLOT_W - 4, CARD_H + 8)
+      .fill(fill)
+      .stroke({ width: 1, color: 0x44444f });
+  }
+
   private buildBoardSlots(): void {
     for (let s = 0; s < HERO_BOARD_SLOTS; s++) {
-      const rect = this.add
-        .rectangle(BOARD_X + s * SLOT_W + SLOT_W / 2, BOARD_Y, SLOT_W - 4, CARD_H + 8, UI.slot)
-        .setStrokeStyle(1, 0x44444f);
+      const rect = new Graphics();
+      this.paintSlot(rect, UI.slot);
+      rect.position.set(BOARD_X + s * SLOT_W + SLOT_W / 2, BOARD_Y);
+      this.addChild(rect);
       this.slotRects.push(rect);
-      this.add
-        .text(rect.x, BOARD_Y + CARD_H / 2 + 16, String(s + 1), {
-          fontSize: '10px',
-          color: UI.textDim,
-          fontFamily: 'monospace',
-        })
-        .setOrigin(0.5);
+      const num = makeText(String(s + 1), { size: 10, color: UI.textDim });
+      num.anchor.set(0.5);
+      num.position.set(rect.x, BOARD_Y + CARD_H / 2 + 16);
+      this.addChild(num);
     }
   }
 
@@ -83,12 +99,11 @@ export class PrepScene extends Phaser.Scene {
       const skill = skillBook[piece.skillId];
       if (!skill) continue;
       const x = BOARD_X + piece.slot * SLOT_W + (skill.size * SLOT_W) / 2;
-      const card = new CardView(this, x, BOARD_Y, skill);
-      card.setInteractive({ draggable: true, useHandCursor: true });
+      const card = new CardView(skill);
+      card.position.set(x, BOARD_Y);
+      this.addChild(card);
       this.bindCardHover(card);
-      card.on('dragstart', () => this.startDrag({ fromBoard: true, piece, skillId: piece.skillId }, card.x, card.y));
-      card.on('drag', (_p: unknown, dragX: number, dragY: number) => this.moveDrag(dragX, dragY));
-      card.on('dragend', () => this.endDrag());
+      this.bindCardDrag(card, () => ({ fromBoard: true, piece, skillId: piece.skillId }));
       this.boardCards.push(card);
     }
   }
@@ -98,13 +113,13 @@ export class PrepScene extends Phaser.Scene {
   private renderPool(): void {
     for (const c of this.poolCards) c.destroy();
     this.poolCards = [];
-    this.add
-      .text(24, POOL_Y - CARD_H / 2 - 4, 'CARD POOL — drag onto your board (drag off the board to remove)', {
-        fontSize: '12px',
-        color: UI.textDim,
-        fontFamily: 'monospace',
-      })
-      .setDepth(1);
+    const poolHint = makeText('CARD POOL — drag onto your board (drag off the board to remove)', {
+      size: 12,
+      color: UI.textDim,
+    });
+    poolHint.position.set(24, POOL_Y - CARD_H / 2 - 4);
+    poolHint.zIndex = 1;
+    this.addChild(poolHint);
 
     const ids = Object.keys(skillBook).sort();
     let x = 40;
@@ -116,13 +131,12 @@ export class PrepScene extends Phaser.Scene {
         x = 40;
         y += CARD_H * 0.72 + 14;
       }
-      const card = new CardView(this, x + w / 2, y, skill, { mini: true });
-      card.setScale(0.72);
-      card.setInteractive({ draggable: true, useHandCursor: true });
+      const card = new CardView(skill, { mini: true });
+      card.scale.set(0.72);
+      card.position.set(x + w / 2, y);
+      this.addChild(card);
       this.bindCardHover(card);
-      card.on('dragstart', () => this.startDrag({ fromBoard: false, skillId: id }, card.x, card.y));
-      card.on('drag', (_p: unknown, dragX: number, dragY: number) => this.moveDrag(dragX, dragY));
-      card.on('dragend', () => this.endDrag());
+      this.bindCardDrag(card, () => ({ fromBoard: false, skillId: id }));
       this.poolCards.push(card);
       x += w + 12;
     }
@@ -130,17 +144,32 @@ export class PrepScene extends Phaser.Scene {
 
   // ---------- drag & drop ----------
 
-  private startDrag(source: { fromBoard: boolean; piece?: BoardPiece; skillId: string }, x: number, y: number): void {
+  private bindCardDrag(card: CardView, source: () => DragSource): void {
+    card.eventMode = 'static';
+    card.cursor = 'pointer';
+    card.on('pointerdown', (e: FederatedPointerEvent) => {
+      const p = this.toLocal(e.global);
+      this.dragOffset = { x: card.x - p.x, y: card.y - p.y };
+      this.startDrag(source(), card.x, card.y);
+    });
+  }
+
+  private startDrag(source: DragSource, x: number, y: number): void {
     this.dragSource = source;
     const skill = skillBook[source.skillId]!;
-    this.dragGhost = new CardView(this, x, y, skill);
-    this.dragGhost.setAlpha(0.85).setDepth(10);
-    this.tooltip.setVisible(false);
+    this.dragGhost = new CardView(skill);
+    this.dragGhost.position.set(x, y);
+    this.dragGhost.alpha = 0.85;
+    this.dragGhost.zIndex = 10;
+    // The ghost must never swallow the pointer events driving it.
+    this.dragGhost.eventMode = 'none';
+    this.addChild(this.dragGhost);
+    this.tooltip.visible = false;
   }
 
   private moveDrag(x: number, y: number): void {
     if (!this.dragGhost || !this.dragSource) return;
-    this.dragGhost.setPosition(x, y);
+    this.dragGhost.position.set(x, y);
     this.paintSlots();
   }
 
@@ -154,13 +183,14 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private paintSlots(): void {
-    for (const rect of this.slotRects) rect.setFillStyle(UI.slot);
+    for (const rect of this.slotRects) this.paintSlot(rect, UI.slot);
     const slot = this.targetSlot();
     if (slot === null || !this.dragSource) return;
     const skill = skillBook[this.dragSource.skillId]!;
     const ok = canPlace(demoState.pieces, skillBook, this.dragSource.skillId, slot, HERO_BOARD_SLOTS, this.dragSource.piece);
     for (let s = slot; s < slot + skill.size; s++) {
-      this.slotRects[s]?.setFillStyle(ok ? 0x2e4433 : 0x4a2e2e);
+      const rect = this.slotRects[s];
+      if (rect) this.paintSlot(rect, ok ? 0x2e4433 : 0x4a2e2e);
     }
   }
 
@@ -170,7 +200,7 @@ export class PrepScene extends Phaser.Scene {
     this.dragGhost?.destroy();
     this.dragGhost = null;
     this.dragSource = null;
-    for (const rect of this.slotRects) rect.setFillStyle(UI.slot);
+    for (const rect of this.slotRects) this.paintSlot(rect, UI.slot);
     if (!source) return;
 
     if (slot !== null && canPlace(demoState.pieces, skillBook, source.skillId, slot, HERO_BOARD_SLOTS, source.piece)) {
@@ -194,20 +224,19 @@ export class PrepScene extends Phaser.Scene {
     for (const id of Object.keys(enemies)) {
       const def = enemies[id]!;
       const label = `${def.isBoss ? '👑 ' : def.isElite ? '★ ' : ''}${def.name}`;
-      const btn = this.add
-        .text(x, y, label, {
-          fontSize: '13px',
-          color: demoState.enemyId === id ? '#ffd76a' : UI.text,
-          backgroundColor: demoState.enemyId === id ? '#3a3a1a' : '#24242e',
-          padding: { x: 8, y: 5 },
-          fontFamily: 'monospace',
-        })
-        .setInteractive({ useHandCursor: true });
+      const selected = demoState.enemyId === id;
+      const btn = new TextButton(label, {
+        size: 13,
+        color: selected ? '#ffd76a' : UI.text,
+        bg: selected ? 0x3a3a1a : 0x24242e,
+      });
+      btn.position.set(x, y);
+      this.addChild(btn);
       btn.on('pointerdown', () => {
         demoState.enemyId = id;
-        this.scene.restart();
+        this.mgr.restart();
       });
-      x += btn.width + 10;
+      x += btn.bgWidth + 10;
     }
   }
 
@@ -216,12 +245,12 @@ export class PrepScene extends Phaser.Scene {
     this.enemyPreview = [];
     const def = enemies[demoState.enemyId]!;
     const s = def.stats;
-    const statText = this.add.text(
-      24,
-      132,
+    const statText = makeText(
       `${def.name} — HP ${s.maxHp} · ATK ${s.attack} · MPW ${s.magicPower} · ARM ${s.armor} · RES ${s.magicResist} · SPD ${s.speed} · CRIT ${s.critPct}%`,
-      { fontSize: '13px', color: UI.text, fontFamily: 'monospace' },
+      { size: 13 },
     );
+    statText.position.set(24, 132);
+    this.addChild(statText);
     this.enemyPreview.push(statText);
     const affinities: string[] = [];
     if (def.elementAffinity) {
@@ -233,11 +262,9 @@ export class PrepScene extends Phaser.Scene {
       affinities.push(`${WEAPON_ICON[def.weaponAffinity]} ${def.weaponAffinity} affinity${weakTo ? ` — weak to ${weakTo}` : ''}`);
     }
     if (affinities.length > 0) {
-      const affText = this.add.text(560, 158, affinities.join('   '), {
-        fontSize: '12px',
-        color: '#ffd76a',
-        fontFamily: 'monospace',
-      });
+      const affText = makeText(affinities.join('   '), { size: 12, color: '#ffd76a' });
+      affText.position.set(560, 158);
+      this.addChild(affText);
       this.enemyPreview.push(affText);
     }
     const previewY = 205;
@@ -245,32 +272,37 @@ export class PrepScene extends Phaser.Scene {
     for (const piece of def.pieces) {
       const skill = skillBook[piece.skillId];
       if (!skill) continue;
-      const card = new CardView(this, startX + piece.slot * SLOT_W * 0.6 + ((skill.size - 1) * SLOT_W * 0.6) / 2, previewY, skill, { mini: true });
-      card.setScale(0.6);
+      const card = new CardView(skill, { mini: true });
+      card.scale.set(0.6);
+      card.position.set(startX + piece.slot * SLOT_W * 0.6 + ((skill.size - 1) * SLOT_W * 0.6) / 2, previewY);
+      this.addChild(card);
       this.bindCardHover(card);
-      card.setInteractive();
       this.enemyPreview.push(card);
     }
-    const label = this.add.text(24, 158, "ENEMY'S BOARD:", { fontSize: '11px', color: UI.textDim, fontFamily: 'monospace' });
+    const label = makeText("ENEMY'S BOARD:", { size: 11, color: UI.textDim });
+    label.position.set(24, 158);
+    this.addChild(label);
     this.enemyPreview.push(label);
   }
 
   // ---------- tooltip ----------
 
   private buildTooltip(): void {
-    this.tooltipText = this.add.text(0, 0, '', {
-      fontSize: '12px',
-      color: UI.text,
-      fontFamily: 'monospace',
-      wordWrap: { width: 300 },
-      padding: { x: 10, y: 8 },
-      backgroundColor: '#101018',
-    });
-    this.tooltip = this.add.container(0, 0, [this.tooltipText]).setDepth(20).setVisible(false);
+    this.tooltipBg = new Graphics();
+    this.tooltipText = makeText('', { size: 12, wrapWidth: 300 });
+    this.tooltipText.position.set(10, 8);
+    this.tooltip = new Container();
+    this.tooltip.addChild(this.tooltipBg, this.tooltipText);
+    this.tooltip.zIndex = 20;
+    this.tooltip.visible = false;
+    this.tooltip.eventMode = 'none';
+    this.addChild(this.tooltip);
   }
 
   private bindCardHover(card: CardView): void {
+    card.eventMode = 'static';
     card.on('pointerover', () => {
+      if (this.dragGhost) return;
       const sk = card.skill;
       const kind = sk.element ? ` · ${sk.element}` : sk.weapon ? ` · ${sk.weapon}` : '';
       const lines = [
@@ -280,71 +312,63 @@ export class PrepScene extends Phaser.Scene {
         '',
         sk.text,
       ];
-      this.tooltipText.setText(lines.join('\n'));
+      this.tooltipText.text = lines.join('\n');
+      this.tooltipBg
+        .clear()
+        .rect(0, 0, this.tooltipText.width + 20, this.tooltipText.height + 16)
+        .fill(0x101018);
       const tx = Math.min(card.x + 20, 1280 - 330);
       const ty = Math.max(20, card.y - CARD_H - 40);
-      this.tooltip.setPosition(tx, ty).setVisible(true);
+      this.tooltip.position.set(tx, ty);
+      this.tooltip.visible = true;
     });
-    card.on('pointerout', () => this.tooltip.setVisible(false));
+    card.on('pointerout', () => {
+      this.tooltip.visible = false;
+    });
   }
 
   // ---------- buttons ----------
 
   private buildButtons(): void {
-    const fight = this.add
-      .text(1130, 640, '⚔ FIGHT', {
-        fontSize: '26px',
-        color: '#ffffff',
-        backgroundColor: '#7a2222',
-        padding: { x: 18, y: 12 },
-        fontFamily: 'monospace',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-    fight.on('pointerover', () => fight.setBackgroundColor('#a03030'));
-    fight.on('pointerout', () => fight.setBackgroundColor('#7a2222'));
+    const fight = new TextButton('⚔ FIGHT', {
+      size: 26,
+      color: '#ffffff',
+      bg: 0x7a2222,
+      padX: 18,
+      padY: 12,
+      bold: true,
+    }).center();
+    fight.position.set(1130, 640);
+    this.addChild(fight);
+    fight.on('pointerover', () => fight.setBg(0xa03030));
+    fight.on('pointerout', () => fight.setBg(0x7a2222));
     fight.on('pointerdown', () => {
       if (demoState.pieces.length === 0) return;
-      this.scene.start('Battle');
+      this.mgr.start('Battle');
     });
 
-    const clear = this.add
-      .text(1130, 585, 'clear board', {
-        fontSize: '13px',
-        color: UI.textDim,
-        backgroundColor: '#24242e',
-        padding: { x: 8, y: 5 },
-        fontFamily: 'monospace',
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
+    const clear = new TextButton('clear board', { size: 13, color: UI.textDim, bg: 0x24242e }).center();
+    clear.position.set(1130, 585);
+    this.addChild(clear);
     clear.on('pointerdown', () => {
       demoState.pieces = [];
       this.renderBoard();
     });
 
-    const seedBtn = this.add
-      .text(1130, 550, `seed ${demoState.seed} ↻`, {
-        fontSize: '13px',
-        color: UI.textDim,
-        backgroundColor: '#24242e',
-        padding: { x: 8, y: 5 },
-        fontFamily: 'monospace',
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
+    const seedBtn = new TextButton(`seed ${demoState.seed} ↻`, { size: 13, color: UI.textDim, bg: 0x24242e }).center();
+    seedBtn.position.set(1130, 550);
+    this.addChild(seedBtn);
     seedBtn.on('pointerdown', () => {
       demoState.seed = Math.floor(Math.random() * 1_000_000);
-      seedBtn.setText(`seed ${demoState.seed} ↻`);
+      seedBtn.setLabel(`seed ${demoState.seed} ↻`);
     });
 
     const heroStats = BASE_HERO_STATS;
-    this.add.text(
-      24,
-      688,
+    const heroText = makeText(
       `HERO — HP ${heroStats.maxHp} · ATK ${heroStats.attack} · MPW ${heroStats.magicPower} · ARM ${heroStats.armor} · RES ${heroStats.magicResist} · SPD ${heroStats.speed} · CRIT ${heroStats.critPct}%`,
-      { fontSize: '12px', color: UI.textDim, fontFamily: 'monospace' },
+      { size: 12, color: UI.textDim },
     );
+    heroText.position.set(24, 688);
+    this.addChild(heroText);
   }
 }
