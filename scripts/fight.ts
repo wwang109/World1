@@ -156,6 +156,9 @@ for (const e of events) {
     case 'suddenDeathStart':
       console.log(`${t} ⚡ SUDDEN DEATH — damage ramps each turn (+10% you, +30% foe)`);
       break;
+    case 'attritionStart':
+      console.log(`${t} ⚡ ATTRITION — every combatant now takes ${e.amount} true damage per turn (growing)`);
+      break;
     case 'fatigueStart':
       console.log(`${t} ⚡ FATIGUE backstop sets in`);
       break;

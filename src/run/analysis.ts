@@ -77,6 +77,7 @@ export function damagePerTurn(setup: CombatantSetup, skillBook: SkillBook, opts:
         // Endgame off so the number is steady-state, not ramp-inflated.
         suddenDeathRound: 1_000_000,
         fatigueTurn: 1_000_000,
+        attritionTurn: 1_000_000,
         maxTurns: turns,
         cooldownsEnabled: true,
       },

@@ -21,6 +21,26 @@ const SD_PLAYER_AMP = 10;
 const SD_ENEMY_AMP = 30;
 const FATIGUE_BASE = 5;
 
+/**
+ * ATTRITION — the global stalemate breaker (user-locked 2026-07-30).
+ *
+ * First global turn on which attrition fires. Turns 1..ATTRITION_START_TURN−1
+ * are completely unaffected, so any fight that ends before it is byte-identical
+ * to the pre-attrition engine.
+ */
+export const ATTRITION_START_TURN = 15;
+/** Per-turn growth: turn 15 → 5, turn 16 → 10, turn 20 → 30. */
+export const ATTRITION_STEP = 5;
+
+/**
+ * Attrition damage on `turn` (0 before the threshold).
+ * `(turn − startTurn + 1) × ATTRITION_STEP` — integer-only, no RNG.
+ */
+export function attritionDamage(turn: number, startTurn: number = ATTRITION_START_TURN): number {
+  if (turn < startTurn) return 0;
+  return (turn - startTurn + 1) * ATTRITION_STEP;
+}
+
 /** null while combat continues. A side is dead when every unit is not alive. The player wins simultaneous deaths. */
 function checkEnd(state: CombatState): CombatOutcome | null {
   if (state.enemyTeam.every((u) => !u.alive)) return 'win';
@@ -185,9 +205,11 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
   const suddenDeathRound = cfg.suddenDeathRound ?? DEFAULT_SUDDEN_DEATH_ROUND;
   const fatigueTurn = cfg.fatigueTurn ?? DEFAULT_FATIGUE_TURN;
   const maxTurns = cfg.maxTurns ?? DEFAULT_MAX_TURNS;
+  const attritionTurn = cfg.attritionTurn ?? ATTRITION_START_TURN;
   const cooldownsEnabled = cfg.cooldownsEnabled ?? true;
   let sdAnnounced = false;
   let fatigueAnnounced = false;
+  let attritionAnnounced = false;
 
   const finish = (result: CombatOutcome): CombatResult => {
     events.push({ turn: state.turn, kind: 'combatEnd', result, turns: state.turn });
@@ -406,6 +428,36 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     for (const c of units) tickTurnDot(ctx, c, 'poison');
     outcome = checkEnd(state);
     if (outcome !== null) return finish(outcome);
+
+    // ATTRITION — global stalemate breaker, one clearly-bounded turn step (the
+    // only place in the loop that knows about it). From `attritionTurn` on,
+    // EVERY living combatant takes escalating TRUE damage in canonical pool
+    // order (player side first, then by unit index).
+    //
+    // Deliberate properties:
+    // - `bypassShields: true`. Attrition must GUARANTEE termination, and typed
+    //   shield pools stack, carry over and refresh; a big enough shield engine
+    //   would otherwise soak the ramp forever and the stalemate would persist.
+    //   True damage already ignores Armor/Magic Resist; here it also ignores
+    //   shields, exactly like poison/bleed and the fatigue backstop.
+    // - No card owns it: `ctx.source` is untouched (no `sourceCard`), and
+    //   because it runs OUTSIDE `applyCast` there is no CastCtx, so it can never
+    //   feed lifesteal, comboBonus or any other rider. `source !== 'skill'` also
+    //   keeps negate charges and expose out of it.
+    // - Symmetric across both sides => PL-neutral, priced nowhere.
+    // - Consumes ZERO random numbers: the Rng call order is unchanged.
+    // Deaths flow through `dealDamage` -> `died` -> the shared `checkEnd`, so
+    // win/loss (player wins simultaneous deaths, as everywhere else) is coherent.
+    if (state.turn >= attritionTurn) {
+      const amount = attritionDamage(state.turn, attritionTurn);
+      if (!attritionAnnounced) {
+        attritionAnnounced = true;
+        events.push({ turn: state.turn, kind: 'attritionStart', amount });
+      }
+      for (const c of units) dealDamage(ctx, c, amount, 'true', { bypassShields: true, source: 'attrition' });
+      outcome = checkEnd(state);
+      if (outcome !== null) return finish(outcome);
+    }
 
     // Fatigue backstop (whole pool, canonical order — ties go to the player).
     if (state.turn >= fatigueTurn) {

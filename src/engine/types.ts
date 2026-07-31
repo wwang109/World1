@@ -382,6 +382,14 @@ export interface CombatConfig {
   suddenDeathRound?: number;
   /** Global turn after which the flat fatigue backstop starts. Default 40. */
   fatigueTurn?: number;
+  /**
+   * First global turn on which the ATTRITION stalemate breaker fires: from this
+   * turn on, every living combatant takes escalating unblockable true damage
+   * (`(turn − attritionTurn + 1) × ATTRITION_STEP`). Global and symmetric, so
+   * PL-neutral — it is priced nowhere. Default `ATTRITION_START_TURN` (15).
+   * Set to a huge number to disable (tests isolating a single mechanic).
+   */
+  attritionTurn?: number;
   /** Hard global-turn guard; sudden death ends fights long before this. */
   maxTurns?: number;
   /**

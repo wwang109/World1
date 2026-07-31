@@ -63,6 +63,7 @@ export function cfg(
     suddenDeathRound: extra.suddenDeathRound ?? 5,
     fatigueTurn: extra.fatigueTurn ?? 40,
     maxTurns: extra.maxTurns ?? 200,
+    attritionTurn: extra.attritionTurn ?? 15,
     // Cooldowns default ON in real play; the TEST path defaults them OFF so the
     // existing mechanic tests stay byte-identical to the pre-cooldown engine. A
     // cooldown test opts in explicitly with `{ cooldownsEnabled: true }`.
@@ -71,7 +72,7 @@ export function cfg(
 }
 
 /** Endgame disabled — for tests isolating a single mechanic. */
-export const NO_ENDGAME = { suddenDeathRound: 999, fatigueTurn: 9999, maxTurns: 60 } as const;
+export const NO_ENDGAME = { suddenDeathRound: 999, fatigueTurn: 9999, maxTurns: 60, attritionTurn: 9999 } as const;
 
 // A minimal book of neutral cards for precise scheduling tests.
 //

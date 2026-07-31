@@ -235,10 +235,15 @@ export type CombatEvent =
       /** Extra damage added by an `expose` debuff (present only when it fired). */
       exposed?: number;
       hpAfter: number;
-      source: 'skill' | 'poison' | 'burn' | 'bleed' | 'fatigue';
+      /**
+       * `attrition` is the global stalemate breaker (see `ATTRITION_START_TURN`):
+       * unblockable true damage on EVERY living combatant, owned by no card, so
+       * it never carries `sourceCard` and never feeds riders/lifesteal/combo.
+       */
+      source: 'skill' | 'poison' | 'burn' | 'bleed' | 'fatigue' | 'attrition';
       /** The board card that produced this hit (cast card, or the card that applied the DoT). */
       sourceCard?: EffectSourceRef;
-      /** Present for direct skill hits; DoT/fatigue damage has no cast formula. */
+      /** Present for direct skill hits; DoT/fatigue/attrition damage has no cast formula. */
       calculation?: DamageCalculation;
     }
   | { turn: number; kind: 'heal'; side: Side; unit: number; amount: number; overheal: number; flat: boolean; hpAfter: number; sourceCard?: EffectSourceRef }
@@ -264,5 +269,12 @@ export type CombatEvent =
   | { turn: number; kind: 'negated'; side: Side; unit: number; property: Property }
   | { turn: number; kind: 'suddenDeathStart' }
   | { turn: number; kind: 'fatigueStart' }
+  /**
+   * One-shot banner: the attrition stalemate breaker just engaged on this turn.
+   * `amount` is the damage each living combatant takes on THIS turn (it grows by
+   * `ATTRITION_STEP` every following turn); the per-victim numbers arrive as
+   * ordinary `damage` events with `source: 'attrition'`.
+   */
+  | { turn: number; kind: 'attritionStart'; amount: number }
   | { turn: number; kind: 'died'; side: Side; unit: number }
   | { turn: number; kind: 'combatEnd'; result: CombatOutcome; turns: number };

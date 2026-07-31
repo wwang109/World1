@@ -87,7 +87,7 @@ whose card is executing.
 | `expose` | The mirror of `guard`: the enemy takes **+`pct`% damage from all direct hits** for `turns` global turns (floored; DoT ticks unaffected). Applied on the enemy. Clamped to ≤50% at apply time. |
 | `cleanse` | Removes up to `charges` ailment STACKS from the caster, **expiring-soonest first, ties by application order**. Each charge strips one stack from a poison/burn/bleed pile (removing that instance at 0 stacks) or removes a stun/stat debuff/expose whole. Buffs/guards/negate are never removed. |
 | `guard` | Reduces incoming damage of the matching `property` by `pct`% (multiplicative, floored, min 1) for `turns` global turns. Applied on the caster (self). Clamped to ≤60% at apply time. |
-| `negate` | Grants `charges` counter-charges on the caster (self) that fully cancel the next direct hits of the matching `property`. DoT ticks and fatigue never spend a charge. Total charges of a property clamped to ≤3 at apply time. |
+| `negate` | Grants `charges` counter-charges on the caster (self) that fully cancel the next direct hits of the matching `property`. DoT ticks, fatigue and attrition never spend a charge. Total charges of a property clamped to ≤3 at apply time. |
 
 `BuffableStat` display names (always capitalize, always the full name — never
 abbreviate): `attack` → **Attack**, `magicPower` → **Magic Power**,

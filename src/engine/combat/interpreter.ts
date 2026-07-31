@@ -298,7 +298,7 @@ export function dealDamage(
   opts: {
     bypassShields?: boolean;
     matchup?: Matchup;
-    source?: 'skill' | 'poison' | 'burn' | 'bleed' | 'fatigue';
+    source?: 'skill' | 'poison' | 'burn' | 'bleed' | 'fatigue' | 'attrition';
     calculation?: Omit<DamageCalculation, 'guardReduction' | 'exposeBonus' | 'shieldBlocked' | 'hpDamage'>;
   } = {},
 ): void {

@@ -63,7 +63,7 @@ its next card, a rival's readiness passes it, or it plays a size>1 card (which
 makes it busy). A slow build is tapped out after one play or none.
 
 ### Phase 3 — End checks
-Deaths, sudden death, fatigue, win/lose. No winner → next turn → Phase 1.
+Deaths, sudden death, attrition (turn 15+), fatigue, win/lose. No winner → next turn → Phase 1.
 
 ---
 
@@ -175,7 +175,7 @@ the exact integer stages used by the engine: scaling stat name, base/effective
 stat, `power` (the flat base — field renamed from `powerPct`), base damage
 (`power + baseStat`), stat-buff damage, other bonus damage/pct, defense,
 minimum-damage clamp, crit, matchup, sudden-death ramp, guard, shield, and final
-HP damage. DoT and fatigue damage omit it because they do not use a card formula.
+HP damage. DoT, attrition and fatigue damage omit it because they do not use a card formula.
 `statusApplied` includes `stat` plus `pct` or flat `amount` for stat effects.
 
 **Click → highlight:** a clicked row reads `side + unit + slot + skillId` and
