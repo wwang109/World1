@@ -234,7 +234,16 @@ describe('no fight ever reaches the turn cap, and decisive fights are unchanged'
     expect(result === 'win' || result === 'loss').toBe(true);
   });
 
-  it('fights that end BEFORE the attrition threshold are BYTE-IDENTICAL to the pre-change engine (proves nothing about turn-15+ fights, whose tick ORDER intentionally changed)', () => {
+  // GUARDS THE ATTRITION THRESHOLD BOUNDARY — nothing else. The fixture is a
+  // captured regression lock (see tests/engine/fixtures/captureOutcomeBaseline.ts),
+  // NOT a spec for any individual mechanic: it says "attrition work must not reach
+  // fights decided before ATTRITION_START_TURN". A deliberate, reviewed rule change
+  // elsewhere in the engine legitimately moves these logs and the fixture is then
+  // regenerated (last regeneration: the 2026-07-31 "bleed ticks at most once per
+  // global turn" fix, which changed 8/200 sweep logs — every one of them a fight
+  // where a bleeding unit multi-cast in a turn — plus 15 whose logs are identical
+  // and only carry the new `lastBleedTurn` stamp in finalState).
+  it('fights that end BEFORE the attrition threshold are BYTE-IDENTICAL to the captured baseline (attrition-boundary guard; proves nothing about turn-15+ fights, whose tick ORDER intentionally changed)', () => {
     const cases = sweepCases(0xba5e11, 200, { maxTurns: 200 });
     let checked = 0;
     cases.forEach(({ config, seed }, i) => {

@@ -96,6 +96,14 @@ export interface CombatantState {
   /** Threat level; the default `aggro` policy targets the highest-aggro foe. */
   aggro: number;
   statuses: StatusInstance[];
+  /**
+   * Global turn on which this unit last took a BLEED tick (undefined = never).
+   * Bleed is capped at ONE tick per global turn (user-locked 2026-07-31): the
+   * turn loop can resolve several casts for the same unit, and only the FIRST
+   * resolved cast of a turn draws blood. Integer, mirroring `PieceState.lastCastTurn`,
+   * so persisted state stays float-free and deterministic.
+   */
+  lastBleedTurn?: number;
   alive: boolean;
 }
 

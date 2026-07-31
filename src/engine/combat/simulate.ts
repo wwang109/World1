@@ -220,19 +220,31 @@ function tickTurnDot(ctx: Ctx, c: CombatantState, kind: 'poison' | 'burn'): void
  * Bleed ticks when its victim PERFORMS a cast — acting costs blood. Called
  * right after a cast's effects resolve (see the perform loop), NOT at the start
  * of a global turn like poison/burn, and NOT on a stun-skipped performance
- * (there is no `play`). DECAYING model: each performance takes the current
- * stack count in damage, then one stack falls off. Bypasses shields once
- * running (internal bleeding) — but application is blocked by active shields
- * (see applyDot's caller). A `fresh` bleed applied this same turn is skipped
- * until end-of-turn clears its freshness, matching DoT semantics.
+ * (there is no `play`). DECAYING model: each tick takes the current stack count
+ * in damage, then one stack falls off. Bypasses shields once running (internal
+ * bleeding) — but application is blocked by active shields (see applyDot's
+ * caller). A `fresh` bleed applied this same turn is skipped until end-of-turn
+ * clears its freshness, matching DoT semantics.
+ *
+ * AT MOST ONCE PER GLOBAL TURN (user-locked 2026-07-31). The resolve loop can
+ * give one unit SEVERAL casts inside a single global turn; bleed draws blood only
+ * on the FIRST resolved cast of a turn, guarded by `lastBleedTurn` (the same
+ * integer-stamp idiom as `PieceState.lastCastTurn`). This makes bleed strictly
+ * WEAKER than poison, which ticks every turn unconditionally: a waiting, stunned
+ * or mid-span unit still takes no bleed at all, and a fast multi-caster no longer
+ * takes one tick per cast. No RNG is consumed, so the Rng call order is unchanged.
+ * The stamp is only written when a pile actually ticks, so a unit that never
+ * bleeds keeps a byte-identical (stamp-free) final state.
  */
 function tickBleed(ctx: Ctx, c: CombatantState): void {
+  if (c.lastBleedTurn === ctx.state.turn) return; // already bled this global turn
   const remaining: typeof c.statuses = [];
   for (const status of c.statuses) {
     if (status.kind !== 'bleed' || status.fresh) {
       remaining.push(status);
       continue;
     }
+    c.lastBleedTurn = ctx.state.turn;
     if (c.alive) {
       ctx.source = status.source;
       dealDamage(ctx, c, status.stacks ?? 0, status.property ?? 'true', { bypassShields: true, source: 'bleed' });
@@ -490,7 +502,9 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
           playEvent.hpAfter = firstHit.hpAfter;
         }
         // Bleed: performing (a resolved cast) costs the performer blood. Ticks
-        // here, right after this cast's own effects, before the cost event.
+        // here, right after this cast's own effects, before the cost event — and
+        // AT MOST ONCE PER GLOBAL TURN, so a unit that resolves two casts in one
+        // turn bleeds only on the first (see tickBleed).
         tickBleed(ctx, c);
         events.push({
           turn: state.turn,
