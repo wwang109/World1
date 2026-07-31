@@ -18,10 +18,11 @@ this plan may regress it.
 | Decision | Choice |
 |---|---|
 | UI split | **Separate run scenes** (new `*RunMapScene`, `*RunPrepScene` per platform) reusing shared components (CardToken, BoardColumn, battleTimeline) — not mode-flags inside sandbox scenes. |
-| Run shape v1 *(rev. 2026-07-29)* | **Wave rhythm**: a run is **5 waves**; each wave = 2–3 **stop** columns (pick 1 of 2–3 event/shop choices per stop) followed by a **mandatory fight**. Fights 1–2 normal, 3–4 elite, 5 = boss. No fog-of-war map yet. |
-| Leveling *(rev. 2026-07-29)* | **Lockstep**: the hero gains +1 level after EVERY fight (win or lose); enemy level = fight number (1..5). Losses sting through gold only. |
-| Loss rule | **Bazaar-style**: losing a normal fight pays nothing (no gold, no reward) but the run continues — the punishment is starving while enemies keep scaling. |
-| Run end | Beat the **boss** (fight 5) → run won. Lose to the boss → run over. (A "3 losses ends the run" hardening dial may come later.) |
+| Run shape *(rev. 2026-07-30 — ENDLESS)* | **Endless wave ladder**: a wave = 2–3 **stop** columns (pick 1 of 2–3 event/shop choices) then a **fight column**. Waves keep coming — the map generates lazily, wave N deterministic from the run seed alone. Non-boss fight columns offer **two foes** (standard / hard). |
+| Run end *(rev. 2026-07-30)* | **3 lives + retire.** EVERY fight loss costs a life, including a boss loss; at 0 lives the run ends (`defeat`). **RETIRE** any time to stop voluntarily (`retired`). `bossesCleared` is the run's score. There is no "victory" state — the engine keeps the legacy `'victory'` status member unset so `src/game` still compiles. |
+| Bosses *(rev. 2026-07-30)* | A **milestone boss every 5th fight** (5, 10, 15…), each harder. Titles repeat per 5-fight block: normal, normal, elite, elite, boss. |
+| Scaling *(rev. 2026-07-30)* | Enemy level tracks the fight number, **capped at 30**; the hero likewise caps at 30 (still +1 per fight, win or lose). Past the cap difficulty keeps growing through **rank (tier-steps) and modifier affixes**, never plateauing. |
+| Loss rule | Losing costs a **life** and the fight's gold, but the day's +1 income still lands (see Gold below). Supersedes the earlier "a loss pays nothing".|
 | Events | Built with this revision — see [`run-events-design.md`](run-events-design.md) for the outcome vocabulary and v1 catalog; events are the main stop-node content. |
 | Both platforms | Every run screen ships desktop (1440×900) AND mobile (412×892) — the both-platforms rule applies with full force. |
 

@@ -11,10 +11,18 @@ import { enemies } from '../data/enemies';
 import { skillBook } from '../data/skills';
 import { HERO_BOARD_SLOTS } from '../data/heroes';
 import { DRAFT_SET_KEYS, type DraftSetKey } from './draft';
-import { buildEnemyEncounter, type EncounterUnit, type EnemyTitle } from './encounter';
+import { buildEnemyEncounter, ENEMY_MODIFIER_IDS, TITLE_PRESETS, type EncounterUnit, type EnemyTitle } from './encounter';
 import { canAfford, spentPL, type Allocation, type LevelStat } from './leveling';
 import type { EventTheme } from '../data/events';
-import { generateRunMap, WAVE_COUNT, type RunMap, type RunNode, type RunNodeKind } from './runMap';
+import {
+  BOSS_EVERY,
+  ensureDepthThrough,
+  generateRunMap,
+  WAVE_COUNT,
+  type RunMap,
+  type RunNode,
+  type RunNodeKind,
+} from './runMap';
 import { Rng } from '../engine/rng';
 import { rollShopStock, type CardOffer, type GemOffer } from './shop';
 
@@ -42,7 +50,14 @@ export interface RunShopShelf {
   rerollCount: number;
 }
 
-export type RunStatus = 'drafting' | 'active' | 'victory' | 'defeat';
+/**
+ * `'victory'` is a LEGACY member — USER-LOCKED (2026-07-30): the run is
+ * endless now, so nothing ever sets `'victory'` any more (a run only ends via
+ * `'defeat'` at 0 lives, or `'retired'` when the player voluntarily stops).
+ * Kept in the union purely so `src/game`'s existing `status === 'victory'`
+ * branches keep compiling; do not remove it, and do not make anything set it.
+ */
+export type RunStatus = 'drafting' | 'active' | 'victory' | 'defeat' | 'retired';
 
 export interface RunState {
   seed: number;
@@ -50,6 +65,15 @@ export interface RunState {
   status: RunStatus;
   /** Deepest depth the player has fully resolved into (0 = pre-draft, at the map root). */
   depth: number;
+  /** Lives remaining — USER-LOCKED (2026-07-30): the run never ends at a
+   * boss; it's endless, ending only at 0 lives (`'defeat'`) or a voluntary
+   * `retireRun` (`'retired'`). EVERY fight loss (including a boss loss) costs
+   * exactly one life; wins never cost a life. Starts at `LIVES_PER_RUN`. */
+  lives: number;
+  /** How many milestone boss fights (every `BOSS_EVERY`th fight) this run has
+   * WON — the run's score/bragging number ("I beat 3 bosses"). Never
+   * decreases; increments only on a boss win (see `recordBattleResult`). */
+  bossesCleared: number;
   /** The node the player is currently resolving (fight/elite/boss in progress), or null when idle between choices. */
   currentNodeId: string | null;
   pieces: RunBoardPiece[];
@@ -125,39 +149,91 @@ const BOSS_POOL: readonly string[] = Object.values(enemies)
   .map((e) => e.id);
 
 /**
- * fightNumber (1..WAVE_COUNT) -> {level, title} for `rollEncounter` — the
- * hero-parity level BEFORE the node's title delta (see `TITLE_PRESETS` in
- * encounter.ts) is added on top. Exported so balance-designer can retune the
- * ladder without touching the resolver machinery. Index 0 is fightNumber 1.
- * Default ladder (locked design, 2026-07-29): fights 1-2 normal, 3-4 elite,
- * 5 boss — `level` intentionally matches `fightNumber` 1:1 so the hero (who
- * gains +1 level after EVERY fight, win or lose — see `recordBattleResult`)
- * is always exactly LV n entering fight n: perfect lockstep with the enemy.
+ * HERO level cap — USER-LOCKED (2026-07-30): "Uncap the ENEMY level; keep the
+ * HERO capped at 30." `MAX_LEVEL` now governs ONLY the hero (`recordBattleResult`'s
+ * +1-per-fight level-up, and the `grantLevel` event outcome) — the hero's RPG
+ * level ceiling the user asked for. The enemy's level (`FightSpec.level`,
+ * below) is NOT clamped to this any more: it tracks the fight number 1:1,
+ * forever, so the hero-vs-enemy gap widens by design past fight `MAX_LEVEL`
+ * — `bossesCleared` becomes the run's real high-score axis. Exported so
+ * balance-designer can retune it.
  */
-export interface FightTableEntry {
+export const MAX_LEVEL = 30;
+
+/**
+ * fightNumber -> {level, title, modifiers} for `rollEncounter` — the run's
+ * ENDLESS fight-spec resolver (USER-LOCKED 2026-07-30, replaces the old fixed
+ * 5-entry `FIGHT_TABLE`). Every dial is a PURE function of the 1-indexed
+ * fight number, no RNG:
+ *   - `title` repeats the original 5-fight cadence forever: within each block
+ *     of `BOSS_EVERY` (5) fights, positions 1-2 are `'normal'`, 3-4 `'elite'`,
+ *     5 `'boss'` (so fights 6,7 normal · 8,9 elite · 10 boss, etc.).
+ *   - `level` matches `fightNumber` 1:1 with NO upper bound — this is the
+ *     "uncap the enemy" fix (2026-07-30): the OLD resolver capped `level` at
+ *     `MAX_LEVEL` and tried to keep difficulty growing via a `rankBonus` ramp
+ *     stacked on top of the title's own `TITLE_PRESETS` rank, but a `diamond`
+ *     modifier (see below) FORCES every card's tier (and therefore the
+ *     resolved rank) to the deck's ceiling regardless of `rankBonus`
+ *     (`buildEnemyEncounter`'s `forceTier` branch), so the rank axis went
+ *     dead the moment `diamond` first appeared (~fight 35) — everything past
+ *     that point silently plateaued except duplicate `swift` stacking. There
+ *     is no rank dial here any more: the title alone supplies rank
+ *     (`TITLE_PRESETS[title].rank`), and `level` — now genuinely unbounded —
+ *     does all the escalation work via the existing priced stat economy
+ *     (`scaleMonsterToLevel`/`allocateMonsterPL`).
+ *   - `modifiers`: a deep-run flavour axis layered on top of level/title,
+ *     each DISTINCT `MODIFIER_PRESETS` id applied AT MOST ONCE per encounter
+ *     (no more duplicate entries — `battleGoldReward` counts
+ *     `modifiers.length`, so a repeat used to silently inflate the difficulty
+ *     score/gold for free). One additional distinct modifier id unlocks every
+ *     `MODIFIER_PER_OVERFLOW_FIGHTS` fights past `MAX_LEVEL`, capped at
+ *     `ENEMY_MODIFIER_IDS.length` (once every preset is active, this axis
+ *     plateaus by design — `level` keeps climbing forever regardless).
+ */
+export interface FightSpec {
   level: number;
   title: EnemyTitle;
+  /** Distinct modifier ids layered on top of the encounter (never repeats — see above). */
+  modifiers: string[];
 }
 
-export const FIGHT_TABLE: readonly FightTableEntry[] = [
-  { level: 1, title: 'normal' },
-  { level: 2, title: 'normal' },
-  { level: 3, title: 'elite' },
-  { level: 4, title: 'elite' },
-  { level: 5, title: 'boss' },
-];
+/** Legacy alias — some call sites/tests still spell this `FightTableEntry`;
+ * it is exactly `FightSpec` (the type was renamed when the fixed 5-entry
+ * table became an endless resolver, but the shape/fields are unchanged for
+ * `level`/`title` callers). */
+export type FightTableEntry = FightSpec;
 
-/** `FIGHT_TABLE` entry for a 1-indexed fight number (1..WAVE_COUNT). */
-export function fightTableEntry(fightNumber: number): FightTableEntry {
-  const idx = Math.max(1, Math.min(WAVE_COUNT, Math.floor(fightNumber))) - 1;
-  return FIGHT_TABLE[idx]!;
+/** How many extra fights past `MAX_LEVEL` it takes to unlock one more DISTINCT
+ * modifier (see `FightSpec.modifiers`); capped at `ENEMY_MODIFIER_IDS.length`
+ * so this axis never repeats an id. */
+const MODIFIER_PER_OVERFLOW_FIGHTS = 5;
+
+/** The full fight-spec for a 1-indexed fight number (>= 1; endless — no upper bound). */
+export function fightSpecFor(fightNumber: number): FightSpec {
+  const n = Math.max(1, Math.floor(fightNumber));
+  const pos = ((n - 1) % BOSS_EVERY) + 1; // 1..BOSS_EVERY position within the repeating cadence block
+  const title: EnemyTitle = pos <= 2 ? 'normal' : pos <= 4 ? 'elite' : 'boss';
+  const level = n; // uncapped — the fix: enemy level tracks the fight number forever.
+  const overflow = Math.max(0, n - MAX_LEVEL);
+  const modifierCount = Math.min(ENEMY_MODIFIER_IDS.length, Math.floor(overflow / MODIFIER_PER_OVERFLOW_FIGHTS));
+  const modifiers: string[] = ENEMY_MODIFIER_IDS.slice(0, modifierCount);
+  return { level, title, modifiers };
+}
+
+/** `fightSpecFor` for a 1-indexed fight number — kept as a same-named alias of
+ * `fightSpecFor` (thin `FIGHT_TABLE`-shaped call site) so existing callers
+ * reading "the table entry for fight n" don't need to rename. */
+export function fightTableEntry(fightNumber: number): FightSpec {
+  return fightSpecFor(fightNumber);
 }
 
 /** One-rung title bump for a fight column's harder option B (normal -> elite,
  * elite -> boss) — USER-LOCKED (2026-07-30): "Bump the title one rung...
- * reuse the existing title presets/level dials." `mob`/`boss` inputs are
- * defensive fallbacks only; `FIGHT_TABLE` never assigns them to a
- * two-option (waves 1-4) fight node. */
+ * reuse the existing title presets/level dials." `mob` input is a defensive
+ * fallback only; the fight-spec resolver never assigns it to a two-option
+ * fight node. `boss -> boss` is also defensive: boss WAVES are single-node
+ * (no `fightOption`), so `fightTableEntryForNode` never bumps a `'boss'`
+ * base title in practice — this only matters if a future caller ever did. */
 const TITLE_BUMP: Record<EnemyTitle, EnemyTitle> = {
   mob: 'normal',
   normal: 'elite',
@@ -166,26 +242,30 @@ const TITLE_BUMP: Record<EnemyTitle, EnemyTitle> = {
 };
 
 /**
- * `FIGHT_TABLE` entry for a fight/boss NODE, honoring its `fightOption`
- * (see `RunNode.fightOption` in runMap.ts): `'hard'` bumps the title one rung
- * via `TITLE_BUMP` and adds **+1 level** over the node's base `FIGHT_TABLE`
- * entry; `'standard'`/undefined (boss nodes) returns `fightTableEntry(node.
- * fightNumber)` byte-identically. The one place `rollEncounter` reads a
- * node's level/title from, so every caller (preview + committed) stays in
- * lockstep automatically.
+ * Fight-spec for a fight/boss NODE, honoring its `fightOption` (see
+ * `RunNode.fightOption` in runMap.ts): `'hard'` bumps the title one rung via
+ * `TITLE_BUMP` and adds **+1 level** (uncapped — the enemy level no longer
+ * has a ceiling, see `fightSpecFor`) over the node's base spec, carrying
+ * `modifiers` through UNCHANGED (those come from the fight number alone, not
+ * the risk option); `'standard'`/undefined (boss nodes) returns
+ * `fightSpecFor(node.fightNumber)` byte-identically. The one place
+ * `rollEncounter` reads a node's level/title/modifiers from, so every caller
+ * (preview + committed) stays in lockstep automatically.
  */
-export function fightTableEntryForNode(node: Pick<RunNode, 'fightNumber' | 'fightOption'>): FightTableEntry {
-  const base = fightTableEntry(node.fightNumber!);
+export function fightTableEntryForNode(node: Pick<RunNode, 'fightNumber' | 'fightOption'>): FightSpec {
+  const base = fightSpecFor(node.fightNumber!);
   if (node.fightOption !== 'hard') return base;
-  return { level: base.level + 1, title: TITLE_BUMP[base.title] };
+  return { ...base, level: base.level + 1, title: TITLE_BUMP[base.title] };
 }
 
 /**
  * Wave -> representative shop-stock depth band, feeding `rollShopStock`'s
  * bronze/silver/gold split (`tierThresholds` in shop.ts): wave 1's stops use
  * depth 2 (the 1-3 "early" band), waves 2-3 use depth 5 (the 4-6 "mid" band),
- * waves 4-5 use depth 8 (the 7-9 "deep" band) — a run's shop shelves get
- * progressively less bronze-heavy as its fights get harder.
+ * wave 4+ uses depth 8 (the 7-9 "deep" band, and stays there forever — the
+ * run is endless, so there is no longer a fixed "last" band to reserve) — a
+ * run's shop shelves get progressively less bronze-heavy as its fights get
+ * harder, then plateau at the deepest band once the run runs long enough.
  */
 function shopStockDepthForWave(wave: number): number {
   if (wave <= 1) return 2;
@@ -210,12 +290,18 @@ function columnAt(map: RunMap, depth: number): readonly RunNode[] {
 // Run lifecycle.
 // ---------------------------------------------------------------------------
 
+/** Starting/only lives for a run — USER-LOCKED (2026-07-30): "Lives: 3 per
+ * run... EVERY fight loss costs one life — including a boss loss." At 0
+ * lives the run's status becomes `'defeat'` (see `recordBattleResult`). */
+export const LIVES_PER_RUN = 3;
+
 /**
- * Start a brand-new run: rolls the seeded map, empties the deck/bag/gems,
- * zeroes gold/wins/losses, hero level 1, status `'drafting'` (call
- * `applyDraftResult` to install the starting board and move to `'active'`).
- * Position sits at depth 0 (the map root) — `availableChoices` will surface
- * the depth-1 column once drafting is done.
+ * Start a brand-new run: rolls the seeded map (eagerly through
+ * `INITIAL_WAVES` waves), empties the deck/bag/gems, zeroes gold/wins/
+ * losses/bossesCleared, `LIVES_PER_RUN` lives, hero level 1, status
+ * `'drafting'` (call `applyDraftResult` to install the starting board and
+ * move to `'active'`). Position sits at depth 0 (the map root) —
+ * `availableChoices` will surface the depth-1 column once drafting is done.
  */
 export function createRun(seed: number): RunState {
   return {
@@ -223,6 +309,8 @@ export function createRun(seed: number): RunState {
     map: generateRunMap(seed),
     status: 'drafting',
     depth: 0,
+    lives: LIVES_PER_RUN,
+    bossesCleared: 0,
     currentNodeId: null,
     pieces: [],
     bagSlots: [],
@@ -280,13 +368,20 @@ export function applyDraftResult(state: RunState, picks: Partial<Record<DraftSet
 
 /**
  * The 2-3 nodes the player may pick next: the column at `state.depth + 1`.
- * Empty once the run has ended (`'victory'`/`'defeat'`), while a node is
+ * Empty once the run has ended (`'defeat'`/`'retired'`), while a node is
  * still being resolved (`currentNodeId` set), or before the draft is applied.
+ * Lazily extends a (throwaway, unpersisted) copy of the map far enough to
+ * cover `state.depth + 1` if it isn't already generated that far — see
+ * `ensureDepthThrough` in runMap.ts — so this never returns an empty column
+ * just because generation hasn't caught up yet. The persisted `state.map`
+ * itself only grows via `chooseNode` (see below), which is fine: this
+ * extension is a pure, cheap, fully-reproducible recompute either way.
  */
 export function availableChoices(state: RunState): readonly RunNode[] {
   if (state.status !== 'active') return [];
   if (state.currentNodeId !== null) return [];
-  return columnAt(state.map, state.depth + 1);
+  const map = ensureDepthThrough(state.map, state.depth + 1);
+  return columnAt(map, state.depth + 1);
 }
 
 /**
@@ -294,7 +389,11 @@ export function availableChoices(state: RunState): readonly RunNode[] {
  * that node's depth and marks it `currentNodeId` — "occupied", so
  * `availableChoices` returns none until the node is left: fight/elite/boss
  * nodes resolve via `recordBattleResult`, shop nodes via `leaveShop`. Throws
- * if `nodeId` isn't one of the currently available choices.
+ * if `nodeId` isn't one of the currently available choices. Persists the
+ * map's growth (via `ensureDepthThrough`) onto the returned state, so the
+ * run's map only ever grows as the player actually walks into it — never
+ * mutates the PREVIOUS `state.map` value, just returns a state pointing at a
+ * (possibly larger) one.
  */
 export function chooseNode(state: RunState, nodeId: string): RunState {
   const choices = availableChoices(state);
@@ -302,8 +401,10 @@ export function chooseNode(state: RunState, nodeId: string): RunState {
   if (!node) {
     throw new Error(`chooseNode: "${nodeId}" is not an available choice`);
   }
+  const map = ensureDepthThrough(state.map, node.depth);
   return {
     ...state,
+    map,
     depth: node.depth,
     currentNodeId: node.id,
     gold: state.gold + DAILY_INCOME,
@@ -312,11 +413,11 @@ export function chooseNode(state: RunState, nodeId: string): RunState {
 
 /**
  * Resolve a fight/boss node's enemy encounter via the EXISTING dial resolver
- * (`buildEnemyEncounter` in encounter.ts): level + title both come from
- * `FIGHT_TABLE[node.fightNumber]` (fights 1-2 normal, 3-4 elite, 5 boss).
- * Deterministic from the node's `encounterSeed` (repeated calls for the same
- * node return the identical encounter). Throws if the current node isn't a
- * combat node (e.g. mid-shop, mid-event, or idle).
+ * (`buildEnemyEncounter` in encounter.ts): level/title/rank/modifiers all
+ * come from `fightTableEntryForNode` (the endless fight-spec resolver — see
+ * `fightSpecFor` above). Deterministic from the node's `encounterSeed`
+ * (repeated calls for the same node return the identical encounter). Throws
+ * if the current node isn't a combat node (e.g. mid-shop, mid-event, or idle).
  */
 export function rollEncounter(state: RunState): EncounterUnit {
   const node = state.currentNodeId ? findNode(state.map, state.currentNodeId) : undefined;
@@ -333,7 +434,8 @@ export function rollEncounter(state: RunState): EncounterUnit {
   }
   const enemyId = pool[rng.int(pool.length)]!;
   const entry = fightTableEntryForNode(node);
-  return buildEnemyEncounter(enemyId, entry.level, entry.title);
+  const rank = TITLE_PRESETS[entry.title].rank;
+  return buildEnemyEncounter(enemyId, entry.level, entry.title, rank, entry.modifiers);
 }
 
 export interface BattleOutcome {
@@ -345,12 +447,17 @@ export interface BattleOutcome {
  * Settle a resolved fight/boss node: on a win, credits `goldEarned` and
  * increments `wins`; on a loss, increments `losses` and credits NO gold
  * (Bazaar rule: losing pays nothing, but the run continues). Either way the
- * hero gains **+1 heroLevel** (locked design, 2026-07-29: the hero levels
- * after EVERY fight, win or lose — losses sting through gold only, keeping
- * the hero in lockstep with `FIGHT_TABLE`'s enemy level for the next fight).
- * A boss node resolves the whole run: win -> `'victory'`, loss -> `'defeat'`.
- * Any other node loss leaves `status: 'active'` — the run continues. Clears
- * `currentNodeId` either way. Throws if the current node isn't a combat node.
+ * hero gains **+1 heroLevel** (win or lose), capped at `MAX_LEVEL` (locked
+ * design: the hero levels after EVERY fight, keeping it in lockstep with the
+ * fight-spec resolver's enemy level up to the cap).
+ *
+ * LIVES (USER-LOCKED 2026-07-30): the run is endless — it never ends at a
+ * boss any more. EVERY fight loss (including a boss loss) costs exactly one
+ * life; wins never cost a life. At 0 lives, `status` becomes `'defeat'`;
+ * otherwise the run stays `'active'` regardless of node kind. A boss WIN
+ * increments `bossesCleared` (the run's score) and the run simply continues.
+ * Clears `currentNodeId` either way. Throws if the current node isn't a
+ * combat node.
  */
 export function recordBattleResult(state: RunState, outcome: BattleOutcome): RunState {
   const node = state.currentNodeId ? findNode(state.map, state.currentNodeId) : undefined;
@@ -361,16 +468,36 @@ export function recordBattleResult(state: RunState, outcome: BattleOutcome): Run
     throw new Error(`recordBattleResult: node "${node.id}" (kind "${node.kind}") is not a combat node`);
   }
   const isBoss = node.kind === 'boss';
-  const status: RunStatus = isBoss ? (outcome.won ? 'victory' : 'defeat') : 'active';
+  const won = outcome.won;
+  const lives = won ? state.lives : Math.max(0, state.lives - 1);
+  const status: RunStatus = lives <= 0 ? 'defeat' : 'active';
   return {
     ...state,
     status,
     currentNodeId: null,
-    gold: state.gold + (outcome.won ? Math.max(0, Math.floor(outcome.goldEarned)) : 0),
-    wins: state.wins + (outcome.won ? 1 : 0),
-    losses: state.losses + (outcome.won ? 0 : 1),
-    heroLevel: state.heroLevel + 1,
+    lives,
+    bossesCleared: state.bossesCleared + (isBoss && won ? 1 : 0),
+    gold: state.gold + (won ? Math.max(0, Math.floor(outcome.goldEarned)) : 0),
+    wins: state.wins + (won ? 1 : 0),
+    losses: state.losses + (won ? 0 : 1),
+    heroLevel: Math.min(MAX_LEVEL, state.heroLevel + 1),
   };
+}
+
+/**
+ * Voluntarily stop an active run — USER-LOCKED (2026-07-30): "Retire: a pure
+ * `retireRun(state)` sets status 'retired' — available any time the run is
+ * active." A no-op (returns the SAME `state` reference) if the run isn't
+ * `'active'` (e.g. already over, still drafting, or mid-node) — retiring is
+ * only meaningful for a run the player is actually in the middle of, and this
+ * mirrors the no-op-not-throw idiom the rest of this module uses for
+ * "can't do that right now" (`setHeroAllocation`, `rerollRunShop`, etc.).
+ * Clears `currentNodeId` so a retired run never looks like it's still
+ * mid-node if a caller checks that instead of `status`.
+ */
+export function retireRun(state: RunState): RunState {
+  if (state.status !== 'active') return state;
+  return { ...state, status: 'retired', currentNodeId: null };
 }
 
 /**

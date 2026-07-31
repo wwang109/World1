@@ -14,6 +14,7 @@ import { gemBook } from '../data/gems';
 import { cardMatchesFilter, gemMatchesFilter } from './shop';
 import {
   currentEventNode,
+  MAX_LEVEL,
   tryInsertRunCard,
   type RunNode,
   type RunState,
@@ -281,7 +282,9 @@ function applySpec(state: RunState, rng: Rng, spec: EventOutcomeSpec): { state: 
       return { state: { ...state, gold: nextGold }, outcome: { kind: 'loseGold', amount: spec.amount } };
     }
     case 'grantLevel': {
-      const level = state.heroLevel + 1;
+      // Capped at MAX_LEVEL (USER-LOCKED 2026-07-30) — same ceiling the hero's
+      // per-fight level-up respects in `recordBattleResult` (runState.ts).
+      const level = Math.min(MAX_LEVEL, state.heroLevel + 1);
       return { state: { ...state, heroLevel: level }, outcome: { kind: 'grantLevel', level } };
     }
     case 'bonusDraft':

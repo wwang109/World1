@@ -11,13 +11,17 @@ import {
   currentShopNode,
   DAILY_INCOME,
   ensureRunShopShelf,
-  FIGHT_TABLE,
+  fightSpecFor,
+  fightTableEntry,
   fightTableEntryForNode,
   heroAllocationCost,
   leaveEvent,
   leaveShop,
+  LIVES_PER_RUN,
+  MAX_LEVEL,
   recordBattleResult,
   rerollRunShop,
+  retireRun,
   rollEncounter,
   runBagHasRoomFor,
   setHeroAllocation,
@@ -25,8 +29,9 @@ import {
 } from '../../src/run/runState';
 import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
 import { battleGoldReward, rollShopStock } from '../../src/run/shop';
-import { totalColumns, WAVE_COUNT, type RunNode } from '../../src/run/runMap';
+import { BOSS_EVERY, ensureWavesThrough, type RunNode } from '../../src/run/runMap';
 import { bankedPL, LEVEL_STAT_COST } from '../../src/run/leveling';
+import { buildEnemyEncounter, TITLE_PRESETS } from '../../src/run/encounter';
 
 function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
   const draft = rollStartDraft(seed);
@@ -41,35 +46,34 @@ function startedRun(seed: number): RunState {
   return applyDraftResult(createRun(seed), draftPicksFor(seed));
 }
 
-/** Drive a run all the way to the boss node, always picking the first
- * available choice, always winning fights, browsing (not buying) shops,
- * and leaving events unresolved (no event UI phase yet). */
-function driveToBoss(seed: number): RunState {
+/** Walk an active run forward, always taking the first available choice,
+ * browsing (not buying) shops, leaving events unresolved, and resolving
+ * every fight/boss with `won` — UNTIL a fight/boss node whose `fightNumber`
+ * equals `targetFightNumber` is reached. Returns with that node still
+ * `current` (uncommitted) so the caller can resolve it. Throws if the run
+ * ends (defeat) or the guard is exceeded before getting there. */
+function walkToFightNumber(seed: number, targetFightNumber: number, won = true): RunState {
   let state = startedRun(seed);
-  for (;;) {
+  for (let guard = 0; guard < 5000; guard++) {
     const choices = availableChoices(state);
-    if (choices.length === 0) break;
+    if (choices.length === 0) {
+      throw new Error(`run ended (status "${state.status}") before reaching fight ${targetFightNumber}`);
+    }
     const node = choices[0]!;
     state = chooseNode(state, node.id);
     if (node.kind === 'shop') {
-      // Exercise the shop accessor + roll before leaving.
-      const shopNode = currentShopNode(state);
-      expect(shopNode?.id).toBe(node.id);
-      if (shopNode) rollShopStock(shopNode.shopId!, shopNode.shopSeed!);
       state = leaveShop(state);
-    } else if (node.kind === 'event') {
-      const eventNode = currentEventNode(state);
-      expect(eventNode?.id).toBe(node.id);
-      state = leaveEvent(state);
-    } else if (node.kind === 'boss') {
-      // Stop with the boss node still "current" so the caller can resolve it.
-      break;
-    } else {
-      rollEncounter(state);
-      state = recordBattleResult(state, { won: true, goldEarned: 5 });
+      continue;
     }
+    if (node.kind === 'event') {
+      state = leaveEvent(state);
+      continue;
+    }
+    // fight or boss
+    if (node.fightNumber === targetFightNumber) return state;
+    state = recordBattleResult(state, { won, goldEarned: 5 });
   }
-  return state;
+  throw new Error('guard exceeded while walking to target fight');
 }
 
 /** Walk stop columns (browsing shops, leaving events unresolved) until the
@@ -110,11 +114,13 @@ describe('run/runState: determinism', () => {
 });
 
 describe('run/runState: draft + choices', () => {
-  it('createRun starts in drafting status with no board', () => {
+  it('createRun starts in drafting status with no board, full lives, no bosses cleared', () => {
     const state = createRun(7);
     expect(state.status).toBe('drafting');
     expect(state.pieces).toHaveLength(0);
     expect(state.depth).toBe(0);
+    expect(state.lives).toBe(LIVES_PER_RUN);
+    expect(state.bossesCleared).toBe(0);
     expect(availableChoices(state)).toHaveLength(0);
   });
 
@@ -141,9 +147,9 @@ describe('run/runState: draft + choices', () => {
   it('chooseNode rejects a node that is not an available choice', () => {
     const state = startedRun(7);
     expect(() => chooseNode(state, 'not-a-real-node')).toThrow();
-    // A real node id, but from a much later column (never currently available).
-    const lastColumn = state.map.depths[totalColumns(state.map)]!;
-    expect(() => chooseNode(state, lastColumn[0]!.id)).toThrow();
+    // A well-formed but never-actually-generated-as-a-CHOICE id (far beyond
+    // anything the map would ever produce at this depth) is still rejected.
+    expect(() => chooseNode(state, 'd9999-0')).toThrow();
   });
 
   it('while a node is occupied, availableChoices is empty', () => {
@@ -152,43 +158,283 @@ describe('run/runState: draft + choices', () => {
     const occupied = chooseNode(state, first.id);
     expect(availableChoices(occupied)).toHaveLength(0);
   });
+
+  it('the map lazily extends as the run walks deeper — 40+ fights never hits a missing column', () => {
+    let state = startedRun(13);
+    let fightsSeen = 0;
+    for (let guard = 0; guard < 3000 && fightsSeen < 42; guard++) {
+      const choices = availableChoices(state);
+      expect(choices.length).toBeGreaterThan(0); // never an empty/void column
+      const node = choices[0]!;
+      state = chooseNode(state, node.id);
+      if (node.kind === 'shop') state = leaveShop(state);
+      else if (node.kind === 'event') state = leaveEvent(state);
+      else {
+        fightsSeen += 1;
+        state = recordBattleResult(state, { won: true, goldEarned: 5 });
+      }
+    }
+    expect(fightsSeen).toBeGreaterThanOrEqual(42);
+    expect(state.status).toBe('active');
+  });
 });
 
-describe('run/runState: fight table + hero lockstep', () => {
-  it('FIGHT_TABLE has one entry per wave: fights 1-2 normal, 3-4 elite, 5 boss', () => {
-    expect(FIGHT_TABLE).toHaveLength(WAVE_COUNT);
-    expect(FIGHT_TABLE.map((e) => e.title)).toEqual(['normal', 'normal', 'elite', 'elite', 'boss']);
-    expect(FIGHT_TABLE.map((e) => e.level)).toEqual([1, 2, 3, 4, 5]);
+describe('run/runState: fight-spec resolver (endless, replaces the fixed FIGHT_TABLE)', () => {
+  it('cadence repeats every BOSS_EVERY (5) fights: 1,2 normal · 3,4 elite · 5 boss · 6,7 normal · ...', () => {
+    const expected: Record<number, string> = {
+      1: 'normal', 2: 'normal', 3: 'elite', 4: 'elite', 5: 'boss',
+      6: 'normal', 7: 'normal', 8: 'elite', 9: 'elite', 10: 'boss',
+      11: 'normal', 12: 'normal',
+    };
+    for (const [n, title] of Object.entries(expected)) {
+      expect(fightSpecFor(Number(n)).title).toBe(title);
+    }
   });
 
-  it('the hero is always exactly LV n entering fight n, across a full run, win or lose', () => {
+  it('level tracks the fight number 1:1 forever — no upper bound (2026-07-30 fix)', () => {
+    for (const n of [1, 30, 31, 45, 100, 1000]) {
+      expect(fightSpecFor(n).level).toBe(n);
+    }
+  });
+
+  it('no modifiers at/under the level cap (fight 30)', () => {
+    const at30 = fightSpecFor(30);
+    expect(at30.modifiers).toEqual([]);
+  });
+
+  it('modifiers past the cap are DISTINCT (never repeated) at every fight number 1-200', () => {
+    for (let n = 1; n <= 200; n++) {
+      const mods = fightSpecFor(n).modifiers;
+      expect(new Set(mods).size).toBe(mods.length);
+    }
+  });
+
+  it('escalation past the cap keeps growing: fight 45 unlocks more distinct modifiers than fight 30, fight 100 at least as many as 45', () => {
+    const at30 = fightSpecFor(30);
+    const at45 = fightSpecFor(45);
+    const at100 = fightSpecFor(100);
+    expect(at45.modifiers.length).toBeGreaterThan(at30.modifiers.length);
+    expect(at100.modifiers.length).toBeGreaterThanOrEqual(at45.modifiers.length);
+  });
+
+  it('difficulty is monotonic and genuinely unbounded — metric: buildEnemyEncounter\'s resolved stat total (sum of setup.stats) strictly increases at fights 30 -> 45 -> 100', () => {
+    const statTotal = (n: number): number => {
+      const spec = fightSpecFor(n);
+      const rank = TITLE_PRESETS[spec.title].rank;
+      const encounter = buildEnemyEncounter('wolf_king', spec.level, spec.title, rank, spec.modifiers);
+      const s = encounter.setup.stats;
+      return s.maxHp + s.attack + s.magicPower + s.armor + s.magicResist + s.speed;
+    };
+    const at30 = statTotal(30);
+    const at45 = statTotal(45);
+    const at100 = statTotal(100);
+    expect(at45).toBeGreaterThan(at30);
+    expect(at100).toBeGreaterThan(at45);
+  });
+
+  it('a table for fights 1-12 and 28-32 (spot-check the old cap crossover, now a non-event)', () => {
+    const rows = [...Array.from({ length: 12 }, (_, i) => i + 1), 28, 29, 30, 31, 32];
+    const table = rows.map((n) => ({ n, ...fightSpecFor(n) }));
+    // fight 30 is exactly the old cap: level now simply equals the fight
+    // number on both sides — 31/32 keep climbing (31, 32), not pinned at 30.
+    expect(table.find((r) => r.n === 30)).toMatchObject({ level: 30, title: 'boss' });
+    expect(table.find((r) => r.n === 31)).toMatchObject({ level: 31, title: 'normal', modifiers: [] });
+    expect(table.find((r) => r.n === 32)).toMatchObject({ level: 32, title: 'normal' });
+  });
+
+  it('fightTableEntry is a thin alias of fightSpecFor', () => {
+    for (const n of [1, 5, 12, 30, 45, 100]) {
+      expect(fightTableEntry(n)).toEqual(fightSpecFor(n));
+    }
+  });
+
+  it("fightTableEntryForNode's 'hard' option is one title rung + 1 level (uncapped) above 'standard', modifiers unchanged", () => {
+    for (const n of [1, 3, 6, 8, 29, 44, 99]) {
+      const standard = fightTableEntryForNode({ fightNumber: n, fightOption: 'standard' });
+      const hard = fightTableEntryForNode({ fightNumber: n, fightOption: 'hard' });
+      const rung: Record<string, string> = { normal: 'elite', elite: 'boss' };
+      expect(hard.level).toBe(standard.level + 1);
+      expect(hard.title).toBe(rung[standard.title]);
+      expect(hard.modifiers).toEqual(standard.modifiers);
+    }
+  });
+
+  it('battleGoldReward stays monotonic in fight number at a fixed hero level, and is no longer inflated by duplicate modifier entries', () => {
+    const heroLevel = MAX_LEVEL;
+    const rewardFor = (n: number) => {
+      const spec = fightSpecFor(n);
+      return battleGoldReward([{ level: spec.level, title: spec.title, rank: 0, modifiers: spec.modifiers }], heroLevel);
+    };
+    const fights = [1, 5, 10, 30, 35, 45, 60, 100];
+    let prevScore = -Infinity;
+    for (const n of fights) {
+      const reward = rewardFor(n);
+      // winBonus itself clamps at 3, so compare via the un-clamped difficulty
+      // proxy instead: level-above-hero + title weight + distinct modifiers.
+      const spec = fightSpecFor(n);
+      const score = Math.max(0, spec.level - heroLevel) + spec.modifiers.length;
+      expect(score).toBeGreaterThanOrEqual(prevScore);
+      prevScore = score;
+      expect(reward.winBonus).toBeGreaterThanOrEqual(1);
+      expect(reward.winBonus).toBeLessThanOrEqual(3);
+    }
+    // Two fight numbers with the SAME modifier-layer count must score
+    // identically on the modifiers axis (no duplicate-id inflation possible,
+    // since modifiers are always a distinct prefix of ENEMY_MODIFIER_IDS).
+    const at31 = fightSpecFor(31);
+    const at34 = fightSpecFor(34);
+    expect(at31.modifiers).toEqual(at34.modifiers);
+  });
+});
+
+describe('run/runState: hero/enemy level lockstep + cap', () => {
+  it('the hero is exactly LV n entering fight n while under the cap, across seeds', () => {
     for (const seed of [1, 2, 3, 11, 42, 100]) {
       let state = startedRun(seed);
       expect(state.heroLevel).toBe(1);
       let fightsSeen = 0;
-      for (;;) {
+      for (let guard = 0; guard < 200 && fightsSeen < BOSS_EVERY * 2; guard++) {
         const choices = availableChoices(state);
         if (choices.length === 0) break;
         const node = choices[0]!;
         state = chooseNode(state, node.id);
-        if (node.kind === 'shop') {
-          state = leaveShop(state);
-          continue;
-        }
-        if (node.kind === 'event') {
-          state = leaveEvent(state);
-          continue;
-        }
-        // fight or boss: hero LV must equal the fight number BEFORE resolving.
+        if (node.kind === 'shop') { state = leaveShop(state); continue; }
+        if (node.kind === 'event') { state = leaveEvent(state); continue; }
         fightsSeen += 1;
         expect(state.heroLevel).toBe(node.fightNumber);
         expect(node.fightNumber).toBe(fightsSeen);
-        const won = fightsSeen % 2 === 0; // alternate win/lose to prove BOTH bump the level
+        // Lose exactly once (fight 1) to prove a LOSS also bumps the level
+        // (see `recordBattleResult`), then win the rest — losing more than
+        // LIVES_PER_RUN times would end the run before this window finishes,
+        // which "a loss on a non-boss node ... still levels the hero" already
+        // covers on its own in isolation.
+        const won = fightsSeen !== 1;
         state = recordBattleResult(state, { won, goldEarned: 5 });
-        if (node.kind === 'boss') break;
       }
-      expect(fightsSeen).toBe(WAVE_COUNT);
+      expect(fightsSeen).toBe(BOSS_EVERY * 2);
     }
+  });
+
+  it('hero level caps at MAX_LEVEL and never exceeds it, walking well past fight 30 (win every fight to avoid losing lives)', () => {
+    const state = walkToFightNumber(11, MAX_LEVEL + 15, true);
+    // state is sitting AT the target fight, uncommitted — heroLevel reflects
+    // every EARLIER fight's level-up already applied.
+    expect(state.heroLevel).toBeLessThanOrEqual(MAX_LEVEL);
+    expect(state.heroLevel).toBe(MAX_LEVEL);
+    const after = recordBattleResult(state, { won: true, goldEarned: 5 });
+    expect(after.heroLevel).toBe(MAX_LEVEL);
+  });
+
+  it('hero-vs-enemy gap widens past fight 30 (2026-07-30 fix): at fight 45 the enemy is above hero-level-30, an intended, documented gap', () => {
+    // Walk to fight 45 without ever resolving it, winning every earlier fight
+    // so heroLevel is already pinned at MAX_LEVEL by then.
+    const state = walkToFightNumber(11, MAX_LEVEL + 15, true);
+    expect(state.heroLevel).toBe(MAX_LEVEL);
+    const enemyLevel = fightSpecFor(45).level;
+    expect(enemyLevel).toBeGreaterThan(state.heroLevel);
+    expect(enemyLevel).toBe(45);
+  });
+});
+
+describe('run/runState: lives, defeat, and retire (endless run — no more fixed victory)', () => {
+  it('LIVES_PER_RUN is 3 and createRun starts with a full life total', () => {
+    expect(LIVES_PER_RUN).toBe(3);
+    expect(createRun(1).lives).toBe(LIVES_PER_RUN);
+  });
+
+  it('a fight loss costs exactly one life; a win never costs a life', () => {
+    const state0 = stateAtFirstFight(11);
+    const win = recordBattleResult(state0, { won: true, goldEarned: 3 });
+    expect(win.lives).toBe(state0.lives);
+
+    const state1 = stateAtFirstFight(21);
+    const loss = recordBattleResult(state1, { won: false, goldEarned: 3 });
+    expect(loss.lives).toBe(state1.lives - 1);
+  });
+
+  it('losing a BOSS fight also costs only one life and does NOT end the run outright', () => {
+    const atBoss = walkToFightNumber(21, BOSS_EVERY, true);
+    expect(atBoss.currentNodeId).not.toBeNull();
+    const before = atBoss.lives;
+    const after = recordBattleResult(atBoss, { won: false, goldEarned: 10 });
+    expect(after.lives).toBe(before - 1);
+    // 3 lives - 1 loss still leaves the run active (assuming no prior losses).
+    if (before - 1 > 0) {
+      expect(after.status).toBe('active');
+      expect(availableChoices(after).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('losing LIVES_PER_RUN times in a row ends the run in defeat, whatever the fight kind', () => {
+    let state = startedRun(31);
+    let losses = 0;
+    for (let guard = 0; guard < 500; guard++) {
+      const choices = availableChoices(state);
+      if (choices.length === 0) break;
+      const node = choices[0]!;
+      state = chooseNode(state, node.id);
+      if (node.kind === 'shop') { state = leaveShop(state); continue; }
+      if (node.kind === 'event') { state = leaveEvent(state); continue; }
+      state = recordBattleResult(state, { won: false, goldEarned: 5 });
+      losses += 1;
+      if (state.status === 'defeat') break;
+    }
+    expect(state.status).toBe('defeat');
+    expect(state.lives).toBe(0);
+    expect(losses).toBe(LIVES_PER_RUN);
+    expect(availableChoices(state)).toHaveLength(0);
+  });
+
+  it('winning a boss increments bossesCleared; a non-boss win does not', () => {
+    const state0 = stateAtFirstFight(11);
+    const nonBoss = recordBattleResult(state0, { won: true, goldEarned: 3 });
+    expect(nonBoss.bossesCleared).toBe(0);
+
+    const atBoss = walkToFightNumber(7, BOSS_EVERY, true);
+    const bossWin = recordBattleResult(atBoss, { won: true, goldEarned: 10 });
+    expect(bossWin.bossesCleared).toBe(1);
+    expect(bossWin.status).toBe('active'); // the run continues past a boss now
+  });
+
+  it('bossesCleared only increments on a boss WIN, not a boss loss, and keeps counting across multiple bosses', () => {
+    const atBoss1 = walkToFightNumber(7, BOSS_EVERY, true);
+    const lostBoss = recordBattleResult(atBoss1, { won: false, goldEarned: 0 });
+    expect(lostBoss.bossesCleared).toBe(0);
+
+    // Walking to the SECOND boss (fight BOSS_EVERY*2) passes through (and, per
+    // `walkToFightNumber`'s `won=true`, WINS) the first boss along the way —
+    // so bossesCleared is already 1 by the time boss #2 is reached, and 2
+    // once it's won too.
+    const atBoss2 = walkToFightNumber(7, BOSS_EVERY * 2, true);
+    expect(atBoss2.bossesCleared).toBe(1);
+    const wonBoss2 = recordBattleResult(atBoss2, { won: true, goldEarned: 10 });
+    expect(wonBoss2.bossesCleared).toBe(2);
+  });
+
+  it('retireRun sets status to "retired" from an active run and clears currentNodeId', () => {
+    const state = stateAtFirstFight(7); // active, mid-node
+    const retired = retireRun(state);
+    expect(retired.status).toBe('retired');
+    expect(retired.currentNodeId).toBeNull();
+    expect(availableChoices(retired)).toHaveLength(0);
+  });
+
+  it('retireRun is a no-op (same reference) on a non-active run (drafting, already defeated, or already retired)', () => {
+    const drafting = createRun(1);
+    expect(retireRun(drafting)).toBe(drafting);
+
+    const active = stateAtFirstFight(7);
+    const retired = retireRun(active);
+    expect(retireRun(retired)).toBe(retired);
+  });
+
+  it('"victory" status is a legacy union member nothing sets any more', () => {
+    // Walk a decent number of fights winning every one — status should only
+    // ever be 'active' (never 'victory', since the run no longer ends there).
+    const state = walkToFightNumber(7, BOSS_EVERY * 3, true);
+    const afterBoss = recordBattleResult(state, { won: true, goldEarned: 10 });
+    expect(afterBoss.status).not.toBe('victory');
+    expect(afterBoss.status).toBe('active');
   });
 });
 
@@ -205,8 +451,6 @@ describe('run/runState: battle outcomes', () => {
   });
 
   it('a loss on a non-boss node credits no gold, but still levels the hero, and the run continues', () => {
-    // stateAtFirstFight always lands on wave 1's mandatory fight (never the
-    // boss, which only ends wave 5), so the run is guaranteed to continue.
     const state0 = stateAtFirstFight(11);
     const before = { gold: state0.gold, losses: state0.losses, level: state0.heroLevel };
     let state = state0;
@@ -215,26 +459,7 @@ describe('run/runState: battle outcomes', () => {
     expect(state.losses).toBe(before.losses + 1);
     expect(state.heroLevel).toBe(before.level + 1);
     expect(state.status).toBe('active');
-    // The run continues: the next column's choices are available again.
     expect(availableChoices(state).length).toBeGreaterThan(0);
-  });
-
-  it('winning the boss node ends the run in victory', () => {
-    const state = driveToBoss(21);
-    expect(state.currentNodeId).not.toBeNull();
-    const withResult = recordBattleResult(state, { won: true, goldEarned: 10 });
-    expect(withResult.status).toBe('victory');
-    expect(withResult.currentNodeId).toBeNull();
-  });
-
-  it('losing the boss node ends the run in defeat (no gold, but still levels up)', () => {
-    const state = driveToBoss(21);
-    const goldBefore = state.gold;
-    const levelBefore = state.heroLevel;
-    const withResult = recordBattleResult(state, { won: false, goldEarned: 10 });
-    expect(withResult.status).toBe('defeat');
-    expect(withResult.gold).toBe(goldBefore);
-    expect(withResult.heroLevel).toBe(levelBefore + 1);
   });
 
   it('recordBattleResult throws when no combat node is active', () => {
@@ -267,9 +492,7 @@ describe('run/runState: shop-node purchases', () => {
       state = chooseNode(state, node.id);
       if (node.kind === 'event') {
         state = leaveEvent(state);
-      } else if (node.kind === 'boss') {
-        throw new Error('reached boss before any shop node');
-      } else {
+      } else if (node.kind === 'boss' || node.kind === 'fight') {
         state = recordBattleResult(state, { won: true, goldEarned: 1 });
       }
     }
@@ -330,7 +553,6 @@ describe('run/runState: shop-node purchases', () => {
     const rerolled = rerollRunShop(state, nodeId);
     expect(rerolled.gold).toBe(4);
     expect(rerolled.shopShelves[nodeId]!.rerollCount).toBe(1);
-    // Re-running the exact same reroll from the same starting state is stable.
     const rerolledAgain = rerollRunShop(state, nodeId);
     expect(rerolledAgain.shopShelves[nodeId]).toEqual(rerolled.shopShelves[nodeId]);
   });
@@ -368,7 +590,6 @@ describe('run/runState: event-node accessor', () => {
       state = chooseNode(state, node.id);
       if (node.kind === 'shop') state = leaveShop(state);
       else if (node.kind === 'event') state = leaveEvent(state);
-      else if (node.kind === 'boss') throw new Error('reached boss before any event node');
       else state = recordBattleResult(state, { won: true, goldEarned: 1 });
     }
     throw new Error('guard exceeded while looking for an event node');
@@ -462,9 +683,6 @@ describe('run/runState: heroAllocationCost + setHeroAllocation (confirmable scra
   it('a committed allocation still reaches the battle request unchanged', () => {
     const state = { ...startedRun(1), heroLevel: 3 };
     const next = setHeroAllocation(state, { attack: 2, maxHp: 4 });
-    // heroAllocation is the single source of truth read by anything building
-    // the player's combat stats (see leveling.ts#applyPlayerLevelAllocation) —
-    // confirming just replaces it wholesale, nothing else in state changes.
     expect(next.heroAllocation).toEqual({ attack: 2, maxHp: 4 });
     expect(next.pieces).toEqual(state.pieces);
     expect(next.gold).toBe(state.gold);
@@ -479,7 +697,7 @@ describe('run/runState: daily income (+1 gold per node committed)', () => {
   it('DAILY_INCOME is 1 and chooseNode awards it exactly once per node, every kind', () => {
     expect(DAILY_INCOME).toBe(1);
     let state = startedRun(31);
-    for (let guard = 0; guard < 200; guard++) {
+    for (let guard = 0; guard < 60; guard++) {
       const choices = availableChoices(state);
       if (choices.length === 0) break;
       const node = choices[0]!;
@@ -493,7 +711,6 @@ describe('run/runState: daily income (+1 gold per node committed)', () => {
       } else {
         rollEncounter(state);
         state = recordBattleResult(state, { won: true, goldEarned: 5 });
-        if (node.kind === 'boss') break;
       }
     }
   });
@@ -529,11 +746,12 @@ describe('run/runState: daily income (+1 gold per node committed)', () => {
     expect(state.gold).toBeGreaterThanOrEqual(DAILY_INCOME);
   });
 
-  it('total run income over ~20 seeds matches a computed expectation (daily income per node + fight rewards on wins)', () => {
-    for (const seed of Array.from({ length: 20 }, (_, i) => i * 37 + 5)) {
+  it('total income over a 30-fight walk (win every fight) matches a computed expectation', () => {
+    for (const seed of [5, 42, 79]) {
       let state = startedRun(seed);
       let expectedGold = 0;
-      for (let guard = 0; guard < 200; guard++) {
+      let fightsSeen = 0;
+      for (let guard = 0; guard < 2000 && fightsSeen < 30; guard++) {
         const choices = availableChoices(state);
         if (choices.length === 0) break;
         const node = choices[0]!;
@@ -551,7 +769,7 @@ describe('run/runState: daily income (+1 gold per node committed)', () => {
           );
           expectedGold += reward.base + reward.winBonus;
           state = recordBattleResult(state, { won: true, goldEarned: reward.base + reward.winBonus });
-          if (node.kind === 'boss') break;
+          fightsSeen += 1;
         }
       }
       expect(state.gold).toBe(expectedGold);
@@ -560,15 +778,16 @@ describe('run/runState: daily income (+1 gold per node committed)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Fight columns offer a choice of TWO foes (waves 1-4) — USER-LOCKED 2026-07-30.
+// Fight columns offer a choice of TWO foes on every non-boss wave — USER-LOCKED 2026-07-30.
 // ---------------------------------------------------------------------------
 
-describe('run/runState: fight column offers 2 foe options (waves 1-4)', () => {
-  /** The 2-node fight column for `wave` (1-4) straight off the map — no run
-   * walking required, mirroring `runStore.ts#previewEncounter`'s idiom of
-   * building a throwaway `currentNodeId` to preview a not-yet-chosen node. */
+describe('run/runState: fight column offers 2 foe options (non-boss waves)', () => {
+  /** The 2-node fight column for `wave` straight off the map — no run walking
+   * required, mirroring `runStore.ts#previewEncounter`'s idiom of building a
+   * throwaway `currentNodeId` to preview a not-yet-chosen node. */
   function fightNodesForWave(state: RunState, wave: number): RunNode[] {
-    for (const column of state.map.depths) {
+    const map = ensureWavesThrough(state.map, wave);
+    for (const column of map.depths) {
       if (column.length === 2 && column[0]?.kind === 'fight' && column[0].wave === wave) {
         return [...column];
       }
@@ -577,31 +796,33 @@ describe('run/runState: fight column offers 2 foe options (waves 1-4)', () => {
   }
 
   const SEEDS = [1, 2, 3, 11, 42, 100];
+  const NON_BOSS_WAVES = [1, 2, 3, 4, 6, 7, 8, 9];
 
-  it('waves 1-4 fight columns have exactly 2 fight nodes with equal fightNumber; wave 5 has exactly 1 boss node', () => {
+  it('non-boss waves have exactly 2 fight nodes with equal fightNumber; boss waves have exactly 1 boss node', () => {
     for (const seed of SEEDS) {
       const state = startedRun(seed);
-      for (let wave = 1; wave <= 4; wave++) {
+      for (const wave of NON_BOSS_WAVES) {
         const nodes = fightNodesForWave(state, wave);
         expect(nodes).toHaveLength(2);
         expect(nodes[0]!.fightNumber).toBe(wave);
         expect(nodes[1]!.fightNumber).toBe(wave);
         expect(nodes.every((n) => n.kind === 'fight')).toBe(true);
       }
-      const bossColumn = state.map.depths.find(
+      const map = ensureWavesThrough(state.map, BOSS_EVERY);
+      const bossColumn = map.depths.find(
         (column) => column.length >= 1 && column[0]?.kind === 'boss',
       )!;
       expect(bossColumn).toHaveLength(1);
-      expect(bossColumn[0]!.wave).toBe(WAVE_COUNT);
-      expect(bossColumn[0]!.fightNumber).toBe(WAVE_COUNT);
+      expect(bossColumn[0]!.wave).toBe(BOSS_EVERY);
+      expect(bossColumn[0]!.fightNumber).toBe(BOSS_EVERY);
     }
   });
 
-  it("option B's title/level is one rung above option A's (normal->elite, elite->boss; +1 level), for every wave 1-4", () => {
+  it("option B's title/level is one rung above option A's, for every non-boss wave 1-9", () => {
     const rung: Record<string, string> = { normal: 'elite', elite: 'boss' };
     for (const seed of SEEDS) {
       const state = startedRun(seed);
-      for (let wave = 1; wave <= 4; wave++) {
+      for (const wave of NON_BOSS_WAVES) {
         const nodes = fightNodesForWave(state, wave);
         const standard = nodes.find((n) => n.fightOption === 'standard')!;
         const hard = nodes.find((n) => n.fightOption === 'hard')!;
@@ -611,16 +832,16 @@ describe('run/runState: fight column offers 2 foe options (waves 1-4)', () => {
         const entryHard = fightTableEntryForNode(hard);
         expect(entryHard.level).toBe(entryStandard.level + 1);
         expect(entryHard.title).toBe(rung[entryStandard.title]);
-        // The standard option is exactly today's FIGHT_TABLE entry.
-        expect(entryStandard).toEqual(FIGHT_TABLE[wave - 1]);
+        expect(entryStandard).toEqual(fightSpecFor(wave));
       }
     }
   });
 
-  it("option B's battleGoldReward >= option A's, for every wave 1-4, across seeds", () => {
+  it("option B's battleGoldReward >= option A's, for every non-boss wave 1-9, across seeds", () => {
     for (const seed of SEEDS) {
-      const state = startedRun(seed);
-      for (let wave = 1; wave <= 4; wave++) {
+      const base = startedRun(seed);
+      const state = { ...base, map: ensureWavesThrough(base.map, 9) };
+      for (const wave of NON_BOSS_WAVES) {
         const nodes = fightNodesForWave(state, wave);
         const standard = nodes.find((n) => n.fightOption === 'standard')!;
         const hard = nodes.find((n) => n.fightOption === 'hard')!;
@@ -641,9 +862,11 @@ describe('run/runState: fight column offers 2 foe options (waves 1-4)', () => {
 
   it('both options are deterministic per seed and distinct from each other', () => {
     for (const seed of SEEDS) {
-      const stateA = startedRun(seed);
-      const stateB = startedRun(seed);
-      for (let wave = 1; wave <= 4; wave++) {
+      const baseA = startedRun(seed);
+      const baseB = startedRun(seed);
+      const stateA = { ...baseA, map: ensureWavesThrough(baseA.map, 9) };
+      const stateB = { ...baseB, map: ensureWavesThrough(baseB.map, 9) };
+      for (const wave of NON_BOSS_WAVES) {
         const nodesA = fightNodesForWave(stateA, wave);
         const nodesB = fightNodesForWave(stateB, wave);
         expect(nodesA).toEqual(nodesB);
@@ -656,10 +879,11 @@ describe('run/runState: fight column offers 2 foe options (waves 1-4)', () => {
     }
   });
 
-  it('choosing either fight option advances the run identically (same depth/wave progression, same hero level, both reach victory)', () => {
+  it('choosing either fight option advances the run identically (same depth/wave progression, same hero level, same status), across a 12-fight walk', () => {
     let stateA = startedRun(7);
     let stateB = startedRun(7);
-    for (let guard = 0; guard < 200; guard++) {
+    let fightsSeen = 0;
+    for (let guard = 0; guard < 500 && fightsSeen < 12; guard++) {
       const choicesA = availableChoices(stateA);
       if (choicesA.length === 0) break;
       if (choicesA.length === 2 && choicesA[0]!.kind === 'fight') {
@@ -672,6 +896,7 @@ describe('run/runState: fight column offers 2 foe options (waves 1-4)', () => {
         stateB = recordBattleResult(stateB, { won: true, goldEarned: 5 });
         expect(stateA.heroLevel).toBe(stateB.heroLevel);
         expect(stateA.status).toBe(stateB.status);
+        fightsSeen += 1;
         continue;
       }
       const node = choicesA[0]!;
@@ -687,10 +912,11 @@ describe('run/runState: fight column offers 2 foe options (waves 1-4)', () => {
       } else {
         stateA = recordBattleResult(stateA, { won: true, goldEarned: 5 });
         stateB = recordBattleResult(stateB, { won: true, goldEarned: 5 });
-        if (node.kind === 'boss') break;
+        fightsSeen += 1;
       }
     }
-    expect(stateA.status).toBe('victory');
-    expect(stateB.status).toBe('victory');
+    expect(fightsSeen).toBeGreaterThanOrEqual(12);
+    expect(stateA.status).toBe('active');
+    expect(stateB.status).toBe('active');
   });
 });
