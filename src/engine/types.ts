@@ -384,9 +384,10 @@ export interface CombatConfig {
   fatigueTurn?: number;
   /**
    * First global turn on which the ATTRITION stalemate breaker fires: from this
-   * turn on, every living combatant takes escalating unblockable true damage
-   * (`(turn − attritionTurn + 1) × ATTRITION_STEP`). Global and symmetric, so
-   * PL-neutral — it is priced nowhere. Default `ATTRITION_START_TURN` (15).
+   * turn on, every living combatant takes ACCELERATING unblockable true damage
+   * (`ATTRITION_STEP × T × (T+1) / 2` with `T = turn − attritionTurn + 1`, i.e.
+   * 5, 15, 30, 50, 75, 105…), applied in ascending initiative score (lowest first). Global and symmetric,
+   * so PL-neutral — it is priced nowhere. Default `ATTRITION_START_TURN` (15).
    * Set to a huge number to disable (tests isolating a single mechanic).
    */
   attritionTurn?: number;
@@ -401,7 +402,13 @@ export interface CombatConfig {
   cooldownsEnabled?: boolean;
 }
 
-export type CombatOutcome = 'win' | 'loss' | 'draw';
+/**
+ * A fight is ALWAYS decided (user-locked 2026-07-31): there is no draw. Someone's
+ * HP reaches 0 first, and when both sides' last units fall inside the same step
+ * the engine decides it in one place — `decideOutcome` in `combat/simulate.ts`
+ * (lower initiative score loses → lower HP loses → player wins an exact tie).
+ */
+export type CombatOutcome = 'win' | 'loss';
 
 export interface EnemyDef {
   id: string;

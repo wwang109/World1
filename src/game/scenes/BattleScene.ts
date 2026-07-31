@@ -196,7 +196,7 @@ export class BattleScene extends Phaser.Scene {
   private playbackButtons = new Map<1 | 2, ButtonPair>();
   private pendingVisualTimers: Phaser.Time.TimerEvent[] = [];
   private hpTweenCounters: Array<{ view: SideView; counter: { hp: number } }> = [];
-  private pendingCombatEnd: { result: 'win' | 'loss' | 'draw'; turns: number } | null = null;
+  private pendingCombatEnd: { result: 'win' | 'loss'; turns: number } | null = null;
   private logPage = 0;
   private selectedRow: ActivationRow | null = null;
   private currentTurn = 0;
@@ -1386,7 +1386,7 @@ export class BattleScene extends Phaser.Scene {
       } else if (event.kind === 'fatigueStart') {
         push(event.turn, 'RESULT', 'Fatigue — endurance damage begins');
       } else if (event.kind === 'combatEnd') {
-        const outcome = event.result === 'win' ? 'VICTORY' : event.result === 'loss' ? 'DEFEAT' : 'DRAW';
+        const outcome = event.result === 'win' ? 'VICTORY' : 'DEFEAT';
         push(event.turn, 'RESULT', `${outcome} · ${event.turns} turns`);
       }
     }
@@ -2350,7 +2350,7 @@ export class BattleScene extends Phaser.Scene {
         break;
       case 'combatEnd': {
         this.finished = true;
-        const msg = event.result === 'win' ? 'VICTORY' : event.result === 'loss' ? 'DEFEAT' : 'DRAW';
+        const msg = event.result === 'win' ? 'VICTORY' : 'DEFEAT';
         this.addTurnNote(event.turn, `${msg} in ${event.turns} turns.`);
         this.pendingCombatEnd = { result: event.result, turns: event.turns };
         this.flushCombatEnd(instant);
@@ -2511,9 +2511,9 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  private showResultBadge(result: 'win' | 'loss' | 'draw', turns: number): void {
+  private showResultBadge(result: 'win' | 'loss', turns: number): void {
     const win = result === 'win';
-    const label = win ? 'VICTORY' : result === 'loss' ? 'DEFEAT' : 'DRAW';
+    const label = win ? 'VICTORY' : 'DEFEAT';
     // The fight report opens by clicking the RESULT row in the log (see the log
     // row handler); the corner badge is just a plain result indicator.
     this.add

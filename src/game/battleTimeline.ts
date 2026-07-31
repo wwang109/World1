@@ -208,7 +208,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // The setups built above are for RENDERING ONLY (names, stats, boards). The
   // authoritative combat result is the served log.
   const battle: BattleLog = log;
-  const outcome = battle.result === 'win' ? 'VICTORY' : battle.result === 'loss' ? 'DEFEAT' : 'DRAW';
+  const outcome = battle.result === 'win' ? 'VICTORY' : 'DEFEAT';
 
   const linesByTurn = new Map<number, LogLine[]>();
   const hpByTurn = new Map<number, HpSnap>();

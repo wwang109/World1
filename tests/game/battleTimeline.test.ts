@@ -55,7 +55,7 @@ describe('game/battleTimeline', () => {
       expect(snap.enemies).toHaveLength(2);
       expect(snap.enemy).toBe(snap.enemies![0]);
     }
-    expect(['VICTORY', 'DEFEAT', 'DRAW']).toContain(model.outcome);
+    expect(['VICTORY', 'DEFEAT']).toContain(model.outcome); // no draw exists
     // unit-0 compatibility views stay pointed at the first foe
     expect(model.foeName).toBe(model.foes[0]!.name);
   });

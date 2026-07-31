@@ -48,15 +48,28 @@ function unit(
 }
 
 describe('attrition: the global stalemate breaker', () => {
-  it('formula: (turn − 14) × 5, zero before the threshold', () => {
+  it('ACCELERATING formula: 5 × T × (T+1) / 2, zero before the threshold', () => {
     expect(ATTRITION_START_TURN).toBe(15);
     expect(ATTRITION_STEP).toBe(5);
     expect(attritionDamage(1)).toBe(0);
     expect(attritionDamage(14)).toBe(0);
-    expect(attritionDamage(15)).toBe(5);
-    expect(attritionDamage(16)).toBe(10);
-    expect(attritionDamage(20)).toBe(30);
-    expect(attritionDamage(30)).toBe(80);
+    // Turns 15..22 — the per-turn INCREASE itself grows (+5, +10, +15, +20…).
+    expect([15, 16, 17, 18, 19, 20, 21, 22].map((t) => attritionDamage(t))).toEqual([
+      5, 15, 30, 50, 75, 105, 140, 180,
+    ]);
+    expect(attritionDamage(30)).toBe(680); // T=16 -> 5 × 16 × 17 / 2
+    // Always integral, and the increment strictly grows.
+    let prevStep = 0;
+    for (let turn = 15; turn <= 60; turn += 1) {
+      const d = attritionDamage(turn);
+      expect(Number.isInteger(d)).toBe(true);
+      const step = d - attritionDamage(turn - 1);
+      expect(step).toBeGreaterThan(prevStep);
+      prevStep = step;
+    }
+    // The override shifts the whole curve without changing its shape.
+    expect(attritionDamage(30, 30)).toBe(5);
+    expect(attritionDamage(31, 30)).toBe(15);
   });
 
   it('pre-threshold logs are BYTE-IDENTICAL to the pre-attrition engine (120 random configs)', () => {
@@ -114,7 +127,7 @@ describe('attrition: the global stalemate breaker', () => {
       expect(withAttrition.result).toBe(before.result);
       expect(attritionHits(withAttrition.events)).toHaveLength(0);
       expect(withAttrition.events.some((e) => e.kind === 'attritionStart')).toBe(false);
-      if (withAttrition.result === 'draw') capped += 1;
+      if (withAttrition.turns === ATTRITION_START_TURN - 1) capped += 1;
     }
     // Sanity: some of those fights really did run all the way to turn 14.
     expect(capped).toBeGreaterThan(0);
@@ -139,7 +152,7 @@ describe('attrition: the global stalemate breaker', () => {
     expect(checked).toBeGreaterThan(0);
   });
 
-  it('ramps 5 / 10 / 30 at turns 15 / 16 / 20 on EVERY living combatant (2v2)', () => {
+  it('ramps 5 / 15 / 105 at turns 15 / 16 / 20 on EVERY living combatant (2v2)', () => {
     const cfg: CombatConfig = {
       // Empty boards: nothing but attrition can move HP.
       playerTeam: [unit('p0', [], { maxHp: 1000 }), unit('p1', [], { maxHp: 1000 })],
@@ -156,8 +169,9 @@ describe('attrition: the global stalemate breaker', () => {
 
     for (const [turn, amount] of [
       [15, 5],
-      [16, 10],
-      [20, 30],
+      [16, 15],
+      [17, 30],
+      [20, 105],
     ] as const) {
       const hits = attritionHits(events).filter((e) => e.turn === turn);
       // All four combatants, canonical order: player side first, then by index.
@@ -170,11 +184,13 @@ describe('attrition: the global stalemate breaker', () => {
 
     // Nothing happens before the threshold.
     expect(attritionHits(events).filter((e) => e.turn < ATTRITION_START_TURN)).toHaveLength(0);
-    // Cumulative through turn 20: 5+10+…+30 = 105 on everyone.
+    // Cumulative through turn 20: 5+15+30+50+75+105 = 280 on everyone.
     for (const c of [...finalState.playerTeam, ...finalState.enemyTeam]) {
-      expect(c.stats.hp).toBe(1000 - 105);
+      expect(c.stats.hp).toBe(1000 - 280);
     }
-    expect(result).toBe('draw'); // maxTurns cap: 1000 HP outlasts 20 turns
+    // maxTurns cap with 1000 HP left on both sides: decided on remaining HP
+    // fraction, exact tie -> player (there is no draw).
+    expect(result).toBe('win');
   });
 
   it('is NOT absorbed by typed shield pools (unblockable, by design)', () => {
@@ -194,8 +210,8 @@ describe('attrition: the global stalemate breaker', () => {
     expect(hits.length).toBe(2); // turns 15 and 16
     for (const hit of hits) expect(hit.blocked).toBe(0);
     expect(hits[0]!.hpAfter).toBe(200 - 5);
-    expect(hits[1]!.hpAfter).toBe(200 - 5 - 10);
-    expect(shielded.stats.hp).toBe(200 - 15);
+    expect(hits[1]!.hpAfter).toBe(200 - 5 - 15);
+    expect(shielded.stats.hp).toBe(200 - 20);
   });
 
   it('breaks a genuine stalemate that used to run to the 200-turn cap', () => {
@@ -209,20 +225,25 @@ describe('attrition: the global stalemate breaker', () => {
       maxTurns: 200,
     });
 
+    // Without attrition the stalemate is real: nobody EVER dies, and the fight
+    // only stops because it slams into the 200-turn cap (now decided on HP
+    // fraction rather than returning a draw, which no longer exists).
     const before = simulate({ ...make(), attritionTurn: OFF }, 3);
-    expect(before.result).toBe('draw');
-    expect(before.turns).toBe(200); // the stalemate is real
+    expect(before.turns).toBe(200);
+    expect(before.events.some((e) => e.kind === 'died')).toBe(false);
+    expect(before.result).toBe('win'); // mirrored boards -> exact fraction tie -> player
 
     const after = simulate(make(), 3);
-    expect(after.result === 'win' || after.result === 'loss' || after.result === 'draw').toBe(true);
+    expect(after.result === 'win' || after.result === 'loss').toBe(true);
     expect(after.turns).toBeLessThan(200);
-    // Ends decisively, and well inside the cap.
-    expect(after.turns).toBeLessThan(60);
+    // Ends decisively, and the ACCELERATING ramp ends it fast: turn 21 (it was
+    // turn 27 under the old linear ramp).
+    expect(after.turns).toBe(21);
     expect(after.events.some((e) => e.kind === 'attritionStart')).toBe(true);
     expect(after.events.some((e) => e.kind === 'died')).toBe(true);
   });
 
-  it('simultaneous death resolves through the shared outcome path (player wins ties)', () => {
+  it('a dead heat (equal initiative score, equal HP) resolves through the shared outcome path to a player win', () => {
     const cfg: CombatConfig = {
       playerTeam: [unit('hero', [], { maxHp: 5 })],
       enemyTeam: [unit('foe', [], { maxHp: 5 })],

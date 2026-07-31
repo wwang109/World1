@@ -29,28 +29,152 @@ const FATIGUE_BASE = 5;
  * to the pre-attrition engine.
  */
 export const ATTRITION_START_TURN = 15;
-/** Per-turn growth: turn 15 → 5, turn 16 → 10, turn 20 → 30. */
+/** Base unit of the ramp. Turn 15 → 5, 16 → 15, 17 → 30, 20 → 105. */
 export const ATTRITION_STEP = 5;
 
 /**
- * Attrition damage on `turn` (0 before the threshold).
- * `(turn − startTurn + 1) × ATTRITION_STEP` — integer-only, no RNG.
+ * Attrition damage on `turn` (0 before the threshold) — ACCELERATING ramp
+ * (user-locked 2026-07-31): the per-turn INCREASE itself grows, so a stalemate
+ * cannot outlast it. With `T = turn − startTurn + 1` the damage is the T-th
+ * triangular number times the step:
+ *
+ *   `ATTRITION_STEP × T × (T + 1) / 2`
+ *
+ * → 5, 15, 30, 50, 75, 105, 140, 180 at turns 15..22. `T × (T + 1)` is always
+ * even so the halving is exact; `Math.floor` is a defensive no-op that keeps
+ * the return integral by construction. No RNG, no floats persisted.
  */
 export function attritionDamage(turn: number, startTurn: number = ATTRITION_START_TURN): number {
   if (turn < startTurn) return 0;
-  return (turn - startTurn + 1) * ATTRITION_STEP;
+  const t = turn - startTurn + 1;
+  return Math.floor((ATTRITION_STEP * t * (t + 1)) / 2);
 }
 
-/** null while combat continues. A side is dead when every unit is not alive. The player wins simultaneous deaths. */
-function checkEnd(state: CombatState): CombatOutcome | null {
-  if (state.enemyTeam.every((u) => !u.alive)) return 'win';
-  if (state.playerTeam.every((u) => !u.alive)) return 'loss';
-  return null;
+/**
+ * THE INITIATIVE SCORE — the single quantity the engine uses to say who is ahead
+ * on tempo. It is exactly what the turn engine's performer comparison reads
+ * (`candidateWins` below is implemented on top of this, so the two can never
+ * disagree): banked readiness first, effective Speed as the tiebreak.
+ *
+ * `readiness` already IS "bank + Speed" at every point after the turn's gain
+ * phase, and the "− queued card weight" term of the comparison rule is charged
+ * to `readiness` when the card is paid for, so a unit's `readiness` at any
+ * moment is the live score. `< 0` means `a` is BEHIND (lower initiative).
+ */
+function compareInitiative(a: CombatantState, b: CombatantState): number {
+  if (a.readiness !== b.readiness) return a.readiness - b.readiness;
+  return effStat(a, 'speed') - effStat(b, 'speed');
+}
+
+/**
+ * What each side brought INTO a potentially-lethal step, measured over the units
+ * that were still ALIVE when the step began:
+ * - `lowest`: the unit with the LOWEST initiative score — the one attrition
+ *   reaches first (see the attrition step's ordering).
+ * - `hp`: the side's total HP. At 1v1 this is just the surviving unit's HP.
+ * Integers only (the units are referenced, never copied as floats), no RNG.
+ */
+interface StepEntry {
+  playerLowest: CombatantState | null;
+  enemyLowest: CombatantState | null;
+  playerHp: number;
+  enemyHp: number;
+}
+
+function stepEntryOf(state: CombatState): StepEntry {
+  const entry: StepEntry = { playerLowest: null, enemyLowest: null, playerHp: 0, enemyHp: 0 };
+  for (const u of state.playerTeam) {
+    if (!u.alive) continue;
+    entry.playerHp += u.stats.hp;
+    if (entry.playerLowest === null || compareInitiative(u, entry.playerLowest) < 0) entry.playerLowest = u;
+  }
+  for (const u of state.enemyTeam) {
+    if (!u.alive) continue;
+    entry.enemyHp += u.stats.hp;
+    if (entry.enemyLowest === null || compareInitiative(u, entry.enemyLowest) < 0) entry.enemyLowest = u;
+  }
+  return entry;
+}
+
+/**
+ * THE ONE PLACE combat outcome is decided (user-locked 2026-07-31: a fight is
+ * ALWAYS decided — there is no draw).
+ *
+ * `null` while combat continues; a side is dead when every unit is not alive.
+ * A single-side wipe is trivially that side's defeat. When BOTH sides' last
+ * units die inside the SAME step (one attrition tick, one DoT sweep, one cast),
+ * the log's per-unit event order must NOT decide it — the fixed hierarchy below
+ * does, evaluated on the state ENTERING the step:
+ *
+ *  1. LOWER INITIATIVE SCORE LOSES. Attrition is applied in ASCENDING initiative
+ *     score (user-locked), so the side holding the lowest-score unit takes the
+ *     killing tick FIRST and therefore reached 0 first. Falling behind on tempo
+ *     is what kills you.
+ *  2. Equal score → LOWER HP LOSES. Same damage on both, so whoever had less
+ *     left truly reached 0 sooner.
+ *  3. Score and HP both exactly equal → the PLAYER WINS. The single stated tie
+ *     convention, matching the "tie → player performs" initiative rule.
+ *
+ * Note that `before` holds live references, but every field it reads
+ * (`readiness`, Speed) is only mutated by the perform loop — never by the damage
+ * of the step being adjudicated — so the comparison sees the entering state.
+ */
+function decideOutcome(state: CombatState, before: StepEntry): CombatOutcome | null {
+  const enemyWiped = state.enemyTeam.every((u) => !u.alive);
+  const playerWiped = state.playerTeam.every((u) => !u.alive);
+  if (!enemyWiped && !playerWiped) return null;
+  if (!playerWiped) return 'win';
+  if (!enemyWiped) return 'loss';
+  if (before.playerLowest !== null && before.enemyLowest !== null) {
+    const byScore = compareInitiative(before.playerLowest, before.enemyLowest);
+    if (byScore !== 0) return byScore < 0 ? 'loss' : 'win';
+  }
+  if (before.playerHp !== before.enemyHp) return before.playerHp < before.enemyHp ? 'loss' : 'win';
+  return 'win'; // dead heat — player-wins convention
+}
+
+/**
+ * Outcome for the `maxTurns` safety net, where nobody died. Decided by REMAINING
+ * HP FRACTION — higher fraction wins, exact tie → player (same convention as
+ * `decideOutcome`). Compared by cross-multiplication so the math stays integral
+ * (no float ratios in or near state). With the accelerating attrition ramp this
+ * is expected to be unreachable; it exists so `simulate` is total.
+ */
+function decideOnTimeout(state: CombatState): CombatOutcome {
+  let pHp = 0;
+  let pMax = 0;
+  let eHp = 0;
+  let eMax = 0;
+  for (const u of state.playerTeam) {
+    pHp += Math.max(0, u.stats.hp);
+    pMax += u.stats.maxHp;
+  }
+  for (const u of state.enemyTeam) {
+    eHp += Math.max(0, u.stats.hp);
+    eMax += u.stats.maxHp;
+  }
+  // pHp/pMax < eHp/eMax  <=>  pHp*eMax < eHp*pMax (all non-negative integers).
+  return pHp * eMax < eHp * pMax ? 'loss' : 'win';
 }
 
 /** Flattened, canonically-ordered performance pool: player-side first, then by index. */
 function pool(state: CombatState): CombatantState[] {
   return [...state.playerTeam, ...state.enemyTeam];
+}
+
+/**
+ * The pool re-ordered by ASCENDING INITIATIVE SCORE — lowest score first
+ * (user-locked 2026-07-31: attrition reaches whoever is furthest behind on tempo
+ * first). Uses `compareInitiative`, the SAME comparison the performer scan uses,
+ * so ordering here and turn order can never disagree. Deterministic and stable:
+ * an exact score tie keeps canonical pool order (player side first, then unit
+ * index) via the explicit `order` fallback, and the sort runs on a copy of an
+ * array (never a Map/Set).
+ */
+function lowestInitiativeFirst(units: CombatantState[]): CombatantState[] {
+  const keyed = units.map((unit, order) => ({ unit, order }));
+  keyed.sort((a, b) => compareInitiative(a.unit, b.unit) || a.order - b.order);
+  return keyed.map((k) => k.unit);
 }
 
 /**
@@ -183,11 +307,9 @@ function moveCursorToNextCard(c: CombatantState): void {
   }
 }
 
+/** Higher initiative score performs (see `compareInitiative`; ties keep the incumbent). */
 function candidateWins(a: { unit: CombatantState }, b: { unit: CombatantState }): boolean {
-  if (a.unit.readiness !== b.unit.readiness) return a.unit.readiness > b.unit.readiness;
-  const aSpeed = effStat(a.unit, 'speed');
-  const bSpeed = effStat(b.unit, 'speed');
-  return aSpeed > bSpeed;
+  return compareInitiative(a.unit, b.unit) > 0;
 }
 
 /**
@@ -216,7 +338,17 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     return { result, turns: state.turn, events, finalState: state };
   };
 
-  let outcome = checkEnd(state);
+  // Every potentially-lethal step is bracketed by `beginStep()` (records the HP
+  // each side brings INTO the step) and `checkEnd()` (asks the single
+  // `decideOutcome` helper whether the fight is over). Nothing else in the loop
+  // knows how a winner is chosen.
+  let stepEntry: StepEntry = stepEntryOf(state);
+  const beginStep = (): void => {
+    stepEntry = stepEntryOf(state);
+  };
+  const checkEnd = (): CombatOutcome | null => decideOutcome(state, stepEntry);
+
+  let outcome = checkEnd();
   if (outcome !== null) return finish(outcome);
 
   while (state.turn < maxTurns) {
@@ -226,8 +358,9 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
 
     // Start-of-turn effects resolve before readiness so dead units never gain.
     // Only BURN ticks here; poison ticks at the end of the turn.
+    beginStep();
     for (const c of units) tickTurnDot(ctx, c, 'burn');
-    outcome = checkEnd(state);
+    outcome = checkEnd();
     if (outcome !== null) return finish(outcome);
 
     // Phase 1: every living combatant gains effective Speed exactly once.
@@ -295,6 +428,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
 
       const c = performerEntry.unit;
       const choice = performerEntry.choice;
+      beginStep(); // this performance is one lethal step
       c.performs += 1;
       events.push({ turn: state.turn, kind: 'performStart', side: c.side, unit: c.index, performs: c.performs });
 
@@ -377,7 +511,7 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         playedPieces.set(c, pieces);
         if (choice.piece.size > 1) blocked.add(c);
       }
-      outcome = checkEnd(state);
+      outcome = checkEnd();
       if (outcome !== null) return finish(outcome);
     }
 
@@ -425,14 +559,19 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     // End-of-turn POISON ticks: everyone has acted; deaths here deny nothing
     // this turn but start the next one. Fresh poison (applied this turn) is
     // still flagged and skips — expireStatuses below clears the flag.
+    beginStep();
     for (const c of units) tickTurnDot(ctx, c, 'poison');
-    outcome = checkEnd(state);
+    outcome = checkEnd();
     if (outcome !== null) return finish(outcome);
 
     // ATTRITION — global stalemate breaker, one clearly-bounded turn step (the
     // only place in the loop that knows about it). From `attritionTurn` on,
-    // EVERY living combatant takes escalating TRUE damage in canonical pool
-    // order (player side first, then by unit index).
+    // EVERY living combatant takes ACCELERATING TRUE damage, applied in
+    // ASCENDING INITIATIVE SCORE — lowest first (user-locked 2026-07-31: falling
+    // behind on tempo is what kills you). The score is the very same
+    // banked-readiness-then-Speed comparison the performer scan uses
+    // (`compareInitiative`); exact ties keep canonical pool order (player side
+    // first, then unit index) so the sort is stable.
     //
     // Deliberate properties:
     // - `bypassShields: true`. Attrition must GUARANTEE termination, and typed
@@ -446,16 +585,20 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     //   keeps negate charges and expose out of it.
     // - Symmetric across both sides => PL-neutral, priced nowhere.
     // - Consumes ZERO random numbers: the Rng call order is unchanged.
-    // Deaths flow through `dealDamage` -> `died` -> the shared `checkEnd`, so
-    // win/loss (player wins simultaneous deaths, as everywhere else) is coherent.
+    // Deaths flow through `dealDamage` -> `died` -> the shared `checkEnd`, and a
+    // mutual wipe is resolved by `decideOutcome` (lower initiative score loses;
+    // see there) — consistent with the application order used right here.
     if (state.turn >= attritionTurn) {
       const amount = attritionDamage(state.turn, attritionTurn);
       if (!attritionAnnounced) {
         attritionAnnounced = true;
         events.push({ turn: state.turn, kind: 'attritionStart', amount });
       }
-      for (const c of units) dealDamage(ctx, c, amount, 'true', { bypassShields: true, source: 'attrition' });
-      outcome = checkEnd(state);
+      beginStep();
+      for (const c of lowestInitiativeFirst(units)) {
+        dealDamage(ctx, c, amount, 'true', { bypassShields: true, source: 'attrition' });
+      }
+      outcome = checkEnd();
       if (outcome !== null) return finish(outcome);
     }
 
@@ -466,8 +609,9 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         events.push({ turn: state.turn, kind: 'fatigueStart' });
       }
       const amount = FATIGUE_BASE + (state.turn - fatigueTurn);
+      beginStep();
       for (const c of units) dealDamage(ctx, c, amount, 'true', { bypassShields: true, source: 'fatigue' });
-      outcome = checkEnd(state);
+      outcome = checkEnd();
       if (outcome !== null) return finish(outcome);
     }
 
@@ -476,7 +620,11 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     events.push({ turn: state.turn, kind: 'end' });
   }
 
-  return finish('draw');
+  // The `maxTurns` safety net. Nobody died, so there is no "who hit 0 first" to
+  // read: decide on remaining HP fraction (see `decideOnTimeout`). With the
+  // accelerating attrition ramp this is unreachable for any plausible HP pool —
+  // it exists only so `simulate` is total and never returns a draw.
+  return finish(decideOnTimeout(state));
 }
 
 /** Config knobs for a 1v1 fight (everything on CombatConfig except the rosters). */

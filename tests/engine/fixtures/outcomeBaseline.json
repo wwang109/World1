@@ -1,0 +1,2007 @@
+{
+ "note": "PRE-CHANGE baseline (linear attrition ramp + order-based checkEnd, draw possible). Generated once; do not regenerate.",
+ "attritionOff": [
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "eb4a3c08d185693476e6ce3ee5ddee0d"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "f9e165c24534007cd3d54188847a3822"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "85f6f9ac7ad697035550d312e13c8195"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "9c7ede943c2221ee423d935eefa0717a"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "0e595856171fdee34439637345000e21"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "72462b98e586bfc3caa661840f63774e"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "fb7414230b3cc08dc81ec7fe08ead7b5"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "99387d9d7d7316a9428dee5b3223739d"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "ebe5a025707a959be555ea028bf00384"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "f3bfd2eb0ee33c5ad26c386bc4e59eed"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "bcb9e99137b3830cb603f4aa8c90d420"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "242a649c9b1ec5967ad7b3239b539c5b"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "5c6b46e56b9e99e838430b735d19547c"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "567a83534d0b54ffaf1936c8bf525fe2"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "51a50537c982a57f007d70083c3d3918"
+  },
+  {
+   "result": "win",
+   "turns": 42,
+   "hash": "6b37b83be16a61b7b2155f2f952ee8c6"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "b94f223188440af029faa26096bf3a6b"
+  },
+  {
+   "result": "win",
+   "turns": 12,
+   "hash": "12b93b37976f7e74cb79a29f183e487c"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "b872284ac3bd25545fecf6c974c5b154"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "e1ce7ab9c5fcf3f6ecb8f3944ec7a466"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "f6c663328f801ec0584441b98ca3ef5c"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "472fbea2effd1f584b0c23bb38370dc2"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "112877b5262ca5153b7c04577147a3c5"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "6b4cba6ac42f44968b2d3d85ff0f45ed"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "c9b2ca180d784e86c97f5edb3390230c"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "3f977ba66981d3aee997ba364cecfaa3"
+  },
+  {
+   "result": "win",
+   "turns": 4,
+   "hash": "268e8240113ee6a59fa53dd00f817045"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "409b58e1b47f6e8487d963dad0054f24"
+  },
+  {
+   "result": "loss",
+   "turns": 2,
+   "hash": "55514751e45f5745ce507b860b39ed6b"
+  },
+  {
+   "result": "loss",
+   "turns": 14,
+   "hash": "347962b3837cac3d571b794dd0953f40"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "4286e052a918b9207d4c856bcea35aac"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "23488141264de2aadf237977d4c71ad0"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "9de174d9fe0336cd7b0e87ca842d8b2f"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "e991f0bf82bafd60fb705886a28578a5"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "ad4837659f9ad79e40c9c1dda1113fbb"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "0d200995949fe1aac80309da8cf99c4f"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "ba124102773bba9cc2e022fafbb8325d"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "6749b4eca53e6388af3aa2f00e966169"
+  },
+  {
+   "result": "loss",
+   "turns": 2,
+   "hash": "50f65598bc3f6c6a80fc057d5de98999"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "d8473b6424b787ed3f03a1cacbe2c41f"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "0631debc3527c806a0d698ba90553fb1"
+  },
+  {
+   "result": "loss",
+   "turns": 11,
+   "hash": "bf2c273f1fb260040bcd9c8c5aa42d43"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "42e9a0f8ea682635de6b9f2966f091df"
+  },
+  {
+   "result": "loss",
+   "turns": 14,
+   "hash": "5c3a439754f2f51b1b3abd7600c5414f"
+  },
+  {
+   "result": "win",
+   "turns": 18,
+   "hash": "e0c5af833612cc89e09ba356aed3c814"
+  },
+  {
+   "result": "loss",
+   "turns": 11,
+   "hash": "707b4ef5f3450fb78604a374c18fbf48"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "54bfa934dfd26cecc72ff1b02f80fab3"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "c273aab2b2b3494adcac407096ea50a8"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "b57fb98366bcdd00746793480ef48a31"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "41ae799848f28107b8acd9c144485c90"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "16b10da5b105064301b6aef45c0c6ca3"
+  },
+  {
+   "result": "loss",
+   "turns": 11,
+   "hash": "de51158d1abb4ceb4b9a73fef09fc7ac"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "ce341b534d2693e0244dcf5e95c53fdd"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "646ba285d009664d1f3656e99cad3ad9"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "27aa327d5053e574163c16c1f54220f2"
+  },
+  {
+   "result": "loss",
+   "turns": 15,
+   "hash": "82e837dc32ab44fd52b9fb87f6d81887"
+  },
+  {
+   "result": "loss",
+   "turns": 2,
+   "hash": "d9dac582cf12cb5b89268a6b66c259f7"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "a18eeaddf14663be50c25b6774c01e82"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "e38b6b2b0d5f34401b13a6acb50477f9"
+  },
+  {
+   "result": "win",
+   "turns": 14,
+   "hash": "57a8227e2a8f309c0eae780c92c06b1a"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "d3ec5b7cd62042ea1b0ac20104e578cd"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "1dc97ea0f9edb2cb7b16581bfdd94a59"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "568aa0b7fcd6fb4f0d3dcbd42de4abdb"
+  },
+  {
+   "result": "loss",
+   "turns": 12,
+   "hash": "5d6d07134134a5aae0bf6c1f1e0a50c4"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "d547b1750706160fd9a3d575880bba90"
+  },
+  {
+   "result": "win",
+   "turns": 10,
+   "hash": "9df661b8ee1055c33ff0b60d5929733b"
+  },
+  {
+   "result": "win",
+   "turns": 11,
+   "hash": "5d593d5e5bfc3594fcd34902c0abba19"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "7ca2f898fbf16f88a37b8e28f746a4ed"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "c799d7d0bd629ee19a07fa2d0e0890b6"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "ff7a43fa58b989b8574526bbb93d9700"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "1ae29dc8361192c285e828cdc8b8301e"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "c5beabd80294312b872a739c258423dd"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "8635ba21998b9551dad09183e107bd16"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "b0b6089fec4caba6be71c50bd195b511"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "f72be377640c2133bf1627e3ffbc0566"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "884ec6b039ebdce5f06bba39b050b5de"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "c35f5298993c4ca5789567dd1e0649fc"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "77634f18b43fa4e71bb25df295cb36d6"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "c645bb8d5d101d7f79cfe4c0185e79d7"
+  },
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "00f044bb957561b2a4c2c28564123ce5"
+  },
+  {
+   "result": "win",
+   "turns": 3,
+   "hash": "35ccae94454dd81e472e54c1d24e8380"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "c1893c27f15ae8e0d7134b498669f6b7"
+  },
+  {
+   "result": "loss",
+   "turns": 17,
+   "hash": "b4a00af60cbe19feaac78d65a6916c97"
+  },
+  {
+   "result": "loss",
+   "turns": 14,
+   "hash": "516c3197cb88cfea4811c60861e0bab3"
+  },
+  {
+   "result": "loss",
+   "turns": 12,
+   "hash": "1cc4b9ce54bea15fbceb3628e7d8d9a1"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "4addd88e8384834e54a1cd3b603a0726"
+  },
+  {
+   "result": "win",
+   "turns": 11,
+   "hash": "01a5872a3ebadc42f61e8b4afaf99e74"
+  },
+  {
+   "result": "win",
+   "turns": 12,
+   "hash": "a520eade86700bfb29d4491d77480cb3"
+  },
+  {
+   "result": "win",
+   "turns": 14,
+   "hash": "29207616564f38484cc4bd806d97aa77"
+  },
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "5a70e5a9d58f7761356685400b2af371"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "de06656a4ccfbebd270bd51a7372ff9c"
+  },
+  {
+   "result": "win",
+   "turns": 12,
+   "hash": "124e5c2104d2f00449983bb1c5659300"
+  },
+  {
+   "result": "win",
+   "turns": 14,
+   "hash": "2e3327d5be87b632f87234247b7c0320"
+  },
+  {
+   "result": "win",
+   "turns": 17,
+   "hash": "3895e336b78a4c10a8a1318c846159fa"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "733a19e552b72a78a60ad2f24e031754"
+  },
+  {
+   "result": "win",
+   "turns": 3,
+   "hash": "19a1905037e0e69fe860b6e44d0ba5b5"
+  },
+  {
+   "result": "loss",
+   "turns": 11,
+   "hash": "5448c22f7ba7946e7a6a40104bba8762"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "4c733b5d023d7961a7a6966dfbba269e"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "5929e800ce5276452004cd9c940bd002"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "30517b406557429f075e871fa917a3b2"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "1f33af694477a12559398f8865d5c68c"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "3fc0b9998fb345f1f8c61bfdee1af4dd"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "df11ffdfa44be23b930035f451570296"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "f940c381ec3606a8aba4086c714fd7d9"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "0b71327d73d9f0dcfa3b13f90bfd86af"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "1647bebe8044688115286066a06adaa4"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "b5c2e99a50dad967055b0cfee1f72710"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "287ad856ca63add2e9c7059b2a6e3495"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "6050e12dcf955c5b4af066c258c1aafc"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "03ec8ed485da0d3f5aaaeeb0b83efb1b"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "30ee297c403b5601791be63b5bd72884"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "8e174d61ebd61e78d79f47b16535e9fc"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "32fd43e12cdcac76e53d1e0a1d739fe5"
+  },
+  {
+   "result": "loss",
+   "turns": 13,
+   "hash": "6a9dbdbbfd6bc9aafe71bffee0bba4b5"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "dcba648f41df35e98e9ec8c5a8c08fab"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "beeb6963341ff104444375fa61ecdd49"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "4c584ec4b3b485a71d30290711ce88e3"
+  },
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "f20cc48edc993727196275ef136d370e"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "d447cb6ca342a55b17571acc1df66f48"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "29377b5b1197385c9a8dca995f875710"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "d7cfe05e18ea304fc2dae5c1db9c638a"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "990a678476a196914a2b082322289d48"
+  },
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "1e1ddd28f315a2e665614b316ee1367b"
+  },
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "4fffc5aaee7e4850b00a9989d1525e5f"
+  },
+  {
+   "result": "win",
+   "turns": 16,
+   "hash": "f4f51e007cd09f4827ff530a28f21319"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "63fff5a6ab6c0d5f60f66b8764e9b09c"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "dd2e4a85f3d5834cd5a7365b3404cbbd"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "52e0992aef02397184151923dc29fe63"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "0f58e74936b78929f323428dc68eaef6"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "49acfbac3ed529a46e79e130ec0e166b"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "ec5f2fb21b6cdc044f7048a72c71cd9b"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "e6fab448cecec45691708576cece0f56"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "db13d09da21a41a389f733edb8cae030"
+  },
+  {
+   "result": "loss",
+   "turns": 2,
+   "hash": "7e4b5bcf26a4ac2f01e0ee4b53cb3402"
+  },
+  {
+   "result": "loss",
+   "turns": 13,
+   "hash": "53d23b26f1979358e9a53b78627f21db"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "d6023f7b00188697d1361c17e2ad2c36"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "6c02203fee9427653731e281944dead2"
+  },
+  {
+   "result": "loss",
+   "turns": 13,
+   "hash": "479a950a7721f1278e1112fce3c0e256"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "15643484b031a3acee24dd4e776a19bc"
+  },
+  {
+   "result": "win",
+   "turns": 11,
+   "hash": "a0bb546f9a8253e985167a5c28ebde1b"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "31ca0f24ad8b723cf3aaeb42dc9bec5b"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "230bfd59f2359837b1ee451521e21515"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "1eda2d3d0cd2602d395de26fe9be8ba1"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "3a6c80c1a8900c9b00ad9d208a2c9239"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "31c4da08c9361b1276c08d31154e7724"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "4679b150289ddd6fee62f214d9ef74dd"
+  },
+  {
+   "result": "win",
+   "turns": 4,
+   "hash": "2fdbcb8c7ea3cf7c7f6c52d0c45ad6d2"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "2de75ed733f285866ae236d6a0499d15"
+  },
+  {
+   "result": "win",
+   "turns": 10,
+   "hash": "09059136865cf8a44961b971fbed63b4"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "e753148536cdf24b789bb0222fb73f33"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "090b3f6017dec74d653d3cd3440b245c"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "53dc5e172c50bbc42958d9b712db2ce6"
+  },
+  {
+   "result": "win",
+   "turns": 14,
+   "hash": "e9cb00b15539fd5a23276f236c86ab3f"
+  },
+  {
+   "result": "win",
+   "turns": 15,
+   "hash": "4b4b362379d0c0595972b80c273cc03b"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "7b3d6a78d1d7f7e3bf11e47a95a78b57"
+  },
+  {
+   "result": "win",
+   "turns": 13,
+   "hash": "d5c91df082e52cf2effd66dc1249767f"
+  },
+  {
+   "result": "win",
+   "turns": 13,
+   "hash": "58b65522e6b6e1b4657fd948d728fa24"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "6cdfefdca1b0dc687ed998cf42347af1"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "9808069ce2ebabd14a257f71c909f4e3"
+  },
+  {
+   "result": "win",
+   "turns": 13,
+   "hash": "9d1dcd70b42fcf56a5bb56226cdae6d9"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "adcff76cdd8fd41539f8feb0a0985253"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "bb51ce297fde13f38aaae64d5ba1373f"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "136b1338eebd94a17b2d425253d597f8"
+  },
+  {
+   "result": "win",
+   "turns": 16,
+   "hash": "656aba2111d49187e3c7617f88e47bf3"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "990b6c545d521d5a08da5c8b0d00cfe4"
+  },
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "17dcc26e04994b39fca6da6020ac30ff"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "5f87dea0dfabda617a74fbbb9f90bca1"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "4b76b679c0cbb18447068adbe9e15dfe"
+  },
+  {
+   "result": "win",
+   "turns": 12,
+   "hash": "93b4b517d2db8160868ca12037185f45"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "71941b378ea663d7cc1ace0db4e6c4ed"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "dba92f6fc937febf43a9a0367cde94d3"
+  },
+  {
+   "result": "win",
+   "turns": 1,
+   "hash": "925f6b59fdecdb521a1f7351bf9bb967"
+  },
+  {
+   "result": "loss",
+   "turns": 21,
+   "hash": "a2601cda34f24116dcd0a4a923896f15"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "deb8398cb68b1a9a352a9a5575be388a"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "8722776e6daccc72125e67d20bf5cf22"
+  },
+  {
+   "result": "win",
+   "turns": 10,
+   "hash": "46e055c23ebd05f33ebe89ce08db2a1e"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "e0f7397eb6aebdf787576a10246f68d4"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "eeb63f2e5d6da0e7b6e1d55d08087c5d"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "6d9883f287fed920a2ebbdc17f53298b"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "d19b4bdf8a830c1d21fd90ac7ccaa687"
+  },
+  {
+   "result": "win",
+   "turns": 3,
+   "hash": "189ff009fc7d25801306e3b9f558205d"
+  },
+  {
+   "result": "win",
+   "turns": 15,
+   "hash": "a2be88d08cfedc0f97d1fd526da67995"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "182ea9cc03ec4f064dbe454d9608f996"
+  },
+  {
+   "result": "win",
+   "turns": 12,
+   "hash": "28ac0888d24f3c1163d3483ab3015510"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "6de8575d116500340b458f6704813cae"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "b377ddc793fa35c69bd354d9d8d60ba2"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "fc7b556970c2ee2b6aa58084e0619e72"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "30487d0a87cc17b280f3c9dc90c66e8b"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "6590ed60430880edbf854dedd9c6de48"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "b7dfee018ad60625946d77f33f256428"
+  },
+  {
+   "result": "win",
+   "turns": 10,
+   "hash": "619b900ddf7b52b38a11653ba782de94"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "a99d8eb2ab78b736a04e08950ace8f69"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "4c777a38f1d34eed20b35e88aa623dbe"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "ba89cd9baa0bad33a8a1af2ab883674a"
+  },
+  {
+   "result": "loss",
+   "turns": 2,
+   "hash": "49fe486e267a83faad016854cb85e14b"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "876689defc799a2c62f4da107c85d54e"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "89b6608cccb146b3dd0337d40225ddc9"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "0dfd35c48f06170cf52c8ab5bc4c9871"
+  },
+  {
+   "result": "loss",
+   "turns": 16,
+   "hash": "9caebf78bb566f5b332edf02de6f5782"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "d5d9cde05a421a1ee9415b537a3b1b80"
+  }
+ ],
+ "attritionOn": [
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "eb4a3c08d185693476e6ce3ee5ddee0d"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "f9e165c24534007cd3d54188847a3822"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "85f6f9ac7ad697035550d312e13c8195"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "9c7ede943c2221ee423d935eefa0717a"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "0e595856171fdee34439637345000e21"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "72462b98e586bfc3caa661840f63774e"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "fb7414230b3cc08dc81ec7fe08ead7b5"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "99387d9d7d7316a9428dee5b3223739d"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "ebe5a025707a959be555ea028bf00384"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "f3bfd2eb0ee33c5ad26c386bc4e59eed"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "bcb9e99137b3830cb603f4aa8c90d420"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "242a649c9b1ec5967ad7b3239b539c5b"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "5c6b46e56b9e99e838430b735d19547c"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "567a83534d0b54ffaf1936c8bf525fe2"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "51a50537c982a57f007d70083c3d3918"
+  },
+  {
+   "result": "win",
+   "turns": 22,
+   "hash": "a1fb74761f048f413f6bce3c2eef49b9"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "b94f223188440af029faa26096bf3a6b"
+  },
+  {
+   "result": "win",
+   "turns": 12,
+   "hash": "12b93b37976f7e74cb79a29f183e487c"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "b872284ac3bd25545fecf6c974c5b154"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "e1ce7ab9c5fcf3f6ecb8f3944ec7a466"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "f6c663328f801ec0584441b98ca3ef5c"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "472fbea2effd1f584b0c23bb38370dc2"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "112877b5262ca5153b7c04577147a3c5"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "6b4cba6ac42f44968b2d3d85ff0f45ed"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "c9b2ca180d784e86c97f5edb3390230c"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "3f977ba66981d3aee997ba364cecfaa3"
+  },
+  {
+   "result": "win",
+   "turns": 4,
+   "hash": "268e8240113ee6a59fa53dd00f817045"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "409b58e1b47f6e8487d963dad0054f24"
+  },
+  {
+   "result": "loss",
+   "turns": 2,
+   "hash": "55514751e45f5745ce507b860b39ed6b"
+  },
+  {
+   "result": "loss",
+   "turns": 14,
+   "hash": "347962b3837cac3d571b794dd0953f40"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "4286e052a918b9207d4c856bcea35aac"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "23488141264de2aadf237977d4c71ad0"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "9de174d9fe0336cd7b0e87ca842d8b2f"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "e991f0bf82bafd60fb705886a28578a5"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "ad4837659f9ad79e40c9c1dda1113fbb"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "0d200995949fe1aac80309da8cf99c4f"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "ba124102773bba9cc2e022fafbb8325d"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "6749b4eca53e6388af3aa2f00e966169"
+  },
+  {
+   "result": "loss",
+   "turns": 2,
+   "hash": "50f65598bc3f6c6a80fc057d5de98999"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "d8473b6424b787ed3f03a1cacbe2c41f"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "0631debc3527c806a0d698ba90553fb1"
+  },
+  {
+   "result": "loss",
+   "turns": 11,
+   "hash": "bf2c273f1fb260040bcd9c8c5aa42d43"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "42e9a0f8ea682635de6b9f2966f091df"
+  },
+  {
+   "result": "loss",
+   "turns": 14,
+   "hash": "5c3a439754f2f51b1b3abd7600c5414f"
+  },
+  {
+   "result": "win",
+   "turns": 16,
+   "hash": "5bbb24a6eb1a941d180e7d0e29fcfba4"
+  },
+  {
+   "result": "loss",
+   "turns": 11,
+   "hash": "707b4ef5f3450fb78604a374c18fbf48"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "54bfa934dfd26cecc72ff1b02f80fab3"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "c273aab2b2b3494adcac407096ea50a8"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "b57fb98366bcdd00746793480ef48a31"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "41ae799848f28107b8acd9c144485c90"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "16b10da5b105064301b6aef45c0c6ca3"
+  },
+  {
+   "result": "loss",
+   "turns": 11,
+   "hash": "de51158d1abb4ceb4b9a73fef09fc7ac"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "ce341b534d2693e0244dcf5e95c53fdd"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "646ba285d009664d1f3656e99cad3ad9"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "27aa327d5053e574163c16c1f54220f2"
+  },
+  {
+   "result": "loss",
+   "turns": 15,
+   "hash": "82e837dc32ab44fd52b9fb87f6d81887"
+  },
+  {
+   "result": "loss",
+   "turns": 2,
+   "hash": "d9dac582cf12cb5b89268a6b66c259f7"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "a18eeaddf14663be50c25b6774c01e82"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "e38b6b2b0d5f34401b13a6acb50477f9"
+  },
+  {
+   "result": "win",
+   "turns": 14,
+   "hash": "57a8227e2a8f309c0eae780c92c06b1a"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "d3ec5b7cd62042ea1b0ac20104e578cd"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "1dc97ea0f9edb2cb7b16581bfdd94a59"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "568aa0b7fcd6fb4f0d3dcbd42de4abdb"
+  },
+  {
+   "result": "loss",
+   "turns": 12,
+   "hash": "5d6d07134134a5aae0bf6c1f1e0a50c4"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "d547b1750706160fd9a3d575880bba90"
+  },
+  {
+   "result": "win",
+   "turns": 10,
+   "hash": "9df661b8ee1055c33ff0b60d5929733b"
+  },
+  {
+   "result": "win",
+   "turns": 11,
+   "hash": "5d593d5e5bfc3594fcd34902c0abba19"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "7ca2f898fbf16f88a37b8e28f746a4ed"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "c799d7d0bd629ee19a07fa2d0e0890b6"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "ff7a43fa58b989b8574526bbb93d9700"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "1ae29dc8361192c285e828cdc8b8301e"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "c5beabd80294312b872a739c258423dd"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "8635ba21998b9551dad09183e107bd16"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "b0b6089fec4caba6be71c50bd195b511"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "f72be377640c2133bf1627e3ffbc0566"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "884ec6b039ebdce5f06bba39b050b5de"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "c35f5298993c4ca5789567dd1e0649fc"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "77634f18b43fa4e71bb25df295cb36d6"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "c645bb8d5d101d7f79cfe4c0185e79d7"
+  },
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "00f044bb957561b2a4c2c28564123ce5"
+  },
+  {
+   "result": "win",
+   "turns": 3,
+   "hash": "35ccae94454dd81e472e54c1d24e8380"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "c1893c27f15ae8e0d7134b498669f6b7"
+  },
+  {
+   "result": "loss",
+   "turns": 17,
+   "hash": "1891156971845ab759c85cce247063b4"
+  },
+  {
+   "result": "loss",
+   "turns": 14,
+   "hash": "516c3197cb88cfea4811c60861e0bab3"
+  },
+  {
+   "result": "loss",
+   "turns": 12,
+   "hash": "1cc4b9ce54bea15fbceb3628e7d8d9a1"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "4addd88e8384834e54a1cd3b603a0726"
+  },
+  {
+   "result": "win",
+   "turns": 11,
+   "hash": "01a5872a3ebadc42f61e8b4afaf99e74"
+  },
+  {
+   "result": "win",
+   "turns": 12,
+   "hash": "a520eade86700bfb29d4491d77480cb3"
+  },
+  {
+   "result": "win",
+   "turns": 14,
+   "hash": "29207616564f38484cc4bd806d97aa77"
+  },
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "5a70e5a9d58f7761356685400b2af371"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "de06656a4ccfbebd270bd51a7372ff9c"
+  },
+  {
+   "result": "win",
+   "turns": 12,
+   "hash": "124e5c2104d2f00449983bb1c5659300"
+  },
+  {
+   "result": "win",
+   "turns": 14,
+   "hash": "2e3327d5be87b632f87234247b7c0320"
+  },
+  {
+   "result": "win",
+   "turns": 17,
+   "hash": "86868ccd2e16524a29f131182b8f2db3"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "733a19e552b72a78a60ad2f24e031754"
+  },
+  {
+   "result": "win",
+   "turns": 3,
+   "hash": "19a1905037e0e69fe860b6e44d0ba5b5"
+  },
+  {
+   "result": "loss",
+   "turns": 11,
+   "hash": "5448c22f7ba7946e7a6a40104bba8762"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "4c733b5d023d7961a7a6966dfbba269e"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "5929e800ce5276452004cd9c940bd002"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "30517b406557429f075e871fa917a3b2"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "1f33af694477a12559398f8865d5c68c"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "3fc0b9998fb345f1f8c61bfdee1af4dd"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "df11ffdfa44be23b930035f451570296"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "f940c381ec3606a8aba4086c714fd7d9"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "0b71327d73d9f0dcfa3b13f90bfd86af"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "1647bebe8044688115286066a06adaa4"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "b5c2e99a50dad967055b0cfee1f72710"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "287ad856ca63add2e9c7059b2a6e3495"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "6050e12dcf955c5b4af066c258c1aafc"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "03ec8ed485da0d3f5aaaeeb0b83efb1b"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "30ee297c403b5601791be63b5bd72884"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "8e174d61ebd61e78d79f47b16535e9fc"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "32fd43e12cdcac76e53d1e0a1d739fe5"
+  },
+  {
+   "result": "loss",
+   "turns": 13,
+   "hash": "6a9dbdbbfd6bc9aafe71bffee0bba4b5"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "dcba648f41df35e98e9ec8c5a8c08fab"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "beeb6963341ff104444375fa61ecdd49"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "4c584ec4b3b485a71d30290711ce88e3"
+  },
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "f20cc48edc993727196275ef136d370e"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "d447cb6ca342a55b17571acc1df66f48"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "29377b5b1197385c9a8dca995f875710"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "d7cfe05e18ea304fc2dae5c1db9c638a"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "990a678476a196914a2b082322289d48"
+  },
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "1e1ddd28f315a2e665614b316ee1367b"
+  },
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "4fffc5aaee7e4850b00a9989d1525e5f"
+  },
+  {
+   "result": "win",
+   "turns": 16,
+   "hash": "69396bb528905d9bc4c5c52fe7ec06c0"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "63fff5a6ab6c0d5f60f66b8764e9b09c"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "dd2e4a85f3d5834cd5a7365b3404cbbd"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "52e0992aef02397184151923dc29fe63"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "0f58e74936b78929f323428dc68eaef6"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "49acfbac3ed529a46e79e130ec0e166b"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "ec5f2fb21b6cdc044f7048a72c71cd9b"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "e6fab448cecec45691708576cece0f56"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "db13d09da21a41a389f733edb8cae030"
+  },
+  {
+   "result": "loss",
+   "turns": 2,
+   "hash": "7e4b5bcf26a4ac2f01e0ee4b53cb3402"
+  },
+  {
+   "result": "loss",
+   "turns": 13,
+   "hash": "53d23b26f1979358e9a53b78627f21db"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "d6023f7b00188697d1361c17e2ad2c36"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "6c02203fee9427653731e281944dead2"
+  },
+  {
+   "result": "loss",
+   "turns": 13,
+   "hash": "479a950a7721f1278e1112fce3c0e256"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "15643484b031a3acee24dd4e776a19bc"
+  },
+  {
+   "result": "win",
+   "turns": 11,
+   "hash": "a0bb546f9a8253e985167a5c28ebde1b"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "31ca0f24ad8b723cf3aaeb42dc9bec5b"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "230bfd59f2359837b1ee451521e21515"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "1eda2d3d0cd2602d395de26fe9be8ba1"
+  },
+  {
+   "result": "win",
+   "turns": 6,
+   "hash": "3a6c80c1a8900c9b00ad9d208a2c9239"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "31c4da08c9361b1276c08d31154e7724"
+  },
+  {
+   "result": "win",
+   "turns": 8,
+   "hash": "4679b150289ddd6fee62f214d9ef74dd"
+  },
+  {
+   "result": "win",
+   "turns": 4,
+   "hash": "2fdbcb8c7ea3cf7c7f6c52d0c45ad6d2"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "2de75ed733f285866ae236d6a0499d15"
+  },
+  {
+   "result": "win",
+   "turns": 10,
+   "hash": "09059136865cf8a44961b971fbed63b4"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "e753148536cdf24b789bb0222fb73f33"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "090b3f6017dec74d653d3cd3440b245c"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "53dc5e172c50bbc42958d9b712db2ce6"
+  },
+  {
+   "result": "win",
+   "turns": 14,
+   "hash": "e9cb00b15539fd5a23276f236c86ab3f"
+  },
+  {
+   "result": "win",
+   "turns": 15,
+   "hash": "4b4b362379d0c0595972b80c273cc03b"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "7b3d6a78d1d7f7e3bf11e47a95a78b57"
+  },
+  {
+   "result": "win",
+   "turns": 13,
+   "hash": "d5c91df082e52cf2effd66dc1249767f"
+  },
+  {
+   "result": "win",
+   "turns": 13,
+   "hash": "58b65522e6b6e1b4657fd948d728fa24"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "6cdfefdca1b0dc687ed998cf42347af1"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "9808069ce2ebabd14a257f71c909f4e3"
+  },
+  {
+   "result": "win",
+   "turns": 13,
+   "hash": "9d1dcd70b42fcf56a5bb56226cdae6d9"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "adcff76cdd8fd41539f8feb0a0985253"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "bb51ce297fde13f38aaae64d5ba1373f"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "136b1338eebd94a17b2d425253d597f8"
+  },
+  {
+   "result": "win",
+   "turns": 16,
+   "hash": "40d77d90bdb910bc73f4b51e8918c2fc"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "990b6c545d521d5a08da5c8b0d00cfe4"
+  },
+  {
+   "result": "win",
+   "turns": 9,
+   "hash": "17dcc26e04994b39fca6da6020ac30ff"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "5f87dea0dfabda617a74fbbb9f90bca1"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "4b76b679c0cbb18447068adbe9e15dfe"
+  },
+  {
+   "result": "win",
+   "turns": 12,
+   "hash": "93b4b517d2db8160868ca12037185f45"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "71941b378ea663d7cc1ace0db4e6c4ed"
+  },
+  {
+   "result": "loss",
+   "turns": 5,
+   "hash": "dba92f6fc937febf43a9a0367cde94d3"
+  },
+  {
+   "result": "win",
+   "turns": 1,
+   "hash": "925f6b59fdecdb521a1f7351bf9bb967"
+  },
+  {
+   "result": "loss",
+   "turns": 21,
+   "hash": "bf2dafe92e3b24157caf511f932e0012"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "deb8398cb68b1a9a352a9a5575be388a"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "8722776e6daccc72125e67d20bf5cf22"
+  },
+  {
+   "result": "win",
+   "turns": 10,
+   "hash": "46e055c23ebd05f33ebe89ce08db2a1e"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "e0f7397eb6aebdf787576a10246f68d4"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "eeb63f2e5d6da0e7b6e1d55d08087c5d"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "6d9883f287fed920a2ebbdc17f53298b"
+  },
+  {
+   "result": "win",
+   "turns": 2,
+   "hash": "d19b4bdf8a830c1d21fd90ac7ccaa687"
+  },
+  {
+   "result": "win",
+   "turns": 3,
+   "hash": "189ff009fc7d25801306e3b9f558205d"
+  },
+  {
+   "result": "win",
+   "turns": 15,
+   "hash": "a2be88d08cfedc0f97d1fd526da67995"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "182ea9cc03ec4f064dbe454d9608f996"
+  },
+  {
+   "result": "win",
+   "turns": 12,
+   "hash": "28ac0888d24f3c1163d3483ab3015510"
+  },
+  {
+   "result": "loss",
+   "turns": 3,
+   "hash": "6de8575d116500340b458f6704813cae"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "b377ddc793fa35c69bd354d9d8d60ba2"
+  },
+  {
+   "result": "loss",
+   "turns": 4,
+   "hash": "fc7b556970c2ee2b6aa58084e0619e72"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "30487d0a87cc17b280f3c9dc90c66e8b"
+  },
+  {
+   "result": "win",
+   "turns": 7,
+   "hash": "6590ed60430880edbf854dedd9c6de48"
+  },
+  {
+   "result": "win",
+   "turns": 5,
+   "hash": "b7dfee018ad60625946d77f33f256428"
+  },
+  {
+   "result": "win",
+   "turns": 10,
+   "hash": "619b900ddf7b52b38a11653ba782de94"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "a99d8eb2ab78b736a04e08950ace8f69"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "4c777a38f1d34eed20b35e88aa623dbe"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "ba89cd9baa0bad33a8a1af2ab883674a"
+  },
+  {
+   "result": "loss",
+   "turns": 2,
+   "hash": "49fe486e267a83faad016854cb85e14b"
+  },
+  {
+   "result": "loss",
+   "turns": 8,
+   "hash": "876689defc799a2c62f4da107c85d54e"
+  },
+  {
+   "result": "loss",
+   "turns": 10,
+   "hash": "89b6608cccb146b3dd0337d40225ddc9"
+  },
+  {
+   "result": "loss",
+   "turns": 9,
+   "hash": "0dfd35c48f06170cf52c8ab5bc4c9871"
+  },
+  {
+   "result": "loss",
+   "turns": 16,
+   "hash": "e9ba0e5b2c8ae4553bd0a2eaf090101a"
+  },
+  {
+   "result": "loss",
+   "turns": 7,
+   "hash": "d5d9cde05a421a1ee9415b537a3b1b80"
+  }
+ ]
+}

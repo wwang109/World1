@@ -61,7 +61,7 @@ describe('run/resolveBattle', () => {
     expect(model.steps.length).toBeGreaterThan(1);
     expect(model.hpByStep).toHaveLength(model.steps.length);
     expect(model.fxByStep).toHaveLength(model.steps.length);
-    expect(['VICTORY', 'DEFEAT', 'DRAW']).toContain(model.outcome);
+    expect(['VICTORY', 'DEFEAT']).toContain(model.outcome); // no draw exists
     // The damage math survives the wire — a `D:` detail line must be present.
     const details = [...model.linesByTurn.values()].flat().filter((l) => l.detail?.startsWith('D:'));
     expect(details.length).toBeGreaterThan(0);

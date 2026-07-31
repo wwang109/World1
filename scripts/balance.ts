@@ -184,12 +184,13 @@ export function runMatchup(
     if (result === 'win') {
       stats.wins += 1;
       stats.playerHpLeftOnWinTotal += Math.max(0, finalState.player.stats.hp);
-    } else if (result === 'loss') {
+    } else {
       stats.losses += 1;
       stats.enemyHpLeftOnLossTotal += Math.max(0, finalState.enemy.stats.hp);
-    } else {
-      stats.draws += 1;
     }
+    // `draws` stays 0 by construction: CombatOutcome is win|loss — a fight is
+    // always decided (user-locked 2026-07-31). The column is kept so the report
+    // visibly proves it.
 
     for (const e of events) {
       if (e.kind !== 'damage') continue;
