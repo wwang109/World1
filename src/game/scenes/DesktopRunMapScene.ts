@@ -5,10 +5,11 @@ import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
 import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
-import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
-import { renderRunProgressStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { auditTextBlock } from '../ui/controlLayoutAudit';
+import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
-import { renderBankedPlBadge, renderRunStatPanel } from '../ui/RunStatPanel';
+import { runScreenTemplate } from '../ui/runScreenTemplate';
+import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   choices,
@@ -19,15 +20,21 @@ import {
   pickNode,
   previewEncounter,
   rerollPendingSeed,
+  retireActiveRun,
   startRun,
   type RunNode,
   type RunNodeKind,
 } from '../runStore';
 
 const F = DESKTOP_PROFILE.font;
+const TEMPLATE = runScreenTemplate('desktop');
 
 const GX = DESKTOP_PROFILE.safe.x;
-const CONTENT_TOP = 150;
+const CONTENT_TOP = TEMPLATE.regions.content.y;
+
+/** The HUD's stat strip before a run exists (the "START A NEW RUN" state) —
+ * all zeroes, no banked-PL/RETIRE actions to show. */
+const EMPTY_HUD_SNAPSHOT = { day: 0, wave: 1, gold: 0, heroLevel: 1, lives: 0, bossesCleared: 0, wins: 0, losses: 0 };
 
 /** Steel-blue / gold-bronze / green / red — all already in the shared UI
  * palette, kept distinct per node kind across every rendering of the map. */
@@ -54,11 +61,13 @@ const KIND_LABEL: Record<RunNodeKind, string> = {
  */
 export class DesktopRunMapScene extends Phaser.Scene {
   private statPanelOpen = false;
+  private retireConfirmOpen = false;
 
   constructor() { super('DesktopRunMap'); }
 
   init(): void {
     this.statPanelOpen = false;
+    this.retireConfirmOpen = false;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -69,7 +78,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
 
     const run = getActiveRun();
     if (!run) {
-      this.renderTitle('RUN');
+      this.renderHud(undefined);
       this.renderStartPanel();
       return;
     }
@@ -79,14 +88,12 @@ export class DesktopRunMapScene extends Phaser.Scene {
       this.scene.start('DesktopDraft');
       return;
     }
-    if (run.status === 'victory' || run.status === 'defeat') {
+    if (run.status === 'defeat' || run.status === 'retired') {
       this.renderBanner(run.status);
       return;
     }
 
-    this.renderTitle('RUN');
-    this.renderHeaderStats(run);
-    this.renderDeckButton();
+    this.renderHud(run);
     this.renderTrail(run);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
@@ -96,44 +103,29 @@ export class DesktopRunMapScene extends Phaser.Scene {
         onChanged: () => this.rerender(),
       });
     }
+    if (this.retireConfirmOpen) {
+      renderRetireConfirm(this, {
+        compact: false,
+        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
+        onConfirm: () => { retireActiveRun(); this.rerender(); },
+      });
+    }
   }
 
-  private renderTitle(label: string): void {
-    const eyebrow = this.add.text(GX, 24, 'WORLD1 / RUN MODE', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
+  /** THE run HUD — identical header on every run screen (`runScreenTemplate`).
+   * `run` undefined only on the pre-start "START A NEW RUN" state (no stats
+   * to show yet, so the strip reads all zeroes and the actions row is bare). */
+  private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>> | undefined): void {
+    renderRunHud(this, {
+      screen: 'RUN',
+      compact: false,
+      snapshot: run ? snapshotRunProgress(run) : EMPTY_HUD_SNAPSHOT,
+      onOpenStatPanel: run ? () => { this.statPanelOpen = true; this.rerender(); } : undefined,
+      actions: run ? {
+        secondary: { label: 'DECK / BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); } },
+        tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
+      } : undefined,
     });
-    const title = this.add.text(GX, 44, label, {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big}px`, color: UI.text,
-    });
-    auditTextBlock(eyebrow, { name: 'Desktop run map eyebrow', maxWidth: 180, maxHeight: F.label * 2, minFontSize: 8 });
-    auditTextBlock(title, { name: 'Desktop run map title', maxWidth: 180, maxHeight: F.big * 2, minFontSize: 12 });
-  }
-
-  private renderHeaderStats(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    const badgeX = SCREEN.width - GX;
-    const badgeY = 20;
-    renderBankedPlBadge(this, badgeX, badgeY, F.tiny, () => { this.statPanelOpen = true; this.rerender(); });
-    renderRunProgressStrip(this, { x: GX, y: 92, w: SCREEN.width - GX * 2 }, snapshotRunProgress(run));
-  }
-
-  /** DECK / BAG entry point — opens the shared Deck Build scene in RUN
-   * context (reads/writes the run's pieces/bagSlots/gemInventory via
-   * `runStore`, not `demoState`). The only way into deck management between
-   * fights (task item #3). */
-  private renderDeckButton(): void {
-    const w = 132; const h = 30;
-    // Right of the RUN title block (which occupies GX..~GX+150 on two lines) —
-    // at GX it drew straight over "WORLD1 / RUN MODE".
-    const x = GX + 210; const y = 22;
-    const btn = this.add.rectangle(x, y, w, h, UI.panelAlt, 1).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.9).setInteractive({ useHandCursor: true });
-    const label = this.add.text(x + w / 2, y + h / 2, 'DECK / BAG', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-    }).setOrigin(0.5);
-    auditControlLabel(btn, label, { name: 'Desktop run map deck bag', horizontalPadding: 12, verticalPadding: 5, minFontSize: 8 });
-    auditTextBlock(label, { name: 'Desktop run map deck bag label', maxWidth: w - 24, maxHeight: h - 10, minFontSize: 8 });
-    btn.on('pointerover', () => btn.setFillStyle(UI.slotHover));
-    btn.on('pointerout', () => btn.setFillStyle(UI.panelAlt));
-    btn.on('pointerdown', () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); });
   }
 
   // ---------- the trail ----------
@@ -274,18 +266,24 @@ export class DesktopRunMapScene extends Phaser.Scene {
     }).setOrigin(0.5, 1);
   }
 
-  // ---------- victory / defeat banner ----------
+  // ---------- defeat / retired end-summary banner ----------
 
-  private renderBanner(status: 'victory' | 'defeat'): void {
-    const win = status === 'victory';
-    this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, win ? UI.goodSoft : UI.badSoft, 1).setOrigin(0, 0);
+  /** The run's end screen — reached at 0 lives (`'defeat'`) or a voluntary
+   * RETIRE (`'retired'`). `'victory'` is legacy (the engine never sets it any
+   * more, see `RunStatus`) and is deliberately not handled here. */
+  private renderBanner(status: 'defeat' | 'retired'): void {
+    const retired = status === 'retired';
+    this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, retired ? UI.panelMuted : UI.badSoft, 1).setOrigin(0, 0);
     const cx = SCREEN.width / 2;
-    this.add.text(cx, SCREEN.height / 2 - 60, win ? 'VICTORY' : 'DEFEAT', {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big * 1.6}px`, color: win ? UI.text : UI.text,
+    this.add.text(cx, SCREEN.height / 2 - 70, retired ? 'RUN RETIRED' : 'DEFEAT', {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big * 1.6}px`, color: UI.text,
     }).setOrigin(0.5);
     const run = getActiveRun()!;
-    this.add.text(cx, SCREEN.height / 2 + 10, `${run.wins}W · ${run.losses}L · GOLD ${run.gold} · HERO LV ${run.heroLevel}`, {
+    this.add.text(cx, SCREEN.height / 2 - 4, `BOSSES CLEARED ${run.bossesCleared}   ·   DAYS SURVIVED ${run.depth}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent,
+    }).setOrigin(0.5);
+    this.add.text(cx, SCREEN.height / 2 + 24, `GOLD ${run.gold}   ·   HERO LV ${run.heroLevel}   ·   ${run.wins}W / ${run.losses}L`, {
+      fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
     }).setOrigin(0.5);
     const btn = this.add.rectangle(cx, SCREEN.height / 2 + 70, 220, 48, UI.chip, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
     this.add.text(cx, SCREEN.height / 2 + 94, 'NEW RUN', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textOnChip }).setOrigin(0.5);

@@ -11,12 +11,14 @@ import { bagHasRoomFor, buyCard, buyGem, ensureShelf, rerollShelf } from '../sho
 import { demoState } from '../demoState';
 import {
   buyCurrentShopCard, buyCurrentShopGem, currentNode, currentRunBagHasRoomFor, currentShopShelf,
-  ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, rerollCurrentShop,
+  ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, rerollCurrentShop, retireActiveRun,
 } from '../runStore';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
+import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { rebuildScene } from '../sceneRebuild';
 
 /** Structural shape shared by `ShopShelfState` (demoState) and `RunShopShelf`
@@ -24,6 +26,7 @@ import { rebuildScene } from '../sceneRebuild';
 interface ShelfLike { cards: CardOffer[]; gems: GemOffer[]; rerollCount: number }
 
 type PendingBuy = { kind: 'card'; index: number } | { kind: 'gem'; index: number };
+const TEMPLATE = runScreenTemplate('mobile');
 
 /**
  * Mobile Shop — storefront picker (5 shops, tap to browse) → shelf view
@@ -41,6 +44,7 @@ export class MobileShopScene extends Phaser.Scene {
   private detailTier: SkillTier = 'bronze';
   private pendingBuy: PendingBuy | null = null;
   private toastObjects: Phaser.GameObjects.GameObject[] = [];
+  private retireConfirmOpen = false;
 
   constructor() { super('MobileShop'); }
 
@@ -51,6 +55,7 @@ export class MobileShopScene extends Phaser.Scene {
     this.detailTier = 'bronze';
     this.pendingBuy = null;
     this.toastObjects = [];
+    this.retireConfirmOpen = false;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -89,21 +94,42 @@ export class MobileShopScene extends Phaser.Scene {
     this.W = SCREEN.width; this.H = SCREEN.height;
     this.cameras.main.setBackgroundColor(0x0b1420);
     const runShop = this.runShopId();
-    if (runShop) this.renderRunHeader(); else this.renderTabs();
-    this.renderGoldBalance();
+    if (runShop) {
+      this.renderHud();
+    } else {
+      this.renderTabs();
+      this.renderGoldBalance();
+    }
     if (runShop) this.renderShelf(runShop);
     else if (this.selectedShop === null) this.renderStorefront();
     else this.renderShelf(this.selectedShop);
     if (this.pendingBuy) this.renderConfirm();
     else if (this.detailCardIndex !== null) this.renderCardDetail();
     else if (this.detailGemIndex !== null) this.renderGemDetail();
+    if (this.retireConfirmOpen) {
+      renderRetireConfirm(this, {
+        compact: true,
+        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
+        onConfirm: () => { retireActiveRun(); this.scene.start('MobileRunMap'); },
+      });
+    }
   }
 
-  /** Run-context header — no sandbox tabs (a run's shop is a committed node
-   * visit, not sandbox browsing); Run Mode and the Sandbox are separate
-   * products, so no escape link either. */
-  private renderRunHeader(): void {
-    this.add.text(12, 10, 'RUN · SHOP', { fontSize: '15px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
+  /** THE run HUD — identical header on every run screen. LEAVE SHOP sits in
+   * the HUD's fixed primary slot. */
+  private renderHud(): void {
+    const run = getActiveRun();
+    if (!run) return;
+    renderRunHud(this, {
+      screen: 'SHOP',
+      compact: true,
+      snapshot: snapshotRunProgress(run),
+      actions: {
+        secondary: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
+        tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
+        primary: { label: 'LEAVE SHOP', onPress: () => { leaveCurrentShop(); this.scene.start('MobileRunMap'); } },
+      },
+    });
   }
 
   private renderTabs(): void {
@@ -158,36 +184,40 @@ export class MobileShopScene extends Phaser.Scene {
     const shelf = this.shelfFor(shopId);
     const info = shopPoolInfo(shopId);
     const runShop = this.runShopId() === shopId;
+    // Run Mode's shop is entered straight from the map and LEAVE SHOP lives
+    // in the HUD's fixed primary slot now — no back button, content starts
+    // at the HUD's content top; the Sandbox keeps its own `‹ SHOPS` back nav.
+    const top = runShop ? TEMPLATE.regions.content.y : 50;
 
-    const backLabel = runShop ? 'LEAVE' : '‹ SHOPS';
-    const backW = runShop ? 56 : 70;
-    const back = this.add.rectangle(10, 50, backW, 24, 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-    this.add.text(10 + backW / 2, 62, backLabel, { fontSize: '9px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    back.on('pointerdown', () => {
-      if (runShop) { leaveCurrentShop(); this.scene.start('MobileRunMap'); }
-      else { this.selectedShop = null; this.rerender(); }
-    });
-
-    this.add.text(18 + backW, 50, shop.name.toUpperCase(), { fontSize: '14px', color: '#c69948', fontFamily: FONT.display, fontStyle: 'bold' });
+    let titleX = 10;
+    if (!runShop) {
+      const backW = 70;
+      const back = this.add.rectangle(10, top, backW, 24, 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      this.add.text(10 + backW / 2, top + 12, '‹ SHOPS', { fontSize: '9px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      back.on('pointerdown', () => { this.selectedShop = null; this.rerender(); });
+      titleX = 18 + backW;
+    }
+    this.add.text(titleX, top, shop.name.toUpperCase(), { fontSize: '14px', color: '#c69948', fontFamily: FONT.display, fontStyle: 'bold' });
 
     // A thin shop whose whole pool already fits the shelf can never reveal
     // anything new on reroll (docs/run-shops-design.md §2b, USER-LOCKED).
+    const rerollY = top + 26;
     const rerollW = 92;
     if (info.fullStock) {
-      this.add.rectangle(this.W - 10 - rerollW, 76, rerollW, 24, 0x16233a, 0.5).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
-      this.add.text(this.W - 10 - rerollW / 2, 88, 'FULL STOCK', { fontSize: '9px', color: '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.rectangle(this.W - 10 - rerollW, rerollY, rerollW, 24, 0x16233a, 0.5).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
+      this.add.text(this.W - 10 - rerollW / 2, rerollY + 12, 'FULL STOCK', { fontSize: '9px', color: '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     } else {
       const canReroll = this.activeGold() >= 1;
-      const rr = this.add.rectangle(this.W - 10 - rerollW, 76, rerollW, 24, canReroll ? 0xb78a46 : 0x16233a, canReroll ? 1 : 0.5)
+      const rr = this.add.rectangle(this.W - 10 - rerollW, rerollY, rerollW, 24, canReroll ? 0xb78a46 : 0x16233a, canReroll ? 1 : 0.5)
         .setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
-      this.add.text(this.W - 10 - rerollW / 2, 88, 'REROLL · 1G', { fontSize: '9px', color: canReroll ? '#1a1208' : '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(this.W - 10 - rerollW / 2, rerollY + 12, 'REROLL · 1G', { fontSize: '9px', color: canReroll ? '#1a1208' : '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       if (canReroll) {
         rr.setInteractive({ useHandCursor: true });
         rr.on('pointerdown', () => { runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
       }
     }
 
-    let y = 108;
+    let y = top + 58;
     const cardSlots = info.cardSlots;
     if (cardSlots > 0) {
       this.add.text(12, y, `CARDS · ${shelf.cards.length}/${cardSlots}`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });

@@ -7,6 +7,7 @@ import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
+import { renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { rebuildScene } from '../sceneRebuild';
 import { applyRunDraft, getActiveRun, isRunDrafting } from '../runStore';
 
@@ -44,29 +45,19 @@ export class DesktopDraftScene extends Phaser.Scene {
   create(): void {
     const seed = this.runContext ? getActiveRun()!.seed : demoState.seed;
     this.draft = rollStartDraft(seed);
+    renderDesktopBackground(this);
     if (this.runContext) {
-      renderDesktopBackground(this);
-      this.renderRunTitle();
+      // THE run HUD's kicker/title/stats — no DECK/BAG or RETIRE slot yet
+      // (the run is still 'drafting': there's no board to manage and RETIRE
+      // only applies to an 'active' run).
+      const run = getActiveRun()!;
+      renderRunHud(this, { screen: 'DRAFT', compact: false, snapshot: snapshotRunProgress(run) });
     } else {
-      renderDesktopBackground(this);
       renderDesktopHeader(this, 'DRAFT', 'draft');
     }
     this.renderIntro();
     this.renderSets();
     this.renderStart();
-  }
-
-  /** Run-context header — no sandbox nav tabs (those would navigate away from
-   * the run mid-draft); mirrors the run map/prep scenes' plain title. */
-  private renderRunTitle(): void {
-    const gx = DESKTOP_LAYOUT.gutter;
-    this.add.text(gx, 24, 'WORLD1 / RUN MODE', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
-    });
-    this.add.text(gx, 44, 'DRAFT YOUR STARTING DECK', {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big}px`, color: UI.text,
-    });
-    this.add.rectangle(gx, DESKTOP_LAYOUT.contentTop - 14, SCREEN.width - gx * 2, 1, UI.border, 0.7).setOrigin(0, 0);
   }
 
   private renderIntro(): void {

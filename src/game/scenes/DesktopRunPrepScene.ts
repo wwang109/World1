@@ -8,24 +8,26 @@ import { setBattleContext } from '../battleContext';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
-import { renderBankedPlBadge, renderRunStatPanel } from '../ui/RunStatPanel';
+import { renderRunStatPanel } from '../ui/RunStatPanel';
+import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene } from '../sceneRebuild';
 import {
-  currentEncounter, currentNode, enemyNameFor, getActiveRun, type RunNodeKind,
+  currentEncounter, currentNode, enemyNameFor, getActiveRun, retireActiveRun, type RunNodeKind,
 } from '../runStore';
 
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
 
 const F = DESKTOP_PROFILE.font;
+const TEMPLATE = runScreenTemplate('desktop');
 
 const GX = DESKTOP_PROFILE.safe.x;
-const CONTENT_TOP = 150;
+const CONTENT_TOP = TEMPLATE.regions.content.y;
 const PANEL_W = 436;
 const PANEL_PAD = 20;
-const FIGHT_H = 64;
 const CONTENT_BOTTOM = 876;
 
 const KIND_COLOR: Record<RunNodeKind, number> = {
@@ -45,11 +47,13 @@ const KIND_LABEL: Record<RunNodeKind, string> = {
  */
 export class DesktopRunPrepScene extends Phaser.Scene {
   private statPanelOpen = false;
+  private retireConfirmOpen = false;
 
   constructor() { super('DesktopRunPrep'); }
 
   init(): void {
     this.statPanelOpen = false;
+    this.retireConfirmOpen = false;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -68,12 +72,9 @@ export class DesktopRunPrepScene extends Phaser.Scene {
       return;
     }
 
-    this.renderTitle(node.kind);
-    this.renderHeaderStats(run);
-    this.renderDeckButton();
+    this.renderHud(run, node.kind);
     this.renderFoePanel(node.kind, encounter);
     this.renderColumns(run, encounter);
-    this.renderFightButton();
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
         compact: false,
@@ -82,42 +83,30 @@ export class DesktopRunPrepScene extends Phaser.Scene {
         onChanged: () => this.rerender(),
       });
     }
+    if (this.retireConfirmOpen) {
+      renderRetireConfirm(this, {
+        compact: false,
+        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
+        onConfirm: () => { retireActiveRun(); this.scene.start('DesktopRunMap'); },
+      });
+    }
   }
 
-  /** DECK / BAG entry point — opens the shared Deck Build scene in RUN
-   * context (task item #3). */
-  private renderDeckButton(): void {
-    const w = 132; const h = 30;
-    // Right of the title block — at GX it overlapped "WORLD1 / RUN MODE".
-    const x = GX + 210; const y = 22;
-    const btn = this.add.rectangle(x, y, w, h, UI.panelAlt, 1).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.9).setInteractive({ useHandCursor: true });
-    this.add.text(x + w / 2, y + h / 2, 'DECK / BAG', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-    }).setOrigin(0.5);
-    btn.on('pointerover', () => btn.setFillStyle(UI.slotHover));
-    btn.on('pointerout', () => btn.setFillStyle(UI.panelAlt));
-    btn.on('pointerdown', () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); });
-  }
-
-  private renderTitle(kind: RunNodeKind): void {
-    this.add.text(GX, 24, 'WORLD1 / RUN MODE', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
+  /** THE run HUD — identical header on every run screen. FIGHT is the
+   * screen's primary go-forward action, so it lives in the HUD's fixed
+   * primary slot (same place as START/CONTINUE›/LEAVE SHOP on other screens). */
+  private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>>, kind: RunNodeKind): void {
+    renderRunHud(this, {
+      screen: `PREP · ${KIND_LABEL[kind]}`,
+      compact: false,
+      snapshot: snapshotRunProgress(run),
+      onOpenStatPanel: () => { this.statPanelOpen = true; this.rerender(); },
+      actions: {
+        secondary: { label: 'DECK / BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); } },
+        tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
+        primary: { label: 'FIGHT', onPress: () => { setBattleContext('run'); this.scene.start('DesktopBattle'); } },
+      },
     });
-    this.add.text(GX, 44, `PREP · ${KIND_LABEL[kind]}`, {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big}px`, color: UI.text,
-    });
-    this.add.rectangle(GX, CONTENT_TOP - 16, SCREEN.width - GX * 2, 1, UI.border, 0.7).setOrigin(0, 0);
-  }
-
-  private renderHeaderStats(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    const runDepth = run.map.depths.length - 1;
-    const parts = [`DEPTH ${run.depth} / ${runDepth}`, `GOLD ${run.gold}`, `HERO LV ${run.heroLevel}`];
-    const badgeX = SCREEN.width - GX;
-    const badgeY = 20;
-    const badgeW = renderBankedPlBadge(this, badgeX, badgeY, F.tiny, () => { this.statPanelOpen = true; this.rerender(); });
-    this.add.text(SCREEN.width - GX - (badgeW > 0 ? badgeW + 14 : 0), 44 + F.big - F.name, parts.join('   ·   '), {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent,
-    }).setOrigin(1, 0);
   }
 
   /** Content-fit foe panel (density pass — the old version stretched to the
@@ -204,7 +193,7 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     const rightW = (SCREEN.width - GX) - rightX;
     const labelY = CONTENT_TOP;
     const colTop = labelY + F.label + 8;
-    const colBottom = CONTENT_BOTTOM - FIGHT_H - gap;
+    const colBottom = CONTENT_BOTTOM;
     const colH = colBottom - colTop;
     const colW = (rightW - gap) / 2;
     const leftColX = rightX;
@@ -248,17 +237,4 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     });
   }
 
-  private renderFightButton(): void {
-    const gap = DESKTOP_PROFILE.gap;
-    const x = GX + PANEL_W + gap;
-    const w = (SCREEN.width - GX) - x;
-    const y = CONTENT_BOTTOM - FIGHT_H;
-    const fight = this.add.rectangle(x, y, w, FIGHT_H, UI.chip).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    fight.on('pointerover', () => fight.setFillStyle(UI.chipDark).setStrokeStyle(2, UI.chip, 1));
-    fight.on('pointerout', () => fight.setFillStyle(UI.chip).setStrokeStyle(2, UI.border, 1));
-    this.add.text(x + w / 2, y + FIGHT_H / 2, 'FIGHT', {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textOnChip,
-    }).setOrigin(0.5);
-    fight.on('pointerdown', () => { setBattleContext('run'); this.scene.start('DesktopBattle'); });
-  }
 }

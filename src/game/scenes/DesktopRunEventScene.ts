@@ -13,7 +13,8 @@ import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
 import { choiceOutcomeHint, outcomeHeadline } from '../ui/eventOutcomeText';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { gemHoverEntry } from '../ui/gemGlossary';
-import { renderRunProgressStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { rebuildScene } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
@@ -22,10 +23,11 @@ import {
   getActiveRun,
   leaveCurrentEvent,
   resolveCurrentEventChoice,
+  retireActiveRun,
 } from '../runStore';
 
 const F = DESKTOP_PROFILE.font;
-const GX = DESKTOP_PROFILE.safe.x;
+const TEMPLATE = runScreenTemplate('desktop');
 
 /**
  * Desktop Run Event — the parchment-style text dialogue for an `event` map
@@ -40,6 +42,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
   private phase: 'choosing' | 'bonusDraftPick' | 'outcome' = 'choosing';
   private outcome: EventOutcome | null = null;
   private bonusDraftCards: DraftCard[] = [];
+  private retireConfirmOpen = false;
 
   constructor() { super('DesktopRunEvent'); }
 
@@ -47,6 +50,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
     this.phase = 'choosing';
     this.outcome = null;
     this.bonusDraftCards = [];
+    this.retireConfirmOpen = false;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -63,38 +67,41 @@ export class DesktopRunEventScene extends Phaser.Scene {
       return;
     }
 
-    this.renderTitle(run);
+    this.renderHud(run);
     if (this.phase === 'outcome' && this.outcome) this.renderOutcomePanel(this.outcome);
     else if (this.phase === 'bonusDraftPick') this.renderBonusDraftPicker();
     else this.renderChoicePanel(run.gold, event);
+    if (this.retireConfirmOpen) {
+      renderRetireConfirm(this, {
+        compact: false,
+        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
+        onConfirm: () => { retireActiveRun(); this.scene.start('DesktopRunMap'); },
+      });
+    }
   }
 
-  private renderTitle(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    const eyebrow = this.add.text(GX, 24, 'WORLD1 / RUN MODE', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
+  /** THE run HUD — identical header on every run screen. CONTINUE › (this
+   * screen's primary go-forward action) only exists once the outcome is
+   * resolved, so the primary slot is empty during 'choosing'/'bonusDraftPick'. */
+  private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
+    renderRunHud(this, {
+      screen: 'EVENT',
+      compact: false,
+      snapshot: snapshotRunProgress(run),
+      actions: {
+        secondary: { label: 'DECK / BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); } },
+        tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
+        primary: this.phase === 'outcome' && this.outcome
+          ? { label: 'CONTINUE ›', onPress: () => { leaveCurrentEvent(); this.scene.start('DesktopRunMap'); } }
+          : undefined,
+      },
     });
-    const title = this.add.text(GX, 44, 'EVENT', {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big}px`, color: UI.text,
-    });
-    const deckButton = this.add.rectangle(GX + 210, 22, 132, 30, UI.panelAlt, 1)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.9).setInteractive({ useHandCursor: true });
-    const deckLabel = this.add.text(GX + 276, 37, 'DECK / BAG', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-    }).setOrigin(0.5);
-    renderRunProgressStrip(this, { x: GX, y: 92, w: SCREEN.width - GX * 2 }, snapshotRunProgress(run));
-    auditTextBlock(eyebrow, { name: 'Desktop run event eyebrow', maxWidth: 180, maxHeight: F.label * 2, minFontSize: 8 });
-    auditTextBlock(title, { name: 'Desktop run event title', maxWidth: 180, maxHeight: F.big * 2, minFontSize: 12 });
-    auditControlLabel(deckButton, deckLabel, { name: 'Desktop run event deck bag', horizontalPadding: 12, verticalPadding: 5, minFontSize: 8 });
-    auditTextBlock(deckLabel, { name: 'Desktop run event deck bag label', maxWidth: 108, maxHeight: 20, minFontSize: 8 });
-    deckButton.on('pointerover', () => deckButton.setFillStyle(UI.slotHover));
-    deckButton.on('pointerout', () => deckButton.setFillStyle(UI.panelAlt));
-    deckButton.on('pointerdown', () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); });
   }
 
   private panelGeometry(): { px: number; py: number; pw: number } {
     const pw = 760;
     const px = (SCREEN.width - pw) / 2;
-    const py = 156;
+    const py = TEMPLATE.regions.content.y + 26;
     return { px, py, pw };
   }
 
@@ -105,7 +112,10 @@ export class DesktopRunEventScene extends Phaser.Scene {
     const inset = 32;
     const innerX = px + inset;
     const innerW = pw - inset * 2;
-    const rowH = 76;
+    // 84 (was 76) — the new runtime HUD audit (scripts/run-hud-audit.ts)
+    // caught the footer cost label ("FREE"/"COST n GOLD") overlapping the
+    // detail line at 76; a taller row gives both lines clear air.
+    const rowH = 84;
     const rowGap = 10;
     const headerH = 44;
     const minimumPanelH = 400;
@@ -263,13 +273,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
       }
     }
 
-    const btnW = 220;
-    const btnY = py + ph - 60;
-    const btn = this.add.rectangle(px + pw / 2 - btnW / 2, btnY, btnW, 44, UI.chip, 1).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    const btnText = this.add.text(px + pw / 2, btnY + 22, 'CONTINUE ›', {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textOnChip,
-    }).setOrigin(0.5);
-    auditControlLabel(btn, btnText, { name: 'Run event continue', horizontalPadding: 14, verticalPadding: 6, minFontSize: 8 });
-    btn.on('pointerdown', () => { leaveCurrentEvent(); this.scene.start('DesktopRunMap'); });
+    // CONTINUE › now lives in the HUD's fixed primary slot (see `renderHud`) —
+    // not redrawn here, so it never competes with this panel for a position.
   }
 }

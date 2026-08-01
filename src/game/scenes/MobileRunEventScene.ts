@@ -13,7 +13,8 @@ import { choiceOutcomeHint, outcomeHeadline } from '../ui/eventOutcomeText';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { gemHoverEntry } from '../ui/gemGlossary';
 import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
-import { renderRunProgressStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { rebuildScene } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
@@ -22,9 +23,11 @@ import {
   getActiveRun,
   leaveCurrentEvent,
   resolveCurrentEventChoice,
+  retireActiveRun,
 } from '../runStore';
 
 const F = MOBILE_PROFILE.font;
+const TEMPLATE = runScreenTemplate('mobile');
 
 /**
  * Mobile Run Event — the vertical counterpart of `DesktopRunEventScene`:
@@ -39,6 +42,7 @@ export class MobileRunEventScene extends Phaser.Scene {
   private phase: 'choosing' | 'bonusDraftPick' | 'outcome' = 'choosing';
   private outcome: EventOutcome | null = null;
   private bonusDraftCards: DraftCard[] = [];
+  private retireConfirmOpen = false;
 
   constructor() { super('MobileRunEvent'); }
 
@@ -46,6 +50,7 @@ export class MobileRunEventScene extends Phaser.Scene {
     this.phase = 'choosing';
     this.outcome = null;
     this.bonusDraftCards = [];
+    this.retireConfirmOpen = false;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -61,41 +66,45 @@ export class MobileRunEventScene extends Phaser.Scene {
       return;
     }
 
-    this.renderHeader(run, event);
+    this.renderHud(run);
     if (this.phase === 'outcome' && this.outcome) this.renderOutcome(this.outcome);
     else if (this.phase === 'bonusDraftPick') this.renderBonusDraftPicker();
     else this.renderChoices(run.gold, event);
+    if (this.retireConfirmOpen) {
+      renderRetireConfirm(this, {
+        compact: true,
+        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
+        onConfirm: () => { retireActiveRun(); this.scene.start('MobileRunMap'); },
+      });
+    }
   }
 
-  private renderHeader(run: NonNullable<ReturnType<typeof getActiveRun>>, event: EventDef): void {
-    const eyebrow = this.add.text(12, 10, 'RUN MODE', {
-      fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
+  /** THE run HUD — identical header on every run screen. CONTINUE › only
+   * exists once the outcome is resolved. */
+  private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
+    renderRunHud(this, {
+      screen: 'EVENT',
+      compact: true,
+      snapshot: snapshotRunProgress(run),
+      actions: {
+        secondary: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
+        tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
+        primary: this.phase === 'outcome' && this.outcome
+          ? { label: 'CONTINUE ›', onPress: () => { leaveCurrentEvent(); this.scene.start('MobileRunMap'); } }
+          : undefined,
+      },
     });
-    const title = this.add.text(12, 24, 'EVENT', {
-      fontSize: `${F.title}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold',
-    });
-    const deckButton = this.add.rectangle(this.W - 104, 10, 92, 22, UI.panelAlt, 1)
-      .setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.8).setInteractive({ useHandCursor: true });
-    const deckLabel = this.add.text(this.W - 58, 21, 'DECK / BAG', {
-      fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(0.5);
-    renderRunProgressStrip(this, { x: 12, y: 49, w: this.W - 24 }, snapshotRunProgress(run), { compact: true });
-    const status = this.add.text(12, 100, `EVENT SELECT · ${event.choices.length} PATH${event.choices.length === 1 ? '' : 'S'}`, {
-      fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body, fontStyle: 'bold',
-    });
-    this.add.rectangle(10, 118, this.W - 20, 1, UI.border, 0.6).setOrigin(0, 0);
-    auditTextBlock(eyebrow, { name: 'Mobile run event eyebrow', maxWidth: 100, maxHeight: F.tiny * 2, minFontSize: 8 });
-    auditTextBlock(title, { name: 'Mobile run event header', maxWidth: 140, maxHeight: F.title * 2, minFontSize: 12 });
-    auditTextBlock(status, { name: 'Mobile run event status', maxWidth: this.W - 24, maxHeight: F.tiny * 2, minFontSize: 8 });
-    auditControlLabel(deckButton, deckLabel, { name: 'Mobile run event deck bag', horizontalPadding: 8, verticalPadding: 5, minFontSize: 8 });
-    auditTextBlock(deckLabel, { name: 'Mobile run event deck bag label', maxWidth: 76, maxHeight: 12, minFontSize: 8 });
-    deckButton.on('pointerdown', () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); });
   }
 
   // ---------- choosing ----------
 
   private renderChoices(gold: number, event: EventDef): void {
-    let y = 132;
+    let y = TEMPLATE.regions.content.y;
+    const status = this.add.text(12, y, `EVENT SELECT · ${event.choices.length} PATH${event.choices.length === 1 ? '' : 'S'}`, {
+      fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body, fontStyle: 'bold',
+    });
+    auditTextBlock(status, { name: 'Mobile run event status', maxWidth: this.W - 24, maxHeight: F.tiny * 2, minFontSize: 8 });
+    y += F.tiny + 8;
     const title = this.add.text(12, y, event.title, {
       fontSize: `${F.title}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: this.W - 24 },
     });
@@ -228,13 +237,6 @@ export class MobileRunEventScene extends Phaser.Scene {
       }
     }
 
-    const btnW = this.W - 20;
-    const btnY = this.H - MOBILE_PROFILE.safe.bottom - 44;
-    const btn = this.add.rectangle(10, btnY, btnW, 44, UI.chip, 1).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    const btnText = this.add.text(this.W / 2, btnY + 22, 'CONTINUE ›', {
-      fontSize: `${F.name}px`, color: UI.textOnChip, fontFamily: FONT.display, fontStyle: 'bold',
-    }).setOrigin(0.5);
-    auditControlLabel(btn, btnText, { name: 'Mobile run event continue', horizontalPadding: 14, verticalPadding: 6, minFontSize: 8 });
-    btn.on('pointerdown', () => { leaveCurrentEvent(); this.scene.start('MobileRunMap'); });
+    // CONTINUE › now lives in the HUD's fixed primary slot (see `renderHud`).
   }
 }

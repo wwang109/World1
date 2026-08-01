@@ -18,15 +18,18 @@ import { gemHoverEntry } from '../ui/gemGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { rebuildScene } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
+import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { runScreenTemplate } from '../ui/runScreenTemplate';
 import {
   currentHeroAllocation, currentHeroLevel,
-  currentRunBagSlots, currentRunGemInventory, currentRunPieces,
+  currentRunBagSlots, currentRunGemInventory, currentRunPieces, getActiveRun, retireActiveRun,
   setCurrentRunBagSlots, setCurrentRunGemInventory, setCurrentRunPieces,
 } from '../runStore';
 
 const SLOTS = 10;
 const F = DESKTOP_PROFILE.font;
 const ACCENT_TEXT = UI.textAccent;
+const TEMPLATE = runScreenTemplate('desktop');
 
 type Source =
   | { where: 'deck'; instanceId: string; card: OwnedCard }
@@ -61,6 +64,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
    * `battleContext.ts`), captured once per `create()` so a mid-render context
    * flip elsewhere never tears a single frame. */
   private runContext = false;
+  private retireConfirmOpen = false;
 
   constructor() { super('DesktopDeck'); }
 
@@ -98,32 +102,38 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
     this.heroStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower };
     renderDesktopBackground(this);
-    if (this.runContext) this.renderRunTitle(); else renderDesktopHeader(this, 'DECK BUILD', 'deck');
+    if (this.runContext) this.renderHud(); else renderDesktopHeader(this, 'DECK BUILD', 'deck');
     this.renderMeta(hero.stats);
     this.renderHolding();
     this.renderColumns();
     this.renderTrash();
     if (this.pendingTrash) this.renderConfirm();
     if (this.socketFor) this.renderSocketPanel();
+    if (this.retireConfirmOpen) {
+      renderRetireConfirm(this, {
+        compact: false,
+        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
+        onConfirm: () => { retireActiveRun(); this.scene.start('DesktopRunMap'); },
+      });
+    }
     this.wireDrag();
   }
 
-  /** Run-context header — no sandbox nav tabs (those would navigate away from
-   * the run); a plain title + a back link to the Run Map, mirroring
-   * RunPrep/RunEvent's own header idiom. */
-  private renderRunTitle(): void {
-    const gx = DESKTOP_LAYOUT.gutter;
-    this.add.text(gx, 24, 'WORLD1 / RUN MODE', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${DESKTOP_PROFILE.font.label}px`, color: UI.textAccent,
+  /** THE run HUD — identical header on every run screen. ‹ MAP is this
+   * screen's `back` role (Deck Build is reached FROM the map, not toward a
+   * forward action, so there's no primary slot here). */
+  private renderHud(): void {
+    const run = getActiveRun();
+    if (!run) return;
+    renderRunHud(this, {
+      screen: 'DECK',
+      compact: false,
+      snapshot: snapshotRunProgress(run),
+      actions: {
+        back: { label: '‹ MAP', onPress: () => this.scene.start('DesktopRunMap') },
+        tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
+      },
     });
-    this.add.text(gx, 44, 'DECK / BAG', {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${DESKTOP_PROFILE.font.big}px`, color: UI.text,
-    });
-    const back = this.add.text(SCREEN.width - gx, 44 + DESKTOP_PROFILE.font.big - DESKTOP_PROFILE.font.name, '‹ MAP', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${DESKTOP_PROFILE.font.name}px`, color: UI.textAccent,
-    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-    back.on('pointerdown', () => this.scene.start('DesktopRunMap'));
-    this.add.rectangle(gx, DESKTOP_LAYOUT.contentTop - 14, SCREEN.width - gx * 2, 1, UI.border, 0.7).setOrigin(0, 0);
   }
 
   /** Manual pointer-drag: hit-test tokens ourselves. Drop resolves against
@@ -225,11 +235,12 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     for (const p of this.pieces) { const s = skillBook[p.skillId]; if (s) plDeci += instancePowerLevelDeci(s, { gem: p.gem ?? null }); }
     const gems = this.pieces.filter((p) => p.gem).length;
     const meta = `LV ${this.heroLevel} · HP ${stats.maxHp} · ATK ${stats.attack} · MAG ${stats.magicPower} · SPD ${stats.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
-    // Right-aligned on the tab row's centerline — clear of both the tab
-    // buttons on the left and the divider below.
-    this.add.text(SCREEN.width - gx, 102 + DESKTOP_LAYOUT.tabH / 2, meta, {
+    // Right-aligned; in run context this sits just under the HUD (which
+    // already owns the tab row's old position) instead of on top of it.
+    const y = this.runContext ? TEMPLATE.regions.content.y + 2 : 102 + DESKTOP_LAYOUT.tabH / 2;
+    this.add.text(SCREEN.width - gx, y, meta, {
       fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body,
-    }).setOrigin(1, 0.5);
+    }).setOrigin(1, this.runContext ? 0 : 0.5);
   }
 
   /** Dashed rectangle border (matches mobile's transfer/trash strip style). */

@@ -20,6 +20,7 @@ import {
   leaveShop,
   recordBattleResult,
   rerollRunShop,
+  retireRun,
   setHeroAllocation,
   WAVE_COUNT,
   rollEncounter,
@@ -91,6 +92,16 @@ export function isRunDrafting(): boolean {
 /** Abandon the active run entirely (returns to the START RUN panel). */
 export function clearRun(): void {
   activeRun = null;
+}
+
+/** Voluntarily end the active run right now — the HUD's RETIRE action (see
+ * `renderRetireConfirm`). No-op if there's no active run, or it isn't
+ * `'active'` (mirrors `retireRun`'s own no-op idiom). Every run screen routes
+ * to the Run Map after calling this so the map's end-summary banner (status
+ * `'retired'`) takes over. */
+export function retireActiveRun(): void {
+  if (!activeRun) return;
+  activeRun = retireRun(activeRun);
 }
 
 /** The 2-3 nodes the player may pick next (empty if no run, run over, or a

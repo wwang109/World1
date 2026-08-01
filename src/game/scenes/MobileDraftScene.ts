@@ -7,6 +7,7 @@ import { demoState } from '../demoState';
 import { FONT, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { renderActionBar, type ActionButton } from '../ui/ActionBar';
+import { renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { rebuildScene } from '../sceneRebuild';
 import { applyRunDraft, getActiveRun, isRunDrafting } from '../runStore';
 
@@ -48,7 +49,13 @@ export class MobileDraftScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x0b1420);
     const seed = this.runContext ? getActiveRun()!.seed : demoState.seed;
     this.draft = rollStartDraft(seed);
-    if (this.runContext) this.renderRunTabs(); else this.renderTabs();
+    if (this.runContext) {
+      // THE run HUD's kicker/title/stats — no DECK/BAG or RETIRE slot yet
+      // (still 'drafting': no board, and RETIRE only applies once 'active').
+      renderRunHud(this, { screen: 'DRAFT', compact: true, snapshot: snapshotRunProgress(getActiveRun()!) });
+    } else {
+      this.renderTabs();
+    }
     this.renderHeader();
     this.renderSet();
     this.renderFooter();
@@ -72,26 +79,22 @@ export class MobileDraftScene extends Phaser.Scene {
     });
   }
 
-  /** Run-context header — no sandbox tabs (those would navigate away from the
-   * run mid-draft) and no SANDBOX escape link either: Run Mode and the
-   * Sandbox are separate products. Plain title only. */
-  private renderRunTabs(): void {
-    this.add.text(12, 10, 'RUN · DRAFT', { fontSize: '13px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
-  }
-
   private renderHeader(): void {
     const key = DRAFT_SET_KEYS[this.setIndex]!;
     const picked = Object.keys(this.picks).length;
-    this.add.text(12, 50, `DRAFT · SET ${this.setIndex + 1}/${DRAFT_SET_KEYS.length}`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
-    this.add.text(12, 64, SET_LABEL[key], { fontSize: '15px', color: '#c69948', fontFamily: FONT.display, fontStyle: 'bold' });
-    this.add.text(this.W - 12, 64, `${picked}/${DRAFT_SET_KEYS.length} PICKED`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
+    // Run context: the HUD already occupies y≈0-96, so this content starts
+    // lower than the Sandbox's own tab-bar layout (y≈50).
+    const top = this.runContext ? 100 : 50;
+    this.add.text(12, top, `DRAFT · SET ${this.setIndex + 1}/${DRAFT_SET_KEYS.length}`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
+    this.add.text(12, top + 14, SET_LABEL[key], { fontSize: '15px', color: '#c69948', fontFamily: FONT.display, fontStyle: 'bold' });
+    this.add.text(this.W - 12, top + 14, `${picked}/${DRAFT_SET_KEYS.length} PICKED`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
   }
 
   private renderSet(): void {
     const key = DRAFT_SET_KEYS[this.setIndex]!;
     const cards = this.draft[key];
     const picked = this.picks[key];
-    let y = 96;
+    let y = this.runContext ? 146 : 96;
     const h = 80;
     const gap = 8;
     for (const card of cards) {

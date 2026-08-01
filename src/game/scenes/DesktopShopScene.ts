@@ -10,7 +10,7 @@ import { bagHasRoomFor, buyCard, buyGem, ensureShelf, rerollShelf } from '../sho
 import { demoState } from '../demoState';
 import {
   buyCurrentShopCard, buyCurrentShopGem, currentNode, currentRunBagHasRoomFor, currentShopShelf,
-  ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, rerollCurrentShop,
+  ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, rerollCurrentShop, retireActiveRun,
 } from '../runStore';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { DESKTOP_PROFILE } from '../layoutProfile';
@@ -18,6 +18,9 @@ import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
+import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { runScreenTemplate } from '../ui/runScreenTemplate';
+import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene } from '../sceneRebuild';
 
 /** Structural shape shared by `ShopShelfState` (demoState) and `RunShopShelf`
@@ -26,6 +29,7 @@ interface ShelfLike { cards: CardOffer[]; gems: GemOffer[]; rerollCount: number 
 
 const F = DESKTOP_PROFILE.font;
 const BAD_HEX = `#${UI.bad.toString(16).padStart(6, '0')}`;
+const TEMPLATE = runScreenTemplate('desktop');
 
 type PendingBuy = { kind: 'card'; index: number } | { kind: 'gem'; index: number };
 
@@ -43,6 +47,7 @@ export class DesktopShopScene extends Phaser.Scene {
   private detailTier: SkillTier = 'bronze';
   private pendingBuy: PendingBuy | null = null;
   private toastObjects: Phaser.GameObjects.GameObject[] = [];
+  private retireConfirmOpen = false;
 
   constructor() { super('DesktopShop'); }
 
@@ -53,6 +58,7 @@ export class DesktopShopScene extends Phaser.Scene {
     this.detailTier = 'bronze';
     this.pendingBuy = null;
     this.toastObjects = [];
+    this.retireConfirmOpen = false;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -83,28 +89,43 @@ export class DesktopShopScene extends Phaser.Scene {
   create(): void {
     renderDesktopBackground(this);
     const runShop = this.runShopId();
-    if (runShop) this.renderRunHeader();
-    else renderDesktopHeader(this, 'SHOP', 'shop');
-    this.renderGoldBalance();
+    if (runShop) {
+      this.renderHud(runShop);
+    } else {
+      renderDesktopHeader(this, 'SHOP', 'shop');
+      this.renderGoldBalance();
+    }
     if (runShop) this.renderShelf(runShop);
     else if (this.selectedShop === null) this.renderStorefront();
     else this.renderShelf(this.selectedShop);
     if (this.pendingBuy) this.renderConfirm();
     else if (this.detailCardIndex !== null) this.renderCardDetail();
     else if (this.detailGemIndex !== null) this.renderGemDetail();
+    if (this.retireConfirmOpen) {
+      renderRetireConfirm(this, {
+        compact: false,
+        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
+        onConfirm: () => { retireActiveRun(); this.scene.start('DesktopRunMap'); },
+      });
+    }
   }
 
-  /** Run-context header — no sandbox nav tabs (a run's shop is a committed
-   * node visit, not sandbox browsing). */
-  private renderRunHeader(): void {
-    const gx = DESKTOP_LAYOUT.gutter;
-    this.add.text(gx, 24, 'WORLD1 / RUN MODE', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
+  /** THE run HUD — identical header on every run screen. LEAVE SHOP (this
+   * screen's primary go-forward action) sits in the HUD's fixed primary slot. */
+  private renderHud(shopId: string): void {
+    const run = getActiveRun();
+    if (!run) return;
+    renderRunHud(this, {
+      screen: 'SHOP',
+      compact: false,
+      snapshot: snapshotRunProgress(run),
+      actions: {
+        secondary: { label: 'DECK / BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('DesktopDeck'); } },
+        tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
+        primary: { label: 'LEAVE SHOP', onPress: () => { leaveCurrentShop(); this.scene.start('DesktopRunMap'); } },
+      },
     });
-    this.add.text(gx, 44, 'SHOP', {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big}px`, color: UI.text,
-    });
-    this.add.rectangle(gx, DESKTOP_LAYOUT.contentTop - 14, SCREEN.width - gx * 2, 1, UI.border, 0.7).setOrigin(0, 0);
+    void shopId;
   }
 
   private renderGoldBalance(): void {
@@ -164,18 +185,20 @@ export class DesktopShopScene extends Phaser.Scene {
     const info = shopPoolInfo(shopId);
     const runShop = this.runShopId() === shopId;
     const gx = DESKTOP_LAYOUT.gutter;
-    const top = DESKTOP_LAYOUT.contentTop;
+    // Run Mode's shop is entered straight from the map (no shop-picker to
+    // navigate back through) and LEAVE SHOP lives in the HUD's fixed primary
+    // slot now — so the run-context shelf starts at the HUD's content top
+    // with no back button; the Sandbox keeps its own `‹ SHOPS` back nav.
+    const top = runShop ? TEMPLATE.regions.content.y : DESKTOP_LAYOUT.contentTop;
 
-    const backLabel = runShop ? 'LEAVE SHOP' : '‹ SHOPS';
-    const backW = runShop ? 130 : 90;
-    const back = this.add.rectangle(gx, top, backW, 28, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-    this.add.text(gx + backW / 2, top + 14, backLabel, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }).setOrigin(0.5);
-    back.on('pointerdown', () => {
-      if (runShop) { leaveCurrentShop(); this.scene.start('DesktopRunMap'); }
-      else { this.selectedShop = null; this.rerender(); }
-    });
-
-    const titleX = gx + backW + 16;
+    let titleX = gx;
+    if (!runShop) {
+      const backW = 90;
+      const back = this.add.rectangle(gx, top, backW, 28, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      this.add.text(gx + backW / 2, top + 14, '‹ SHOPS', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }).setOrigin(0.5);
+      back.on('pointerdown', () => { this.selectedShop = null; this.rerender(); });
+      titleX = gx + backW + 16;
+    }
     this.add.text(titleX, top, shop.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent });
     this.add.text(titleX, top + F.name + 2, shop.tagline, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim });
 

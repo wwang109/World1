@@ -6,17 +6,19 @@ import { buildAutoHeroSetup } from '../../run/encounter';
 import { setBattleContext } from '../battleContext';
 import { FONT, SCREEN, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
-import { renderActionBar } from '../ui/ActionBar';
-import { renderBankedPlBadge, renderRunStatPanel } from '../ui/RunStatPanel';
+import { renderRunStatPanel } from '../ui/RunStatPanel';
+import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene } from '../sceneRebuild';
 import {
-  currentEncounter, currentNode, enemyNameFor, getActiveRun, type RunNodeKind,
+  currentEncounter, currentNode, enemyNameFor, getActiveRun, retireActiveRun, type RunNodeKind,
 } from '../runStore';
 
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
+const TEMPLATE = runScreenTemplate('mobile');
 
 const KIND_COLOR: Record<RunNodeKind, number> = {
   fight: 0x4a7ab5, event: UI.chip, shop: UI.good, boss: UI.bad,
@@ -35,11 +37,13 @@ export class MobileRunPrepScene extends Phaser.Scene {
   private W = SCREEN.width;
   private H = SCREEN.height;
   private statPanelOpen = false;
+  private retireConfirmOpen = false;
 
   constructor() { super('MobileRunPrep'); }
 
   init(): void {
     this.statPanelOpen = false;
+    this.retireConfirmOpen = false;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -56,10 +60,9 @@ export class MobileRunPrepScene extends Phaser.Scene {
       return;
     }
 
-    this.renderHeader(run, node.kind);
+    this.renderHud(run, node.kind);
     const boardsTop = this.renderFoeCard(node.kind, encounter);
     this.renderColumns(run, encounter, boardsTop);
-    this.renderFooter();
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
         compact: true,
@@ -68,26 +71,35 @@ export class MobileRunPrepScene extends Phaser.Scene {
         onChanged: () => this.rerender(),
       });
     }
+    if (this.retireConfirmOpen) {
+      renderRetireConfirm(this, {
+        compact: true,
+        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
+        onConfirm: () => { retireActiveRun(); this.scene.start('MobileRunMap'); },
+      });
+    }
   }
 
-  private renderHeader(run: NonNullable<ReturnType<typeof getActiveRun>>, kind: RunNodeKind): void {
-    const runDepth = run.map.depths.length - 1;
-    const badgeX = this.W - 12; const badgeY = 10; const badgeFont = 9;
-    renderBankedPlBadge(this, badgeX, badgeY, badgeFont, () => { this.statPanelOpen = true; this.rerender(); });
-    this.add.text(12, 10, `PREP · ${KIND_LABEL[kind]}`, { fontSize: '15px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
-    this.add.text(12, 30, `DEPTH ${run.depth} / ${runDepth}   ·   GOLD ${run.gold}   ·   HERO LV ${run.heroLevel}`, {
-      fontSize: '10px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold',
+  /** THE run HUD — identical header on every run screen; FIGHT is this
+   * screen's primary go-forward action, so it sits in the HUD's fixed
+   * primary slot (the bottom footer on mobile — thumb-reachable). */
+  private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>>, kind: RunNodeKind): void {
+    renderRunHud(this, {
+      screen: `PREP · ${KIND_LABEL[kind]}`,
+      compact: true,
+      snapshot: snapshotRunProgress(run),
+      onOpenStatPanel: () => { this.statPanelOpen = true; this.rerender(); },
+      actions: {
+        secondary: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
+        tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
+        primary: { label: 'FIGHT', onPress: () => { setBattleContext('run'); this.scene.start('MobileBattle'); } },
+      },
     });
-    const deckW = 74; const deckH = 20;
-    const deckBtn = this.add.rectangle(this.W - 12 - deckW, 30, deckW, deckH, 0x16233a, 1).setOrigin(0, 0).setStrokeStyle(1, 0xb78a46, 0.8).setInteractive({ useHandCursor: true });
-    this.add.text(this.W - 12 - deckW / 2, 30 + deckH / 2, 'DECK/BAG', { fontSize: '8px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    deckBtn.on('pointerdown', () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); });
-    this.add.rectangle(10, 50, this.W - 20, 1, UI.border, 0.6).setOrigin(0, 0);
   }
 
   /** Compact foe summary card; returns the y the board columns start at. */
   private renderFoeCard(kind: RunNodeKind, encounter: NonNullable<ReturnType<typeof currentEncounter>>): number {
-    const y = 58;
+    const y = TEMPLATE.regions.content.y;
     const h = 62;
     const color = KIND_COLOR[kind];
     this.add.rectangle(10, y, this.W - 20, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(2, color, 0.9);
@@ -111,7 +123,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
     encounter: NonNullable<ReturnType<typeof currentEncounter>>,
     top: number,
   ): void {
-    const footerTop = this.H - 40 - 16 - 8;
+    const footerTop = TEMPLATE.regions.footer.y - 8;
     const colH = footerTop - top;
     const gap = 8;
     const colW = (this.W - 20 - gap) / 2;
@@ -152,9 +164,4 @@ export class MobileRunPrepScene extends Phaser.Scene {
     });
   }
 
-  private renderFooter(): void {
-    renderActionBar(this, this.W, this.H, [
-      { label: 'FIGHT', primary: true, flex: 1, onPress: () => { setBattleContext('run'); this.scene.start('MobileBattle'); } },
-    ]);
-  }
 }

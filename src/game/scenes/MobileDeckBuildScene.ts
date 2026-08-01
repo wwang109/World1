@@ -15,13 +15,16 @@ import { gemHoverEntry } from '../ui/gemGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { rebuildScene } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
+import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { runScreenTemplate } from '../ui/runScreenTemplate';
 import {
   currentHeroAllocation, currentHeroLevel,
-  currentRunBagSlots, currentRunGemInventory, currentRunPieces,
+  currentRunBagSlots, currentRunGemInventory, currentRunPieces, getActiveRun, retireActiveRun,
   setCurrentRunBagSlots, setCurrentRunGemInventory, setCurrentRunPieces,
 } from '../runStore';
 
 const SLOTS = 10;
+const TEMPLATE = runScreenTemplate('mobile');
 
 type Source =
   | { where: 'deck'; instanceId: string; card: OwnedCard }
@@ -49,6 +52,11 @@ export class MobileDeckBuildScene extends Phaser.Scene {
   private heroStats!: ScalingStats;
   /** RUN CONTEXT ONLY — see `DesktopDeckBuildScene`'s identical field. */
   private runContext = false;
+  private retireConfirmOpen = false;
+  /** Uniform downward shift applied to every below-header y so run context's
+   * taller HUD (kicker/title/stats/badge/actions) never collides with the
+   * Sandbox's shorter tab-row header — same relative layout either way. */
+  private get headerOffset(): number { return this.runContext ? TEMPLATE.regions.content.y - 50 : 0; }
 
   constructor() { super('MobileDeckBuild'); }
 
@@ -75,7 +83,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
     this.heroStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower };
     this.cameras.main.setBackgroundColor(0x0b1420);
-    if (this.runContext) this.renderRunHeader(); else this.renderTabs();
+    if (this.runContext) this.renderHud(); else this.renderTabs();
     this.renderHeader();
     this.renderHolding();
     this.renderColumns();
@@ -86,16 +94,29 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     this.wireDrag();
     if (this.pendingTrash) this.renderConfirm();
     if (this.socketFor) this.renderSocketPanel();
+    if (this.retireConfirmOpen) {
+      renderRetireConfirm(this, {
+        compact: true,
+        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
+        onConfirm: () => { retireActiveRun(); this.scene.start('MobileRunMap'); },
+      });
+    }
   }
 
-  /** Run-context header — no sandbox tabs (those would navigate away from
-   * the run); a plain title + a back link to the Run Map. */
-  private renderRunHeader(): void {
-    this.add.text(12, 10, 'RUN · DECK / BAG', { fontSize: '15px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
-    const back = this.add.text(this.W - 12, 10, '‹ MAP', {
-      fontSize: '11px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-    back.on('pointerdown', () => this.scene.start('MobileRunMap'));
+  /** THE run HUD — identical header on every run screen. ‹ MAP is this
+   * screen's `back` role. */
+  private renderHud(): void {
+    const run = getActiveRun();
+    if (!run) return;
+    renderRunHud(this, {
+      screen: 'DECK',
+      compact: true,
+      snapshot: snapshotRunProgress(run),
+      actions: {
+        back: { label: '‹ MAP', onPress: () => this.scene.start('MobileRunMap') },
+        tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
+      },
+    });
   }
 
   /** Manual pointer-drag: hit-test tokens ourselves (Phaser container-drag is
@@ -237,7 +258,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
     const s = hero.stats;
     const meta = `LV ${this.heroLevel} · HP ${s.maxHp} · ATK ${s.attack} · MAG ${s.magicPower} · SPD ${s.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
-    this.add.text(12, 50, meta, { fontSize: '10px', color: '#9aa4b6', fontFamily: FONT.body });
+    this.add.text(12, 50 + this.headerOffset, meta, { fontSize: '10px', color: '#9aa4b6', fontFamily: FONT.body });
   }
 
   /** Dashed 1px border (the mockup's transfer/trash strip style). */
@@ -260,7 +281,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
 
   /** Slim TEMP HOLDING strip (mockup): dashed gold border · mini slot · label + grey sub. */
   private renderHolding(): void {
-    const y = 66; const h = 34; const w = this.W - 20;
+    const y = 66 + this.headerOffset; const h = 34; const w = this.W - 20;
     this.add.rectangle(10, y, w, h, 0x122033, 0.4).setOrigin(0, 0);
     this.dashedRect(10, y, w, h, 0xb78a46, this.hold ? 1 : 0.7);
     this.add.rectangle(18, y + 4, 24, h - 8, 0x16233a).setOrigin(0, 0).setStrokeStyle(1, 0x3a4a62, 0.9);
@@ -278,7 +299,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
   }
 
   private renderColumns(): void {
-    const top = 122;
+    const top = 122 + this.headerOffset;
     const colH = this.H - top - 78;
     const colW = (this.W - 20 - 8) / 2;
     const gap = 5;

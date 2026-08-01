@@ -5,10 +5,11 @@ import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
 import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
-import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
-import { renderRunProgressStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { auditTextBlock } from '../ui/controlLayoutAudit';
+import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
-import { renderBankedPlBadge, renderRunStatPanel } from '../ui/RunStatPanel';
+import { runScreenTemplate } from '../ui/runScreenTemplate';
+import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   choices,
@@ -19,12 +20,15 @@ import {
   pickNode,
   previewEncounter,
   rerollPendingSeed,
+  retireActiveRun,
   startRun,
   type RunNode,
   type RunNodeKind,
 } from '../runStore';
 
 const F = MOBILE_PROFILE.font;
+const TEMPLATE = runScreenTemplate('mobile');
+const EMPTY_HUD_SNAPSHOT = { day: 0, wave: 1, gold: 0, heroLevel: 1, lives: 0, bossesCleared: 0, wins: 0, losses: 0 };
 
 /** Steel-blue / gold-bronze / green / red — same palette as the desktop map. */
 const KIND_COLOR: Record<RunNodeKind, number> = {
@@ -51,11 +55,13 @@ export class MobileRunMapScene extends Phaser.Scene {
   private W = SCREEN.width;
   private H = SCREEN.height;
   private statPanelOpen = false;
+  private retireConfirmOpen = false;
 
   constructor() { super('MobileRunMap'); }
 
   init(): void {
     this.statPanelOpen = false;
+    this.retireConfirmOpen = false;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -66,7 +72,7 @@ export class MobileRunMapScene extends Phaser.Scene {
 
     const run = getActiveRun();
     if (!run) {
-      this.renderTitle();
+      this.renderHud(undefined);
       this.renderStartPanel();
       return;
     }
@@ -76,14 +82,12 @@ export class MobileRunMapScene extends Phaser.Scene {
       this.scene.start('MobileDraft');
       return;
     }
-    if (run.status === 'victory' || run.status === 'defeat') {
+    if (run.status === 'defeat' || run.status === 'retired') {
       this.renderBanner(run.status);
       return;
     }
 
-    this.renderTitle();
-    this.renderHeaderStats(run);
-    this.renderDeckButton();
+    this.renderHud(run);
     this.renderTrail(run);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
@@ -93,34 +97,33 @@ export class MobileRunMapScene extends Phaser.Scene {
         onChanged: () => this.rerender(),
       });
     }
+    if (this.retireConfirmOpen) {
+      renderRetireConfirm(this, {
+        compact: true,
+        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
+        onConfirm: () => { retireActiveRun(); this.rerender(); },
+      });
+    }
   }
 
-  private renderTitle(): void {
-    const title = this.add.text(12, 10, 'RUN', { fontSize: '18px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
-    auditTextBlock(title, { name: 'Mobile run map title', maxWidth: 100, maxHeight: F.big * 2, minFontSize: 12 });
-  }
-
-  /** DECK / BAG entry point — opens the shared Deck Build scene in RUN
-   * context (task item #3). */
-  private renderDeckButton(): void {
-    const w = 92; const h = 22;
-    const x = this.W - 12 - w; const y = 10;
-    const btn = this.add.rectangle(x, y, w, h, 0x16233a, 1).setOrigin(0, 0).setStrokeStyle(1, 0xb78a46, 0.8).setInteractive({ useHandCursor: true });
-    const label = this.add.text(x + w / 2, y + h / 2, 'DECK / BAG', { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    auditControlLabel(btn, label, { name: 'Mobile run map deck bag', horizontalPadding: 8, verticalPadding: 5, minFontSize: 8 });
-    auditTextBlock(label, { name: 'Mobile run map deck bag label', maxWidth: w - 16, maxHeight: h - 10, minFontSize: 8 });
-    btn.on('pointerdown', () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); });
-  }
-
-  private renderHeaderStats(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    renderRunProgressStrip(this, { x: 12, y: 42, w: this.W - 24 }, snapshotRunProgress(run));
-    renderBankedPlBadge(this, this.W - 12, 96, F.tiny, () => { this.statPanelOpen = true; this.rerender(); });
+  /** THE run HUD — identical header on every run screen (`runScreenTemplate`). */
+  private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>> | undefined): void {
+    renderRunHud(this, {
+      screen: 'RUN',
+      compact: true,
+      snapshot: run ? snapshotRunProgress(run) : EMPTY_HUD_SNAPSHOT,
+      onOpenStatPanel: run ? () => { this.statPanelOpen = true; this.rerender(); } : undefined,
+      actions: run ? {
+        secondary: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
+        tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
+      } : undefined,
+    });
   }
 
   // ---------- the trail ----------
 
   private renderTrail(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    const routeBounds = { x: 10, y: 108, w: this.W - 20, h: 310 };
+    const routeBounds = { x: 10, y: TEMPLATE.regions.content.y, w: this.W - 20, h: 310 };
     const route = snapshotRunRoute(run);
     renderRunRouteBoard(this, routeBounds, route, { mode: 'mobile' });
 
@@ -241,21 +244,27 @@ export class MobileRunMapScene extends Phaser.Scene {
     }).setOrigin(0.5, 1);
   }
 
-  // ---------- victory / defeat banner ----------
+  // ---------- defeat / retired end-summary banner ----------
 
-  private renderBanner(status: 'victory' | 'defeat'): void {
-    const win = status === 'victory';
-    this.add.rectangle(0, 0, this.W, this.H, win ? 0x1b3123 : 0x352019, 1).setOrigin(0, 0);
+  /** `'victory'` is legacy (the engine never sets it any more) and is
+   * deliberately not handled here — only `'defeat'` (0 lives) and
+   * `'retired'` (voluntary RETIRE) ever reach this. */
+  private renderBanner(status: 'defeat' | 'retired'): void {
+    const retired = status === 'retired';
+    this.add.rectangle(0, 0, this.W, this.H, retired ? 0x1c2430 : 0x352019, 1).setOrigin(0, 0);
     const cx = this.W / 2;
-    this.add.text(cx, this.H / 2 - 50, win ? 'VICTORY' : 'DEFEAT', {
-      fontSize: '30px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold',
+    this.add.text(cx, this.H / 2 - 60, retired ? 'RUN RETIRED' : 'DEFEAT', {
+      fontSize: '26px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold',
     }).setOrigin(0.5);
     const run = getActiveRun()!;
-    this.add.text(cx, this.H / 2 + 4, `${run.wins}W · ${run.losses}L · GOLD ${run.gold} · HERO LV ${run.heroLevel}`, {
-      fontSize: '12px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold', align: 'center', wordWrap: { width: this.W - 60 },
-    }).setOrigin(0.5);
-    const btn = this.add.rectangle(cx, this.H / 2 + 50, 180, 44, 0xb78a46, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    this.add.text(cx, this.H / 2 + 72, 'NEW RUN', { fontSize: '14px', color: '#1a1208', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(cx, this.H / 2 - 12, `BOSSES CLEARED ${run.bossesCleared}\nDAYS SURVIVED ${run.depth}`, {
+      fontSize: '13px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold', align: 'center',
+    }).setOrigin(0.5, 0);
+    this.add.text(cx, this.H / 2 + 30, `GOLD ${run.gold} · HERO LV ${run.heroLevel} · ${run.wins}W / ${run.losses}L`, {
+      fontSize: '11px', color: '#9aa4b6', fontFamily: FONT.body, align: 'center', wordWrap: { width: this.W - 60 },
+    }).setOrigin(0.5, 0);
+    const btn = this.add.rectangle(cx, this.H / 2 + 70, 180, 44, 0xb78a46, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
+    this.add.text(cx, this.H / 2 + 92, 'NEW RUN', { fontSize: '14px', color: '#1a1208', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
     btn.on('pointerdown', () => { clearRun(); this.rerender(); });
   }
 }
