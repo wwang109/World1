@@ -11,6 +11,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
+import { STAT_TOKEN } from '../ui/statLabels';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene } from '../sceneRebuild';
 import {
@@ -108,10 +109,10 @@ export class MobileRunPrepScene extends Phaser.Scene {
       fontSize: '12px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold',
     });
     const s = encounter.setup.stats;
-    this.add.text(20, y + 26, `HP ${s.maxHp} · SPD ${s.speed} · ATK ${s.attack} · MAG ${s.magicPower}`, {
+    this.add.text(20, y + 26, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower}`, {
       fontSize: '9px', color: '#9aa4b6', fontFamily: FONT.body, fontStyle: 'bold',
     });
-    this.add.text(20, y + 40, `DEF ${s.armor} · RES ${s.magicResist} · ${encounter.setup.pieces.length} cards`, {
+    this.add.text(20, y + 40, `${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${encounter.setup.pieces.length} cards`, {
       fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body,
     });
     addHoverTipZone(this, { x: 10, y: y + 22, w: this.W - 20, h: 32 }, ALL_STAT_ENTRIES);

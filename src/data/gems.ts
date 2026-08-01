@@ -31,7 +31,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'common',
     scope: 'hero',
     mods: { hero: { speed: 4 } },
-    text: 'Passive: hero +4 Speed.',
+    text: 'Passive: hero +4 SPD.',
   },
   quickening_sliver: {
     // slow +8 weight: floor(8 * 5/2) = 20 deci = Common exactly. (Was a
@@ -188,7 +188,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'debuffStat', stat: 'armor', pct: 10, turns: 2 }],
-    text: 'Also -10% enemy Armor (2 turns).',
+    text: 'Also -10% enemy DEF (2 turns).',
   },
   slow_hex_echo: {
     // echo of slow_hex
@@ -197,7 +197,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'debuffStat', stat: 'speed', pct: 10, turns: 2 }],
-    text: 'Also -10% enemy Speed (2 turns).',
+    text: 'Also -10% enemy SPD (2 turns).',
   },
   judgment_light_echo: {
     // echo of judgment_light
@@ -206,7 +206,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'debuffStat', stat: 'magicResist', pct: 10, turns: 2 }],
-    text: 'Also -10% enemy Magic Resist (2 turns).',
+    text: 'Also -10% enemy MDEF (2 turns).',
   },
   shadow_bolt_echo: {
     // echo of shadow_bolt
@@ -259,7 +259,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'rare',
     scope: 'hero',
     mods: { hero: { attack: 4 } },
-    text: 'Passive: hero +4 Attack.',
+    text: 'Passive: hero +4 ATK.',
   },
   quickening_core: {
     // slow +16 weight: floor(16 * 5/2) = 40 deci = Rare exactly.
@@ -297,7 +297,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'debuffStat', stat: 'attack', pct: 20, turns: 2 }],
-    text: 'Also -20% enemy Attack (2 turns).',
+    text: 'Also -20% enemy ATK (2 turns).',
   },
   frost_ward_echo: {
     // echo of frost_ward
@@ -345,7 +345,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'buffStat', stat: 'attack', pct: 20, turns: 2 }],
-    text: 'Also +20% Attack (2 turns).',
+    text: 'Also +20% ATK (2 turns).',
   },
   follow_through_echo: {
     // echo of follow_through. Re-fit for the 2026-07-23 comboPerPoint cut
@@ -364,7 +364,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'debuffStat', stat: 'magicResist', pct: 20, turns: 2 }],
-    text: 'Also -20% enemy Magic Resist (2 turns).',
+    text: 'Also -20% enemy MDEF (2 turns).',
   },
   stunning_smash_echo: {
     // echo of stunning_smash. Re-themed stun -> slow for the same reason as
@@ -394,7 +394,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'epic',
     actions: [{ kind: 'debuffStat', stat: 'armor', pct: 30, turns: 2 }],
-    text: 'Also -30% enemy Armor (2 turns).',
+    text: 'Also -30% enemy DEF (2 turns).',
   },
   empowering_core: {
     id: 'empowering_core',
@@ -412,7 +412,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'epic',
     scope: 'hero',
     mods: { hero: { armor: 6 } },
-    text: 'Passive: hero +6 Armor.',
+    text: 'Passive: hero +6 DEF.',
   },
 
   // ---- Epic echo gem (60 deci) ----
@@ -457,7 +457,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'legendary',
     scope: 'hero',
     mods: { hero: { magicPower: 8 } },
-    text: 'Passive: hero +8 Magic Power.',
+    text: 'Passive: hero +8 MATK.',
   },
 
   // ---- Legendary echo gem (80 deci) ----

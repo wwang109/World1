@@ -12,6 +12,7 @@ import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
+import { STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene } from '../sceneRebuild';
 
 const F = DESKTOP_PROFILE.font;
@@ -179,9 +180,9 @@ export class DesktopPrepScene extends Phaser.Scene {
 
     // Live stat sheet + damage/turn band (reflects title/LV/RANK/modifiers).
     const s = encounter.setup.stats;
-    this.text(innerX, cursor, `HP ${s.maxHp} · SPD ${s.speed} · ATK ${s.attack} · MAG ${s.magicPower}`, F.body, UI.text, { bold: true });
+    this.text(innerX, cursor, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower}`, F.body, UI.text, { bold: true });
     cursor += F.body + 7;
-    this.text(innerX, cursor, `DEF ${s.armor} · RES ${s.magicResist} · ${encounter.setup.pieces.length} cards`, F.small, UI.textDim);
+    this.text(innerX, cursor, `${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${encounter.setup.pieces.length} cards`, F.small, UI.textDim);
     cursor += F.small + 7;
     const bandText = this.text(innerX, cursor, 'DMG/turn …', F.body, UI.textAccent, { bold: true });
     cachedDamageBand(encounter.setup, { turns: 8, seeds: 8 }).then((band) => {
@@ -312,8 +313,8 @@ export class DesktopPrepScene extends Phaser.Scene {
 
     // 2×3 stat allocation grid. Each cell: [−] LABEL +gained [+].
     const rows: Array<[LevelStat, string]> = [
-      ['maxHp', 'HP'], ['attack', 'ATK'], ['magicPower', 'MAG'],
-      ['armor', 'DEF'], ['magicResist', 'RES'], ['speed', 'SPD'],
+      ['maxHp', STAT_TOKEN.maxHp], ['attack', STAT_TOKEN.attack], ['magicPower', STAT_TOKEN.magicPower],
+      ['armor', STAT_TOKEN.armor], ['magicResist', STAT_TOKEN.magicResist], ['speed', STAT_TOKEN.speed],
     ];
     const cellW = (w - gap) / 2;
     const cellH = 32;

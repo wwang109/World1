@@ -263,23 +263,36 @@ function mitigation(c: CombatantState, property: Property): number {
  * every point blocked drains 2 points of true shield. The whole pool is
  * spent before damage passes through — a dangling odd point still drains
  * but blocks nothing (floor), keeping the state integer-only.
+ *
+ * Returns the damage `blocked` PLUS the points actually REMOVED from each pool
+ * (`drain`). For the true pool those differ: a typed hit spends 2 true points
+ * per point blocked, so `drain.true` is the inflated spend, not the block.
+ * Arithmetic (and its Math.min/floor order) is unchanged by this bookkeeping.
  */
-function consumeShields(c: CombatantState, property: Property, amount: number): number {
+function consumeShields(
+  c: CombatantState,
+  property: Property,
+  amount: number,
+): { blocked: number; drain: Record<Property, number> } {
   let blocked = 0;
+  const drain: Record<Property, number> = { physical: 0, magical: 0, true: 0 };
   if (property !== 'true') {
     const pool = Math.min(c.shields[property], amount);
     c.shields[property] -= pool;
+    drain[property] += pool;
     blocked += pool;
     amount -= pool;
     const trueSpent = Math.min(c.shields.true, amount * 2);
     c.shields.true -= trueSpent;
+    drain.true += trueSpent;
     blocked += Math.floor(trueSpent / 2);
-    return blocked;
+    return { blocked, drain };
   }
   const truePool = Math.min(c.shields.true, amount);
   c.shields.true -= truePool;
+  drain.true += truePool;
   blocked += truePool;
-  return blocked;
+  return { blocked, drain };
 }
 
 /** Per-cast scratch state for rider actions (combo bonus, lifesteal). */
@@ -346,7 +359,10 @@ export function dealDamage(
     }
   }
 
-  const blocked = opts.bypassShields ? 0 : consumeShields(victim, property, reduced);
+  const absorb = opts.bypassShields
+    ? { blocked: 0, drain: { physical: 0, magical: 0, true: 0 } as Record<Property, number> }
+    : consumeShields(victim, property, reduced);
+  const blocked = absorb.blocked;
   const remaining = reduced - blocked;
   victim.stats.hp = Math.max(0, victim.stats.hp - remaining);
   ctx.events.push({
@@ -357,6 +373,8 @@ export function dealDamage(
     amount: reduced,
     property,
     blocked,
+    // Per-pool bookkeeping: only meaningful when a shield actually absorbed.
+    ...(blocked > 0 ? { shieldDrain: { ...absorb.drain } } : {}),
     matchup: opts.matchup === 'advantage' || opts.matchup === 'disadvantage' ? opts.matchup : undefined,
     guarded: guarded > 0 ? guarded : undefined,
     exposed: exposed > 0 ? exposed : undefined,
@@ -509,7 +527,9 @@ function applyAction(
       if (!caster.alive) break;
       // Shields stack and carry over, but total shield is hard-capped at maxHp.
       // TRUE shields are the flat base; others add the caster's scaling stat.
-      const request = property === 'true' ? action.power : action.power + scaleStat(caster, property);
+      // TRUE shields are flat by design: no stat contribution at all.
+      const statBonus = property === 'true' ? 0 : scaleStat(caster, property);
+      const request = action.power + statBonus;
       const room = Math.max(0, caster.stats.maxHp - totalShield(caster));
       const gain = Math.min(request, room);
       const wasted = request - gain;
@@ -523,7 +543,9 @@ function applyAction(
         amount: gain,
         wasted,
         totalAfter: totalShield(caster),
+        poolsAfter: { ...caster.shields },
         ...(ctx.source ? { sourceCard: ctx.source } : {}),
+        calculation: { power: action.power, statBonus },
       });
       break;
     }

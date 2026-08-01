@@ -16,10 +16,10 @@
  *
  * Not a `*.test.ts` file, so vitest never collects it.
  */
-import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { simulate, ATTRITION_START_TURN } from '../../../src/engine/combat/simulate';
 import { sweepCases } from '../helpers/sweepConfigs';
+import { outcomeHash as hash } from '../helpers/outcomeHash';
 import type { CombatConfig } from '../../../src/engine/types';
 
 const OFF = 1_000_000;
@@ -31,10 +31,6 @@ interface Entry {
   hash: string;
 }
 
-function hash(v: unknown): string {
-  return createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 32);
-}
-
 function capture(extra: Partial<CombatConfig>): Entry[] {
   return sweepCases(0xba5e11, 200, { maxTurns: 200, ...extra }).map(({ config, seed }) => {
     const r = simulate(structuredClone(config), seed);
@@ -43,11 +39,32 @@ function capture(extra: Partial<CombatConfig>): Entry[] {
 }
 
 const next = {
+  normalization:
+    'Hashes are taken through tests/engine/helpers/outcomeHash.ts (shared with outcomeRule.test.ts), ' +
+    'which strips PRESENTATION-ONLY card fields before hashing: `text` anywhere, and `name` on ' +
+    'SkillDef-shaped objects. The sim reads neither, so a content copy-edit no longer forces a ' +
+    'fixture regeneration. Everything the engine consumes — the full event log, all combatant ' +
+    'state (incl. each combatant `name`), and every behavioural SkillDef field (effects, property, ' +
+    'size, speedWeight, cooldownTurns, tier, rarity, element, weapon, scope, aura, special, ' +
+    'tierUpgrades) — is still hashed byte-for-byte.',
   note:
-    'Regression lock captured from the engine at the "bleed ticks at most once per global turn" ' +
-    'change (2026-07-31). Guards the ATTRITION THRESHOLD BOUNDARY in outcomeRule.test.ts: fights ' +
-    'decided before ATTRITION_START_TURN must stay byte-identical. Regenerate with ' +
-    'tests/engine/fixtures/captureOutcomeBaseline.ts, and only for a reviewed rule change.',
+    'Regression lock recaptured (2026-08-01) for the TRUE-heal re-price ' +
+    '(PRICE.flatTrueHealPerPoint 2 -> 4, balance-designer pass): a REAL BEHAVIOR ' +
+    'CHANGE, unlike the prior representation-only regens noted below. ' +
+    'second_wind/renewing_wave/purify heal for smaller flat amounts at every ' +
+    'tier (e.g. second_wind Bronze 50 -> 25), which changes sim outcomes for any ' +
+    'sweep config that casts one of those three cards — that is the expected, ' +
+    'reviewed source of the hash churn in this regen, not a representation change. ' +
+    'It supersedes two earlier non-rule regenerations that the presentation-field ' +
+    'normalizer (see `normalization` above) made unnecessary: (a) the card-text ' +
+    'canonical-token sweep (ATK/MATK/DEF/MDEF/SPD), which moved every hash without ' +
+    'touching a single mechanic — exactly the churn `text` stripping kills, and ' +
+    '(b) the additive shield event metadata (shieldGain.calculation, ' +
+    'shieldGain.poolsAfter, damage.shieldDrain), which re-hashed the 140/200 logs ' +
+    'containing a shield event and left every other byte identical. ' +
+    'Guards the ATTRITION THRESHOLD BOUNDARY in outcomeRule.test.ts: fights ' +
+    'decided before ATTRITION_START_TURN must stay byte-identical across RULE changes. Regenerate ' +
+    'with tests/engine/fixtures/captureOutcomeBaseline.ts, and only for a deliberate, reviewed change.',
   attritionOff: capture({ attritionTurn: OFF }),
   attritionOn: capture({}),
 };

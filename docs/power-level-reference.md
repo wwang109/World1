@@ -26,7 +26,7 @@ all division is `Math.floor`'d immediately (integer deci-PL, no floats persist).
 |---|---|---|---|
 | `damage` (any property) | `power * flatPowerPerPoint` | `PRICE.flatPowerPerPoint` (5) | FLAT base; 2 power = 1 PL. Caster's stat is added at cast time, unpriced |
 | `heal` / `shield` (physical/magical) | `power * flatPowerPerPoint` | `PRICE.flatPowerPerPoint` (5) | FLAT base + caster stat; 2 power = 1 PL |
-| `heal` (TRUE, pure flat, no stat) | `power * flatTrueHealPerPoint` | `PRICE.flatTrueHealPerPoint` (2) | 5 flat points = 1 PL |
+| `heal` (TRUE, pure flat, no stat) | `power * flatTrueHealPerPoint` | `PRICE.flatTrueHealPerPoint` (**4**, was 2) | 2.5 flat points = 1 PL. Re-priced 2026-08-01 (balance-designer): empirical early-game dominance of flat TRUE heals over MATK-scaling heals — the old rate put the crossover (where a %-MATK heal out-heals the flat TRUE amount) around MATK 30-40; doubling the rate pulls that crossover down to MATK 5-10 |
 | `shield` (TRUE, pure flat, no stat) | `power * flatTrueShieldPerPoint` | `PRICE.flatTrueShieldPerPoint` (**5**, was 4) | 2 flat points = 1 PL, typed parity — the premium is mechanical: typed damage drains the TRUE pool 2:1 (half effectiveness), TRUE damage 1:1 |
 | TRUE damage premium (scales with amount) | `+truePremiumPerPoint` per point of TRUE damage | `PRICE.truePremiumPerPoint` (**5**, was 1) | Half-effect rule (user-locked 2026-07-20): TRUE damage = 10 deci/pt, exactly double typed — 5 PL buys 10 typed damage but only 5 TRUE. Heals pay via `flatTrueHealPerPoint` instead (kept cheap: healing is never mitigated, TRUE buys no bypass) |
 | `poison` / `bleed` / `burn` | `stacks * dotPerStack` | `PRICE.dotPerStack` (**10**, was a quadratic total-damage formula) | LINEAR PER-STACK (user-locked 2026-07-23, replaces the decaying/halving-total pricing below): 1 stack = 1 PL, so EVERY stack count prices to a whole PL (the old formula only worked at N ≡ 0 or 4 mod 5, making stacks like 7/8 unreachable). Tick GAMEPLAY is unchanged: poison/bleed still DECAY (tick = current stacks, then −1; N stacks = N×(N+1)/2 total damage over N ticks — poison end-of-turn/unstoppable, bleed per-performance/blocked at application by shields); burn still HALVES (start-of-turn tick = 2× stacks, then stacks halve — burn 8 ticks 16,8,4,2 = 30 total). All three share ONE rate for simplicity, which means burn (whose halving total is lower per stack than poison's decaying total) no longer gets its old ~15-30%-per-total-point discount — the `dot` effect cap (below) is the backstop against any DoT over-investing in stacks |
@@ -401,3 +401,46 @@ Card and gem re-fits to land exactly back on budget:
   exactly; 4 sits below the 5-10 card-magnitude band, but a Common gem's tiny
   20-deci budget can't afford 5 at the new entry rate — this is a deliberate
   gem-scale exception, not a violation of the card-design directive).
+
+## 2026-08-01 changelog: TRUE heal re-price (2 → 4 deci/pt)
+
+**User-locked directive:** empirical early-game play showed flat TRUE heals
+(`second_wind`, `renewing_wave`, `purify`'s heal component) strictly
+dominating non-TRUE, stat-scaling heals for far too long — at the old
+`flatTrueHealPerPoint` rate of 2, the crossover point where a %-of-MATK heal
+out-heals the flat TRUE amount only arrived around MATK 30-40, well past
+where most runs are by the time they'd naturally pick up a MATK stack.
+`PRICE.flatTrueHealPerPoint` raised 2 → 4 (`src/engine/balance.ts`) pulls that
+crossover down to roughly MATK 5-10, so non-TRUE heals become a live
+alternative much sooner.
+
+Every affected card was re-tuned to land exactly back on budget (heal
+magnitude down, mechanics/text unchanged); `second_wind` and `renewing_wave`
+also needed AUTHORED `tierUpgrades` (the auto-scaler can't move `speedWeight`,
+and these ladders sink part of the re-price into weight, not just heal
+points):
+
+- `second_wind` (Bronze, size 1, `true` property, weight baseline 10): heal
+  50→**25** (`25 × 4 = 100` = Bronze exactly).
+  - Silver: heal 40, `speedWeight` 12 → `40×4=160 − 10 (weight, 2 over
+    baseline) = 150` = Silver.
+  - Gold: heal 50, weight back to baseline 10 → `50×4=200` = Gold.
+  - Diamond: heal 65, `speedWeight` 12 → `65×4=260 − 10 = 250` = Diamond.
+- `renewing_wave` (Bronze, size 1, `true` property, `speedWeight` 14): heal
+  60→**30** (`30×4=120 − 20 (weight, 4 over baseline 10) = 100` = Bronze).
+  - Silver: heal 45, `speedWeight` 16 → `45×4=180 − 30 = 150` = Silver.
+  - Gold: heal 55, `speedWeight` back to the bronze 14 → `55×4=220 − 20 = 200`
+    = Gold.
+  - Diamond: heal 70, `speedWeight` 16 → `70×4=280 − 30 = 250` = Diamond.
+- `purify` (Bronze, size 1, `true` property; `cleanse` charges 4 = 100 deci,
+  frozen and unchanged at every tier):
+  - Silver: heal 25→**10**, `speedWeight` 8 (new) → `100 (cleanse) + 10×4=40 +
+    10 (weight, 2 under baseline) = 150` = Silver.
+  - Gold: heal 50→**25**, weight at baseline → `100 + 25×4=100 + 0 = 200` =
+    Gold.
+  - Diamond: heal 75→**35**, `speedWeight` 8 (new) → `100 + 35×4=140 + 10 =
+    250` = Diamond.
+
+Every ladder lands EXACTLY on budget (no fudged numbers). The doc row for
+`flatTrueHealPerPoint` above and `PRICE` in `src/engine/balance.ts` are the
+sources of truth; this section is a changelog record only.

@@ -13,6 +13,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
+import { STAT_TOKEN } from '../ui/statLabels';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene } from '../sceneRebuild';
 import {
@@ -150,12 +151,12 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     cursor += F.small + 14;
 
     const s = encounter.setup.stats;
-    this.add.text(innerX, cursor, `HP ${s.maxHp} · SPD ${s.speed} · ATK ${s.attack} · MAG ${s.magicPower}`, {
+    this.add.text(innerX, cursor, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.text,
     });
     addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: F.body + 4 }, ALL_STAT_ENTRIES);
     cursor += F.body + 7;
-    this.add.text(innerX, cursor, `DEF ${s.armor} · RES ${s.magicResist} · ${encounter.setup.pieces.length} cards`, {
+    this.add.text(innerX, cursor, `${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${encounter.setup.pieces.length} cards`, {
       fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
     });
     addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: F.small + 4 }, ALL_STAT_ENTRIES);

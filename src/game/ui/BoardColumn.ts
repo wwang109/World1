@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { SkillDef } from '../../engine/types';
 import { CardToken } from './CardToken';
-import type { ScalingStats } from './skillPresentation';
+import type { ScalingStats, SkillFaceMode } from './skillPresentation';
 
 /** A card placed at a starting slot; a size-N card occupies N slots. */
 export interface ColumnPiece {
@@ -23,6 +23,9 @@ export interface BoardColumnOptions {
   gap?: number;
   /** This side's owning combatant's live Attack/Magic Power — renders `base+stat` on card faces. */
   stats?: ScalingStats;
+  /** Card-face number treatment override — see `CardTokenOptions.faceMode`.
+   * Normally omitted: `CardToken` already defaults per ACTIVE platform. */
+  faceMode?: SkillFaceMode;
 }
 
 /**
@@ -57,7 +60,7 @@ export class BoardColumn {
       const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
       if (piece) {
         this.tokens.push(new CardToken(scene, cx, cy, piece.skill, {
-          width: opts.width, height: h, side, slotLabel: label, deck: opts.deck, state: piece.state, stats: opts.stats,
+          width: opts.width, height: h, side, slotLabel: label, deck: opts.deck, state: piece.state, stats: opts.stats, faceMode: opts.faceMode,
         }));
         row += span;
       } else {

@@ -4,6 +4,7 @@ import { commitHeroAllocation, currentBankedPL, currentHeroAllocation, currentHe
 import { FONT, SCREEN, UI } from '../theme';
 import { addHoverTipZone } from './hoverTip';
 import { statHoverEntry } from './statGlossary';
+import { STAT_TOKEN } from './statLabels';
 
 /**
  * Run Mode's stat/level allocation overlay — the one place a player spends
@@ -54,8 +55,8 @@ export function renderRunStatPanel(
   const banked = total - spent;
 
   const rows: Array<[LevelStat, string]> = [
-    ['maxHp', 'HP'], ['attack', 'ATK'], ['magicPower', 'MAG'],
-    ['armor', 'DEF'], ['magicResist', 'RES'], ['speed', 'SPD'],
+    ['maxHp', STAT_TOKEN.maxHp], ['attack', STAT_TOKEN.attack], ['magicPower', STAT_TOKEN.magicPower],
+    ['armor', STAT_TOKEN.armor], ['magicResist', STAT_TOKEN.magicResist], ['speed', STAT_TOKEN.speed],
   ];
   const cols = compact ? 2 : 3;
   const cellH = compact ? 46 : 40;

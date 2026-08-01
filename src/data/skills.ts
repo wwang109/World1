@@ -21,7 +21,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     weapon: 'sword',
     effects: [{ kind: 'damage', power: 20 }],
-    text: 'Deal Sword damage +20 (+Attack).',
+    text: 'Deal Sword damage +20 (+ATK).',
   },
   {
     // Twin-hit showcase: 2 × 6 base (60 deci) + 1 extra-hit premium (30 deci)
@@ -40,7 +40,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 6 },
       { kind: 'damage', power: 6 },
     ],
-    text: 'Deal Sword damage +6 (+Attack), twice.',
+    text: 'Deal Sword damage +6 (+ATK), twice.',
   },
   {
     id: 'savage_bite',
@@ -52,7 +52,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     weapon: 'beast',
     effects: [{ kind: 'damage', power: 20 }],
-    text: 'Deal Beast damage +20 (+Attack).',
+    text: 'Deal Beast damage +20 (+ATK).',
   },
   {
     id: 'rending_claws',
@@ -64,7 +64,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     weapon: 'beast',
     effects: [{ kind: 'damage', power: 96 }],
-    text: 'Deal Beast damage +96 (+Attack).',
+    text: 'Deal Beast damage +96 (+ATK).',
   },
   {
     id: 'hunter_shot',
@@ -76,7 +76,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     weapon: 'bow',
     effects: [{ kind: 'damage', power: 20 }],
-    text: 'Deal Bow damage +20 (+Attack). Strong vs Beasts.',
+    text: 'Deal Bow damage +20 (+ATK). Strong vs Beasts.',
   },
   {
     id: 'arcane_bolt',
@@ -89,7 +89,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'lightning',
     effects: [{ kind: 'damage', power: 18 }],
-    text: 'Deal Lightning damage +18 (+Magic Power).',
+    text: 'Deal Lightning damage +18 (+MATK).',
   },
   {
     id: 'crushing_blow',
@@ -101,7 +101,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     weapon: 'axe',
     effects: [{ kind: 'damage', power: 96 }],
-    text: 'Deal Axe damage +96 (+Attack).',
+    text: 'Deal Axe damage +96 (+ATK).',
   },
   {
     id: 'fireball',
@@ -119,7 +119,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 38 },
       { kind: 'burn', stacks: 5 },
     ],
-    text: 'Deal Fire damage +38 (+Magic Power) · {{Burn}} 5.',
+    text: 'Deal Fire damage +38 (+MATK) · {{Burn}} 5.',
     // Hand-tuned curve (user-locked 2026-07-24): MODERATE burn growth, rest
     // into damage. Size-2 grants (170/210/240 deci) fold into each tier's
     // effective budget. Silver: burn 7 (70) + damage 50 (250) = 320 = 150 +
@@ -131,21 +131,21 @@ const defs: SkillDef[] = [
           { kind: 'damage', power: 50 },
           { kind: 'burn', stacks: 7 },
         ],
-        text: 'Deal Fire damage +50 (+Magic Power) · {{Burn}} 7.',
+        text: 'Deal Fire damage +50 (+MATK) · {{Burn}} 7.',
       },
       gold: {
         effects: [
           { kind: 'damage', power: 66 },
           { kind: 'burn', stacks: 8 },
         ],
-        text: 'Deal Fire damage +66 (+Magic Power) · {{Burn}} 8.',
+        text: 'Deal Fire damage +66 (+MATK) · {{Burn}} 8.',
       },
       diamond: {
         effects: [
           { kind: 'damage', power: 78 },
           { kind: 'burn', stacks: 10 },
         ],
-        text: 'Deal Fire damage +78 (+Magic Power) · {{Burn}} 10.',
+        text: 'Deal Fire damage +78 (+MATK) · {{Burn}} 10.',
       },
     },
   },
@@ -179,7 +179,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 38 },
       { kind: 'debuffStat', stat: 'attack', pct: 25, turns: 2 },
     ],
-    text: 'Deal Lance damage +38 (+Attack) · -25% enemy Attack (2 turns).',
+    text: 'Deal Lance damage +38 (+ATK) · -25% enemy ATK (2 turns).',
   },
   {
     id: 'venom_fang',
@@ -198,7 +198,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 12 },
       { kind: 'poison', stacks: 5 },
     ],
-    text: 'Deal Beast damage +12 (+Attack) · {{Poison}} 5 (poison bypasses shields).',
+    text: 'Deal Beast damage +12 (+ATK) · {{Poison}} 5 (poison bypasses shields).',
     // Hand-tuned curve (user-locked 2026-07-24): MODERATE stack growth, rest
     // into damage; weight stays 12 (−10 deci refund) at every tier.
     // Silver: poison 7 (70) + damage 18 (90) + weight (−10) = 150.
@@ -210,21 +210,21 @@ const defs: SkillDef[] = [
           { kind: 'damage', power: 18 },
           { kind: 'poison', stacks: 7 },
         ],
-        text: 'Deal Beast damage +18 (+Attack) · {{Poison}} 7 (poison bypasses shields).',
+        text: 'Deal Beast damage +18 (+ATK) · {{Poison}} 7 (poison bypasses shields).',
       },
       gold: {
         effects: [
           { kind: 'damage', power: 26 },
           { kind: 'poison', stacks: 8 },
         ],
-        text: 'Deal Beast damage +26 (+Attack) · {{Poison}} 8 (poison bypasses shields).',
+        text: 'Deal Beast damage +26 (+ATK) · {{Poison}} 8 (poison bypasses shields).',
       },
       diamond: {
         effects: [
           { kind: 'damage', power: 34 },
           { kind: 'poison', stacks: 9 },
         ],
-        text: 'Deal Beast damage +34 (+Attack) · {{Poison}} 9 (poison bypasses shields).',
+        text: 'Deal Beast damage +34 (+ATK) · {{Poison}} 9 (poison bypasses shields).',
       },
     },
   },
@@ -240,7 +240,7 @@ const defs: SkillDef[] = [
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'shield', power: 48 }],
-    text: '+48 DEF (+Attack).',
+    text: '+48 DEF (+ATK).',
   },
   {
     id: 'mana_ward',
@@ -252,7 +252,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'frost',
     effects: [{ kind: 'shield', power: 20 }],
-    text: '+20 MDEF (+Magic Power).',
+    text: '+20 MDEF (+MATK).',
   },
   {
     id: 'prism_barrier',
@@ -293,21 +293,21 @@ const defs: SkillDef[] = [
           { kind: 'guard', property: 'magical', pct: 50, turns: 2 },
           { kind: 'shield', power: 10 },
         ],
-        text: '-50% incoming magical damage (2 turns) · +10 MDEF (+Magic Power).',
+        text: '-50% incoming magical damage (2 turns) · +10 MDEF (+MATK).',
       },
       gold: {
         effects: [
           { kind: 'guard', property: 'magical', pct: 50, turns: 2 },
           { kind: 'shield', power: 20 },
         ],
-        text: '-50% incoming magical damage (2 turns) · +20 MDEF (+Magic Power).',
+        text: '-50% incoming magical damage (2 turns) · +20 MDEF (+MATK).',
       },
       diamond: {
         effects: [
           { kind: 'guard', property: 'magical', pct: 50, turns: 2 },
           { kind: 'shield', power: 30 },
         ],
-        text: '-50% incoming magical damage (2 turns) · +30 MDEF (+Magic Power).',
+        text: '-50% incoming magical damage (2 turns) · +30 MDEF (+MATK).',
       },
     },
   },
@@ -333,21 +333,21 @@ const defs: SkillDef[] = [
           { kind: 'negate', property: 'magical', charges: 1 },
           { kind: 'shield', power: 10 },
         ],
-        text: '{{Negate}} the next magical attack · +10 MDEF (+Magic Power).',
+        text: '{{Negate}} the next magical attack · +10 MDEF (+MATK).',
       },
       gold: {
         effects: [
           { kind: 'negate', property: 'magical', charges: 1 },
           { kind: 'shield', power: 20 },
         ],
-        text: '{{Negate}} the next magical attack · +20 MDEF (+Magic Power).',
+        text: '{{Negate}} the next magical attack · +20 MDEF (+MATK).',
       },
       diamond: {
         effects: [
           { kind: 'negate', property: 'magical', charges: 1 },
           { kind: 'shield', power: 30 },
         ],
-        text: '{{Negate}} the next magical attack · +30 MDEF (+Magic Power).',
+        text: '{{Negate}} the next magical attack · +30 MDEF (+MATK).',
       },
     },
   },
@@ -363,7 +363,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'holy',
     effects: [{ kind: 'heal', power: 48 }],
-    text: '+48 HP (+Magic Power).',
+    text: '+48 HP (+MATK).',
   },
   {
     id: 'second_wind',
@@ -374,8 +374,29 @@ const defs: SkillDef[] = [
     size: 1,
     rarity: 'rare',
     tier: 'bronze',
-    effects: [{ kind: 'heal', power: 50 }],
-    text: '+50 HP.',
+    // TRUE heal re-priced 2 -> 4 deci/pt (2026-08-01): 25 × 4 = 100 = Bronze.
+    effects: [{ kind: 'heal', power: 25 }],
+    text: '+25 HP.',
+    // Silver/Diamond sink the rest into weight (lighter costs, so speedWeight
+    // rises to buy back budget): silver 40×4=160 − 10 (weight 12) = 150.
+    // Gold returns to baseline weight: 50×4=200 = Gold exactly.
+    // Diamond: 65×4=260 − 10 (weight 12) = 250.
+    tierUpgrades: {
+      silver: {
+        effects: [{ kind: 'heal', power: 40 }],
+        speedWeight: 12,
+        text: '+40 HP.',
+      },
+      gold: {
+        effects: [{ kind: 'heal', power: 50 }],
+        text: '+50 HP.',
+      },
+      diamond: {
+        effects: [{ kind: 'heal', power: 65 }],
+        speedWeight: 12,
+        text: '+65 HP.',
+      },
+    },
   },
 
   // ---- Support (passive auras + active buffs) ----
@@ -428,17 +449,17 @@ const defs: SkillDef[] = [
       silver: {
         aura: { affects: 'adjacent', propertyFilter: 'magical', mods: { weightDelta: -6 } },
         effects: [{ kind: 'buffStat', stat: 'speed', pct: 15, turns: 2 }],
-        text: 'Passive: adjacent Magical cards -6 weight (cast sooner). Self: +15% Speed (2 turns).',
+        text: 'Passive: adjacent Magical cards -6 weight (cast sooner). Self: +15% SPD (2 turns).',
       },
       gold: {
         aura: { affects: 'adjacent', propertyFilter: 'magical', mods: { weightDelta: -8 } },
         effects: [{ kind: 'buffStat', stat: 'speed', pct: 20, turns: 2 }],
-        text: 'Passive: adjacent Magical cards -8 weight (cast sooner). Self: +20% Speed (2 turns).',
+        text: 'Passive: adjacent Magical cards -8 weight (cast sooner). Self: +20% SPD (2 turns).',
       },
       diamond: {
         aura: { affects: 'adjacent', propertyFilter: 'magical', mods: { weightDelta: -10 } },
         effects: [{ kind: 'buffStat', stat: 'speed', pct: 25, turns: 2 }],
-        text: 'Passive: adjacent Magical cards -10 weight (cast sooner). Self: +25% Speed (2 turns).',
+        text: 'Passive: adjacent Magical cards -10 weight (cast sooner). Self: +25% SPD (2 turns).',
       },
     },
   },
@@ -456,7 +477,7 @@ const defs: SkillDef[] = [
     rarity: 'rare',
     tier: 'bronze',
     effects: [{ kind: 'buffStat', stat: 'attack', pct: 50, turns: 2 }],
-    text: '+50% Attack (2 turns).',
+    text: '+50% ATK (2 turns).',
     // War-cry theme: the +50%/2t buff is frozen (already at the size-1 empower
     // cap, 100 deci); a Beast damage roar sinks the rest. Silver 10 (50) + 100
     // = 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250.
@@ -466,21 +487,21 @@ const defs: SkillDef[] = [
           { kind: 'buffStat', stat: 'attack', pct: 50, turns: 2 },
           { kind: 'damage', power: 10 },
         ],
-        text: '+50% Attack (2 turns) · Deal Beast damage +10 (+Attack).',
+        text: '+50% ATK (2 turns) · Deal Beast damage +10 (+ATK).',
       },
       gold: {
         effects: [
           { kind: 'buffStat', stat: 'attack', pct: 50, turns: 2 },
           { kind: 'damage', power: 20 },
         ],
-        text: '+50% Attack (2 turns) · Deal Beast damage +20 (+Attack).',
+        text: '+50% ATK (2 turns) · Deal Beast damage +20 (+ATK).',
       },
       diamond: {
         effects: [
           { kind: 'buffStat', stat: 'attack', pct: 50, turns: 2 },
           { kind: 'damage', power: 30 },
         ],
-        text: '+50% Attack (2 turns) · Deal Beast damage +30 (+Attack).',
+        text: '+50% ATK (2 turns) · Deal Beast damage +30 (+ATK).',
       },
     },
   },
@@ -499,7 +520,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 12 },
       { kind: 'slow', weight: 16 },
     ],
-    text: "Deal Lance damage +12 (+Attack) · {{Slow}} the enemy's next action by +16 weight."
+    text: "Deal Lance damage +12 (+ATK) · {{Slow}} the enemy's next action by +16 weight."
   },
   {
     id: 'leeching_fang',
@@ -515,7 +536,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 16 },
       { kind: 'lifesteal', pct: 45 },
     ],
-    text: 'Deal Beast damage +16 (+Attack) · heal 45% of damage dealt.',
+    text: 'Deal Beast damage +16 (+ATK) · heal 45% of damage dealt.',
   },
   {
     id: 'shield_splitter',
@@ -530,7 +551,7 @@ const defs: SkillDef[] = [
       { kind: 'shieldBreak', amount: 24 },
       { kind: 'damage', power: 42 },
     ],
-    text: '{{Shatter}} 24 enemy shield, then deal Axe damage +42 (+Attack).',
+    text: '{{Shatter}} 24 enemy shield, then deal Axe damage +42 (+ATK).',
   },
   {
     id: 'follow_through',
@@ -548,7 +569,7 @@ const defs: SkillDef[] = [
       { kind: 'comboBonus', amount: 20 },
       { kind: 'damage', power: 10 },
     ],
-    text: 'Deal Sword damage +10 (+Attack) · +20 if previous cast was Offense.',
+    text: 'Deal Sword damage +10 (+ATK) · +20 if previous cast was Offense.',
   },
   {
     id: 'concussive_shot',
@@ -569,7 +590,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 12 },
       { kind: 'disrupt', amount: 6 },
     ],
-    text: 'Deal Bow damage +12 (+Attack) · {{Disrupt}} 6 banked readiness.',
+    text: 'Deal Bow damage +12 (+ATK) · {{Disrupt}} 6 banked readiness.',
   },
 
   // ---- Debuff ----
@@ -585,7 +606,7 @@ const defs: SkillDef[] = [
     // Refit for the size-1 control cap (10 PL): 50%×2t = 100 deci exactly
     // (was 40%×3t = 12 PL funded by extra weight).
     effects: [{ kind: 'debuffStat', stat: 'magicResist', pct: 50, turns: 2 }],
-    text: '-50% enemy Magic Resist (2 turns).',
+    text: '-50% enemy MDEF (2 turns).',
     // Curse theme: the debuff is frozen (already at the size-1 control cap,
     // 100 deci); a Dark damage tick sinks the rest. Silver 10 (50) + 100 = 150.
     // Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250.
@@ -595,21 +616,21 @@ const defs: SkillDef[] = [
           { kind: 'debuffStat', stat: 'magicResist', pct: 50, turns: 2 },
           { kind: 'damage', power: 10 },
         ],
-        text: '-50% enemy Magic Resist (2 turns) · Deal Dark damage +10 (+Magic Power).',
+        text: '-50% enemy MDEF (2 turns) · Deal Dark damage +10 (+MATK).',
       },
       gold: {
         effects: [
           { kind: 'debuffStat', stat: 'magicResist', pct: 50, turns: 2 },
           { kind: 'damage', power: 20 },
         ],
-        text: '-50% enemy Magic Resist (2 turns) · Deal Dark damage +20 (+Magic Power).',
+        text: '-50% enemy MDEF (2 turns) · Deal Dark damage +20 (+MATK).',
       },
       diamond: {
         effects: [
           { kind: 'debuffStat', stat: 'magicResist', pct: 50, turns: 2 },
           { kind: 'damage', power: 30 },
         ],
-        text: '-50% enemy Magic Resist (2 turns) · Deal Dark damage +30 (+Magic Power).',
+        text: '-50% enemy MDEF (2 turns) · Deal Dark damage +30 (+MATK).',
       },
     },
   },
@@ -623,7 +644,7 @@ const defs: SkillDef[] = [
     rarity: 'rare',
     tier: 'bronze',
     effects: [{ kind: 'debuffStat', stat: 'armor', pct: 50, turns: 2 }],
-    text: '-50% enemy Armor (2 turns).',
+    text: '-50% enemy DEF (2 turns).',
     // Frozen debuff (already at the size-1 control cap, 100 deci); a physical
     // Axe chop sinks the rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100
     // = 200. Diamond 30 (150) + 100 = 250.
@@ -633,21 +654,21 @@ const defs: SkillDef[] = [
           { kind: 'debuffStat', stat: 'armor', pct: 50, turns: 2 },
           { kind: 'damage', power: 10 },
         ],
-        text: '-50% enemy Armor (2 turns) · Deal Axe damage +10 (+Attack).',
+        text: '-50% enemy DEF (2 turns) · Deal Axe damage +10 (+ATK).',
       },
       gold: {
         effects: [
           { kind: 'debuffStat', stat: 'armor', pct: 50, turns: 2 },
           { kind: 'damage', power: 20 },
         ],
-        text: '-50% enemy Armor (2 turns) · Deal Axe damage +20 (+Attack).',
+        text: '-50% enemy DEF (2 turns) · Deal Axe damage +20 (+ATK).',
       },
       diamond: {
         effects: [
           { kind: 'debuffStat', stat: 'armor', pct: 50, turns: 2 },
           { kind: 'damage', power: 30 },
         ],
-        text: '-50% enemy Armor (2 turns) · Deal Axe damage +30 (+Attack).',
+        text: '-50% enemy DEF (2 turns) · Deal Axe damage +30 (+ATK).',
       },
     },
   },
@@ -664,7 +685,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 8 },
       { kind: 'debuffStat', stat: 'speed', pct: 30, turns: 2 },
     ],
-    text: 'Deal Frost damage +8 (+Magic Power) · -30% enemy Speed (2 turns).',
+    text: 'Deal Frost damage +8 (+MATK) · -30% enemy SPD (2 turns).',
   },
   {
     // Pure control: at the re-priced stunPerTurn (100 deci) a single stun turn
@@ -690,21 +711,21 @@ const defs: SkillDef[] = [
           { kind: 'stun', turns: 1 },
           { kind: 'damage', power: 10 },
         ],
-        text: "{{Stun}} — the enemy's next performance is consumed. Deal Axe damage +10 (+Attack).",
+        text: "{{Stun}} — the enemy's next performance is consumed. Deal Axe damage +10 (+ATK).",
       },
       gold: {
         effects: [
           { kind: 'stun', turns: 1 },
           { kind: 'damage', power: 20 },
         ],
-        text: "{{Stun}} — the enemy's next performance is consumed. Deal Axe damage +20 (+Attack).",
+        text: "{{Stun}} — the enemy's next performance is consumed. Deal Axe damage +20 (+ATK).",
       },
       diamond: {
         effects: [
           { kind: 'stun', turns: 1 },
           { kind: 'damage', power: 30 },
         ],
-        text: "{{Stun}} — the enemy's next performance is consumed. Deal Axe damage +30 (+Attack).",
+        text: "{{Stun}} — the enemy's next performance is consumed. Deal Axe damage +30 (+ATK).",
       },
     },
   },
@@ -721,7 +742,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 12 },
       { kind: 'debuffStat', stat: 'magicResist', pct: 20, turns: 2 },
     ],
-    text: 'Deal Holy damage +12 (+Magic Power) · -20% enemy Magic Resist (2 turns).',
+    text: 'Deal Holy damage +12 (+MATK) · -20% enemy MDEF (2 turns).',
   },
   {
     id: 'shadow_bolt',
@@ -733,7 +754,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'dark',
     effects: [{ kind: 'damage', power: 20 }],
-    text: 'Deal Dark damage +20 (+Magic Power).',
+    text: 'Deal Dark damage +20 (+MATK).',
   },
   {
     id: 'purging_strike',
@@ -762,31 +783,34 @@ const defs: SkillDef[] = [
     // cleanse re-priced per charge (25 deci): 4 charges = 100 = Bronze exactly.
     effects: [{ kind: 'cleanse', charges: 4 }],
     text: 'Remove up to 4 of your ailments.',
-    // Cleanse is frozen (already at the size-1 empower cap, 100 deci); a TRUE
-    // heal (2 deci/pt, the cheap TRUE-heal rate) sinks the rest. Silver
-    // 25pts (50) + 100 = 150. Gold 50pts (100) + 100 = 200. Diamond 75pts
-    // (150) + 100 = 250.
+    // Cleanse is frozen (already at the size-1 empower cap, 100 deci) at every
+    // tier; a TRUE heal (re-priced 2 -> 4 deci/pt, 2026-08-01) plus a weight
+    // dial sinks the rest. Silver: 10×4=40 + 100 cleanse + 10 (weight 8, 2
+    // under baseline) = 150. Gold returns to baseline weight: 25×4=100 + 100 =
+    // 200. Diamond: 35×4=140 + 100 + 10 (weight 8) = 250.
     tierUpgrades: {
       silver: {
+        effects: [
+          { kind: 'cleanse', charges: 4 },
+          { kind: 'heal', power: 10 },
+        ],
+        speedWeight: 8,
+        text: 'Remove up to 4 of your ailments. +10 TRUE HP. Light and quick (weight 8).',
+      },
+      gold: {
         effects: [
           { kind: 'cleanse', charges: 4 },
           { kind: 'heal', power: 25 },
         ],
         text: 'Remove up to 4 of your ailments. +25 TRUE HP.',
       },
-      gold: {
-        effects: [
-          { kind: 'cleanse', charges: 4 },
-          { kind: 'heal', power: 50 },
-        ],
-        text: 'Remove up to 4 of your ailments. +50 TRUE HP.',
-      },
       diamond: {
         effects: [
           { kind: 'cleanse', charges: 4 },
-          { kind: 'heal', power: 75 },
+          { kind: 'heal', power: 35 },
         ],
-        text: 'Remove up to 4 of your ailments. +75 TRUE HP.',
+        speedWeight: 8,
+        text: 'Remove up to 4 of your ailments. +35 TRUE HP. Light and quick (weight 8).',
       },
     },
   },
@@ -808,7 +832,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 10 },
       { kind: 'bleed', stacks: 5 },
     ],
-    text: 'Deal Axe damage +10 (+Attack) · {{Bleed}} 5 — ticks when the enemy performs; blocked by shields.',
+    text: 'Deal Axe damage +10 (+ATK) · {{Bleed}} 5 — ticks when the enemy performs; blocked by shields.',
     // Hand-tuned curve (user-locked 2026-07-24): MODERATE bleed growth, rest
     // into damage. Silver: bleed 7 (70) + damage 16 (80) = 150. Gold: bleed 8
     // (80) + damage 24 (120) = 200. Diamond: bleed 9 (90) + damage 32 (160)
@@ -819,21 +843,21 @@ const defs: SkillDef[] = [
           { kind: 'damage', power: 16 },
           { kind: 'bleed', stacks: 7 },
         ],
-        text: 'Deal Axe damage +16 (+Attack) · {{Bleed}} 7 — ticks when the enemy performs; blocked by shields.',
+        text: 'Deal Axe damage +16 (+ATK) · {{Bleed}} 7 — ticks when the enemy performs; blocked by shields.',
       },
       gold: {
         effects: [
           { kind: 'damage', power: 24 },
           { kind: 'bleed', stacks: 8 },
         ],
-        text: 'Deal Axe damage +24 (+Attack) · {{Bleed}} 8 — ticks when the enemy performs; blocked by shields.',
+        text: 'Deal Axe damage +24 (+ATK) · {{Bleed}} 8 — ticks when the enemy performs; blocked by shields.',
       },
       diamond: {
         effects: [
           { kind: 'damage', power: 32 },
           { kind: 'bleed', stacks: 9 },
         ],
-        text: 'Deal Axe damage +32 (+Attack) · {{Bleed}} 9 — ticks when the enemy performs; blocked by shields.',
+        text: 'Deal Axe damage +32 (+ATK) · {{Bleed}} 9 — ticks when the enemy performs; blocked by shields.',
       },
     },
   },
@@ -861,21 +885,21 @@ const defs: SkillDef[] = [
           { kind: 'expose', pct: 50, turns: 2 },
           { kind: 'damage', power: 10 },
         ],
-        text: '{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal Dark damage +10 (+Magic Power).',
+        text: '{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal Dark damage +10 (+MATK).',
       },
       gold: {
         effects: [
           { kind: 'expose', pct: 50, turns: 2 },
           { kind: 'damage', power: 20 },
         ],
-        text: '{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal Dark damage +20 (+Magic Power).',
+        text: '{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal Dark damage +20 (+MATK).',
       },
       diamond: {
         effects: [
           { kind: 'expose', pct: 50, turns: 2 },
           { kind: 'damage', power: 30 },
         ],
-        text: '{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal Dark damage +30 (+Magic Power).',
+        text: '{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal Dark damage +30 (+MATK).',
       },
     },
   },
@@ -903,7 +927,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 10 },
       { kind: 'burn', stacks: 5 },
     ],
-    text: 'Deal Fire damage +10 (+Magic Power) · {{Burn}} 5.',
+    text: 'Deal Fire damage +10 (+MATK) · {{Burn}} 5.',
     // Moderate burn growth, rest into damage (same house style as fireball).
     tierUpgrades: {
       silver: {
@@ -911,21 +935,21 @@ const defs: SkillDef[] = [
           { kind: 'damage', power: 16 },
           { kind: 'burn', stacks: 7 },
         ],
-        text: 'Deal Fire damage +16 (+Magic Power) · {{Burn}} 7.',
+        text: 'Deal Fire damage +16 (+MATK) · {{Burn}} 7.',
       },
       gold: {
         effects: [
           { kind: 'damage', power: 24 },
           { kind: 'burn', stacks: 8 },
         ],
-        text: 'Deal Fire damage +24 (+Magic Power) · {{Burn}} 8.',
+        text: 'Deal Fire damage +24 (+MATK) · {{Burn}} 8.',
       },
       diamond: {
         effects: [
           { kind: 'damage', power: 32 },
           { kind: 'burn', stacks: 9 },
         ],
-        text: 'Deal Fire damage +32 (+Magic Power) · {{Burn}} 9.',
+        text: 'Deal Fire damage +32 (+MATK) · {{Burn}} 9.',
       },
     },
   },
@@ -943,28 +967,28 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 12 },
       { kind: 'burn', stacks: 3 },
     ],
-    text: 'Deal Fire damage +12 (+Magic Power) · {{Burn}} 3. Light and quick (weight 8).',
+    text: 'Deal Fire damage +12 (+MATK) · {{Burn}} 3. Light and quick (weight 8).',
     tierUpgrades: {
       silver: {
         effects: [
           { kind: 'damage', power: 18 },
           { kind: 'burn', stacks: 5 },
         ],
-        text: 'Deal Fire damage +18 (+Magic Power) · {{Burn}} 5. Light and quick (weight 8).',
+        text: 'Deal Fire damage +18 (+MATK) · {{Burn}} 5. Light and quick (weight 8).',
       },
       gold: {
         effects: [
           { kind: 'damage', power: 26 },
           { kind: 'burn', stacks: 6 },
         ],
-        text: 'Deal Fire damage +26 (+Magic Power) · {{Burn}} 6. Light and quick (weight 8).',
+        text: 'Deal Fire damage +26 (+MATK) · {{Burn}} 6. Light and quick (weight 8).',
       },
       diamond: {
         effects: [
           { kind: 'damage', power: 34 },
           { kind: 'burn', stacks: 7 },
         ],
-        text: 'Deal Fire damage +34 (+Magic Power) · {{Burn}} 7. Light and quick (weight 8).',
+        text: 'Deal Fire damage +34 (+MATK) · {{Burn}} 7. Light and quick (weight 8).',
       },
     },
   },
@@ -982,7 +1006,7 @@ const defs: SkillDef[] = [
       { kind: 'burn', stacks: 3 },
       { kind: 'debuffStat', stat: 'armor', pct: 15, turns: 2 },
     ],
-    text: 'Deal Fire damage +8 (+Magic Power) · {{Burn}} 3 · -15% enemy Armor (2 turns).',
+    text: 'Deal Fire damage +8 (+MATK) · {{Burn}} 3 · -15% enemy DEF (2 turns).',
     // The armor debuff is frozen (control); burn grows moderately, damage sinks the rest.
     tierUpgrades: {
       silver: {
@@ -991,7 +1015,7 @@ const defs: SkillDef[] = [
           { kind: 'burn', stacks: 5 },
           { kind: 'debuffStat', stat: 'armor', pct: 15, turns: 2 },
         ],
-        text: 'Deal Fire damage +14 (+Magic Power) · {{Burn}} 5 · -15% enemy Armor (2 turns).',
+        text: 'Deal Fire damage +14 (+MATK) · {{Burn}} 5 · -15% enemy DEF (2 turns).',
       },
       gold: {
         effects: [
@@ -999,7 +1023,7 @@ const defs: SkillDef[] = [
           { kind: 'burn', stacks: 6 },
           { kind: 'debuffStat', stat: 'armor', pct: 15, turns: 2 },
         ],
-        text: 'Deal Fire damage +22 (+Magic Power) · {{Burn}} 6 · -15% enemy Armor (2 turns).',
+        text: 'Deal Fire damage +22 (+MATK) · {{Burn}} 6 · -15% enemy DEF (2 turns).',
       },
       diamond: {
         effects: [
@@ -1007,7 +1031,7 @@ const defs: SkillDef[] = [
           { kind: 'burn', stacks: 7 },
           { kind: 'debuffStat', stat: 'armor', pct: 15, turns: 2 },
         ],
-        text: 'Deal Fire damage +30 (+Magic Power) · {{Burn}} 7 · -15% enemy Armor (2 turns).',
+        text: 'Deal Fire damage +30 (+MATK) · {{Burn}} 7 · -15% enemy DEF (2 turns).',
       },
     },
   },
@@ -1024,28 +1048,28 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 24 },
       { kind: 'burn', stacks: 12 },
     ],
-    text: 'Deal Fire damage +24 (+Magic Power) · {{Burn}} 12.',
+    text: 'Deal Fire damage +24 (+MATK) · {{Burn}} 12.',
     tierUpgrades: {
       silver: {
         effects: [
           { kind: 'damage', power: 36 },
           { kind: 'burn', stacks: 14 },
         ],
-        text: 'Deal Fire damage +36 (+Magic Power) · {{Burn}} 14.',
+        text: 'Deal Fire damage +36 (+MATK) · {{Burn}} 14.',
       },
       gold: {
         effects: [
           { kind: 'damage', power: 52 },
           { kind: 'burn', stacks: 15 },
         ],
-        text: 'Deal Fire damage +52 (+Magic Power) · {{Burn}} 15.',
+        text: 'Deal Fire damage +52 (+MATK) · {{Burn}} 15.',
       },
       diamond: {
         effects: [
           { kind: 'damage', power: 64 },
           { kind: 'burn', stacks: 17 },
         ],
-        text: 'Deal Fire damage +64 (+Magic Power) · {{Burn}} 17.',
+        text: 'Deal Fire damage +64 (+MATK) · {{Burn}} 17.',
       },
     },
   },
@@ -1062,28 +1086,28 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 56 },
       { kind: 'burn', stacks: 20 },
     ],
-    text: 'Deal Fire damage +56 (+Magic Power) · {{Burn}} 20.',
+    text: 'Deal Fire damage +56 (+MATK) · {{Burn}} 20.',
     tierUpgrades: {
       silver: {
         effects: [
           { kind: 'damage', power: 74 },
           { kind: 'burn', stacks: 25 },
         ],
-        text: 'Deal Fire damage +74 (+Magic Power) · {{Burn}} 25.',
+        text: 'Deal Fire damage +74 (+MATK) · {{Burn}} 25.',
       },
       gold: {
         effects: [
           { kind: 'damage', power: 98 },
           { kind: 'burn', stacks: 28 },
         ],
-        text: 'Deal Fire damage +98 (+Magic Power) · {{Burn}} 28.',
+        text: 'Deal Fire damage +98 (+MATK) · {{Burn}} 28.',
       },
       diamond: {
         effects: [
           { kind: 'damage', power: 118 },
           { kind: 'burn', stacks: 32 },
         ],
-        text: 'Deal Fire damage +118 (+Magic Power) · {{Burn}} 32.',
+        text: 'Deal Fire damage +118 (+MATK) · {{Burn}} 32.',
       },
     },
   },
@@ -1100,7 +1124,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'lightning',
     effects: [{ kind: 'damage', power: 16 }],
-    text: 'Deal Lightning damage +16 (+Magic Power). Very quick (weight 6).',
+    text: 'Deal Lightning damage +16 (+MATK). Very quick (weight 6).',
   },
   {
     id: 'thunder_step',
@@ -1115,7 +1139,7 @@ const defs: SkillDef[] = [
       { kind: 'buffStat', stat: 'speed', pct: 20, turns: 2 },
       { kind: 'damage', power: 12 },
     ],
-    text: 'Deal Lightning damage +12 (+Magic Power) · +20% Speed (2 turns).',
+    text: 'Deal Lightning damage +12 (+MATK) · +20% SPD (2 turns).',
   },
   {
     id: 'chain_spark',
@@ -1130,7 +1154,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 16 },
       { kind: 'slow', weight: 8 },
     ],
-    text: "Deal Lightning damage +16 (+Magic Power) · {{Slow}} the enemy's next action by +8 weight.",
+    text: "Deal Lightning damage +16 (+MATK) · {{Slow}} the enemy's next action by +8 weight.",
   },
   {
     id: 'overcharge',
@@ -1145,7 +1169,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 16 },
       { kind: 'disrupt', amount: 4 },
     ],
-    text: 'Deal Lightning damage +16 (+Magic Power) · {{Disrupt}} 4 banked readiness.',
+    text: 'Deal Lightning damage +16 (+MATK) · {{Disrupt}} 4 banked readiness.',
   },
   {
     id: 'storm_surge',
@@ -1160,7 +1184,7 @@ const defs: SkillDef[] = [
       { kind: 'buffStat', stat: 'speed', pct: 30, turns: 2 },
       { kind: 'damage', power: 36 },
     ],
-    text: 'Deal Lightning damage +36 (+Magic Power) · +30% Speed (2 turns).',
+    text: 'Deal Lightning damage +36 (+MATK) · +30% SPD (2 turns).',
   },
 
   // ---- Nature (poison/regen identity) ----
@@ -1177,28 +1201,28 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 10 },
       { kind: 'poison', stacks: 5 },
     ],
-    text: 'Deal Nature damage +10 (+Magic Power) · {{Poison}} 5 (poison bypasses shields).',
+    text: 'Deal Nature damage +10 (+MATK) · {{Poison}} 5 (poison bypasses shields).',
     tierUpgrades: {
       silver: {
         effects: [
           { kind: 'damage', power: 16 },
           { kind: 'poison', stacks: 7 },
         ],
-        text: 'Deal Nature damage +16 (+Magic Power) · {{Poison}} 7 (poison bypasses shields).',
+        text: 'Deal Nature damage +16 (+MATK) · {{Poison}} 7 (poison bypasses shields).',
       },
       gold: {
         effects: [
           { kind: 'damage', power: 24 },
           { kind: 'poison', stacks: 8 },
         ],
-        text: 'Deal Nature damage +24 (+Magic Power) · {{Poison}} 8 (poison bypasses shields).',
+        text: 'Deal Nature damage +24 (+MATK) · {{Poison}} 8 (poison bypasses shields).',
       },
       diamond: {
         effects: [
           { kind: 'damage', power: 32 },
           { kind: 'poison', stacks: 9 },
         ],
-        text: 'Deal Nature damage +32 (+Magic Power) · {{Poison}} 9 (poison bypasses shields).',
+        text: 'Deal Nature damage +32 (+MATK) · {{Poison}} 9 (poison bypasses shields).',
       },
     },
   },
@@ -1212,7 +1236,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'nature',
     effects: [{ kind: 'heal', power: 20 }],
-    text: '+20 HP (+Magic Power).',
+    text: '+20 HP (+MATK).',
   },
   {
     id: 'blooming_vine',
@@ -1228,28 +1252,28 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 14 },
       { kind: 'poison', stacks: 4 },
     ],
-    text: 'Deal Nature damage +14 (+Magic Power) · {{Poison}} 4 (poison bypasses shields). Heavier and slower (weight 12).',
+    text: 'Deal Nature damage +14 (+MATK) · {{Poison}} 4 (poison bypasses shields). Heavier and slower (weight 12).',
     tierUpgrades: {
       silver: {
         effects: [
           { kind: 'damage', power: 20 },
           { kind: 'poison', stacks: 6 },
         ],
-        text: 'Deal Nature damage +20 (+Magic Power) · {{Poison}} 6 (poison bypasses shields). Heavier and slower (weight 12).',
+        text: 'Deal Nature damage +20 (+MATK) · {{Poison}} 6 (poison bypasses shields). Heavier and slower (weight 12).',
       },
       gold: {
         effects: [
           { kind: 'damage', power: 28 },
           { kind: 'poison', stacks: 7 },
         ],
-        text: 'Deal Nature damage +28 (+Magic Power) · {{Poison}} 7 (poison bypasses shields). Heavier and slower (weight 12).',
+        text: 'Deal Nature damage +28 (+MATK) · {{Poison}} 7 (poison bypasses shields). Heavier and slower (weight 12).',
       },
       diamond: {
         effects: [
           { kind: 'damage', power: 36 },
           { kind: 'poison', stacks: 8 },
         ],
-        text: 'Deal Nature damage +36 (+Magic Power) · {{Poison}} 8 (poison bypasses shields). Heavier and slower (weight 12).',
+        text: 'Deal Nature damage +36 (+MATK) · {{Poison}} 8 (poison bypasses shields). Heavier and slower (weight 12).',
       },
     },
   },
@@ -1266,7 +1290,7 @@ const defs: SkillDef[] = [
       { kind: 'heal', power: 30 },
       { kind: 'shield', power: 18 },
     ],
-    text: '+30 HP (+Magic Power) · +18 Magic Shield (+Magic Power) — a thorned bark ward.',
+    text: '+30 HP (+MATK) · +18 Magic Shield (+MATK) — a thorned bark ward.',
   },
 
   // ---- Frost (slow/control identity) ----
@@ -1283,7 +1307,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 12 },
       { kind: 'debuffStat', stat: 'speed', pct: 20, turns: 2 },
     ],
-    text: 'Deal Frost damage +12 (+Magic Power) · -20% enemy Speed (2 turns).',
+    text: 'Deal Frost damage +12 (+MATK) · -20% enemy SPD (2 turns).',
   },
   {
     id: 'frost_shackle',
@@ -1298,7 +1322,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 14 },
       { kind: 'slow', weight: 12 },
     ],
-    text: "Deal Frost damage +14 (+Magic Power) · {{Slow}} the enemy's next action by +12 weight.",
+    text: "Deal Frost damage +14 (+MATK) · {{Slow}} the enemy's next action by +12 weight.",
   },
   {
     id: 'deep_freeze',
@@ -1313,7 +1337,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 24 },
       { kind: 'debuffStat', stat: 'speed', pct: 40, turns: 3 },
     ],
-    text: 'Deal Frost damage +24 (+Magic Power) · -40% enemy Speed (3 turns).',
+    text: 'Deal Frost damage +24 (+MATK) · -40% enemy SPD (3 turns).',
   },
 
   // ---- Lance (reach/guard identity) ----
@@ -1327,7 +1351,7 @@ const defs: SkillDef[] = [
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 20 }],
-    text: 'Deal Lance damage +20 (+Attack).',
+    text: 'Deal Lance damage +20 (+ATK).',
   },
   {
     id: 'braced_pike',
@@ -1342,7 +1366,7 @@ const defs: SkillDef[] = [
       { kind: 'guard', property: 'physical', pct: 20, turns: 2 },
       { kind: 'damage', power: 12 },
     ],
-    text: 'Deal Lance damage +12 (+Attack) · -20% incoming physical damage (2 turns).',
+    text: 'Deal Lance damage +12 (+ATK) · -20% incoming physical damage (2 turns).',
   },
   {
     id: 'piercing_reach',
@@ -1357,7 +1381,7 @@ const defs: SkillDef[] = [
       { kind: 'shieldBreak', amount: 16 },
       { kind: 'damage', power: 16 },
     ],
-    text: '{{Shatter}} 16 enemy shield, then deal Lance damage +16 (+Attack).',
+    text: '{{Shatter}} 16 enemy shield, then deal Lance damage +16 (+ATK).',
   },
   {
     id: 'impaling_charge',
@@ -1372,7 +1396,7 @@ const defs: SkillDef[] = [
       { kind: 'guard', property: 'physical', pct: 30, turns: 2 },
       { kind: 'damage', power: 36 },
     ],
-    text: 'Deal Lance damage +36 (+Attack) · -30% incoming physical damage (2 turns).',
+    text: 'Deal Lance damage +36 (+ATK) · -30% incoming physical damage (2 turns).',
   },
 
   // ---- Bow (multi-hit/precision identity) ----
@@ -1392,7 +1416,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 10 },
       { kind: 'damage', power: 10 },
     ],
-    text: 'Deal Bow damage +10 (+Attack), twice. Heavier and slower (weight 16).',
+    text: 'Deal Bow damage +10 (+ATK), twice. Heavier and slower (weight 16).',
   },
   {
     id: 'piercing_arrow',
@@ -1407,7 +1431,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 8 },
       { kind: 'expose', pct: 30, turns: 2 },
     ],
-    text: 'Deal Bow damage +8 (+Attack) · {{Expose}} the enemy — +30% damage from all direct hits (2 turns).',
+    text: 'Deal Bow damage +8 (+ATK) · {{Expose}} the enemy — +30% damage from all direct hits (2 turns).',
   },
   {
     id: 'marksman_shot',
@@ -1419,7 +1443,7 @@ const defs: SkillDef[] = [
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'damage', power: 48 }],
-    text: 'Deal Bow damage +48 (+Attack).',
+    text: 'Deal Bow damage +48 (+ATK).',
   },
   {
     id: 'barrage',
@@ -1438,7 +1462,7 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 24 },
       { kind: 'damage', power: 24 },
     ],
-    text: 'Deal Bow damage +24 (+Attack), twice. Heavier and slower (weight 26).',
+    text: 'Deal Bow damage +24 (+ATK), twice. Heavier and slower (weight 26).',
   },
 
   // ---- Defensive (armor-stack identity) ----
@@ -1452,7 +1476,7 @@ const defs: SkillDef[] = [
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'shield', power: 20 }],
-    text: '+20 DEF (+Attack).',
+    text: '+20 DEF (+ATK).',
   },
   {
     id: 'aegis_wall',
@@ -1465,7 +1489,7 @@ const defs: SkillDef[] = [
     rarity: 'rare',
     tier: 'bronze',
     effects: [{ kind: 'shield', power: 44 }],
-    text: '+44 DEF (+Attack). Lighter stance (weight 16).',
+    text: '+44 DEF (+ATK). Lighter stance (weight 16).',
   },
   {
     id: 'sanctified_bulwark',
@@ -1480,7 +1504,7 @@ const defs: SkillDef[] = [
       { kind: 'guard', property: 'magical', pct: 20, turns: 2 },
       { kind: 'shield', power: 12 },
     ],
-    text: '+12 MDEF (+Magic Power) · -20% incoming magical damage (2 turns).',
+    text: '+12 MDEF (+MATK) · -20% incoming magical damage (2 turns).',
   },
   {
     id: 'fortress_bastion',
@@ -1492,7 +1516,7 @@ const defs: SkillDef[] = [
     rarity: 'epic',
     tier: 'bronze',
     effects: [{ kind: 'shield', power: 96 }],
-    text: '+96 DEF (+Attack).',
+    text: '+96 DEF (+ATK).',
   },
 
   // ---- Support (buff-aura identity) ----
@@ -1542,17 +1566,17 @@ const defs: SkillDef[] = [
       silver: {
         aura: { affects: 'adjacent', mods: { weightDelta: -6 } },
         effects: [{ kind: 'buffStat', stat: 'speed', pct: 15, turns: 2 }],
-        text: 'Passive: adjacent cards -6 weight (cast sooner). Self: +15% Speed (2 turns).',
+        text: 'Passive: adjacent cards -6 weight (cast sooner). Self: +15% SPD (2 turns).',
       },
       gold: {
         aura: { affects: 'adjacent', mods: { weightDelta: -8 } },
         effects: [{ kind: 'buffStat', stat: 'speed', pct: 20, turns: 2 }],
-        text: 'Passive: adjacent cards -8 weight (cast sooner). Self: +20% Speed (2 turns).',
+        text: 'Passive: adjacent cards -8 weight (cast sooner). Self: +20% SPD (2 turns).',
       },
       diamond: {
         aura: { affects: 'adjacent', mods: { weightDelta: -10 } },
         effects: [{ kind: 'buffStat', stat: 'speed', pct: 25, turns: 2 }],
-        text: 'Passive: adjacent cards -10 weight (cast sooner). Self: +25% Speed (2 turns).',
+        text: 'Passive: adjacent cards -10 weight (cast sooner). Self: +25% SPD (2 turns).',
       },
     },
   },
@@ -1574,17 +1598,17 @@ const defs: SkillDef[] = [
       silver: {
         aura: { affects: 'allBoard', mods: { damageFlat: 6 } },
         effects: [{ kind: 'buffStat', stat: 'attack', pct: 15, turns: 2 }],
-        text: 'Passive: ALL board cards deal +6 damage. Self: +15% Attack (2 turns).',
+        text: 'Passive: ALL board cards deal +6 damage. Self: +15% ATK (2 turns).',
       },
       gold: {
         aura: { affects: 'allBoard', mods: { damageFlat: 8 } },
         effects: [{ kind: 'buffStat', stat: 'attack', pct: 20, turns: 2 }],
-        text: 'Passive: ALL board cards deal +8 damage. Self: +20% Attack (2 turns).',
+        text: 'Passive: ALL board cards deal +8 damage. Self: +20% ATK (2 turns).',
       },
       diamond: {
         aura: { affects: 'allBoard', mods: { damageFlat: 10 } },
         effects: [{ kind: 'buffStat', stat: 'attack', pct: 25, turns: 2 }],
-        text: 'Passive: ALL board cards deal +10 damage. Self: +25% Attack (2 turns).',
+        text: 'Passive: ALL board cards deal +10 damage. Self: +25% ATK (2 turns).',
       },
     },
   },
@@ -1600,8 +1624,30 @@ const defs: SkillDef[] = [
     speedWeight: 14,
     rarity: 'rare',
     tier: 'bronze',
-    effects: [{ kind: 'heal', power: 60 }],
-    text: '+60 TRUE HP. Heavier cast (weight 14).',
+    // TRUE heal re-priced 2 -> 4 deci/pt (2026-08-01): 30 × 4 = 120 − 20
+    // (weight 14, 4 under baseline 10) = 100 = Bronze.
+    effects: [{ kind: 'heal', power: 30 }],
+    text: '+30 TRUE HP. Heavier cast (weight 14).',
+    // Silver/Diamond sink extra weight: 45×4=180 − 30 (weight 16) = 150.
+    // Gold returns to the bronze weight (14): 55×4=220 − 20 = 200.
+    // Diamond: 70×4=280 − 30 (weight 16) = 250.
+    tierUpgrades: {
+      silver: {
+        effects: [{ kind: 'heal', power: 45 }],
+        speedWeight: 16,
+        text: '+45 TRUE HP. Heavier cast (weight 16).',
+      },
+      gold: {
+        effects: [{ kind: 'heal', power: 55 }],
+        speedWeight: 14,
+        text: '+55 TRUE HP. Heavier cast (weight 14).',
+      },
+      diamond: {
+        effects: [{ kind: 'heal', power: 70 }],
+        speedWeight: 16,
+        text: '+70 TRUE HP. Heavier cast (weight 16).',
+      },
+    },
   },
   {
     id: 'vital_surge',
@@ -1613,7 +1659,7 @@ const defs: SkillDef[] = [
     rarity: 'rare',
     tier: 'bronze',
     effects: [{ kind: 'heal', power: 48 }],
-    text: '+48 HP (+Attack).',
+    text: '+48 HP (+ATK).',
   },
 
   // ---- True (ignores-defense identity) ----

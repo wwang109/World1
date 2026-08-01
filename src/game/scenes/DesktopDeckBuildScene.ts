@@ -16,6 +16,7 @@ import { renderDesktopBackground, renderDesktopHeader, DESKTOP_LAYOUT } from '..
 import { addHoverTipZone } from '../ui/hoverTip';
 import { gemHoverEntry } from '../ui/gemGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
+import { STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
@@ -227,14 +228,14 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
 
   // ---------- render ----------
 
-  /** Header meta line: LV / HP / ATK / MAG / SPD  ·  slots / PL / gems. */
+  /** Header meta line: LV / HP / ATK / MATK / SPD  ·  slots / PL / gems. */
   private renderMeta(stats: { maxHp: number; attack: number; magicPower: number; speed: number }): void {
     const gx = DESKTOP_LAYOUT.gutter;
     const used = this.deckOccupied().filter(Boolean).length;
     let plDeci = 0;
     for (const p of this.pieces) { const s = skillBook[p.skillId]; if (s) plDeci += instancePowerLevelDeci(s, { gem: p.gem ?? null }); }
     const gems = this.pieces.filter((p) => p.gem).length;
-    const meta = `LV ${this.heroLevel} · HP ${stats.maxHp} · ATK ${stats.attack} · MAG ${stats.magicPower} · SPD ${stats.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
+    const meta = `LV ${this.heroLevel} · ${STAT_TOKEN.maxHp} ${stats.maxHp} · ${STAT_TOKEN.attack} ${stats.attack} · ${STAT_TOKEN.magicPower} ${stats.magicPower} · ${STAT_TOKEN.speed} ${stats.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
     // Right-aligned; in run context this sits just under the HUD (which
     // already owns the tab row's old position) instead of on top of it.
     const y = this.runContext ? TEMPLATE.regions.content.y + 2 : 102 + DESKTOP_LAYOUT.tabH / 2;

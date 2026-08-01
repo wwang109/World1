@@ -1,5 +1,6 @@
-import type { Action, BuffableStat, SkillDef } from '../../engine/types';
+import type { Action, SkillDef } from '../../engine/types';
 import { CARD_ACTION_COLOR } from '../theme';
+import { STAT_LONG_NAME } from './statLabels';
 
 export interface CardActionLabel {
   verb: string;
@@ -7,17 +8,9 @@ export interface CardActionLabel {
   color: number;
 }
 
-const STAT_LABEL: Record<BuffableStat, string> = {
-  attack: 'Attack',
-  magicPower: 'Magic Power',
-  armor: 'Armor',
-  magicResist: 'Magic Resist',
-  speed: 'Speed',
-};
-
 function scalingStat(skill: SkillDef): string {
-  if (skill.property === 'physical') return 'Attack';
-  if (skill.property === 'magical') return 'Magic Power';
+  if (skill.property === 'physical') return STAT_LONG_NAME.attack;
+  if (skill.property === 'magical') return STAT_LONG_NAME.magicPower;
   return 'higher power';
 }
 
@@ -38,9 +31,9 @@ function presentAction(action: Action, skill: SkillDef): CardActionLabel {
     case 'stun':
       return { verb: 'STUN', effect: `${action.turns} performance${action.turns === 1 ? '' : 's'}`, color: CARD_ACTION_COLOR.debuff };
     case 'buffStat':
-      return { verb: 'GAIN', effect: `+${action.pct}% ${STAT_LABEL[action.stat]} · ${action.turns}T`, color: CARD_ACTION_COLOR.buff };
+      return { verb: 'GAIN', effect: `+${action.pct}% ${STAT_LONG_NAME[action.stat]} · ${action.turns}T`, color: CARD_ACTION_COLOR.buff };
     case 'debuffStat':
-      return { verb: 'REDUCE', effect: `-${action.pct}% ${STAT_LABEL[action.stat]} · ${action.turns}T`, color: CARD_ACTION_COLOR.debuff };
+      return { verb: 'REDUCE', effect: `-${action.pct}% ${STAT_LONG_NAME[action.stat]} · ${action.turns}T`, color: CARD_ACTION_COLOR.debuff };
     case 'expose':
       return { verb: 'EXPOSE', effect: `+${action.pct}% damage taken · ${action.turns}T`, color: CARD_ACTION_COLOR.debuff };
     case 'cleanse':

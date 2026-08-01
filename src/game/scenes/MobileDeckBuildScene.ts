@@ -13,6 +13,7 @@ import { CardToken } from '../ui/CardToken';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
 import { gemHoverEntry } from '../ui/gemGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
+import { STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
@@ -249,7 +250,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     });
   }
 
-  /** Mockup header meta: "LV 1 · HP 150 · ATK 12 · MAG 12 · SPD 12  ·  6/10 slots · PL 54 · 2 gems". */
+  /** Mockup header meta: "LV 1 · HP 150 · ATK 12 · MATK 12 · SPD 12  ·  6/10 slots · PL 54 · 2 gems". */
   private renderHeader(): void {
     const used = this.deckOccupied().filter(Boolean).length;
     let plDeci = 0;
@@ -257,7 +258,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const gems = this.pieces.filter((p) => p.gem).length;
     const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
     const s = hero.stats;
-    const meta = `LV ${this.heroLevel} · HP ${s.maxHp} · ATK ${s.attack} · MAG ${s.magicPower} · SPD ${s.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
+    const meta = `LV ${this.heroLevel} · ${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower} · ${STAT_TOKEN.speed} ${s.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
     this.add.text(12, 50 + this.headerOffset, meta, { fontSize: '10px', color: '#9aa4b6', fontFamily: FONT.body });
   }
 

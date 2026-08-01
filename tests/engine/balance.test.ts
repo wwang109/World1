@@ -39,11 +39,16 @@ import type { Gem, SkillDef } from '../../src/engine/types';
 // user-locked: draining banked readiness has no counterplay window, so large
 // amounts must cost disproportionately more than small ones. See balance.ts
 // for the full bracket table and rationale.
+//
+// 2026-08-01: flatTrueHealPerPoint raised 2 -> 4 — flat TRUE heals were
+// empirically dominant over MATK-scaling heals far too early; doubling the
+// rate pulls the heal-type crossover point down from ~MATK 30-40 to ~MATK
+// 5-10. See balance.ts for the full rationale.
 describe('PRICE structure lock', () => {
   it('every PRICE rate matches its locked value', () => {
     expect(PRICE).toEqual({
       flatPowerPerPoint: 5,
-      flatTrueHealPerPoint: 2,
+      flatTrueHealPerPoint: 4,
       flatTrueShieldPerPoint: 5,
       truePremiumPerPoint: 5,
       dotPerStack: 10,

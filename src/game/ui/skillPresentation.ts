@@ -1,12 +1,5 @@
 import type { BuffableStat, SkillDef } from '../../engine/types';
-
-const STAT_ABBREV: Record<BuffableStat, string> = {
-  attack: 'ATK',
-  magicPower: 'MAG',
-  armor: 'DEF',
-  magicResist: 'MDEF',
-  speed: 'SPD',
-};
+import { STAT_TOKEN } from './statLabels';
 
 interface AuraModifierShape {
   damageFlat?: number;
@@ -76,19 +69,57 @@ function scaledLabel(label: string, base: number, property: SkillDef['property']
 }
 
 /**
+ * Platform-appropriate card-face number treatment (coordinator-locked
+ * 2026-08-01): `'summed'` (mobile — space-constrained) keeps the pre-summed
+ * effective number; `'composition'` (desktop — room for it) shows the
+ * FORMULA instead (base + which stat), so the flat-vs-scaling split is
+ * visible without a tooltip. Both modes mark TRUE effects with a `(T)`
+ * suffix (a TRUE flat number reads identically to a physical/magical one
+ * otherwise).
+ */
+export type SkillFaceMode = 'summed' | 'composition';
+
+/** The stat a non-TRUE effect scales off, per the engine's `scaleStat` rule. */
+function scalingStatKey(property: 'physical' | 'magical'): BuffableStat {
+  return property === 'physical' ? 'attack' : 'magicPower';
+}
+
+/**
+ * One damage/heal/shield line, in the mode the calling platform wants:
+ * `'summed'` → `scaledLabel`'s base+live-stat number (or bare base with no
+ * stats); `'composition'` → the formula itself, e.g. `DMG 20 +ATK`, REGARDLESS
+ * of whether `stats` was supplied (the point is showing the card's structure,
+ * not a live total). TRUE effects ignore `mode` entirely — the flat/summed
+ * number from `scaledLabel` (unchanged behavior) plus a `(T)` marker so a
+ * flat TRUE number is never mistaken for a scaling one.
+ */
+function effectLine(
+  label: string, base: number, property: SkillDef['property'],
+  stats: ScalingStats | undefined, statScales: boolean, mode: SkillFaceMode,
+): string {
+  if (property === 'true') return `${scaledLabel(label, base, property, stats, statScales)} (T)`;
+  if (mode === 'composition' && statScales) return `${label} ${base} +${STAT_TOKEN[scalingStatKey(property)]}`;
+  return scaledLabel(label, base, property, stats, statScales);
+}
+
+/**
  * Compact effect summary for the card face — the numbers the player actually
  * plays for (damage, heal, shield, DoTs, buffs), not metadata like PL or size.
  *
- * When `stats` (the current combatant's live Attack/Magic Power) is supplied,
- * the scalable damage/heal/shield lines render as the SUMMED effective number
- * (base + live stat) — e.g. `Sword Slash` with 17 Attack shows `DMG 37`, not
- * a breakdown. Physical scales off Attack, magical off Magic Power, TRUE
- * damage off the higher of the two — TRUE heal/shield are flat (no stat
- * added, sum == base). Omitting `stats` (or a zero contribution) falls back
- * to the bare base number, e.g. `DMG 20`.
+ * `mode` (default `'summed'`, mobile's long-standing behavior) picks the
+ * number treatment for damage/heal/shield lines — see `SkillFaceMode`/
+ * `effectLine`. Physical scales off Attack, magical off Magic Power, TRUE
+ * damage off the higher of the two (and still gets a stat add, unlike TRUE
+ * heal/shield, which are pure flat numbers) — see `cardGlossary.ts`'s `true`
+ * entry.
  */
-export function summarizeEffects(skill: SkillDef, stats?: ScalingStats): string {
-  if (skill.aura) return `AURA ${formatAuraModifiers(skill.aura.mods, true)}`;
+export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed'): string {
+  // Reach is the load-bearing word: an all-board +5 and an adjacent +15 are
+  // the same PL, and the face must not present them as the same kind of card.
+  if (skill.aura) {
+    const reach = skill.aura.affects === 'allBoard' ? 'ALL' : 'NEAR';
+    return `${reach} ${formatAuraModifiers(skill.aura.mods, true)}`;
+  }
 
   const parts: string[] = [];
   let damage = 0;
@@ -104,8 +135,8 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats): string 
       case 'burn': extras.push(`BRN ${action.stacks}`); break;
       case 'bleed': extras.push(`BLD ${action.stacks}`); break;
       case 'stun': extras.push(`STUN ${action.turns}`); break;
-      case 'buffStat': extras.push(`+${action.pct}% ${STAT_ABBREV[action.stat]}`); break;
-      case 'debuffStat': extras.push(`-${action.pct}% ${STAT_ABBREV[action.stat]}`); break;
+      case 'buffStat': extras.push(`+${action.pct}% ${STAT_TOKEN[action.stat]}`); break;
+      case 'debuffStat': extras.push(`-${action.pct}% ${STAT_TOKEN[action.stat]}`); break;
       case 'expose': extras.push(`EXPOSE ${action.pct}%`); break;
       case 'guard': extras.push(`GUARD ${action.pct}%`); break;
       case 'negate': extras.push(`NEGATE ×${action.charges}`); break;
@@ -119,9 +150,12 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats): string 
     }
   }
   const property = skill.property;
-  if (damage) parts.push(scaledLabel('DMG', damage, property, stats, true));
-  if (heal) parts.push(scaledLabel('HEAL', heal, property, stats, property !== 'true'));
-  if (shield) parts.push(scaledLabel('SHLD', shield, property, stats, property !== 'true'));
+  // Shield's composition-mode label is 'DEF' (matching the "+96 DEF (+Attack)"
+  // grammar the card data itself already uses) — 'summed'/mobile keeps 'SHLD'.
+  const shieldLabel = mode === 'composition' && property !== 'true' ? 'DEF' : 'SHLD';
+  if (damage) parts.push(effectLine('DMG', damage, property, stats, true, mode));
+  if (heal) parts.push(effectLine('HEAL', heal, property, stats, property !== 'true', mode));
+  if (shield) parts.push(effectLine(shieldLabel, shield, property, stats, property !== 'true', mode));
   parts.push(...extras);
   return parts.join(' · ') || 'PASSIVE';
 }

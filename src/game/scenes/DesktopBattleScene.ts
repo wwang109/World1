@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { SkillDef } from '../../engine/types';
 import {
-  buildBattleTimeline,
+  buildBattleTimeline, shieldPoolsLabel,
   type BattleTimelineInput,
   type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
 } from '../battleTimeline';
@@ -93,12 +93,27 @@ export class DesktopBattleScene extends Phaser.Scene {
   private heroStatLine = '';
   private outcome = '';
   private combatSummary: CombatSummary = { playerDamage: 0, enemyDamage: 0, playerHealing: 0, cards: [] };
+  private summaryByStep: CombatSummary[] = [];
   private outcomeStep = -1;
   private playing = true;
   private playTimer?: Phaser.Time.TimerEvent;
   /** Playback speed multiplier (0.5 = half speed). Deliberately NOT reset in
    *  init() — the player's speed choice should survive REPLAY and re-entry. */
   private speedMult = 1;
+  /** SUMMARY panel manual override: `null` = auto (visible only once
+   * playback reaches `outcomeStep` — the existing "payoff" behavior), `true`/
+   * `false` = the player has explicitly pinned it open/closed at whatever
+   * step they were on when they pressed the button. This scene doesn't use
+   * the shared `rebuildScene` idiom — every scrub/playback tick calls its own
+   * `render()` directly, which never touches this field — so a plain class
+   * field already "survives" every re-render within a fight for free (the
+   * same reason `speedMult` above needs no special handling). It IS reset in
+   * `init()`, which only runs on a genuinely NEW fight (PREP → FIGHT, or a
+   * fresh scene entry): a new fight should start from the same auto default
+   * every time, not inherit whatever the PREVIOUS fight's toggle was left
+   * on — REPLAY reuses the SAME log/instance without calling init(), so a
+   * REPLAY correctly keeps whatever the player had pinned. */
+  private summaryOverride: boolean | null = null;
   /** Guards the gold payout to exactly once per fetched `BattleLog` — REPLAY
    * re-renders the SAME log object (no re-fetch), so the identity check skips
    * it; a fresh scene entry (init() runs) re-fetches a new log and credits again. */
@@ -138,11 +153,13 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.heroStatLine = '';
     this.outcome = '';
     this.combatSummary = { playerDamage: 0, enemyDamage: 0, playerHealing: 0, cards: [] };
+    this.summaryByStep = [];
     this.outcomeStep = -1;
     this.playing = true;
     this.playTimer = undefined;
     this.goldCreditedLog = null;
     this.goldPayout = 0;
+    this.summaryOverride = null;
   }
 
   create(): void {
@@ -255,6 +272,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.outcome = model.outcome;
     this.outcomeStep = model.outcomeStep;
     this.combatSummary = model.combatSummary;
+    this.summaryByStep = model.summaryByStep;
     this.heroName = model.heroName;
     this.heroStats = model.heroStats;
     this.heroPieces = model.heroPieces;
@@ -286,6 +304,12 @@ export class DesktopBattleScene extends Phaser.Scene {
     const prevHp = forwardStep ? this.hpByStep[prevIdx] : undefined;
     const prevShield = forwardStep ? this.shieldByStep[prevIdx] : undefined;
     const isOutcomeStep = this.outcomeStep >= 0 && this.idx >= this.outcomeStep;
+    // Default: auto-visible only once playback reaches the outcome (the
+    // "payoff" moment — unchanged from the old always-on-at-the-end
+    // behavior), hidden while scrubbing mid-fight. `summaryOverride` lets the
+    // player pin it open (to read the live running ledger at ANY step) or
+    // closed (to dismiss it at the end so the board/log stay fully visible).
+    const summaryVisible = this.summaryOverride === null ? isOutcomeStep : this.summaryOverride;
 
     // ---- landscape geometry ----
     const footerY = this.H - FOOTER_BOTTOM - FOOTER_H;
@@ -310,6 +334,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     const heroBar = this.hpBar(
       leftX, contentTop, PANEL_W, this.heroName, hp.player, hp.playerMax, shield.player, UI.good ?? 0x4f9e57, status.player,
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
+      shieldPoolsLabel(shield.playerPools),
     );
     // Full statline under the bar — the stat-sheet spend (e.g. DEF buys) must
     // be VISIBLE in battle, not only inferable from the D: math expansions.
@@ -343,9 +368,11 @@ export class DesktopBattleScene extends Phaser.Scene {
       const foeStatus = status.enemyUnits?.[u] ?? status.enemy;
       const prevFoeHp = prevHp ? (prevHp.enemies?.[u] ?? prevHp.enemy) : undefined;
       const prevFoeShield = prevShield ? (prevShield.enemies?.[u] ?? prevShield.enemy) : undefined;
+      const foePools = shield.enemiesPools?.[u] ?? (u === 0 ? shield.enemyPools : undefined);
       foeBars[u] = this.hpBar(
         rightX, top, PANEL_W, foeModel.name, foeHp, foeMax, foeShield, UI.bad ?? 0xb0483c, foeStatus,
         animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
+        shieldPoolsLabel(foePools),
       );
       this.add.text(rightX, top + 46, foeModel.statLine, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim });
       addHoverTipZone(this, { x: rightX, y: top + 46, w: PANEL_W, h: F.small + 4 }, ALL_STAT_ENTRIES);
@@ -428,10 +455,10 @@ export class DesktopBattleScene extends Phaser.Scene {
 
     // ---- horizontal scrubber + footer controls ----
     this.renderScrubber(leftX, scrubberY, this.W - GUTTER * 2);
-    this.renderFooter(leftX, footerY, this.W - GUTTER * 2);
+    this.renderFooter(leftX, footerY, this.W - GUTTER * 2, summaryVisible);
 
-    if (isOutcomeStep) {
-      this.renderOutcome(leftX, contentTop, this.W - GUTTER * 2, contentBottom - contentTop);
+    if (summaryVisible) {
+      this.renderOutcome(leftX, contentTop, this.W - GUTTER * 2, contentBottom - contentTop, isOutcomeStep, turn);
     }
   }
 
@@ -485,9 +512,13 @@ export class DesktopBattleScene extends Phaser.Scene {
         this.add.text(x + w - 16, ly, this.expanded.has(key) ? '▲' : '▾', { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim }).setOrigin(1, 0);
         const zone = this.add.rectangle(x, ly - 3, w, rowH, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
         zone.on('pointerdown', () => { if (this.expanded.has(key)) this.expanded.delete(key); else this.expanded.add(key); this.render(); });
-        // Hover (desktop)/tap: how this number was reached — the ALREADY-
-        // formatted D: string the log computed, never recomputed here.
-        attachHoverTip(this, zone, { x, y: ly - 3, w, h: rowH }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
+        // HIT rows ALSO get a hover tip reading the same D: string — a second
+        // affordance for the math strip specifically. Status rows (BUFF/DEBUFF
+        // — guard/buff/debuff/expose/negate) rely on click-to-expand ONLY, no
+        // hover, per the locked both-platforms tap idiom (desktop click = tap).
+        if (line.tag === 'HIT') {
+          attachHoverTip(this, zone, { x, y: ly - 3, w, h: rowH }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
+        }
       }
       ly += rowH;
       if (line.detail && this.expanded.has(key) && ly < y + h - 16) {
@@ -526,17 +557,24 @@ export class DesktopBattleScene extends Phaser.Scene {
   }
 
   /** Footer buttons EXCLUDING the speed segment (drawn separately, always in
-   * the middle): Sandbox is PREP / REPLAY .. END; Run Mode is REPLAY ..
-   * CONTINUE › (no PREP — there's no sandbox prep to return to mid-run; no
-   * END — CONTINUE both finishes playback and moves the run on). */
-  private footerButtons(): Array<{ label: string; primary?: boolean; onPress: () => void }> {
+   * the middle): Sandbox is PREP / REPLAY / SUMMARY .. END; Run Mode is
+   * REPLAY / SUMMARY .. CONTINUE › (no PREP — there's no sandbox prep to
+   * return to mid-run; no END — CONTINUE both finishes playback and moves the
+   * run on). `summaryVisible` is this render's EFFECTIVE visibility (auto or
+   * overridden) — the button just flips whatever is currently showing. */
+  private footerButtons(summaryVisible: boolean): Array<{ label: string; primary?: boolean; active?: boolean; onPress: () => void }> {
     const replay = { label: 'REPLAY', onPress: () => { this.stopPlayback(); this.idx = 0; this.render(); this.startPlayback(); } };
+    const summary = {
+      label: 'SUMMARY', active: summaryVisible,
+      onPress: () => { this.summaryOverride = !summaryVisible; this.render(); },
+    };
     if (getBattleContext() === 'run') {
-      return [replay, { label: 'CONTINUE ›', primary: true, onPress: () => this.scene.start('DesktopRunMap') }];
+      return [replay, summary, { label: 'CONTINUE ›', primary: true, onPress: () => this.scene.start('DesktopRunMap') }];
     }
     return [
       { label: 'PREP', onPress: () => this.scene.start('DesktopPrep') },
       replay,
+      summary,
       { label: 'END', primary: true, onPress: () => { this.stopPlayback(); this.idx = this.steps.length - 1; this.render(); } },
     ];
   }
@@ -544,12 +582,12 @@ export class DesktopBattleScene extends Phaser.Scene {
   /** Footer control row: buttons from `footerButtons()` with a speed segment
    * sandwiched between the last two — desktop draws its own buttons (the
    * shared ActionBar template is portrait-fixed). */
-  private renderFooter(x: number, y: number, w: number): void {
+  private renderFooter(x: number, y: number, w: number, summaryVisible: boolean): void {
     const gap = GAP;
     const speeds: Array<[string, number]> = [['×½', 0.5], ['×1', 1], ['×2', 2]];
     const speedCellW = 56;
     const speedW = speedCellW * speeds.length + gap * (speeds.length - 1);
-    const buttons = this.footerButtons();
+    const buttons = this.footerButtons(summaryVisible);
     const bw = (w - speedW - gap * buttons.length) / buttons.length;
     let cx = x;
     const drawButton = (label: string, width: number, active: boolean, primary: boolean, onPress: () => void): void => {
@@ -568,9 +606,10 @@ export class DesktopBattleScene extends Phaser.Scene {
       cx += width + gap;
     };
     // Every button but the last draws before the speed segment; the last
-    // (primary) button always trails it — 3-button Sandbox (PREP, REPLAY ..
-    // END) and 2-button Run Mode (REPLAY .. CONTINUE) both fit this shape.
-    for (const b of buttons.slice(0, -1)) drawButton(b.label, bw, false, !!b.primary, b.onPress);
+    // (primary) button always trails it — 4-button Sandbox (PREP, REPLAY,
+    // SUMMARY .. END) and 3-button Run Mode (REPLAY, SUMMARY .. CONTINUE)
+    // both fit this shape.
+    for (const b of buttons.slice(0, -1)) drawButton(b.label, bw, !!b.active, !!b.primary, b.onPress);
     // Playback speed segment — the multiplier applies at the NEXT scheduled
     // step, so switching mid-playback takes effect immediately in practice.
     for (const [label, mult] of speeds) {
@@ -584,47 +623,63 @@ export class DesktopBattleScene extends Phaser.Scene {
     drawButton(last.label, bw, false, !!last.primary, last.onPress);
   }
 
-  /** Compact centered outcome card: banner + totals + CARD OUTPUT grid in one
-   * ~640px panel over a dimming scrim — the boards/log stay visible around it. */
-  private renderOutcome(x: number, y: number, w: number, h: number): void {
+  /** Compact centered summary card: (at the true outcome) a banner + totals +
+   * CARD OUTPUT grid; (mid-fight, when manually pinned via SUMMARY) just the
+   * totals + grid, AS OF `turn` — no VICTORY/DEFEAT banner, since the fight
+   * hasn't resolved yet. One ~640px panel over a dimming scrim — the boards/
+   * log stay visible around it either way. */
+  private renderOutcome(x: number, y: number, w: number, h: number, isOutcomeStep: boolean, turn: number): void {
     this.add.rectangle(x, y, w, h, 0x05070c, 0.72).setOrigin(0, 0);
     const good = this.outcome === 'VICTORY';
-    const summaryRows = this.combatSummary.cards.filter((row) => row.damage > 0 || row.shield > 0 || row.healing > 0 || row.dots > 0);
+    // The ledger reflects the CURRENT scrub position — `summaryByStep[idx]`
+    // — not the fight's final totals, so a mid-fight peek reads the running
+    // tally as of this exact step (falls back to the final tally only if a
+    // step index is somehow out of range, which shouldn't happen in practice).
+    const summary = this.summaryByStep[this.idx] ?? this.combatSummary;
+    const summaryRows = summary.cards;
     const columns = 2;
     const rowH = 34;
     const gridRows = Math.max(1, Math.ceil(summaryRows.length / columns));
 
     const pw = 640;
-    const bannerH = 52;
+    const bannerH = isOutcomeStep ? 52 : 0;
+    const bannerGap = isOutcomeStep ? 10 : 0;
     const pad = 16;
-    // banner + totals row + CARD OUTPUT label + grid + padding
-    const ph = bannerH + 10 + 20 + 18 + gridRows * rowH + pad;
+    // banner (if any) + totals row + CARD OUTPUT label + grid + padding
+    const ph = bannerH + bannerGap + 20 + 18 + gridRows * rowH + pad;
     const px = x + (w - pw) / 2;
     const py = y + (h - ph) / 2;
 
     this.add.rectangle(px, py, pw, ph, UI.panel, 0.97).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9);
-    this.add.rectangle(px, py, pw, bannerH, good ? 0x143a1a : 0x3a1414, 0.95).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c);
-    this.add.text(px + pw / 2 - 8, py + bannerH / 2, this.outcome, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: good ? '#7fe08a' : '#f08a7a' }).setOrigin(1, 0.5);
-    this.add.text(px + pw / 2 + 8, py + bannerH / 2 - (getBattleContext() === 'run' ? 6 : 0), `+${this.goldPayout} GOLD`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: '#e8b446' }).setOrigin(0, 0.5);
-    if (getBattleContext() === 'run') {
-      // Run Mode: the hero levels after EVERY fight, win or lose (locked
-      // design) — `resolveRunBattleResult` already applied it before this
-      // renders, so this is a pure readout, never a second mutation.
-      this.add.text(px + pw / 2 + 8, py + bannerH / 2 + 12, `LEVEL UP → LV ${currentHeroLevel()} · ${currentBankedPL()} PL BANKED`, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-      }).setOrigin(0, 0.5);
+    if (isOutcomeStep) {
+      this.add.rectangle(px, py, pw, bannerH, good ? 0x143a1a : 0x3a1414, 0.95).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c);
+      this.add.text(px + pw / 2 - 8, py + bannerH / 2, this.outcome, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: good ? '#7fe08a' : '#f08a7a' }).setOrigin(1, 0.5);
+      this.add.text(px + pw / 2 + 8, py + bannerH / 2 - (getBattleContext() === 'run' ? 6 : 0), `+${this.goldPayout} GOLD`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: '#e8b446' }).setOrigin(0, 0.5);
+      if (getBattleContext() === 'run') {
+        // Run Mode: the hero levels after EVERY fight, win or lose (locked
+        // design) — `resolveRunBattleResult` already applied it before this
+        // renders, so this is a pure readout, never a second mutation.
+        this.add.text(px + pw / 2 + 8, py + bannerH / 2 + 12, `LEVEL UP → LV ${currentHeroLevel()} · ${currentBankedPL()} PL BANKED`, {
+          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+        }).setOrigin(0, 0.5);
+      }
     }
 
-    let cy = py + bannerH + 10;
+    let cy = py + bannerH + bannerGap;
     const totalMetrics = [
-      this.combatSummary.playerDamage > 0 ? `YOU DMG ${this.combatSummary.playerDamage}` : '',
-      this.combatSummary.enemyDamage > 0 ? `FOE DMG ${this.combatSummary.enemyDamage}` : '',
-      this.combatSummary.playerHealing > 0 ? `HEAL ${this.combatSummary.playerHealing}` : '',
+      summary.playerDamage > 0 ? `YOU DMG ${summary.playerDamage}` : '',
+      summary.enemyDamage > 0 ? `FOE DMG ${summary.enemyDamage}` : '',
+      summary.playerHealing > 0 ? `HEAL ${summary.playerHealing}` : '',
     ].filter(Boolean).join('  ·  ');
     this.boundedText(px + pad, cy, totalMetrics || 'No measurable output', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }, pw - pad * 2 - 130);
-    this.add.text(px + pw - pad, cy, `${summaryRows.length} EFFECTIVE CARDS`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }).setOrigin(1, 0);
+    // "AS OF" marker makes it unmistakable this is a running tally, not the
+    // final one, whenever this panel is showing mid-fight.
+    const cardsLabel = isOutcomeStep
+      ? `${summaryRows.length} EFFECTIVE CARDS`
+      : `${summaryRows.length} EFFECTIVE CARDS · AS OF T${turn}`;
+    this.add.text(px + pw - pad, cy, cardsLabel, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim }).setOrigin(1, 0);
     cy += 20;
-    this.add.text(px + pad, cy, 'CARD OUTPUT', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim });
+    this.add.text(px + pad, cy, isOutcomeStep ? 'CARD OUTPUT' : `CARD OUTPUT · AS OF T${turn}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim });
     cy += 18;
     summaryRows.forEach((row, index) => {
       const col = index % columns;
@@ -656,6 +711,9 @@ export class DesktopBattleScene extends Phaser.Scene {
     name: string, hp: number, max: number, shield: number, color: number,
     ailments: string[],
     prev?: { hp: number; shield: number },
+    /** "20 P · 30 M" — present only once >1 shield pool is nonzero, so a
+     * stacked physical+magical shield never reads as one merged number. */
+    poolsLabel?: string,
   ): HpBarHandles {
     const nameText = this.boundedText(panelX, panelY, name.toUpperCase(), { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.text }, panelW - 90);
     const hpLabelText = this.add.text(panelX + panelW, panelY, `${hp}/${max}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.text }).setOrigin(1, 0);
@@ -686,7 +744,10 @@ export class DesktopBattleScene extends Phaser.Scene {
       this.tweens.add({ targets: shieldRect, width: shieldTarget, duration: 400, ease: 'Cubic.Out' });
     }
 
-    const shieldText = shield > 0 ? this.add.text(panelX + barW, panelY + 24, `+${shield}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: '#5fa8d3' }).setOrigin(1, 0) : undefined;
+    // When more than one shield pool is stacked, break the total out by pool
+    // (physical/magical/true) instead of one merged number.
+    const shieldLabel = shield > 0 ? (poolsLabel ? `+${shield} (${poolsLabel})` : `+${shield}`) : '';
+    const shieldText = shield > 0 ? this.add.text(panelX + barW, panelY + 24, shieldLabel, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: '#5fa8d3' }).setOrigin(1, 0) : undefined;
 
     return {
       fillRect,

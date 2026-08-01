@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { SkillDef } from '../../engine/types';
 import {
-  buildBattleTimeline,
+  buildBattleTimeline, shieldPoolsLabel,
   type BattleTimelineInput,
   type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
 } from '../battleTimeline';
@@ -94,6 +94,7 @@ export class MobileBattleScene extends Phaser.Scene {
   private heroStatLine = '';
   private outcome = '';
   private combatSummary: CombatSummary = { playerDamage: 0, enemyDamage: 0, playerHealing: 0, cards: [] };
+  private summaryByStep: CombatSummary[] = [];
   /** First playback step that contains the defeated unit's DOWN log. */
   private outcomeStep = -1;
   private playing = true;
@@ -106,6 +107,15 @@ export class MobileBattleScene extends Phaser.Scene {
    * it; a fresh scene entry re-fetches a new log object and credits again. */
   private goldCreditedLog: BattleLog | null = null;
   private goldPayout = 0;
+  /** SUMMARY panel manual override — same tri-state idiom as Desktop's:
+   * `null` = auto (visible only once playback reaches `outcomeStep`), `true`/
+   * `false` = pinned open/closed by the player. This scene has no separate
+   * `init()` — every re-render goes through this class's own `render()`,
+   * which never touches this field, so it survives every scrub/playback tick
+   * for free; it IS reset in `create()` (a genuinely new fight, mirroring
+   * `focusedFoe`/`autoFollow` above) since a fresh fight should start from
+   * the same auto default rather than inherit the last fight's pin. */
+  private summaryOverride: boolean | null = null;
 
   constructor() { super('MobileBattle'); }
 
@@ -117,6 +127,7 @@ export class MobileBattleScene extends Phaser.Scene {
     this.lastFocusedFoe = -1;
     this.goldCreditedLog = null;
     this.goldPayout = 0;
+    this.summaryOverride = null;
     // The battle service owns combat, so the log is a round trip: show a status
     // line, then render once it lands. No local fallback exists by design.
     this.renderStatus('RESOLVING BATTLE…');
@@ -162,10 +173,13 @@ export class MobileBattleScene extends Phaser.Scene {
     return getBattleTimelineInput();
   }
 
-  /** Footer buttons: Sandbox is PREP / REPLAY / speed / END; Run Mode is
-   * REPLAY / speed / CONTINUE › (no PREP — nothing to return to mid-run; no
-   * END — CONTINUE both finishes playback and moves the run on). */
-  private footerButtons(): ActionButton[] {
+  /** Footer buttons: Sandbox is PREP / REPLAY / speed / SUMMARY / END; Run
+   * Mode is REPLAY / speed / SUMMARY / CONTINUE › (no PREP — nothing to
+   * return to mid-run; no END — CONTINUE both finishes playback and moves
+   * the run on). `summaryVisible` is THIS render's effective visibility
+   * (auto-at-outcome or manually overridden) — the button flips whatever is
+   * currently showing. */
+  private footerButtons(summaryVisible: boolean): ActionButton[] {
     const replay: ActionButton = { label: 'REPLAY', onPress: () => { this.stopPlayback(); this.idx = 0; this.render(); this.startPlayback(); } };
     const speed: ActionButton = {
       label: this.speedMult === 1 ? '×1' : this.speedMult === 2 ? '×2' : '×½',
@@ -175,13 +189,18 @@ export class MobileBattleScene extends Phaser.Scene {
         this.render();
       },
     };
+    const summary: ActionButton = {
+      label: 'SUMMARY', highlight: summaryVisible,
+      onPress: () => { this.summaryOverride = !summaryVisible; this.render(); },
+    };
     if (getBattleContext() === 'run') {
-      return [replay, speed, { label: 'CONTINUE ›', primary: true, onPress: () => this.scene.start('MobileRunMap') }];
+      return [replay, speed, summary, { label: 'CONTINUE ›', primary: true, onPress: () => this.scene.start('MobileRunMap') }];
     }
     return [
       { label: 'PREP', onPress: () => this.scene.start('MobilePrep') },
       replay,
       speed,
+      summary,
       { label: 'END', primary: true, onPress: () => { this.stopPlayback(); this.idx = this.steps.length - 1; this.render(); } },
     ];
   }
@@ -250,6 +269,7 @@ export class MobileBattleScene extends Phaser.Scene {
     this.outcome = model.outcome;
     this.outcomeStep = model.outcomeStep;
     this.combatSummary = model.combatSummary;
+    this.summaryByStep = model.summaryByStep;
     this.heroName = model.heroName;
     this.heroStats = model.heroStats;
     this.heroStatLine = model.heroStatLine;
@@ -283,6 +303,11 @@ export class MobileBattleScene extends Phaser.Scene {
     // normal event-level delay. This gives the fall a readable moment without
     // making the victory/defeat animation feel late.
     const isOutcomeStep = this.outcomeStep >= 0 && this.idx >= this.outcomeStep;
+    // Default: auto-visible only once playback reaches the outcome (the
+    // existing "payoff" behavior, unchanged), hidden while scrubbing
+    // mid-fight. `summaryOverride` lets the player pin it open (to read the
+    // live running ledger at ANY step) or closed (to dismiss it at the end).
+    const summaryVisible = this.summaryOverride === null ? isOutcomeStep : this.summaryOverride;
 
     // ---- LOG dock (top) — small, ~4-5 rows like the mockup; the boards below
     // take the majority of the screen. Tap a HIT to expand its D: math. ----
@@ -335,10 +360,13 @@ export class MobileBattleScene extends Phaser.Scene {
         this.add.text(this.W - 12, ly, this.expanded.has(key) ? '▲' : '▾', { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(1, 0);
         const zone = this.add.rectangle(0, ly - 3, this.W, rowH, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
         zone.on('pointerdown', () => { if (this.expanded.has(key)) this.expanded.delete(key); else this.expanded.add(key); this.render(); });
-        // Hover (desktop)/tap (mobile, alongside the expand toggle above):
-        // how this number was reached — the ALREADY-formatted D: string the
-        // log computed, never recomputed here.
-        attachHoverTip(this, zone, { x: 0, y: ly - 3, w: this.W, h: rowH }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
+        // HIT rows ALSO get a hover (desktop) tip reading the same D: string —
+        // a second affordance for the math strip specifically. Status rows
+        // (BUFF/DEBUFF — guard/buff/debuff/expose/negate) rely on tap/click-to-
+        // expand ONLY, no hover, per the locked both-platforms tap idiom.
+        if (line.tag === 'HIT') {
+          attachHoverTip(this, zone, { x: 0, y: ly - 3, w: this.W, h: rowH }, [{ title: `${line.tag} — how this was reached`, body: line.detail }]);
+        }
       }
       ly += rowH;
       if (line.detail && this.expanded.has(key) && ly < dockH - 12) {
@@ -367,6 +395,7 @@ export class MobileBattleScene extends Phaser.Scene {
     const heroBar = this.hpBar(
       hpY, this.heroName, hp.player, hp.playerMax, shield.player, UI.good ?? 0x4f9e57, status.player,
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
+      shieldPoolsLabel(shield.playerPools),
     );
     this.boundedText(120, hpY + 17, this.heroStatLine, { fontSize: '9px', color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
     addHoverTipZone(this, { x: 120, y: hpY + 17, w: this.W - 120 - 84, h: 12 }, ALL_STAT_ENTRIES);
@@ -381,9 +410,11 @@ export class MobileBattleScene extends Phaser.Scene {
       const foeStatus = status.enemyUnits?.[u] ?? status.enemy;
       const prevFoeHp = prevHp ? (prevHp.enemies?.[u] ?? prevHp.enemy) : undefined;
       const prevFoeShield = prevShield ? (prevShield.enemies?.[u] ?? prevShield.enemy) : undefined;
+      const foePools = shield.enemiesPools?.[u] ?? (u === 0 ? shield.enemyPools : undefined);
       foeBars[u] = this.hpBar(
         barY, foeModel.name, foeHp, foeMax, foeShield, UI.bad ?? 0xb0483c, foeStatus,
         animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
+        shieldPoolsLabel(foePools),
       );
       this.boundedText(120, barY + 17, foeModel.statLine, { fontSize: '9px', color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
       addHoverTipZone(this, { x: 120, y: barY + 17, w: this.W - 120 - 84, h: 12 }, ALL_STAT_ENTRIES);
@@ -483,34 +514,47 @@ export class MobileBattleScene extends Phaser.Scene {
       foeBoard(this.focusedFoe, top, colH);
     }
     this.renderScrubber(gutterX + gutterW / 2, top, colH);
-    renderActionBar(this, this.W, this.H, this.footerButtons());
+    renderActionBar(this, this.W, this.H, this.footerButtons(summaryVisible));
 
-    if (isOutcomeStep) {
-      // The result overlay is a LAYER over the board, so give it an explicit
+    if (summaryVisible) {
+      // The summary overlay is a LAYER over the board, so give it an explicit
       // depth instead of relying on draw order, and make the scrim opaque
-      // enough that card text underneath stops reading through it.
+      // enough that card text underneath stops reading through it. At the
+      // true outcome it's a banner + ledger (the existing payoff); pinned
+      // open mid-fight (via SUMMARY) it's JUST the ledger, AS OF the current
+      // step — there's no VICTORY/DEFEAT to show yet.
       const D = OUTCOME_DEPTH;
       this.add.rectangle(deckX, top, this.W - 20, colH, 0x05070c, 0.93)
         .setOrigin(0, 0).setStrokeStyle(1, 0xb78a46, 0.35).setDepth(D);
       const good = this.outcome === 'VICTORY';
-      const by = top + colH / 2 - 26;
-      const summaryRows = this.combatSummary.cards.filter((row) => row.damage > 0 || row.shield > 0 || row.healing > 0 || row.dots > 0);
+      // The ledger reflects the CURRENT scrub position — `summaryByStep[idx]`
+      // — not the fight's final totals, so a mid-fight peek reads the
+      // running tally as of this exact step.
+      const summary = this.summaryByStep[this.idx] ?? this.combatSummary;
+      const summaryRows = summary.cards;
       const summaryColumns = 2;
       const summaryRowH = 34;
       const summaryH = 74 + Math.max(1, Math.ceil(summaryRows.length / summaryColumns)) * summaryRowH;
-      const summaryBy = by - summaryH - 8;
+      const bannerH = isOutcomeStep ? (getBattleContext() === 'run' ? 66 : 52) : 0;
+      const bannerGap = isOutcomeStep ? 8 : 0;
+      const blockH = summaryH + bannerGap + bannerH;
+      const summaryBy = top + (colH - blockH) / 2;
+      const by = summaryBy + summaryH + bannerGap;
       this.add.rectangle(deckX, summaryBy, this.W - 20, summaryH, 0x101a2a, 0.96)
         .setOrigin(0, 0).setStrokeStyle(1, 0xb78a46, 0.8).setDepth(D);
       this.add.text(deckX + 12, summaryBy + 8, 'BATTLE LEDGER', { fontSize: '11px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setDepth(D);
-      this.add.text(this.W - 30, summaryBy + 8, `${summaryRows.length} EFFECTIVE CARDS`, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setDepth(D);
+      // "AS OF" marker makes it unmistakable this is a running tally, not the
+      // final one, whenever this panel is showing mid-fight.
+      const cardsLabel = isOutcomeStep ? `${summaryRows.length} EFFECTIVE CARDS` : `${summaryRows.length} CARDS · AS OF T${turn}`;
+      this.add.text(this.W - 30, summaryBy + 8, cardsLabel, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setDepth(D);
       this.add.rectangle(deckX + 10, summaryBy + 27, this.W - 40, 1, 0x2a3a52).setOrigin(0, 0).setDepth(D);
       const totalMetrics = [
-        this.combatSummary.playerDamage > 0 ? `YOU DMG ${this.combatSummary.playerDamage}` : '',
-        this.combatSummary.enemyDamage > 0 ? `FOE DMG ${this.combatSummary.enemyDamage}` : '',
-        this.combatSummary.playerHealing > 0 ? `HEAL ${this.combatSummary.playerHealing}` : '',
+        summary.playerDamage > 0 ? `YOU DMG ${summary.playerDamage}` : '',
+        summary.enemyDamage > 0 ? `FOE DMG ${summary.enemyDamage}` : '',
+        summary.playerHealing > 0 ? `HEAL ${summary.playerHealing}` : '',
       ].filter(Boolean).join('  ·  ');
       this.boundedText(deckX + 12, summaryBy + 33, totalMetrics || 'No measurable output', { fontSize: '10px', color: '#cdd4de', fontFamily: FONT.body, fontStyle: 'bold' }, this.W - 44).setDepth(D);
-      this.add.text(deckX + 12, summaryBy + 52, 'CARD OUTPUT', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setDepth(D);
+      this.add.text(deckX + 12, summaryBy + 52, isOutcomeStep ? 'CARD OUTPUT' : `CARD OUTPUT · AS OF T${turn}`, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setDepth(D);
       summaryRows.forEach((row, index) => {
         const col = index % summaryColumns;
         const rowIndex = Math.floor(index / summaryColumns);
@@ -529,16 +573,17 @@ export class MobileBattleScene extends Phaser.Scene {
         ].filter(Boolean).join('  ·  ');
         this.boundedText(cellX + 6, y + 15, metrics, { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body }, cellW - 18).setDepth(D);
       });
-      const bannerH = getBattleContext() === 'run' ? 66 : 52;
-      this.add.rectangle(deckX, by, this.W - 20, bannerH, good ? 0x143a1a : 0x3a1414, 0.92).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c).setDepth(D);
-      this.add.text(this.W / 2 - 10, by + 26, this.outcome, { fontSize: '26px', color: good ? '#7fe08a' : '#f08a7a', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(1, 0.5).setDepth(D);
-      this.add.text(this.W / 2 + 6, by + 30, `+${this.goldPayout} GOLD`, { fontSize: '11px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5).setDepth(D);
-      if (getBattleContext() === 'run') {
-        // The hero levels after EVERY fight, win or lose (locked design) —
-        // `resolveRunBattleResult` already applied it before this renders.
-        this.add.text(this.W / 2, by + 50, `LEVEL UP → LV ${currentHeroLevel()} · ${currentBankedPL()} PL BANKED`, {
-          fontSize: '10px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold',
-        }).setOrigin(0.5).setDepth(D);
+      if (isOutcomeStep) {
+        this.add.rectangle(deckX, by, this.W - 20, bannerH, good ? 0x143a1a : 0x3a1414, 0.92).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c).setDepth(D);
+        this.add.text(this.W / 2 - 10, by + 26, this.outcome, { fontSize: '26px', color: good ? '#7fe08a' : '#f08a7a', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(1, 0.5).setDepth(D);
+        this.add.text(this.W / 2 + 6, by + 30, `+${this.goldPayout} GOLD`, { fontSize: '11px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5).setDepth(D);
+        if (getBattleContext() === 'run') {
+          // The hero levels after EVERY fight, win or lose (locked design) —
+          // `resolveRunBattleResult` already applied it before this renders.
+          this.add.text(this.W / 2, by + 50, `LEVEL UP → LV ${currentHeroLevel()} · ${currentBankedPL()} PL BANKED`, {
+            fontSize: '10px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold',
+          }).setOrigin(0.5).setDepth(D);
+        }
       }
     }
   }
@@ -581,6 +626,9 @@ export class MobileBattleScene extends Phaser.Scene {
     y: number, name: string, hp: number, max: number, shield: number, color: number,
     ailments: string[],
     prev?: { hp: number; shield: number },
+    /** "20 P · 30 M" — present only once >1 shield pool is nonzero, so a
+     * stacked physical+magical shield never reads as one merged number. */
+    poolsLabel?: string,
   ): HpBarHandles {
     const barX = 120; const barW = this.W - barX - 84;
     const frac = (v: number): number => barW * Math.max(0, Math.min(1, v / max));
@@ -613,7 +661,10 @@ export class MobileBattleScene extends Phaser.Scene {
 
     const hpText = this.add.text(this.W - 12, y, `${hp}/${max}`, { fontSize: '12px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
     // Shield as a floating number in the strip's blue — no emoji (tofu in canvas fonts).
-    const shieldText = shield > 0 ? this.add.text(hpText.x - hpText.width - 6, y, `+${shield}`, { fontSize: '11px', color: '#5fa8d3', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0) : undefined;
+    // When more than one shield pool is stacked, break the total out by pool
+    // (physical/magical/true) instead of one merged number.
+    const shieldLabel = shield > 0 ? (poolsLabel ? `+${shield} (${poolsLabel})` : `+${shield}`) : '';
+    const shieldText = shield > 0 ? this.add.text(hpText.x - hpText.width - 6, y, shieldLabel, { fontSize: '11px', color: '#5fa8d3', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0) : undefined;
 
     return {
       fillRect,

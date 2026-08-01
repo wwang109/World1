@@ -1,13 +1,15 @@
 import { applyTier } from '../engine/cards';
 import { skillBook } from '../data/skills';
 import type { CombatEvent } from '../engine/combat/events';
-import type { SkillDef } from '../engine/types';
+import type { ShieldPools } from '../engine/combat/state';
+import type { Property, SkillDef } from '../engine/types';
 import { buildAutoHeroSetup, buildEnemyEncounter } from '../run/encounter';
 import type { EnemyTitle } from '../run/encounter';
 import type { BattleLog } from '../run/resolveBattle';
 import type { Allocation } from '../run/leveling';
 import type { EnemyFightConfig, OwnedBoardPiece } from './demoState';
 import type { ScalingStats } from './ui/skillPresentation';
+import { STAT_TOKEN } from './ui/statLabels';
 
 /**
  * `buildBattleTimeline` folds a `BattleLog` (see `run/resolveBattle`) into a
@@ -29,7 +31,18 @@ export interface HpSnap {
   player: number; enemy: number; playerMax: number; enemyMax: number;
   enemies?: number[]; enemyMaxes?: number[];
 }
-export interface ShieldSnap { player: number; enemy: number; enemies?: number[]; }
+/** Per-pool shield totals (physical/magical/true, from the engine's own
+ * `ShieldPools`) — kept separate so a UI never shows "50 shield" when it's
+ * actually 20 physical + 30 magical stacked. */
+export type { ShieldPools } from '../engine/combat/state';
+export interface ShieldSnap {
+  player: number; enemy: number; enemies?: number[];
+  /** Per-pool breakdown — undefined until the first shieldGain event for that
+   * side/unit (nothing granted yet), then always kept in sync. */
+  playerPools?: ShieldPools;
+  enemyPools?: ShieldPools;
+  enemiesPools?: Array<ShieldPools | undefined>;
+}
 export interface SpeedSnap { player: string; enemy: string; enemyUnits?: string[]; }
 /** One playback-FX event for a step: floating number + (for damage) a bar
  * shake. `unit` identifies the enemy unit for multi-foe fights (0 default). */
@@ -40,7 +53,7 @@ export interface TurnFx { side: 'player' | 'enemy'; kind: 'damage' | 'heal' | 's
 export interface PlaybackStep { turn: number; lineIndex: number; }
 /** A step record captured mid-build, before turns/fallback-steps are known —
  * folded into the final per-step arrays in turn order once the event loop ends. */
-interface StepRecord { turn: number; lineIndex: number; hp: HpSnap; shield: ShieldSnap; fx: TurnFx[]; focus?: number; }
+interface StepRecord { turn: number; lineIndex: number; hp: HpSnap; shield: ShieldSnap; fx: TurnFx[]; focus?: number; summary: CombatSummary; }
 export interface CardSummaryRow {
   side: 'player' | 'enemy';
   name: string;
@@ -87,7 +100,7 @@ export interface FoeModel {
   boardSize: number;
   pieces: BattlePiece[];
   skills: SkillDef[];
-  /** Full display statline, e.g. "ATK 4 · MAG 1 · DEF 1 · RES 1 · SPD 11". */
+  /** Full display statline, e.g. "ATK 4 · MATK 1 · DEF 1 · MDEF 1 · SPD 11". */
   statLine: string;
 }
 
@@ -120,6 +133,17 @@ export interface BattleTimeline {
    * normal end-of-playback RESULT step for a draw / event-less log). */
   outcomeStep: number;
   combatSummary: CombatSummary;
+  /** Cumulative `CombatSummary` AS OF each playback step — same shape as
+   * `combatSummary`, but frozen at that step's position in the event stream
+   * instead of the fight's final totals. A scrubbing UI reads
+   * `summaryByStep[idx]` for a live "ledger so far" instead of the final
+   * tally. The last entry always deep-equals `combatSummary` (the two are
+   * computed from the identical running totals — the non-regression
+   * invariant a test in `battleTimeline.test.ts` pins). Rows are per-step
+   * snapshots of the SAME `CardSummaryRow` objects (shallow-cloned per row,
+   * not deep-frozen) — cheap for the ~20-60 steps × ~10-20 cards a fight
+   * actually has, so a fresh clone every step is simpler than diffing. */
+  summaryByStep: CombatSummary[];
   heroName: string;
   foeName: string;
   heroStats: ScalingStats;
@@ -137,10 +161,88 @@ export interface BattleTimeline {
 
 function skillName(id: string): string { return skillBook[id]?.name ?? id; }
 
+/**
+ * Compact per-pool token for a typed shield/blocked-damage line — lets a
+ * shielded hit (or a shieldGain) read which pool is in play at a glance
+ * (TRUE shields drain 2:1 vs typed damage and are otherwise indistinguishable
+ * from a typed shield's plain "+N shield" line).
+ */
+function shieldToken(property: Property): string {
+  return property === 'physical' ? 'P.SHIELD' : property === 'magical' ? 'M.SHIELD' : 'T.SHIELD';
+}
+
+/**
+ * Which pool(s) actually drained for a blocked hit, e.g. "T.SHIELD -48" when
+ * typed damage spilled into (and half-drained) the TRUE pool, or "P.SHIELD
+ * -24, T.SHIELD -12" when it drained both. `shieldDrain` is present whenever
+ * `blocked > 0`; falls back to the plain pool token (no magnitude) on the
+ * rare event that's missing (e.g. an older cached log).
+ */
+function formatBlockedPools(property: Property, drain: ShieldPools | undefined): string {
+  if (!drain) return shieldToken(property);
+  const parts: string[] = [];
+  if (drain.physical > 0) parts.push(`P.SHIELD -${drain.physical}`);
+  if (drain.magical > 0) parts.push(`M.SHIELD -${drain.magical}`);
+  if (drain.true > 0) parts.push(`T.SHIELD -${drain.true}`);
+  return parts.length > 0 ? parts.join(', ') : shieldToken(property);
+}
+
+/**
+ * A compact per-pool breakdown for a shield total, e.g. "20 P · 30 M" — used
+ * anywhere a shield NUMBER is shown (the HP-bar shield strip) so stacked
+ * physical+magical+true shields never read as one merged pile. Returns
+ * `undefined` when there's nothing to break out (no pool data yet, or only
+ * one pool is nonzero — a single-pool total isn't "merged", it's just a
+ * number), so callers fall back to their existing plain "+N" display.
+ */
+export function shieldPoolsLabel(pools: ShieldPools | undefined): string | undefined {
+  if (!pools) return undefined;
+  const parts: string[] = [];
+  if (pools.physical > 0) parts.push(`${pools.physical} P`);
+  if (pools.magical > 0) parts.push(`${pools.magical} M`);
+  if (pools.true > 0) parts.push(`${pools.true} T`);
+  return parts.length > 1 ? parts.join(' · ') : undefined;
+}
+
+function propertyWord(p: Property | undefined): string {
+  return p === 'magical' ? 'magical' : p === 'physical' ? 'physical' : p === 'true' ? 'true' : 'all';
+}
+
+/**
+ * Plain-language explanation for a defensive/support status — surfaced as the
+ * timeline row's expandable `detail` (tap/click to expand; no hover anywhere
+ * for statuses — the mechanic itself, unlike the HIT `D:` math strip, doesn't
+ * need a second hover affordance). DoT statuses (poison/burn/bleed/stun)
+ * already print their stacks/duration in the main log line, so they return
+ * `undefined` here and stay a single-line entry.
+ */
+function explainStatus(e: Extract<CombatEvent, { kind: 'statusApplied' }>): string | undefined {
+  const turnWord = (n: number): string => `${n} turn${n === 1 ? '' : 's'}`;
+  switch (e.status) {
+    case 'guard':
+      return `-${e.pct ?? 0}% incoming ${propertyWord(e.property)} damage, ${turnWord(e.turns)}.`;
+    case 'negate': {
+      const charges = e.charges ?? 1;
+      return `Fully blocks the next ${charges} ${propertyWord(e.property)} hit${charges === 1 ? '' : 's'}.`;
+    }
+    case 'expose':
+      return `+${e.pct ?? 0}% damage taken from direct hits, ${turnWord(e.turns)}.`;
+    case 'buff':
+    case 'debuff': {
+      const stat = e.stat ? STAT_TOKEN[e.stat] : '?';
+      const sign = e.status === 'buff' ? '+' : '-';
+      const value = e.pct !== undefined ? `${e.pct}%` : `${e.amount ?? 0}`;
+      return `${sign}${value} ${stat}, ${turnWord(e.turns)}.`;
+    }
+    default:
+      return undefined;
+  }
+}
+
 /** The HIT `D:` math detail (locked grammar): base n + (n LABEL) … = total. */
 export function formatDmg(c: NonNullable<Extract<CombatEvent, { kind: 'damage' }>['calculation']>): string {
-  const stat = c.scalingStat === 'attack' ? 'ATK' : 'MAG';
-  const def = c.scalingStat === 'attack' ? 'DEF' : 'RES';
+  const stat = c.scalingStat === 'attack' ? STAT_TOKEN.attack : STAT_TOKEN.magicPower;
+  const def = c.scalingStat === 'attack' ? STAT_TOKEN.armor : STAT_TOKEN.magicResist;
   const terms = [`base ${c.power}`];
   const add = (label: string, v: number): void => { if (v) terms.push(`${v > 0 ? '+' : '−'} (${Math.abs(v)} ${label})`); };
   add(stat, c.baseStat);
@@ -181,7 +283,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     heroPieces.push({ skill: s, slot: p.slot }); heroSkills.push(s);
   }
   const statLineOf = (s: { attack: number; magicPower: number; armor: number; magicResist: number; speed: number }): string =>
-    `ATK ${s.attack} · MAG ${s.magicPower} · DEF ${s.armor} · RES ${s.magicResist} · SPD ${s.speed}`;
+    `${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower} · ${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${STAT_TOKEN.speed} ${s.speed}`;
   const foes: FoeModel[] = foeSetups.map((setup) => {
     const pieces: BattlePiece[] = [];
     const skills: SkillDef[] = [];
@@ -224,6 +326,11 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const curEnemies = [...enemyMaxes];
   let shieldPlayer = 0;
   const shieldEnemies = foes.map(() => 0);
+  // Per-pool breakdown — stays undefined per side until a shieldGain event
+  // actually reports `poolsAfter` (optional, land-order-agnostic); once set,
+  // this is what lets the UI show "20 P · 30 M" instead of one merged "50".
+  let shieldPoolsPlayer: ShieldPools | undefined;
+  const shieldPoolsEnemies: Array<ShieldPools | undefined> = foes.map(() => undefined);
   const speed: SpeedSnap = { player: '', enemy: '', enemyUnits: foes.map(() => '') };
   const dotsPlayer = new Map<string, number>();
   const dotsEnemies = foes.map(() => new Map<string, number>());
@@ -231,12 +338,37 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     player: curPlayer, enemy: curEnemies[0]!, playerMax, enemyMax: enemyMaxes[0]!,
     enemies: [...curEnemies], enemyMaxes: [...enemyMaxes],
   });
-  const snapShield = (): ShieldSnap => ({ player: shieldPlayer, enemy: shieldEnemies[0]!, enemies: [...shieldEnemies] });
+  const snapShield = (): ShieldSnap => ({
+    player: shieldPlayer, enemy: shieldEnemies[0]!, enemies: [...shieldEnemies],
+    playerPools: shieldPoolsPlayer ? { ...shieldPoolsPlayer } : undefined,
+    enemyPools: shieldPoolsEnemies[0] ? { ...shieldPoolsEnemies[0] } : undefined,
+    enemiesPools: shieldPoolsEnemies.map((p) => (p ? { ...p } : undefined)),
+  });
   const activeCardByTurn = new Map<number, CardSummaryRow>();
   const cardSummaries = new Map<string, CardSummaryRow>();
   let playerDamage = 0;
   let enemyDamage = 0;
   let playerHealing = 0;
+  // Cumulative-so-far ledger, snapshotted once per event (see the backfill
+  // after the switch below) — cheap shallow clone of the running totals, not
+  // a diff/delta scheme: fights run ~20-60 steps with ~10-20 cards, so a
+  // fresh small array clone per event is simpler than tracking deltas and
+  // costs nothing measurable.
+  const snapshotSummary = (): CombatSummary => ({
+    playerDamage, enemyDamage, playerHealing,
+    // Only cards that have actually landed SOMETHING measurable — a played
+    // card that hasn't connected yet (or never does) stays invisible rather
+    // than appearing as an all-zero row. Both battle scenes used to filter
+    // this same predicate themselves right before display; centralizing it
+    // here means `summaryByStep`'s "a row only appears once it contributes"
+    // guarantee holds for `combatSummary` too, for free.
+    cards: [...cardSummaries.values()]
+      .filter((c) => c.damage > 0 || c.shield > 0 || c.healing > 0 || c.dots > 0)
+      .map((c) => ({ ...c }))
+      .sort((a, b) => (a.side === b.side ? b.damage - a.damage : a.side === 'player' ? -1 : 1)),
+  });
+  let lastSummarySnapshot: CombatSummary = { playerDamage: 0, enemyDamage: 0, playerHealing: 0, cards: [] };
+  const summaryByTurn = new Map<number, CombatSummary>();
   const unitOf = (e: { unit?: number }): number => e.unit ?? 0;
   const label = (e: Extract<CombatEvent, { side: 'player' | 'enemy' }>): string =>
     (e.side === 'player' ? heroName : (foes[unitOf(e as { unit?: number })]?.name ?? foeName));
@@ -254,7 +386,12 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     arr.push({ tag, text, detail });
     linesByTurn.set(turn, arr);
     if (tag !== 'PLAY') {
-      stepRecords.push({ turn, lineIndex: arr.length - 1, hp: snapHp(), shield: snapShield(), fx: [], focus: curFocus });
+      // `summary` here is a placeholder — the running totals for a `damage`/
+      // `heal`/`shieldGain` event are only incremented AFTER this call
+      // returns (see each case below), so this step's real "as of this step"
+      // snapshot (inclusive of the event that produced this very line) is
+      // backfilled once the full event has finished processing, below.
+      stepRecords.push({ turn, lineIndex: arr.length - 1, hp: snapHp(), shield: snapShield(), fx: [], focus: curFocus, summary: lastSummarySnapshot });
     }
   };
   const pushFx = (side: 'player' | 'enemy', kind: TurnFx['kind'], amount: number, unit: number, source?: string): void => {
@@ -274,6 +411,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     if (e.kind === 'play') curActor = { side: e.side, unit: unitOf(e) };
     if (sided.side === 'enemy') curFocus = sided.unit ?? 0;
     else if (sided.side === 'player') curFocus = curActor?.side === 'enemy' ? curActor.unit : undefined;
+    const stepCountBeforeEvent = stepRecords.length;
     switch (e.kind) {
       // Readiness gain — mockup turnline: "Hero 18 · SPD +16 · Bandit 25 · SPD +15".
       case 'gain': {
@@ -312,16 +450,41 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const dealt = Math.max(0, e.amount - e.blocked);
         const u = unitOf(e);
         if (e.side === 'player') curPlayer = e.hpAfter; else curEnemies[u] = e.hpAfter;
+        const drain = e.shieldDrain;
         if (e.blocked > 0) {
-          if (e.side === 'player') shieldPlayer = Math.max(0, shieldPlayer - e.blocked);
-          else shieldEnemies[u] = Math.max(0, (shieldEnemies[u] ?? 0) - e.blocked);
+          if (e.side === 'player') {
+            shieldPlayer = Math.max(0, shieldPlayer - e.blocked);
+            if (shieldPoolsPlayer && drain) {
+              shieldPoolsPlayer.physical = Math.max(0, shieldPoolsPlayer.physical - drain.physical);
+              shieldPoolsPlayer.magical = Math.max(0, shieldPoolsPlayer.magical - drain.magical);
+              shieldPoolsPlayer.true = Math.max(0, shieldPoolsPlayer.true - drain.true);
+            }
+          } else {
+            shieldEnemies[u] = Math.max(0, (shieldEnemies[u] ?? 0) - e.blocked);
+            const pools = shieldPoolsEnemies[u];
+            if (pools && drain) {
+              pools.physical = Math.max(0, pools.physical - drain.physical);
+              pools.magical = Math.max(0, pools.magical - drain.magical);
+              pools.true = Math.max(0, pools.true - drain.true);
+            }
+          }
         }
         const hp = e.side === 'player' ? `${e.hpAfter}/${playerMax}` : `${e.hpAfter}/${enemyMaxes[u]}`;
+        // A hit fully or partly absorbed by a typed shield must never read as
+        // a bare "0 damage" with no explanation — always spell out how much
+        // got BLOCKED and by which pool (physical/magical/true) alongside any
+        // HP damage that got through. When the engine reports which pool(s)
+        // actually drained (e.g. TRUE draining 2:1 for a typed hit), show the
+        // drain magnitude too so the half-effectiveness is visible.
+        const poolText = formatBlockedPools(e.property, drain);
+        const dmgText = e.blocked > 0
+          ? (dealt > 0 ? `${dealt} DMG · ${e.blocked} BLOCKED (${poolText})` : `BLOCKED ${e.blocked} (${poolText})`)
+          : `−${dealt}`;
         if (e.source === 'skill') {
-          push(e.turn, 'HIT', `${label(e)} −${dealt} · ${hp}`, e.calculation ? formatDmg(e.calculation) : undefined);
+          push(e.turn, 'HIT', `${label(e)} ${dmgText} · ${hp}`, e.calculation ? formatDmg(e.calculation) : undefined);
         } else {
           const cap = e.source.charAt(0).toUpperCase() + e.source.slice(1);
-          push(e.turn, 'DEBUFF', `${cap} · ${label(e)} −${dealt} · ${hp}`);
+          push(e.turn, 'DEBUFF', `${cap} · ${label(e)} ${dmgText} · ${hp}`);
         }
         const activeCard = activeCardByTurn.get(e.turn);
         if (e.source === 'skill' && activeCard) {
@@ -349,9 +512,23 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       case 'shieldGain': {
         const u = unitOf(e);
         if (e.side === 'player') shieldPlayer = e.totalAfter; else shieldEnemies[u] = e.totalAfter;
+        if (e.poolsAfter) {
+          if (e.side === 'player') shieldPoolsPlayer = { ...e.poolsAfter };
+          else shieldPoolsEnemies[u] = { ...e.poolsAfter };
+        }
         const shieldCard = activeCardByTurn.get(e.turn);
         if (shieldCard) shieldCard.shield += e.amount;
-        push(e.turn, 'BUFF', `${label(e)} +${e.amount} shield`);
+        // The token names which pool this is (TRUE shields drain 2:1 vs typed
+        // damage — otherwise indistinguishable from a typed shield's number).
+        // A statBonus breakdown (present once the engine reports it) shows the
+        // card's flat base + the scaling-stat contribution; TRUE shields are
+        // flat by design (statBonus 0) and stay a plain number.
+        const token = shieldToken(e.property);
+        const calc = e.calculation;
+        const text = calc && calc.statBonus > 0
+          ? `${label(e)} +${e.amount} ${token} (${calc.power} + ${calc.statBonus} ${e.property === 'magical' ? STAT_TOKEN.magicPower : STAT_TOKEN.attack})`
+          : `${label(e)} +${e.amount} ${token}`;
+        push(e.turn, 'BUFF', text);
         pushFx(e.side, 'shield', e.amount, u);
         break;
       }
@@ -364,7 +541,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       case 'statusApplied': {
         const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'negate';
         const cap = e.status.charAt(0).toUpperCase() + e.status.slice(1);
-        push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap}${e.stacks ? ` ${e.stacks}` : ''}`);
+        // Defensive/support statuses (guard/buff/debuff/expose/negate) carry a
+        // plain-language explanation as the row's expandable detail — tap/click
+        // to expand, same affordance as a HIT's D: math strip, no hover.
+        push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap}${e.stacks ? ` ${e.stacks}` : ''}`, explainStatus(e));
         if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') {
           const dotCard = activeCardByTurn.get(e.turn);
           if (dotCard) dotCard.dots += e.stacks ?? 1;
@@ -399,8 +579,18 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       case 'combatEnd': push(e.turn, 'RESULT', `${outcome} · ${e.turns} turns`); break;
       default: break;
     }
+    // This event's own contribution (damage/heal/shield/dot increments above)
+    // lands AFTER any `push()` call inside its case — so the step(s) this
+    // event just created were stamped with the STALE (pre-event) snapshot at
+    // push() time. Recompute now and backfill every step this event added,
+    // so "as of this step" always includes the event that produced the line.
+    lastSummarySnapshot = snapshotSummary();
+    for (let i = stepCountBeforeEvent; i < stepRecords.length; i++) {
+      stepRecords[i]!.summary = lastSummarySnapshot;
+    }
     hpByTurn.set(e.turn, snapHp());
     shieldByTurn.set(e.turn, snapShield());
+    summaryByTurn.set(e.turn, lastSummarySnapshot);
     statusByTurn.set(e.turn, {
       player: [...dotsPlayer.keys()],
       enemy: [...dotsEnemies[0]!.keys()],
@@ -408,9 +598,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     });
     speedByTurn.set(e.turn, { ...speed, enemyUnits: [...speed.enemyUnits!] });
   }
-  const cards = [...cardSummaries.values()]
-    .sort((a, b) => (a.side === b.side ? b.damage - a.damage : a.side === 'player' ? -1 : 1));
-  const combatSummary: CombatSummary = { playerDamage, enemyDamage, playerHealing, cards };
+  // The final tally uses the SAME snapshot function as every per-step
+  // snapshot — the non-regression guarantee (last `summaryByStep` entry ===
+  // `combatSummary`) falls out of that by construction, not a special case.
+  const combatSummary: CombatSummary = snapshotSummary();
   let turns = [...linesByTurn.keys()].sort((a, b) => a - b);
   if (turns.length === 0) turns = [1];
 
@@ -422,12 +613,17 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   let shieldByStep: ShieldSnap[] = [];
   let fxByStep: TurnFx[][] = [];
   let focusFoeByStep: Array<number | undefined> = [];
+  let summaryByStep: CombatSummary[] = [];
   const recordsByTurn = new Map<number, StepRecord[]>();
   for (const r of stepRecords) {
     const arr = recordsByTurn.get(r.turn) ?? [];
     arr.push(r);
     recordsByTurn.set(r.turn, arr);
   }
+  // The last summary carried forward for a fallback step (a turn with no
+  // important lines, e.g. only a `gain`) — the most recent per-turn snapshot
+  // walking turns in order, so a fallback step never regresses to zero.
+  let lastFallbackSummary: CombatSummary = { playerDamage: 0, enemyDamage: 0, playerHealing: 0, cards: [] };
   for (const t of turns) {
     const recs = recordsByTurn.get(t);
     if (recs && recs.length > 0) {
@@ -437,7 +633,9 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         shieldByStep.push(r.shield);
         fxByStep.push(r.fx);
         focusFoeByStep.push(r.focus);
+        summaryByStep.push(r.summary);
       }
+      lastFallbackSummary = recs[recs.length - 1]!.summary;
     } else {
       const lines = linesByTurn.get(t) ?? [];
       steps.push({ turn: t, lineIndex: Math.max(0, lines.length - 1) });
@@ -445,6 +643,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       shieldByStep.push(shieldByTurn.get(t) ?? snapShield());
       fxByStep.push([]);
       focusFoeByStep.push(undefined);
+      lastFallbackSummary = summaryByTurn.get(t) ?? lastFallbackSummary;
+      summaryByStep.push(lastFallbackSummary);
     }
   }
   if (steps.length === 0) {
@@ -453,6 +653,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     shieldByStep = [snapShield()];
     fxByStep = [[]];
     focusFoeByStep = [undefined];
+    summaryByStep = [{ playerDamage: 0, enemyDamage: 0, playerHealing: 0, cards: [] }];
   }
   // A lethal damage event is the meaningful end of playback. Do not force
   // the player through separate DOWN/RESULT ticks after HP has already hit 0.
@@ -465,6 +666,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     shieldByStep = shieldByStep.slice(0, lethalStep + 1);
     fxByStep = fxByStep.slice(0, lethalStep + 1);
     focusFoeByStep = focusFoeByStep.slice(0, lethalStep + 1);
+    summaryByStep = summaryByStep.slice(0, lethalStep + 1);
   }
   const resultStep = steps.findIndex((step) => {
     const line = linesByTurn.get(step.turn)?.[step.lineIndex];
@@ -473,6 +675,16 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // Draws or unusual empty logs have no DOWN event; preserve their normal
   // end-of-playback result banner.
   const outcomeStep = lethalStep >= 0 ? lethalStep : resultStep >= 0 ? resultStep : steps.length - 1;
+  // Playback truncation (the lethal-step slice above, or a log whose trailing
+  // events genuinely don't touch the ledger — e.g. a post-death `died`/
+  // `combatEnd` with no further damage/heal/shield) means the LAST surviving
+  // step's own snapshot is expected to already equal the full-log
+  // `combatSummary` in every real case. Pin it explicitly anyway: it costs
+  // nothing and guarantees the non-regression invariant holds even for an
+  // edge case (e.g. a future DoT tick that lands after the lethal HP snap)
+  // where a trailing event could otherwise add to the total after playback
+  // has stopped animating.
+  if (summaryByStep.length > 0) summaryByStep[summaryByStep.length - 1] = combatSummary;
 
   return {
     linesByTurn,
@@ -490,6 +702,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     outcome,
     outcomeStep,
     combatSummary,
+    summaryByStep,
     heroName,
     foeName,
     heroStats,

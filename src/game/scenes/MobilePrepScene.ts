@@ -12,6 +12,7 @@ import { demoState, MAX_FOES, syncPrimaryFoe, type EnemyFightConfig } from '../d
 import { FONT, SCREEN, UI } from '../theme';
 import { renderActionBar } from '../ui/ActionBar';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
+import { STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene } from '../sceneRebuild';
 
 /** Mobile Prep screen — vertical: tabs · enemy sheet · YOUR DECK vs ENEMY
@@ -196,8 +197,8 @@ export class MobilePrepScene extends Phaser.Scene {
     this.text(this.W - 20, top + 10, title.toUpperCase(), 9, '#1a1208', { bold: true, origin: [1, 0] })
       .setBackgroundColor('#c9a15a').setPadding(6, 3, 6, 3);
     const s = encounter.setup.stats;
-    this.text(20, top + 32, `HP ${s.maxHp} · SPD ${s.speed} · ATK ${s.attack} · MAG ${s.magicPower}`, 11, '#e8e0c8', { bold: true });
-    this.text(20, top + 47, `DEF ${s.armor} · RES ${s.magicResist} · ${encounter.setup.pieces.length} cards`, 10, '#9aa4b6');
+    this.text(20, top + 32, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower}`, 11, '#e8e0c8', { bold: true });
+    this.text(20, top + 47, `${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${encounter.setup.pieces.length} cards`, 10, '#9aa4b6');
     const bandText = this.text(20, top + 62, 'DMG/turn …', 12, '#d05c4e', { bold: true });
     cachedDamageBand(encounter.setup, { turns: 8, seeds: 8 }).then((band) => {
       if (!this.scene.isActive()) return;
@@ -293,8 +294,8 @@ export class MobilePrepScene extends Phaser.Scene {
 
     // 3×2 stat grid: each cell shows LABEL/gained on top, −/+ buttons below.
     const rows: Array<[LevelStat, string]> = [
-      ['maxHp', 'HP'], ['attack', 'ATK'], ['magicPower', 'MAG'],
-      ['armor', 'DEF'], ['magicResist', 'RES'], ['speed', 'SPD'],
+      ['maxHp', STAT_TOKEN.maxHp], ['attack', STAT_TOKEN.attack], ['magicPower', STAT_TOKEN.magicPower],
+      ['armor', STAT_TOKEN.armor], ['magicResist', STAT_TOKEN.magicResist], ['speed', STAT_TOKEN.speed],
     ];
     const cols = 3;
     const gap = 6;

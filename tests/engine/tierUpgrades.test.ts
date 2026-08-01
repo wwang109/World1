@@ -51,10 +51,15 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
     }
   });
 
-  it('the scaler never changes a card weight, size, or property', () => {
+  it('the AUTO-scaler never changes a card weight, size, or property', () => {
+    // NOTE: this checks `autoScaleTier` directly, not `applyTier` — an
+    // AUTHORED `tierUpgrades` entry is explicitly allowed to dial
+    // `speedWeight` per tier (e.g. second_wind/renewing_wave/purify sink part
+    // of their TRUE-heal re-price into weight); only the fallback auto-scaler
+    // is required to leave weight/size/property untouched.
     for (const skill of Object.values(skillBook)) {
       for (const tier of ABOVE[skill.tier]) {
-        const scaled = applyTier(skill, tier);
+        const scaled = autoScaleTier(skill, tier);
         expect(scaled.size).toBe(skill.size);
         expect(scaled.speedWeight).toBe(skill.speedWeight);
         expect(scaled.property).toBe(skill.property);

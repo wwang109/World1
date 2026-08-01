@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildBattleTimeline, type BattleTimeline, type BattleTimelineInput } from '../../src/game/battleTimeline';
 import { battleRequestOf } from '../../src/game/battleApi';
-import { resolveBattle } from '../../src/run/resolveBattle';
+import { resolveBattle, type BattleLog } from '../../src/run/resolveBattle';
+import type { CombatEvent } from '../../src/engine/combat/events';
 
 const BASE: BattleTimelineInput = {
   pieces: [
@@ -108,5 +109,189 @@ describe('game/battleTimeline', () => {
     expect(teamOfOne.steps).toEqual(single.steps);
     expect(teamOfOne.hpByStep).toEqual(single.hpByStep);
     expect(teamOfOne.outcome).toBe(single.outcome);
+  });
+
+  describe('step-scoped combat summary (summaryByStep)', () => {
+    it('is aligned 1:1 with steps, and the LAST entry deep-equals the final combatSummary', () => {
+      const model = timeline(BASE);
+      expect(model.summaryByStep).toHaveLength(model.steps.length);
+      expect(model.summaryByStep[model.summaryByStep.length - 1]).toEqual(model.combatSummary);
+    });
+
+    it('never regresses — every cumulative total is monotonically non-decreasing step to step', () => {
+      const model = timeline(BASE);
+      for (let i = 1; i < model.summaryByStep.length; i++) {
+        const prev = model.summaryByStep[i - 1]!;
+        const cur = model.summaryByStep[i]!;
+        expect(cur.playerDamage).toBeGreaterThanOrEqual(prev.playerDamage);
+        expect(cur.enemyDamage).toBeGreaterThanOrEqual(prev.enemyDamage);
+        expect(cur.playerHealing).toBeGreaterThanOrEqual(prev.playerHealing);
+        for (const prevRow of prev.cards) {
+          const curRow = cur.cards.find((r) => r.side === prevRow.side && r.name === prevRow.name);
+          expect(curRow).toBeDefined();
+          expect(curRow!.damage).toBeGreaterThanOrEqual(prevRow.damage);
+          expect(curRow!.shield).toBeGreaterThanOrEqual(prevRow.shield);
+          expect(curRow!.healing).toBeGreaterThanOrEqual(prevRow.healing);
+          expect(curRow!.dots).toBeGreaterThanOrEqual(prevRow.dots);
+        }
+      }
+    });
+
+    it('a mid-fight step reads strictly less than the final totals for a real (damage-dealing) fight', () => {
+      const model = timeline(BASE);
+      // This fight deals damage on both sides — find the first step where SOME
+      // damage has landed, and confirm it's not already the final tally.
+      const firstDamageStep = model.summaryByStep.findIndex((s) => s.playerDamage > 0 || s.enemyDamage > 0);
+      expect(firstDamageStep).toBeGreaterThanOrEqual(0);
+      const final = model.combatSummary;
+      const mid = model.summaryByStep[firstDamageStep]!;
+      const midTotal = mid.playerDamage + mid.enemyDamage + mid.playerHealing;
+      const finalTotal = final.playerDamage + final.enemyDamage + final.playerHealing;
+      expect(midTotal).toBeLessThan(finalTotal);
+    });
+
+    it('a card row only appears once that card has actually contributed (damage/shield/healing/dots)', () => {
+      const model = timeline(BASE);
+      for (const snap of model.summaryByStep) {
+        for (const row of snap.cards) {
+          expect(row.damage > 0 || row.shield > 0 || row.healing > 0 || row.dots > 0).toBe(true);
+        }
+      }
+    });
+
+    it('step 0 (the START baseline) has an empty, zeroed summary — nothing has happened yet', () => {
+      const model = timeline(BASE);
+      const first = model.summaryByStep[0]!;
+      expect(first.playerDamage).toBe(0);
+      expect(first.enemyDamage).toBe(0);
+      expect(first.playerHealing).toBe(0);
+      expect(first.cards).toHaveLength(0);
+    });
+  });
+
+  // ---- Synthetic-log tests below: `buildBattleTimeline` folds ANY `BattleLog`
+  // (events are the only combat-service contract), so these hand-author a log
+  // to pin exact presentation grammar without depending on which real cards/
+  // seeds happen to produce a shielded hit or a stat-scaled shield gain.
+  describe('blocked-damage and shield presentation', () => {
+    const events: CombatEvent[] = [
+      // Partly blocked physical hit: 12 HP damage got through, 24 was BLOCKED
+      // by a physical shield pool — must read the pool it came from, never a
+      // bare "12" with the block silently dropped.
+      {
+        turn: 1, kind: 'damage', side: 'enemy', unit: 0, amount: 36, property: 'physical',
+        blocked: 24, hpAfter: 76, source: 'skill',
+      },
+      // Fully blocked TRUE hit: 0 HP damage must never read as an unexplained
+      // "0" — the BLOCKED amount and the TRUE pool must both show.
+      {
+        turn: 1, kind: 'damage', side: 'player', unit: 0, amount: 24, property: 'true',
+        blocked: 24, hpAfter: 100, source: 'skill',
+      },
+      // Typed (magical) shield gain WITH a stat breakdown: card base 96 +
+      // 12 MAG (Magic Power) scaling — must show the breakdown AND which
+      // pool token ('M.SHIELD').
+      {
+        turn: 1, kind: 'shieldGain', side: 'player', unit: 0, property: 'magical',
+        amount: 108, wasted: 0, totalAfter: 108, calculation: { power: 96, statBonus: 12 },
+      },
+      // TRUE shield gain (Prism Barrier-style): flat by design, statBonus 0 —
+      // stays a PLAIN number, no breakdown, but still tagged 'T.SHIELD' so it
+      // reads distinctly from a typed shield.
+      {
+        turn: 1, kind: 'shieldGain', side: 'enemy', unit: 0, property: 'true',
+        amount: 92, wasted: 0, totalAfter: 92, calculation: { power: 92, statBonus: 0 },
+      },
+      // Legacy shape: no `calculation` at all (fallback path — the parallel
+      // engine task that adds it may not have landed for every emitter yet).
+      {
+        turn: 1, kind: 'shieldGain', side: 'player', unit: 0, property: 'physical',
+        amount: 48, wasted: 0, totalAfter: 48,
+      },
+      { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+    ];
+    const log: BattleLog = { events, result: 'win', turns: 2 };
+    const model = timeline({ ...BASE, seed: 1 } as BattleTimelineInput);
+    void model; // keep the real-engine model import path exercised elsewhere
+    const synthetic = buildBattleTimeline(BASE, log);
+    const lines = [...synthetic.linesByTurn.values()].flat();
+
+    it('shows HP damage AND the blocked amount + pool token for a partly-blocked hit', () => {
+      const line = lines.find((l) => l.tag === 'HIT' && l.text.includes('12 DMG'));
+      expect(line).toBeDefined();
+      expect(line!.text).toContain('12 DMG · 24 BLOCKED (P.SHIELD)');
+    });
+
+    it('never renders a fully-blocked hit as a bare "0 damage" line', () => {
+      const line = lines.find((l) => l.tag === 'HIT' && l.text.includes('BLOCKED 24 (T.SHIELD)'));
+      expect(line).toBeDefined();
+      expect(line!.text).not.toMatch(/−0(?!\d)/);
+    });
+
+    it('shows the card-power + stat-bonus breakdown for a typed shield gain, tagged with its pool', () => {
+      const line = lines.find((l) => l.tag === 'BUFF' && l.text.includes('M.SHIELD'));
+      expect(line).toBeDefined();
+      expect(line!.text).toContain('+108 M.SHIELD (96 + 12 MATK)');
+    });
+
+    it('renders a TRUE shield gain as a plain number tagged T.SHIELD, no breakdown', () => {
+      const line = lines.find((l) => l.tag === 'BUFF' && l.text.includes('T.SHIELD'));
+      expect(line).toBeDefined();
+      expect(line!.text).toContain('+92 T.SHIELD');
+      expect(line!.text).not.toContain('(');
+    });
+
+    it('falls back to a plain shield number when `calculation` is absent (pre-migration events)', () => {
+      const line = lines.find((l) => l.tag === 'BUFF' && l.text.includes('P.SHIELD'));
+      expect(line).toBeDefined();
+      expect(line!.text).toContain('+48 P.SHIELD');
+      expect(line!.text).not.toContain('(');
+    });
+  });
+
+  describe('status explanations (expandable detail, no hover)', () => {
+    const events: CombatEvent[] = [
+      { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'guard', property: 'physical', pct: 20, turns: 2 },
+      { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'negate', property: 'magical', charges: 1, turns: 0 },
+      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'expose', pct: 30, turns: 2 },
+      { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'buff', stat: 'attack', pct: 50, turns: 2 },
+      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'debuff', stat: 'armor', amount: 15, turns: 2 },
+      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', stacks: 9, turns: 9 },
+      { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+    ];
+    const log: BattleLog = { events, result: 'win', turns: 2 };
+    const model = buildBattleTimeline(BASE, log);
+    const lines = [...model.linesByTurn.values()].flat();
+
+    it('explains a guard status as -pct% incoming <property> damage, duration', () => {
+      const line = lines.find((l) => l.text.includes('Guard'));
+      expect(line?.detail).toBe('-20% incoming physical damage, 2 turns.');
+    });
+
+    it('explains a negate status as fully blocking N hits of a property', () => {
+      const line = lines.find((l) => l.text.includes('Negate'));
+      expect(line?.detail).toBe('Fully blocks the next 1 magical hit.');
+    });
+
+    it('explains an expose status as +pct% damage taken', () => {
+      const line = lines.find((l) => l.text.includes('Expose'));
+      expect(line?.detail).toBe('+30% damage taken from direct hits, 2 turns.');
+    });
+
+    it('explains a buff status with the affected stat abbreviation', () => {
+      const line = lines.find((l) => l.text.includes('Buff'));
+      expect(line?.detail).toBe('+50% ATK, 2 turns.');
+    });
+
+    it('explains a debuff status carrying a flat (TRUE) amount rather than a pct', () => {
+      const line = lines.find((l) => l.text.includes('Debuff'));
+      expect(line?.detail).toBe('-15 DEF, 2 turns.');
+    });
+
+    it('leaves DoT statuses (poison/burn/bleed/stun) without a detail — they already show stacks inline', () => {
+      const line = lines.find((l) => l.text.includes('Poison'));
+      expect(line).toBeDefined();
+      expect(line!.detail).toBeUndefined();
+    });
   });
 });

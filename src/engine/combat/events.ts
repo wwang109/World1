@@ -1,5 +1,6 @@
 import type { BuffableStat, CombatOutcome, EffectSourceRef, Property, Side } from '../types';
 import type { AuraSource } from './auras';
+import type { ShieldPools } from './state';
 
 export type { AuraSource } from './auras';
 
@@ -228,6 +229,14 @@ export type CombatEvent =
       amount: number;
       property: Property;
       blocked: number;
+      /**
+       * Points actually REMOVED from each shield pool by this hit, so the UI can
+       * show where `blocked` came from. NOT the same as damage blocked for the
+       * true pool: a typed hit spilling into TRUE spends 2 true points per point
+       * blocked, so `shieldDrain.true` is the inflated spend (a dangling odd
+       * point drains but blocks nothing). Present only when `blocked > 0`.
+       */
+      shieldDrain?: ShieldPools;
       /** Element wheel / weapon triangle result for this hit. */
       matchup?: 'advantage' | 'disadvantage';
       /** Amount removed by Magical Guard (present only when a guard fired). */
@@ -247,7 +256,33 @@ export type CombatEvent =
       calculation?: DamageCalculation;
     }
   | { turn: number; kind: 'heal'; side: Side; unit: number; amount: number; overheal: number; flat: boolean; hpAfter: number; sourceCard?: EffectSourceRef }
-  | { turn: number; kind: 'shieldGain'; side: Side; unit: number; property: Property; amount: number; wasted: number; totalAfter: number; sourceCard?: EffectSourceRef }
+  | {
+      turn: number;
+      kind: 'shieldGain';
+      side: Side;
+      unit: number;
+      property: Property;
+      amount: number;
+      wasted: number;
+      /** Merged sum of all three pools after the gain (kept for compatibility). */
+      totalAfter: number;
+      /**
+       * The three pools separately after the gain; `totalAfter` is their sum.
+       * ALWAYS emitted by the engine (like `calculation`); optional in the type
+       * only so hand-built fixtures and previously captured logs stay assignable.
+       */
+      poolsAfter?: ShieldPools;
+      sourceCard?: EffectSourceRef;
+      /**
+       * How the REQUESTED pool was built, so the UI can explain the number:
+       * `power` is the card's flat base and `statBonus` the caster's scaling-stat
+       * contribution (Attack for physical, Magic Power for magical).
+       * TRUE shields are FLAT BY DESIGN — they never scale, so `statBonus` is 0.
+       * Granted amount is `min(power + statBonus, maxHp − current shield)`; the
+       * remainder is reported as `wasted`.
+       */
+      calculation?: { power: number; statBonus: number };
+    }
   | { turn: number; kind: 'statusApplied'; side: Side; unit: number; status: StatusName; property?: Property; stat?: BuffableStat; pct?: number; amount?: number; stacks?: number; turns: number; charges?: number }
   | { turn: number; kind: 'statusExpired'; side: Side; unit: number; status: StatusName }
   | { turn: number; kind: 'cleansed'; side: Side; unit: number; removed: number }

@@ -156,6 +156,156 @@ describe('typed shields', () => {
     const casts = events.filter((e) => e.kind === 'skillCast' && e.side === 'player');
     expect(casts.length).toBe(4);
   });
+
+  it('shieldGain reports its breakdown: base power + scaling stat (TRUE shields are flat)', () => {
+    // Physical shield: 20 flat base + 30 Attack. maxHp 80 -> first cast grants
+    // the full 50, the second is capped to 30 with 20 wasted; the breakdown
+    // reports the REQUEST both times, unchanged by the cap.
+    const physical = cfg(
+      tc('turtle', ['phys_wall'], { attack: 30, speed: 20, maxHp: 80 }, { skillBook: shieldBook }),
+      tc('dummy', [], { speed: 10 }, { skillBook: shieldBook }),
+      { ...NO_ENDGAME, skillBook: shieldBook, maxTurns: 4 },
+    );
+    const physGains = simulate(physical, 1).events.filter(
+      (e): e is Extract<Events[number], { kind: 'shieldGain' }> => e.kind === 'shieldGain',
+    );
+    expect(physGains[0]).toMatchObject({ amount: 50, wasted: 0, calculation: { power: 20, statBonus: 30 } });
+    expect(physGains[1]).toMatchObject({ amount: 30, wasted: 20, calculation: { power: 20, statBonus: 30 } });
+    for (const gain of physGains) {
+      const request = gain.calculation!.power + gain.calculation!.statBonus;
+      expect(gain.amount + gain.wasted).toBe(request);
+      expect(gain.amount).toBe(Math.min(request, 80 - (gain.totalAfter - gain.amount)));
+    }
+
+    // TRUE shield: flat by design — Attack 30 and Magic Power 30 contribute nothing.
+    const trueCfg = cfg(
+      tc('turtle', ['true_wall'], { attack: 30, magicPower: 30, speed: 20, maxHp: 500 }, { skillBook: shieldBook }),
+      tc('dummy', [], { speed: 10 }, { skillBook: shieldBook }),
+      { ...NO_ENDGAME, skillBook: shieldBook, maxTurns: 1 },
+    );
+    const trueGain = simulate(trueCfg, 1).events.find(
+      (e): e is Extract<Events[number], { kind: 'shieldGain' }> => e.kind === 'shieldGain',
+    );
+    expect(trueGain).toMatchObject({
+      property: 'true',
+      amount: 50,
+      wasted: 0,
+      calculation: { power: 50, statBonus: 0 },
+    });
+  });
+
+  it('shieldGain reports the three pools separately, and totalAfter is their sum', () => {
+    // The turtle casts a physical wall AND a true wall, so the two pools are
+    // distinguishable in poolsAfter (the merged totalAfter cannot show that).
+    const c = cfg(
+      tc('turtle', ['phys_wall', 'true_wall'], { attack: 10, speed: 20, maxHp: 500 }, { skillBook: shieldBook }),
+      tc('dummy', [], { speed: 1 }, { skillBook: shieldBook }),
+      { ...NO_ENDGAME, skillBook: shieldBook, maxTurns: 2 },
+    );
+    const { events, finalState } = simulate(c, 1);
+    const gains = events.filter(
+      (e): e is Extract<Events[number], { kind: 'shieldGain' }> => e.kind === 'shieldGain',
+    );
+    // Physical: 20 base + 10 Attack = 30. True: flat 50, no stat.
+    expect(gains[0]).toMatchObject({
+      property: 'physical',
+      amount: 30,
+      poolsAfter: { physical: 30, magical: 0, true: 0 },
+      totalAfter: 30,
+    });
+    expect(gains[1]).toMatchObject({
+      property: 'true',
+      amount: 50,
+      poolsAfter: { physical: 30, magical: 0, true: 50 },
+      totalAfter: 80,
+    });
+    for (const gain of gains) {
+      // Always emitted by the engine, even though the type keeps it optional.
+      const pools = gain.poolsAfter!;
+      expect(pools).toBeDefined();
+      expect(pools.physical + pools.magical + pools.true).toBe(gain.totalAfter);
+    }
+    // The last reported pools are exactly the persisted per-pool state.
+    expect(gains[gains.length - 1]!.poolsAfter).toEqual({ ...finalState.player.shields });
+  });
+
+  it('damage records the per-pool drain, exposing the 2:1 TRUE spend a merged `blocked` hides', () => {
+    // 30 TRUE shield vs a 20 magical hit: the whole 30-point pool is REMOVED but
+    // only floor(30/2) = 15 damage is blocked. `blocked` alone can't say that.
+    const c = cfg(
+      tc('hero', ['magic_bolt'], { magicPower: 10, speed: 10 }, { skillBook: shieldBook }),
+      tc('turtle', ['true_wall_small', 'bite'], { attack: 10, speed: 11, maxHp: 80 }, { skillBook: shieldBook }),
+      { ...NO_ENDGAME, skillBook: shieldBook, maxTurns: 3 },
+    );
+    const { events } = simulate(c, 1);
+    const hit = events.find(
+      (e): e is Extract<Events[number], { kind: 'damage' }> => e.kind === 'damage' && e.side === 'enemy',
+    )!;
+    expect(hit).toMatchObject({ amount: 20, blocked: 15, hpAfter: 75 });
+    expect(hit.shieldDrain).toEqual({ physical: 0, magical: 0, true: 30 });
+    // The TRUE portion of the block is exactly floor(spend / 2).
+    expect(hit.blocked).toBe(Math.floor(hit.shieldDrain!.true / 2));
+  });
+
+  it('a matching pool drains point-for-point and only the SPILL pays the 2:1 true rate', () => {
+    // Turtle holds 20 magical (10 base + 10 MP) and 50 true; a 40 magical hit
+    // eats the 20 magical pool 1:1, then spends 40 true to block the last 20.
+    const spillBook: SkillBook = {
+      ...shieldBook,
+      magic_wall: {
+        id: 'magic_wall',
+        name: 'Magic Wall',
+        archetypes: ['defensive'],
+        property: 'magical',
+        size: 1,
+        speedWeight: 1,
+        rarity: 'common',
+        tier: 'bronze',
+        effects: [{ kind: 'shield', power: 10 }],
+        text: '',
+      },
+      big_bolt: {
+        id: 'big_bolt',
+        name: 'Big Bolt',
+        archetypes: ['offense'],
+        property: 'magical',
+        size: 1,
+        speedWeight: 10,
+        rarity: 'common',
+        tier: 'bronze',
+        effects: [{ kind: 'damage', power: 30 }],
+        text: '',
+      },
+    };
+    // Turtle (score 12−1) shields twice first; the hero (score 10−10) then fires once.
+    const c = cfg(
+      tc('hero', ['big_bolt'], { magicPower: 10, speed: 10 }, { skillBook: spillBook }),
+      tc('turtle', ['magic_wall', 'true_wall'], { magicPower: 10, speed: 12, maxHp: 200 }, { skillBook: spillBook }),
+      { ...NO_ENDGAME, skillBook: spillBook, maxTurns: 1 },
+    );
+    const { events } = simulate(c, 1);
+    const hit = events.find(
+      (e): e is Extract<Events[number], { kind: 'damage' }> => e.kind === 'damage' && e.side === 'enemy',
+    )!;
+    // 30 flat + 10 MP = 40 incoming; 20 blocked by the magical pool 1:1, the
+    // remaining 20 costs 40 true points.
+    expect(hit).toMatchObject({ amount: 40, blocked: 40, hpAfter: 200 });
+    expect(hit.shieldDrain).toEqual({ physical: 0, magical: 20, true: 40 });
+    expect(hit.blocked).toBe(hit.shieldDrain!.magical + Math.floor(hit.shieldDrain!.true / 2));
+  });
+
+  it('unblocked hits carry no shieldDrain at all', () => {
+    const c = cfg(
+      tc('hero', ['magic_bolt'], { magicPower: 10, speed: 20 }, { skillBook: shieldBook }),
+      tc('dummy', [], { speed: 1, maxHp: 80 }, { skillBook: shieldBook }),
+      { ...NO_ENDGAME, skillBook: shieldBook, maxTurns: 1 },
+    );
+    const hit = simulate(c, 1).events.find(
+      (e): e is Extract<Events[number], { kind: 'damage' }> => e.kind === 'damage',
+    )!;
+    expect(hit.blocked).toBe(0);
+    expect('shieldDrain' in hit).toBe(false);
+  });
 });
 
 describe('healing', () => {
@@ -176,7 +326,7 @@ describe('healing', () => {
       { ...NO_ENDGAME, maxTurns: 1 },
     );
     const { events } = simulate(c, 1);
-    expect(events.find((e) => e.kind === 'heal')).toMatchObject({ amount: 50, flat: true, hpAfter: 100 });
+    expect(events.find((e) => e.kind === 'heal')).toMatchObject({ amount: 25, flat: true, hpAfter: 75 });
   });
 });
 

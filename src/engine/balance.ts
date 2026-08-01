@@ -45,10 +45,19 @@ export const PRICE = {
   flatPowerPerPoint: 5,
 
   /**
-   * Flat TRUE heal: deci per point — 5 flat = 1 PL (no stat add). Heals are
-   * reactive and lossy (overheal wastes), so they keep the cheaper rate.
+   * Flat TRUE heal: deci per point — 2.5 flat = 1 PL (no stat add). Re-priced
+   * 2 -> 4 (balance-designer pass, 2026-08-01): empirical early-game
+   * dominance of flat TRUE heals over MATK-scaling non-TRUE heals — at the
+   * old rate the crossover point (where a %-of-MATK heal out-heals the flat
+   * TRUE amount) only arrived around MATK 30-40, which most builds don't
+   * reach until well past the early game. Doubling the rate pulls that
+   * crossover down to MATK 5-10, so non-TRUE heals become competitive much
+   * sooner and flat TRUE heals stop being a strict early dominant strategy.
+   * Heals still keep a cheaper rate than flat damage (flatPowerPerPoint = 5)
+   * — reactive and lossy (overheal wastes) — just a smaller discount than
+   * before.
    */
-  flatTrueHealPerPoint: 2,
+  flatTrueHealPerPoint: 4,
 
   /**
    * Flat TRUE shield: deci per point — 2 flat = 1 PL, typed-shield parity

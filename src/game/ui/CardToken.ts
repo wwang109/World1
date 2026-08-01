@@ -2,8 +2,9 @@ import Phaser from 'phaser';
 import { weightOf, type SkillDef } from '../../engine/types';
 import { ELEMENT_COLOR, FONT, PROPERTY_COLOR, UI, WEAPON_COLOR } from '../theme';
 import { cardType, IDENTITY_THRESHOLD } from '../../engine/combat/typeIdentity';
+import { ACTIVE_PROFILE } from '../layoutProfile';
 import { fantasyTemplateCardArtKey } from './cardArtPresentation';
-import { summarizeEffects, type ScalingStats } from './skillPresentation';
+import { summarizeEffects, type ScalingStats, type SkillFaceMode } from './skillPresentation';
 import { cardTokenSpec, type CardTokenSpec } from './cardTokenSpec';
 
 /** A small badge rendered into the token's reserved accessory rail
@@ -30,8 +31,25 @@ export interface CardTokenOptions {
   state?: 'none' | 'cursor' | 'drag';
   /** The current combatant's live Attack/Magic Power — renders `base+stat` on damage/heal/shield lines. */
   stats?: ScalingStats;
+  /**
+   * Card-face number treatment for damage/heal/shield lines — see
+   * `SkillFaceMode`. Defaults to the ACTIVE PLATFORM's convention (mobile:
+   * summed number; desktop: base+stat composition) via `ACTIVE_PROFILE`, so
+   * callers building a shared board (BoardColumn, prep/deck/shop/draft
+   * scenes) never have to thread it through by hand — pass it explicitly
+   * only to override that default for a specific card face.
+   */
+  faceMode?: SkillFaceMode;
   /** Badges for the accessory rail (rendered bottom-up on the inward edge). */
   accessories?: TokenAccessory[];
+}
+
+/** The active platform's default card-face number treatment — mobile keeps
+ * the compact summed number (space-constrained); desktop shows the
+ * base+stat composition (room for it, and it makes flat-vs-scaling
+ * legible without a tooltip). See `CardTokenOptions.faceMode`. */
+function defaultFaceMode(): SkillFaceMode {
+  return ACTIVE_PROFILE.id === 'desktop' ? 'composition' : 'summed';
 }
 
 const GRADIENT_KEY = 'cardtoken-gradient';
@@ -107,14 +125,15 @@ export class CardToken extends Phaser.GameObjects.Container {
       while (s.length > 1 && t.width > entry.maxWidth) { s = s.slice(0, -1); t.setText(`${s}…`); }
       this.add(t);
     };
+    const faceMode = opts.faceMode ?? defaultFaceMode();
     if (!spec.compact) {
       line(spec.name, skill.name, '#e8e0c8', true);
-      line(spec.effects, summarizeEffects(skill, opts.stats), '#e8d8b0'); // DMG 16 · PSN 5 (real, from effects)
+      line(spec.effects, summarizeEffects(skill, opts.stats, faceMode), '#e8d8b0'); // DMG 16 +ATK / DMG 16 · PSN 5
       line(spec.affinity, this.affinityLine(skill, type, opts.deck), '#9aa4b6');
     } else {
       // COMPACT (slim strips like TEMP HOLDING): one centered line, clamped to
       // the token width so long names never overflow the strip.
-      line(spec.compactLine, `${skill.name} · ${summarizeEffects(skill, opts.stats)}`, '#e8e0c8');
+      line(spec.compactLine, `${skill.name} · ${summarizeEffects(skill, opts.stats, faceMode)}`, '#e8e0c8');
     }
 
     // small dark scrim so a corner label stays readable over bright art.

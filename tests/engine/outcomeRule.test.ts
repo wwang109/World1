@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../../src/engine/rng';
 import { ATTRITION_START_TURN, simulate } from '../../src/engine/combat/simulate';
@@ -6,6 +5,8 @@ import { skillBook } from '../../src/data/skills';
 import type { CombatConfig, CombatantSetup, CombatantStats } from '../../src/engine/types';
 import type { CombatEvent } from '../../src/engine/combat/events';
 import { sweepCases } from './helpers/sweepConfigs';
+// The ONE hash shared with the capture script, so the two can never drift.
+import { outcomeHash as hash } from './helpers/outcomeHash';
 import baseline from './fixtures/outcomeBaseline.json';
 
 /** attrition disabled = every fight runs on cards alone. */
@@ -40,10 +41,6 @@ function attritionOrder(events: CombatEvent[], turn: number): string[] {
   return events
     .filter((e) => e.kind === 'damage' && e.source === 'attrition' && e.turn === turn)
     .map((e) => (e.kind === 'damage' ? `${e.side}${e.unit}` : ''));
-}
-
-function hash(v: unknown): string {
-  return createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 32);
 }
 
 describe('attrition hits the LOWEST INITIATIVE SCORE first', () => {
@@ -239,10 +236,13 @@ describe('no fight ever reaches the turn cap, and decisive fights are unchanged'
   // NOT a spec for any individual mechanic: it says "attrition work must not reach
   // fights decided before ATTRITION_START_TURN". A deliberate, reviewed rule change
   // elsewhere in the engine legitimately moves these logs and the fixture is then
-  // regenerated (last regeneration: the 2026-07-31 "bleed ticks at most once per
-  // global turn" fix, which changed 8/200 sweep logs — every one of them a fight
-  // where a bleeding unit multi-cast in a turn — plus 15 whose logs are identical
-  // and only carry the new `lastBleedTurn` stamp in finalState).
+  // regenerated (last regeneration: 2026-08-01, when hashing moved to the shared
+  // `outcomeHash` normalizer — a hash-REPRESENTATION change, no log moved. The
+  // normalizer strips presentation-only card fields (`text` anywhere, SkillDef
+  // `name`) that the sim never reads, so a content copy-edit can no longer force a
+  // regen; everything the engine consumes is still compared byte-for-byte. The
+  // rule changes behind the previous regens were "bleed ticks at most once per
+  // global turn" (8/200 logs) and the additive shield event metadata.)
   it('fights that end BEFORE the attrition threshold are BYTE-IDENTICAL to the captured baseline (attrition-boundary guard; proves nothing about turn-15+ fights, whose tick ORDER intentionally changed)', () => {
     const cases = sweepCases(0xba5e11, 200, { maxTurns: 200 });
     let checked = 0;
