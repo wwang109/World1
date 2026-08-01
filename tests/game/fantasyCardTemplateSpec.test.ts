@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import {
   FANTASY_CARD_TEMPLATE_SPEC,
   selectBodyRule,
@@ -46,9 +46,24 @@ describe('fantasy card template contract', () => {
     expect(validateFantasyCardArtSize(1024, 1536)).toEqual({ ok: true });
   });
 
-  it('moves PrepScene off the legacy fantasy template import', () => {
-    const prepScene = readFileSync(resolve(process.cwd(), 'src/game/scenes/PrepScene.ts'), 'utf8');
-    expect(prepScene).toContain("import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';");
-    expect(prepScene).not.toContain("import { FantasyCardTemplate } from '../ui/FantasyCardTemplate';");
+  // Was "moves PrepScene off the legacy fantasy template import". PrepScene and
+  // the V1 template were both deleted with the first-generation UI, so the
+  // invariant is now stated at its root: V1 is gone and nothing may import it.
+  it('keeps the legacy V1 fantasy template deleted and unreferenced', () => {
+    expect(existsSync(resolve(process.cwd(), 'src/game/ui/FantasyCardTemplate.ts'))).toBe(false);
+
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) {
+          // The V1 import ends in `FantasyCardTemplate'` — V2's ends in `V2'`.
+          if (/from\s+'[^']*\/FantasyCardTemplate'/.test(readFileSync(path, 'utf8'))) offenders.push(path);
+        }
+      }
+    };
+    walk(resolve(process.cwd(), 'src'));
+    expect(offenders).toEqual([]);
   });
 });

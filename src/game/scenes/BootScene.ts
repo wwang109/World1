@@ -33,10 +33,11 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     const launch = applyDevLaunchConfig();
-    // Explicit ?scene/?view wins; otherwise the mobile profile boots into the
-    // mobile flow (Prep), desktop into the legacy Prep (dedicated desktop later).
+    // Explicit ?scene/?view wins; otherwise each profile boots into its own
+    // Prep screen. (The first-generation Prep/Battle scenes were deleted.)
     const defaultScene = ACTIVE_PROFILE.id === 'mobile' ? 'MobilePrep' : 'DesktopPrep';
-    const target = launch.scene === 'battle' ? 'Battle'
+    const battleScene = ACTIVE_PROFILE.id === 'mobile' ? 'MobileBattle' : 'DesktopBattle';
+    const target = launch.scene === 'battle' ? battleScene
       : launch.scene === 'uikit' ? 'UiKit'
       : launch.scene === 'mprep' ? 'MobilePrep'
       : launch.scene === 'mdeck' ? 'MobileDeckBuild'
@@ -58,8 +59,7 @@ export class BootScene extends Phaser.Scene {
       : launch.scene === 'mrunevent' ? 'MobileRunEvent'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'bag' ? 'DesktopDeck'
       : ACTIVE_PROFILE.id === 'desktop' && launch.prepView === 'codex' ? 'DesktopWiki'
-      : launch.prepView === 'loadout' ? defaultScene
-      : 'Prep';
+      : defaultScene;
     this.scene.start(target);
   }
 }
