@@ -68,6 +68,33 @@ describe('runScreenTemplate', () => {
     });
   }
 
+  for (const platform of PLATFORMS) {
+    // The stop/fight choices used to be positioned from the player's current
+    // depth, so they slid across the screen as a run advanced. They are now a
+    // fixed template slot; these two assertions are what keep them that way.
+    it(`${platform}: the choices slot sits wholly inside content`, () => {
+      const t = runScreenTemplate(platform);
+      const c = t.contentSlots.choices;
+      const content = t.regions.content;
+      expect(c.x).toBeGreaterThanOrEqual(content.x);
+      expect(c.y).toBeGreaterThanOrEqual(content.y);
+      expect(c.x + c.width).toBeLessThanOrEqual(content.x + content.width);
+      expect(c.y + c.height).toBeLessThanOrEqual(content.y + content.height);
+      expect(c.width).toBeGreaterThan(0);
+      expect(c.height).toBeGreaterThan(0);
+    });
+
+    it(`${platform}: the choices slot is depth-independent (a constant rect)`, () => {
+      // A regression guard with teeth: the template takes no run state at all,
+      // so the slot cannot vary with depth/wave. If someone reintroduces a
+      // depth-derived position they must change this contract to do it.
+      const a = runScreenTemplate(platform).contentSlots.choices;
+      const b = runScreenTemplate(platform).contentSlots.choices;
+      expect(a).toEqual(b);
+      expect(runScreenTemplate.length).toBe(1); // (platform) only — no run arg
+    });
+  }
+
   it('is deterministic (same reference each call)', () => {
     expect(runScreenTemplate('desktop')).toBe(runScreenTemplate('desktop'));
   });

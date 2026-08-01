@@ -120,7 +120,11 @@ export const INITIAL_WAVES = 2;
 
 const MIN_STOPS_PER_WAVE = 2;
 const MAX_STOPS_PER_WAVE = 3;
-const MIN_CHOICES = 2;
+/** USER-LOCKED (2026-07-31): every stop column offers exactly THREE choices —
+ * a 2-choice stop read as a coin flip. With at most one shop per column (below)
+ * that always leaves at least two events, so a shop-avoiding player still gets
+ * a real decision. */
+const MIN_CHOICES = 3;
 const MAX_CHOICES = 3;
 /**
  * Per-wave shop rate — USER-LOCKED (2026-07-30): the old "2-4 shops per whole

@@ -132,21 +132,19 @@ export class DesktopRunMapScene extends Phaser.Scene {
 
   private renderTrail(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
     const area = SCREEN.width - GX * 2;
-    const gap = DESKTOP_PROFILE.gap;
-    const choiceColW = 420;
     const top = CONTENT_TOP;
     const bottom = SCREEN.height - DESKTOP_PROFILE.safe.bottom;
     const route = snapshotRunRoute(run);
     const bounds = { x: GX, y: top, w: area, h: bottom - top };
     renderRunRouteBoard(this, bounds, route, { mode: 'desktop' });
 
-    const columnCount = route.columns.length;
-    if (columnCount === 0) return;
-    const currentIndex = Math.max(0, route.nextDepth - 1);
-    const cellW = Math.max(0, (area - gap * 2) / columnCount);
-    const currentX = GX + gap + cellW * (currentIndex + 0.5);
-    const choiceX = Phaser.Math.Clamp(currentX - choiceColW / 2, GX, GX + area - choiceColW);
-    this.renderChoiceColumn(choiceX, top + 42, choiceColW, bottom - (top + 42));
+    if (route.columns.length === 0) return;
+    // FIXED position from the template — the choices used to be centred on the
+    // player's current depth, so they slid across the screen as the run
+    // advanced and had to be re-found every stop. The route board below still
+    // shows where you are; the thing you CLICK never moves.
+    const slot = TEMPLATE.contentSlots.choices;
+    this.renderChoiceColumn(slot.x, slot.y, slot.width, slot.height);
   }
 
   private renderChoiceColumn(x: number, top: number, w: number, availableH: number): void {
@@ -256,7 +254,9 @@ export class DesktopRunMapScene extends Phaser.Scene {
     reroll.on('pointerdown', () => { rerollPendingSeed(); this.rerender(); });
 
     const startW = pw - 80;
-    const startY = py + ph - 70;
+    // The caption below is bottom-anchored at ph-16 and ~13px tall, so it
+    // reaches up to ph-29; the button must clear that, not end at ph-22.
+    const startY = py + ph - 84;
     const start = this.add.rectangle(cx, startY, startW, 48, UI.chip, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
     this.add.text(cx, startY + 24, 'START', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textOnChip }).setOrigin(0.5);
     start.on('pointerdown', () => { startRun(getPendingSeed()); this.scene.start('DesktopDraft'); });

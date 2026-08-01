@@ -86,8 +86,15 @@ function track(list: Phaser.GameObjects.GameObject[] | undefined, obj: Phaser.Ga
   list?.push(obj);
 }
 
+/**
+ * Alarm colour for the last life. Exactly 1 — NOT `<= 1`: the pre-run "START A
+ * NEW RUN" state reports 0 lives (there is no run yet), and `<= 1` painted that
+ * whole strip red as if the player were about to die. In a real run 0 lives
+ * means the run is already over and the end banner has replaced the strip, so 0
+ * is never a live in-run value.
+ */
 function livesColor(lives: number): string {
-  return lives <= 1 ? '#e0654a' : UI.textAccent;
+  return lives === 1 ? '#e0654a' : UI.textAccent;
 }
 
 function drawSlotButton(

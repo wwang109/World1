@@ -128,12 +128,10 @@ export class MobileRunMapScene extends Phaser.Scene {
     renderRunRouteBoard(this, routeBounds, route, { mode: 'mobile' });
 
     if (route.columns.length === 0) return;
-    // Match the route renderer's mobile lane placement so the current stop
-    // sits directly above the stack of available next-node choices.
-    const laneX = routeBounds.x + Math.max(F.label + MOBILE_PROFILE.gap * 2, routeBounds.w * 0.58);
-    const choiceW = 330;
-    const choiceX = Phaser.Math.Clamp(laneX - choiceW / 2, 10, this.W - 10 - choiceW);
-    this.renderChoiceBlock(choiceX, 438, choiceW, this.H - 10 - 438);
+    // FIXED position from the template (was derived from the route lane) so the
+    // choices never move between stops — same reasoning as desktop.
+    const slot = TEMPLATE.contentSlots.choices;
+    this.renderChoiceBlock(slot.x, slot.y, slot.width, slot.height);
   }
 
   private renderChoiceBlock(x: number, top: number, w: number, availableH: number): void {
@@ -234,7 +232,9 @@ export class MobileRunMapScene extends Phaser.Scene {
     this.add.text(rerollX + 41, seedRowY + 16, 'REROLL', { fontSize: '10px', color: '#1a1208', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     reroll.on('pointerdown', () => { rerollPendingSeed(); this.rerender(); });
 
-    const startY = py + ph - 66;
+    // Caption below is bottom-anchored at ph-14 (~11px tall, so up to ph-25);
+    // the button ended at ph-22 and clipped it.
+    const startY = py + ph - 78;
     const start = this.add.rectangle(cx, startY, pw - 40, 44, 0xb78a46, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
     this.add.text(cx, startY + 22, 'START', { fontSize: '15px', color: '#1a1208', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
     start.on('pointerdown', () => { startRun(getPendingSeed()); this.scene.start('MobileDraft'); });

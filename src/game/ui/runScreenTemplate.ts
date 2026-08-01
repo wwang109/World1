@@ -47,6 +47,15 @@ export interface RunScreenTemplate {
   actionSlots: Record<RunActionRole, Rect>;
   /** Which region each action role's slot is a sub-rect of. */
   actionRegionOf: Record<RunActionRole, RunScreenRegion>;
+  /**
+   * Named sub-rects INSIDE `content` (so they legitimately overlap it, unlike
+   * the mutually-exclusive `regions`). `choices` is the stop/fight selection
+   * block: it must be in the SAME place on every visit. It used to be
+   * positioned from the player's current depth on the trail, so the panels
+   * slid across the screen as a run advanced and you had to re-find them each
+   * time — exactly the "information moving around" the template exists to stop.
+   */
+  contentSlots: { choices: Rect };
 }
 
 /** Splits `region` into `count` equal-width slots left to right, `gap` apart. */
@@ -72,12 +81,21 @@ function buildDesktopTemplate(): RunScreenTemplate {
     footer: { x: gx, y: height - 24, width: width - gx * 2, height: 0 },
   };
   const [back, secondary, tertiary, primary] = splitRow(regions.actions, 4, 12) as [Rect, Rect, Rect, Rect];
+  // Centred at a FIXED x/y: three 92px panels + gaps + the two heading lines.
+  const choicesW = 420;
+  const choices: Rect = {
+    x: Math.round(regions.content.x + (regions.content.width - choicesW) / 2),
+    y: regions.content.y + 12,
+    width: choicesW,
+    height: 356,
+  };
   return {
     platform: 'desktop',
     canvas: { width, height },
     regions,
     actionSlots: { back, secondary, tertiary, primary },
     actionRegionOf: { back: 'actions', secondary: 'actions', tertiary: 'actions', primary: 'actions' },
+    contentSlots: { choices },
   };
 }
 
@@ -96,12 +114,23 @@ function buildMobileTemplate(): RunScreenTemplate {
     footer: { x: sx, y: height - sx - 44, width: width - sx * 2, height: 44 },
   };
   const [back, secondary, tertiary] = splitRow(regions.actions, 3, 8) as [Rect, Rect, Rect];
+  // Mobile stacks the route board above the choices, so the block sits at a
+  // fixed y below it — already stable horizontally, now declared not literal.
+  const choicesW = 330;
+  const choicesY = 438;
+  const choices: Rect = {
+    x: Math.round(regions.content.x + (regions.content.width - choicesW) / 2),
+    y: choicesY,
+    width: choicesW,
+    height: regions.footer.y - 12 - choicesY,
+  };
   return {
     platform: 'mobile',
     canvas: { width, height },
     regions,
     actionSlots: { back, secondary, tertiary, primary: { ...regions.footer } },
     actionRegionOf: { back: 'actions', secondary: 'actions', tertiary: 'actions', primary: 'footer' },
+    contentSlots: { choices },
   };
 }
 

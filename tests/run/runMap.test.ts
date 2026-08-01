@@ -29,8 +29,8 @@ function assertColumnInvariants(map: ReturnType<typeof generateRunMap>): void {
     }
     const isCombat = column.every((n) => n.kind === 'fight' || n.kind === 'boss');
     if (isCombat) continue;
-    expect(column.length).toBeGreaterThanOrEqual(2);
-    expect(column.length).toBeLessThanOrEqual(3);
+    // Exactly three — user-locked 2026-07-31 (was a seeded 2-3).
+    expect(column.length).toBe(3);
     expect(column.every((n) => n.kind === 'shop')).toBe(false);
     const shopCount = column.filter((n) => n.kind === 'shop').length;
     expect(shopCount).toBeLessThanOrEqual(1);
