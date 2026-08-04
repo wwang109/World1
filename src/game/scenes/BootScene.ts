@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { installUnlock } from '../audio/audioBus';
 import { applyDevLaunchConfig } from '../devLaunch';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { CARD_ART_CATALOG } from '../ui/cardArtCatalog';
@@ -32,6 +33,9 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Autoplay policy: the AudioContext can't start until a user gesture —
+    // arm the one-shot unlock here so sound works from the first click on.
+    installUnlock();
     const launch = applyDevLaunchConfig();
     // Explicit ?scene/?view wins; otherwise each profile boots into its own
     // Prep screen. (The first-generation Prep/Battle scenes were deleted.)

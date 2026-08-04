@@ -18,6 +18,7 @@ doc disagrees with code, code wins.** Three classes:
 | [`run-structure.md`](run-structure.md) | LIVING | The endless run as built: ladder, lives, bosses, gold, shops, events, draft, leveling, `src/run` module map. |
 | [`feature-inventory.md`](feature-inventory.md) | LIVING | Per-screen feature checklist, desktop + mobile — the both-platforms-rule ledger. |
 | [`ui-workbook.md`](ui-workbook.md) | LIVING | UI verification practice: canvases/profiles, `?scene=` routes, layout audits, screenshot capture. |
+| [`audio-design.md`](audio-design.md) | LIVING | Audio buses, the `SfxKey` event vocabulary, placeholder-synthesis → real-asset swap path, asset wishlist. |
 | [`card-template-spec.md`](card-template-spec.md) | LIVING | Fantasy card template V2 geometry/assets/typography (mirrors the TS spec modules). |
 | [`card-text-style-guide.md`](card-text-style-guide.md) | LIVING | Canonical card-text vocabulary and phrasing. |
 | [`enemy-design.md`](enemy-design.md) | LIVING | Bronze-floor enemy authoring rule (scaling belongs to the run layer). |
