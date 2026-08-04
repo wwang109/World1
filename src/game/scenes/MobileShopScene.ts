@@ -14,6 +14,7 @@ import {
   ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, rerollCurrentShop, retireActiveRun,
 } from '../runStore';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
+import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
@@ -26,6 +27,7 @@ import { rebuildScene } from '../sceneRebuild';
 interface ShelfLike { cards: CardOffer[]; gems: GemOffer[]; rerollCount: number }
 
 type PendingBuy = { kind: 'card'; index: number } | { kind: 'gem'; index: number };
+const F = MOBILE_PROFILE.font;
 const TEMPLATE = runScreenTemplate('mobile');
 
 /**
@@ -146,18 +148,18 @@ export class MobileShopScene extends Phaser.Scene {
       const x = 10 + i * (w + gap);
       const r = this.add.rectangle(x, 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       r.on('pointerdown', fn);
-      this.add.text(x + w / 2, 25, label, { fontSize: '9px', color: active ? '#1a1208' : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(x + w / 2, 25, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
   }
 
   private renderGoldBalance(): void {
-    this.add.text(this.W - 12, 50, `GOLD ${this.activeGold()}`, { fontSize: '12px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
+    this.add.text(this.W - 12, 50, `GOLD ${this.activeGold()}`, { fontSize: `${F.body}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
   }
 
   // ---------- storefront ----------
 
   private renderStorefront(): void {
-    this.add.text(12, 50, 'CHOOSE A SHOP', { fontSize: '11px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
+    this.add.text(12, 50, 'CHOOSE A SHOP', { fontSize: `${F.label}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
     // 16 themes won't fit as full-width rows (they ran off the bottom), so the
     // picker is a 2-column grid sized to the remaining screen height.
     const top = 70;
@@ -172,8 +174,8 @@ export class MobileShopScene extends Phaser.Scene {
       const y = top + Math.floor(i / cols) * (h + gap);
       const cell = this.add.rectangle(x, y, cellW, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       cell.on('pointerdown', () => { ensureShelf(id); this.selectedShop = id; this.rerender(); });
-      this.add.text(x + 10, y + 8, shop.name.toUpperCase(), { fontSize: '12px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: cellW - 20 } });
-      this.add.text(x + 10, y + h - 14, `${shop.shelf.cards}C · ${shop.shelf.gems}G`, { fontSize: '9px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold' });
+      this.add.text(x + 10, y + 8, shop.name.toUpperCase(), { fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: cellW - 20 } });
+      this.add.text(x + 10, y + h - 14, `${shop.shelf.cards}C · ${shop.shelf.gems}G`, { fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold' });
     });
   }
 
@@ -193,11 +195,11 @@ export class MobileShopScene extends Phaser.Scene {
     if (!runShop) {
       const backW = 70;
       const back = this.add.rectangle(10, top, backW, 24, 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      this.add.text(10 + backW / 2, top + 12, '‹ SHOPS', { fontSize: '9px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(10 + backW / 2, top + 12, '‹ SHOPS', { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       back.on('pointerdown', () => { this.selectedShop = null; this.rerender(); });
       titleX = 18 + backW;
     }
-    this.add.text(titleX, top, shop.name.toUpperCase(), { fontSize: '14px', color: '#c69948', fontFamily: FONT.display, fontStyle: 'bold' });
+    this.add.text(titleX, top, shop.name.toUpperCase(), { fontSize: `${F.lead}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold' });
 
     // A thin shop whose whole pool already fits the shelf can never reveal
     // anything new on reroll (docs/run-shops-design.md §2b, USER-LOCKED).
@@ -205,12 +207,12 @@ export class MobileShopScene extends Phaser.Scene {
     const rerollW = 92;
     if (info.fullStock) {
       this.add.rectangle(this.W - 10 - rerollW, rerollY, rerollW, 24, 0x16233a, 0.5).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
-      this.add.text(this.W - 10 - rerollW / 2, rerollY + 12, 'FULL STOCK', { fontSize: '9px', color: '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(this.W - 10 - rerollW / 2, rerollY + 12, 'FULL STOCK', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     } else {
       const canReroll = this.activeGold() >= 1;
       const rr = this.add.rectangle(this.W - 10 - rerollW, rerollY, rerollW, 24, canReroll ? 0xb78a46 : 0x16233a, canReroll ? 1 : 0.5)
         .setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
-      this.add.text(this.W - 10 - rerollW / 2, rerollY + 12, 'REROLL · 1G', { fontSize: '9px', color: canReroll ? '#1a1208' : '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(this.W - 10 - rerollW / 2, rerollY + 12, 'REROLL · 1G', { fontSize: `${F.tiny}px`, color: canReroll ? UI.textOnChip : UI.textDisabled, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       if (canReroll) {
         rr.setInteractive({ useHandCursor: true });
         rr.on('pointerdown', () => { runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
@@ -220,7 +222,7 @@ export class MobileShopScene extends Phaser.Scene {
     let y = top + 58;
     const cardSlots = info.cardSlots;
     if (cardSlots > 0) {
-      this.add.text(12, y, `CARDS · ${shelf.cards.length}/${cardSlots}`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
+      this.add.text(12, y, `CARDS · ${shelf.cards.length}/${cardSlots}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
       y += 16;
       const cardH = 66;
       for (let i = 0; i < cardSlots; i++) {
@@ -232,7 +234,7 @@ export class MobileShopScene extends Phaser.Scene {
         const hit = this.add.rectangle(10 + (this.W - 20) / 2, y + cardH / 2, this.W - 20, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
         hit.on('pointerdown', () => { this.detailCardIndex = i; this.detailTier = offer.tier; this.rerender(); });
         const affordable = this.activeGold() >= offer.price;
-        this.add.text(this.W - 16, y + 6, `${offer.price} G`, { fontSize: '10px', color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setBackgroundColor('#0b1420').setPadding(4, 2, 4, 2);
+        this.add.text(this.W - 16, y + 6, `${offer.price} G`, { fontSize: `${F.small}px`, color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setBackgroundColor('#0b1420').setPadding(4, 2, 4, 2);
         y += cardH + 6;
       }
       y += 6;
@@ -240,7 +242,7 @@ export class MobileShopScene extends Phaser.Scene {
 
     const gemSlots = info.gemSlots;
     if (gemSlots > 0) {
-      this.add.text(12, y, `GEMS · ${shelf.gems.length}/${gemSlots}`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
+      this.add.text(12, y, `GEMS · ${shelf.gems.length}/${gemSlots}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
       y += 16;
       const gemH = 58;
       for (let i = 0; i < gemSlots; i++) {
@@ -250,24 +252,24 @@ export class MobileShopScene extends Phaser.Scene {
         const cell = this.add.rectangle(10, y, this.W - 20, gemH, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8).setInteractive({ useHandCursor: true });
         cell.on('pointerdown', () => { this.detailGemIndex = i; this.rerender(); });
         this.add.rectangle(28, y + gemH / 2, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-        this.add.text(42, y + 8, gem.name, { fontSize: '11px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
-        const body = this.add.text(42, y + 24, stripCardTextMarkup(gem.text), { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: this.W - 100 } });
+        this.add.text(42, y + 8, gem.name, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' });
+        const body = this.add.text(42, y + 24, stripCardTextMarkup(gem.text), { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: this.W - 100 } });
         let s = stripCardTextMarkup(gem.text);
         while (s.length > 1 && body.height > 24) { s = s.slice(0, -1); body.setText(`${s}…`); }
         const affordable = this.activeGold() >= offer.price;
-        this.add.text(this.W - 20, y + gemH - 18, `${offer.price} G`, { fontSize: '10px', color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
+        this.add.text(this.W - 20, y + gemH - 18, `${offer.price} G`, { fontSize: `${F.small}px`, color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
         y += gemH + 6;
       }
     }
 
     if (cardSlots === 0 && gemSlots === 0) {
-      this.add.text(12, y, 'This shop has nothing to sell.', { fontSize: '11px', color: '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' });
+      this.add.text(12, y, 'This shop has nothing to sell.', { fontSize: `${F.label}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
     }
   }
 
   private emptySlot(y: number, h: number): void {
     this.add.rectangle(10, y, this.W - 20, h, 0x0d1b28, 0.4).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.3);
-    this.add.text(this.W / 2, y + h / 2, 'SOLD OUT', { fontSize: '10px', color: '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(this.W / 2, y + h / 2, 'SOLD OUT', { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
   }
 
   // ---------- card detail overlay ----------
@@ -291,10 +293,10 @@ export class MobileShopScene extends Phaser.Scene {
     new FantasyCardTemplateV2(this, centerX, cardY, shown, { width: cardW, height: cardH, tier: this.detailTier, glossary: false });
     y = cardY + cardH / 2 + 10;
 
-    this.add.text(centerX, y, base.name, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: '15px', color: '#e8e0c8', align: 'center', wordWrap: { width: this.W - 40 } }).setOrigin(0.5, 0);
+    this.add.text(centerX, y, base.name, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.heading}px`, color: UI.textBright, align: 'center', wordWrap: { width: this.W - 40 } }).setOrigin(0.5, 0);
     y += 24;
     const text = this.add.text(centerX, y, stripCardTextMarkup(shown.text), {
-      fontFamily: FONT.body, fontSize: '11px', color: '#c9b896', align: 'center', wordWrap: { width: this.W - 40 }, lineSpacing: 3,
+      fontFamily: FONT.body, fontSize: `${F.label}px`, color: '#c9b896', align: 'center', wordWrap: { width: this.W - 40 }, lineSpacing: 3,
     }).setOrigin(0.5, 0);
     y += text.height + 16;
 
@@ -304,7 +306,7 @@ export class MobileShopScene extends Phaser.Scene {
     const canBuy = affordable && hasRoom;
     const btn = this.add.rectangle(centerX, y, this.W - 40, 40, canBuy ? 0xe8b446 : 0x16233a, canBuy ? 1 : 0.5).setOrigin(0.5, 0).setStrokeStyle(1, UI.border, canBuy ? 0.8 : 0.4);
     const label = !affordable ? `NEED ${offer.price} GOLD` : !hasRoom ? 'BAG FULL' : `BUY · ${offer.price} GOLD`;
-    this.add.text(centerX, y + 20, label, { fontSize: '12px', color: canBuy ? '#1a1208' : '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(centerX, y + 20, label, { fontSize: `${F.body}px`, color: canBuy ? UI.textOnChip : UI.textDisabled, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     if (canBuy) {
       btn.setInteractive({ useHandCursor: true });
       btn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
@@ -331,18 +333,18 @@ export class MobileShopScene extends Phaser.Scene {
     let y = 110;
     this.add.rectangle(centerX, y + 12, 30, 30, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45).setStrokeStyle(2, 0x8a94a6, 0.8);
     y += 46;
-    this.add.text(centerX, y, gem.name, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: '16px', color: '#e8e0c8', align: 'center', wordWrap: { width: this.W - 40 } }).setOrigin(0.5, 0);
+    this.add.text(centerX, y, gem.name, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textBright, align: 'center', wordWrap: { width: this.W - 40 } }).setOrigin(0.5, 0);
     y += 26;
-    this.add.text(centerX, y, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT RIDER'}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: '10px', color: '#8a94a6' }).setOrigin(0.5, 0);
+    this.add.text(centerX, y, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT RIDER'}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textMuted }).setOrigin(0.5, 0);
     y += 24;
     const body = this.add.text(centerX, y, stripCardTextMarkup(gem.text), {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: '13px', color: '#e8e0c8', align: 'center', wordWrap: { width: this.W - 40 }, lineSpacing: 3,
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textBright, align: 'center', wordWrap: { width: this.W - 40 }, lineSpacing: 3,
     }).setOrigin(0.5, 0);
     y += body.height + 20;
 
     const affordable = this.activeGold() >= offer.price;
     const btn = this.add.rectangle(centerX, y, this.W - 40, 40, affordable ? 0xe8b446 : 0x16233a, affordable ? 1 : 0.5).setOrigin(0.5, 0).setStrokeStyle(1, UI.border, affordable ? 0.8 : 0.4);
-    this.add.text(centerX, y + 20, affordable ? `BUY · ${offer.price} GOLD` : `NEED ${offer.price} GOLD`, { fontSize: '12px', color: affordable ? '#1a1208' : '#5a6880', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(centerX, y + 20, affordable ? `BUY · ${offer.price} GOLD` : `NEED ${offer.price} GOLD`, { fontSize: `${F.body}px`, color: affordable ? UI.textOnChip : UI.textDisabled, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     if (affordable) {
       btn.setInteractive({ useHandCursor: true });
       btn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
@@ -368,15 +370,15 @@ export class MobileShopScene extends Phaser.Scene {
     this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.72).setOrigin(0, 0).setInteractive();
     const bw = this.W - 60; const bx = 30; const by = this.H / 2 - 70;
     this.add.rectangle(bx, by, bw, 140, 0x141d2c).setOrigin(0, 0).setStrokeStyle(2, 0xe8b446);
-    this.add.text(this.W / 2, by + 24, `Buy ${name}?`, { fontSize: '15px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.text(this.W / 2, by + 50, `${price} gold — leaves the shelf once bought.`, { fontSize: '10px', color: '#9aa4b6', fontFamily: FONT.body }).setOrigin(0.5);
+    this.add.text(this.W / 2, by + 24, `Buy ${name}?`, { fontSize: `${F.heading}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(this.W / 2, by + 50, `${price} gold — leaves the shelf once bought.`, { fontSize: `${F.small}px`, color: UI.textFootnote, fontFamily: FONT.body }).setOrigin(0.5);
     const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
       const r = this.add.rectangle(dx, by + 88, w, 36, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       r.on('pointerdown', fn);
-      this.add.text(dx + w / 2, by + 106, label, { fontSize: '13px', color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(dx + w / 2, by + 106, label, { fontSize: `${F.name}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };
-    mk(bx + 16, (bw - 40) / 2, 'CANCEL', 0x1b2940, '#e8e0c8', () => { this.pendingBuy = null; this.rerender(); });
-    mk(bx + 24 + (bw - 40) / 2, (bw - 40) / 2, 'BUY', 0xe8b446, '#1a1208', () => {
+    mk(bx + 16, (bw - 40) / 2, 'CANCEL', 0x1b2940, UI.textBright, () => { this.pendingBuy = null; this.rerender(); });
+    mk(bx + 24 + (bw - 40) / 2, (bw - 40) / 2, 'BUY', 0xe8b446, UI.textOnChip, () => {
       const result = runMode
         ? (buy.kind === 'card' ? buyCurrentShopCard(buy.index) : buyCurrentShopGem(buy.index))
         : (buy.kind === 'card' ? buyCard(shopId, buy.index) : buyGem(shopId, buy.index));
@@ -392,7 +394,7 @@ export class MobileShopScene extends Phaser.Scene {
   private showToast(text: string, color: string): void {
     for (const o of this.toastObjects) o.destroy();
     this.toastObjects = [];
-    const t = this.add.text(this.W / 2, this.H - 60, text, { fontSize: '12px', color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(4001);
+    const t = this.add.text(this.W / 2, this.H - 60, text, { fontSize: `${F.body}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(4001);
     const bg = this.add.rectangle(this.W / 2, this.H - 60, t.width + 24, t.height + 14, 0x0b1420, 0.92).setOrigin(0.5).setDepth(4000).setStrokeStyle(1, 0x3a4a62, 0.9);
     this.toastObjects = [bg, t];
     this.tweens.add({ targets: [t, bg], alpha: 0, delay: 1200, duration: 500, onComplete: () => { for (const o of this.toastObjects) o.destroy(); this.toastObjects = []; } });

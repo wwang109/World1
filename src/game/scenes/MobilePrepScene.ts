@@ -9,11 +9,14 @@ import { bankedPL, LEVEL_STAT_COST, spentPL, totalLevelPL, type LevelStat } from
 import { cachedDamageBand } from '../battleApi';
 import { setBattleContext } from '../battleContext';
 import { demoState, MAX_FOES, syncPrimaryFoe, type EnemyFightConfig } from '../demoState';
+import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { renderActionBar } from '../ui/ActionBar';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene } from '../sceneRebuild';
+
+const F = MOBILE_PROFILE.font;
 
 /** Mobile Prep screen — vertical: tabs · enemy sheet · YOUR DECK vs ENEMY
  *  SKILLS columns (shared BoardColumn/CardToken) · FIGHT. Centered phone
@@ -78,7 +81,7 @@ export class MobilePrepScene extends Phaser.Scene {
     return t.setOrigin(ox, oy);
   }
 
-  private button(dx: number, dy: number, w: number, h: number, label: string, fill: number, color: string, onClick: () => void, size = 12): void {
+  private button(dx: number, dy: number, w: number, h: number, label: string, fill: number, color: string, onClick: () => void, size = F.body): void {
     const r = this.add.rectangle(this.x(dx), this.y(dy), w, h, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
     r.on('pointerdown', onClick);
     this.add.text(this.x(dx) + w / 2, this.y(dy) + h / 2, label, { fontSize: `${size}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
@@ -96,7 +99,7 @@ export class MobilePrepScene extends Phaser.Scene {
     const w = (this.W - 20 - gap * (tabs.length - 1)) / tabs.length;
     tabs.forEach(([label, fn], i) => {
       const active = i === 0;
-      this.button(10 + i * (w + gap), 8, w, 34, label, active ? 0xb78a46 : 0x131f32, active ? '#1a1208' : UI.textDim, fn, 9);
+      this.button(10 + i * (w + gap), 8, w, 34, label, active ? 0xb78a46 : 0x131f32, active ? UI.textOnChip : UI.textDim, fn, F.tiny);
     });
   }
 
@@ -120,12 +123,12 @@ export class MobilePrepScene extends Phaser.Scene {
         if (isActive) { this.picker = i; } else { demoState.activeFoe = i; }
         this.rerender();
       });
-      this.text(cx + 8, cy + 5, enemies[cfg.enemyId]!.name.toUpperCase(), 10, isActive ? '#e8e0c8' : '#9aa4b6', { bold: true });
-      this.text(cx + 8, cy + 19, `${cfg.title.toUpperCase()} · LV ${cfg.level}${isActive ? ' · ⇄' : ''}`, 9, '#9aa4b6', { bold: true });
+      this.text(cx + 8, cy + 5, enemies[cfg.enemyId]!.name.toUpperCase(), F.small, isActive ? UI.textBright : UI.textFootnote, { bold: true });
+      this.text(cx + 8, cy + 19, `${cfg.title.toUpperCase()} · LV ${cfg.level}${isActive ? ' · ⇄' : ''}`, F.tiny, UI.textFootnote, { bold: true });
       if (team.length > 1) {
         const remove = this.add.rectangle(this.x(cx + chipW - 18), this.y(cy + 2), 16, 16, UI.badSoft, 0.9)
           .setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
-        this.add.text(this.x(cx + chipW - 10), this.y(cy + 10), '✕', { fontSize: '9px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+        this.add.text(this.x(cx + chipW - 10), this.y(cy + 10), '✕', { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
         remove.on('pointerdown', () => {
           demoState.enemyTeam = demoState.enemyTeam.filter((_, idx) => idx !== i);
           syncPrimaryFoe();
@@ -136,10 +139,10 @@ export class MobilePrepScene extends Phaser.Scene {
     const cellCount = Math.min(team.length, MAX_FOES) + (team.length < MAX_FOES ? 1 : 0);
     if (team.length < MAX_FOES) {
       const [ax, ay] = cell(cellCount - 1);
-      this.button(ax, ay, chipW, chipH, `+ FOE (${team.length}/${MAX_FOES})`, 0x131f32, '#c69948', () => {
+      this.button(ax, ay, chipW, chipH, `+ FOE (${team.length}/${MAX_FOES})`, 0x131f32, UI.textAccent, () => {
         this.picker = 'add';
         this.rerender();
-      }, 11);
+      }, F.label);
     }
     return 50 + Math.ceil(cellCount / 2) * (chipH + rowGap);
   }
@@ -158,8 +161,8 @@ export class MobilePrepScene extends Phaser.Scene {
     const py = Math.max(20, (this.H - ph) / 2);
     const panel = this.add.rectangle(10, py, this.W - 20, ph, 0x142738, 0.98).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive();
     void panel;
-    this.add.text(this.x(24), this.y(py + 12), mode === 'add' ? 'ADD FOE' : 'SWAP FOE', { fontSize: '14px', color: '#c69948', fontFamily: FONT.display, fontStyle: 'bold' });
-    this.add.text(this.x(this.W - 24), this.y(py + 16), 'tap outside to cancel', { fontSize: '9px', color: '#8d724a', fontFamily: FONT.body }).setOrigin(1, 0);
+    this.add.text(this.x(24), this.y(py + 12), mode === 'add' ? 'ADD FOE' : 'SWAP FOE', { fontSize: `${F.lead}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold' });
+    this.add.text(this.x(this.W - 24), this.y(py + 16), 'tap outside to cancel', { fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body }).setOrigin(1, 0);
     ids.forEach((id, i) => {
       const col = i % columns;
       const row = Math.floor(i / columns);
@@ -168,8 +171,8 @@ export class MobilePrepScene extends Phaser.Scene {
       const def = enemies[id]!;
       const r = this.add.rectangle(this.x(cx), this.y(cy), cellW, cellH, 0x0d1b28).setOrigin(0, 0)
         .setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      this.text(cx + 10, cy + 6, def.name.toUpperCase(), 10, '#e8e0c8', { bold: true });
-      this.text(cx + 10, cy + 22, `${(def.isBoss ? 'boss' : def.isElite ? 'elite' : 'normal').toUpperCase()} · LV ${Math.max(1, def.baseDepth)}`, 9, '#9aa4b6');
+      this.text(cx + 10, cy + 6, def.name.toUpperCase(), F.small, UI.textBright, { bold: true });
+      this.text(cx + 10, cy + 22, `${(def.isBoss ? 'boss' : def.isElite ? 'elite' : 'normal').toUpperCase()} · LV ${Math.max(1, def.baseDepth)}`, F.tiny, UI.textFootnote);
       r.on('pointerdown', () => {
         const title = def.isBoss ? 'boss' as const : def.isElite ? 'elite' as const : 'normal' as const;
         if (mode === 'add') {
@@ -193,19 +196,19 @@ export class MobilePrepScene extends Phaser.Scene {
     const h = 164;
     this.add.rectangle(this.x(10), this.y(top), this.W - 20, h, 0x101a2a).setOrigin(0, 0).setStrokeStyle(1, 0x2a3a52);
     this.add.rectangle(this.x(10), this.y(top), 5, h, 0xc9a15a).setOrigin(0, 0);
-    this.text(20, top + 8, name, 16, '#e8e0c8', { display: true, bold: true });
-    this.text(this.W - 20, top + 10, title.toUpperCase(), 9, '#1a1208', { bold: true, origin: [1, 0] })
+    this.text(20, top + 8, name, F.title, UI.textBright, { display: true, bold: true });
+    this.text(this.W - 20, top + 10, title.toUpperCase(), F.tiny, UI.textOnChip, { bold: true, origin: [1, 0] })
       .setBackgroundColor('#c9a15a').setPadding(6, 3, 6, 3);
     const s = encounter.setup.stats;
-    this.text(20, top + 32, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower}`, 11, '#e8e0c8', { bold: true });
-    this.text(20, top + 47, `${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${encounter.setup.pieces.length} cards`, 10, '#9aa4b6');
-    const bandText = this.text(20, top + 62, 'DMG/turn …', 12, '#d05c4e', { bold: true });
+    this.text(20, top + 32, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower}`, F.label, UI.textBright, { bold: true });
+    this.text(20, top + 47, `${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${encounter.setup.pieces.length} cards`, F.small, UI.textFootnote);
+    const bandText = this.text(20, top + 62, 'DMG/turn …', F.body, '#d05c4e', { bold: true });
     cachedDamageBand(encounter.setup, { turns: 8, seeds: 8 }).then((band) => {
       if (!this.scene.isActive()) return;
       bandText.setText(`DMG/turn ${band.min}–${band.max}`);
     }).catch(() => {
       if (!this.scene.isActive()) return;
-      bandText.setText('DMG/turn n/a').setColor('#8a94a6');
+      bandText.setText('DMG/turn n/a').setColor(UI.textMuted);
     });
 
     // title chips (row 1) — edit the ACTIVE foe entry.
@@ -214,9 +217,9 @@ export class MobilePrepScene extends Phaser.Scene {
     for (const t of ENEMY_TITLES) {
       const active = t === title;
       const w = 44;
-      this.button(kx, top + 82, w, 22, t.slice(0, 4).toUpperCase(), active ? 0xc9a15a : 0x16233a, active ? '#1a1208' : UI.textDim, () => {
+      this.button(kx, top + 82, w, 22, t.slice(0, 4).toUpperCase(), active ? 0xc9a15a : 0x16233a, active ? UI.textOnChip : UI.textDim, () => {
         foe.title = t; foe.rank = TITLE_PRESETS[t].rank; syncPrimaryFoe(); this.rerender();
-      }, 9);
+      }, F.tiny);
       kx += w + 5;
     }
 
@@ -228,11 +231,11 @@ export class MobilePrepScene extends Phaser.Scene {
       const active = foe.modifiers.includes(id);
       const preset = MODIFIER_PRESETS[id]!;
       const label = preset.name.length > 8 ? preset.name.slice(0, 7).toUpperCase() : preset.name.toUpperCase();
-      this.button(mx, top + 108, modChipW, 22, label, active ? 0xc9a15a : 0x16233a, active ? '#1a1208' : UI.textDim, () => {
+      this.button(mx, top + 108, modChipW, 22, label, active ? 0xc9a15a : 0x16233a, active ? UI.textOnChip : UI.textDim, () => {
         foe.modifiers = active ? foe.modifiers.filter((m) => m !== id) : [...foe.modifiers, id];
         syncPrimaryFoe();
         this.rerender();
-      }, 9);
+      }, F.tiny);
       mx += modChipW + modGap;
     }
 
@@ -252,12 +255,12 @@ export class MobilePrepScene extends Phaser.Scene {
   }
 
   private stepper(dx: number, dy: number, label: string, value: number, onDelta: (d: number) => void): void {
-    this.text(dx, dy + 6, label, 9, '#8a94a6', { bold: true });
+    this.text(dx, dy + 6, label, F.tiny, UI.textMuted, { bold: true });
     const bx = dx + 34;
-    this.button(bx, dy, 24, 24, '−', 0x16233a, '#e8e0c8', () => onDelta(-1), 14);
+    this.button(bx, dy, 24, 24, '−', 0x16233a, UI.textBright, () => onDelta(-1), F.lead);
     this.add.rectangle(this.x(bx + 26), this.y(dy), 30, 24, 0x0e1726).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
-    this.text(bx + 41, dy + 6, `${value}`, 12, '#e8e0c8', { bold: true, origin: [0.5, 0] });
-    this.button(bx + 58, dy, 24, 24, '+', 0x16233a, '#e8e0c8', () => onDelta(1), 14);
+    this.text(bx + 41, dy + 6, `${value}`, F.body, UI.textBright, { bold: true, origin: [0.5, 0] });
+    this.button(bx + 58, dy, 24, 24, '+', 0x16233a, UI.textBright, () => onDelta(1), F.lead);
   }
 
   /**
@@ -273,8 +276,8 @@ export class MobilePrepScene extends Phaser.Scene {
     const alloc = demoState.heroAllocation;
     const banked = bankedPL(level, alloc);
 
-    this.text(innerX, top, 'HERO', 10, '#b78a46', { bold: true });
-    this.text(this.W - 20, top, `PL ${spentPL(alloc)}/${totalLevelPL(level)} SPENT · ${banked} BANKED`, 9, banked > 0 ? '#c69948' : '#8a94a6', { bold: true, origin: [1, 0] });
+    this.text(innerX, top, 'HERO', F.small, '#b78a46', { bold: true });
+    this.text(this.W - 20, top, `PL ${spentPL(alloc)}/${totalLevelPL(level)} SPENT · ${banked} BANKED`, F.tiny, banked > 0 ? UI.textAccent : UI.textMuted, { bold: true, origin: [1, 0] });
     let cursor = top + 16;
 
     this.stepper(innerX, cursor, 'LV', level, (d) => {
@@ -314,23 +317,23 @@ export class MobilePrepScene extends Phaser.Scene {
       const gained = buys * cost.gain;
 
       this.add.rectangle(this.x(cx), this.y(cy), cellW, cellH, 0x101a2a).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
-      this.text(cx + 5, cy + 3, label, 9, '#9aa4b6', { bold: true });
-      this.text(cx + cellW - 5, cy + 3, gained > 0 ? `+${gained}` : '·', 9, gained > 0 ? '#c69948' : '#5a6a82', { bold: true, origin: [1, 0] });
+      this.text(cx + 5, cy + 3, label, F.tiny, UI.textFootnote, { bold: true });
+      this.text(cx + cellW - 5, cy + 3, gained > 0 ? `+${gained}` : '·', F.tiny, gained > 0 ? UI.textAccent : '#5a6a82', { bold: true, origin: [1, 0] });
       if (canSell) {
-        this.button(cx + 4, cy + cellH - btn - 4, btn, btn, '−', 0x16233a, '#e8e0c8', () => {
+        this.button(cx + 4, cy + cellH - btn - 4, btn, btn, '−', 0x16233a, UI.textBright, () => {
           demoState.heroAllocation[stat] = buys - 1; this.rerender();
-        }, 12);
+        }, F.body);
       } else {
         this.add.rectangle(this.x(cx + 4), this.y(cy + cellH - btn - 4), btn, btn, 0x0e1726, 0.5).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.3);
-        this.text(cx + 4 + btn / 2, cy + cellH - btn / 2 - 4, '−', 11, '#4a5568', { bold: true, origin: [0.5, 0.5] });
+        this.text(cx + 4 + btn / 2, cy + cellH - btn / 2 - 4, '−', F.label, '#4a5568', { bold: true, origin: [0.5, 0.5] });
       }
       if (canBuy) {
-        this.button(cx + cellW - btn - 4, cy + cellH - btn - 4, btn, btn, '+', 0x16233a, '#e8e0c8', () => {
+        this.button(cx + cellW - btn - 4, cy + cellH - btn - 4, btn, btn, '+', 0x16233a, UI.textBright, () => {
           demoState.heroAllocation[stat] = buys + 1; this.rerender();
-        }, 12);
+        }, F.body);
       } else {
         this.add.rectangle(this.x(cx + cellW - btn - 4), this.y(cy + cellH - btn - 4), btn, btn, 0x0e1726, 0.5).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.3);
-        this.text(cx + cellW - btn / 2 - 4, cy + cellH - btn / 2 - 4, '+', 11, '#4a5568', { bold: true, origin: [0.5, 0.5] });
+        this.text(cx + cellW - btn / 2 - 4, cy + cellH - btn / 2 - 4, '+', F.label, '#4a5568', { bold: true, origin: [0.5, 0.5] });
       }
     });
     cursor += 2 * (cellH + 6) + 2;
@@ -352,7 +355,7 @@ export class MobilePrepScene extends Phaser.Scene {
     const colH = this.H - (top - this.oy) - 66;
     const colW = (this.W - 20 - 8) / 2;
     const foeColX = 10 + colW + 8;
-    this.text(10 + colW / 2, sheetBottom + 6, 'YOUR DECK', 10, '#b78a46', { bold: true, origin: [0.5, 0] });
+    this.text(10 + colW / 2, sheetBottom + 6, 'YOUR DECK', F.small, '#b78a46', { bold: true, origin: [0.5, 0] });
     new BoardColumn(this, { x: this.x(10), y: this.y(top), width: colW, height: colH, side: 'left', pieces: heroPieces, deck: heroSkills, stats: { attack: heroStats.attack, magicPower: heroStats.magicPower } });
 
     // Enemy side: ONE board — the ACTIVE foe's — at any foe count, named in the
@@ -368,7 +371,7 @@ export class MobilePrepScene extends Phaser.Scene {
     const header = team.length > 1
       ? `ENEMY SKILLS · ${activeIdx + 1}/${team.length}`
       : 'ENEMY SKILLS';
-    this.text(foeColX + colW / 2, sheetBottom + 6, header, 10, '#b78a46', { bold: true, origin: [0.5, 0] });
+    this.text(foeColX + colW / 2, sheetBottom + 6, header, F.small, '#b78a46', { bold: true, origin: [0.5, 0] });
 
     const foeSkills: SkillDef[] = [];
     const foePieces: ColumnPiece[] = [];

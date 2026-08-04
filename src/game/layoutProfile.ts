@@ -15,7 +15,13 @@ export interface LayoutProfile {
   canvas: { width: number; height: number };
   safe: { x: number; top: number; bottom: number };
   /** Type ladder — real CSS px on this profile's canvas. */
-  font: { tiny: number; small: number; body: number; label: number; name: number; title: number; big: number };
+  font: {
+    tiny: number; small: number; body: number; label: number; name: number; title: number; big: number;
+    /** Extra steps between `name` and `title` / `title` and `big` — added for the
+     * mobile-scene theme migration; kept out of order in the source object below
+     * only where noted, values are unchanged from their prior literal px. */
+    lead: number; heading: number; subtitle: number; xlarge: number;
+  };
   gap: number;
   /** Minimum comfortable tap target on its short axis. */
   minTap: number;
@@ -25,7 +31,7 @@ export const MOBILE_PROFILE: LayoutProfile = {
   id: 'mobile',
   canvas: { width: 412, height: 892 },
   safe: { x: 10, top: 8, bottom: 10 },
-  font: { tiny: 9, small: 10, body: 12, label: 11, name: 13, title: 16, big: 22 },
+  font: { tiny: 9, small: 10, body: 12, label: 11, name: 13, title: 16, big: 22, lead: 14, heading: 15, subtitle: 17, xlarge: 18 },
   gap: 8,
   minTap: 40,
 };
@@ -34,7 +40,7 @@ export const DESKTOP_PROFILE: LayoutProfile = {
   id: 'desktop',
   canvas: { width: 1440, height: 900 },
   safe: { x: 32, top: 24, bottom: 24 },
-  font: { tiny: 10, small: 11, body: 14, label: 12, name: 16, title: 26, big: 36 },
+  font: { tiny: 10, small: 11, body: 14, label: 12, name: 16, title: 26, big: 36, lead: 17, heading: 19, subtitle: 22, xlarge: 24 },
   gap: 12,
   minTap: 40,
 };

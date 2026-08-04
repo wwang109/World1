@@ -4,6 +4,7 @@ import { skillBook } from '../../data/skills';
 import type { SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
 import { setBattleContext } from '../battleContext';
+import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
@@ -18,6 +19,7 @@ import {
   currentEncounter, currentNode, enemyNameFor, getActiveRun, retireActiveRun, type RunNodeKind,
 } from '../runStore';
 
+const F = MOBILE_PROFILE.font;
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
 const TEMPLATE = runScreenTemplate('mobile');
 
@@ -106,14 +108,14 @@ export class MobileRunPrepScene extends Phaser.Scene {
     this.add.rectangle(10, y, this.W - 20, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(2, color, 0.9);
     const name = enemyNameFor(encounter.enemyId);
     this.add.text(20, y + 8, `${name}   ·   ${encounter.title.toUpperCase()}   ·   LV ${encounter.effectiveLevel}`, {
-      fontSize: '12px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold',
+      fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold',
     });
     const s = encounter.setup.stats;
     this.add.text(20, y + 26, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower}`, {
-      fontSize: '9px', color: '#9aa4b6', fontFamily: FONT.body, fontStyle: 'bold',
+      fontSize: `${F.tiny}px`, color: UI.textFootnote, fontFamily: FONT.body, fontStyle: 'bold',
     });
     this.add.text(20, y + 40, `${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${encounter.setup.pieces.length} cards`, {
-      fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body,
+      fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body,
     });
     addHoverTipZone(this, { x: 10, y: y + 22, w: this.W - 20, h: 32 }, ALL_STAT_ENTRIES);
     return y + h + 8;
@@ -131,8 +133,8 @@ export class MobileRunPrepScene extends Phaser.Scene {
     const leftX = 10;
     const rightX = 10 + colW + gap;
 
-    this.add.text(leftX + colW / 2, top - 14, 'YOUR DECK', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0);
-    this.add.text(rightX + colW / 2, top - 14, 'ENEMY SKILLS', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0);
+    this.add.text(leftX + colW / 2, top - 14, 'YOUR DECK', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0);
+    this.add.text(rightX + colW / 2, top - 14, 'ENEMY SKILLS', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0);
 
     const heroSkills: SkillDef[] = [];
     const heroPieces: ColumnPiece[] = [];

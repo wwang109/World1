@@ -8,6 +8,7 @@ import { moveWithinStrip, shiftInsert, socketGem, swapGem, unsocketGem } from '.
 import { gemBook } from '../../data/gems';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { demoState, type OwnedBoardPiece, type OwnedCard, type InventorySlot } from '../demoState';
+import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
@@ -24,6 +25,7 @@ import {
   setCurrentRunBagSlots, setCurrentRunGemInventory, setCurrentRunPieces,
 } from '../runStore';
 
+const F = MOBILE_PROFILE.font;
 const SLOTS = 10;
 const TEMPLATE = runScreenTemplate('mobile');
 
@@ -246,7 +248,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       const x = 10 + i * (w + gap);
       const r = this.add.rectangle(x, 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       r.on('pointerdown', fn);
-      this.add.text(x + w / 2, 25, label, { fontSize: '9px', color: active ? '#1a1208' : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(x + w / 2, 25, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
   }
 
@@ -259,7 +261,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
     const s = hero.stats;
     const meta = `LV ${this.heroLevel} · ${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower} · ${STAT_TOKEN.speed} ${s.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
-    this.add.text(12, 50 + this.headerOffset, meta, { fontSize: '10px', color: '#9aa4b6', fontFamily: FONT.body });
+    this.add.text(12, 50 + this.headerOffset, meta, { fontSize: `${F.small}px`, color: UI.textFootnote, fontFamily: FONT.body });
   }
 
   /** Dashed 1px border (the mockup's transfer/trash strip style). */
@@ -292,10 +294,10 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         const tok = new CardToken(this, 52 + 105, y + h / 2, skill, { width: 210, height: h - 6, side: 'left', deck: [skill], stats: this.heroStats });
         this.makeDraggable(tok, { where: 'hold', card: this.hold });
       }
-      this.add.text(this.W - 16, y + h / 2, 'HOLDING', { fontSize: '10px', color: '#c9a15a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0.5);
+      this.add.text(this.W - 16, y + h / 2, 'HOLDING', { fontSize: `${F.small}px`, color: '#c9a15a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0.5);
     } else {
-      const label = this.add.text(52, y + h / 2, 'TEMP HOLDING', { fontSize: '11px', color: '#c9a15a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
-      this.add.text(label.x + label.width + 6, y + h / 2, '— drop a card to hold it while rearranging', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(0, 0.5);
+      const label = this.add.text(52, y + h / 2, 'TEMP HOLDING', { fontSize: `${F.label}px`, color: '#c9a15a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
+      this.add.text(label.x + label.width + 6, y + h / 2, '— drop a card to hold it while rearranging', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0.5);
     }
   }
 
@@ -310,8 +312,8 @@ export class MobileDeckBuildScene extends Phaser.Scene {
 
     const deckUsed = this.deckOccupied().filter(Boolean).length;
     const bagUsed = this.bagOccupied().filter(Boolean).length;
-    this.add.text(deckX + colW / 2, top - 6, `ACTIVE DECK · ${deckUsed}/${SLOTS}`, { fontSize: '10px', color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
-    this.add.text(bagX + colW / 2, top - 6, `BAG · ${bagUsed}/${SLOTS}`, { fontSize: '10px', color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
+    this.add.text(deckX + colW / 2, top - 6, `ACTIVE DECK · ${deckUsed}/${SLOTS}`, { fontSize: `${F.small}px`, color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
+    this.add.text(bagX + colW / 2, top - 6, `BAG · ${bagUsed}/${SLOTS}`, { fontSize: `${F.small}px`, color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 1);
 
     const deckSkills = this.pieces.map((p) => skillBook[p.skillId]).filter((s): s is SkillDef => Boolean(s));
     const bagSkills = this.bagSlots.map((c) => (c ? skillBook[c.skillId] : undefined)).filter((s): s is SkillDef => Boolean(s));
@@ -319,7 +321,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const empty = (colX: number, row: number, side: 'left' | 'right'): void => {
       this.add.rectangle(colX + colW / 2, rowTop(row) + rowH / 2, colW, rowH, 0x121e30, 0.45).setOrigin(0.5).setStrokeStyle(1, 0x24344a, 0.9);
       const nx = side === 'left' ? colX + colW - 6 : colX + 6;
-      this.add.text(nx, rowTop(row) + 4, `${row + 1}`, { fontSize: '10px', color: '#5a6880', fontFamily: 'monospace', fontStyle: 'bold' }).setOrigin(side === 'left' ? 1 : 0, 0);
+      this.add.text(nx, rowTop(row) + 4, `${row + 1}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: 'monospace', fontStyle: 'bold' }).setOrigin(side === 'left' ? 1 : 0, 0);
     };
 
     // DECK (left)
@@ -368,12 +370,12 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     for (const [k, v] of tally) if (v > topCount) { topType = k; topCount = v; }
     const py = top + colH + 8;
     const pipLabel = id ? id.type.toUpperCase() : topType ? topType.toUpperCase() : 'NO TYPE';
-    const label = this.add.text(deckX + colW / 2 - 30, py, pipLabel, { fontSize: '10px', color: id ? '#e8b446' : '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0.5);
+    const label = this.add.text(deckX + colW / 2 - 30, py, pipLabel, { fontSize: `${F.small}px`, color: id ? '#e8b446' : UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0.5);
     for (let i = 0; i < 3; i++) {
       const filled = i < Math.min(3, topCount);
       this.add.rectangle(label.x + 8 + i * 13, py, 9, 9, filled ? 0xb78a46 : 0x16233a).setOrigin(0, 0.5).setStrokeStyle(1, 0x3a4a62, 1);
     }
-    this.add.text(label.x + 8 + 3 * 13 + 6, py, id ? 'affinity' : '3 to unlock', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(0, 0.5);
+    this.add.text(label.x + 8 + 3 * 13 + 6, py, id ? 'affinity' : '3 to unlock', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0.5);
   }
 
   /** Slim TRASH strip (mockup): dashed red border · label + grey sub. No emoji (canvas tofu). */
@@ -381,9 +383,9 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const y = this.H - 44; const h = 34; const w = this.W - 20;
     this.add.rectangle(10, y, w, h, 0x2a1412, 0.4).setOrigin(0, 0);
     this.dashedRect(10, y, w, h, 0xb0483c, 0.9);
-    const label = this.add.text(52, y + h / 2, 'TRASH', { fontSize: '11px', color: '#d05c4e', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
+    const label = this.add.text(52, y + h / 2, 'TRASH', { fontSize: `${F.label}px`, color: '#d05c4e', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
     this.add.rectangle(18, y + 4, 24, h - 8, 0x1c0f0d).setOrigin(0, 0).setStrokeStyle(1, 0x7a4a42, 0.9);
-    this.add.text(label.x + label.width + 6, y + h / 2, '— drop to destroy (asks to confirm)', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(0, 0.5);
+    this.add.text(label.x + label.width + 6, y + h / 2, '— drop to destroy (asks to confirm)', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0.5);
   }
 
   // ---------- drag ----------
@@ -476,14 +478,14 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.72).setOrigin(0, 0).setInteractive();
     const bw = this.W - 60; const bx = 30; const by = this.H / 2 - 70;
     this.add.rectangle(bx, by, bw, 140, 0x141d2c).setOrigin(0, 0).setStrokeStyle(2, 0xd05c4e);
-    this.add.text(this.W / 2, by + 24, `Delete ${skill?.name ?? 'card'}?`, { fontSize: '15px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.text(this.W / 2, by + 50, 'This removes it from your collection.', { fontSize: '10px', color: '#9aa4b6', fontFamily: FONT.body }).setOrigin(0.5);
+    this.add.text(this.W / 2, by + 24, `Delete ${skill?.name ?? 'card'}?`, { fontSize: `${F.heading}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(this.W / 2, by + 50, 'This removes it from your collection.', { fontSize: `${F.small}px`, color: UI.textFootnote, fontFamily: FONT.body }).setOrigin(0.5);
     const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
       const r = this.add.rectangle(dx, by + 88, w, 36, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       r.on('pointerdown', fn);
-      this.add.text(dx + w / 2, by + 106, label, { fontSize: '13px', color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(dx + w / 2, by + 106, label, { fontSize: `${F.name}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };
-    mk(bx + 16, (bw - 40) / 2, 'CANCEL', 0x1b2940, '#e8e0c8', () => { this.pendingTrash = null; this.rerender(); });
+    mk(bx + 16, (bw - 40) / 2, 'CANCEL', 0x1b2940, UI.textBright, () => { this.pendingTrash = null; this.rerender(); });
     mk(bx + 24 + (bw - 40) / 2, (bw - 40) / 2, 'DELETE', 0x7a2e2a, '#ffffff', () => { this.removeSource(src); this.pendingTrash = null; this.rerender(); });
   }
 
@@ -522,8 +524,8 @@ export class MobileDeckBuildScene extends Phaser.Scene {
 
     const basePl = (instancePowerLevelDeci(skill, { gem: null }) / 10).toFixed(0);
     const totalPl = (instancePowerLevelDeci(skill, { gem: piece.gem ?? null }) / 10).toFixed(0);
-    this.add.text(px + 14, py + 12, `${skill.name.toUpperCase()} — GEM SOCKET`, { fontSize: '13px', color: '#e8b446', fontFamily: FONT.display, fontStyle: 'bold' });
-    this.add.text(px + pw - 14, py + 14, 'tap outside to close', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(1, 0);
+    this.add.text(px + 14, py + 12, `${skill.name.toUpperCase()} — GEM SOCKET`, { fontSize: `${F.name}px`, color: '#e8b446', fontFamily: FONT.display, fontStyle: 'bold' });
+    this.add.text(px + pw - 14, py + 14, 'tap outside to close', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(1, 0);
 
     // Current socket row.
     const curY = py + 36;
@@ -535,29 +537,29 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       const gemDef = gemBook[gem.id];
       const bonus = gemDef ? stripCardTextMarkup(gemDef.text) : '';
       this.add.rectangle(px + 30, curY + 24, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-      this.add.text(px + 42, curY + 6, `${gemDef?.name ?? gem.id}`, { fontSize: '11px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' });
-      const bonusT = this.add.text(px + 42, curY + 20, bonus, { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, wordWrap: { width: pw - 175 } });
+      this.add.text(px + 42, curY + 6, `${gemDef?.name ?? gem.id}`, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' });
+      const bonusT = this.add.text(px + 42, curY + 20, bonus, { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, wordWrap: { width: pw - 175 } });
       let s = bonus;
       while (s.length > 1 && bonusT.height > 12) { s = s.slice(0, -1); bonusT.setText(`${s}…`); }
-      this.add.text(px + 42, curY + 34, `card PL ${basePl} + ${gemPowerLevel(gem)} gem = ${totalPl}`, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body });
+      this.add.text(px + 42, curY + 34, `card PL ${basePl} + ${gemPowerLevel(gem)} gem = ${totalPl}`, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body });
       if (gemDef) addHoverTipZone(this, { x: px + 14, y: curY, w: pw - 28, h: 48 }, [gemHoverEntry(gemDef)]);
       const un = this.add.rectangle(px + pw - 88, curY + 8, 74, 32, 0x352019).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
-      this.add.text(px + pw - 51, curY + 24, 'UNSOCKET', { fontSize: '9px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(px + pw - 51, curY + 24, 'UNSOCKET', { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       un.on('pointerdown', () => {
         const removed = unsocketGem(piece);
         if (removed) this.gemInventory = [...this.gemInventory, removed.id];
         close();
       });
     } else {
-      this.add.text(px + 28, curY + 24, `Empty socket · card PL ${basePl}`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(0, 0.5);
+      this.add.text(px + 28, curY + 24, `Empty socket · card PL ${basePl}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0.5);
     }
 
     // Pouch list — masked, drag/wheel scrollable.
     const listTop = curY + 48 + 14;
-    this.add.text(px + 14, listTop - 12, `GEM POUCH · ${pouch.length}`, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
+    this.add.text(px + 14, listTop - 12, `GEM POUCH · ${pouch.length}`, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
     if (pouch.length === 0) {
       this.add.text(px + 14, listTop + 8, 'No gems in the pouch — collect some\nin the WIKI › GEMS tab.', {
-        fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, lineSpacing: 3,
+        fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, lineSpacing: 3,
       });
       return;
     }
@@ -575,15 +577,15 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       const container = this.add.container(px + 14, listTop + baseY);
       const bg = this.add.rectangle(0, 0, pw - 28, rowH, 0x101a2a, 0.9).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
       const diamond = this.add.rectangle(16, rowH / 2, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-      const name = this.add.text(30, 8, `${gem.name} · ${gem.rarity.toUpperCase()}`, { fontSize: '10px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' });
+      const name = this.add.text(30, 8, `${gem.name} · ${gem.rarity.toUpperCase()}`, { fontSize: `${F.small}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' });
       // The bonus itself is the headline info (PL is bookkeeping — see WIKI).
-      const desc = this.add.text(30, 24, stripCardTextMarkup(gem.text), { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: pw - 28 - 100 } });
+      const desc = this.add.text(30, 24, stripCardTextMarkup(gem.text), { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: pw - 28 - 100 } });
       let s = stripCardTextMarkup(gem.text);
       while (s.length > 1 && desc.height > 24) { s = s.slice(0, -1); desc.setText(`${s}…`); }
       const hoverZone = this.add.rectangle(0, 0, pw - 28, rowH, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
       attachHoverTip(this, hoverZone, { x: px + 14, y: listTop + baseY, w: pw - 28, h: rowH }, [gemHoverEntry(gem)]);
       const act = this.add.rectangle(pw - 28 - 66, rowH / 2 - 14, 60, 28, 0xb78a46).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
-      const actLabel = this.add.text(pw - 28 - 36, rowH / 2, piece.gem ? 'SWAP' : 'SOCKET', { fontSize: '9px', color: '#1a1208', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      const actLabel = this.add.text(pw - 28 - 36, rowH / 2, piece.gem ? 'SWAP' : 'SOCKET', { fontSize: `${F.tiny}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       act.on('pointerdown', () => {
         // consume ONE copy of this gem id from the pouch
         const at = this.gemInventory.indexOf(gem.id);

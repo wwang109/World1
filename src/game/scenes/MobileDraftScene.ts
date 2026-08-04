@@ -4,12 +4,15 @@ import { setDeckBuildContext } from '../deckBuildContext';
 import { applyDraftPicks } from '../draftActions';
 import { DRAFT_SET_KEYS, rollStartDraft, type DraftSetKey, type StartDraft } from '../../run/draft';
 import { demoState } from '../demoState';
+import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { renderActionBar, type ActionButton } from '../ui/ActionBar';
 import { renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { rebuildScene } from '../sceneRebuild';
 import { applyRunDraft, getActiveRun, isRunDrafting } from '../runStore';
+
+const F = MOBILE_PROFILE.font;
 
 const SET_LABEL: Record<DraftSetKey, string> = {
   offense: 'OFFENSE', defense: 'DEFENSE / SUSTAIN', support: 'SUPPORT / UTILITY', wildcard: 'WILDCARD',
@@ -75,7 +78,7 @@ export class MobileDraftScene extends Phaser.Scene {
       const x = 10 + i * (w + gap);
       const r = this.add.rectangle(x, 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       r.on('pointerdown', fn);
-      this.add.text(x + w / 2, 25, label, { fontSize: '9px', color: active ? '#1a1208' : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(x + w / 2, 25, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
   }
 
@@ -85,9 +88,9 @@ export class MobileDraftScene extends Phaser.Scene {
     // Run context: the HUD already occupies y≈0-96, so this content starts
     // lower than the Sandbox's own tab-bar layout (y≈50).
     const top = this.runContext ? 100 : 50;
-    this.add.text(12, top, `DRAFT · SET ${this.setIndex + 1}/${DRAFT_SET_KEYS.length}`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
-    this.add.text(12, top + 14, SET_LABEL[key], { fontSize: '15px', color: '#c69948', fontFamily: FONT.display, fontStyle: 'bold' });
-    this.add.text(this.W - 12, top + 14, `${picked}/${DRAFT_SET_KEYS.length} PICKED`, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
+    this.add.text(12, top, `DRAFT · SET ${this.setIndex + 1}/${DRAFT_SET_KEYS.length}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
+    this.add.text(12, top + 14, SET_LABEL[key], { fontSize: `${F.heading}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold' });
+    this.add.text(this.W - 12, top + 14, `${picked}/${DRAFT_SET_KEYS.length} PICKED`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
   }
 
   private renderSet(): void {
@@ -108,7 +111,7 @@ export class MobileDraftScene extends Phaser.Scene {
       const hit = this.add.rectangle(10 + (this.W - 20) / 2, y + h / 2, this.W - 20, h, 0xffffff, 0).setInteractive({ useHandCursor: true });
       hit.on('pointerdown', () => { this.picks[key] = card.skillId; this.rerender(); });
       if (isPicked) {
-        this.add.text(this.W - 18, y + 6, '✓ PICKED', { fontSize: '9px', color: '#1a1208', fontFamily: FONT.body, fontStyle: 'bold' })
+        this.add.text(this.W - 18, y + 6, '✓ PICKED', { fontSize: `${F.tiny}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' })
           .setOrigin(1, 0).setBackgroundColor('#e8b446').setPadding(4, 2, 4, 2);
       }
       y += h + gap;

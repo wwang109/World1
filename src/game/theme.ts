@@ -139,6 +139,14 @@ export const UI = {
   textAccent: '#c69948',
   /** Dark ink for text sitting on a bronze chip/button fill. */
   textOnChip: '#1a1208',
+  /** Mobile scenes' de-facto primary/heading text tone (cream, cooler than `text`). */
+  textBright: '#e8e0c8',
+  /** Secondary/informational muted text (mobile scenes). */
+  textMuted: '#8a94a6',
+  /** A second, slightly lighter muted tone used for stat/footnote lines (mobile scenes). */
+  textFootnote: '#9aa4b6',
+  /** Disabled-control text (mobile scenes). */
+  textDisabled: '#5a6880',
   hp: 0x3f8f4e,
   hpBack: 0xcbb894,
   shield: 0x5f83a6,

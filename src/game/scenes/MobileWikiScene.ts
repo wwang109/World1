@@ -7,11 +7,13 @@ import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
 import { createOwnedCard, demoState } from '../demoState';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
+import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, TIER_COLOR, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { rebuildScene } from '../sceneRebuild';
 
+const F = MOBILE_PROFILE.font;
 const SLOTS = 10;
 const ROW_H = 84;
 const ROW_GAP = 8;
@@ -74,6 +76,15 @@ export class MobileWikiScene extends Phaser.Scene {
     rebuildScene(this);
   }
 
+  /** Fresh entry (scene.start) always reopens on CARDS / ALL / bronze —
+   * matching DesktopWikiScene.init(); rebuilds within a visit keep the
+   * current tab, filter, and tier (rebuildScene re-runs create() only). */
+  init(): void {
+    this.view = 'cards';
+    this.cardFilter = 'all';
+    this.detailTier = 'bronze';
+  }
+
   create(): void {
     this.W = SCREEN.width;
     this.H = SCREEN.height;
@@ -107,7 +118,7 @@ export class MobileWikiScene extends Phaser.Scene {
       const x = 10 + i * (w + gap);
       const r = this.add.rectangle(x, 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       r.on('pointerdown', fn);
-      this.add.text(x + w / 2, 25, label, { fontSize: '9px', color: active ? '#1a1208' : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(x + w / 2, 25, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
   }
 
@@ -133,7 +144,7 @@ export class MobileWikiScene extends Phaser.Scene {
       const w = 30 + label.length * 7;
       const chip = this.add.rectangle(tx, y + 8, w, 20, active ? 0xb78a46 : 0x18263a, 1)
         .setOrigin(0, 0).setStrokeStyle(1, active ? 0xe8b446 : 0x3a4a62, 0.9).setInteractive({ useHandCursor: true });
-      this.add.text(tx + w / 2, y + 18, label, { fontSize: '9px', color: active ? '#1a1208' : '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(tx + w / 2, y + 18, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       chip.on('pointerdown', () => {
         if (this.view === v) return;
         this.view = v;
@@ -144,11 +155,11 @@ export class MobileWikiScene extends Phaser.Scene {
     const countLabel = this.view === 'cards'
       ? `${this.filteredSkills().length}/${Object.keys(skillBook).length} CARDS`
       : `${Object.keys(gemBook).length} GEMS · ${demoState.gemInventory.length} IN POUCH`;
-    this.add.text(this.W - 22, y + 12, countLabel, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
+    this.add.text(this.W - 22, y + 12, countLabel, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
     this.add.rectangle(22, y + 31, this.W - 44, 1, 0x2a3a52).setOrigin(0, 0);
 
     if (this.view === 'cards') {
-      this.add.text(22, y + 43, 'FILTERS', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
+      this.add.text(22, y + 43, 'FILTERS', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
       const chips: Array<[string, WikiCardFilter]> = [['ALL', 'all'], ['WEAPON', 'weapon'], ['MAGIC', 'magic']];
       let x = 78;
       for (const [index, [label, value]] of chips.entries()) {
@@ -156,7 +167,7 @@ export class MobileWikiScene extends Phaser.Scene {
         const w = index === 0 ? 58 : 72;
         const chip = this.add.rectangle(x, y + 54, w, 22, active ? 0xb78a46 : 0x18263a, 1)
           .setOrigin(0, 0).setStrokeStyle(1, active ? 0xe8b446 : 0x3a4a62, 0.9);
-        this.add.text(x + w / 2, y + 65, label, { fontSize: '9px', color: active ? '#1a1208' : '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+        this.add.text(x + w / 2, y + 65, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
         chip.setInteractive({ useHandCursor: true });
         chip.on('pointerdown', () => {
           if (this.cardFilter === value) return;
@@ -166,8 +177,8 @@ export class MobileWikiScene extends Phaser.Scene {
         x += w + 6;
       }
     } else {
-      this.add.text(22, y + 43, 'GEM CATALOG', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' });
-      this.add.text(22, y + 58, 'Tap a gem for details · ADD TO POUCH', { fontSize: '9px', color: '#5a6880', fontFamily: FONT.body });
+      this.add.text(22, y + 43, 'GEM CATALOG', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
+      this.add.text(22, y + 58, 'Tap a gem for details · ADD TO POUCH', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body });
     }
   }
 
@@ -202,7 +213,7 @@ export class MobileWikiScene extends Phaser.Scene {
       // "xN SLOTS" badge, so drop PL a row below it rather than overlap.
       const plY = top + baseY + (skill.size > 1 ? 24 : 8);
       const plText = this.add.text(baseX + (col === 0 ? cardW / 2 - 8 : -cardW / 2 + 8), plY, `PL ${(plDeci / 10).toFixed(0)}`, {
-        fontSize: '10px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold',
+        fontSize: `${F.small}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold',
       }).setOrigin(col === 0 ? 1 : 0, 0).setBackgroundColor('#0b1420').setPadding(4, 2, 4, 2);
       plText.setMask(mask);
       this.rows.push({ skill, token, plText, baseX, baseY, h: ROW_H });
@@ -213,7 +224,7 @@ export class MobileWikiScene extends Phaser.Scene {
     this.indicator = this.add.rectangle(this.W - 4, top, 3, height, 0x3a4a62, 0.8).setOrigin(0.5, 0);
     this.updateIndicator();
     if (skills.length === 0) {
-      this.add.text(this.W / 2, top + 40, 'No cards in the catalog.', { fontSize: '12px', color: UI.textDim, fontFamily: FONT.body }).setOrigin(0.5, 0);
+      this.add.text(this.W / 2, top + 40, 'No cards in the catalog.', { fontSize: `${F.body}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0.5, 0);
     }
   }
 
@@ -237,13 +248,13 @@ export class MobileWikiScene extends Phaser.Scene {
       const bg = this.add.rectangle(10, 0, this.W - 20, GEM_ROW_H, 0x101a2a, 0.9)
         .setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.7);
       const diamond = this.add.rectangle(28, 20, 13, 13, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-      const name = this.add.text(44, 8, gem.name, { fontSize: '11px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' });
+      const name = this.add.text(44, 8, gem.name, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' });
       const meta = this.add.text(44, 26, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT'}`, {
-        fontSize: '9px', color: MobileWikiScene.rarityHex(gem), fontFamily: FONT.body, fontStyle: 'bold',
+        fontSize: `${F.tiny}px`, color: MobileWikiScene.rarityHex(gem), fontFamily: FONT.body, fontStyle: 'bold',
       });
       // The bonus itself is the headline — NOT its PL price (see detail overlay).
       const body = this.add.text(20, 44, stripCardTextMarkup(gem.text), {
-        fontSize: '9px', color: '#e8e0c8', fontFamily: FONT.body, wordWrap: { width: this.W - 60 }, lineSpacing: 2,
+        fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, wordWrap: { width: this.W - 60 }, lineSpacing: 2,
       });
       if (body.height > 26) {
         let s = stripCardTextMarkup(gem.text);
@@ -391,7 +402,7 @@ export class MobileWikiScene extends Phaser.Scene {
 
     const close = this.add.rectangle(this.W - 30, 46, 28, 28, 0x24344a, 1)
       .setOrigin(0.5).setDepth(3003).setStrokeStyle(1, 0x8a94a6, 0.8).setInteractive({ useHandCursor: true });
-    const closeText = this.add.text(close.x, close.y, '×', { fontSize: '18px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(3004);
+    const closeText = this.add.text(close.x, close.y, '×', { fontSize: `${F.xlarge}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(3004);
     close.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => { event.stopPropagation(); this.closeDetail(); });
     objs.push(close, closeText);
 
@@ -407,7 +418,7 @@ export class MobileWikiScene extends Phaser.Scene {
     y = cardY + cardH / 2 + 10;
 
     const name = this.add.text(centerX, y, skill.name, {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: '15px', color: '#e8e0c8',
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.heading}px`, color: UI.textBright,
       align: 'center', wordWrap: { width: paneWidth },
     }).setOrigin(0.5, 0).setDepth(3002);
     objs.push(name);
@@ -415,7 +426,7 @@ export class MobileWikiScene extends Phaser.Scene {
 
     const plDeci = powerLevelDeci(shown);
     const pl = this.add.text(centerX, y, `POWER LEVEL ${(plDeci / 10).toFixed(0)} · ${this.detailTier.toUpperCase()}`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: '11px', color: '#e8b446',
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: '#e8b446',
     }).setOrigin(0.5, 0).setDepth(3002);
     objs.push(pl);
     y += pl.height + 8;
@@ -432,8 +443,8 @@ export class MobileWikiScene extends Phaser.Scene {
       const chip = this.add.rectangle(cx, y, chipW, 24, active ? TIER_COLOR[t] : allowed ? 0x18263a : 0x101a2a, allowed ? 1 : 0.4)
         .setOrigin(0, 0).setStrokeStyle(active ? 2 : 1, TIER_COLOR[t], allowed ? 1 : 0.3).setDepth(3002);
       const label = this.add.text(cx + chipW / 2, y + 12, t.toUpperCase(), {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: '9px',
-        color: active ? '#1a1208' : allowed ? '#8a94a6' : '#5a6880',
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`,
+        color: active ? UI.textOnChip : allowed ? UI.textMuted : UI.textDisabled,
       }).setOrigin(0.5).setDepth(3002);
       if (allowed && !active) {
         chip.setInteractive({ useHandCursor: true });
@@ -448,7 +459,7 @@ export class MobileWikiScene extends Phaser.Scene {
     y += 24 + 10;
 
     const text = this.add.text(centerX, y, stripCardTextMarkup(shown.text), {
-      fontFamily: FONT.body, fontSize: '11px', color: '#c9b896',
+      fontFamily: FONT.body, fontSize: `${F.label}px`, color: '#c9b896',
       align: 'center', wordWrap: { width: paneWidth }, lineSpacing: 3,
     }).setOrigin(0.5, 0).setDepth(3002);
     objs.push(text);
@@ -458,7 +469,7 @@ export class MobileWikiScene extends Phaser.Scene {
     const btnH = 40;
     const btn = this.add.rectangle(centerX, y, btnW, btnH, 0xe8b446).setOrigin(0.5, 0).setDepth(3002).setStrokeStyle(1, 0x1a1208, 0.8).setInteractive({ useHandCursor: true });
     const btnText = this.add.text(centerX, y + btnH / 2, `ADD TO BAG · ${this.detailTier.toUpperCase()}`, {
-      fontSize: '12px', color: '#1a1208', fontFamily: FONT.body, fontStyle: 'bold',
+      fontSize: `${F.body}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(3003);
     btn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation();
@@ -491,7 +502,7 @@ export class MobileWikiScene extends Phaser.Scene {
 
     const close = this.add.rectangle(this.W - 30, 46, 28, 28, 0x24344a, 1)
       .setOrigin(0.5).setDepth(3003).setStrokeStyle(1, 0x8a94a6, 0.8).setInteractive({ useHandCursor: true });
-    const closeText = this.add.text(close.x, close.y, '×', { fontSize: '18px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(3004);
+    const closeText = this.add.text(close.x, close.y, '×', { fontSize: `${F.xlarge}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(3004);
     close.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => { event.stopPropagation(); this.closeDetail(); });
     objs.push(close, closeText);
 
@@ -504,41 +515,41 @@ export class MobileWikiScene extends Phaser.Scene {
     y += 48;
 
     const name = this.add.text(centerX, y, gem.name, {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: '17px', color: '#e8e0c8',
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.subtitle}px`, color: UI.textBright,
       align: 'center', wordWrap: { width: paneWidth },
     }).setOrigin(0.5, 0).setDepth(3002);
     objs.push(name);
     y += name.height + 6;
 
     const meta = this.add.text(centerX, y, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT RIDER'}`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: '11px', color: MobileWikiScene.rarityHex(gem),
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: MobileWikiScene.rarityHex(gem),
     }).setOrigin(0.5, 0).setDepth(3002);
     objs.push(meta);
     y += meta.height + 16;
 
     // The gem's bonus is the headline; PL is a dim footnote below.
     const body = this.add.text(centerX, y, stripCardTextMarkup(gem.text), {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: '14px', color: '#e8e0c8',
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.lead}px`, color: UI.textBright,
       align: 'center', wordWrap: { width: paneWidth }, lineSpacing: 4,
     }).setOrigin(0.5, 0).setDepth(3002);
     objs.push(body);
     y += body.height + 12;
 
     const plNote = this.add.text(centerX, y, `adds +${gemPowerLevel(gem)} PL to the host card's total`, {
-      fontFamily: FONT.body, fontSize: '9px', color: '#8a94a6',
+      fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted,
     }).setOrigin(0.5, 0).setDepth(3002);
     objs.push(plNote);
     y += plNote.height + 12;
 
     const owned = demoState.gemInventory.filter((id) => id === gem.id).length;
     const ownedText = this.add.text(centerX, y, `IN POUCH: ${owned}`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: '12px', color: '#b89460',
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.textDim,
     }).setOrigin(0.5, 0).setDepth(3002);
     objs.push(ownedText);
     y += ownedText.height + 24;
 
     const noteText = this.add.text(centerX, y, 'Socket gems onto deck cards in DECK BUILD (tap a deck card).', {
-      fontFamily: FONT.body, fontSize: '9px', color: '#8a94a6', align: 'center', wordWrap: { width: paneWidth }, lineSpacing: 3,
+      fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted, align: 'center', wordWrap: { width: paneWidth }, lineSpacing: 3,
     }).setOrigin(0.5, 0).setDepth(3002);
     objs.push(noteText);
     y += noteText.height + 16;
@@ -547,7 +558,7 @@ export class MobileWikiScene extends Phaser.Scene {
     const btnH = 40;
     const btn = this.add.rectangle(centerX, y, btnW, btnH, 0xe8b446).setOrigin(0.5, 0).setDepth(3002).setStrokeStyle(1, 0x1a1208, 0.8).setInteractive({ useHandCursor: true });
     const btnText = this.add.text(centerX, y + btnH / 2, 'ADD TO POUCH', {
-      fontSize: '12px', color: '#1a1208', fontFamily: FONT.body, fontStyle: 'bold',
+      fontSize: `${F.body}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(3003);
     btn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation();
@@ -571,7 +582,7 @@ export class MobileWikiScene extends Phaser.Scene {
     for (const o of this.toastObjects) o.destroy();
     this.toastObjects = [];
     const t = this.add.text(this.W / 2, this.H - 60, text, {
-      fontSize: '12px', color, fontFamily: FONT.body, fontStyle: 'bold',
+      fontSize: `${F.body}px`, color, fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(4001);
     const bg = this.add.rectangle(this.W / 2, this.H - 60, t.width + 24, t.height + 14, 0x0b1420, 0.92).setOrigin(0.5).setDepth(4000).setStrokeStyle(1, 0x3a4a62, 0.9);
     this.toastObjects = [bg, t];

@@ -240,7 +240,7 @@ export class MobileRunMapScene extends Phaser.Scene {
     start.on('pointerdown', () => { startRun(getPendingSeed()); this.scene.start('MobileDraft'); });
 
     this.add.text(cx, py + ph - 14, 'Next: draft your starting deck (4 picks).', {
-      fontSize: '8px', color: '#5a6880', fontFamily: FONT.body, align: 'center', wordWrap: { width: pw - 32 },
+      fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, align: 'center', wordWrap: { width: pw - 32 },
     }).setOrigin(0.5, 1);
   }
 
