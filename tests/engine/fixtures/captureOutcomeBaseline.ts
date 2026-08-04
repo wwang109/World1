@@ -48,14 +48,24 @@ const next = {
     'size, speedWeight, cooldownTurns, tier, rarity, element, weapon, scope, aura, special, ' +
     'tierUpgrades) — is still hashed byte-for-byte.',
   note:
-    'Regression lock recaptured (2026-08-01) for the TRUE-heal re-price ' +
+    'Regression lock recaptured (2026-08-03) for the ANTI-HEAL WORLD RULE ' +
+    '(game-director approved 2026-08-01, built 2026-08-03): a REAL, REVIEWED RULE ' +
+    'CHANGE. Regular heals and lifesteal are taxed -20% per affliction category ' +
+    'active on the RECEIVER (DoT family / stat debuff / expose, cap -60%); TRUE ' +
+    'heals are immune. Blast radius verified BEFORE regenerating: exactly 75/200 ' +
+    'logs moved in each sweep, and those 75 are EXACTLY the logs that contain a ' +
+    'heal event carrying the new `antiHeal` annotation (0 logs moved without one, ' +
+    '0 annotated logs left unmoved). 7 of them end on a different turn and 1 ' +
+    '(attritionOn #172) flips its winner — the expected consequence of less ' +
+    'healing, not a scope leak. See src/engine/combat/interpreter.ts ' +
+    '(applyAntiHeal / antiHealCategories) and tests/engine/antiHeal.test.ts. ' +
+    'It supersedes the prior regen (2026-08-01) for the TRUE-heal re-price ' +
     '(PRICE.flatTrueHealPerPoint 2 -> 4, balance-designer pass): a REAL BEHAVIOR ' +
     'CHANGE, unlike the prior representation-only regens noted below. ' +
     'second_wind/renewing_wave/purify heal for smaller flat amounts at every ' +
     'tier (e.g. second_wind Bronze 50 -> 25), which changes sim outcomes for any ' +
-    'sweep config that casts one of those three cards — that is the expected, ' +
-    'reviewed source of the hash churn in this regen, not a representation change. ' +
-    'It supersedes two earlier non-rule regenerations that the presentation-field ' +
+    'sweep config that casts one of those three cards. Both supersede two earlier ' +
+    'non-rule regenerations that the presentation-field ' +
     'normalizer (see `normalization` above) made unnecessary: (a) the card-text ' +
     'canonical-token sweep (ATK/MATK/DEF/MDEF/SPD), which moved every hash without ' +
     'touching a single mechanic — exactly the churn `text` stripping kills, and ' +

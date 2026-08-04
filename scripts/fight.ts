@@ -119,7 +119,11 @@ for (const e of events) {
       if (e.calculation) console.log(`${t} │  calc             ${fmtDamage(e.calculation)}`);
       break;
     case 'heal':
-      console.log(`${t} │  ${tag(e.side)} heals ${e.amount}${e.flat ? ' (flat)' : ''} -> ${e.hpAfter} hp`);
+      console.log(
+        `${t} │  ${tag(e.side)} heals ${e.amount}${e.flat ? ' (flat)' : ''}${
+          e.antiHeal ? ` [anti-heal -${e.antiHeal.pct}%: -${e.antiHeal.reduced} from ${e.antiHeal.categories.join('+')}]` : ''
+        } -> ${e.hpAfter} hp`,
+      );
       break;
     case 'shieldGain':
       console.log(`${t} │  ${tag(e.side)} +${e.amount} ${e.property} shield${e.wasted ? ` (${e.wasted} wasted)` : ''} -> ${e.totalAfter} total`);

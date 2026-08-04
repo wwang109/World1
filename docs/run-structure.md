@@ -143,4 +143,5 @@ The `src/game` side discriminates run vs sandbox context via
 
 - Fog-of-war zone map, multiple zones, meta persistence (`src/meta`).
 - Run tutorial (`docs/run-tutorial-design.md`).
-- Anti-heal world rule (approved, unbuilt — `docs/design-locked.md`).
+- ~~Anti-heal world rule~~ — BUILT 2026-08-03 in the engine (`docs/design-locked.md`);
+  the dedicated anti-heal DEBUFF that will replace it (cap −80%) is still unbuilt.

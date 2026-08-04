@@ -86,10 +86,11 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
   private get heroAllocation() { return this.runContext ? currentHeroAllocation() : demoState.heroAllocation; }
 
   init(): void {
-    // NOTE: `hold` and `pendingTrash` are deliberately NOT reset here — this
-    // scene re-renders after every drop via scene.restart() (which re-runs
-    // init), and both must survive that restart: `hold` carries the TEMP
-    // HOLDING card, `pendingTrash` keeps the trash-confirm dialog open.
+    // NOTE: re-renders happen via rerender() → rebuildScene(this), which
+    // re-runs create() only — init() runs on scene ENTRY. `hold` (the TEMP
+    // HOLDING card) and `pendingTrash` (the open trash-confirm) survive
+    // re-renders regardless; leaving them out of init() additionally lets
+    // them persist across scene entries.
     this.draggables = [];
     this.holdingTop = 0;
     this.holdingH = 0;

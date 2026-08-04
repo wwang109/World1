@@ -1,11 +1,11 @@
 {
  "normalization": "Hashes are taken through tests/engine/helpers/outcomeHash.ts (shared with outcomeRule.test.ts), which strips PRESENTATION-ONLY card fields before hashing: `text` anywhere, and `name` on SkillDef-shaped objects. The sim reads neither, so a content copy-edit no longer forces a fixture regeneration. Everything the engine consumes — the full event log, all combatant state (incl. each combatant `name`), and every behavioural SkillDef field (effects, property, size, speedWeight, cooldownTurns, tier, rarity, element, weapon, scope, aura, special, tierUpgrades) — is still hashed byte-for-byte.",
- "note": "Regression lock recaptured (2026-08-01) for the TRUE-heal re-price (PRICE.flatTrueHealPerPoint 2 -> 4, balance-designer pass): a REAL BEHAVIOR CHANGE, unlike the prior representation-only regens noted below. second_wind/renewing_wave/purify heal for smaller flat amounts at every tier (e.g. second_wind Bronze 50 -> 25), which changes sim outcomes for any sweep config that casts one of those three cards — that is the expected, reviewed source of the hash churn in this regen, not a representation change. It supersedes two earlier non-rule regenerations that the presentation-field normalizer (see `normalization` above) made unnecessary: (a) the card-text canonical-token sweep (ATK/MATK/DEF/MDEF/SPD), which moved every hash without touching a single mechanic — exactly the churn `text` stripping kills, and (b) the additive shield event metadata (shieldGain.calculation, shieldGain.poolsAfter, damage.shieldDrain), which re-hashed the 140/200 logs containing a shield event and left every other byte identical. Guards the ATTRITION THRESHOLD BOUNDARY in outcomeRule.test.ts: fights decided before ATTRITION_START_TURN must stay byte-identical across RULE changes. Regenerate with tests/engine/fixtures/captureOutcomeBaseline.ts, and only for a deliberate, reviewed change.",
+ "note": "Regression lock recaptured (2026-08-03) for the ANTI-HEAL WORLD RULE (game-director approved 2026-08-01, built 2026-08-03): a REAL, REVIEWED RULE CHANGE. Regular heals and lifesteal are taxed -20% per affliction category active on the RECEIVER (DoT family / stat debuff / expose, cap -60%); TRUE heals are immune. Blast radius verified BEFORE regenerating: exactly 75/200 logs moved in each sweep, and those 75 are EXACTLY the logs that contain a heal event carrying the new `antiHeal` annotation (0 logs moved without one, 0 annotated logs left unmoved). 7 of them end on a different turn and 1 (attritionOn #172) flips its winner — the expected consequence of less healing, not a scope leak. See src/engine/combat/interpreter.ts (applyAntiHeal / antiHealCategories) and tests/engine/antiHeal.test.ts. It supersedes the prior regen (2026-08-01) for the TRUE-heal re-price (PRICE.flatTrueHealPerPoint 2 -> 4, balance-designer pass): a REAL BEHAVIOR CHANGE, unlike the prior representation-only regens noted below. second_wind/renewing_wave/purify heal for smaller flat amounts at every tier (e.g. second_wind Bronze 50 -> 25), which changes sim outcomes for any sweep config that casts one of those three cards. Both supersede two earlier non-rule regenerations that the presentation-field normalizer (see `normalization` above) made unnecessary: (a) the card-text canonical-token sweep (ATK/MATK/DEF/MDEF/SPD), which moved every hash without touching a single mechanic — exactly the churn `text` stripping kills, and (b) the additive shield event metadata (shieldGain.calculation, shieldGain.poolsAfter, damage.shieldDrain), which re-hashed the 140/200 logs containing a shield event and left every other byte identical. Guards the ATTRITION THRESHOLD BOUNDARY in outcomeRule.test.ts: fights decided before ATTRITION_START_TURN must stay byte-identical across RULE changes. Regenerate with tests/engine/fixtures/captureOutcomeBaseline.ts, and only for a deliberate, reviewed change.",
  "attritionOff": [
   {
    "result": "win",
    "turns": 9,
-   "hash": "d20d57dcbb499129f0ce61105c719e84"
+   "hash": "15a40362031379595dbaf45e019c24db"
   },
   {
    "result": "win",
@@ -20,12 +20,12 @@
   {
    "result": "win",
    "turns": 8,
-   "hash": "689549d46f0d5c0217055350d4188484"
+   "hash": "acdc9fdc4929bf74a03467be8eedd279"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "056ac644c0a904f1d75f338388c09ab7"
+   "hash": "10549bb0e8a93cc96a0ead7dba0b08c2"
   },
   {
    "result": "win",
@@ -50,12 +50,12 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "2fee27cac2d627d58b020639b65d69f8"
+   "hash": "aa0e32edf1f5ee68ddc456b9929d6eac"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "87e6ade634770b252806002355de4655"
+   "hash": "ddf1b5681ed29ce21eba3b7952449641"
   },
   {
    "result": "win",
@@ -65,7 +65,7 @@
   {
    "result": "win",
    "turns": 6,
-   "hash": "bfa35d188a9cc82ed53f6e65d4f0ffcc"
+   "hash": "dc4e65932486ec0e92fe74de4efdb1d3"
   },
   {
    "result": "loss",
@@ -75,7 +75,7 @@
   {
    "result": "win",
    "turns": 7,
-   "hash": "d5c82b0533fe9e413a9d0d69f58106ed"
+   "hash": "7c43fc635ce0cc744648e3c6e761fbb9"
   },
   {
    "result": "win",
@@ -110,7 +110,7 @@
   {
    "result": "loss",
    "turns": 5,
-   "hash": "1bd88dd0065900a87560a7c65b108bca"
+   "hash": "beaaf27391a80d2d73a6a862bd316a51"
   },
   {
    "result": "win",
@@ -125,12 +125,12 @@
   {
    "result": "loss",
    "turns": 5,
-   "hash": "90bbdb04ebf8363a292f29325c92e6ac"
+   "hash": "6b830ebf7104fb045b552375637dd20f"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "bd4c3a9fe099074fe1b87ed322824a1a"
+   "hash": "23160e06fa34178eab9cd49a184f7412"
   },
   {
    "result": "win",
@@ -170,7 +170,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "c75d204e0ca9e75da2271f4cf429d802"
+   "hash": "f2a87b16d7ab77904f920b2353353cb0"
   },
   {
    "result": "win",
@@ -185,7 +185,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "e8f06655392151f844df817bb4adb76c"
+   "hash": "5067e05d9283e66cbafdf5b160c43411"
   },
   {
    "result": "loss",
@@ -205,7 +205,7 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "45a4d02310d30f500b332b9e43aac1c2"
+   "hash": "bc7f98ba444935153029874160330459"
   },
   {
    "result": "loss",
@@ -220,17 +220,17 @@
   {
    "result": "loss",
    "turns": 14,
-   "hash": "8fc84d1f73391c24c95d1ca7ec7281bc"
+   "hash": "4c7c6a4dc8fee20aca9d40b694350a6d"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "1e2a3605681cff84a7d898863e85a152"
+   "hash": "5a157b6e920a008b828950613489c5f2"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "cc276c22c2e4184f1a8986288168d4bf"
+   "hash": "adbb47c628d8190c1ae337d9481c695b"
   },
   {
    "result": "win",
@@ -240,7 +240,7 @@
   {
    "result": "win",
    "turns": 8,
-   "hash": "03ea24eea6ae932d6caea48c8a13c898"
+   "hash": "d47bc473524ea51f5525027f5da614c2"
   },
   {
    "result": "loss",
@@ -255,7 +255,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "566760a28eb400eee857f21523be8151"
+   "hash": "05ee533fe02d4495f9210965f7fc7b27"
   },
   {
    "result": "loss",
@@ -265,7 +265,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "463a422b305e6f97aab4634d3611cad7"
+   "hash": "4eaf0ab81ab5adf80859e91fdc03f130"
   },
   {
    "result": "win",
@@ -275,12 +275,12 @@
   {
    "result": "loss",
    "turns": 5,
-   "hash": "5cca07ca86ceed3e4f5e447b00b85c13"
+   "hash": "7643527bded6caf0e171d8bc4e5f729c"
   },
   {
    "result": "loss",
    "turns": 15,
-   "hash": "548ef4b625571980de27cdefaa087db0"
+   "hash": "b3c77dc495967031ccfe99e306e268a1"
   },
   {
    "result": "loss",
@@ -295,7 +295,7 @@
   {
    "result": "win",
    "turns": 7,
-   "hash": "d1930b85c8ea54bb1d53ad0d69a6c39d"
+   "hash": "eb16cb7b607fc5ea14218a0df229dc70"
   },
   {
    "result": "win",
@@ -305,7 +305,7 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "a005aff0604f518fb8297fc774a4a9f7"
+   "hash": "acefd63498bd3f801bca0dbe32dc5f76"
   },
   {
    "result": "loss",
@@ -324,18 +324,18 @@
   },
   {
    "result": "loss",
-   "turns": 9,
-   "hash": "0acadc47f95418fbce0778fecdba0a94"
+   "turns": 10,
+   "hash": "41dfb677157d3ecfca8df1b834f9abbd"
   },
   {
    "result": "win",
    "turns": 10,
-   "hash": "6a4e9bbf06a2dc12e2692526d4dc757d"
+   "hash": "901f2c47d2e9db1e6f726910bedd5b93"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "7f2efa81f19af450450bdb38af1fd786"
+   "hash": "e543317f06671868dabbc6fd4d52c1b9"
   },
   {
    "result": "win",
@@ -360,12 +360,12 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "d7dd30750359aa4c66f2850ee2c3886a"
+   "hash": "1857da81dd5086101a20024546433c29"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "cd88f3ea616751b37b6194a74135ae06"
+   "hash": "fd2609ddc05017ba28b8b013116d8a27"
   },
   {
    "result": "loss",
@@ -380,7 +380,7 @@
   {
    "result": "loss",
    "turns": 5,
-   "hash": "483840538b02ff71d91aaebcb67a09c7"
+   "hash": "fb5cd863e9e71248d8e063409f37c386"
   },
   {
    "result": "loss",
@@ -420,22 +420,22 @@
   {
    "result": "loss",
    "turns": 14,
-   "hash": "815021b24c456e84b4d1a1343fc7c7e2"
+   "hash": "1439e95c26c5c2a62327402e56a369f6"
   },
   {
    "result": "loss",
-   "turns": 12,
-   "hash": "aaa1dbe8b8e1c407b819dc5e6917ee19"
+   "turns": 11,
+   "hash": "04f84aa56ebfeff8346a13ba7968ae42"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "e86e5ccfb94cede2ca3914c42a8d11cf"
+   "hash": "8beb43765bd410da06a5ef391b698d9c"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "5bff7f29d882a299168a6ee5d69ab4a9"
+   "hash": "ee8521e4c474f9b642a33c141b0fc58b"
   },
   {
    "result": "win",
@@ -455,22 +455,22 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "b20f48e998197343f1f566a73dd13425"
+   "hash": "3fcce7981159f37b56c2f306fbb067c4"
   },
   {
    "result": "win",
    "turns": 12,
-   "hash": "e3be8c3bc87ac0fb76ec580a894eee8d"
+   "hash": "cf8b8bdcb465f257e30aa045fadf2bac"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "20daf157f999f1c1464b682ef92f9934"
+   "hash": "bcbb8efd0007e147b3b588d6a21ad8bc"
   },
   {
    "result": "win",
    "turns": 17,
-   "hash": "280b67852f7494eb45dfe2a08a41f00d"
+   "hash": "01d64ac0023c455d43344135c90ed881"
   },
   {
    "result": "loss",
@@ -514,13 +514,13 @@
   },
   {
    "result": "loss",
-   "turns": 9,
-   "hash": "18aa60d264978d911b334051509e2522"
+   "turns": 8,
+   "hash": "53471f45da1a5c2c3a9259e9dfa5fe1c"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "3cb6492ea0092e6cc163e96a6b309945"
+   "hash": "c3908bbb4db437779a7d07090c0f2a9b"
   },
   {
    "result": "loss",
@@ -540,7 +540,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "5f75eb0d9a242ee1ada9292f85eb76bd"
+   "hash": "2ddd229840e760161850a989fe86d86b"
   },
   {
    "result": "loss",
@@ -555,7 +555,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "c412d10ec7d895be25e3331f74e968c1"
+   "hash": "6bf3f0e49c93991ba366ab6dd7d7a448"
   },
   {
    "result": "loss",
@@ -565,17 +565,17 @@
   {
    "result": "win",
    "turns": 6,
-   "hash": "ae48092e8d8b01502066a6942a323b35"
+   "hash": "6c1313957fbe9bf6cfd6e9257708572a"
   },
   {
    "result": "loss",
    "turns": 18,
-   "hash": "5bbf4e4cc4f9f917f4482840c9597610"
+   "hash": "ef197857936a86d776569b0ecc09cee3"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "e563868d0a829fa48cd6fe88ce2929b6"
+   "hash": "ce7e1a20279271767fffd2793462d92c"
   },
   {
    "result": "win",
@@ -585,7 +585,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "b5970f49e096eb4db2063130720cf5f4"
+   "hash": "b5747bbbaab1182f875479b96b7581d1"
   },
   {
    "result": "win",
@@ -600,22 +600,22 @@
   {
    "result": "win",
    "turns": 5,
-   "hash": "40d6d8deed9ebd9d203c5b4d43d2ac7c"
+   "hash": "88566830d9a9e451b3baad050fc1ac19"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "c71162ca94f1bc01e2bf2bc4380bb8d0"
+   "hash": "c15601d098e1a2d5464e5733c7ebc133"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "6f5955ace5a08bcfc27e5cb5efb9deed"
+   "hash": "8abecbcfe160f7a154401b22e098c712"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "ef2712f036109ac57b37e11907eaa204"
+   "hash": "17195ee492b754b9b09763951d556c6b"
   },
   {
    "result": "win",
@@ -630,7 +630,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "07773ed6073ea24bd1d50ca2787dbfff"
+   "hash": "b341d1730d7602002d2ead02b0cdd32f"
   },
   {
    "result": "loss",
@@ -675,7 +675,7 @@
   {
    "result": "loss",
    "turns": 13,
-   "hash": "8e81e96859996b7d2b55e504b42e4ae8"
+   "hash": "7d56266a408edd78c4cf1b09f5152ed0"
   },
   {
    "result": "loss",
@@ -685,7 +685,7 @@
   {
    "result": "win",
    "turns": 8,
-   "hash": "d55f794ddbb0c13578b2307e4a6bf964"
+   "hash": "87600652bb98f03256237abadf36bdf6"
   },
   {
    "result": "loss",
@@ -695,27 +695,27 @@
   {
    "result": "loss",
    "turns": 10,
-   "hash": "877fd36b6469b8429c7997074ab58560"
+   "hash": "6e5ba407c5139fb9e9a5d014350e6c7b"
   },
   {
    "result": "win",
-   "turns": 11,
-   "hash": "9c5c04ff44b6ced0b23fa0eb1a1b5a03"
+   "turns": 10,
+   "hash": "a32502edf5558e395d7b1329c16ac0f7"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "76f712af6fab570a9bc80093f22d1341"
+   "hash": "f9cc8ede390ac1def983924bbbeaa719"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "31251a62732c1e93939c81a8f097c27b"
+   "hash": "2e563c6e13a06e37293ad0dd19cfcc89"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "506ac4f54eb7228ee864610f8b82bf5d"
+   "hash": "e0c5b00bbe8b1dcb11130faddbc79f71"
   },
   {
    "result": "win",
@@ -745,7 +745,7 @@
   {
    "result": "win",
    "turns": 10,
-   "hash": "6f08e04aa837b99a042e9c79eade4e81"
+   "hash": "9cba277a89ae023e99a55c3e34d3daf8"
   },
   {
    "result": "loss",
@@ -755,7 +755,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "7189a020217eeb0b71f41a39fbf1eaf1"
+   "hash": "a30e1f14ba71d47bc93d4010aeba6b8f"
   },
   {
    "result": "loss",
@@ -779,8 +779,8 @@
   },
   {
    "result": "win",
-   "turns": 13,
-   "hash": "203d2c145d6ed18234b2844e4288bb0a"
+   "turns": 14,
+   "hash": "7f993e46bc8d50de5978354ba9c6e9d4"
   },
   {
    "result": "win",
@@ -800,7 +800,7 @@
   {
    "result": "loss",
    "turns": 12,
-   "hash": "aa06590f98e0de6c99aeea737eb0692c"
+   "hash": "c4548d2b7653a037207a8784039b2e98"
   },
   {
    "result": "win",
@@ -835,7 +835,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "bdf73b9e925cc367a0cfc41f86deae86"
+   "hash": "2c43cb1f573da46ddca3890820ca422f"
   },
   {
    "result": "loss",
@@ -855,7 +855,7 @@
   {
    "result": "loss",
    "turns": 5,
-   "hash": "d19f142f6c2506a8e553e6c7bdd11696"
+   "hash": "faf78334419ecd1de9050bd1fed95c17"
   },
   {
    "result": "win",
@@ -864,8 +864,8 @@
   },
   {
    "result": "loss",
-   "turns": 21,
-   "hash": "72bb0952cffdd50bc1c725c451af8d3a"
+   "turns": 15,
+   "hash": "6f6ebf67566d65f689fa9508de769ee0"
   },
   {
    "result": "win",
@@ -875,7 +875,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "24d8fe5617e6943bb6448f1536aa17c1"
+   "hash": "db32740cf5538594744362223dda9059"
   },
   {
    "result": "win",
@@ -885,17 +885,17 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "2a663949bdbaa8120f942b54dfafe821"
-  },
-  {
-   "result": "loss",
-   "turns": 8,
-   "hash": "2c01179add35a33ce645846163af7bf0"
+   "hash": "cd560a4e78b2ae0e3ed31a7c5ca68949"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "b1d264b8201b676f31c5216cbf5d9202"
+   "hash": "dfba7b11198404423b687091a714a237"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "6d3e3a1cfef10f9d1d26a81e7e080ac2"
   },
   {
    "result": "win",
@@ -920,7 +920,7 @@
   {
    "result": "win",
    "turns": 12,
-   "hash": "9c1d66c8511069231b5de5aeb07f4db3"
+   "hash": "f3e84de6be8c49c8087c3782228dc67c"
   },
   {
    "result": "loss",
@@ -940,7 +940,7 @@
   {
    "result": "loss",
    "turns": 10,
-   "hash": "1a694132723dfff2bde1d9cf7ba926fb"
+   "hash": "3ffff0ffddaccf25eefec542cf4d702f"
   },
   {
    "result": "win",
@@ -960,17 +960,17 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "2f6a46239d696ea40c39c9a22c504e74"
+   "hash": "887a2de76dce05f5c1f3dbc2ff6a816b"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "6746ee65f4cdc81525544a5b3f4ac107"
+   "hash": "5e89fbfd1fb06cd26c5b964b012ad81e"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "2f2de3e62a86ef12b409388752b82a36"
+   "hash": "3ea496bfa693bfbcafd25f916c30b596"
   },
   {
    "result": "loss",
@@ -990,12 +990,12 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "0eaf7407fe9d8fa3f77fc4dad25664f7"
+   "hash": "5a689ca5cb74cc98c994f6ba28d7db87"
   },
   {
    "result": "loss",
    "turns": 16,
-   "hash": "3dd39beef9d14b3c2ceb9410b467c7ec"
+   "hash": "0fb6deffbd0707b32e718c0c0ffa500d"
   },
   {
    "result": "loss",
@@ -1007,7 +1007,7 @@
   {
    "result": "win",
    "turns": 9,
-   "hash": "d20d57dcbb499129f0ce61105c719e84"
+   "hash": "15a40362031379595dbaf45e019c24db"
   },
   {
    "result": "win",
@@ -1022,12 +1022,12 @@
   {
    "result": "win",
    "turns": 8,
-   "hash": "689549d46f0d5c0217055350d4188484"
+   "hash": "acdc9fdc4929bf74a03467be8eedd279"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "056ac644c0a904f1d75f338388c09ab7"
+   "hash": "10549bb0e8a93cc96a0ead7dba0b08c2"
   },
   {
    "result": "win",
@@ -1052,12 +1052,12 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "2fee27cac2d627d58b020639b65d69f8"
+   "hash": "aa0e32edf1f5ee68ddc456b9929d6eac"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "87e6ade634770b252806002355de4655"
+   "hash": "ddf1b5681ed29ce21eba3b7952449641"
   },
   {
    "result": "win",
@@ -1067,7 +1067,7 @@
   {
    "result": "win",
    "turns": 6,
-   "hash": "bfa35d188a9cc82ed53f6e65d4f0ffcc"
+   "hash": "dc4e65932486ec0e92fe74de4efdb1d3"
   },
   {
    "result": "loss",
@@ -1077,7 +1077,7 @@
   {
    "result": "win",
    "turns": 7,
-   "hash": "d5c82b0533fe9e413a9d0d69f58106ed"
+   "hash": "7c43fc635ce0cc744648e3c6e761fbb9"
   },
   {
    "result": "win",
@@ -1112,7 +1112,7 @@
   {
    "result": "loss",
    "turns": 5,
-   "hash": "1bd88dd0065900a87560a7c65b108bca"
+   "hash": "beaaf27391a80d2d73a6a862bd316a51"
   },
   {
    "result": "win",
@@ -1127,12 +1127,12 @@
   {
    "result": "loss",
    "turns": 5,
-   "hash": "90bbdb04ebf8363a292f29325c92e6ac"
+   "hash": "6b830ebf7104fb045b552375637dd20f"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "bd4c3a9fe099074fe1b87ed322824a1a"
+   "hash": "23160e06fa34178eab9cd49a184f7412"
   },
   {
    "result": "win",
@@ -1172,7 +1172,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "c75d204e0ca9e75da2271f4cf429d802"
+   "hash": "f2a87b16d7ab77904f920b2353353cb0"
   },
   {
    "result": "win",
@@ -1187,7 +1187,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "e8f06655392151f844df817bb4adb76c"
+   "hash": "5067e05d9283e66cbafdf5b160c43411"
   },
   {
    "result": "loss",
@@ -1207,7 +1207,7 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "45a4d02310d30f500b332b9e43aac1c2"
+   "hash": "bc7f98ba444935153029874160330459"
   },
   {
    "result": "loss",
@@ -1222,17 +1222,17 @@
   {
    "result": "loss",
    "turns": 14,
-   "hash": "8fc84d1f73391c24c95d1ca7ec7281bc"
+   "hash": "4c7c6a4dc8fee20aca9d40b694350a6d"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "1e2a3605681cff84a7d898863e85a152"
+   "hash": "5a157b6e920a008b828950613489c5f2"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "cc276c22c2e4184f1a8986288168d4bf"
+   "hash": "adbb47c628d8190c1ae337d9481c695b"
   },
   {
    "result": "win",
@@ -1242,7 +1242,7 @@
   {
    "result": "win",
    "turns": 8,
-   "hash": "03ea24eea6ae932d6caea48c8a13c898"
+   "hash": "d47bc473524ea51f5525027f5da614c2"
   },
   {
    "result": "loss",
@@ -1257,7 +1257,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "566760a28eb400eee857f21523be8151"
+   "hash": "05ee533fe02d4495f9210965f7fc7b27"
   },
   {
    "result": "loss",
@@ -1267,7 +1267,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "463a422b305e6f97aab4634d3611cad7"
+   "hash": "4eaf0ab81ab5adf80859e91fdc03f130"
   },
   {
    "result": "win",
@@ -1277,12 +1277,12 @@
   {
    "result": "loss",
    "turns": 5,
-   "hash": "5cca07ca86ceed3e4f5e447b00b85c13"
+   "hash": "7643527bded6caf0e171d8bc4e5f729c"
   },
   {
    "result": "loss",
    "turns": 15,
-   "hash": "548ef4b625571980de27cdefaa087db0"
+   "hash": "b3c77dc495967031ccfe99e306e268a1"
   },
   {
    "result": "loss",
@@ -1297,7 +1297,7 @@
   {
    "result": "win",
    "turns": 7,
-   "hash": "d1930b85c8ea54bb1d53ad0d69a6c39d"
+   "hash": "eb16cb7b607fc5ea14218a0df229dc70"
   },
   {
    "result": "win",
@@ -1307,7 +1307,7 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "a005aff0604f518fb8297fc774a4a9f7"
+   "hash": "acefd63498bd3f801bca0dbe32dc5f76"
   },
   {
    "result": "loss",
@@ -1326,18 +1326,18 @@
   },
   {
    "result": "loss",
-   "turns": 9,
-   "hash": "0acadc47f95418fbce0778fecdba0a94"
+   "turns": 10,
+   "hash": "41dfb677157d3ecfca8df1b834f9abbd"
   },
   {
    "result": "win",
    "turns": 10,
-   "hash": "6a4e9bbf06a2dc12e2692526d4dc757d"
+   "hash": "901f2c47d2e9db1e6f726910bedd5b93"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "7f2efa81f19af450450bdb38af1fd786"
+   "hash": "e543317f06671868dabbc6fd4d52c1b9"
   },
   {
    "result": "win",
@@ -1362,12 +1362,12 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "d7dd30750359aa4c66f2850ee2c3886a"
+   "hash": "1857da81dd5086101a20024546433c29"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "cd88f3ea616751b37b6194a74135ae06"
+   "hash": "fd2609ddc05017ba28b8b013116d8a27"
   },
   {
    "result": "loss",
@@ -1382,7 +1382,7 @@
   {
    "result": "loss",
    "turns": 5,
-   "hash": "483840538b02ff71d91aaebcb67a09c7"
+   "hash": "fb5cd863e9e71248d8e063409f37c386"
   },
   {
    "result": "loss",
@@ -1422,22 +1422,22 @@
   {
    "result": "loss",
    "turns": 14,
-   "hash": "815021b24c456e84b4d1a1343fc7c7e2"
+   "hash": "1439e95c26c5c2a62327402e56a369f6"
   },
   {
    "result": "loss",
-   "turns": 12,
-   "hash": "aaa1dbe8b8e1c407b819dc5e6917ee19"
+   "turns": 11,
+   "hash": "04f84aa56ebfeff8346a13ba7968ae42"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "e86e5ccfb94cede2ca3914c42a8d11cf"
+   "hash": "8beb43765bd410da06a5ef391b698d9c"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "5bff7f29d882a299168a6ee5d69ab4a9"
+   "hash": "ee8521e4c474f9b642a33c141b0fc58b"
   },
   {
    "result": "win",
@@ -1457,22 +1457,22 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "b20f48e998197343f1f566a73dd13425"
+   "hash": "3fcce7981159f37b56c2f306fbb067c4"
   },
   {
    "result": "win",
    "turns": 12,
-   "hash": "e3be8c3bc87ac0fb76ec580a894eee8d"
+   "hash": "cf8b8bdcb465f257e30aa045fadf2bac"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "20daf157f999f1c1464b682ef92f9934"
+   "hash": "bcbb8efd0007e147b3b588d6a21ad8bc"
   },
   {
    "result": "win",
    "turns": 17,
-   "hash": "bdbaa1ad1100c5cb3c7454c77f8e01c6"
+   "hash": "94dc6eacc065b5cf53edef49917bca99"
   },
   {
    "result": "loss",
@@ -1516,13 +1516,13 @@
   },
   {
    "result": "loss",
-   "turns": 9,
-   "hash": "18aa60d264978d911b334051509e2522"
+   "turns": 8,
+   "hash": "53471f45da1a5c2c3a9259e9dfa5fe1c"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "3cb6492ea0092e6cc163e96a6b309945"
+   "hash": "c3908bbb4db437779a7d07090c0f2a9b"
   },
   {
    "result": "loss",
@@ -1542,7 +1542,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "5f75eb0d9a242ee1ada9292f85eb76bd"
+   "hash": "2ddd229840e760161850a989fe86d86b"
   },
   {
    "result": "loss",
@@ -1557,7 +1557,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "c412d10ec7d895be25e3331f74e968c1"
+   "hash": "6bf3f0e49c93991ba366ab6dd7d7a448"
   },
   {
    "result": "loss",
@@ -1567,17 +1567,17 @@
   {
    "result": "win",
    "turns": 6,
-   "hash": "ae48092e8d8b01502066a6942a323b35"
+   "hash": "6c1313957fbe9bf6cfd6e9257708572a"
   },
   {
    "result": "loss",
    "turns": 16,
-   "hash": "3f97e4bc2e65003b3c2408622440d94e"
+   "hash": "e1008bde22c8e26fc89b1b18088a9fd1"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "e563868d0a829fa48cd6fe88ce2929b6"
+   "hash": "ce7e1a20279271767fffd2793462d92c"
   },
   {
    "result": "win",
@@ -1587,7 +1587,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "b5970f49e096eb4db2063130720cf5f4"
+   "hash": "b5747bbbaab1182f875479b96b7581d1"
   },
   {
    "result": "win",
@@ -1602,22 +1602,22 @@
   {
    "result": "win",
    "turns": 5,
-   "hash": "40d6d8deed9ebd9d203c5b4d43d2ac7c"
+   "hash": "88566830d9a9e451b3baad050fc1ac19"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "c71162ca94f1bc01e2bf2bc4380bb8d0"
+   "hash": "c15601d098e1a2d5464e5733c7ebc133"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "6f5955ace5a08bcfc27e5cb5efb9deed"
+   "hash": "8abecbcfe160f7a154401b22e098c712"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "ef2712f036109ac57b37e11907eaa204"
+   "hash": "17195ee492b754b9b09763951d556c6b"
   },
   {
    "result": "win",
@@ -1632,7 +1632,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "07773ed6073ea24bd1d50ca2787dbfff"
+   "hash": "b341d1730d7602002d2ead02b0cdd32f"
   },
   {
    "result": "loss",
@@ -1677,7 +1677,7 @@
   {
    "result": "loss",
    "turns": 13,
-   "hash": "8e81e96859996b7d2b55e504b42e4ae8"
+   "hash": "7d56266a408edd78c4cf1b09f5152ed0"
   },
   {
    "result": "loss",
@@ -1687,7 +1687,7 @@
   {
    "result": "win",
    "turns": 8,
-   "hash": "d55f794ddbb0c13578b2307e4a6bf964"
+   "hash": "87600652bb98f03256237abadf36bdf6"
   },
   {
    "result": "loss",
@@ -1697,27 +1697,27 @@
   {
    "result": "loss",
    "turns": 10,
-   "hash": "877fd36b6469b8429c7997074ab58560"
+   "hash": "6e5ba407c5139fb9e9a5d014350e6c7b"
   },
   {
    "result": "win",
-   "turns": 11,
-   "hash": "9c5c04ff44b6ced0b23fa0eb1a1b5a03"
+   "turns": 10,
+   "hash": "a32502edf5558e395d7b1329c16ac0f7"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "76f712af6fab570a9bc80093f22d1341"
+   "hash": "f9cc8ede390ac1def983924bbbeaa719"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "31251a62732c1e93939c81a8f097c27b"
+   "hash": "2e563c6e13a06e37293ad0dd19cfcc89"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "506ac4f54eb7228ee864610f8b82bf5d"
+   "hash": "e0c5b00bbe8b1dcb11130faddbc79f71"
   },
   {
    "result": "win",
@@ -1747,7 +1747,7 @@
   {
    "result": "win",
    "turns": 10,
-   "hash": "6f08e04aa837b99a042e9c79eade4e81"
+   "hash": "9cba277a89ae023e99a55c3e34d3daf8"
   },
   {
    "result": "loss",
@@ -1757,7 +1757,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "7189a020217eeb0b71f41a39fbf1eaf1"
+   "hash": "a30e1f14ba71d47bc93d4010aeba6b8f"
   },
   {
    "result": "loss",
@@ -1781,8 +1781,8 @@
   },
   {
    "result": "win",
-   "turns": 13,
-   "hash": "203d2c145d6ed18234b2844e4288bb0a"
+   "turns": 14,
+   "hash": "7f993e46bc8d50de5978354ba9c6e9d4"
   },
   {
    "result": "win",
@@ -1802,7 +1802,7 @@
   {
    "result": "loss",
    "turns": 12,
-   "hash": "aa06590f98e0de6c99aeea737eb0692c"
+   "hash": "c4548d2b7653a037207a8784039b2e98"
   },
   {
    "result": "win",
@@ -1837,7 +1837,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "bdf73b9e925cc367a0cfc41f86deae86"
+   "hash": "2c43cb1f573da46ddca3890820ca422f"
   },
   {
    "result": "loss",
@@ -1857,7 +1857,7 @@
   {
    "result": "loss",
    "turns": 5,
-   "hash": "d19f142f6c2506a8e553e6c7bdd11696"
+   "hash": "faf78334419ecd1de9050bd1fed95c17"
   },
   {
    "result": "win",
@@ -1865,9 +1865,9 @@
    "hash": "69689af8c429833e886bc57405592867"
   },
   {
-   "result": "win",
-   "turns": 18,
-   "hash": "1a263c8e32be5986ef810dc108484991"
+   "result": "loss",
+   "turns": 15,
+   "hash": "6f6ebf67566d65f689fa9508de769ee0"
   },
   {
    "result": "win",
@@ -1877,7 +1877,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "24d8fe5617e6943bb6448f1536aa17c1"
+   "hash": "db32740cf5538594744362223dda9059"
   },
   {
    "result": "win",
@@ -1887,17 +1887,17 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "2a663949bdbaa8120f942b54dfafe821"
-  },
-  {
-   "result": "loss",
-   "turns": 8,
-   "hash": "2c01179add35a33ce645846163af7bf0"
+   "hash": "cd560a4e78b2ae0e3ed31a7c5ca68949"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "b1d264b8201b676f31c5216cbf5d9202"
+   "hash": "dfba7b11198404423b687091a714a237"
+  },
+  {
+   "result": "loss",
+   "turns": 6,
+   "hash": "6d3e3a1cfef10f9d1d26a81e7e080ac2"
   },
   {
    "result": "win",
@@ -1922,7 +1922,7 @@
   {
    "result": "win",
    "turns": 12,
-   "hash": "9c1d66c8511069231b5de5aeb07f4db3"
+   "hash": "f3e84de6be8c49c8087c3782228dc67c"
   },
   {
    "result": "loss",
@@ -1942,7 +1942,7 @@
   {
    "result": "loss",
    "turns": 10,
-   "hash": "1a694132723dfff2bde1d9cf7ba926fb"
+   "hash": "3ffff0ffddaccf25eefec542cf4d702f"
   },
   {
    "result": "win",
@@ -1962,17 +1962,17 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "2f6a46239d696ea40c39c9a22c504e74"
+   "hash": "887a2de76dce05f5c1f3dbc2ff6a816b"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "6746ee65f4cdc81525544a5b3f4ac107"
+   "hash": "5e89fbfd1fb06cd26c5b964b012ad81e"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "2f2de3e62a86ef12b409388752b82a36"
+   "hash": "3ea496bfa693bfbcafd25f916c30b596"
   },
   {
    "result": "loss",
@@ -1992,12 +1992,12 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "0eaf7407fe9d8fa3f77fc4dad25664f7"
+   "hash": "5a689ca5cb74cc98c994f6ba28d7db87"
   },
   {
    "result": "loss",
    "turns": 16,
-   "hash": "4d8d02fb3bc17f42ce76f53dce66a805"
+   "hash": "92cecb2b0fe84fcc9e096f85d75a060c"
   },
   {
    "result": "loss",

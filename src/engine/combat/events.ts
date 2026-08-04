@@ -36,6 +36,27 @@ export interface DamageCalculation {
   hpDamage: number;
 }
 
+/**
+ * Anti-heal world rule (user-locked 2026-08-01): the affliction FAMILIES on the
+ * heal RECEIVER that tax incoming healing. `dot` covers the whole poison/burn/
+ * bleed family as ONE category; `debuff` is any active stat debuff; `expose` is
+ * any active expose. Stun and shields are NOT afflictions for this rule.
+ */
+export type AntiHealCategory = 'dot' | 'debuff' | 'expose';
+
+/**
+ * How the anti-heal world rule taxed one heal — the mirror of `guarded` on a
+ * damage event. `categories` are the families found on the receiver at the
+ * moment the heal landed (fixed order: dot, debuff, expose), `pct` is
+ * `20 × categories.length` (capped 60), and `reduced` is the integer HP removed
+ * from the request. Emitted ONLY when `reduced > 0`.
+ */
+export interface AntiHealReduction {
+  categories: AntiHealCategory[];
+  pct: number;
+  reduced: number;
+}
+
 /** One side's numbers in a turn's initiative comparison. */
 export interface ComparisonSide {
   /** null when the side cannot compete this turn (busy / nothing usable). */
@@ -255,7 +276,26 @@ export type CombatEvent =
       /** Present for direct skill hits; DoT/fatigue/attrition damage has no cast formula. */
       calculation?: DamageCalculation;
     }
-  | { turn: number; kind: 'heal'; side: Side; unit: number; amount: number; overheal: number; flat: boolean; hpAfter: number; sourceCard?: EffectSourceRef }
+  | {
+      turn: number;
+      kind: 'heal';
+      side: Side;
+      unit: number;
+      /** Effective HP restored (post anti-heal, post overheal clamp). */
+      amount: number;
+      /** Wasted remainder of the (post anti-heal) request: attempted = amount + overheal. */
+      overheal: number;
+      /** TRUE heal: flat and IRREDUCIBLE — never carries `antiHeal`. */
+      flat: boolean;
+      hpAfter: number;
+      /**
+       * Anti-heal world rule tax on this heal. Present only when it removed at
+       * least 1 HP from the request; the pre-tax request is
+       * `amount + overheal + antiHeal.reduced`.
+       */
+      antiHeal?: AntiHealReduction;
+      sourceCard?: EffectSourceRef;
+    }
   | {
       turn: number;
       kind: 'shieldGain';

@@ -1,6 +1,6 @@
 import type { Rng } from '../rng';
 import type { Action, EffectSourceRef, Property, SkillDef } from '../types';
-import type { CombatEvent, DamageCalculation } from './events';
+import type { AntiHealCategory, AntiHealReduction, CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
 import { boardPowerLevel, effStat, foesOf, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
@@ -295,6 +295,63 @@ function consumeShields(
   return { blocked, drain };
 }
 
+/** −20% healing per affliction category present on the receiver. */
+export const ANTI_HEAL_PCT_PER_CATEGORY = 20;
+/** All three categories at once: the hard cap of the world rule. */
+export const ANTI_HEAL_MAX_PCT = ANTI_HEAL_PCT_PER_CATEGORY * 3;
+
+/**
+ * ANTI-HEAL WORLD RULE (user-locked 2026-08-01). Which affliction FAMILIES are
+ * active on a heal RECEIVER, evaluated fresh at the moment healing lands — so a
+ * `cleanse` restores heal potency for free (no bookkeeping: the categories are
+ * simply gone next time a heal resolves).
+ *
+ * Exactly three categories, returned in this FIXED order (determinism):
+ *  1. `dot`    — ANY active poison/burn/bleed pile; the whole family counts ONCE.
+ *  2. `debuff` — ANY active stat debuff.
+ *  3. `expose` — ANY active expose.
+ * Stun is NOT an affliction here, and shields are not afflictions at all.
+ */
+export function antiHealCategories(c: CombatantState): AntiHealCategory[] {
+  const found: AntiHealCategory[] = [];
+  let dot = false;
+  let debuff = false;
+  let expose = false;
+  for (const s of c.statuses) {
+    if ((s.kind === 'poison' || s.kind === 'burn' || s.kind === 'bleed') && (s.stacks ?? 0) > 0) dot = true;
+    else if (s.kind === 'debuff') debuff = true;
+    else if (s.kind === 'expose') expose = true;
+  }
+  if (dot) found.push('dot');
+  if (debuff) found.push('debuff');
+  if (expose) found.push('expose');
+  return found;
+}
+
+/**
+ * Tax a REGULAR heal request by the anti-heal world rule.
+ *
+ * ROUNDING (locked): `reduced = floor(request * pct / 100)`, and the heal that
+ * lands is `request - reduced`. The REDUCTION is floored (the mirror of how
+ * `expose` floors its amplification and `guard` floors its cut), which rounds
+ * the surviving heal UP — so a positive heal can never be zeroed by this rule
+ * (pct <= 60 ⇒ reduced < request for every request >= 1). Boundary values:
+ * request 1-4 at −20% lose 0, request 5 loses 1; request 1 at −60% loses 0,
+ * request 2 loses 1.
+ *
+ * TRUE heals never reach here — they are flat and irreducible by identity.
+ * Shield GAINS are not healing and are untouched.
+ */
+function applyAntiHeal(target: CombatantState, request: number): { amount: number; antiHeal?: AntiHealReduction } {
+  if (request <= 0) return { amount: request };
+  const categories = antiHealCategories(target);
+  if (categories.length === 0) return { amount: request };
+  const pct = Math.min(ANTI_HEAL_MAX_PCT, categories.length * ANTI_HEAL_PCT_PER_CATEGORY);
+  const reduced = Math.floor((request * pct) / 100);
+  if (reduced <= 0) return { amount: request };
+  return { amount: request - reduced, antiHeal: { categories, pct, reduced } };
+}
+
 /** Per-cast scratch state for rider actions (combo bonus, lifesteal). */
 interface CastCtx {
   damageDealt: number;
@@ -506,11 +563,17 @@ function applyAction(
       // any FLAT aura/gem heal bonus.
       let amount: number;
       let flat = false;
+      let antiHeal: AntiHealReduction | undefined;
       if (property === 'true') {
         amount = action.power;
         flat = true;
       } else {
-        amount = action.power + scaleStat(caster, property) + mods.healFlat;
+        // ANTI-HEAL WORLD RULE: a regular heal is taxed −20% per affliction
+        // category active on the RECEIVER (cap −60%). TRUE heals skip this
+        // branch entirely — irreducible by identity.
+        const taxed = applyAntiHeal(target, action.power + scaleStat(caster, property) + mods.healFlat);
+        amount = taxed.amount;
+        antiHeal = taxed.antiHeal;
       }
       const before = target.stats.hp;
       target.stats.hp = Math.min(target.stats.maxHp, target.stats.hp + amount);
@@ -519,7 +582,7 @@ function applyAction(
       // per-card report credits its full output; `amount` is the effective HP
       // restored, `overheal` the wasted remainder (attempted = amount + overheal).
       if (amount > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: amount - healed, flat, hpAfter: target.stats.hp, ...(ctx.source ? { sourceCard: ctx.source } : {}) });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: amount - healed, flat, hpAfter: target.stats.hp, ...(antiHeal ? { antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}) });
       }
       break;
     }
@@ -662,13 +725,17 @@ function applyAction(
     }
     case 'lifesteal': {
       if (!caster.alive || cast.damageDealt <= 0) break;
-      const amount = Math.floor((cast.damageDealt * action.pct) / 100);
-      if (amount <= 0) break;
+      const stolen = Math.floor((cast.damageDealt * action.pct) / 100);
+      if (stolen <= 0) break;
+      // ANTI-HEAL WORLD RULE: lifesteal is regular healing — taxed by the
+      // afflictions on its RECEIVER (the caster), same formula as `heal`.
+      const taxed = applyAntiHeal(caster, stolen);
+      const amount = taxed.amount;
       const before = caster.stats.hp;
       caster.stats.hp = Math.min(caster.stats.maxHp, caster.stats.hp + amount);
       const healed = caster.stats.hp - before;
       if (healed > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, unit: caster.index, amount: healed, overheal: amount - healed, flat: false, hpAfter: caster.stats.hp, ...(ctx.source ? { sourceCard: ctx.source } : {}) });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, unit: caster.index, amount: healed, overheal: amount - healed, flat: false, hpAfter: caster.stats.hp, ...(taxed.antiHeal ? { antiHeal: taxed.antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}) });
       }
       break;
     }
