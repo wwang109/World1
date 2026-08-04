@@ -234,7 +234,11 @@ function grantCardOutcome(
   const inserted = tryInsertRunCard(state, skillId, tier);
   if (!inserted) {
     return {
-      state: { ...state, gold: state.gold + CARD_FALLBACK_GOLD },
+      state: {
+        ...state,
+        gold: state.gold + CARD_FALLBACK_GOLD,
+        stats: { ...state.stats, goldEarned: state.stats.goldEarned + CARD_FALLBACK_GOLD },
+      },
       outcome: { kind: 'grantGold', amount: CARD_FALLBACK_GOLD, fellBack: true },
     };
   }
@@ -276,10 +280,21 @@ function applySpec(state: RunState, rng: Rng, spec: EventOutcomeSpec): { state: 
     case 'grantGem':
       return grantGemOutcome(state, rng, spec);
     case 'grantGold':
-      return { state: { ...state, gold: state.gold + spec.amount }, outcome: { kind: 'grantGold', amount: spec.amount } };
+      return {
+        state: {
+          ...state,
+          gold: state.gold + spec.amount,
+          stats: { ...state.stats, goldEarned: state.stats.goldEarned + spec.amount },
+        },
+        outcome: { kind: 'grantGold', amount: spec.amount },
+      };
     case 'loseGold': {
       const nextGold = Math.max(0, state.gold - spec.amount);
-      return { state: { ...state, gold: nextGold }, outcome: { kind: 'loseGold', amount: spec.amount } };
+      const spent = state.gold - nextGold;
+      return {
+        state: { ...state, gold: nextGold, stats: { ...state.stats, goldSpent: state.stats.goldSpent + spent } },
+        outcome: { kind: 'loseGold', amount: spec.amount },
+      };
     }
     case 'grantLevel': {
       // Capped at MAX_LEVEL (USER-LOCKED 2026-07-30) — same ceiling the hero's
@@ -341,7 +356,13 @@ export function resolveEventChoice(
 
   let working = state;
   if (choice.cost) {
-    working = { ...working, gold: Math.max(0, working.gold - choice.cost) };
+    const nextGold = Math.max(0, working.gold - choice.cost);
+    const spent = working.gold - nextGold;
+    working = {
+      ...working,
+      gold: nextGold,
+      stats: { ...working.stats, goldSpent: working.stats.goldSpent + spent },
+    };
   }
 
   const rng = new Rng(hashSeed('event', node.eventSeed!, choiceId));
@@ -351,7 +372,10 @@ export function resolveEventChoice(
     : (choice.outcome as EventOutcomeSpec);
 
   const { state: nextState, outcome } = applySpec(working, rng, spec);
-  return { state: nextState, outcome: { ...outcome, gambled } };
+  return {
+    state: { ...nextState, stats: { ...nextState.stats, eventsResolved: nextState.stats.eventsResolved + 1 } },
+    outcome: { ...outcome, gambled },
+  };
 }
 
 /**
@@ -364,7 +388,11 @@ export function applyBonusDraftPick(state: RunState, pick: DraftCard): { state: 
   const inserted = tryInsertRunCard(state, pick.skillId, pick.tier);
   if (!inserted) {
     return {
-      state: { ...state, gold: state.gold + CARD_FALLBACK_GOLD },
+      state: {
+        ...state,
+        gold: state.gold + CARD_FALLBACK_GOLD,
+        stats: { ...state.stats, goldEarned: state.stats.goldEarned + CARD_FALLBACK_GOLD },
+      },
       outcome: { kind: 'grantGold', amount: CARD_FALLBACK_GOLD, fellBack: true },
     };
   }

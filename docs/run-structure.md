@@ -119,6 +119,35 @@ book when thin. The player picks exactly 1 per set; a fresh run (status
 `'drafting'`) routes straight to the Draft scene, and `applyRunDraft`
 installs the picks.
 
+## Stats (`RunState.stats`, `src/meta/lifetimeStats.ts`)
+
+Two layers, both pure/integer, no UI yet (a stats screen is separate):
+
+- **Per-run** (`RunState.stats: RunStats`, `runState.ts`): additive counters
+  NOT already tracked elsewhere on `RunState` — `wins`/`losses`/
+  `bossesCleared`/`lives` stay the single source of truth for those; a
+  stats-screen selector merges them in. `RunStats` holds `damageDealt` /
+  `damageTaken` / `healingDone` (folded from a fight's `BattleLog` via
+  `battleStatsFromEvents` in `logAnalysis.ts` — NO re-simulation), `goldEarned`
+  / `goldSpent`, `cardsBought` / `gemsBought`, `eventsResolved`,
+  `deepestDepth` / `deepestWave` (from `chooseNode`), and `livesLost`. Updated
+  at the SAME transitions that already touch the counterpart field
+  (`chooseNode`, `recordBattleResult`, `buyRunCard`/`buyRunGem`/
+  `rerollRunShop`, `resolveEventChoice`) — every transition still returns a
+  new `RunState` (`stats` included), no exception.
+- **Lifetime** (`src/meta/lifetimeStats.ts`, new module — `src/meta` has no
+  other code yet): cross-run aggregation — `runsStarted`/`runsRetired`/
+  `runsDead`, `totalFights`/`totalWins`/`totalLosses`/`totalBossesCleared`, a
+  `bestRun` high-water mark (`bossesCleared`, `deepestWave`), and a `totals`
+  sum of every `RunStats` counter. Persists via an INJECTED `StorageDriver`
+  (`{get(key), set(key,value)}`) so `src/meta` stays DOM-free; a real
+  `window.localStorage`-backed driver lives in `src/game/metaStore.ts`, which
+  also owns the two call sites (`runStore.ts#startRun` ->
+  `noteRunStarted`, and the retire/defeat transitions -> `noteRunEnded`).
+  Versioned (`schemaVersion`) with a tolerant loader — bad/missing/malformed
+  JSON, or an unrecognized future shape, all normalize to safe zeroed
+  defaults field-by-field rather than crashing boot.
+
 ## `src/run` module map
 
 | Module | Owns |
@@ -133,7 +162,7 @@ installs the picks.
 | `loadout.ts` | Board/bag placement: `canPlace`, `shiftInsert`, `moveWithinStrip`, gem socket/unsocket/swap |
 | `resolveBattle.ts` | `BattleRequest → BattleLog` — the battle service's whole payload (the ONLY combat entry point above the engine) |
 | `analysis.ts` | `damagePerTurn` sustained-damage band (prep preview, served by the API) |
-| `logAnalysis.ts` | `cardContributions` — per-card damage/heal report from an event log |
+| `logAnalysis.ts` | `cardContributions` — per-card damage/heal report from an event log; `battleStatsFromEvents` — the run stats ledger's per-fight delta |
 
 The `src/game` side discriminates run vs sandbox context via
 `battleContext.ts` / `deckBuildContext.ts` source discriminators and
@@ -141,7 +170,10 @@ The `src/game` side discriminates run vs sandbox context via
 
 ## Still planned (not built)
 
-- Fog-of-war zone map, multiple zones, meta persistence (`src/meta`).
+- Fog-of-war zone map, multiple zones.
+- ~~Meta persistence (`src/meta`)~~ — lifetime STATS built 2026-08-04 (see
+  "Stats" above); a real save/load of the run itself (mid-run resume across
+  reloads, account progression beyond stats, respec) is still unbuilt.
 - Run tutorial (`docs/run-tutorial-design.md`).
 - ~~Anti-heal world rule~~ — BUILT 2026-08-03 in the engine (`docs/design-locked.md`);
   the dedicated anti-heal DEBUFF that will replace it (cap −80%) is still unbuilt.

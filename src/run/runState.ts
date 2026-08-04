@@ -59,6 +59,57 @@ export interface RunShopShelf {
  */
 export type RunStatus = 'drafting' | 'active' | 'victory' | 'defeat' | 'retired';
 
+/**
+ * Per-run stats ledger — additive counters NOT already tracked elsewhere on
+ * `RunState` (wins/losses/bossesCleared/lives/heroLevel stay the single
+ * source of truth for those; a stats-screen selector merges them in, see
+ * `runStatsSummary`). Every field is a non-negative integer, updated by the
+ * SAME transitions that already mutate the counterpart field they ride
+ * along with (chooseNode/recordBattleResult/shop buys/event resolution) —
+ * no separate "stats pass". Pure data: no functions, no class instances.
+ */
+export interface RunStats {
+  /** Gross HP the hero's cards removed from foes, across all fights (from `BattleLog` damage events, side `'enemy'`). */
+  damageDealt: number;
+  /** Gross HP the hero's side lost, across all fights (side `'player'` damage events). */
+  damageTaken: number;
+  /** Effective (post-overheal) HP the hero's side restored, across all fights. */
+  healingDone: number;
+  /** Total gold credited (daily income + fight payouts + event grants). */
+  goldEarned: number;
+  /** Total gold deducted (card/gem buys, shop rerolls, event costs/losses). */
+  goldSpent: number;
+  /** Card offers bought from a shop shelf. */
+  cardsBought: number;
+  /** Gem offers bought from a shop shelf. */
+  gemsBought: number;
+  /** Event choices resolved (`resolveEventChoice` calls), one per event visited. */
+  eventsResolved: number;
+  /** Deepest map column (`RunNode.depth`) the run has committed to via `chooseNode`. */
+  deepestDepth: number;
+  /** Highest wave number (`RunNode.wave`) the run has committed to via `chooseNode`. */
+  deepestWave: number;
+  /** Lives lost to fight/boss losses (mirrors `LIVES_PER_RUN - lives`, tracked directly so it survives even if `lives` regains a future refill mechanic). */
+  livesLost: number;
+}
+
+/** A fresh run's all-zero stats ledger. */
+export function emptyRunStats(): RunStats {
+  return {
+    damageDealt: 0,
+    damageTaken: 0,
+    healingDone: 0,
+    goldEarned: 0,
+    goldSpent: 0,
+    cardsBought: 0,
+    gemsBought: 0,
+    eventsResolved: 0,
+    deepestDepth: 0,
+    deepestWave: 0,
+    livesLost: 0,
+  };
+}
+
 export interface RunState {
   seed: number;
   map: RunMap;
@@ -111,6 +162,8 @@ export interface RunState {
   heroAllocation: Allocation;
   wins: number;
   losses: number;
+  /** Additive stats ledger — see `RunStats`. */
+  stats: RunStats;
 }
 
 /** Board width for the run's deck rail — same as the sandbox hero board. */
@@ -327,6 +380,7 @@ export function createRun(seed: number): RunState {
     heroAllocation: {},
     wins: 0,
     losses: 0,
+    stats: emptyRunStats(),
   };
 }
 
@@ -408,6 +462,12 @@ export function chooseNode(state: RunState, nodeId: string): RunState {
     depth: node.depth,
     currentNodeId: node.id,
     gold: state.gold + DAILY_INCOME,
+    stats: {
+      ...state.stats,
+      goldEarned: state.stats.goldEarned + DAILY_INCOME,
+      deepestDepth: Math.max(state.stats.deepestDepth, node.depth),
+      deepestWave: Math.max(state.stats.deepestWave, node.wave),
+    },
   };
 }
 
@@ -441,6 +501,17 @@ export function rollEncounter(state: RunState): EncounterUnit {
 export interface BattleOutcome {
   won: boolean;
   goldEarned: number;
+  /**
+   * Optional stats-ledger deltas folded from the resolved `BattleLog`
+   * (see `battleStatsFromEvents` in `logAnalysis.ts`) — the caller (the
+   * battle-service client) computes these from the SAME log it already has;
+   * `recordBattleResult` never re-derives them. Omitted/defaulted to 0 keeps
+   * every existing `{won, goldEarned}` call site (tests, sandbox-shaped
+   * callers) byte-identical.
+   */
+  damageDealt?: number;
+  damageTaken?: number;
+  healingDone?: number;
 }
 
 /**
@@ -471,16 +542,25 @@ export function recordBattleResult(state: RunState, outcome: BattleOutcome): Run
   const won = outcome.won;
   const lives = won ? state.lives : Math.max(0, state.lives - 1);
   const status: RunStatus = lives <= 0 ? 'defeat' : 'active';
+  const goldEarned = won ? Math.max(0, Math.floor(outcome.goldEarned)) : 0;
   return {
     ...state,
     status,
     currentNodeId: null,
     lives,
     bossesCleared: state.bossesCleared + (isBoss && won ? 1 : 0),
-    gold: state.gold + (won ? Math.max(0, Math.floor(outcome.goldEarned)) : 0),
+    gold: state.gold + goldEarned,
     wins: state.wins + (won ? 1 : 0),
     losses: state.losses + (won ? 0 : 1),
     heroLevel: Math.min(MAX_LEVEL, state.heroLevel + 1),
+    stats: {
+      ...state.stats,
+      goldEarned: state.stats.goldEarned + goldEarned,
+      damageDealt: state.stats.damageDealt + Math.max(0, Math.floor(outcome.damageDealt ?? 0)),
+      damageTaken: state.stats.damageTaken + Math.max(0, Math.floor(outcome.damageTaken ?? 0)),
+      healingDone: state.stats.healingDone + Math.max(0, Math.floor(outcome.healingDone ?? 0)),
+      livesLost: state.stats.livesLost + (state.lives - lives),
+    },
   };
 }
 
@@ -583,7 +663,12 @@ export function rerollRunShop(state: RunState, nodeId: string): RunState {
   const nextCount = (state.shopShelves[nodeId]?.rerollCount ?? 0) + 1;
   const rolled = rollShopStock(node.shopId, node.shopSeed + nextCount, shopStockDepthForWave(node.wave));
   const shelf: RunShopShelf = { cards: [...rolled.cards], gems: [...rolled.gems], rerollCount: nextCount };
-  return { ...state, gold: state.gold - 1, shopShelves: { ...state.shopShelves, [nodeId]: shelf } };
+  return {
+    ...state,
+    gold: state.gold - 1,
+    shopShelves: { ...state.shopShelves, [nodeId]: shelf },
+    stats: { ...state.stats, goldSpent: state.stats.goldSpent + 1 },
+  };
 }
 
 function runBagOccupied(state: RunState): boolean[] {
@@ -656,6 +741,11 @@ export function buyRunCard(state: RunState, nodeId: string, index: number): RunB
     ...inserted.state,
     gold: inserted.state.gold - offer.price,
     shopShelves: { ...inserted.state.shopShelves, [nodeId]: nextShelf },
+    stats: {
+      ...inserted.state.stats,
+      goldSpent: inserted.state.stats.goldSpent + offer.price,
+      cardsBought: inserted.state.stats.cardsBought + 1,
+    },
   };
   return { ok: true, state: nextState };
 }
@@ -673,6 +763,11 @@ export function buyRunGem(state: RunState, nodeId: string, index: number): RunBu
     gold: state.gold - offer.price,
     gemInventory: [...state.gemInventory, offer.gemId],
     shopShelves: { ...state.shopShelves, [nodeId]: nextShelf },
+    stats: {
+      ...state.stats,
+      goldSpent: state.stats.goldSpent + offer.price,
+      gemsBought: state.stats.gemsBought + 1,
+    },
   };
   return { ok: true, state: nextState };
 }

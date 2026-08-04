@@ -107,3 +107,5 @@ export function damagePerTurn(setup: CombatantSetup, skillBook: SkillBook, opts:
 // Per-card contribution report moved to `logAnalysis.ts` — it is a pure fold
 // over an event log and must stay importable WITHOUT pulling in simulate().
 export { cardContributions, type CardContribution } from './logAnalysis';
+// Per-fight stats-ledger delta — same "pure fold, no simulate()" reasoning.
+export { battleStatsFromEvents, type BattleStatsDelta } from './logAnalysis';

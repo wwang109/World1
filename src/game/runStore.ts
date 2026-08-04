@@ -4,8 +4,10 @@ import type { DraftCard, DraftSetKey } from '../run/draft';
 import type { EncounterUnit } from '../run/encounter';
 import { applyBonusDraftPick, resolveEventChoice, rollEventForNode, type EventOutcome } from '../run/events';
 import { bankedPL, type Allocation } from '../run/leveling';
+import { battleStatsFromEvents } from '../run/logAnalysis';
 import { battleGoldReward, type BattleFoeSummary } from '../run/shop';
 import type { BattleLog } from '../run/resolveBattle';
+import { noteRunEnded, noteRunStarted } from './metaStore';
 import type { BattleTimelineInput } from './battleTimeline';
 import {
   applyDraftResult,
@@ -71,6 +73,7 @@ export function rerollPendingSeed(): void {
  */
 export function startRun(seed: number): void {
   activeRun = createRun(seed);
+  noteRunStarted();
 }
 
 /** Installs the player's actual draft picks (one per `DRAFT_SET_KEYS` set)
@@ -101,7 +104,9 @@ export function clearRun(): void {
  * `'retired'`) takes over. */
 export function retireActiveRun(): void {
   if (!activeRun) return;
+  const before = activeRun;
   activeRun = retireRun(activeRun);
+  if (activeRun !== before) noteRunEnded(activeRun);
 }
 
 /** The 2-3 nodes the player may pick next (empty if no run, run over, or a
@@ -187,7 +192,9 @@ export function resolveRunBattleResult(input: BattleTimelineInput, log: BattleLo
   const reward = battleGoldReward(foes, activeRun.heroLevel);
   const won = log.result === 'win';
   const payout = won ? reward.base + reward.winBonus : 0;
-  activeRun = recordBattleResult(activeRun, { won, goldEarned: payout });
+  const battleStats = battleStatsFromEvents(log.events);
+  activeRun = recordBattleResult(activeRun, { won, goldEarned: payout, ...battleStats });
+  if (activeRun.status === 'defeat') noteRunEnded(activeRun);
   return payout;
 }
 

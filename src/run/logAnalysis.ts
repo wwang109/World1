@@ -67,3 +67,39 @@ export function cardContributions(events: readonly CombatEvent[]): CardContribut
     a.side === b.side ? a.slot - b.slot : a.side === 'player' ? -1 : 1,
   );
 }
+
+/** One fight's player-perspective totals — the run stats ledger's input
+ * (see `RunStats` in `runState.ts`), folded straight off the resolved log's
+ * events. `damageDealt`/`damageTaken` sum EVERY `damage` event's `amount`
+ * (direct hits + DoT ticks + attrition/fatigue) by victim side; `healingDone`
+ * sums only the effective (post-overheal) `amount` of `heal` events landing
+ * on the player side — overheal is waste, not output restored. */
+export interface BattleStatsDelta {
+  damageDealt: number;
+  damageTaken: number;
+  healingDone: number;
+}
+
+/**
+ * Fold a resolved fight's event log into the player-perspective stats delta
+ * `recordBattleResult` (`runState.ts`) folds into the run's `stats` ledger.
+ * Pure — no re-simulation, no side effects. Team-combat ready: every `enemy`-
+ * side damage event counts toward `damageDealt` regardless of which enemy
+ * unit it landed on, and every `player`-side damage/heal event counts toward
+ * `damageTaken`/`healingDone` regardless of which player unit (today always
+ * unit 0 — 1v1).
+ */
+export function battleStatsFromEvents(events: readonly CombatEvent[]): BattleStatsDelta {
+  let damageDealt = 0;
+  let damageTaken = 0;
+  let healingDone = 0;
+  for (const e of events) {
+    if (e.kind === 'damage') {
+      if (e.side === 'enemy') damageDealt += e.amount;
+      else damageTaken += e.amount;
+    } else if (e.kind === 'heal' && e.side === 'player') {
+      healingDone += e.amount;
+    }
+  }
+  return { damageDealt, damageTaken, healingDone };
+}
