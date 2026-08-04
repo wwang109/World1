@@ -69,7 +69,7 @@ const defs: EventDef[] = [
     id: 'wandering_tutor',
     title: 'The Wandering Tutor',
     theme: 'training',
-    body: 'An old sellsword leans on a gnarled staff at the trailside, watching you with the patient amusement of someone who has seen a hundred hopefuls pass this way. "Three gold," she says, "and I\'ll show you where you\'re wasting your strength." Her lesson would not be free, but it would not be forgotten either.',
+    body: 'The dust of the Hollow Yard has barely settled from the last duel when an old sellsword rises to meet you, gnarled staff in hand. "Three gold," she says, "and I\'ll show you where you\'re wasting your strength." Her lesson won\'t be free — but it won\'t be forgotten, either.',
     choices: [
       { id: 'pay', label: 'Pay 3 gold for the lesson', cost: 3, outcome: { kind: 'grantLevel' } },
       { id: 'decline', label: 'Keep walking', outcome: { kind: 'nothing' } },
@@ -79,7 +79,7 @@ const defs: EventDef[] = [
     id: 'abandoned_cache',
     title: 'Abandoned Cache',
     theme: 'cache',
-    body: 'A supply crate lies half-buried off the path, its lock long rusted through. Someone left in a hurry — or never came back at all. It could hold anything worth carrying, or it could hold nothing but the reason it was left behind.',
+    body: 'The trail dips into the Silt Hollows, and there, half-swallowed by mud, a supply crate juts from the muck, its lock long rusted through. Someone left here in a hurry — or never came back at all. Pry it open and it could hold anything worth carrying, or nothing at all but the reason it was abandoned.',
     choices: [
       {
         id: 'open',
@@ -99,7 +99,7 @@ const defs: EventDef[] = [
     id: 'recruiter',
     title: 'The Recruiter',
     theme: 'recruit',
-    body: 'A weapons broker flags you down from beneath a striped awning, arms full of blades and bowstrings. "Pick your favorite," he grins, laying out a row of five, "or take the coin instead — I won\'t haggle either way."',
+    body: 'A weapons broker flags you down from beneath a striped awning at the roadside edge of the Muster Road, arms full of blades and bowstrings still warm from the last camp. "Pick your favorite," he grins, laying out a row of five, "or take the coin instead — I won\'t haggle either way."',
     choices: [
       {
         id: 'pick_weapon',
@@ -113,7 +113,7 @@ const defs: EventDef[] = [
     id: 'gemsellers_mishap',
     title: "Gemseller's Mishap",
     theme: 'cache',
-    body: 'A peddler\'s cart hits a rut and her satchel bursts, scattering uncut gems across the road. She scrambles after them, cursing — there\'s more here than she can gather alone, and more than a few have already rolled toward your boots.',
+    body: 'A peddler\'s cart hits a sinking rut at the edge of the Silt Hollows and her satchel bursts, scattering uncut gems across the mud. She scrambles after them, cursing — there\'s more here than she can gather alone, and more than a few have already rolled to rest against your boots.',
     choices: [
       {
         id: 'help',
@@ -133,7 +133,7 @@ const defs: EventDef[] = [
     id: 'crossroads_shrine',
     title: 'Crossroads Shrine',
     theme: 'omen',
-    body: 'A weathered shrine stands where two roads cross, its carvings split evenly between a rising sun and a crescent moon. Pilgrims leave gold here for a blessing; others, less devout, have been known to pry the shrine apart for scrap.',
+    body: 'At the heart of the Crossroads Unquiet stands a weathered shrine, carvings split evenly between a rising sun and a crescent moon. Pilgrims leave gold here for a blessing; others, less devout, have been known to pry it apart for scrap and take their chances with whatever hears them do it.',
     choices: [
       {
         id: 'tithe',
@@ -148,7 +148,7 @@ const defs: EventDef[] = [
     id: 'veterans_last_lesson',
     title: "Veteran's Last Lesson",
     theme: 'training',
-    body: 'A retiring blade-master offers you her signature weapon, still humming faintly with old battles. "Take it, and carry what I built," she says, "or take my years instead — I\'ve more use for rest than for steel now."',
+    body: 'At the far end of the Hollow Yard, a retiring blade-master sets down her practice cane and offers you her signature weapon, still humming faintly with old battles. "Take it, and carry what I built," she says, "or take my years instead — I\'ve more use for rest now than for steel."',
     choices: [
       { id: 'take_blade', label: "Take the veteran's blade", outcome: { kind: 'grantCard', cardId: 'crushing_blow', tier: 'silver' } },
       { id: 'take_years', label: 'Take her years of experience instead', outcome: { kind: 'grantLevel' } },
@@ -158,7 +158,7 @@ const defs: EventDef[] = [
     id: 'gambler',
     title: 'The Gambler',
     theme: 'omen',
-    body: 'A hooded figure shuffles a deck of cards at a folding table, coins stacked neatly at her elbow. "Stake three gold," she says without looking up, "double it on the cut, or watch it disappear. Or don\'t play at all — some people prefer to keep what they have."',
+    body: 'In the shadow of the crossroads shrine, a hooded figure shuffles cards at a folding table, coins stacked at her elbow, never once looking up as travelers pass. "Stake three gold," she says, "double it on the cut, or watch it disappear. Or don\'t play at all — some prefer to keep what little they have."',
     choices: [
       {
         id: 'stake',
@@ -184,7 +184,7 @@ const defs: EventDef[] = [
     id: 'overloaded_caravan',
     title: 'Overloaded Caravan',
     theme: 'market',
-    body: 'A merchant caravan is stuck axle-deep in mud, its driver frantic. She\'ll gladly let you rummage her overstuffed trunks for the trouble of pushing — or just toss you a coin for a shoulder at the wheel, no rummaging required.',
+    body: 'A merchant caravan sits axle-deep in the mud of the Tolling Road, its driver frantic as the sun sinks lower. She\'ll gladly let you rummage her overstuffed trunks for the trouble of pushing — or just toss you a coin for a shoulder at the wheel, no rummaging required.',
     choices: [
       { id: 'rummage', label: 'Push, then rummage the trunks (1 gold)', cost: 1, outcome: { kind: 'bonusDraft' } },
       { id: 'push', label: 'Just push for a coin', outcome: { kind: 'grantGold', amount: 1 } },
@@ -202,7 +202,7 @@ const defs: EventDef[] = [
     id: 'sparring_circle',
     title: 'Sparring Circle',
     theme: 'training',
-    body: 'A ring of packed dirt sits behind the waystation, worn smooth by years of practice bouts. A scarred instructor waves you over: "Two gold buys you a real lesson. Or grab a spare blade off the rack and figure it out yourself — that\'s free, and it shows."',
+    body: 'A ring of packed dirt marks the heart of the Hollow Yard, worn smooth by years of practice bouts. A scarred instructor waves you over: "Two gold buys you a real lesson. Or grab a spare blade off the rack and figure it out yourself — that\'s free, and it shows."',
     choices: [
       { id: 'lesson', label: 'Pay 2 gold for a real lesson', cost: 2, outcome: { kind: 'grantLevel' } },
       {
@@ -216,7 +216,7 @@ const defs: EventDef[] = [
     id: 'hermits_riddle',
     title: "Hermit's Riddle",
     theme: 'training',
-    body: 'A hermit sits cross-legged atop a mossy boulder, riddle already half-spoken before you\'ve even stopped walking. Answer it right, she says, and you\'ll understand something about yourself that no sparring ring could teach. Answer wrong, and you\'ll simply keep walking, no worse for it.',
+    body: 'On a mossy boulder overlooking the Hollow Yard, a hermit sits cross-legged, riddle already half-spoken before you\'ve even stopped walking. Answer it right, she says, and you\'ll understand something about yourself no sparring ring could teach. Answer wrong, and you\'ll simply keep walking, no worse for it.',
     choices: [
       {
         id: 'answer',
@@ -238,7 +238,7 @@ const defs: EventDef[] = [
     id: 'collapsed_barrow',
     title: 'Collapsed Barrow',
     theme: 'cache',
-    body: 'A grave-mound has slumped in on itself, exposing a narrow gap into the dark below. Old barrows like this sometimes hold a forgotten trinket among the bones — and sometimes hold nothing but the bones themselves.',
+    body: 'A grave-mound in the Silt Hollows has slumped in on itself, exposing a narrow gap into the dark, silt-choked space below. Old barrows like this sometimes hold a forgotten trinket among the bones — and sometimes hold nothing but the bones themselves.',
     choices: [
       {
         id: 'crawl_in',
@@ -258,7 +258,7 @@ const defs: EventDef[] = [
     id: 'quartermasters_error',
     title: "Quartermaster's Error",
     theme: 'cache',
-    body: 'A tired quartermaster shoves a requisition ledger across the counter, muttering about a shipment that was never supposed to reach you. "Take the armor plating," he says, "or the loose gemstone in the corner. Don\'t care which — just take it and go before someone notices."',
+    body: 'A tired quartermaster at the edge of the Silt Hollows shoves a requisition ledger across the counter, muttering about a shipment that was never meant to reach you. "Take the armor plating," he says, "or the loose gemstone in the corner. Don\'t care which — just take it and go before someone notices."',
     choices: [
       {
         id: 'take_armor',
@@ -272,7 +272,7 @@ const defs: EventDef[] = [
     id: 'beast_nest',
     title: 'Beast Nest',
     theme: 'cache',
-    body: 'A trampled nest lies just off the trail, littered with the shed claws and feathers of something large. Raiding it for a trophy weapon is tempting — if whatever built it doesn\'t come back and cost you a coin purse for the trouble.',
+    body: 'A trampled nest sits half-sunk in the Silt Hollows\' mud, littered with the shed claws and feathers of something large. Raiding it for a trophy weapon is tempting — if whatever built it doesn\'t come back and cost you a coin purse for the trouble.',
     choices: [
       {
         id: 'raid_it',
@@ -294,7 +294,7 @@ const defs: EventDef[] = [
     id: 'sellsword_camp',
     title: 'Sellsword Camp',
     theme: 'recruit',
-    body: 'A ring of tents and cookfires marks a sellsword company between contracts. Their captain sizes you up and offers a look through the company armory — steel of every make, yours to borrow a trick from — or, if you\'d rather not linger, a coin for the road.',
+    body: 'A ring of tents and cookfires along the Muster Road marks a sellsword company between contracts. Their captain sizes you up and offers a look through the company armory — steel of every make, yours to borrow a trick from — or, if you\'d rather not linger, a coin for the road.',
     choices: [
       {
         id: 'browse_armory',
@@ -308,7 +308,7 @@ const defs: EventDef[] = [
     id: 'circle_of_adepts',
     title: 'Circle of Adepts',
     theme: 'recruit',
-    body: "A circle of robed scholars debates arcane theory beneath a floating lattice of light. They'll happily let you leaf through a spellbook of half-finished notations — or, sensing you're not here for lectures, simply press a few coins into your hand instead.",
+    body: "Camped along the Muster Road, a circle of robed scholars debates arcane theory beneath a floating lattice of light. They'll happily let you leaf through a spellbook of half-finished notations — or, sensing you're not here for lectures, simply press a few coins into your hand instead.",
     choices: [
       {
         id: 'leaf_through',
@@ -322,7 +322,7 @@ const defs: EventDef[] = [
     id: 'field_medic',
     title: 'Field Medic',
     theme: 'recruit',
-    body: 'A field medic has set up a triage tent at the roadside, satchel overflowing with salves, wraps, and half-taught remedies she\'s happy to share with anyone willing to listen. Or, if healing lore isn\'t what you need, she\'ll simply spare a little coin instead.',
+    body: 'A field medic has set up a triage tent at the roadside among the Muster Road\'s camps, satchel overflowing with salves, wraps, and half-taught remedies she\'s happy to share with anyone willing to listen. Or, if healing lore isn\'t what you need, she\'ll simply spare a little coin instead.',
     choices: [
       {
         id: 'learn_remedies',
@@ -338,7 +338,7 @@ const defs: EventDef[] = [
     id: 'wandering_smith',
     title: 'Wandering Smith',
     theme: 'forge',
-    body: 'A traveling smith has set an anvil up under a lean-to, hammer still ringing from the last commission. "Four gold," she grunts, "and I\'ll temper a blade proper — not the bronze rubbish you find lying about." Anything less than her price, and she won\'t bother lighting the forge.',
+    body: 'Deep in the Cinderworks, a traveling smith works an anvil under a lean-to, hammer still ringing from the last commission. "Four gold," she grunts, "and I\'ll temper a blade proper — not the bronze rubbish you find lying about." Anything less, and she won\'t bother lighting the forge.',
     choices: [
       {
         id: 'commission',
@@ -353,7 +353,7 @@ const defs: EventDef[] = [
     id: 'ruined_anvil',
     title: 'Ruined Anvil',
     theme: 'forge',
-    body: 'An abandoned forge stands half-collapsed, its anvil cracked but still serviceable. A rough blade sits cooling on the workbench, yours for the taking — or, for three gold toward proper tools, you could retemper it into something sturdier before you go.',
+    body: 'One of the Cinderworks\' many forges stands half-collapsed and long abandoned, its anvil cracked but still serviceable. A rough blade sits cooling on the workbench, yours for the taking — or, for three gold toward proper tools, you could retemper it into something sturdier before you go.',
     choices: [
       { id: 'take_rough', label: 'Take the rough blade as-is', outcome: { kind: 'grantCard', cardId: 'sword_slash', tier: 'bronze' } },
       {
@@ -370,7 +370,7 @@ const defs: EventDef[] = [
     id: 'toll_bridge',
     title: 'Toll Bridge',
     theme: 'market',
-    body: 'A rickety toll bridge is the only dry crossing for miles, its keeper demanding coin before he\'ll lower the gate. Pay his toll and he throws in something from his cart of confiscated goods — refuse, and there\'s a longer, dryer road around.',
+    body: 'A rickety toll bridge spans the worst of the Tolling Road\'s ravines, its keeper demanding coin before he\'ll lower the gate. Pay his toll and he throws in something from his cart of confiscated goods — refuse, and there\'s a longer, drier road around.',
     choices: [
       {
         id: 'pay_toll',
@@ -385,7 +385,7 @@ const defs: EventDef[] = [
     id: 'fences_offer',
     title: "Fence's Offer",
     theme: 'market',
-    body: 'A fence works a folding table at the market\'s edge, goods of dubious origin spread out under a stained cloth. "Coin, or a stone — your pick, no questions asked either way." She taps the table, already bored with the transaction.',
+    body: 'A fence works a folding table at the shadowed edge of the Tolling Road, goods of dubious origin spread out under a stained cloth. "Coin, or a stone — your pick, no questions asked either way." She taps the table, already bored with the transaction.',
     choices: [
       { id: 'take_coin', label: 'Take the coin', outcome: { kind: 'grantGold', amount: 2 } },
       { id: 'take_stone', label: 'Take the stone instead', outcome: { kind: 'grantGem' } },
