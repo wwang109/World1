@@ -2,7 +2,7 @@ import { applyTier } from '../engine/cards';
 import { skillBook } from '../data/skills';
 import type { CombatEvent } from '../engine/combat/events';
 import type { ShieldPools } from '../engine/combat/state';
-import type { Property, SkillDef } from '../engine/types';
+import type { Archetype, Element, Property, SkillDef, WeaponType } from '../engine/types';
 import { buildAutoHeroSetup, buildEnemyEncounter } from '../run/encounter';
 import type { EnemyTitle } from '../run/encounter';
 import type { BattleLog } from '../run/resolveBattle';
@@ -44,9 +44,34 @@ export interface ShieldSnap {
   enemiesPools?: Array<ShieldPools | undefined>;
 }
 export interface SpeedSnap { player: string; enemy: string; enemyUnits?: string[]; }
-/** One playback-FX event for a step: floating number + (for damage) a bar
- * shake. `unit` identifies the enemy unit for multi-foe fights (0 default). */
-export interface TurnFx { side: 'player' | 'enemy'; kind: 'damage' | 'heal' | 'shield'; amount: number; source?: string; unit?: number; }
+/**
+ * One playback-FX event for a step: floating number + (for damage) a bar
+ * shake, OR a `cast` trigger (a card was just played — the skill-usage
+ * animation moment). `unit` identifies the enemy unit for multi-foe fights
+ * (0 default).
+ *
+ * `archetype`/`property`/`element`/`weapon` are the SOURCE CARD's identity —
+ * the archetype × element/weapon layered FX system (`ui/battleFxSpec.ts`)
+ * reads these to pick a motion shape (archetype) and a palette
+ * (element/weapon, falling back to property). Present whenever the fx traces
+ * back to a resolved skill (every `cast` fx; `damage`/`heal`/`shield` fx
+ * whose event carried a `sourceCard`); absent for un-attributed damage
+ * (poison/burn/bleed/fatigue/attrition ticks), which keep the existing
+ * `source`-keyed ailment-color fallback instead.
+ */
+export interface TurnFx {
+  side: 'player' | 'enemy';
+  kind: 'damage' | 'heal' | 'shield' | 'cast';
+  amount: number;
+  source?: string;
+  unit?: number;
+  archetype?: Archetype;
+  property?: Property;
+  element?: Element;
+  weapon?: WeaponType;
+  /** Card display name — set only on `cast` fx. */
+  cardName?: string;
+}
 /** A single playback position: one IMPORTANT log line (or a turn's fallback
  * anchor line when it has no important lines) — `lineIndex` into that turn's
  * `linesByTurn` array. A scene's playback index indexes `steps`, not turns. */
@@ -381,6 +406,15 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // step record so renderers can auto-focus that foe's tab during playback.
   let curActor: { side: 'player' | 'enemy'; unit: number } | undefined;
   let curFocus: number | undefined;
+  // A 'play' event fires BEFORE the effects it triggers (see simulate.ts: the
+  // engine pushes `play`, THEN runs `applyCast`, which is what emits the
+  // damage/heal/shieldGain/statusApplied events for that very cast) — and
+  // `push()` deliberately does NOT create a playback step for the PLAY line
+  // itself (see below), so there is no step to attach a 'cast' fx to yet at
+  // the moment the 'play' event is processed. Queue it here; the NEXT step
+  // `push()` creates (almost always this same cast's own HIT/BUFF/DEBUFF
+  // line, moments later in event order) picks it up and clears the queue.
+  let pendingCastFx: TurnFx[] = [];
   const push = (turn: number, tag: string, text: string, detail?: string): void => {
     const arr = linesByTurn.get(turn) ?? [];
     arr.push({ tag, text, detail });
@@ -391,13 +425,20 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // returns (see each case below), so this step's real "as of this step"
       // snapshot (inclusive of the event that produced this very line) is
       // backfilled once the full event has finished processing, below.
-      stepRecords.push({ turn, lineIndex: arr.length - 1, hp: snapHp(), shield: snapShield(), fx: [], focus: curFocus, summary: lastSummarySnapshot });
+      const fx = pendingCastFx;
+      pendingCastFx = [];
+      stepRecords.push({ turn, lineIndex: arr.length - 1, hp: snapHp(), shield: snapShield(), fx, focus: curFocus, summary: lastSummarySnapshot });
     }
   };
-  const pushFx = (side: 'player' | 'enemy', kind: TurnFx['kind'], amount: number, unit: number, source?: string): void => {
+  /** Identity fields threaded onto a fx from its source skill — undefined when
+   * there's no skill to attribute (e.g. a DoT tick), in which case callers
+   * keep their existing ailment-color fallback keyed off `source` instead. */
+  const fxIdentity = (skill: SkillDef | undefined): Pick<TurnFx, 'archetype' | 'property' | 'element' | 'weapon'> =>
+    skill ? { archetype: skill.archetypes[0], property: skill.property, element: skill.element, weapon: skill.weapon } : {};
+  const pushFx = (side: 'player' | 'enemy', kind: 'damage' | 'heal' | 'shield', amount: number, unit: number, source?: string, skill?: SkillDef): void => {
     if (amount <= 0) return;
     const last = stepRecords[stepRecords.length - 1];
-    if (last) last.fx.push({ side, kind, amount, source, unit });
+    if (last) last.fx.push({ side, kind, amount, source, unit, ...fxIdentity(skill) });
   };
 
   // Step 0 — the pre-battle baseline. Without it, playback would open on the
@@ -444,6 +485,14 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         };
         cardSummaries.set(key, card);
         activeCardByTurn.set(e.turn, card);
+        // The skill-usage animation trigger: queued for the next step this
+        // very cast's own effects create (see `pendingCastFx` above) — a
+        // scene reads `kind: 'cast'` to flash the caster's board slot and
+        // float its card name per the archetype's motion profile.
+        const castSkill = skillBook[e.skillId];
+        if (castSkill) {
+          pendingCastFx.push({ side: e.side, kind: 'cast', amount: 0, unit: unitOf(e), cardName: skillName(e.skillId), ...fxIdentity(castSkill) });
+        }
         break;
       }
       case 'damage': {
@@ -495,7 +544,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         } else if (e.source === 'skill' && activeCard?.side === 'enemy' && e.side === 'player') {
           enemyDamage += dealt;
         }
-        pushFx(e.side, 'damage', dealt, u, e.source !== 'skill' ? e.source : undefined);
+        pushFx(e.side, 'damage', dealt, u, e.source !== 'skill' ? e.source : undefined,
+          e.source === 'skill' && e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined);
         break;
       }
       case 'heal': {
@@ -506,7 +556,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         if (activeCard) activeCard.healing += e.amount;
         const max = e.side === 'player' ? playerMax : enemyMaxes[u];
         push(e.turn, 'BUFF', `${label(e)} +${e.amount} HP · ${e.hpAfter}/${max}`);
-        pushFx(e.side, 'heal', e.amount, u);
+        pushFx(e.side, 'heal', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined);
         break;
       }
       case 'shieldGain': {
@@ -529,7 +579,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           ? `${label(e)} +${e.amount} ${token} (${calc.power} + ${calc.statBonus} ${e.property === 'magical' ? STAT_TOKEN.magicPower : STAT_TOKEN.attack})`
           : `${label(e)} +${e.amount} ${token}`;
         push(e.turn, 'BUFF', text);
-        pushFx(e.side, 'shield', e.amount, u);
+        pushFx(e.side, 'shield', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined);
         break;
       }
       case 'shieldBroken': {
