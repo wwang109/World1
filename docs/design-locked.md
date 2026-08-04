@@ -1,0 +1,34 @@
+# Design decisions — LOCKED register
+
+> **Scope:** LOCKED — the dated register of user-locked decisions. One line
+> per decision, pointing at the spec/code that implements it. Entries change
+> only by the user's say-so; new decisions are APPENDED with their date.
+
+Docs disagree → `docs/INDEX.md`'s owner assignment wins; doc disagrees with
+code → code wins (except here: an UNBUILT entry is a promise, not a bug).
+
+| Date | Decision | Implemented by |
+|---|---|---|
+| 2026-07-15 | Fantasy card template: frameless full-bleed art, tier color only on the WT plate + skill-text frame, `SLOT N` footprint label | `docs/card-template-spec.md`, `src/game/ui/FantasyCardTemplateV2.ts` |
+| 2026-07-19 | **Budgets are exact** — zero audit tolerance; when a card can't land exactly, the card's effects change, never the rates | `BUDGET_TOLERANCE_DECI` (`src/engine/balance.ts`) |
+| 2026-07-19 | Throughput re-price: stun and negate ≈ one Bronze card per denied performance/hit; cleanse per charge; guard at stat-buff parity; cooldown deviation at 10 PL/turn | `PRICE.stunPerTurn/negatePerCharge/cleansePerCharge/guardPerPctTurnNum/cooldownPerTurn` |
+| 2026-07-19 | Size grants grow at HALF the tier-budget growth | `sizeGrantDeci` (`src/engine/balance.ts`) |
+| 2026-07-20 | **TRUE half-effect rule**: TRUE damage costs double typed; TRUE shield at typed parity (the premium is mechanical: typed damage drains the TRUE pool 2:1); TRUE stat-add is mitigated, capped at the stat add | `PRICE.truePremiumPerPoint/flatTrueShieldPerPoint`, `src/engine/combat/interpreter.ts` |
+| 2026-07-20 | Effect investment caps per family × size; **deck-building rules only** — runtime stacking (gems, DoT piles, synergies) is intentional gameplay, never clamped | `EFFECT_CAPS_DECI`, `capViolations` (`src/engine/balance.ts`) |
+| 2026-07-20 | DoT timing: burn ticks at START of turn (can kill before acting, absorbed by shields), poison at END of turn (bypasses shields); neither ticks the turn applied | `tickTurnDot` (`src/engine/combat/simulate.ts`) |
+| 2026-07-23 | DoT pricing is LINEAR PER-STACK (1 PL/stack, all three DoTs one rate); tick gameplay unchanged | `PRICE.dotPerStack` |
+| 2026-07-23 | Every cap family FROZEN across tiers — rank-ups buy new effects, not bigger capped numbers; weight bounds and max size in native units | `TIER_SCALED_FAMILIES` (empty), `WEIGHT_MIN/WEIGHT_MAX_BY_SIZE/MAX_CARD_SIZE` |
+| 2026-07-23 | Conditional-trigger discount: gated riders (comboBonus) price at a fraction of always-on equivalents | `PRICE.comboPerPointNum/Den` |
+| 2026-07-25 | Disrupt priced on escalating marginal brackets — sane card magnitudes are 5-10, each further point costs more | `PRICE.disruptBrackets`, `disruptCostDeci` |
+| ongoing | **Balance philosophy: PL is the balance unit — not winrate.** Never tune content to a fixed board's winrate; enemies are PL + stat/HP budgets per depth, outcomes emergent; `npm run sim` is manual exploration only, never a target | `docs/power-level-reference.md`, `scripts/balance.ts` |
+| ongoing | **Both-platforms rule**: every feature ships on desktop (1440×900) AND mobile (412×892), each with a layout-appropriate UI; check `docs/feature-inventory.md` before calling anything done | `src/game/layoutProfile.ts`, `docs/feature-inventory.md` |
+| 2026-07-29 | Release vs Sandbox split: the Run Mode roguelite is the release game; the free-dial Prep/Deck/Wiki/Battle app is the balance/deck-idea Sandbox and must not regress | `docs/run-structure.md`, `docs/feature-inventory.md` |
+| 2026-07-30 | **Endless run**: no victory state — 3 lives + voluntary retire; every fight loss (boss included) costs one life; milestone boss every 5th fight; `bossesCleared` is the score | `LIVES_PER_RUN`, `BOSS_EVERY`, `retireRun` (`src/run/runState.ts`, `runMap.ts`) |
+| 2026-07-30 | Hero level capped at 30; ENEMY level uncapped (tracks fight number 1:1 forever); past the cap, distinct modifier affixes unlock on a fixed cadence | `MAX_LEVEL`, `fightSpecFor` (`src/run/runState.ts`) |
+| 2026-07-30 | Daily income: +1 gold per node committed to; a loss still earns the day's +1 (only the fight's own gold is withheld) | `DAILY_INCOME`, `chooseNode` (`src/run/runState.ts`) |
+| 2026-07-30 | Two-foe fight choices: non-boss fight columns offer standard / hard (title bumped one rung, +1 level) | `fightTableEntryForNode` (`src/run/runState.ts`) |
+| 2026-07-30/31 | **Attrition stalemate breaker** from turn 15: accelerating TRUE damage to every living combatant, shields bypassed, lowest initiative score first — falling behind on tempo is what kills you; a fight is ALWAYS decided (no draw), mutual wipes resolved lower-initiative-loses → lower-HP-loses → player wins | `ATTRITION_START_TURN/ATTRITION_STEP/attritionDamage/decideOutcome` (`src/engine/combat/simulate.ts`) |
+| 2026-07-31 | Bleed ticks at most once per global turn (on the victim's first resolved cast) — strictly weaker than poison | `tickBleed` (`src/engine/combat/simulate.ts`) |
+| 2026-08-01 | TRUE heal re-priced 2 → 4 deci/pt (crossover vs MATK-scaling heals pulled down to MATK 5-10) | `PRICE.flatTrueHealPerPoint`; `docs/history/pl-changelog.md` |
+| 2026-08-01 | **Anti-heal world rule — APPROVED, UNBUILT**: 3 categories of healing reduction, −20% each, TRUE heals immune; ship as a separate playtest pass, not folded into other work | (no code yet — this row is the in-repo record) |
+| 2026-08-03 | **Overlay text must be transient** — text drawn over other UI is allowed only as part of an animation (temporary, fades/self-removes: floating damage numbers, cast callouts). Text that persists over other content at rest is a defect | `src/game/ui/battleFxSpec.ts` (being built) |

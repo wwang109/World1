@@ -1,10 +1,18 @@
 # Combat model spec — readiness turns, multi-cast, cursor traversal
 
-**Status:** target contract for a turn-loop REBUILD. The engine committed today
-still runs the OLD one-performer-per-turn model; this doc supersedes that turn
-structure. Card resolution (damage/elements/weapon triangle/crit/shields/DoTs/
-riders/auras/guard-negate/targeting/gems) is unchanged — this only redefines the
+**Status:** IMPLEMENTED — this model is the loop the engine runs
+(`src/engine/combat/simulate.ts`); the old one-performer-per-turn model is
+gone. Card resolution (damage/elements/weapon triangle/crit/shields/DoTs/
+riders/auras/guard-negate/targeting/gems) is unchanged — this doc defines the
 turn loop, the pacing currency, the cursor, and the event log.
+
+**Post-spec addition — attrition (locked 2026-07-30/31):** from
+`ATTRITION_START_TURN` (15), every living combatant takes accelerating TRUE
+damage each turn (shields bypassed, lowest initiative score ticked first), so
+every fight is decided — no draws; mutual wipes resolve
+lower-initiative-loses → lower-HP-loses → player wins. See
+`attritionDamage`/`decideOutcome` in `simulate.ts` and the register row in
+`docs/design-locked.md`.
 
 This is the single source of truth for the new loop. The **log auditor**
 (below) encodes every rule and must pass on every simulated fight.

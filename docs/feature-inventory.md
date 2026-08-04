@@ -58,9 +58,9 @@ Launch routes: `?scene=desktop-prep|desktop-deck|desktop-wiki|desktop-battle|des
 
 | Feature | D | M |
 |---|---|---|
-| Full card catalog (all 36), alpha-sorted | [x] | [x] |
+| Full card catalog (every `skillBook` entry — 72 at last count), alpha-sorted | [x] | [x] |
 | CARDS / GEMS view tabs | [x] | [x] |
-| GEMS: full 12-gem catalog (rarity color, kind, +PL, text) + detail + ADD TO POUCH | [x] | [x] |
+| GEMS: full gem catalog (every `gemBook` entry — 46 at last count; rarity color, kind, +PL, text) + detail + ADD TO POUCH | [x] | [x] |
 | Tier selector (BRONZE→DIAMOND) in the detail: previews scaled card/PL/text, ADD TO BAG stamps the chosen tier | [x] | [x] |
 | ALL / WEAPON / MAGIC filter chips + honest count label | [x] | [x] |
 | Scrollable masked grid (drag; D also mouse-wheel) + scroll indicator | [x] | [x] |
@@ -68,7 +68,7 @@ Launch routes: `?scene=desktop-prep|desktop-deck|desktop-wiki|desktop-battle|des
 | Click card → detail (large card render, PL·tier, markup-stripped text) | [x] | [x] |
 | ADD TO BAG (size-aware nearest-fit insert) + toast, bag-full case | [x] | [x] |
 | Badge/keyword glossary on hover/tap (FantasyCardTemplateV2) | [x] | [x] |
-| Card art for every card | [ ] *(twin_slash has no PNG yet)* | [ ] *(same)* |
+| Card art for every card | [x] *(74 PNGs ≥ 72 skills; twin_slash landed)* | [x] |
 | BALANCE / BUFFS / DEBUFFS / opponents / template subtabs | [ ] *(legacy PrepScene wiki only)* | [ ] |
 
 ## BATTLE (D: `DesktopBattleScene` · M: `MobileBattleScene`)
@@ -142,9 +142,9 @@ the active run's own state — `isRunDrafting()`, `currentNode()?.kind`,
 | Shop stock tier split shifts with node depth (1-3: 70/25/5 · 4-6: 45/45/10 · 7-9: 25/55/20; sandbox callers omit depth, unchanged 70/25/5) | [x] | [x] *(shared `run/shop.ts` logic)* |
 | DECK / BAG entry point (HUD secondary slot, every run screen) opens the shared Deck Build scene in RUN CONTEXT (`deckBuildContext.ts` source discriminator, mirrors Shop/Draft/Battle) — reads/writes the run's `pieces`/`bagSlots`/`gemInventory` via `runStore`, not `demoState`; Deck Build's own HUD uses the `back` role ("‹ MAP") instead of primary | [x] | [x] |
 | RETIRE (HUD tertiary slot, every active-run screen) → confirm dialog (`renderRetireConfirm`) → `retireActiveRun()` (`src/run/runState.ts#retireRun`) → routes to the Run Map's end-summary banner | [x] | [x] |
-| Fog-of-war zone map, multiple zones, meta persistence | [ ] *(out of scope for v1, see release-game-plan.md)* | [ ] |
+| Fog-of-war zone map, multiple zones, meta persistence | [ ] *(future wish — see `docs/run-structure.md`)* | [ ] |
 | WAVE-shaped map: shared DAY/WAVE progress strip, alternating route/day bands with audited WAVE and depth labels, plus MANDATORY tag on single-node fight/boss columns | [x] | [x] |
-| Map planner: visible CHOOSE YOUR NEXT STOP heading above compact content-fit choice rows — kind + theme title, one-line hint (shop: tagline + shelf shape "N cards/N gems"; event: theme; fight/boss: enemy · LV n · TITLE), SELECT affordance when available, and dimmed LOCKED when unavailable | [x] | [x] *(event theme label pending `src/data/events.ts` `theme` field — TODO left in both map scenes)* |
+| Map planner: visible CHOOSE YOUR NEXT STOP heading above compact content-fit choice rows — kind + theme title, one-line hint (shop: tagline + shelf shape "N cards/N gems"; event: theme; fight/boss: enemy · LV n · TITLE), SELECT affordance when available, and dimmed LOCKED when unavailable | [x] | [x] |
 | EVENT nodes (`DesktopRunEventScene`/`MobileRunEventScene`, `?scene=desktop-runevent` / `mrunevent`): shared Run Mode status chrome and DECK / BAG access; visible EVENT SELECT hierarchy; title/body panel; 2-3 cost + reward-hint choice rows with SELECT / dimmed LOCKED affordances; outcome panel showing the granted card/gem token or gold/level result (`fellBack` note on a full bag); `bonusDraft` opens a single-set CardToken picker row (1-5 cards) before its own outcome; CONTINUE › back to the map | [x] | [x] |
 | Picking an event node now routes to the RunEvent scene (`runStore.pickNode` no longer auto-resolves it) | [x] | [x] |
 | STAT / LEVEL allocation panel (`RunStatPanel.ts`, shared builder): priced HP/ATK/MAG/DEF/RES/SPD grid via `LEVEL_STAT_COST`, CONFIRMABLE SCRATCH EDIT — +/− steppers operate on a local uncommitted allocation (PL SPENT/BANKED updates live), CONFIRM commits via `commitHeroAllocation` (`runState.ts#setHeroAllocation`), CANCEL discards; nothing is written to the run until CONFIRM | [x] | [x] |

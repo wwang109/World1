@@ -1,0 +1,119 @@
+# Architecture — layers, boundaries, determinism, dev workflow
+
+> **Scope:** LIVING — the system map: every layer (including `server/` and
+> `functions/`), the two enforced boundary rules, determinism invariants, the
+> resolver seam, the scene-rebuild idiom, and how to run the app in dev/prod.
+> Update in the same commit as any structural change.
+
+## Layers
+
+```
+src/engine/   Pure deterministic combat sim. NO Phaser. Integer-only state.
+              simulate(config, seed) -> { result, turns, events, finalState }.
+src/data/     Content only: skills, gems, enemies, heroes, events, shopTypes.
+              No logic.
+src/run/      In-run state, pure TS: loadout, runMap, runState, shop, events,
+              draft, encounter, leveling, analysis, logAnalysis, resolveBattle.
+src/meta/     Persistence, account progression. Pure TS. (not built yet)
+src/game/     Phaser scenes + playback rendering ONLY. Cannot run combat.
+server/       battleApi.ts — the dev battle service (node http, port 8787).
+functions/    Cloudflare Pages Functions — production twins of the service:
+              battle.ts (POST /battle), damage-band.ts (POST /damage-band).
+scripts/      fight.ts (ASCII log), balance.ts (sim harness),
+              run-hud-audit.ts (Run HUD template audit), check-boundaries.mjs.
+tests/        vitest suites (engine invariants, audits, run logic, UI specs).
+```
+
+## Boundary rules (enforced by `scripts/check-boundaries.mjs`, inside `npm test`)
+
+1. **Phaser isolation.** The pure layers (`src/engine`, `src/data`, `src/run`,
+   `src/meta`) must never import `phaser` or anything from `src/game`. Keeps
+   the sim headless, testable, and runnable in the balance harness.
+2. **Thin client.** `src/game` must never be able to RUN combat: no
+   value-import whose specifier contains `resolveBattle` or `combat/simulate`
+   — checked **transitively** by walking the value-import graph from every
+   `src/game` file (a transitive reach ships the rules in the client bundle
+   just like a direct one; `run/analysis` once leaked the engine this way).
+   `import type` is exempt (erased at build time). Battles come from the
+   battle service as an event log.
+
+## Battle service (the only thing that may run combat)
+
+`server/battleApi.ts` — thin HTTP wrappers; the logic lives in `src/run`:
+
+- `POST /battle` — prep info (`BattleRequest`) → event log, via
+  `src/run/resolveBattle.ts`.
+- `POST /damage-band` — a `CombatantSetup` → sustained damage-per-turn band,
+  via `damagePerTurn` in `src/run/analysis.ts` (the prep screen's DMG/turn
+  preview must come from here too, since the client cannot simulate).
+
+**Production**: Cloudflare Pages serves the built client, and
+`functions/battle.ts` / `functions/damage-band.ts` are the same-origin
+production twins of those two routes (client default BASE_URL `''` reaches
+them with no CORS). Deployment target: the `proof-of-concept-ab-deckbuilder`
+CF Pages project.
+
+**Dev workflow**: run BOTH `npm run dev` (Vite) and `npm run api` (battle
+service on :8787). Without the API, prep previews and battles fail — that is
+the thin-client rule working as intended, not a bug.
+
+## Determinism invariants (do not break)
+
+- `simulate(config, seed)` is a **pure function** — same input, same event log.
+- Simulation state holds **integers only**; percentages are computed
+  transiently and floored immediately. Balance math uses deci-PL (×10)
+  integers.
+- No `Date.now()` / `Math.random()` in engine or run layers — all randomness
+  flows through `Rng` (seeded mulberry32, `src/engine/rng.ts`) in a fixed
+  call order.
+- Iterate arrays by index, never `Map`/`Set` where order can vary; canonical
+  order is player side first, then unit index.
+- The 100-config determinism test and the balance/effect-cap/gem audits must
+  stay green.
+
+## Additive features — the resolver seam (design principle)
+
+Add features WITHOUT editing the core combat loop. All per-instance modifiers
+(gems now; tiers, enchantments, gear later) fold into an **effective** card +
+combatant in `src/engine/cards.ts` (`resolveEffectiveSkill` + gem/stat
+folding). The core loop — `simulate`, `interpreter`, `castSelect`, `aurasOn` —
+consumes ONLY the resolved form and stays feature-agnostic. Adding a feature =
+extend the resolver + add its data; do NOT change core function signatures or
+add feature-specific branches to the loop. Un-featured input must resolve to
+byte-identical behavior (the determinism + audit tests prove it).
+
+The run layer follows the same shape: enemy difficulty is an additive resolver
+over the Bronze floor (`src/run/encounter.ts` — base monster + Title + Level +
+Rank + Modifiers), and run features are pure `RunState -> RunState` transitions
+(`src/run/runState.ts`).
+
+## Scene rebuild idiom (`src/game/sceneRebuild.ts`)
+
+THE re-render idiom for every scene, both platforms: state changed →
+`rebuildScene(scene)` — kill tweens/timers, remove the scene-level input
+listeners `create()` registers, destroy all children, then run `create()`
+again synchronously in the same frame. Class fields survive (overlay state
+like `socketFor`, `pendingTrash`, picker selections persists a rebuild); there
+is no blank frame. Never use `scene.restart()` (wipes overlay fields via
+`init()`, repaints through an empty frame) or a hand-rolled destroy+create
+(leaks scene-level input listeners). Corollaries: `init()` must wipe overlay
+fields for a genuine fresh entry, and any "wired" once-guards must reset on
+re-render.
+
+## UI layout system (pointers)
+
+- Canvas profiles: `src/game/layoutProfile.ts` — desktop 1440×900, mobile
+  412×892; every feature ships on BOTH (user-locked both-platforms rule, see
+  `docs/design-locked.md`).
+- Run-screen chrome: `src/game/ui/runScreenTemplate.ts` is the single source
+  of truth for header/stats/badge/action rects; `renderRunHud`
+  (`RunProgressStrip.ts`) is the only renderer that reads it;
+  `scripts/run-hud-audit.ts` audits conformance. See `docs/ui-workbook.md`.
+- Card geometry: `cardTokenSpec.ts` (strip token) and
+  `fantasyCardTemplateSpec.ts` (full card) are the ONLY geometry sources.
+
+## Commands
+
+See the table in `CLAUDE.md`. The gate for every change is `npm test`
+(boundary checker + full vitest suite); `npm run typecheck` must also be
+clean.
