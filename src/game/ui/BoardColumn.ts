@@ -78,7 +78,7 @@ class EmptySlot extends Phaser.GameObjects.Container {
     const bg = scene.add.rectangle(0, 0, w, h, 0x121e30, 0.45).setOrigin(0.5).setStrokeStyle(1, 0x24344a, 0.9);
     const numX = side === 'left' ? w / 2 - 6 : -w / 2 + 6;
     const num = scene.add.text(numX, -h / 2 + 5, label, {
-      fontSize: '10px', color: '#5a6880', fontFamily: 'monospace', fontStyle: 'bold',
+      fontSize: '10px', color: '#8a94a6', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(side === 'left' ? 1 : 0, 0);
     this.add([bg, num]);
     scene.add.existing(this);

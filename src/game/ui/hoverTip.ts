@@ -47,6 +47,13 @@ export function attachHoverTip(
   // both opens it on first tap and lets a second tap dismiss it in place.
   emitter.on('pointerdown', toggle);
   scene.events.once('shutdown', hide);
+  // Battle scenes re-attach tips on every playback tick, so each attach must
+  // unhook its scene-level shutdown listener when its target dies mid-scene —
+  // otherwise orphaned closures pile up on the scene emitter until shutdown.
+  emitter.once('destroy', () => {
+    scene.events.off('shutdown', hide);
+    hide();
+  });
 }
 
 /** Draws the floating card itself — top-left anchored under `rect`, flipped
