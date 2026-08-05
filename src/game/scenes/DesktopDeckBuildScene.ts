@@ -5,7 +5,8 @@ import { gemPowerLevel, instancePowerLevelDeci } from '../../engine/balance';
 import { boardTypeIdentity, cardType } from '../../engine/combat/typeIdentity';
 import type { Gem, SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
-import { moveWithinStrip, shiftInsert, socketGem, swapGem, unsocketGem } from '../../run/loadout';
+import { canStackMerge, moveWithinStrip, shiftInsert, socketGem, stackMergePieces, swapGem, unsocketGem } from '../../run/loadout';
+import { nextSkillTier } from '../../run/shop';
 import { gemBook } from '../../data/gems';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { GEM_RARITY_COLOR } from '../theme';
@@ -41,6 +42,11 @@ type Source =
   | { where: 'bag'; index: number; card: OwnedCard }
   | { where: 'hold'; card: OwnedCard };
 
+/** A drop PARTICIPANT eligible for stack-merging — deck or bag only (never
+ * `hold`: the TEMP HOLDING strip isn't a stack slot, so a card can't be
+ * merge-target'd or merge-dragged through it). */
+type MergeSource = Extract<Source, { where: 'deck' } | { where: 'bag' }>;
+
 interface ColLayout { top: number; colH: number; colW: number; rowH: number; gap: number; deckX: number; bagX: number; }
 
 /**
@@ -54,6 +60,10 @@ interface ColLayout { top: number; colH: number; colW: number; rowH: number; gap
 export class DesktopDeckBuildScene extends Phaser.Scene {
   private hold: OwnedCard | null = null;
   private pendingTrash: Source | null = null;
+  /** Open MERGE? confirm dialog — set when a drag ends on another instance of
+   *  the SAME skill at the SAME tier (see `canStackMerge`). Survives the
+   *  rebuild idiom exactly like `pendingTrash` (it IS a pending dialog). */
+  private pendingMerge: { target: MergeSource; dragged: MergeSource } | null = null;
   /** Deck piece instanceId whose gem-socket panel is open (survives restart). */
   private socketFor: string | null = null;
   private layout!: ColLayout;
@@ -114,6 +124,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.renderColumns();
     this.renderTrash();
     if (this.pendingTrash) this.renderConfirm();
+    if (this.pendingMerge) this.renderMergeConfirm();
     if (this.socketFor) this.renderSocketPanel();
     if (this.retireConfirmOpen) {
       renderRetireConfirm(this, {
@@ -152,7 +163,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     let totalMove = 0;
     let start = { x: 0, y: 0 };
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.pendingTrash || this.socketFor) return; // dialog/panel owns input
+      if (this.pendingTrash || this.pendingMerge || this.socketFor) return; // dialog/panel owns input
       const hit = this.draggables.find((d) => d.bounds.contains(p.worldX, p.worldY));
       if (!hit) return;
       dragging = { token: hit.token, src: hit.src, home: { x: hit.token.x, y: hit.token.y } };
@@ -215,6 +226,21 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       for (let i = index; i < index + size && i < SLOTS; i++) occ[i] = true;
     });
     return occ;
+  }
+
+  /** The deck piece whose span covers `row`, if any (stack-merge lookup). */
+  private deckPieceAt(row: number): OwnedBoardPiece | undefined {
+    return this.pieces.find((p) => row >= p.slot && row < p.slot + this.sizeOf(p.skillId));
+  }
+
+  /** The bag entry whose span covers `row`, if any (stack-merge lookup). */
+  private bagEntryAt(row: number): { index: number; card: OwnedCard } | undefined {
+    for (let i = 0; i < SLOTS; i++) {
+      const card = this.bagSlots[i];
+      if (!card) continue;
+      if (row >= i && row < i + this.sizeOf(card.skillId)) return { index: i, card };
+    }
+    return undefined;
   }
 
   // ---------- moves (real demoState) ----------
@@ -419,7 +445,37 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const row = Math.max(0, Math.min(SLOTS - 1, Math.floor((py - top) / (rowH + gap))));
     const where: 'deck' | 'bag' = px >= bagX ? 'bag' : 'deck';
 
+    // Stack-merge check: dropping on ANOTHER instance of the same skill at the
+    // same tier PROMPTS a merge instead of resolving the ordinary move/swap —
+    // never silent (see `canStackMerge`). TEMP HOLDING is excluded on both
+    // sides (a merge target/drag must be a deck or bag occupant).
+    if (src.where !== 'hold') {
+      const occupant: MergeSource | undefined = where === 'deck'
+        ? this.deckOccupantAsSource(row)
+        : this.bagOccupantAsSource(row);
+      if (occupant && canStackMerge(occupant.card, src.card)) {
+        this.pendingMerge = { target: occupant, dragged: src };
+        return;
+      }
+    }
+
     if (where === 'bag') this.toBag(src, row); else this.toDeck(src, row);
+  }
+
+  /** The deck occupant covering `row`, reshaped as a `MergeSource` (or
+   *  `undefined` if the row is empty) — for the stack-merge check only. */
+  private deckOccupantAsSource(row: number): MergeSource | undefined {
+    const piece = this.deckPieceAt(row);
+    if (!piece) return undefined;
+    return { where: 'deck', instanceId: piece.instanceId, card: { instanceId: piece.instanceId, skillId: piece.skillId, tier: piece.tier } };
+  }
+
+  /** The bag occupant covering `row`, reshaped as a `MergeSource` (or
+   *  `undefined` if the row is empty) — for the stack-merge check only. */
+  private bagOccupantAsSource(row: number): MergeSource | undefined {
+    const entry = this.bagEntryAt(row);
+    if (!entry) return undefined;
+    return { where: 'bag', index: entry.index, card: entry.card };
   }
 
   /** Insert into the deck, shifting existing spans instead of swapping. */
@@ -612,5 +668,69 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     };
     mk(bx + 20, (bw - 60) / 2, 'CANCEL', UI.panelMuted, UI.text, () => { playSfx('uiBack'); this.pendingTrash = null; this.rerender(); });
     mk(bx + 40 + (bw - 60) / 2, (bw - 60) / 2, 'DELETE', UI.badSoft, '#ffffff', () => { playSfx('uiClick'); this.removeSource(src); this.pendingTrash = null; this.rerender(); });
+  }
+
+  /** "MERGE? 2× <NAME> <TIER> → <NEXT TIER>" — CANCEL returns the dragged card
+   *  home (nothing was mutated on drop, so a re-render alone restores it,
+   *  exactly like `renderConfirm`'s CANCEL); MERGE applies `stackMergePieces`
+   *  through the pieces/bagSlots/gemInventory setters. */
+  private renderMergeConfirm(): void {
+    const { target } = this.pendingMerge!;
+    const skill = skillBook[target.card.skillId];
+    const fromTier = target.card.tier;
+    const toTier = nextSkillTier(fromTier);
+    this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
+    const bw = 460; const bx = SCREEN.width / 2 - bw / 2; const by = SCREEN.height / 2 - 90;
+    this.add.rectangle(bx, by, bw, 180, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(2, UI.chip);
+    this.add.text(SCREEN.width / 2, by + 30, 'MERGE?', { fontSize: `${F.name}px`, color: ACCENT_TEXT, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(SCREEN.width / 2, by + 62, `2× ${skill?.name ?? 'card'} ${fromTier.toUpperCase()} → ${(toTier ?? fromTier).toUpperCase()}`, {
+      fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body, align: 'center', wordWrap: { width: bw - 40 },
+    }).setOrigin(0.5);
+    const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
+      const r = this.add.rectangle(dx, by + 116, w, 44, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      r.on('pointerdown', fn);
+      this.add.text(dx + w / 2, by + 138, label, { fontSize: `${F.body}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+    };
+    mk(bx + 20, (bw - 60) / 2, 'CANCEL', UI.panelMuted, UI.text, () => { playSfx('uiBack'); this.pendingMerge = null; this.rerender(); });
+    mk(bx + 40 + (bw - 60) / 2, (bw - 60) / 2, 'MERGE', UI.chip, UI.textOnChip, () => { playSfx('uiClick'); this.applyMerge(); });
+  }
+
+  /** The live gem (if any) currently socketed on a merge participant — only a
+   *  DECK piece can carry one (bag cards have no `gem` field in this model),
+   *  so this looks past `MergeSource.card` (which omits `gem`, see
+   *  `makeDraggable`'s deck entry) to the actual live piece in `this.pieces`. */
+  private liveGemOf(ref: MergeSource): Gem | null {
+    if (ref.where !== 'deck') return null;
+    return this.pieces.find((p) => p.instanceId === ref.instanceId)?.gem ?? null;
+  }
+
+  /** Applies the pending stack merge through `run/loadout.ts`'s pure
+   *  `stackMergePieces`: the target climbs a tier keeping its own gem; the
+   *  dragged copy is removed and its gem (if any) returns to the pouch. */
+  private applyMerge(): void {
+    const pending = this.pendingMerge;
+    this.pendingMerge = null;
+    if (pending) {
+      const { target, dragged } = pending;
+      const draggedGem = this.liveGemOf(dragged);
+      if (target.where === 'deck') {
+        const live = this.pieces.find((p) => p.instanceId === target.instanceId);
+        const result = live ? stackMergePieces(live, { ...dragged.card, gem: draggedGem }) : null;
+        if (result) {
+          this.removeSource(dragged);
+          this.pieces = this.pieces.map((p) => (p.instanceId === target.instanceId ? result.merged : p));
+          if (result.displacedGem) this.gemInventory = [...this.gemInventory, result.displacedGem.id];
+        }
+      } else {
+        const live = this.bagSlots[target.index];
+        const result = live ? stackMergePieces(live, { ...dragged.card, gem: draggedGem }) : null;
+        if (result) {
+          this.removeSource(dragged);
+          this.bagSlots = this.bagSlots.map((c, i) => (i === target.index ? result.merged : c));
+          if (result.displacedGem) this.gemInventory = [...this.gemInventory, result.displacedGem.id];
+        }
+      }
+    }
+    this.rerender();
   }
 }

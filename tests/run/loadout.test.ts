@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { hasGem, moveWithinStrip, shiftInsert, socketGem, swapGem, unsocketGem, type StripItem } from '../../src/run/loadout';
-import type { BoardPiece, Gem } from '../../src/engine/types';
+import {
+  canStackMerge, hasGem, moveWithinStrip, shiftInsert, socketGem, stackMergePieces, swapGem, unsocketGem,
+  type StackMergeCard, type StripItem,
+} from '../../src/run/loadout';
+import type { BoardPiece, Gem, SkillTier } from '../../src/engine/types';
 
 const venomGem: Gem = {
   kind: 'effect',
@@ -259,5 +262,152 @@ describe('run/loadout: moveWithinStrip (same-rail reorder)', () => {
       pos = s.start + s.size;
     }
     expect(pos).toBeLessThanOrEqual(6);
+  });
+});
+
+describe('run/loadout: stack-merging (drag-a-copy-onto-a-copy, pure — never mutates either input)', () => {
+  // Board-piece-shaped participant (mirrors OwnedBoardPiece/RunBoardPiece: has
+  // a `slot` and MAY carry a `gem`).
+  interface BoardCard extends StackMergeCard { slot: number }
+  const boardCard = (overrides: Partial<BoardCard> = {}): BoardCard => (
+    { instanceId: 'target-1', skillId: 'iron_bulwark', tier: 'bronze', slot: 0, ...overrides }
+  );
+  // Bag-card-shaped participant (mirrors OwnedCard/RunCard: NO `gem` field at
+  // all — bag cards can't hold a gem in the current model).
+  const bagCard = (overrides: Partial<StackMergeCard> = {}): StackMergeCard => (
+    { instanceId: 'dragged-1', skillId: 'iron_bulwark', tier: 'bronze', ...overrides }
+  );
+
+  const gemA: Gem = { kind: 'effect', id: 'gem_a', rarity: 'common', actions: [{ kind: 'poison', stacks: 1 }] };
+  const gemB: Gem = { kind: 'effect', id: 'gem_b', rarity: 'common', actions: [{ kind: 'poison', stacks: 2 }] };
+
+  describe('canStackMerge', () => {
+    it('is true for two different instances of the same skill at the same tier', () => {
+      expect(canStackMerge(boardCard(), bagCard())).toBe(true);
+    });
+
+    it('is false for the same instance (a card cannot merge with itself)', () => {
+      expect(canStackMerge(boardCard({ instanceId: 'same' }), bagCard({ instanceId: 'same' }))).toBe(false);
+    });
+
+    it('is false when the skillId differs', () => {
+      expect(canStackMerge(boardCard(), bagCard({ skillId: 'other_skill' }))).toBe(false);
+    });
+
+    it('is false when the tier differs', () => {
+      expect(canStackMerge(boardCard({ tier: 'bronze' }), bagCard({ tier: 'silver' }))).toBe(false);
+    });
+
+    it('is false for two diamond copies — diamond is the merge ceiling', () => {
+      expect(canStackMerge(boardCard({ tier: 'diamond' }), bagCard({ tier: 'diamond' }))).toBe(false);
+    });
+  });
+
+  describe('stackMergePieces', () => {
+    it('is pure: neither the target nor the dragged input is mutated', () => {
+      const target = boardCard({ gem: gemA });
+      const targetSnapshot = { ...target };
+      const dragged = bagCard();
+      const draggedSnapshot = { ...dragged };
+      const result = stackMergePieces(target, dragged);
+      expect(result).not.toBeNull();
+      expect(target).toEqual(targetSnapshot);
+      expect(dragged).toEqual(draggedSnapshot);
+      expect(result!.merged).not.toBe(target);
+    });
+
+    it('bumps the target exactly one tier: bronze -> silver -> gold -> diamond', () => {
+      const chain: Array<[SkillTier, SkillTier]> = [['bronze', 'silver'], ['silver', 'gold'], ['gold', 'diamond']];
+      for (const [from, to] of chain) {
+        const result = stackMergePieces(boardCard({ tier: from }), bagCard({ tier: from }));
+        expect(result).not.toBeNull();
+        expect(result!.merged.tier).toBe(to);
+      }
+    });
+
+    it('the DRAGGED copy\'s gem is displaced to the pouch, never destroyed', () => {
+      const target = boardCard(); // no gem
+      const dragged = boardCard({ instanceId: 'dragged-1', gem: gemA });
+      const result = stackMergePieces(target, dragged);
+      expect(result).not.toBeNull();
+      expect(result!.displacedGem).toBe(gemA);
+    });
+
+    it('the TARGET keeps its own gem regardless of what the dragged copy carried', () => {
+      const target = boardCard({ gem: gemA });
+      const dragged = boardCard({ instanceId: 'dragged-1', gem: gemB });
+      const result = stackMergePieces(target, dragged);
+      expect(result).not.toBeNull();
+      expect(result!.merged.gem).toBe(gemA); // unchanged — target's gem, not dragged's
+      expect(result!.displacedGem).toBe(gemB); // dragged's gem still returned to the pouch
+    });
+
+    it('the target keeps its own identity/location (instanceId, slot) — only tier changes', () => {
+      const target = boardCard({ instanceId: 'keep-me', slot: 7 });
+      const result = stackMergePieces(target, bagCard());
+      expect(result!.merged.instanceId).toBe('keep-me');
+      expect(result!.merged.slot).toBe(7);
+    });
+
+    it('a dragged copy with no gem (e.g. a bag card) displaces null, not undefined-as-a-bug', () => {
+      const result = stackMergePieces(boardCard(), bagCard());
+      expect(result!.displacedGem).toBeNull();
+    });
+
+    it('refuses to merge two diamond copies — returns null, no prompt possible', () => {
+      const result = stackMergePieces(boardCard({ tier: 'diamond' }), bagCard({ tier: 'diamond' }));
+      expect(result).toBeNull();
+    });
+
+    it('refuses different-tier same-skill drops — normal move/swap territory, not a merge', () => {
+      const result = stackMergePieces(boardCard({ tier: 'silver' }), bagCard({ tier: 'bronze' }));
+      expect(result).toBeNull();
+    });
+
+    it('refuses different skills at the same tier', () => {
+      const result = stackMergePieces(boardCard(), bagCard({ skillId: 'unrelated' }));
+      expect(result).toBeNull();
+    });
+
+    // The four drag/drop location pairings the DeckBuild scenes must all
+    // route through this same helper — deck-onto-deck, bag-onto-bag,
+    // bag-onto-deck, deck-onto-bag.
+    it('deck-onto-deck: both participants are board pieces (with slots)', () => {
+      const target = boardCard({ instanceId: 't', slot: 2, gem: gemA });
+      const dragged = boardCard({ instanceId: 'd', slot: 5, gem: gemB });
+      const result = stackMergePieces(target, dragged);
+      expect(result!.merged.tier).toBe('silver');
+      expect(result!.merged.slot).toBe(2); // target's own slot, untouched
+      expect(result!.merged.gem).toBe(gemA); // target's own gem, untouched
+      expect(result!.displacedGem).toBe(gemB); // dragged's gem, to the pouch
+    });
+
+    it('bag-onto-bag: neither participant has a gem field at all', () => {
+      const target = bagCard({ instanceId: 't' });
+      const dragged = bagCard({ instanceId: 'd' });
+      const result = stackMergePieces(target, dragged);
+      expect(result!.merged.tier).toBe('silver');
+      expect(result!.merged.gem).toBeUndefined();
+      expect(result!.displacedGem).toBeNull();
+    });
+
+    it('bag-onto-deck: dragging a board piece onto a bag card target', () => {
+      const target = bagCard({ instanceId: 't' }); // bag target, no gem field
+      const dragged = boardCard({ instanceId: 'd', slot: 3, gem: gemA }); // deck dragged, has a gem
+      const result = stackMergePieces(target, dragged);
+      expect(result!.merged.tier).toBe('silver');
+      expect('slot' in result!.merged).toBe(false); // still the bag card's shape
+      expect(result!.displacedGem).toBe(gemA); // the dragged deck piece's gem returns to the pouch
+    });
+
+    it('deck-onto-bag: dragging a bag card onto a board piece target', () => {
+      const target = boardCard({ instanceId: 't', slot: 4, gem: gemA });
+      const dragged = bagCard({ instanceId: 'd' }); // bag dragged, no gem to displace
+      const result = stackMergePieces(target, dragged);
+      expect(result!.merged.tier).toBe('silver');
+      expect(result!.merged.slot).toBe(4);
+      expect(result!.merged.gem).toBe(gemA); // target's own gem, untouched
+      expect(result!.displacedGem).toBeNull();
+    });
   });
 });

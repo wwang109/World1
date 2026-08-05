@@ -1,4 +1,5 @@
-import type { BoardPiece, Gem, SkillBook } from '../engine/types';
+import type { BoardPiece, Gem, SkillBook, SkillTier } from '../engine/types';
+import { nextSkillTier, SKILL_TIER_ORDER } from './shop';
 
 /** Slots occupied by a piece, honoring its skill's size. */
 export function slotsOf(piece: BoardPiece, book: SkillBook): number[] {
@@ -238,4 +239,74 @@ export function swapGem<T extends BoardPiece>(piece: T, gem: Gem): { piece: T; d
 /** Whether a piece currently holds a socketed gem. */
 export function hasGem(piece: BoardPiece): boolean {
   return piece.gem != null;
+}
+
+/**
+ * Stack-merging — USER-LOCKED 2026-08-04: dragging a skill card onto ANOTHER
+ * instance of the SAME skill at the SAME tier PROMPTS a fuse into one copy a
+ * tier higher (two bronze -> one silver). This is the free, drag-driven twin
+ * of the shop's PAID `findMergeTarget`/`nextSkillTier` merge in `shop.ts`
+ * (reused here, not duplicated) — that one lifts an owned card by BUYING a
+ * shelf offer of it; this one fuses two cards the player ALREADY owns, either
+ * of which may live on the board or in the bag. A prompt is REQUIRED before
+ * merging — never silent — these helpers only compute the result; the caller
+ * (the DeckBuild scenes) owns showing the confirm dialog and applying it
+ * through the `pieces`/`bagSlots`/`gemInventory` setters, exactly like every
+ * other board edit.
+ */
+
+/** The minimal (instanceId/skillId/tier[/gem])-shaped card either merge
+ * participant needs — deliberately structural (mirrors `MergeableCard` in
+ * `shop.ts`) so it's satisfied by BOTH board pieces (`RunBoardPiece`/
+ * `OwnedBoardPiece`, which carry a `gem`) AND bag cards (`RunBagSlot`/
+ * `OwnedCard`, which structurally have none — bag cards can't hold a gem in
+ * the current model, so `gem` simply reads `undefined` for them, same as an
+ * empty board socket). */
+export interface StackMergeCard {
+  instanceId: string;
+  skillId: string;
+  tier: SkillTier;
+  gem?: Gem | null;
+}
+
+/** Whether dropping `dragged` onto `target` should PROMPT a stack merge:
+ * different card instances of the same skill at the same tier, with a tier
+ * left to climb to (diamond is the ceiling — two diamond copies never merge;
+ * the drop must resolve as an ordinary move/swap instead). Pure predicate —
+ * scenes call this to decide whether to open the merge-confirm dialog in
+ * place of their normal insert/swap path. */
+export function canStackMerge(target: StackMergeCard, dragged: StackMergeCard): boolean {
+  if (target.instanceId === dragged.instanceId) return false;
+  if (target.skillId !== dragged.skillId || target.tier !== dragged.tier) return false;
+  return target.tier !== SKILL_TIER_ORDER[SKILL_TIER_ORDER.length - 1];
+}
+
+export interface StackMergeResult<T extends StackMergeCard> {
+  /** The target, tier bumped one level. Identity (`instanceId`), location
+   * (whatever `slot`/index field `T` carries — untouched, this only spreads
+   * `tier`), and its OWN socketed gem are all preserved exactly as they were. */
+  merged: T;
+  /** The DRAGGED copy's gem, displaced back to the pouch — `null` if it held
+   * none. NEVER silently discarded: the caller must splice `.id` into
+   * `gemInventory`. The target's own gem is untouched (see `merged`) — only
+   * the dragged (consumed) copy's gem is ever displaced. */
+  displacedGem: Gem | null;
+}
+
+/**
+ * Fuse `dragged` into `target`: `target` climbs one tier, keeping its own
+ * gem (if any) untouched; `dragged` is consumed — the CALLER removes it from
+ * wherever it lived (board or bag) — and if it held a gem, that gem comes
+ * back as `displacedGem` for the pouch, never destroyed. Pure: neither
+ * `target` nor `dragged` is mutated, and the returned `merged` is always a
+ * new object. Returns `null` when the pair isn't eligible per
+ * `canStackMerge` (already diamond, different skill/tier, or the same
+ * instance) — callers should gate on `canStackMerge` before prompting, but
+ * this stays safe to call directly too.
+ */
+export function stackMergePieces<T extends StackMergeCard>(target: T, dragged: StackMergeCard): StackMergeResult<T> | null {
+  if (!canStackMerge(target, dragged)) return null;
+  const toTier = nextSkillTier(target.tier);
+  if (!toTier) return null; // unreachable given canStackMerge's ceiling check; kept for type narrowing
+  return { merged: { ...target, tier: toTier }, displacedGem: dragged.gem ?? null };
 }
