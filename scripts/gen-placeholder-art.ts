@@ -140,6 +140,31 @@ const CHOICE_ICONS: Asset[] = [
   { file: 'icon-choice-nothing.png', width: 48, height: 48, fill: [107, 114, 128] }, // nothing
 ];
 
+// Shop storefront banners — 360×140 (same canvas as the event area
+// illustrations, so shops and events share one banner idiom). One per theme
+// in src/data/shopTypes.ts; filename embeds the catalog id VERBATIM
+// (underscores kept) so scenes can do `shop-front-${shopId}.png` with no
+// mapping table. Fills keyed to each theme's awning accent
+// (docs/art-prompt-pack.md accent table).
+const SHOP_FRONTS: Asset[] = [
+  { file: 'shop-front-armory.png', width: 360, height: 140, fill: [120, 128, 138] }, // steel gray
+  { file: 'shop-front-wildworks.png', width: 360, height: 140, fill: [58, 110, 66] }, // forest green
+  { file: 'shop-front-arcanum.png', width: 360, height: 140, fill: [62, 96, 168] }, // arcane blue
+  { file: 'shop-front-sanctum.png', width: 360, height: 140, fill: [214, 196, 150] }, // white and gold
+  { file: 'shop-front-alchemist.png', width: 360, height: 140, fill: [104, 158, 58] }, // poison green
+  { file: 'shop-front-gemcutter.png', width: 360, height: 140, fill: [126, 82, 178] }, // violet
+  { file: 'shop-front-caravan.png', width: 360, height: 140, fill: [164, 116, 72] }, // patched multicolor
+  { file: 'shop-front-bulwark.png', width: 360, height: 140, fill: [84, 102, 128] }, // slate blue
+  { file: 'shop-front-assassins_den.png', width: 360, height: 140, fill: [42, 46, 56] }, // near-black
+  { file: 'shop-front-relic_vault.png', width: 360, height: 140, fill: [140, 110, 62] }, // aged bronze
+  { file: 'shop-front-emberworks.png', width: 360, height: 140, fill: [196, 98, 42] }, // ember orange
+  { file: 'shop-front-frosthold.png', width: 360, height: 140, fill: [104, 164, 200] }, // ice blue
+  { file: 'shop-front-stormspire.png', width: 360, height: 140, fill: [204, 178, 52] }, // electric yellow
+  { file: 'shop-front-grovekeep.png', width: 360, height: 140, fill: [96, 152, 72] }, // leaf green
+  { file: 'shop-front-reliquary.png', width: 360, height: 140, fill: [212, 180, 88] }, // radiant gold
+  { file: 'shop-front-umbral_stall.png', width: 360, height: 140, fill: [88, 58, 120] }, // deep violet
+];
+
 const MISC_ICONS: Asset[] = [
   { file: 'icon-coin.png', width: 32, height: 32, fill: [212, 175, 55] }, // gold currency coin
   { file: 'icon-life-heart.png', width: 48, height: 48, fill: [192, 57, 43] }, // lives
@@ -147,7 +172,7 @@ const MISC_ICONS: Asset[] = [
   { file: 'icon-storefront.png', width: 48, height: 48, fill: [140, 107, 79] }, // generic shop
 ];
 
-const ALL: Asset[] = [...AREAS, ...CHOICE_ICONS, ...MISC_ICONS];
+const ALL: Asset[] = [...AREAS, ...CHOICE_ICONS, ...SHOP_FRONTS, ...MISC_ICONS];
 
 // ------------------------------------------------------------------------ run
 

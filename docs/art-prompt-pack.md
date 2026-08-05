@@ -145,11 +145,11 @@ background, no text, no watermark. Final size 48x48 px.
 
 Save to: `public/game-art/placeholders/icon-storefront.png`
 
-### Per-theme accent notes (for the later per-shop pass)
+### Per-theme accent notes (seed table for §7.2)
 
-Themes from `src/data/shopTypes.ts`. When per-theme storefronts are
-commissioned, keep the generic stall silhouette and swap the awning color +
-one counter prop:
+Themes from `src/data/shopTypes.ts`. The per-theme pass is now specced in
+full — **§7.2 below** carries one ready-to-feed banner prompt per theme,
+built from this table (awning color + counter prop):
 
 | Shop id | Name | Awning accent | Signature prop on the counter |
 |---|---|---|---|
@@ -169,6 +169,149 @@ one counter prop:
 | `grovekeep` | Grovekeep | leaf green | a potted sapling with glowing leaves |
 | `reliquary` | Reliquary | radiant gold | light kept in a stoppered jar |
 | `umbral_stall` | Umbral Stall | deep violet | a veiled crescent-moon idol |
+
+---
+
+## 7. PLACEMENT MAP — shops & events (handoff spec)
+
+WHERE every image goes on the shop/event/map screens and WHAT to generate,
+so finals are drop-in file replacements. **Read this first:** the event,
+shop, and run-map scenes are under active rework, so every placement below
+is anchored to a **stable structural region** (panel/grid/row that survives
+a layout pass) and every px number is **PROVISIONAL** — treat structure as
+the contract, px as today's snapshot. Canvases: desktop **1440×900**
+(safe-x 32, gap 12), mobile **412×892** (safe-x 10, gap 8) — from
+`src/game/layoutProfile.ts`. Header/content bands come from
+`src/game/ui/runScreenTemplate.ts` (desktop content starts at y≈130, mobile
+at y≈100, both full-chrome).
+
+File-path contract (unchanged from the pack header): the placeholder path
+IS the final path — `public/game-art/placeholders/<file>.png`, served at
+`/game-art/placeholders/<file>.png`. Swapping in real art is a pure file
+replace; no code changes.
+
+### 7.1 Slot inventory (screen → slot → asset)
+
+| # | Screen (both platforms) | Slot — structural anchor | Asset family | File(s) | Display size (provisional) |
+|---|---|---|---|---|---|
+| S1 | Shop — storefront picker | top band of each shop tile in the picker grid | shop-front banner, 16 themes, **NEW §7.2** | `shop-front-<shopId>.png` 360×140 | desktop tile ≈219×215 → banner 219×85 strip; mobile tile ≈192×76 → left square crop ≈64×64 |
+| S2 | Shop — shelf view | header band, behind/right of the shop name + tagline block | same 16 banners (reuse S1 file) | `shop-front-<shopId>.png` | desktop: full-content-width strip ≈1376×96 center-crop; mobile: ≈392×56 strip |
+| S3 | Shop — buy-confirm dialog | left of the "Buy X for N gold?" headline | coin icon (reuse §3) | `icon-coin.png` 32×32 | 24–32 px |
+| E1 | Event — story panel | inside the story panel, between the "EVENT SELECT" header rule and the title, full inner panel width | area illustration, 6 areas (reuse §1) | `area-<areaName>.png` 360×140 | desktop panel inner ≈696 wide → 696×~200 center-crop; mobile ≈388×151 full aspect |
+| E2 | Event — choice rows | left of the title inside each `RunChoicePanel` row, right of the accent rail | choice-type icon (reuse §2) | `icon-choice-<kind>.png` 48×48 | 36–44 px (row h: 84 desktop / 80 mobile) |
+| E3 | Event — outcome panel | centered above the outcome headline | choice-type icon keyed by `outcome.kind` (reuse §2) | `icon-choice-<kind>.png` | 44–48 px |
+| M1 | Run map — event-node choice panel | left thumb inside the `RunChoicePanel` row | square **code-side center-crop** of the node's area art (no new file) | `area-<areaName>.png` | ≈72×72 desktop / 56×56 mobile (row h ≈92/–) |
+| M2 | Run map — shop-node choice panel | left thumb inside the `RunChoicePanel` row | square code-side center-crop of the shop banner (no new file) | `shop-front-<shopId>.png` | same as M1 |
+| M3 | Run map — fight/boss/other kinds | left thumb slot | existing kind icons (§4/§5) | `icon-boss-skull.png` etc. | 40–48 px |
+
+Only S1/S2's 16 banners are new generation work; every other slot reuses
+art already prompted in §1–§5. Thumbs (M1/M2) are runtime crops
+(`setCrop`/texture frame) of the 360×140 banners — do NOT generate separate
+thumb files; one banner must therefore keep its subject readable in the
+**center square** (the prompt block below bakes that in).
+
+### 7.2 Shop storefront banners (16) — 360×140, opaque — THE new prompts
+
+One wide banner per shop theme in `src/data/shopTypes.ts`. Same canvas as
+the §1 area illustrations so shops and events share one banner idiom.
+Filename embeds the catalog id **verbatim** (underscores kept) so scenes can
+resolve `shop-front-${shopId}.png` with no mapping table. Placeholders are
+on disk (flat awning-accent colors, `scripts/gen-placeholder-art.ts`).
+
+Common block — replace `{SUBJECT}`:
+
+```
+Wide landscape fantasy market-stall illustration, 360x140 aspect (generate
+large, downscale). {SUBJECT} Lightweight cute glossy game-art style, like a
+charming anime spell card: clean bold shapes, soft glossy shading, warm
+cheerful saturated colors, playful sparkles and glow effects, no characters,
+no text, no border, no frame, no watermark. Any shop sign is blank. Opaque
+background, the stall itself centered so a square center-crop still reads as
+this shop.
+```
+
+| Shop id | Name — tagline | `{SUBJECT}` | Save to |
+|---|---|---|---|
+| `armory` | Armory — "Steel and shield" | A sturdy armorer's market stall under a steel-gray striped awning, racks of swords, axes and lances, a kite shield with a crossed sword propped on the counter, neat steel gleam and whetstone sparks. | `public/game-art/placeholders/shop-front-armory.png` |
+| `wildworks` | Wildworks — "Bow and beast" | A hunter's trading stall under a forest-green awning at the treeline, a recurve bow and quivers hung on pegs, pelts and a paw-print token on the counter, feathers and leather cords swaying. | `public/game-art/placeholders/shop-front-wildworks.png` |
+| `arcanum` | Arcanum — "the elemental wheel" | A wizard's supply stall under an arcane-blue awning, a crackling elemental orb on the counter swirling with fire, frost, lightning and leaf-green light, shelves of rune-etched focus crystals. | `public/game-art/placeholders/shop-front-arcanum.png` |
+| `sanctum` | Sanctum — "healing and support" | A serene shrine-stall under a white-and-gold awning, a glowing sun-and-moon censer trailing soft incense on the counter, vials of radiant and dusky healing water, a gentle holy glow. | `public/game-art/placeholders/shop-front-sanctum.png` |
+| `alchemist` | Alchemist — "debuff and control" | A cluttered alchemist's stall under a poison-green awning, bubbling round-bottom flasks and dripping retorts on the counter, hanging herb bundles and stoppered hex bottles, a wisp of green vapor. | `public/game-art/placeholders/shop-front-alchemist.png` |
+| `gemcutter` | Gemcutter — "Facets for every socket" | A jeweler's stall under a violet awning, a jeweler's loupe over a tray of brilliantly cut gems on dark velvet, tiny chisels and a polishing wheel, rainbow sparkles off every facet. | `public/game-art/placeholders/shop-front-gemcutter.png` |
+| `caravan` | Caravan — "Everything, once, at a price" | An overstuffed traveling wagon-stall under a patched multicolor awning, an open travel trunk spilling wares of every kind — blades, scrolls, trinkets — rope-tied bundles and hanging lanterns. | `public/game-art/placeholders/shop-front-caravan.png` |
+| `bulwark` | Bulwark — "Nothing gets through" | A fortified shield-wright's stall under a slate-blue awning, a massive tower shield leaned against the counter, stacked bucklers and riveted iron plates, heavy brackets, solid and immovable. | `public/game-art/placeholders/shop-front-bulwark.png` |
+| `assassins_den` | Assassins' Den — "Fast, quiet, lethal" | A shadowy back-alley stall under a near-black awning, a hooded lantern casting one thin beam over a thrown dagger stuck in the counter, coiled cord and vials of night-dark oil. | `public/game-art/placeholders/shop-front-assassins_den.png` |
+| `relic_vault` | Relic Vault — "Old power, honest price" | An antiquarian's vault-front stall under an aged-bronze awning, an ornate reliquary chest half-open with old treasures glinting inside, wax-sealed scroll cases and verdigris-touched artifacts. | `public/game-art/placeholders/shop-front-relic_vault.png` |
+| `emberworks` | Emberworks — "Fire answers to nobody" | A fire-seller's stall under an ember-orange awning, a brazier with a lively dancing flame on the counter, banked coals and rising ember motes, heat-shimmer over blackened iron tools. | `public/game-art/placeholders/shop-front-emberworks.png` |
+| `frosthold` | Frosthold — "Cold patience" | An ice-trader's stall under an ice-blue awning rimmed with frost, a frosted crystal cluster glowing pale blue on the counter, icicles under the eaves and a small drift of snow at its base. | `public/game-art/placeholders/shop-front-frosthold.png` |
+| `stormspire` | Stormspire — "Thunder, sold by the bolt" | A storm-chandler's stall under an electric-yellow awning, a glass jar holding a captive crackling spark on the counter, coiled copper rods and lightning-glass trinkets with tiny arcs jumping between them. | `public/game-art/placeholders/shop-front-stormspire.png` |
+| `grovekeep` | Grovekeep — "Roots outlast steel" | A druid's garden stall under a leaf-green awning woven with living vines, a potted sapling with softly glowing leaves on the counter, seed pouches, acorns and moss-covered baskets. | `public/game-art/placeholders/shop-front-grovekeep.png` |
+| `reliquary` | Reliquary — "Light kept in a jar" | A holy relic stall under a radiant-gold awning, warm light kept in a stoppered glass jar glowing on the counter, votive candles, prayer beads and small gilded icons under a soft halo. | `public/game-art/placeholders/shop-front-reliquary.png` |
+| `umbral_stall` | Umbral Stall — "Ask no questions" | A veiled occult stall under a deep-violet awning, a crescent-moon idol draped in gauzy veils on the counter, guttering purple candles and inkwells of liquid shadow in a dim moth-lit gloom. | `public/game-art/placeholders/shop-front-umbral_stall.png` |
+
+### 7.3 Event story-panel illustration — which events share which area art
+
+The story panel (slot E1) shows **per-AREA** art, not per-event art — all
+events of one theme share that theme's §1 illustration (20 events → 6
+images; per-event art is a possible later luxury pass, same slot). The
+theme→file mapping, with today's events from `src/data/events.ts`:
+
+| Theme | Area (file) | Events sharing this art |
+|---|---|---|
+| training | The Hollow Yard — `area-hollow-yard.png` | wandering_tutor, veterans_last_lesson, sparring_circle, hermits_riddle |
+| cache | The Silt Hollows — `area-silt-hollows.png` | abandoned_cache, gemsellers_mishap, collapsed_barrow, quartermasters_error, beast_nest |
+| recruit | The Muster Road — `area-muster-road.png` | recruiter, sellsword_camp, circle_of_adepts, field_medic |
+| forge | The Cinderworks — `area-cinderworks.png` | wandering_smith, ruined_anvil |
+| market | The Tolling Road — `area-tolling-road.png` | overloaded_caravan, toll_bridge, fences_offer |
+| omen | The Crossroads Unquiet — `area-crossroads-unquiet.png` | crossroads_shrine, gambler |
+
+New events added later inherit their theme's art automatically (resolve via
+`event.theme`, never via `event.id`). The same six files also back the run
+map's event-node thumbs (M1) as center-square crops.
+
+### 7.4 Wiring notes for the implementation pass
+
+For the scene owners once the current rework lands — mount points by file +
+function (no line numbers; layouts are moving):
+
+- **Loading** — all slots preload in
+  `src/game/scenes/BootScene.ts` → `preload()` (the pattern used for card
+  badges/`CARD_ART_CATALOG`). 22 banners + a handful of icons ≈ a few 100 KB
+  of finals — preload all of them, no lazy loading needed. Suggested texture
+  keys: `shop-front:<shopId>`, `event-area:<theme>`, `icon:choice-<kind>`,
+  `icon:coin` — loaded from `/game-art/placeholders/...`.
+- **S1 picker tiles** — `DesktopShopScene.renderStorefront()`
+  (`src/game/scenes/DesktopShopScene.ts`; 6-col grid) and
+  `MobileShopScene.renderStorefront()` (`src/game/scenes/MobileShopScene.ts`;
+  2-col grid). Banner image sits at the tile's top edge (desktop) / left
+  square crop (mobile), name+tagline text below/right of it as today.
+- **S2 shelf header** — `DesktopShopScene.renderShelf()` /
+  `MobileShopScene.renderShelf()`: a low-alpha full-width strip behind the
+  shop name + tagline block at the shelf top (keep text contrast — dim to
+  ~0.35 alpha or darken-overlay).
+- **S3 confirm accent** — `DesktopShopScene.renderConfirm()` /
+  `MobileShopScene.renderConfirm()`, `icon:coin` left of the headline.
+- **E1 story banner** — `DesktopRunEventScene.renderChoicePanel()`
+  (`src/game/scenes/DesktopRunEventScene.ts`): between the header rule and
+  the title text, full inner width, push `titleY`/`cursor` down by the
+  banner height. `MobileRunEventScene.renderChoices()`
+  (`src/game/scenes/MobileRunEventScene.ts`): between the status line and
+  the title. Theme comes from `currentEventDef().theme`; area name/blurb
+  copy (if the panel wants a caption) from
+  `eventThemeArea()` in `src/game/ui/eventThemeBlurb.ts` — built for
+  exactly this surface, unconsumed today.
+- **E2/M1/M2/M3 row icons+thumbs** — extend `RunChoiceViewModel` in
+  `src/game/ui/RunChoicePanel.ts` with an optional
+  `image?: { textureKey: string; crop?: 'centerSquare' }` and render it in
+  `renderRunChoicePanel()` left of the title (indenting `contentX`). Feed it
+  from the three call sites: `DesktopRunMapScene.choiceViewModel()` /
+  `MobileRunMapScene` counterpart (map nodes: shop banner crop, area crop,
+  kind icons) and the two event scenes' choice loops (choice-kind icons per
+  `choice.outcome.kind`).
+- **E3 outcome accent** — `DesktopRunEventScene.renderOutcomePanel()` /
+  `MobileRunEventScene.renderOutcome()`: `icon:choice-<kind>` centered above
+  the headline (`gamble` resolves to its rolled result's icon; `nothing`
+  uses the dash emblem).
 
 ---
 
