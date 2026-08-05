@@ -15,14 +15,12 @@ import { setDeckBuildContext } from '../deckBuildContext';
 import {
   choices,
   clearRun,
+  currentNode,
   enemyNameFor,
   getActiveRun,
-  getPendingSeed,
   pickNode,
   previewEncounter,
-  rerollPendingSeed,
   retireActiveRun,
-  startRun,
   type RunNode,
   type RunNodeKind,
 } from '../runStore';
@@ -75,8 +73,9 @@ export class MobileRunMapScene extends Phaser.Scene {
 
     const run = getActiveRun();
     if (!run) {
-      this.renderHud(undefined);
-      this.renderStartPanel();
+      // ONE front door: no duplicate start panel here — the Start scene owns
+      // starting runs (seed + reroll live there now).
+      this.scene.start('Start');
       return;
     }
     // Freshly-started run (or a stale re-entry mid-draft) — the run-context
@@ -148,6 +147,32 @@ export class MobileRunMapScene extends Phaser.Scene {
   }
 
   private renderChoiceBlock(x: number, top: number, w: number, availableH: number): void {
+    // A committed-but-unresolved stop (the player detoured via DECK/BAG,
+    // whose back button lands on the MAP) must offer the way BACK IN —
+    // choices() is deliberately empty while a node is being resolved, so
+    // without this panel the run dead-ends here.
+    const pending = currentNode();
+    if (pending) {
+      const heading = this.add.text(x + w / 2, top, 'STOP IN PROGRESS', {
+        fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
+      }).setOrigin(0.5, 0);
+      auditTextBlock(heading, { name: 'Mobile run map stop-in-progress heading', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
+      renderRunChoicePanel(this, { x, y: top + F.tiny + 8, w, h: 94 }, {
+        nodeId: pending.id,
+        kind: pending.kind,
+        title: `RETURN TO ${KIND_LABEL[pending.kind]}`,
+        detail: 'Resume where you left off.',
+        accent: KIND_COLOR[pending.kind],
+        enabled: true,
+      }, {
+        font: F,
+        onSelect: () => {
+          const sceneName = pending.kind === 'shop' ? 'MobileShop' : pending.kind === 'event' ? 'MobileRunEvent' : 'MobileRunPrep';
+          this.scene.start(sceneName);
+        },
+      });
+      return;
+    }
     const options = choices();
     if (options.length === 0) {
       this.add.text(x + w / 2, top + 20, '···', {
@@ -225,38 +250,6 @@ export class MobileRunMapScene extends Phaser.Scene {
     };
   }
 
-  // ---------- start-run panel ----------
-
-  private renderStartPanel(): void {
-    const pw = this.W - 40; const ph = 220;
-    const px = 20; const py = (this.H - ph) / 2;
-    this.add.rectangle(px, py, pw, ph, 0x141d2c, 0.96).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1);
-    const cx = px + pw / 2;
-    this.add.text(cx, py + 20, 'START A NEW RUN', { fontSize: '15px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5, 0);
-
-    const seedRowY = py + 60;
-    this.add.text(px + 16, seedRowY + 16, 'SEED', { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
-    const seedBoxX = px + 60;
-    const seedBoxW = pw - 60 - 90 - 16;
-    this.add.rectangle(seedBoxX, seedRowY, seedBoxW, 32, 0x0d1b28).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.6);
-    this.add.text(seedBoxX + 10, seedRowY + 16, `${getPendingSeed()}`, { fontSize: '13px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5);
-    const rerollX = seedBoxX + seedBoxW + 8;
-    const reroll = this.add.rectangle(rerollX, seedRowY, 82, 32, 0xb78a46, 1).setOrigin(0, 0).setStrokeStyle(1, UI.border, 1).setInteractive({ useHandCursor: true });
-    this.add.text(rerollX + 41, seedRowY + 16, 'REROLL', { fontSize: '10px', color: '#1a1208', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    reroll.on('pointerdown', () => { rerollPendingSeed(); this.rerender(); });
-
-    // Caption below is bottom-anchored at ph-14 (~11px tall, so up to ph-25);
-    // the button ended at ph-22 and clipped it.
-    const startY = py + ph - 78;
-    const start = this.add.rectangle(cx, startY, pw - 40, 44, 0xb78a46, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    this.add.text(cx, startY + 22, 'START', { fontSize: '15px', color: '#1a1208', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
-    start.on('pointerdown', () => { startRun(getPendingSeed()); this.scene.start('MobileDraft'); });
-
-    this.add.text(cx, py + ph - 14, 'Next: draft your starting deck (4 picks).', {
-      fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, align: 'center', wordWrap: { width: pw - 32 },
-    }).setOrigin(0.5, 1);
-  }
-
   // ---------- defeat / retired end-summary banner ----------
 
   /** `'victory'` is legacy (the engine never sets it any more) and is
@@ -281,7 +274,9 @@ export class MobileRunMapScene extends Phaser.Scene {
     const gridH = renderRunStatsGrid(this, cx - gridW / 2, gridTop, gridW, runStatsPairs(run), { compact: true });
     const btnY = gridTop + gridH + 30;
     const btn = this.add.rectangle(cx, btnY, 180, 44, 0xb78a46, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    this.add.text(cx, btnY + 22, 'NEW RUN', { fontSize: '14px', color: '#1a1208', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
-    btn.on('pointerdown', () => { clearRun(); this.rerender(); });
+    this.add.text(cx, btnY + 22, 'MAIN MENU ›', { fontSize: '14px', color: '#1a1208', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
+    // Every run ends back at the ONE front door (Start scene), never a
+    // map-local start panel — flow consistency per user direction 2026-08-04.
+    btn.on('pointerdown', () => { clearRun(); this.scene.start('Start'); });
   }
 }

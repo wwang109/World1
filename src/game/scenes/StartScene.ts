@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { getLifetimeStats } from '../metaStore';
 import { FONT, SCREEN, UI } from '../theme';
-import { getActiveRun, getPendingSeed, startRun } from '../runStore';
+import { getActiveRun, getPendingSeed, rerollPendingSeed, startRun } from '../runStore';
 
 /**
  * Start screen — the game's front door on BOTH platforms (BootScene's
@@ -57,9 +58,17 @@ export class StartScene extends Phaser.Scene {
     this.renderLifetimeStrip(cx, secondY + btnH / 2 + (mobile ? 26 : 30), mobile, F);
 
     if (!activeRun) {
-      this.add.text(cx, SCREEN.height - (mobile ? 24 : 30), `seed ${getPendingSeed()}`, {
-        fontFamily: 'monospace', fontSize: `${F.tiny}px`, color: UI.textDisabled,
-      }).setOrigin(0.5);
+      // The map's old start panel (deleted — one front door now) carried the
+      // seed box + REROLL; this footnote inherits that job in-place.
+      const seedLabel = (): string => `seed ${getPendingSeed()} · tap to reroll`;
+      const seedText = this.add.text(cx, SCREEN.height - (mobile ? 24 : 30), seedLabel(), {
+        fontFamily: 'monospace', fontSize: `${F.tiny}px`, color: UI.textMuted,
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      seedText.on('pointerdown', () => {
+        playSfx('uiClick');
+        rerollPendingSeed();
+        seedText.setText(seedLabel());
+      });
     }
   }
 
@@ -83,7 +92,7 @@ export class StartScene extends Phaser.Scene {
     const r = this.add.rectangle(cx, y, w, h, primary ? 0xb78a46 : 0x131f32)
       .setStrokeStyle(2, primary ? 0xe8b446 : UI.border, 0.9)
       .setInteractive({ useHandCursor: true });
-    r.on('pointerdown', onPress);
+    r.on('pointerdown', () => { playSfx('uiClick'); onPress(); });
     this.add.text(cx, y - 8, label, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${ACTIVE_PROFILE.font.title}px`,
       color: primary ? UI.textOnChip : UI.textBright,
