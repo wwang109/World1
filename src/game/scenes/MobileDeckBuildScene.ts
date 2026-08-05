@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
-import { gemPowerLevel, instancePowerLevelDeci } from '../../engine/balance';
+import { gemPowerLevel, instancePowerLevelDeci, powerLevelDeci } from '../../engine/balance';
 import { boardTypeIdentity, cardType } from '../../engine/combat/typeIdentity';
 import type { SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
@@ -14,6 +14,9 @@ import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
 import { gemHoverEntry } from '../ui/gemGlossary';
+import { powerLevelEntry } from '../ui/cardGlossary';
+import { renderCardInfoBox } from '../ui/cardInfoBox';
+import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene } from '../sceneRebuild';
@@ -51,6 +54,9 @@ export class MobileDeckBuildScene extends Phaser.Scene {
   /** Deck piece instanceId whose gem-socket panel is open (survives restart —
    *  this scene deliberately has NO init(), mirroring `hold`/`pendingTrash`). */
   private socketFor: string | null = null;
+  /** Bag slot index whose read-only card-detail overlay is open (tap on a BAG
+   *  card that isn't a drag — survives restart, same convention as `socketFor`). */
+  private bagDetailIndex: number | null = null;
   private layout!: ColLayout;
   private draggables: Array<{ token: CardToken; bounds: Phaser.Geom.Rectangle; src: Source }> = [];
   private heroStats!: ScalingStats;
@@ -98,6 +104,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     this.wireDrag();
     if (this.pendingTrash) this.renderConfirm();
     if (this.socketFor) this.renderSocketPanel();
+    if (this.bagDetailIndex !== null) this.renderBagDetail();
     if (this.retireConfirmOpen) {
       renderRetireConfirm(this, {
         compact: true,
@@ -135,7 +142,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     let totalMove = 0;
     let start = { x: 0, y: 0 };
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.pendingTrash || this.socketFor) return; // dialog/panel owns input
+      if (this.pendingTrash || this.socketFor || this.bagDetailIndex !== null) return; // dialog/panel owns input
       const hit = this.draggables.find((d) => d.bounds.contains(p.worldX, p.worldY));
       if (!hit) return;
       dragging = { token: hit.token, src: hit.src, home: { x: hit.token.x, y: hit.token.y } };
@@ -165,11 +172,18 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       dragging = null;
       dropHint?.destroy(); dropHint = null;
       ghost?.destroy(); ghost = null;
-      // A TAP (no real movement) on a DECK card opens its gem-socket panel
-      // instead of resolving as a drop.
+      // A TAP (no real movement) on a DECK card opens its gem-socket panel;
+      // on a BAG card it opens a read-only detail overlay (see totalMove
+      // guard — mirrors the deck-card tap, so a real drag never triggers it).
       if (totalMove < 8 && src.where === 'deck') {
         playSfx('uiClick');
         this.socketFor = src.instanceId;
+        this.rerender();
+        return;
+      }
+      if (totalMove < 8 && src.where === 'bag') {
+        playSfx('uiClick');
+        this.bagDetailIndex = src.index;
         this.rerender();
         return;
       }
@@ -492,6 +506,68 @@ export class MobileDeckBuildScene extends Phaser.Scene {
   }
 
   /**
+   * Read-only BAG card detail (opened by a non-drag TAP on a bag card — see
+   * the `totalMove < 8` guard in `wireDrag`). Same veil + big-card + CLOSE
+   * idiom as the Wiki's card detail overlay, but info-only (no ADD/tier
+   * chips — this card is already owned) plus a glossary entry for every
+   * abbreviation/keyword the card uses.
+   */
+  private renderBagDetail(): void {
+    const index = this.bagDetailIndex;
+    if (index === null) return;
+    const card = this.bagSlots[index];
+    if (!card) { this.bagDetailIndex = null; return; }
+    const skill = skillBook[card.skillId];
+    if (!skill) { this.bagDetailIndex = null; return; }
+
+    // No explicit depths here (matches this scene's other overlays —
+    // `renderConfirm`/`renderSocketPanel` — which rely on add-ORDER, not
+    // depth, for stacking): everything below is added after the veil, so it
+    // draws on top without needing its own depth (and `renderCardInfoBox`'s
+    // internal text/mask objects, which don't set a depth, stay reachable).
+    const close = (): void => { this.bagDetailIndex = null; this.rerender(); };
+    const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.88).setOrigin(0, 0).setInteractive();
+    veil.on('pointerdown', () => { playSfx('uiBack'); close(); });
+
+    const closeBtn = this.add.rectangle(this.W - 30, 46, 28, 28, 0x24344a, 1)
+      .setOrigin(0.5).setStrokeStyle(1, 0x8a94a6, 0.8).setInteractive({ useHandCursor: true });
+    this.add.text(closeBtn.x, closeBtn.y, '×', { fontSize: `${F.xlarge}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+    closeBtn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation(); playSfx('uiBack'); close();
+    });
+
+    const paneWidth = this.W - 40;
+    const centerX = this.W / 2;
+    const cardW = 140;
+    const cardH = cardW * (690 / 420);
+    let y = 66;
+    const cardY = y + cardH / 2;
+    new FantasyCardTemplateV2(this, centerX, cardY, skill, { width: cardW, height: cardH, tier: skill.tier, glossary: false });
+    y = cardY + cardH / 2 + 10;
+
+    const name = this.add.text(centerX, y, skill.name, {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.heading}px`, color: UI.textBright,
+      align: 'center', wordWrap: { width: paneWidth },
+    }).setOrigin(0.5, 0);
+    y += name.height + 4;
+
+    const plDeci = powerLevelDeci(skill);
+    const plLine = this.add.text(centerX, y, `POWER ${(plDeci / 10).toFixed(0)} · ${skill.tier.toUpperCase()}`, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: '#e8b446',
+    }).setOrigin(0.5, 0);
+    addHoverTipZone(this, { x: plLine.x - plLine.width / 2, y: plLine.y, w: plLine.width, h: plLine.height }, [powerLevelEntry()]);
+    y += plLine.height + 10;
+
+    // Full skill text + a glossary entry for every abbreviation/keyword the
+    // card uses — scrollable (see `renderCardInfoBox`) so it never runs off
+    // the bottom of the overlay regardless of how much a card's kit prints.
+    const infoTop = y;
+    const infoH = this.H - infoTop - 20;
+    this.add.rectangle(centerX - paneWidth / 2, infoTop, paneWidth, infoH, 0x101a2a, 0.6).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
+    renderCardInfoBox(this, centerX - paneWidth / 2, infoTop, paneWidth, infoH, skill);
+  }
+
+  /**
    * Gem-socket panel for one deck piece (opened by TAPPING a deck card).
    * Every card has one socket: shows the current gem with UNSOCKET, and the
    * pouch inventory with SOCKET/SWAP. run/loadout's socketGem/swapGem/
@@ -517,7 +593,10 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const px = 12;
     const rowH = 58;
     const rowGap = 8;
-    const headerH = piece.gem ? 128 : 92;
+    // Fixed-height "what this card does" block (see `renderCardInfoBox`) —
+    // scrollable, so a keyword-heavy card never grows the panel.
+    const INFO_H = 108;
+    const headerH = (piece.gem ? 128 : 92) + INFO_H + 12;
     const footerPad = 14;
     const maxPanelH = this.H - 56;
     const maxListH = Math.max(rowH, maxPanelH - headerH - footerPad);
@@ -532,8 +611,15 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     this.add.text(px + 14, py + 12, `${skill.name.toUpperCase()} — GEM SOCKET`, { fontSize: `${F.name}px`, color: '#e8b446', fontFamily: FONT.display, fontStyle: 'bold' });
     this.add.text(px + pw - 14, py + 14, 'tap outside to close', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(1, 0);
 
+    // Card info block: full skill text + a glossary entry for every
+    // abbreviation the card face uses (drag/wheel-scrollable if it overflows).
+    const infoTop = py + 30;
+    this.add.text(px + 14, infoTop - 12, 'CARD INFO', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
+    this.add.rectangle(px + 14, infoTop, pw - 28, INFO_H, 0x101a2a, 0.7).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
+    renderCardInfoBox(this, px + 14, infoTop, pw - 28, INFO_H, skill);
+
     // Current socket row.
-    const curY = py + 36;
+    const curY = infoTop + INFO_H + 12;
     this.add.rectangle(px + 14, curY, pw - 28, 48, 0x101a2a, 0.85).setOrigin(0, 0)
       .setStrokeStyle(1, piece.gem ? GEM_RARITY_COLOR[piece.gem.rarity] : UI.border, 0.9);
     if (piece.gem) {
@@ -546,8 +632,9 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       const bonusT = this.add.text(px + 42, curY + 20, bonus, { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, wordWrap: { width: pw - 175 } });
       let s = bonus;
       while (s.length > 1 && bonusT.height > 12) { s = s.slice(0, -1); bonusT.setText(`${s}…`); }
-      this.add.text(px + 42, curY + 34, `card PL ${basePl} + ${gemPowerLevel(gem)} gem = ${totalPl}`, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body });
-      if (gemDef) addHoverTipZone(this, { x: px + 14, y: curY, w: pw - 28, h: 48 }, [gemHoverEntry(gemDef)]);
+      const plLine = this.add.text(px + 42, curY + 34, `POWER ${totalPl} · card ${basePl} + gem ${gemPowerLevel(gem)}`, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body });
+      addHoverTipZone(this, { x: plLine.x, y: plLine.y, w: plLine.width, h: plLine.height }, [powerLevelEntry()]);
+      if (gemDef) addHoverTipZone(this, { x: px + 14, y: curY, w: pw - 28, h: 32 }, [gemHoverEntry(gemDef)]);
       const un = this.add.rectangle(px + pw - 88, curY + 8, 74, 32, 0x352019).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
       this.add.text(px + pw - 51, curY + 24, 'UNSOCKET', { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       un.on('pointerdown', () => {
@@ -558,7 +645,8 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         close();
       });
     } else {
-      this.add.text(px + 28, curY + 24, `Empty socket · card PL ${basePl}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0.5);
+      const emptyLine = this.add.text(px + 28, curY + 24, `Empty socket · POWER ${basePl}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0.5);
+      addHoverTipZone(this, { x: emptyLine.x, y: emptyLine.y - emptyLine.height / 2, w: emptyLine.width, h: emptyLine.height }, [powerLevelEntry()]);
     }
 
     // Pouch list — masked, drag/wheel scrollable.

@@ -3,7 +3,7 @@ import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { gemPowerLevel, instancePowerLevelDeci } from '../../engine/balance';
 import { boardTypeIdentity, cardType } from '../../engine/combat/typeIdentity';
-import type { SkillDef } from '../../engine/types';
+import type { Gem, SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
 import { moveWithinStrip, shiftInsert, socketGem, swapGem, unsocketGem } from '../../run/loadout';
 import { gemBook } from '../../data/gems';
@@ -16,6 +16,9 @@ import { CardToken } from '../ui/CardToken';
 import { renderDesktopBackground, renderDesktopHeader, DESKTOP_LAYOUT } from '../ui/DesktopNav';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { gemHoverEntry } from '../ui/gemGlossary';
+import { cardHoverEntries } from '../ui/cardHoverEntries';
+import { powerLevelEntry } from '../ui/cardGlossary';
+import { renderCardInfoBox } from '../ui/cardInfoBox';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene } from '../sceneRebuild';
@@ -279,6 +282,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       if (skill) {
         const tok = new CardToken(this, gx + 12 + 40 + 8 + 170, y + h / 2, skill, { width: 340, height: h - 12, side: 'left', deck: [skill], stats: this.heroStats });
         this.makeDraggable(tok, { where: 'hold', card: this.hold });
+        this.attachCardHover(tok, skill);
       }
       this.add.text(gx + w - 16, y + h / 2, 'HOLDING', { fontSize: `${F.label}px`, color: ACCENT_TEXT, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0.5);
     } else {
@@ -329,6 +333,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
           accessories: piece.gem ? [{ label: '◆' }] : undefined,
         });
         this.makeDraggable(tok, { where: 'deck', instanceId: piece.instanceId, card: { instanceId: piece.instanceId, skillId: piece.skillId, tier: piece.tier } });
+        this.attachCardHover(tok, skill, piece.gem);
         row += span - 1;
       } else if (!deckOcc[row]) { empty(deckX, row, 'left'); }
     }
@@ -344,6 +349,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
         const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
         const tok = new CardToken(this, bagX + colW / 2, rowTop(row) + h / 2, skill, { width: colW, height: h, side: 'right', slotLabel: label, deck: bagSkills, stats: this.heroStats });
         this.makeDraggable(tok, { where: 'bag', index: row, card: { ...card } });
+        this.attachCardHover(tok, skill);
         row += span - 1;
       } else if (!bagOcc[row]) { empty(bagX, row, 'right'); }
     }
@@ -386,6 +392,21 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
 
   private makeDraggable(tok: CardToken, src: Source): void {
     this.draggables.push({ token: tok, bounds: new Phaser.Geom.Rectangle(tok.x - tok.width / 2, tok.y - tok.height / 2, tok.width, tok.height), src });
+  }
+
+  /** Hover-tip zone over a card token's own rect — name/tier/PL/full text plus
+   * a glossary entry for every abbreviation the face shows (BLD/PSN/BRN,
+   * riders, WT, tier, type badge — plus the ◆ socketed-gem badge's own entry
+   * when `gem` is supplied, deck pieces only). Shows on `pointerover`; the
+   * same zone's `pointerdown` (see `attachHoverTip`) TOGGLES it, so it hides
+   * the instant a drag starts from this token (drag itself is driven by the
+   * scene-level `pointerdown`/`pointermove` in `wireDrag`, unaffected by this
+   * zone). */
+  private attachCardHover(tok: CardToken, skill: SkillDef, gem?: Gem | null): void {
+    const entries = cardHoverEntries(skill);
+    const gemDef = gem ? gemBook[gem.id] : undefined;
+    if (gemDef) entries.push(gemHoverEntry(gemDef));
+    addHoverTipZone(this, { x: tok.x - tok.width / 2, y: tok.y - tok.height / 2, w: tok.width, h: tok.height }, entries);
   }
 
   private resolveDrop(src: Source, px: number, py: number): void {
@@ -489,8 +510,11 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const pouch = this.gemInventory.map((id) => gemBook[id]).filter((g): g is NonNullable<typeof g> => Boolean(g));
     const rowH = 52;
     const pw = 520;
+    // Fixed-height "what this card does" block — scrollable (see
+    // `renderCardInfoBox`) so a keyword-heavy card never grows the panel.
+    const INFO_H = 128;
     const listH = Math.max(1, pouch.length) * (rowH + 8);
-    const ph = 120 + listH + 24;
+    const ph = 120 + INFO_H + 14 + listH + 24;
     const px = (SCREEN.width - pw) / 2;
     const py = Math.max(40, (SCREEN.height - ph) / 2);
     this.add.rectangle(px, py, pw, ph, UI.panelAlt, 0.98).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive();
@@ -500,8 +524,15 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     this.add.text(px + 20, py + 14, `${skill.name.toUpperCase()} — GEM SOCKET`, { fontSize: `${F.name}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold' });
     this.add.text(px + pw - 20, py + 18, 'click outside to close', { fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body }).setOrigin(1, 0);
 
+    // Card info block: full skill text + a glossary entry for every
+    // abbreviation the card face uses (drag/wheel-scrollable if it overflows).
+    const infoTop = py + 40;
+    this.add.text(px + 20, infoTop - 12, 'CARD INFO', { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' });
+    this.add.rectangle(px + 20, infoTop, pw - 40, INFO_H, UI.panel, 0.7).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
+    renderCardInfoBox(this, px + 20, infoTop, pw - 40, INFO_H, skill);
+
     // Current socket row.
-    const curY = py + 46;
+    const curY = infoTop + INFO_H + 14;
     this.add.rectangle(px + 20, curY, pw - 40, rowH, UI.panelMuted, 0.8).setOrigin(0, 0).setStrokeStyle(1, piece.gem ? GEM_RARITY_COLOR[piece.gem.rarity] : UI.border, 0.9);
     if (piece.gem) {
       const gem = piece.gem;
@@ -510,8 +541,9 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       const bonus = gemDef ? stripCardTextMarkup(gemDef.text) : '';
       this.add.rectangle(px + 40, curY + rowH / 2, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
       this.add.text(px + 56, curY + 8, `${gemDef?.name ?? gem.id} — ${bonus}`, { fontSize: `${F.small}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' });
-      this.add.text(px + 56, curY + 28, `card PL ${basePl} + ${gemPowerLevel(gem)} gem = ${totalPl}`, { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body });
-      if (gemDef) addHoverTipZone(this, { x: px + 20, y: curY, w: pw - 40, h: rowH }, [gemHoverEntry(gemDef)]);
+      const plLine = this.add.text(px + 56, curY + 28, `POWER ${totalPl} · card ${basePl} + gem ${gemPowerLevel(gem)}`, { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body });
+      addHoverTipZone(this, { x: plLine.x, y: plLine.y, w: plLine.width, h: plLine.height }, [powerLevelEntry()]);
+      if (gemDef) addHoverTipZone(this, { x: px + 20, y: curY, w: pw - 40, h: rowH / 2 }, [gemHoverEntry(gemDef)]);
       const un = this.add.rectangle(px + pw - 130, curY + 8, 96, rowH - 16, UI.badSoft).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
       this.add.text(px + pw - 82, curY + rowH / 2, 'UNSOCKET', { fontSize: `${F.tiny}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       un.on('pointerdown', () => {
@@ -522,7 +554,8 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
         close();
       });
     } else {
-      this.add.text(px + 40, curY + rowH / 2, `Empty socket · card PL ${basePl}`, { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0, 0.5);
+      const emptyLine = this.add.text(px + 40, curY + rowH / 2, `Empty socket · POWER ${basePl}`, { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0, 0.5);
+      addHoverTipZone(this, { x: emptyLine.x, y: emptyLine.y - emptyLine.height / 2, w: emptyLine.width, h: emptyLine.height }, [powerLevelEntry()]);
     }
 
     // Pouch list.

@@ -7,6 +7,8 @@ import { demoState } from '../demoState';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
+import { attachHoverTip } from '../ui/hoverTip';
+import { cardHoverEntries } from '../ui/cardHoverEntries';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
 import { renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { rebuildScene } from '../sceneRebuild';
@@ -107,6 +109,9 @@ export class DesktopDraftScene extends Phaser.Scene {
         }
         const tok = new CardToken(this, cx + cardW / 2, cy + cardH / 2, skill, { width: cardW, height: cardH, side: 'left' });
         const hit = this.add.rectangle(cx + cardW / 2, cy + cardH / 2, cardW, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
+        // Hover-tip explains what the card does (name/tier/PL/text + every
+        // abbreviation/keyword it prints) before the player commits a pick.
+        attachHoverTip(this, hit, { x: cx, y: cy, w: cardW, h: cardH }, cardHoverEntries(skill));
         hit.on('pointerdown', () => { playSfx('uiClick'); this.picks[key] = card.skillId; this.rerender(); });
         if (isPicked) {
           this.add.text(cx + cardW - 6, cy + 6, '✓', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent }).setOrigin(1, 0);

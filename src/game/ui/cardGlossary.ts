@@ -111,6 +111,26 @@ export function weightEntry(skill: SkillDef): GlossaryEntry {
   };
 }
 
+/** "Power Level (PL)" — the standalone concept entry (as opposed to
+ * `tierEntry`, which is about the TIER label). Any UI that shows a bare "PL"
+ * number (card face, socket panel, hover tip) should attach this once so a
+ * player can learn what the number IS, not just which tier it belongs to. */
+export function powerLevelEntry(): GlossaryEntry {
+  return {
+    title: 'Power Level (PL)',
+    body: 'A card’s total strength budget — every modifier (damage, shields, riders, gems) is priced in PL, and the tier sets the budget: Bronze 10 · Silver 15 · Gold 20 · Diamond 25. A socketed gem adds its own PL on top of the card’s base.',
+  };
+}
+
+/** The "(+ATK)" / "(+MATK)" parenthetical printed on scaling card text —
+ * explains that the flat number gets the caster's stat added at cast time. */
+export function statScalingSuffixEntry(): GlossaryEntry {
+  return {
+    title: '(+ATK) / (+MATK) suffix',
+    body: 'The flat number shown is added to your current Attack (physical cards, "+ATK") or Magic Power (magical cards, "+MATK") when the card resolves — e.g. "+20 (+ATK)" deals 20 plus your Attack stat.',
+  };
+}
+
 export function slotEntry(skill: SkillDef): GlossaryEntry {
   const size = skill.size;
   if (size <= 1) {
