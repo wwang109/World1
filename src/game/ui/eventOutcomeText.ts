@@ -1,5 +1,12 @@
 import type { EventChoiceOutcome } from '../../data/events';
 import type { EventOutcome } from '../../run/events';
+import { skillBook } from '../../data/skills';
+
+/** Display name for a skill id — falls back to the raw id if somehow unknown
+ * (should never happen for a live event outcome, but never crash a scene over it). */
+function skillName(skillId: string): string {
+  return skillBook[skillId]?.name ?? skillId;
+}
 
 /** Short inline reward hint shown on a choice button ("→ CARD (BRONZE)",
  * "→ +2 GOLD", "→ GAMBLE"…) — gambles telegraph as "GAMBLE" since the exact
@@ -15,6 +22,7 @@ export function choiceOutcomeHint(outcome: EventChoiceOutcome): string {
     case 'loseGold': return `-${outcome.amount} GOLD`;
     case 'grantLevel': return '+1 LEVEL';
     case 'bonusDraft': return 'MINI-DRAFT';
+    case 'upgradeCard': return 'UPGRADE';
     case 'nothing': return '—';
     default: return '';
   }
@@ -41,6 +49,13 @@ export function outcomeHeadline(outcome: EventOutcome): { headline: string; deta
       return { headline: `Hero levels up → LV ${outcome.level}`, detail: '' };
     case 'bonusDraft':
       return { headline: 'Pick a card to keep', detail: '' };
+    case 'upgradeCard':
+      return outcome.fellBack
+        ? { headline: 'Nothing eligible to upgrade — took gold instead', detail: '' }
+        : {
+            headline: `Your ${skillName(outcome.skillId!)} is re-tempered — ${outcome.from!.toUpperCase()} → ${outcome.to!.toUpperCase()}.`,
+            detail: outcome.gambled ? 'The gamble paid off.' : '',
+          };
     case 'nothing':
       return { headline: outcome.gambled ? 'The gamble came up empty' : 'Nothing happens', detail: '' };
     default:

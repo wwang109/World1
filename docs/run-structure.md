@@ -133,7 +133,19 @@ dialogues with 2-3 choices, seeded outcomes.
 - Outcome vocabulary (`EventOutcome`): `grantCard` (nearest-fit insert,
   bag-full → `fellBack` to gold) · `grantGem` · `grantGold` · `loseGold` ·
   `grantLevel` (capped at `MAX_LEVEL`) · `bonusDraft` (single-set 1-5 card
-  mini-draft) · `nothing`; `gambled` marks risk outcomes.
+  mini-draft) · `upgradeCard` (bumps one owned card +1 tier, see below) ·
+  `nothing`; `gambled` marks risk outcomes.
+- `upgradeCard` (2026-08-04): +1 tier (bronze→silver→gold→diamond) on ONE
+  already-owned card. **v1 has no picker UI** — `upgradeCardOutcome`
+  (`run/events.ts`) deterministically targets the lowest-tier eligible
+  (non-diamond) card: board `pieces` are checked before the bag, ties broken
+  by ascending board `slot`/bag array order. Nothing eligible (no owned
+  cards, or every one is already diamond) → `{fellBack: true}` plus
+  `CARD_FALLBACK_GOLD`, reported as `upgradeCard`/`fellBack` (NOT re-kinded to
+  `grantGold` like `grantCard`'s bag-full fallback — the reason differs, so
+  the UI needs to say something different). A choose-your-card picker is a
+  later pass. Three Cinderworks (forge) events use it (guaranteed-pay, a free
+  coin-flip, and a paid-better-odds coin-flip).
 - No-repeat bags: a per-run `eventBag` plus per-theme bags
   (`eventThemeBags`), reshuffled deterministically via refill counters.
 - Affordability: `isEventChoiceAffordable` is the single predicate both the

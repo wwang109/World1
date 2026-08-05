@@ -13,6 +13,18 @@
 // weights are integer percent and must sum to 100). Every event carries a
 // genuinely SAFE choice — cost 0, and if it's a gamble, one whose worst
 // branch is `nothing` — so a broke player is never soft-locked.
+//
+// `upgradeCard` (2026-08-04): bumps ONE already-owned card +1 tier
+// (bronze->silver->gold->diamond). v1 has NO picker — the resolver
+// (`src/run/events.ts#upgradeCardOutcome`) deterministically targets the
+// lowest-tier eligible (non-diamond) card, preferring a board `pieces` slot
+// over a bag card, tie-broken by ascending board `slot`/bag array order. If
+// nothing is eligible (every owned card is diamond, or the player owns none),
+// it STILL credits `CARD_FALLBACK_GOLD` but reports `{fellBack: true}` while
+// staying `kind: 'upgradeCard'` (deliberately NOT re-kinded to `grantGold`
+// like `grantCard`'s full-bag fallback — "nothing to upgrade" needs its own
+// UI line, not "bag was full"). A future pass may add a choose-your-card
+// picker UI; this is the deterministic placeholder.
 
 import type { SkillTier } from '../engine/types';
 import type { CardFilter, GemFilter } from './shopTypes';
@@ -32,6 +44,7 @@ export type EventOutcomeSpec =
   | { kind: 'loseGold'; amount: number }
   | { kind: 'grantLevel' }
   | { kind: 'bonusDraft'; filter?: CardFilter }
+  | { kind: 'upgradeCard' }
   | { kind: 'nothing' };
 
 export interface GambleRow {
@@ -389,6 +402,151 @@ const defs: EventDef[] = [
     choices: [
       { id: 'take_coin', label: 'Take the coin', outcome: { kind: 'grantGold', amount: 2 } },
       { id: 'take_stone', label: 'Take the stone instead', outcome: { kind: 'grantGem' } },
+    ],
+  },
+
+  // ==========================================================================
+  // Story-forward batch (2026-08-04, +8 events) — deepens the thinnest themes
+  // (forge/omen/market) and introduces `upgradeCard`: three Cinderworks events
+  // let the player re-temper an owned card in place instead of only ever
+  // drawing a fresh one. See the `upgradeCard` doc comment above for the
+  // deterministic (no-picker) targeting rule the resolver applies.
+  // ==========================================================================
+
+  // ---- FORGE (upgradeCard) ----
+  {
+    id: 'cinderworks_regrind',
+    title: 'The Regrinding Wheel',
+    theme: 'forge',
+    body: "Deep in the Cinderworks a bent-backed smith works a stone wheel taller than she is, sparks arcing in long white ribbons. \"Five gold,\" she says without looking up, \"and I'll regrind your gear into something properly better.\" Watch instead, and she won't even blink.",
+    choices: [
+      { id: 'regrind', label: 'Pay 5 gold to regrind your gear', cost: 5, outcome: { kind: 'upgradeCard' } },
+      { id: 'watch', label: 'Just watch, and walk on', outcome: { kind: 'nothing' } },
+    ],
+  },
+  {
+    id: 'ember_pit',
+    title: 'The Ember Pit',
+    theme: 'forge',
+    body: "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead.",
+    choices: [
+      {
+        id: 'reach_in',
+        label: 'Thrust your gear into the coals',
+        outcome: {
+          kind: 'gamble',
+          table: [
+            { weight: 50, outcome: { kind: 'upgradeCard' } },
+            { weight: 50, outcome: { kind: 'nothing' } },
+          ],
+        },
+      },
+      { id: 'pay_tender', label: 'Pay 2 gold to steady the coals first', cost: 2, outcome: { kind: 'grantGem' } },
+    ],
+  },
+  {
+    id: 'retiring_smith',
+    title: "The Smith's Last Commission",
+    theme: 'forge',
+    body: "At the Cinderworks' last working forge, an old smith banks her fire for good, hammer half-wrapped in oilcloth already. \"Six gold,\" she offers, \"for one more piece done right before I go.\" Decline, and she'll finish wrapping her tools and vanish into the dusk without you.",
+    choices: [
+      { id: 'commission', label: 'Pay 6 gold for one last commission', cost: 6, outcome: { kind: 'upgradeCard' } },
+      { id: 'let_her_go', label: 'Let her go', outcome: { kind: 'nothing' } },
+    ],
+  },
+
+  // ---- OMEN ----
+  {
+    id: 'fortune_teller',
+    title: 'The Fortune-Teller',
+    theme: 'omen',
+    body: "A veiled fortune-teller crouches at the crossroads shrine, cards fanned across a cracked marble slab, and offers a free reading of what's coming — the shrine only asks you trust what it shows. Cross her palm with silver instead, and she presses a smooth luck-stone into your hand.",
+    choices: [
+      {
+        id: 'free_reading',
+        label: 'Take the free reading',
+        outcome: {
+          kind: 'gamble',
+          table: [
+            { weight: 50, outcome: { kind: 'grantLevel' } },
+            { weight: 50, outcome: { kind: 'nothing' } },
+          ],
+        },
+      },
+      { id: 'cross_palm', label: 'Cross her palm with 2 gold', cost: 2, outcome: { kind: 'grantGem' } },
+    ],
+  },
+  {
+    id: 'weighing_stone',
+    title: 'The Weighing Stone',
+    theme: 'omen',
+    body: "A black basalt stone squats at the crossroads' heart, said to weigh a traveler's resolve at a glance. Press your palm to it and it may show a glimpse of arms you'll carry — or leave your hand simply cold. Others just skirt around it, unwilling to let a stone judge them.",
+    choices: [
+      {
+        id: 'press_palm',
+        label: 'Press your palm to the stone',
+        outcome: {
+          kind: 'gamble',
+          table: [
+            { weight: 45, outcome: { kind: 'bonusDraft' } },
+            { weight: 55, outcome: { kind: 'nothing' } },
+          ],
+        },
+      },
+      { id: 'skirt_around', label: 'Skirt around it', outcome: { kind: 'nothing' } },
+    ],
+  },
+  {
+    id: 'two_ravens',
+    title: 'Two Ravens',
+    theme: 'omen',
+    body: 'Two ravens perch unnervingly still on the crossroads shrine\'s arms, and old omen-readers swear feeding them buys good fortune while ignoring them buys nothing at all. Toss them your scraps for a coin\'s trouble, or walk the long way around and let them watch you go.',
+    choices: [
+      {
+        id: 'feed_them',
+        label: 'Toss them your scraps (1 gold)',
+        cost: 1,
+        outcome: {
+          kind: 'gamble',
+          table: [
+            { weight: 55, outcome: { kind: 'grantGem' } },
+            { weight: 45, outcome: { kind: 'nothing' } },
+          ],
+        },
+      },
+      { id: 'walk_around', label: 'Walk the long way around', outcome: { kind: 'nothing' } },
+    ],
+  },
+
+  // ---- MARKET ----
+  {
+    id: 'toll_collectors_ledger',
+    title: "The Toll Collector's Ledger",
+    theme: 'market',
+    body: "A toll collector flags you down on the Tolling Road, ledger open, insisting a road tax is overdue for the wear you've caused passing through. Pay it and he waves you past with a stone from his confiscated crate — refuse, and he shrugs, scrawls something illegible, and lets you walk on regardless.",
+    choices: [
+      { id: 'pay_tax', label: 'Pay the 2-gold road tax', cost: 2, outcome: { kind: 'grantGem' } },
+      { id: 'refuse', label: 'Refuse to pay', outcome: { kind: 'nothing' } },
+    ],
+  },
+  {
+    id: 'broken_axle',
+    title: 'The Broken Axle',
+    theme: 'market',
+    body: "A cart lies overturned on the Tolling Road, axle snapped clean through, goods scattered across the ruts. The driver begs anyone passing for a shoulder to right it, promising whatever thanks the wreck still holds — or, if you'd rather not strain yourself, just leave him to sort it out alone.",
+    choices: [
+      {
+        id: 'help_haul',
+        label: 'Help haul the cart upright',
+        outcome: {
+          kind: 'gamble',
+          table: [
+            { weight: 55, outcome: { kind: 'grantGem' } },
+            { weight: 45, outcome: { kind: 'nothing' } },
+          ],
+        },
+      },
+      { id: 'leave_him', label: 'Leave him to it', outcome: { kind: 'nothing' } },
     ],
   },
 ];

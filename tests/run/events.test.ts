@@ -55,7 +55,7 @@ function stateAtFirstEvent(seed: number): { state: RunState; node: RunNode } {
 }
 
 /** Every non-gamble outcome kind in the vocabulary, for the catalog lint. */
-const OUTCOME_KINDS = new Set(['grantCard', 'grantGem', 'grantGold', 'loseGold', 'grantLevel', 'bonusDraft', 'nothing']);
+const OUTCOME_KINDS = new Set(['grantCard', 'grantGem', 'grantGold', 'loseGold', 'grantLevel', 'bonusDraft', 'upgradeCard', 'nothing']);
 
 function isSafe(choice: { cost?: number; outcome: EventChoiceOutcome }): boolean {
   if ((choice.cost ?? 0) > 0) return false;
@@ -64,9 +64,9 @@ function isSafe(choice: { cost?: number; outcome: EventChoiceOutcome }): boolean
 }
 
 describe('data/events: catalog lint', () => {
-  it('has exactly 20 events, each with a unique id', () => {
-    expect(eventCatalogIds.length).toBe(20);
-    expect(new Set(eventCatalogIds).size).toBe(20);
+  it('has exactly 28 events, each with a unique id', () => {
+    expect(eventCatalogIds.length).toBe(28);
+    expect(new Set(eventCatalogIds).size).toBe(28);
   });
 
   it('every event has a theme', () => {
@@ -504,6 +504,165 @@ describe('run/events: resolveEventChoice', () => {
   it('throws when no event node is currently active', () => {
     const state = startedRun(4);
     expect(() => resolveEventChoice(state, 'wandering_tutor', 'pay')).toThrow();
+  });
+});
+
+describe('run/events: upgradeCard', () => {
+  it('upgrades the lowest-tier BOARD piece, tie-broken by ascending slot (board preferred over bag)', () => {
+    const { state } = stateAtFirstEvent(4);
+    const rigged: RunState = {
+      ...state,
+      gold: 10,
+      pieces: [
+        { instanceId: 'p_silver', skillId: 'sword_slash', tier: 'silver', slot: 0 },
+        { instanceId: 'p_bronze_late', skillId: 'sword_slash', tier: 'bronze', slot: 3 },
+        { instanceId: 'p_bronze_early', skillId: 'sword_slash', tier: 'bronze', slot: 1 },
+      ],
+      bagSlots: [{ instanceId: 'b_bronze', skillId: 'sword_slash', tier: 'bronze' }],
+    };
+    const { state: next, outcome } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
+    expect(outcome).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from: 'bronze', to: 'silver', gambled: false });
+    // The EARLIER-slot bronze board piece upgraded, not the later one, and not the bag.
+    expect(next.pieces.find((p) => p.instanceId === 'p_bronze_early')!.tier).toBe('silver');
+    expect(next.pieces.find((p) => p.instanceId === 'p_bronze_late')!.tier).toBe('bronze');
+    expect(next.pieces.find((p) => p.instanceId === 'p_silver')!.tier).toBe('silver');
+    expect(next.bagSlots[0]!.tier).toBe('bronze');
+    expect(next.gold).toBe(5); // 10 - the 5-gold cost, no fallback gold added
+  });
+
+  it('falls back to the BAG when no board piece sits at the lowest eligible tier', () => {
+    const { state } = stateAtFirstEvent(4);
+    const rigged: RunState = {
+      ...state,
+      gold: 10,
+      pieces: [{ instanceId: 'p_gold', skillId: 'sword_slash', tier: 'gold', slot: 0 }],
+      bagSlots: [
+        { instanceId: 'b_gold', skillId: 'sword_slash', tier: 'gold' },
+        { instanceId: 'b_bronze', skillId: 'sword_slash', tier: 'bronze' },
+      ],
+    };
+    const { state: next, outcome } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
+    expect(outcome).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from: 'bronze', to: 'silver', gambled: false });
+    expect(next.bagSlots[1]!.tier).toBe('silver');
+    expect(next.bagSlots[0]!.tier).toBe('gold');
+    expect(next.pieces[0]!.tier).toBe('gold');
+  });
+
+  it('every tier bumps exactly one rung (bronze->silver, silver->gold, gold->diamond)', () => {
+    const { state } = stateAtFirstEvent(4);
+    for (const [from, to] of [
+      ['bronze', 'silver'],
+      ['silver', 'gold'],
+      ['gold', 'diamond'],
+    ] as const) {
+      const rigged: RunState = {
+        ...state,
+        gold: 10,
+        pieces: [{ instanceId: 'p', skillId: 'sword_slash', tier: from, slot: 0 }],
+        bagSlots: [],
+      };
+      const { outcome } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
+      expect(outcome).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from, to, gambled: false });
+    }
+  });
+
+  it('diamond-guard: falls back gracefully (fellBack:true, CARD_FALLBACK_GOLD credited) when every owned card is already diamond', () => {
+    const { state } = stateAtFirstEvent(4);
+    const rigged: RunState = {
+      ...state,
+      gold: 10,
+      pieces: [{ instanceId: 'p_diamond', skillId: 'sword_slash', tier: 'diamond', slot: 0 }],
+      bagSlots: [{ instanceId: 'b_diamond', skillId: 'sword_slash', tier: 'diamond' }],
+    };
+    const { state: next, outcome } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
+    expect(outcome).toEqual({ kind: 'upgradeCard', fellBack: true, gambled: false });
+    expect(next.gold).toBe(10 - 5 + 2); // cost paid, then fallback gold credited
+    expect(next.pieces[0]!.tier).toBe('diamond');
+    expect(next.bagSlots[0]!.tier).toBe('diamond');
+  });
+
+  it('fellBack path also covers owning no cards at all', () => {
+    const { state } = stateAtFirstEvent(4);
+    const rigged: RunState = { ...state, gold: 10, pieces: [], bagSlots: [] };
+    const { state: next, outcome } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
+    expect(outcome).toEqual({ kind: 'upgradeCard', fellBack: true, gambled: false });
+    expect(next.gold).toBe(10 - 5 + 2);
+  });
+
+  it('is deterministic (pure, no Rng): identical input state -> identical outcome and next state, repeatedly', () => {
+    const { state } = stateAtFirstEvent(4);
+    const rigged: RunState = {
+      ...state,
+      gold: 10,
+      pieces: [{ instanceId: 'p', skillId: 'sword_slash', tier: 'bronze', slot: 0 }],
+      bagSlots: [],
+    };
+    const a = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
+    const b = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
+    expect(b.outcome).toEqual(a.outcome);
+    expect(b.state.pieces).toEqual(a.state.pieces);
+  });
+
+  it("ember_pit's free gamble can resolve to upgradeCard (sweeping eventSeed for a hit)", () => {
+    const { state } = stateAtFirstEvent(4);
+    let saw = false;
+    for (let i = 0; i < 50 && !saw; i++) {
+      const node = { ...currentEventNodeOrThrow(state), eventSeed: i };
+      const rigged: RunState = {
+        ...state,
+        map: replaceNode(state.map, node),
+        gold: 0,
+        pieces: [{ instanceId: 'p', skillId: 'sword_slash', tier: 'bronze', slot: 0 }],
+        bagSlots: [],
+      };
+      const { outcome } = resolveEventChoice(rigged, 'ember_pit', 'reach_in');
+      if (outcome.kind === 'upgradeCard' && !outcome.fellBack) {
+        saw = true;
+        expect(outcome).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from: 'bronze', to: 'silver', gambled: true });
+      }
+    }
+    expect(saw).toBe(true);
+  });
+
+  it('never changes RunStats.eventsResolved beyond the standard +1', () => {
+    const { state } = stateAtFirstEvent(4);
+    const rigged: RunState = {
+      ...state,
+      gold: 10,
+      pieces: [{ instanceId: 'p', skillId: 'sword_slash', tier: 'bronze', slot: 0 }],
+      bagSlots: [],
+    };
+    const { state: next } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
+    expect(next.stats.eventsResolved).toBe(rigged.stats.eventsResolved + 1);
+  });
+});
+
+describe('run/events: catalog invariants still hold with the expanded (28-event) catalog', () => {
+  it('an event rolled at gold 0 always has an affordable, non-nothing choice (many seeds/nodes)', () => {
+    for (let i = 0; i < 20; i++) {
+      const seed = i * 41 + 7;
+      let state = startedRun(seed);
+      expect(state.gold).toBe(0);
+      for (let guard = 0; guard < 200; guard++) {
+        const choices = availableChoices(state);
+        if (choices.length === 0) break;
+        const eventNode = choices.find((n) => n.kind === 'event');
+        if (eventNode) {
+          const { event } = rollEventForNode(state, eventNode);
+          const hasPlayableChoice = event.choices.some(
+            (c) => isEventChoiceAffordable(state, c) && c.outcome.kind !== 'nothing',
+          );
+          expect(hasPlayableChoice).toBe(true);
+          state = chooseNode(state, eventNode.id);
+          state = leaveEvent(state);
+          continue;
+        }
+        const node = choices[0]!;
+        state = chooseNode(state, node.id);
+        if (node.kind === 'shop') state = leaveShop(state);
+        else state = recordBattleResult(state, { won: true, goldEarned: 0 });
+      }
+    }
   });
 });
 
