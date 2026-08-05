@@ -14,7 +14,10 @@ describe('engine/cards: auto-scaled tier text', () => {
     const diamond = applyTier(base, 'diamond');
     const power = (diamond.effects[0] as { power: number }).power;
     expect(power).toBeGreaterThan((base.effects[0] as { power: number }).power);
-    expect(diamond.text).toContain(`+${power}`);
+    // Sentence shape is "Deal {power} (+MATK) ... damage." (number-first,
+    // no leading "+" on the power itself — see docs/card-text-style-guide.md)
+    // so we assert the bare number, not a "+"-prefixed one.
+    expect(diamond.text).toContain(`${power}`);
     expect(diamond.text).not.toBe(base.text);
   });
 

@@ -54,7 +54,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also +4 damage (+stat).',
+    text: 'Also +4 damage (+ATK/MATK).',
   },
   savage_bite_echo: {
     // echo of savage_bite
@@ -63,7 +63,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also +4 damage (+stat).',
+    text: 'Also +4 damage (+ATK/MATK).',
   },
   hunter_shot_echo: {
     // echo of hunter_shot
@@ -72,7 +72,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also +4 damage (+stat).',
+    text: 'Also +4 damage (+ATK/MATK).',
   },
   arcane_bolt_echo: {
     // echo of arcane_bolt
@@ -81,7 +81,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also +4 damage (+stat).',
+    text: 'Also +4 damage (+ATK/MATK).',
   },
   fireball_echo: {
     // echo of fireball
@@ -112,7 +112,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'shield', power: 4 }],
-    text: 'Also +4 shield (+stat).',
+    text: 'Also +4 shield (+ATK/MATK).',
   },
   mana_ward_echo: {
     // echo of mana_ward
@@ -121,7 +121,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'shield', power: 4 }],
-    text: 'Also +4 shield (+stat).',
+    text: 'Also +4 shield (+ATK/MATK).',
   },
   mending_light_echo: {
     // echo of mending_light
@@ -130,7 +130,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'heal', power: 4 }],
-    text: 'Also +4 HP (+stat).',
+    text: 'Also +4 HP (+ATK/MATK).',
   },
   time_crystal_echo: {
     // echo of time_crystal
@@ -215,7 +215,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also +4 damage (+stat).',
+    text: 'Also +4 damage (+ATK/MATK).',
   },
   purify_echo: {
     // echo of purify
@@ -279,7 +279,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'damage', power: 8 }],
-    text: 'Also +8 damage (+stat).',
+    text: 'Also +8 damage (+ATK/MATK).',
   },
   crushing_blow_echo: {
     // echo of crushing_blow
@@ -288,7 +288,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'damage', power: 8 }],
-    text: 'Also +8 damage (+stat).',
+    text: 'Also +8 damage (+ATK/MATK).',
   },
   crippling_strike_echo: {
     // echo of crippling_strike
@@ -326,7 +326,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'heal', power: 8 }],
-    text: 'Also +8 HP (+stat).',
+    text: 'Also +8 HP (+ATK/MATK).',
   },
   war_banner_echo: {
     // echo of war_banner
@@ -384,7 +384,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'damage', power: 8 }],
-    text: 'Also +8 damage (+stat).',
+    text: 'Also +8 damage (+ATK/MATK).',
   },
 
   // ---- Epic (6 PL / 60 deci) ----
@@ -423,7 +423,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'epic',
     actions: [{ kind: 'shield', power: 12 }],
-    text: 'Also +12 shield (+stat).',
+    text: 'Also +12 shield (+ATK/MATK).',
   },
 
   // ---- Legendary (8 PL / 80 deci) ----
@@ -468,7 +468,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'legendary',
     actions: [{ kind: 'damage', power: 16 }],
-    text: 'Also +16 damage (+stat).',
+    text: 'Also +16 damage (+ATK/MATK).',
   },
 };
 

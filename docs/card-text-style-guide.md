@@ -89,10 +89,13 @@ whose card is executing.
 | `guard` | Reduces incoming damage of the matching `property` by `pct`% (multiplicative, floored, min 1) for `turns` global turns. Applied on the caster (self). Clamped to ≤60% at apply time. |
 | `negate` | Grants `charges` counter-charges on the caster (self) that fully cancel the next direct hits of the matching `property`. DoT ticks, fatigue and attrition never spend a charge. Total charges of a property clamped to ≤3 at apply time. |
 
-`BuffableStat` display names (always capitalize, always the full name — never
-abbreviate): `attack` → **Attack**, `magicPower` → **Magic Power**,
-`armor` → **Armor**, `magicResist` → **Magic Resist**, `speed` → **Speed**,
-`critPct` → **Crit Chance**.
+`BuffableStat` display names as they actually ship in card text (short
+abbreviations — chosen for card-face space, and now the locked convention;
+this supersedes any earlier "always spell out the full name" guidance):
+`attack` → **ATK**, `magicPower` → **MATK**, `armor` → **DEF**,
+`magicResist` → **MDEF**, `speed` → **SPD**, `critPct` → **Crit Chance**
+(no established short form; spell out if ever needed). `HP` is used verbatim
+for health, never abbreviated further.
 
 ### Special-ability riders (combined-archetype cards only)
 
@@ -114,17 +117,25 @@ One canonical sentence template per Action kind and per rider.
 
 ### Main verbs
 
+**Number-first grammar (2026-08-04 pass):** every damage/heal/shield clause
+leads with the flat `{power}`, attaches the scaling stat clause directly to
+that number, and names the damage/shield *type* (weapon, element, or TRUE)
+as the trailing noun/adjective — never `"... damage +{power} (+STAT)."` The
+old shape read like engineer notation (verb, object, then a `+{power}`
+tacked on at the end); the number-first shape reads the way a player parses
+a sentence: **how much, boosted by what, of what kind.**
+
 | Kind | Template |
 |---|---|
-| `damage` (physical) | `Deal {power} (+Attack) physical damage.` |
-| `damage` (magical) | `Deal {power} (+Magic Power) magical damage.` |
-| `damage` (true) | `Deal {power} (+your higher power stat) TRUE damage — ignores Armor and Magic Resist.` |
-| `heal` (physical) | `Restore {power} (+Attack) health.` |
-| `heal` (magical) | `Restore {power} (+Magic Power) health.` |
-| `heal` (true) | `Restore {power} health.` — no stat clause; the omitted "(+Stat)" is what signals it's flat (per §3). |
-| `shield` (physical) | `Gain a Physical shield worth {power} (+Attack).` — "Physical shield" already implies it blocks physical only; don't restate it. |
-| `shield` (magical) | `Gain a Magical shield worth {power} (+Magic Power).` — likewise; the type name carries the blocking rule. |
-| `shield` (true) | `Gain a {power}-point TRUE shield — blocks ALL damage types.` |
+| `damage` (physical, weapon) | `Deal {power} (+ATK) {Weapon} damage.` — `{Weapon}` is the capitalized weapon noun (Sword/Axe/Lance/Bow/Beast). |
+| `damage` (magical, element) | `Deal {power} (+MATK) {Element} damage.` — `{Element}` is the capitalized element noun (Fire/Lightning/Nature/Frost/Holy/Dark). |
+| `damage` (true) | `Deal {power} (+best stat) TRUE damage — ignores DEF/MDEF.` |
+| `heal` (physical) | `Restore {power} (+ATK) HP.` |
+| `heal` (magical) | `Restore {power} (+MATK) HP.` |
+| `heal` (true) | `Restore {power} HP.` (or `Restore {power} TRUE HP.` when a card already spells out "TRUE" for flavor emphasis) — no stat clause; the omitted "(+stat)" is what signals it's flat (per §3). |
+| `shield` (physical) | `Gain {power} (+ATK) physical shield.` — "physical shield" already implies it blocks physical only; don't restate it. |
+| `shield` (magical) | `Gain {power} (+MATK) magical shield.` — likewise; the type name carries the blocking rule. |
+| `shield` (true) | `Gain {power} TRUE shield — blocks all damage types.` (flavor may extend this, e.g. `"— blocks TRUE damage fully; physical/magical drain it 2:1."`) |
 | `poison` | `Poison {stacks} stacks ({turns} turns).` — each stack deals damage scaling with your scaling stat; append `(poison bypasses shields)` the first/only time a card introduces poison, to disambiguate from burn. |
 | `burn` | `Burn {stacks} stacks ({turns} turns).` |
 | `bleed` | `Bleed {stacks} stacks ({turns} performances) — bleed ticks when the enemy performs.` — the "performances" unit and the "ticks when the enemy performs" clause disambiguate it from poison/burn (which tick per turn). |
@@ -137,6 +148,11 @@ One canonical sentence template per Action kind and per rider.
 | `guard` | `Reduce incoming {element/magical} damage by {pct}% for {turns} turns.` — name the `property` in lowercase ("physical"/"magical"), or say "all" for TRUE. |
 | `negate` | `Negate the next {charges} {magical} attack(s).` — name the `property` in lowercase ("physical"/"magical"), or say "any" for TRUE. Singular "attack" and NO numeral if `charges` = 1 (the drift guard exempts `charges = 1`, mirroring `stun`). |
 
+Examples from the live card set: `arcane_bolt` → `"Deal 18 (+MATK) Lightning
+damage."`; `mending_light` → `"Restore 48 (+MATK) HP."`; `iron_bulwark` →
+`"Gain 48 (+ATK) physical shield."`; `soul_rend` → `"Deal 27 (+best stat)
+TRUE damage — ignores DEF/MDEF."`
+
 ### Riders
 
 | Rider | Template |
@@ -147,13 +163,33 @@ One canonical sentence template per Action kind and per rider.
 | `shieldBreak` | `Shatter up to {amount} enemy shield, then` — leads the sentence, main verb follows in lowercase. |
 | `comboBonus` | `+{pct}% if your previous cast was also a(n) {Archetype} card.` (joined to the main clause with `;`, *trailing* — see below) |
 
+### Gem rider phrasing (`src/data/gems.ts`)
+
+Gems append a `damage`/`heal`/`shield` action onto whichever card they're
+socketed into, so a gem's own text can't name a specific stat — it inherits
+the HOST CARD's scaling stat (ATK for physical, MATK for magical, the
+higher of the two for TRUE) at cast time. The old `"(+stat)"` placeholder
+read like a raw variable name; the fix keeps the same number-first shape as
+main-card text but spells out both stats the gem could possibly scale with:
+
+| Gem action | Template |
+|---|---|
+| `damage` | `Also +{power} damage (+ATK/MATK).` |
+| `heal` | `Also +{power} HP (+ATK/MATK).` |
+| `shield` | `Also +{power} shield (+ATK/MATK).` |
+
+Non-scaling gem riders (poison/burn/slow/disrupt/lifesteal/shieldBreak/
+debuffStat/comboBonus/guard) are untouched by this pass — their existing
+`"Also {{Keyword}} ..."` phrasing already leads with the number and never
+carried a `"(+stat)"` clause, so there was nothing to fix.
+
 ### Composing multi-effect cards
 
 Data order in `effects[]` and sentence order are **not always the same** —
 follow these rules, which match the existing 26 cards:
 
 1. **`shieldBreak` leads the sentence** (data-first, prose-first): `"Shatter
-   up to {amount} enemy shield, then deal {power}% ... damage."`
+   up to {amount} enemy shield, then deal {power} (+STAT) ... damage."`
 2. **The main verb clause** comes next (or first, if no `shieldBreak`):
    damage / heal / shield / poison / burn / stun / buffStat / debuffStat,
    using the templates above.
@@ -165,27 +201,27 @@ follow these rules, which match the existing 26 cards:
    - `comboBonus` is a data-first effect but a **prose-last** rider: even
      though it appears first in `effects[]` (it must multiply the damage
      that follows), it is *phrased* as a trailing conditional — see
-     `follow_through`: `"Deal 100% Attack physical damage; +75% if your
-     previous cast was also an Offense card."`
+     `follow_through`: `"Deal 10 (+ATK) Sword damage · +20 if previous cast
+     was Offense."`
 4. **One optional trailing flavor clause** last (see §3).
 
-Worked examples from the current card set:
+Worked examples from the current card set (verbatim `text`, post the
+2026-08-04 number-first pass):
 
-- `shield_splitter` (shieldBreak → damage): `"Shatter up to 24 enemy shield,
-  then deal 200% Attack physical damage."`
-- `venom_fang` (damage → poison): `"Deal 160% Attack physical damage and
-  poison for 5 for 3 turns (poison bypasses shields)."`
-- `leeching_fang` (damage → lifesteal): `"Deal 160% Attack physical damage
-  and heal for 45% of the damage dealt."`
-- `hamstring` (damage → slow): `"Deal 120% Attack physical damage; the
-  enemy's next action by +16 weight."`
+- `shield_splitter` (shieldBreak → damage): `"{{Shatter}} 24 enemy shield,
+  then deal 42 (+ATK) Axe damage."`
+- `venom_fang` (damage → poison): `"Deal 12 (+ATK) Beast damage ·
+  {{Poison}} 5 (poison bypasses shields)."`
+- `leeching_fang` (damage → lifesteal): `"Deal 16 (+ATK) Beast damage ·
+  heal 45% of damage dealt."`
+- `hamstring` (damage → slow): `"Deal 12 (+ATK) Lance damage · {{Slow}}
+  the enemy's next action by +16 weight."`
 - `follow_through` (comboBonus → damage, phrased damage-then-bonus):
-  `"Deal 100% Attack physical damage; +150% if your previous cast was also
-  an Offense card."`
-- `frost_ward` (`guard`, sole effect): `"Reduce incoming magical damage by
-  40% for 2 turns."`
-- `ward_of_silence` (`negate`, sole effect): `"Negate the next 2 magical
-  attacks."`
+  `"Deal 10 (+ATK) Sword damage · +20 if previous cast was Offense."`
+- `frost_ward` (`guard`, sole effect): `"-50% incoming magical damage
+  (2 turns)."`
+- `ward_of_silence` (`negate`, sole effect): `"{{Negate}} the next magical
+  attack."`
 
 ---
 
