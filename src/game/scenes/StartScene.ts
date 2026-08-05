@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ACTIVE_PROFILE } from '../layoutProfile';
+import { getLifetimeStats } from '../metaStore';
 import { FONT, SCREEN, UI } from '../theme';
 import { getActiveRun, getPendingSeed, startRun } from '../runStore';
 
@@ -47,16 +48,35 @@ export class StartScene extends Phaser.Scene {
           this.scene.start(mobile ? 'MobileDraft' : 'DesktopDraft');
         }
       });
-    this.button(cx, firstY + btnH + (mobile ? 22 : 26), btnW, btnH, 'SANDBOX',
+    const secondY = firstY + btnH + (mobile ? 22 : 26);
+    this.button(cx, secondY, btnW, btnH, 'SANDBOX',
       'Free build & balance playground', false, () => {
         this.scene.start(mobile ? 'MobilePrep' : 'DesktopPrep');
       });
+
+    this.renderLifetimeStrip(cx, secondY + btnH / 2 + (mobile ? 26 : 30), mobile, F);
 
     if (!activeRun) {
       this.add.text(cx, SCREEN.height - (mobile ? 24 : 30), `seed ${getPendingSeed()}`, {
         fontFamily: 'monospace', fontSize: `${F.tiny}px`, color: UI.textDisabled,
       }).setOrigin(0.5);
     }
+  }
+
+  /** The account's lifetime strip — subtle, not a panel (`UI.textMuted`,
+   * tiny/small type), only once at least one run has ever been started (a
+   * brand-new install has nothing to brag about yet). One line either
+   * platform: the string is short enough that desktop's extra width doesn't
+   * need a second line, but `wordWrap` guards a very long best-run number. */
+  private renderLifetimeStrip(cx: number, y: number, mobile: boolean, F: typeof ACTIVE_PROFILE.font): void {
+    const lifetime = getLifetimeStats();
+    if (lifetime.runsStarted === 0) return;
+    const text = `${lifetime.runsStarted} runs · ${lifetime.totalBossesCleared} bosses · `
+      + `best: ${lifetime.bestRun.bossesCleared} bosses / wave ${lifetime.bestRun.deepestWave}`;
+    this.add.text(cx, y, text, {
+      fontFamily: FONT.body, fontSize: `${mobile ? F.tiny : F.small}px`, color: UI.textMuted, align: 'center',
+      wordWrap: { width: mobile ? SCREEN.width - 40 : 560 },
+    }).setOrigin(0.5, 0);
   }
 
   private button(cx: number, y: number, w: number, h: number, label: string, sub: string, primary: boolean, onPress: () => void): void {

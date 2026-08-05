@@ -10,6 +10,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
+import { renderRunStatsAffordance, renderRunStatsGrid, renderRunStatsOverlay, runStatsPairs } from '../ui/RunStatsPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   choices,
@@ -62,12 +63,14 @@ const KIND_LABEL: Record<RunNodeKind, string> = {
 export class DesktopRunMapScene extends Phaser.Scene {
   private statPanelOpen = false;
   private retireConfirmOpen = false;
+  private statsOverlayOpen = false;
 
   constructor() { super('DesktopRunMap'); }
 
   init(): void {
     this.statPanelOpen = false;
     this.retireConfirmOpen = false;
+    this.statsOverlayOpen = false;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -110,6 +113,12 @@ export class DesktopRunMapScene extends Phaser.Scene {
         onConfirm: () => { retireActiveRun(); this.rerender(); },
       });
     }
+    if (this.statsOverlayOpen) {
+      renderRunStatsOverlay(this, {
+        compact: false,
+        onClose: () => { this.statsOverlayOpen = false; this.rerender(); },
+      });
+    }
   }
 
   /** THE run HUD — identical header on every run screen (`runScreenTemplate`).
@@ -137,6 +146,10 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const route = snapshotRunRoute(run);
     const bounds = { x: GX, y: top, w: area, h: bottom - top };
     renderRunRouteBoard(this, bounds, route, { mode: 'desktop' });
+    renderRunStatsAffordance(this, TEMPLATE.regions.content, {
+      compact: false,
+      onPress: () => { this.statsOverlayOpen = true; this.rerender(); },
+    });
 
     if (route.columns.length === 0) return;
     // FIXED position from the template — the choices used to be centred on the
@@ -275,18 +288,22 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const retired = status === 'retired';
     this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, retired ? UI.panelMuted : UI.badSoft, 1).setOrigin(0, 0);
     const cx = SCREEN.width / 2;
-    this.add.text(cx, SCREEN.height / 2 - 70, retired ? 'RUN RETIRED' : 'DEFEAT', {
+    this.add.text(cx, 56, retired ? 'RUN RETIRED' : 'DEFEAT', {
       fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big * 1.6}px`, color: UI.text,
-    }).setOrigin(0.5);
+    }).setOrigin(0.5, 0);
     const run = getActiveRun()!;
-    this.add.text(cx, SCREEN.height / 2 - 4, `BOSSES CLEARED ${run.bossesCleared}   ·   DAYS SURVIVED ${run.depth}`, {
+    this.add.text(cx, 128, `DAYS SURVIVED ${run.depth}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent,
-    }).setOrigin(0.5);
-    this.add.text(cx, SCREEN.height / 2 + 24, `GOLD ${run.gold}   ·   HERO LV ${run.heroLevel}   ·   ${run.wins}W / ${run.losses}L`, {
+    }).setOrigin(0.5, 0);
+    this.add.text(cx, 156, `GOLD ${run.gold}   ·   HERO LV ${run.heroLevel}`, {
       fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
-    }).setOrigin(0.5);
-    const btn = this.add.rectangle(cx, SCREEN.height / 2 + 70, 220, 48, UI.chip, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    this.add.text(cx, SCREEN.height / 2 + 94, 'NEW RUN', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textOnChip }).setOrigin(0.5);
+    }).setOrigin(0.5, 0);
+    const gridW = Math.min(700, SCREEN.width - 160);
+    const gridTop = 190;
+    const gridH = renderRunStatsGrid(this, cx - gridW / 2, gridTop, gridW, runStatsPairs(run), { compact: false });
+    const btnY = gridTop + gridH + 40;
+    const btn = this.add.rectangle(cx, btnY, 220, 48, UI.chip, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
+    this.add.text(cx, btnY + 24, 'NEW RUN', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textOnChip }).setOrigin(0.5);
     btn.on('pointerdown', () => { clearRun(); this.rerender(); });
   }
 }

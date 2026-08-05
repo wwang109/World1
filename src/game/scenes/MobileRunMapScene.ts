@@ -10,6 +10,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
+import { renderRunStatsAffordance, renderRunStatsGrid, renderRunStatsOverlay, runStatsPairs } from '../ui/RunStatsPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   choices,
@@ -56,12 +57,14 @@ export class MobileRunMapScene extends Phaser.Scene {
   private H = SCREEN.height;
   private statPanelOpen = false;
   private retireConfirmOpen = false;
+  private statsOverlayOpen = false;
 
   constructor() { super('MobileRunMap'); }
 
   init(): void {
     this.statPanelOpen = false;
     this.retireConfirmOpen = false;
+    this.statsOverlayOpen = false;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -104,6 +107,12 @@ export class MobileRunMapScene extends Phaser.Scene {
         onConfirm: () => { retireActiveRun(); this.rerender(); },
       });
     }
+    if (this.statsOverlayOpen) {
+      renderRunStatsOverlay(this, {
+        compact: true,
+        onClose: () => { this.statsOverlayOpen = false; this.rerender(); },
+      });
+    }
   }
 
   /** THE run HUD — identical header on every run screen (`runScreenTemplate`). */
@@ -126,6 +135,10 @@ export class MobileRunMapScene extends Phaser.Scene {
     const routeBounds = { x: 10, y: TEMPLATE.regions.content.y, w: this.W - 20, h: 310 };
     const route = snapshotRunRoute(run);
     renderRunRouteBoard(this, routeBounds, route, { mode: 'mobile' });
+    renderRunStatsAffordance(this, TEMPLATE.regions.content, {
+      compact: true,
+      onPress: () => { this.statsOverlayOpen = true; this.rerender(); },
+    });
 
     if (route.columns.length === 0) return;
     // FIXED position from the template (was derived from the route lane) so the
@@ -253,18 +266,22 @@ export class MobileRunMapScene extends Phaser.Scene {
     const retired = status === 'retired';
     this.add.rectangle(0, 0, this.W, this.H, retired ? 0x1c2430 : 0x352019, 1).setOrigin(0, 0);
     const cx = this.W / 2;
-    this.add.text(cx, this.H / 2 - 60, retired ? 'RUN RETIRED' : 'DEFEAT', {
+    this.add.text(cx, 64, retired ? 'RUN RETIRED' : 'DEFEAT', {
       fontSize: '26px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold',
-    }).setOrigin(0.5);
+    }).setOrigin(0.5, 0);
     const run = getActiveRun()!;
-    this.add.text(cx, this.H / 2 - 12, `BOSSES CLEARED ${run.bossesCleared}\nDAYS SURVIVED ${run.depth}`, {
+    this.add.text(cx, 110, `DAYS SURVIVED ${run.depth}`, {
       fontSize: '13px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold', align: 'center',
     }).setOrigin(0.5, 0);
-    this.add.text(cx, this.H / 2 + 30, `GOLD ${run.gold} · HERO LV ${run.heroLevel} · ${run.wins}W / ${run.losses}L`, {
+    this.add.text(cx, 132, `GOLD ${run.gold} · HERO LV ${run.heroLevel}`, {
       fontSize: '11px', color: '#9aa4b6', fontFamily: FONT.body, align: 'center', wordWrap: { width: this.W - 60 },
     }).setOrigin(0.5, 0);
-    const btn = this.add.rectangle(cx, this.H / 2 + 70, 180, 44, 0xb78a46, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    this.add.text(cx, this.H / 2 + 92, 'NEW RUN', { fontSize: '14px', color: '#1a1208', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
+    const gridW = this.W - 60;
+    const gridTop = 158;
+    const gridH = renderRunStatsGrid(this, cx - gridW / 2, gridTop, gridW, runStatsPairs(run), { compact: true });
+    const btnY = gridTop + gridH + 30;
+    const btn = this.add.rectangle(cx, btnY, 180, 44, 0xb78a46, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
+    this.add.text(cx, btnY + 22, 'NEW RUN', { fontSize: '14px', color: '#1a1208', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
     btn.on('pointerdown', () => { clearRun(); this.rerender(); });
   }
 }
