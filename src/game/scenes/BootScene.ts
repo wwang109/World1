@@ -37,9 +37,9 @@ export class BootScene extends Phaser.Scene {
     // arm the one-shot unlock here so sound works from the first click on.
     installUnlock();
     const launch = applyDevLaunchConfig();
-    // Explicit ?scene/?view wins; otherwise each profile boots into its own
-    // Prep screen. (The first-generation Prep/Battle scenes were deleted.)
-    const defaultScene = ACTIVE_PROFILE.id === 'mobile' ? 'MobilePrep' : 'DesktopPrep';
+    // Explicit ?scene/?view wins; otherwise the game opens on the Start
+    // screen (START RUN / SANDBOX doors) regardless of profile.
+    const defaultScene = 'Start';
     const battleScene = ACTIVE_PROFILE.id === 'mobile' ? 'MobileBattle' : 'DesktopBattle';
     const target = launch.scene === 'battle' ? battleScene
       : launch.scene === 'uikit' ? 'UiKit'

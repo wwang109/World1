@@ -578,11 +578,16 @@ export class DesktopBattleScene extends Phaser.Scene {
     if (getBattleContext() === 'run') {
       return [replay, summary, { label: 'CONTINUE ›', primary: true, onPress: () => this.scene.start('DesktopRunMap') }];
     }
+    // The primary slot is stage-aware: END fast-forwards playback, then
+    // becomes the way OUT once the outcome is on screen.
+    const atEnd = this.idx >= this.steps.length - 1;
     return [
       { label: 'PREP', onPress: () => this.scene.start('DesktopPrep') },
       replay,
       summary,
-      { label: 'END', primary: true, onPress: () => { this.stopPlayback(); this.idx = this.steps.length - 1; this.render(); } },
+      atEnd
+        ? { label: 'BACK TO PREP ›', primary: true, onPress: () => this.scene.start('DesktopPrep') }
+        : { label: 'END', primary: true, onPress: () => { this.stopPlayback(); this.idx = this.steps.length - 1; this.render(); } },
     ];
   }
 
