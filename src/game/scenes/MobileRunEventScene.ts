@@ -11,6 +11,7 @@ import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
 import { choiceOutcomeHint, outcomeHeadline } from '../ui/eventOutcomeText';
+import { eventThemeArea } from '../ui/eventThemeBlurb';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { gemHoverEntry } from '../ui/gemGlossary';
 import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
@@ -30,12 +31,22 @@ import {
 const F = MOBILE_PROFILE.font;
 const TEMPLATE = runScreenTemplate('mobile');
 
+/** The one flowing story column every phase renders into — computed ONCE by
+ * `renderStory` off the event's actual theme/title/body (identical across
+ * phases, since the body never changes), so choices/outcome always start at
+ * the SAME y a fixed pixel below the body, never a far-away hardcoded slot. */
+interface StoryLayout { innerX: number; innerW: number; contentTop: number }
+
 /**
- * Mobile Run Event — the vertical counterpart of `DesktopRunEventScene`:
- * title/body → stacked choice rows (cost + reward hint, dimmed if
- * unaffordable) → outcome card (granted card/gem shown) → CONTINUE ›. A
- * `bonusDraft` outcome shows a horizontal 1-5 card picker row. Reachable at
- * ?scene=mrunevent.
+ * Mobile Run Event — the vertical counterpart of `DesktopRunEventScene`: a
+ * single top-down story page (area-intro caption → title → body panel) with
+ * whatever comes next — choices, the bonusDraft picker, or the resolved
+ * outcome + an adjacent CONTINUE › — stacked DIRECTLY below the body, no
+ * fixed far-away slot. The HUD's fixed footer primary CONTINUE › still fires
+ * too (thumb-reachable, the established mobile pattern), but the near one
+ * next to the outcome text is what answers the "close option isn't close by"
+ * complaint. Long bodies get the small-scroll idiom instead of shrinking
+ * below the 9px floor. Reachable at ?scene=mrunevent.
  */
 export class MobileRunEventScene extends Phaser.Scene {
   private W = SCREEN.width;
@@ -56,6 +67,8 @@ export class MobileRunEventScene extends Phaser.Scene {
 
   private rerender(): void { rebuildScene(this); }
 
+  private continueToMap(): void { leaveCurrentEvent(); this.scene.start('MobileRunMap'); }
+
   create(): void {
     this.W = SCREEN.width; this.H = SCREEN.height;
     this.cameras.main.setBackgroundColor(0x0b1420);
@@ -68,9 +81,13 @@ export class MobileRunEventScene extends Phaser.Scene {
     }
 
     this.renderHud(run);
-    if (this.phase === 'outcome' && this.outcome) this.renderOutcome(this.outcome);
-    else if (this.phase === 'bonusDraftPick') this.renderBonusDraftPicker();
-    else this.renderChoices(run.gold, event);
+    const reserveBelowH = this.phase === 'outcome' && this.outcome ? this.outcomeReserveEstimate(this.outcome)
+      : this.phase === 'bonusDraftPick' ? 214
+        : event.choices.length * (80 + 8) - 8;
+    const story = this.renderStory(event, reserveBelowH);
+    if (this.phase === 'outcome' && this.outcome) this.renderOutcome(this.outcome, story);
+    else if (this.phase === 'bonusDraftPick') this.renderBonusDraftPicker(story);
+    else this.renderChoices(run.gold, event, story);
     if (this.retireConfirmOpen) {
       renderRetireConfirm(this, {
         compact: true,
@@ -80,8 +97,9 @@ export class MobileRunEventScene extends Phaser.Scene {
     }
   }
 
-  /** THE run HUD — identical header on every run screen. CONTINUE › only
-   * exists once the outcome is resolved. */
+  /** THE run HUD — identical header on every run screen. The HUD's fixed
+   * footer CONTINUE › still fires once the outcome resolves — same handler
+   * as the in-story button directly under the outcome text. */
   private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
     renderRunHud(this, {
       screen: 'EVENT',
@@ -91,32 +109,111 @@ export class MobileRunEventScene extends Phaser.Scene {
         secondary: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
         primary: this.phase === 'outcome' && this.outcome
-          ? { label: 'CONTINUE ›', onPress: () => { leaveCurrentEvent(); this.scene.start('MobileRunMap'); } }
+          ? { label: 'CONTINUE ›', onPress: () => this.continueToMap() }
           : undefined,
       },
     });
   }
 
+  /** Rough pixel budget the outcome block (headline/detail/reward/CONTINUE)
+   * needs below the body — used only to decide whether the body panel must
+   * scroll instead of pushing the outcome off-screen; doesn't need to be
+   * exact. */
+  private outcomeReserveEstimate(outcome: EventOutcome): number {
+    let reward = 0;
+    if (outcome.kind === 'grantCard' && !outcome.fellBack) reward = 198;
+    else if (outcome.kind === 'grantGem') reward = 68;
+    return 96 + reward + 66; // headline+detail+gaps, reward token, CONTINUE button+gap
+  }
+
+  // ---------- story (area intro → title → body panel) ----------
+
+  /** Renders the narrative header ONCE per phase-render (area caption, title,
+   * framed body — the body capped + made small-scrollable only if it and
+   * `reserveBelowH` together would overflow the content region) and returns
+   * where the phase-specific content below it should start. */
+  private renderStory(event: EventDef, reserveBelowH: number): StoryLayout {
+    const innerX = 12;
+    const innerW = this.W - 24;
+    let y = TEMPLATE.regions.content.y;
+
+    const area = eventThemeArea(event.theme);
+    const areaLine = this.add.text(innerX, y, `${area.name} — ${area.blurb}`, {
+      fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body, fontStyle: 'italic',
+      wordWrap: { width: innerW }, lineSpacing: 2,
+    });
+    auditTextBlock(areaLine, { name: 'Mobile run event area intro', maxWidth: innerW, maxHeight: F.tiny * 4 + 8, minFontSize: 8 });
+    y += areaLine.height + 8;
+
+    const title = this.add.text(innerX, y, event.title, {
+      fontSize: `${F.title}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: innerW },
+    });
+    auditTextBlock(title, { name: 'Mobile run event title', maxWidth: innerW, maxHeight: F.title * 2, minFontSize: 12 });
+    y += title.height + 8;
+
+    const bodyPad = 12;
+    const bodyBoxTop = y;
+    const bodyBox = this.add.rectangle(0, bodyBoxTop, this.W, 10, UI.panel, 0.9).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.6);
+    const bodyContainer = this.add.container(innerX, bodyBoxTop + bodyPad);
+    const body = this.add.text(0, 0, event.body, {
+      fontSize: `${F.body}px`, color: UI.textDim, fontFamily: FONT.body, wordWrap: { width: innerW }, lineSpacing: 4,
+    });
+    bodyContainer.add(body);
+    // Width-overflow guard only — height is handled by the scroll idiom below
+    // (req: cap the panel and scroll rather than shrinking under the 9px floor).
+    auditTextBlock(body, { name: 'Mobile run event body', maxWidth: innerW, maxHeight: 6000, minFontSize: 9 });
+
+    const naturalH = body.height;
+    // Everything below the stats/badge/actions band, above the fixed footer.
+    const maxBottom = TEMPLATE.regions.footer.y - 10;
+    const budget = Math.max(70, maxBottom - bodyBoxTop - 14 - reserveBelowH);
+    const boxInnerBudget = budget - bodyPad * 2;
+
+    let boxH: number;
+    if (naturalH > boxInnerBudget && boxInnerBudget > 30) {
+      boxH = boxInnerBudget + bodyPad * 2;
+      // The SAME small-scroll idiom as `cardInfoBox`/the deck-build gem pouch:
+      // mask + pointerdown/move/up + wheel, gated by its own hit-test.
+      const maskShape = this.make.graphics({}, false);
+      maskShape.fillStyle(0xffffff);
+      maskShape.fillRect(innerX, bodyBoxTop + bodyPad, innerW, boxInnerBudget);
+      bodyContainer.setMask(maskShape.createGeometryMask());
+      const maxScroll = Math.max(0, naturalH - boxInnerBudget);
+      let scrollY = 0;
+      let dragging = false;
+      let startY = 0;
+      let startScroll = 0;
+      const inBox = (px: number, py: number): boolean => (
+        px >= innerX && px <= innerX + innerW && py >= bodyBoxTop && py <= bodyBoxTop + boxH
+      );
+      this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+        if (!inBox(p.worldX, p.worldY)) return;
+        dragging = true; startY = p.worldY; startScroll = scrollY;
+      });
+      this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+        if (!dragging) return;
+        scrollY = Phaser.Math.Clamp(startScroll + (p.worldY - startY), -maxScroll, 0);
+        bodyContainer.setY(bodyBoxTop + bodyPad + scrollY);
+      });
+      this.input.on('pointerup', () => { dragging = false; });
+      this.input.on('wheel', (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+        if (!inBox(pointer.worldX, pointer.worldY)) return;
+        scrollY = Phaser.Math.Clamp(scrollY - dy, -maxScroll, 0);
+        bodyContainer.setY(bodyBoxTop + bodyPad + scrollY);
+      });
+    } else {
+      boxH = naturalH + bodyPad * 2;
+    }
+    bodyBox.setSize(this.W, boxH);
+
+    y = bodyBoxTop + boxH + 14;
+    return { innerX, innerW, contentTop: y };
+  }
+
   // ---------- choosing ----------
 
-  private renderChoices(gold: number, event: EventDef): void {
-    let y = TEMPLATE.regions.content.y;
-    const status = this.add.text(12, y, `EVENT SELECT · ${event.choices.length} PATH${event.choices.length === 1 ? '' : 'S'}`, {
-      fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body, fontStyle: 'bold',
-    });
-    auditTextBlock(status, { name: 'Mobile run event status', maxWidth: this.W - 24, maxHeight: F.tiny * 2, minFontSize: 8 });
-    y += F.tiny + 8;
-    const title = this.add.text(12, y, event.title, {
-      fontSize: `${F.title}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: this.W - 24 },
-    });
-    auditTextBlock(title, { name: 'Mobile run event title', maxWidth: this.W - 24, maxHeight: F.title * 2, minFontSize: 12 });
-    y += title.height + 8;
-    const body = this.add.text(12, y, event.body, {
-      fontSize: `${F.body}px`, color: UI.textDim, fontFamily: FONT.body, wordWrap: { width: this.W - 24 }, lineSpacing: 3,
-    });
-    auditTextBlock(body, { name: 'Mobile run event body', maxWidth: this.W - 24, maxHeight: F.body * 8 + 16, minFontSize: 9 });
-    y += body.height + 16;
-
+  private renderChoices(gold: number, event: EventDef, story: StoryLayout): void {
+    let y = story.contentTop;
     const rowH = 80;
     const gap = 8;
     event.choices.forEach((choice: EventChoiceDef) => {
@@ -154,18 +251,15 @@ export class MobileRunEventScene extends Phaser.Scene {
 
   // ---------- bonusDraft picker ----------
 
-  private renderBonusDraftPicker(): void {
-    const title = this.add.text(12, 132, 'PICK ONE TO KEEP', {
+  private renderBonusDraftPicker(story: StoryLayout): void {
+    const { innerX, innerW } = story;
+    let y = story.contentTop;
+    const title = this.add.text(innerX, y, 'PICK ONE TO KEEP', {
       fontSize: `${F.name}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold',
     });
-    const rewardLabel = this.add.text(this.W - 12, 134, 'EVENT REWARD', {
-      fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(1, 0);
-    this.add.rectangle(12, 156, this.W - 24, 1, UI.border, 0.55).setOrigin(0, 0);
-    auditTextBlock(title, { name: 'Mobile run event bonus draft title', maxWidth: this.W - 150, maxHeight: F.name * 2, minFontSize: 10 });
-    auditTextBlock(rewardLabel, { name: 'Mobile run event reward label', maxWidth: 120, maxHeight: F.tiny * 2, minFontSize: 8 });
+    auditTextBlock(title, { name: 'Mobile run event bonus draft title', maxWidth: innerW, maxHeight: F.name * 2, minFontSize: 10 });
+    y += title.height + 10;
 
-    let y = 170;
     const h = 70;
     const gap = 8;
     for (const card of this.bonusDraftCards) {
@@ -193,28 +287,30 @@ export class MobileRunEventScene extends Phaser.Scene {
 
   // ---------- outcome ----------
 
-  private renderOutcome(outcome: EventOutcome): void {
-    const resolved = this.add.text(12, 132, 'EVENT RESOLVED', {
-      fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
-    });
-    this.add.rectangle(12, 154, this.W - 24, 1, UI.border, 0.55).setOrigin(0, 0);
-    auditTextBlock(resolved, { name: 'Mobile run event resolved label', maxWidth: 160, maxHeight: F.tiny * 2, minFontSize: 8 });
+  /** Outcome replaces the choices IN PLACE (same `story.contentTop`), and
+   * CONTINUE › sits immediately below it — adjacent to the message it
+   * confirms, which is this pass's core fix. */
+  private renderOutcome(outcome: EventOutcome, story: StoryLayout): void {
+    const { innerX, innerW } = story;
+    const cardPad = 14;
+    const cardTop = story.contentTop;
+    const card = this.add.rectangle(0, cardTop, this.W, 10, UI.panelAlt, 0.92).setOrigin(0, 0).setStrokeStyle(1, UI.chip, 0.55);
 
-    let y = 172;
+    let y = cardTop + cardPad;
     const { headline, detail } = outcomeHeadline(outcome);
-    const headlineText = this.add.text(this.W / 2, y, headline, {
-      fontSize: `${F.title}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', align: 'center', wordWrap: { width: this.W - 40 },
-    }).setOrigin(0.5, 0);
-    auditTextBlock(headlineText, { name: 'Mobile run event outcome headline', maxWidth: this.W - 40, maxHeight: F.title * 2, minFontSize: 12 });
+    const headlineText = this.add.text(innerX, y, headline, {
+      fontSize: `${F.title}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: innerW },
+    });
+    auditTextBlock(headlineText, { name: 'Mobile run event outcome headline', maxWidth: innerW, maxHeight: F.title * 2, minFontSize: 12 });
     y += headlineText.height + 8;
     if (detail) {
-      const detailText = this.add.text(this.W / 2, y, detail, {
-        fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body, align: 'center', wordWrap: { width: this.W - 40 },
-      }).setOrigin(0.5, 0);
-      auditTextBlock(detailText, { name: 'Mobile run event outcome detail', maxWidth: this.W - 40, maxHeight: F.small * 2, minFontSize: 8 });
+      const detailText = this.add.text(innerX, y, detail, {
+        fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body, wordWrap: { width: innerW },
+      });
+      auditTextBlock(detailText, { name: 'Mobile run event outcome detail', maxWidth: innerW, maxHeight: F.small * 2, minFontSize: 8 });
       y += detailText.height + 10;
     }
-    y += 12;
+    y += 6;
 
     if (outcome.kind === 'grantCard' && !outcome.fellBack) {
       const skill = skillBook[outcome.skillId];
@@ -222,24 +318,40 @@ export class MobileRunEventScene extends Phaser.Scene {
         const shown = outcome.tier === skill.tier ? skill : applyTier(skill, outcome.tier);
         const cardW = 126;
         const cardH = Math.round(cardW * (690 / 420));
-        new CardToken(this, this.W / 2, y + cardH / 2, shown, { width: cardW, height: cardH, side: 'left' });
-        y += cardH + 16;
+        new CardToken(this, innerX + cardW / 2, y + cardH / 2, shown, { width: cardW, height: cardH, side: 'left' });
+        y += cardH + 14;
       }
     } else if (outcome.kind === 'grantGem') {
       const gem = gemBook[outcome.gemId];
       if (gem) {
-        const chipW = this.W - 40;
-        this.add.rectangle(20, y, chipW, 52, UI.panelMuted, 0.94).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.9);
-        this.add.rectangle(42, y + 26, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-        const gemName = this.add.text(60, y + 17, gem.name, {
-          fontSize: `${F.body}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: chipW - 78 },
+        const chipW = innerW;
+        this.add.rectangle(innerX, y, chipW, 52, UI.panelMuted, 0.94).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.9);
+        this.add.rectangle(innerX + 22, y + 26, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
+        const gemName = this.add.text(innerX + 40, y + 17, gem.name, {
+          fontSize: `${F.body}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: chipW - 58 },
         });
-        auditTextBlock(gemName, { name: 'Mobile run event gem name', maxWidth: chipW - 78, maxHeight: F.body * 2, minFontSize: 9 });
-        addHoverTipZone(this, { x: 20, y, w: chipW, h: 52 }, [gemHoverEntry(gem)]);
-        y += 52 + 16;
+        auditTextBlock(gemName, { name: 'Mobile run event gem name', maxWidth: chipW - 58, maxHeight: F.body * 2, minFontSize: 9 });
+        addHoverTipZone(this, { x: innerX, y, w: chipW, h: 52 }, [gemHoverEntry(gem)]);
+        y += 52 + 14;
       }
     }
 
-    // CONTINUE › now lives in the HUD's fixed primary slot (see `renderHud`).
+    card.setSize(this.W, y - cardTop + (cardPad - 4));
+    y += 6;
+
+    // CONTINUE › — immediately below the outcome, adjacent to what it
+    // confirms. The HUD's fixed footer CONTINUE › (thumb-reachable, the
+    // established mobile pattern) still fires the same handler.
+    this.renderInlineContinue(innerX, innerW, y);
+  }
+
+  private renderInlineContinue(x: number, w: number, y: number): void {
+    const h = 52;
+    const btn = this.add.rectangle(x, y, w, h, UI.chip, 1).setOrigin(0, 0).setStrokeStyle(2, UI.border, 0.9).setInteractive({ useHandCursor: true });
+    const label = this.add.text(x + w / 2, y + h / 2, 'CONTINUE ›', {
+      fontSize: `${F.name + 1}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold',
+    }).setOrigin(0.5);
+    auditControlLabel(btn, label, { name: 'Mobile run event inline continue', horizontalPadding: 12, verticalPadding: 8, minFontSize: 10 });
+    btn.on('pointerdown', () => { playSfx('uiClick'); this.continueToMap(); });
   }
 }
