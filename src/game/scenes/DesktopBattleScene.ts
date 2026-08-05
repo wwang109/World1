@@ -8,7 +8,7 @@ import {
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
 import { getBattleContext, getBattleTimelineInput } from '../battleContext';
-import { currentBankedPL, currentHeroLevel, resolveRunBattleResult } from '../runStore';
+import { currentBankedPL, currentHeroLevel, getActiveRun, resolveRunBattleResult } from '../runStore';
 import type { BattleLog } from '../../run/resolveBattle';
 import { recipeForIdentity, fxTierFor, type FxRecipe, type FxTier } from '../ui/battleFxSpec';
 import { DESKTOP_PROFILE } from '../layoutProfile';
@@ -19,6 +19,8 @@ import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
+import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { runScreenTemplate } from '../ui/runScreenTemplate';
 
 /** Hover copy for every stat shown on a battle statline, in one shared tip. */
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
@@ -48,7 +50,17 @@ const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a,
  * board/log/footer regions never overlap and nothing draws past y=876. */
 const GUTTER = 32;
 const GAP = 12;
-const TOP_MARGIN = 24;
+/**
+ * Content top — read from the statsOnly chrome template (2026-08-04
+ * decision, docs/design-locked.md), never hardcoded. Reserved at this SAME y
+ * in Sandbox too (nothing drawn there) so the HP blocks/boards/log sit at one
+ * geometry regardless of context; only whether the run-stats strip itself
+ * (kicker/title('BATTLE')/stats) is drawn in the band above varies. Moving
+ * this down from the previous flat 24px margin costs the foe panel/board
+ * section up to ~60px of height (see `boardH` below) — unlike Mobile, which
+ * protects board height by shrinking its log dock instead.
+ */
+const TOP_MARGIN = runScreenTemplate('desktop', 'statsOnly').regions.content.y;
 const FOOTER_H = 44;
 const FOOTER_BOTTOM = 24;
 const SCRUBBER_H = 28;
@@ -297,6 +309,15 @@ export class DesktopBattleScene extends Phaser.Scene {
     // alone leaks every Text's backing canvas texture across ~30 redraws/fight.
     for (const child of [...this.children.list]) child.destroy();
     renderDesktopBackground(this);
+
+    // ---- run-stats strip (2026-08-04 decision) — kicker/title('BATTLE')/
+    // stats ONLY, drawn ONLY in run context; Sandbox reserves the identical
+    // band (TOP_MARGIN, above) but draws nothing in it, so the HP blocks/
+    // boards/log below sit at one geometry regardless of context. ----
+    if (getBattleContext() === 'run') {
+      const run = getActiveRun();
+      if (run) renderRunStatsStrip(this, { snapshot: snapshotRunProgress(run), compact: false });
+    }
 
     const step = this.steps[this.idx] ?? this.steps[0] ?? { turn: this.turns[0] ?? 1, lineIndex: 0 };
     const turn = step.turn;

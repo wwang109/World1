@@ -8,7 +8,7 @@ import {
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
 import { getBattleContext, getBattleTimelineInput } from '../battleContext';
-import { currentBankedPL, currentHeroLevel, resolveRunBattleResult } from '../runStore';
+import { currentBankedPL, currentHeroLevel, getActiveRun, resolveRunBattleResult } from '../runStore';
 import type { BattleLog } from '../../run/resolveBattle';
 import { recipeForIdentity, fxTierFor, type FxRecipe, type FxTier } from '../ui/battleFxSpec';
 import { MOBILE_PROFILE } from '../layoutProfile';
@@ -19,8 +19,18 @@ import { footerY, renderActionBar, type ActionButton } from '../ui/ActionBar';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
+import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { runScreenTemplate } from '../ui/runScreenTemplate';
 
 const F = MOBILE_PROFILE.font;
+/**
+ * Run context's stats-strip band (kicker/title('BATTLE')/stats — 2026-08-04
+ * decision, docs/design-locked.md): read from the statsOnly chrome template,
+ * never hardcoded. Reserved at the SAME y in Sandbox too (nothing drawn
+ * there) so the log dock/HP block/boards sit at one geometry regardless of
+ * context — only whether the strip itself is drawn varies.
+ */
+const RUN_HUD_TOP = runScreenTemplate('mobile', 'statsOnly').regions.content.y;
 
 /** Hover copy for every stat shown on a battle statline, in one shared tip. */
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
@@ -334,13 +344,26 @@ export class MobileBattleScene extends Phaser.Scene {
     // live running ledger at ANY step) or closed (to dismiss it at the end).
     const summaryVisible = this.summaryOverride === null ? isOutcomeStep : this.summaryOverride;
 
-    // ---- LOG dock (top) — small, ~4-5 rows like the mockup; the boards below
-    // take the majority of the screen. Tap a HIT to expand its D: math. ----
-    const dockH = 158;
-    this.add.rectangle(0, 0, this.W, dockH, 0x101a2a).setOrigin(0, 0).setStrokeStyle(2, 0xb78a46, 0.9);
+    // ---- run-stats strip (2026-08-04 decision) — kicker/title('BATTLE')/
+    // stats ONLY, drawn ONLY in run context; Sandbox reserves the identical
+    // band (RUN_HUD_TOP) but draws nothing in it, so the dock/HP/boards below
+    // sit at one geometry regardless of context. ----
+    if (getBattleContext() === 'run') {
+      const run = getActiveRun();
+      if (run) renderRunStatsStrip(this, { snapshot: snapshotRunProgress(run), compact: true });
+    }
+
+    // ---- LOG dock — small, ~2-3 rows in run context (the reserved strip
+    // band above it takes ~1-3 rows' worth of space from the log, never the
+    // boards below — see RUN_HUD_TOP); the boards still take the majority of
+    // the screen either way. Tap a HIT to expand its D: math. ----
+    const dockTop = RUN_HUD_TOP;
+    const dockBottom = 158; // the dock's ABSOLUTE bottom edge — constant regardless of dockTop, so hpY/boardsTop below are unaffected by the reserved strip band.
+    const dockH = dockBottom - dockTop;
+    this.add.rectangle(0, dockTop, this.W, dockH, 0x101a2a).setOrigin(0, 0).setStrokeStyle(2, 0xb78a46, 0.9);
     // Turnline (mockup): "T3   Hero 18 · SPD +16  ·  Bandit 25 · SPD +15"
     const spd = this.speedByTurn.get(turn) ?? { player: '', enemy: '' };
-    this.add.text(12, 8, `T${turn}${!isOutcomeStep && this.playing ? ' ▶' : ''}`, { fontSize: `${F.name}px`, color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' });
+    this.add.text(12, dockTop + 8, `T${turn}${!isOutcomeStep && this.playing ? ' ▶' : ''}`, { fontSize: `${F.name}px`, color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' });
     const turnStats = [
       spd.player && `${this.heroName} ${spd.player}`,
       ...this.foes.map((f, u) => {
@@ -348,8 +371,8 @@ export class MobileBattleScene extends Phaser.Scene {
         return line && `${f.name} ${line}`;
       }),
     ].filter(Boolean).join('   ·   ');
-    if (turnStats) this.boundedText(66, 9, turnStats, { fontSize: `${F.label}px`, color: '#cdd4de', fontFamily: FONT.body }, this.W - 78);
-    addHoverTipZone(this, { x: 12, y: 6, w: this.W - 24, h: 16 }, [TURNLINE_ENTRY]);
+    if (turnStats) this.boundedText(66, dockTop + 9, turnStats, { fontSize: `${F.label}px`, color: '#cdd4de', fontFamily: FONT.body }, this.W - 78);
+    addHoverTipZone(this, { x: 12, y: dockTop + 6, w: this.W - 24, h: 16 }, [TURNLINE_ENTRY]);
 
     // Rolling transcript: every line up through the current step's line —
     // earlier turns show all their lines; the current turn only shows up to
@@ -364,16 +387,17 @@ export class MobileBattleScene extends Phaser.Scene {
     // Fixed columns (mockup): turn gutter · 56px tag column · text. A hairline
     // separates rows. Overflow is clipped with an ellipsis, never crowded.
     const rowH = 21;
-    const headerBottom = 30;
+    const headerBottomRel = 30; // relative to dockTop — the turnline's own height budget inside the dock box
+    const headerBottom = dockTop + headerBottomRel;
     const turnX = 12;   // dim "T3" marker where the turn changes
     const tagX = 36;    // tag column start
     const textX = 98;   // text column start — clear of the widest tag (RESULT)
-    const maxRows = Math.max(1, Math.floor((dockH - headerBottom - 6) / rowH));
+    const maxRows = Math.max(1, Math.floor((dockH - headerBottomRel - 6) / rowH));
     const visible = feed.slice(-maxRows);
     let ly = headerBottom;
     let prevTurn = -1;
     for (const { t, local, line } of visible) {
-      if (ly > dockH - 16) break;
+      if (ly > dockBottom - 16) break;
       const key = `${t}:${local}`;
       this.add.rectangle(12, ly - 3, this.W - 24, 1, 0x1c2940).setOrigin(0, 0);
       if (t !== prevTurn) this.add.text(turnX, ly + 2, `T${t}`, { fontSize: `${F.tiny}px`, color: '#5a6a82', fontFamily: FONT.body, fontStyle: 'bold' });
@@ -394,7 +418,7 @@ export class MobileBattleScene extends Phaser.Scene {
         }
       }
       ly += rowH;
-      if (line.detail && this.expanded.has(key) && ly < dockH - 12) {
+      if (line.detail && this.expanded.has(key) && ly < dockBottom - 12) {
         const d = this.boundedText(textX, ly, line.detail, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body }, this.W - textX - 14);
         ly += d.height + 4;
       }
@@ -415,7 +439,7 @@ export class MobileBattleScene extends Phaser.Scene {
     const focusChanged = this.focusedFoe !== this.lastFocusedFoe;
     this.lastFocusedFoe = this.focusedFoe;
 
-    const hpY = dockH + 10;
+    const hpY = dockBottom + 10; // ABSOLUTE — always 168 regardless of dockTop, so the reserved strip band above the dock never pushes the HP block/boards down.
     const barRowH = 36;
     const heroBar = this.hpBar(
       hpY, this.heroName, hp.player, hp.playerMax, shield.player, UI.good ?? 0x4f9e57, status.player,

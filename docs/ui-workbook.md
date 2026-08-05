@@ -82,6 +82,13 @@ real browser, both viewports:
 2. Drives an actual playthrough (Map → Draft → Map → node → Deck Build →
    RETIRE → end summary) using exact-text clicks only, screenshotting every
    screen.
+3. BATTLE (in run context) uses a REDUCED required-strings set (2026-08-04
+   decision, `renderRunStatsStrip` + `runScreenTemplate`'s `statsOnly` chrome,
+   docs/design-locked.md): the stats string
+   (DAY/WAVE/GOLD/LV/LIVES/BOSSES) plus the title `BATTLE`, but no banked-PL
+   badge text and no action-role button labels (back/DECK·BAG/RETIRE/primary)
+   — battle never renders those, by design, so the audit must not flag their
+   absence there the way it would on every other run screen.
 
 Run: `npx tsx scripts/run-hud-audit.ts [outDir]` with dev (:5173) and api
 (:8787) already running.
