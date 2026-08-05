@@ -184,6 +184,17 @@ export function currentEncounter(): EncounterPack | undefined {
   return rollEncounter(activeRun);
 }
 
+/** The three fight-column risk tiers' display label (USER-DIRECTED
+ * 2026-08-04, three-tier fight choices) — `'standard'` keeps its original
+ * `RunNode.fightOption` id/spelling (the unchanged middle rung) but reads
+ * "MEDIUM" in the UI. Exported so both map scenes build the SAME title chip
+ * off the SAME table. */
+export const FIGHT_TIER_LABEL: Record<'easy' | 'standard' | 'hard', string> = {
+  easy: 'EASY',
+  standard: 'MEDIUM',
+  hard: 'HARD',
+};
+
 /**
  * The map choice panel's one-line fight/boss hint — shared by both platforms'
  * run map scenes so a pack's shape reads identically on desktop and mobile.
@@ -193,14 +204,23 @@ export function currentEncounter(): EncounterPack | undefined {
  * redundant/misleading): `"PACK OF 2 · Wolf · LV 3"`, naming the FIRST
  * member as the representative foe (members can repeat/differ, but always
  * share the same discounted level).
+ *
+ * `fightOption` (three-tier fight choices, USER-DIRECTED 2026-08-04): when
+ * given (a fight, never a boss, node), prefixes the hint with its
+ * EASY/MEDIUM/HARD tier label (`"EASY · Rogue · LV 5 · NORMAL"`), so the
+ * hint reads correctly standalone even where a caller doesn't also render
+ * the tier chip in the panel's title (see `FIGHT_TIER_LABEL`). Omitted
+ * (boss nodes, or any pre-existing non-tiered caller) keeps the hint
+ * byte-identical to before three-tier fight choices existed.
  */
-export function encounterHintDetail(pack: EncounterPack): string {
+export function encounterHintDetail(pack: EncounterPack, fightOption?: 'easy' | 'standard' | 'hard'): string {
   const primary = pack.units[0]!;
   const name = enemyNameFor(primary.enemyId);
+  const tierPrefix = fightOption ? `${FIGHT_TIER_LABEL[fightOption]} · ` : '';
   if (pack.variant === 'solo') {
-    return `${name} · LV ${primary.effectiveLevel} · ${primary.title.toUpperCase()}`;
+    return `${tierPrefix}${name} · LV ${primary.effectiveLevel} · ${primary.title.toUpperCase()}`;
   }
-  return `PACK OF ${pack.units.length} · ${name} · LV ${primary.effectiveLevel}`;
+  return `${tierPrefix}PACK OF ${pack.units.length} · ${name} · LV ${primary.effectiveLevel}`;
 }
 
 /**

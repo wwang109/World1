@@ -9,6 +9,7 @@ import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
+import { addRunArt, eventArtKey, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderRunBossCountdownPanel, renderRunStatsFlankPanel, renderRunStatsGrid, runStatsPairs } from '../ui/RunStatsPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
@@ -17,6 +18,7 @@ import {
   clearRun,
   currentNode,
   encounterHintDetail,
+  FIGHT_TIER_LABEL,
   getActiveRun,
   pickNode,
   previewEncounter,
@@ -75,6 +77,8 @@ export class DesktopRunMapScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(UI.bg);
     this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.bg).setOrigin(0, 0);
+    addRunArt(this, RUN_ART_KEYS.runMap, { x: 0, y: 0, width: SCREEN.width, height: SCREEN.height }, 0.2);
+    this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.bg, 0.58).setOrigin(0, 0);
 
     const run = getActiveRun();
     if (!run) {
@@ -210,6 +214,13 @@ export class DesktopRunMapScene extends Phaser.Scene {
         kind: pending.kind,
         title: `RETURN TO ${KIND_LABEL[pending.kind]}`,
         detail: 'Resume where you left off.',
+        image: pending.kind === 'shop'
+          ? { textureKey: shopArtKey(pending.shopId ?? '') }
+          : pending.kind === 'event'
+            ? { textureKey: eventArtKey(pending.eventTheme ?? 'training') }
+            : pending.kind === 'boss'
+              ? { textureKey: RUN_ART_KEYS.icon.bossSkull }
+              : undefined,
         accent: KIND_COLOR[pending.kind],
         enabled: true,
       }, {
@@ -264,7 +275,15 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const shop = node.kind === 'shop' && node.shopId ? shopCatalog[node.shopId] : undefined;
     // Event themes are assigned at map-gen (not by rolling the event), so a
     // choice can advertise what it offers without consuming the event bag.
-    const themeSuffix = shop ? shop.name.toUpperCase() : node.eventTheme?.toUpperCase();
+    // Fight nodes (three-tier fight choices, USER-DIRECTED 2026-08-04) slot
+    // their EASY/MEDIUM/HARD risk tier into this SAME "KIND · SUFFIX" title
+    // grammar — a fight node never has a shop/event theme, so the two never
+    // collide. Boss nodes have no `fightOption`, so their title stays plain.
+    const themeSuffix = shop
+      ? shop.name.toUpperCase()
+      : node.kind === 'fight' && node.fightOption
+        ? FIGHT_TIER_LABEL[node.fightOption]
+        : node.eventTheme?.toUpperCase();
     const titleLabel = themeSuffix ? `${KIND_LABEL[node.kind]} · ${themeSuffix}` : KIND_LABEL[node.kind];
 
     if (node.kind === 'shop') {
@@ -274,6 +293,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
         title: titleLabel,
         detail: shop?.tagline ?? '',
         footer: shop ? `${shop.shelf.cards} CARDS · ${shop.shelf.gems} GEMS` : undefined,
+        image: { textureKey: shopArtKey(node.shopId ?? '') },
         accent: KIND_COLOR[node.kind],
         enabled: true,
       };
@@ -285,7 +305,8 @@ export class DesktopRunMapScene extends Phaser.Scene {
         nodeId: node.id,
         kind: node.kind,
         title: titleLabel,
-        detail: pack ? encounterHintDetail(pack) : '',
+        detail: pack ? encounterHintDetail(pack, node.kind === 'fight' ? node.fightOption : undefined) : '',
+        image: node.kind === 'boss' ? { textureKey: RUN_ART_KEYS.icon.bossSkull } : undefined,
         accent: KIND_COLOR[node.kind],
         enabled: true,
       };
@@ -296,6 +317,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
       kind: node.kind,
       title: titleLabel,
       detail: eventThemeBlurb(node.eventTheme),
+      image: { textureKey: eventArtKey(node.eventTheme ?? 'training') },
       accent: KIND_COLOR[node.kind],
       enabled: true,
     };

@@ -18,12 +18,31 @@ the **Sandbox** (balance-testing / deck-idea tool, its checklist in
   deterministic from the run seed alone.
 - A **wave** = 2-3 **stop columns**, then a **fight column**. Every stop
   column offers **exactly THREE choices** (user-locked 2026-07-31) of
-  event/shop nodes; a fight column has 1-2 nodes.
+  event/shop nodes; a fight column has 1 node (boss wave) or 3 (non-boss
+  wave, see below).
 - Node kinds: `'event' | 'shop' | 'fight' | 'boss'` (`RunNodeKind`).
 - **Boss every `BOSS_EVERY` (5)th wave** — a milestone boss, not a run end.
-  Non-boss fight columns offer **two foes**: standard / hard
-  (`RunNode.fightOption`; hard = title bumped one rung + 1 level, see
-  `fightTableEntryForNode` in `runState.ts`).
+  Non-boss fight columns offer **THREE risk tiers** (USER-DIRECTED
+  2026-08-04, supersedes the 2026-07-30 two-option "standard/hard" rule):
+  `RunNode.fightOption: 'easy' | 'standard' | 'hard'`, labeled EASY / MEDIUM /
+  HARD in the UI (`FIGHT_TIER_LABEL`, `src/game/runStore.ts` — `'standard'`
+  keeps its original id/spelling as the unchanged middle rung).
+  - **EASY** = MEDIUM's level −1 (floored at 1 via `Math.max(1, ...)`), title
+    capped at `'normal'` (never `'elite'` — `capTitleAtNormal`).
+  - **MEDIUM** (`fightOption: 'standard'`) = exactly `fightSpecFor(fightNumber)`,
+    byte-identical to before three-tier existed.
+  - **HARD** = title bumped one rung + 1 level (unchanged from the old "hard"
+    option).
+  All three come from `fightTableEntryForNode` in `runState.ts`. Gold reward
+  (`battleGoldReward`) and the PL-budgeted pack solve (`resolvePackMemberLevel`
+  in `encounter.ts`) both read `entry.level`/`entry.title` off whichever
+  tier's `FightSpec` was resolved — the easy <= medium <= hard gold/threat
+  gradient and "an easy pack solves off the easy solo cost" both FALL OUT of
+  this one function, with no per-tier branch anywhere else in the roll flow
+  (see `tests/run/runState.test.ts`'s "fight column offers 3 foe options"
+  block and `tests/run/packFights.test.ts`'s easy-pack tests). Fight 1 stays
+  solo regardless of tier (`MIN_PACK_FIGHT_NUMBER` gates on the fight NUMBER,
+  not the tier).
 
 ## Run end: lives + retire (`src/run/runState.ts`)
 
@@ -110,9 +129,12 @@ strength. `rollEncounter` now returns an `EncounterPack` (`{ variant, units }`,
   balance-designer's retune knobs; the roll flow itself never changes.
 - **Title cap** (`capPackTitle`): pack members are **mob/normal only** — no
   elite/boss packs in v1. The node's base title/level still comes from the
-  SAME `fightTableEntryForNode` spec a solo roll would use (so a `'hard'`
-  option's +1 level feeds every member's budget solve; its title bump is
-  capped back down to `'normal'` rather than skipped). Rank stays the
+  SAME `fightTableEntryForNode` spec a solo roll would use, for WHICHEVER
+  tier (easy/standard/hard) the player picked — a `'hard'` option's +1 level
+  feeds every member's budget solve with its title bump capped back down to
+  `'normal'` rather than skipped; an `'easy'` option's −1 level/normal-capped
+  title feeds the SAME solve from a smaller budget, so an easy pack is
+  solved from the easy solo cost with no separate code path. Rank stays the
   ordinary `TITLE_PRESETS[title].rank` per member — no second budget path.
 - **Gold/battle wiring is already generic**: `battleGoldReward` and
   `resolveBattle`/`simulate` already accept a foe LIST (this is how the

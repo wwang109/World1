@@ -291,6 +291,29 @@ describe('run/runState: fight-spec resolver (endless, replaces the fixed FIGHT_T
     }
   });
 
+  it("fightTableEntryForNode's 'easy' option is 1 level BELOW 'standard' (floored at 1), title capped at 'normal' (never 'elite'), modifiers unchanged — THREE-TIER fight choices, USER-DIRECTED 2026-08-04", () => {
+    for (const n of [1, 3, 6, 8, 29, 44, 99]) {
+      const standard = fightTableEntryForNode({ fightNumber: n, fightOption: 'standard' });
+      const easy = fightTableEntryForNode({ fightNumber: n, fightOption: 'easy' });
+      expect(easy.level).toBe(Math.max(1, standard.level - 1));
+      expect(easy.title).toBe('normal'); // fight nodes are always normal/elite; easy caps either down to normal
+      expect(easy.modifiers).toEqual(standard.modifiers);
+    }
+  });
+
+  it("the three tiers form a strict difficulty ladder (easy <= standard <= hard) in BOTH level and title rank, for every non-boss fight number", () => {
+    const titleRank: Record<string, number> = { mob: 0, normal: 1, elite: 2, boss: 3 };
+    for (const n of [1, 2, 3, 4, 6, 7, 8, 9, 29, 44, 99]) {
+      const easy = fightTableEntryForNode({ fightNumber: n, fightOption: 'easy' });
+      const standard = fightTableEntryForNode({ fightNumber: n, fightOption: 'standard' });
+      const hard = fightTableEntryForNode({ fightNumber: n, fightOption: 'hard' });
+      expect(easy.level).toBeLessThanOrEqual(standard.level);
+      expect(standard.level).toBeLessThanOrEqual(hard.level);
+      expect(titleRank[easy.title]).toBeLessThanOrEqual(titleRank[standard.title]!);
+      expect(titleRank[standard.title]).toBeLessThanOrEqual(titleRank[hard.title]!);
+    }
+  });
+
   it('battleGoldReward stays monotonic in fight number at a fixed hero level, and is no longer inflated by duplicate modifier entries', () => {
     const heroLevel = MAX_LEVEL;
     const rewardFor = (n: number) => {
@@ -912,35 +935,39 @@ describe('run/runState: daily income (+1 gold per node committed)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Fight columns offer a choice of TWO foes on every non-boss wave — USER-LOCKED 2026-07-30.
+// Fight columns offer a choice of THREE foes on every non-boss wave —
+// EASY / MEDIUM / HARD (USER-DIRECTED 2026-08-04, supersedes the 2026-07-30
+// two-option "standard/hard" rule). `'standard'` keeps its original
+// `RunNode.fightOption` id (the unchanged middle rung, labeled "MEDIUM" in
+// the UI — see `FIGHT_TIER_LABEL` in `src/game/runStore.ts`).
 // ---------------------------------------------------------------------------
 
-describe('run/runState: fight column offers 2 foe options (non-boss waves)', () => {
-  /** The 2-node fight column for `wave` straight off the map — no run walking
+describe('run/runState: fight column offers 3 foe options (non-boss waves)', () => {
+  /** The 3-node fight column for `wave` straight off the map — no run walking
    * required, mirroring `runStore.ts#previewEncounter`'s idiom of building a
    * throwaway `currentNodeId` to preview a not-yet-chosen node. */
   function fightNodesForWave(state: RunState, wave: number): RunNode[] {
     const map = ensureWavesThrough(state.map, wave);
     for (const column of map.depths) {
-      if (column.length === 2 && column[0]?.kind === 'fight' && column[0].wave === wave) {
+      if (column.length === 3 && column[0]?.kind === 'fight' && column[0].wave === wave) {
         return [...column];
       }
     }
-    throw new Error(`no 2-option fight column found for wave ${wave}`);
+    throw new Error(`no 3-option fight column found for wave ${wave}`);
   }
 
   const SEEDS = [1, 2, 3, 11, 42, 100];
   const NON_BOSS_WAVES = [1, 2, 3, 4, 6, 7, 8, 9];
 
-  it('non-boss waves have exactly 2 fight nodes with equal fightNumber; boss waves have exactly 1 boss node', () => {
+  it('non-boss waves have exactly 3 fight nodes with equal fightNumber (easy/standard/hard); boss waves have exactly 1 boss node', () => {
     for (const seed of SEEDS) {
       const state = startedRun(seed);
       for (const wave of NON_BOSS_WAVES) {
         const nodes = fightNodesForWave(state, wave);
-        expect(nodes).toHaveLength(2);
-        expect(nodes[0]!.fightNumber).toBe(wave);
-        expect(nodes[1]!.fightNumber).toBe(wave);
+        expect(nodes).toHaveLength(3);
+        for (const node of nodes) expect(node.fightNumber).toBe(wave);
         expect(nodes.every((n) => n.kind === 'fight')).toBe(true);
+        expect([...nodes.map((n) => n.fightOption)].sort()).toEqual(['easy', 'hard', 'standard']);
       }
       const map = ensureWavesThrough(state.map, BOSS_EVERY);
       const bossColumn = map.depths.find(
@@ -952,51 +979,67 @@ describe('run/runState: fight column offers 2 foe options (non-boss waves)', () 
     }
   });
 
-  it("option B's title/level is one rung above option A's, for every non-boss wave 1-9", () => {
+  it("hard's title/level is one rung above standard's, easy's is one rung/level below (floored/capped), for every non-boss wave 1-9", () => {
     const rung: Record<string, string> = { normal: 'elite', elite: 'boss' };
     for (const seed of SEEDS) {
       const state = startedRun(seed);
       for (const wave of NON_BOSS_WAVES) {
         const nodes = fightNodesForWave(state, wave);
+        const easy = nodes.find((n) => n.fightOption === 'easy')!;
         const standard = nodes.find((n) => n.fightOption === 'standard')!;
         const hard = nodes.find((n) => n.fightOption === 'hard')!;
+        expect(easy).toBeDefined();
         expect(standard).toBeDefined();
         expect(hard).toBeDefined();
+        const entryEasy = fightTableEntryForNode(easy);
         const entryStandard = fightTableEntryForNode(standard);
         const entryHard = fightTableEntryForNode(hard);
         expect(entryHard.level).toBe(entryStandard.level + 1);
         expect(entryHard.title).toBe(rung[entryStandard.title]);
+        expect(entryEasy.level).toBe(Math.max(1, entryStandard.level - 1));
+        expect(entryEasy.title).toBe('normal');
         expect(entryStandard).toEqual(fightSpecFor(wave));
       }
     }
   });
 
-  it("option B's battleGoldReward >= option A's, for every non-boss wave 1-9, across seeds", () => {
+  it("battleGoldReward's winBonus is monotonic easy <= standard <= hard, for every non-boss wave 1-9, across seeds — the gradient FALLS OUT of the resolved fight-table entry (level/title/modifiers), not a hand-tuned table", () => {
+    // Keyed off `fightTableEntryForNode` (the resolved, pre-pack-roll spec
+    // `battleGoldReward` actually derives its inputs from) rather than a full
+    // `rollEncounter` pack — a pack's VARIANT (solo/pair/trio) is its OWN
+    // independent Rng draw per node id (each tier gets a distinct
+    // `encounterSeed`, see runMap.ts), so a fully-random multi-foe pack roll
+    // is NOT guaranteed monotonic tier-to-tier on its own (a deeper-tier node
+    // could happen to roll solo while a shallower one rolls a trio, and the
+    // trio's extra-foe difficulty term can outweigh one tier step) — that
+    // pack-vs-tier interplay is verified separately, and correctly, in
+    // `packFights.test.ts` (budget-based, not reward-based). What IS
+    // structurally guaranteed — and is what this test proves — is that the
+    // TIER ITSELF (level/title/modifiers, identical inputs `rollEncounter`
+    // feeds every pack member) produces a non-decreasing `battleGoldReward`
+    // for a single resolved foe, which is exactly the pre-pack (solo)
+    // reward shape.
     for (const seed of SEEDS) {
-      const base = startedRun(seed);
-      const state = { ...base, map: ensureWavesThrough(base.map, 9) };
+      const state = startedRun(seed);
       for (const wave of NON_BOSS_WAVES) {
         const nodes = fightNodesForWave(state, wave);
+        const easy = nodes.find((n) => n.fightOption === 'easy')!;
         const standard = nodes.find((n) => n.fightOption === 'standard')!;
         const hard = nodes.find((n) => n.fightOption === 'hard')!;
-        const encounterStandard = rollEncounter({ ...state, currentNodeId: standard.id });
-        const encounterHard = rollEncounter({ ...state, currentNodeId: hard.id });
-        // Full unit list (not just the primary) — matches what
-        // `resolveRunBattleResult` actually credits for a pack fight.
-        const rewardStandard = battleGoldReward(
-          encounterStandard.units.map((u) => ({ level: u.level, title: u.title, rank: u.rank, modifiers: u.modifiers })),
-          state.heroLevel,
-        );
-        const rewardHard = battleGoldReward(
-          encounterHard.units.map((u) => ({ level: u.level, title: u.title, rank: u.rank, modifiers: u.modifiers })),
-          state.heroLevel,
-        );
+        const rewardFor = (node: RunNode) => {
+          const entry = fightTableEntryForNode(node);
+          return battleGoldReward([{ level: entry.level, title: entry.title, rank: 0, modifiers: entry.modifiers }], state.heroLevel);
+        };
+        const rewardEasy = rewardFor(easy);
+        const rewardStandard = rewardFor(standard);
+        const rewardHard = rewardFor(hard);
+        expect(rewardStandard.winBonus).toBeGreaterThanOrEqual(rewardEasy.winBonus);
         expect(rewardHard.winBonus).toBeGreaterThanOrEqual(rewardStandard.winBonus);
       }
     }
   });
 
-  it('both options are deterministic per seed and distinct from each other', () => {
+  it('all three options are deterministic per seed and pairwise distinct from each other', () => {
     for (const seed of SEEDS) {
       const baseA = startedRun(seed);
       const baseB = startedRun(seed);
@@ -1006,8 +1049,10 @@ describe('run/runState: fight column offers 2 foe options (non-boss waves)', () 
         const nodesA = fightNodesForWave(stateA, wave);
         const nodesB = fightNodesForWave(stateB, wave);
         expect(nodesA).toEqual(nodesB);
-        expect(nodesA[0]!.id).not.toBe(nodesA[1]!.id);
-        expect(nodesA[0]!.encounterSeed).not.toBe(nodesA[1]!.encounterSeed);
+        const ids = new Set(nodesA.map((n) => n.id));
+        const seedsSet = new Set(nodesA.map((n) => n.encounterSeed));
+        expect(ids.size).toBe(3);
+        expect(seedsSet.size).toBe(3);
         const encounterStd = rollEncounter({ ...stateA, currentNodeId: nodesA[0]!.id });
         const encounterStdAgain = rollEncounter({ ...stateA, currentNodeId: nodesA[0]!.id });
         expect(encounterStd).toEqual(encounterStdAgain);
@@ -1015,44 +1060,56 @@ describe('run/runState: fight column offers 2 foe options (non-boss waves)', () 
     }
   });
 
-  it('choosing either fight option advances the run identically (same depth/wave progression, same hero level, same status), across a 12-fight walk', () => {
+  it('choosing any of the three fight options advances the run identically (same depth/wave progression, same hero level, same status), across a 12-fight walk', () => {
     let stateA = startedRun(7);
     let stateB = startedRun(7);
+    let stateC = startedRun(7);
     let fightsSeen = 0;
     for (let guard = 0; guard < 500 && fightsSeen < 12; guard++) {
       const choicesA = availableChoices(stateA);
       if (choicesA.length === 0) break;
-      if (choicesA.length === 2 && choicesA[0]!.kind === 'fight') {
+      if (choicesA.length === 3 && choicesA[0]!.kind === 'fight') {
+        const easy = choicesA.find((n) => n.fightOption === 'easy')!;
         const standard = choicesA.find((n) => n.fightOption === 'standard')!;
         const hard = choicesA.find((n) => n.fightOption === 'hard')!;
-        stateA = chooseNode(stateA, standard.id);
-        stateB = chooseNode(stateB, hard.id);
+        stateA = chooseNode(stateA, easy.id);
+        stateB = chooseNode(stateB, standard.id);
+        stateC = chooseNode(stateC, hard.id);
         expect(stateA.depth).toBe(stateB.depth);
+        expect(stateB.depth).toBe(stateC.depth);
         stateA = recordBattleResult(stateA, { won: true, goldEarned: 5 });
         stateB = recordBattleResult(stateB, { won: true, goldEarned: 5 });
+        stateC = recordBattleResult(stateC, { won: true, goldEarned: 5 });
         expect(stateA.heroLevel).toBe(stateB.heroLevel);
+        expect(stateB.heroLevel).toBe(stateC.heroLevel);
         expect(stateA.status).toBe(stateB.status);
+        expect(stateB.status).toBe(stateC.status);
         fightsSeen += 1;
         continue;
       }
       const node = choicesA[0]!;
       stateA = chooseNode(stateA, node.id);
       stateB = chooseNode(stateB, node.id);
+      stateC = chooseNode(stateC, node.id);
       expect(stateA.depth).toBe(stateB.depth);
       if (node.kind === 'shop') {
         stateA = leaveShop(stateA);
         stateB = leaveShop(stateB);
+        stateC = leaveShop(stateC);
       } else if (node.kind === 'event') {
         stateA = leaveEvent(stateA);
         stateB = leaveEvent(stateB);
+        stateC = leaveEvent(stateC);
       } else {
         stateA = recordBattleResult(stateA, { won: true, goldEarned: 5 });
         stateB = recordBattleResult(stateB, { won: true, goldEarned: 5 });
+        stateC = recordBattleResult(stateC, { won: true, goldEarned: 5 });
         fightsSeen += 1;
       }
     }
     expect(fightsSeen).toBeGreaterThanOrEqual(12);
     expect(stateA.status).toBe('active');
     expect(stateB.status).toBe('active');
+    expect(stateC.status).toBe('active');
   });
 });

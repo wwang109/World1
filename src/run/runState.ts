@@ -302,13 +302,13 @@ export function fightTableEntry(fightNumber: number): FightSpec {
   return fightSpecFor(fightNumber);
 }
 
-/** One-rung title bump for a fight column's harder option B (normal -> elite,
+/** One-rung title bump for a fight column's `'hard'` option (normal -> elite,
  * elite -> boss) — USER-LOCKED (2026-07-30): "Bump the title one rung...
  * reuse the existing title presets/level dials." `mob` input is a defensive
- * fallback only; the fight-spec resolver never assigns it to a two-option
- * fight node. `boss -> boss` is also defensive: boss WAVES are single-node
- * (no `fightOption`), so `fightTableEntryForNode` never bumps a `'boss'`
- * base title in practice — this only matters if a future caller ever did. */
+ * fallback only; the fight-spec resolver never assigns it to a fight node.
+ * `boss -> boss` is also defensive: boss WAVES are single-node (no
+ * `fightOption`), so `fightTableEntryForNode` never bumps a `'boss'` base
+ * title in practice — this only matters if a future caller ever did. */
 const TITLE_BUMP: Record<EnemyTitle, EnemyTitle> = {
   mob: 'normal',
   normal: 'elite',
@@ -316,21 +316,54 @@ const TITLE_BUMP: Record<EnemyTitle, EnemyTitle> = {
   boss: 'boss',
 };
 
+/** Title rank order for `EASY_TITLE_CAP` (mob < normal < elite < boss) —
+ * mirrors `TITLE_WEIGHT` in `shop.ts` but kept local since this module only
+ * needs it for the one comparison below. */
+const TITLE_RANK: Record<EnemyTitle, number> = { mob: 0, normal: 1, elite: 2, boss: 3 };
+
+/** Caps a fight column's `'easy'` option at `'normal'` — USER-DIRECTED
+ * (2026-08-04): "title capped at normal (never elite)". A fight node's base
+ * title is always `'normal'` or `'elite'` (see `fightSpecFor`'s cadence —
+ * `'mob'`/`'boss'` never reach a fight column), so in practice this only ever
+ * downgrades `'elite'` to `'normal'`; the general (rank-based) form is kept
+ * so a future caller passing a `'boss'`-titled base (shouldn't happen for a
+ * fight node) still caps sanely instead of silently no-op'ing. */
+function capTitleAtNormal(title: EnemyTitle): EnemyTitle {
+  return TITLE_RANK[title] > TITLE_RANK.normal ? 'normal' : title;
+}
+
 /**
  * Fight-spec for a fight/boss NODE, honoring its `fightOption` (see
- * `RunNode.fightOption` in runMap.ts): `'hard'` bumps the title one rung via
- * `TITLE_BUMP` and adds **+1 level** (uncapped — the enemy level no longer
- * has a ceiling, see `fightSpecFor`) over the node's base spec, carrying
- * `modifiers` through UNCHANGED (those come from the fight number alone, not
- * the risk option); `'standard'`/undefined (boss nodes) returns
- * `fightSpecFor(node.fightNumber)` byte-identically. The one place
- * `rollEncounter` reads a node's level/title/modifiers from, so every caller
- * (preview + committed) stays in lockstep automatically.
+ * `RunNode.fightOption` in runMap.ts) — THREE risk options on every non-boss
+ * fight column (USER-DIRECTED 2026-08-04, supersedes the 2026-07-30
+ * two-option "standard/hard" rule):
+ *   - `'hard'` bumps the title one rung via `TITLE_BUMP` and adds **+1
+ *     level** (uncapped — the enemy level no longer has a ceiling, see
+ *     `fightSpecFor`) over the node's base spec.
+ *   - `'easy'` is the MIRROR of `'hard'`: **−1 level** (floored at 1 via
+ *     `fightSpecFor`'s own `clampLevel`-equivalent `Math.max(1, ...)`) and
+ *     the title capped at `'normal'` via `capTitleAtNormal` (never
+ *     `'elite'`) — strictly less threat than `'standard'`.
+ *   - `'standard'`/undefined (boss nodes) returns `fightSpecFor(node.fightNumber)`
+ *     byte-identically — UNCHANGED from before three-tier existed.
+ * Every branch carries `modifiers` through UNCHANGED (those come from the
+ * fight number alone, not the risk option). The one place `rollEncounter`
+ * reads a node's level/title/modifiers from, so every caller (preview +
+ * committed) stays in lockstep automatically — including the PL-budgeted
+ * pack solve (`resolvePackMemberLevel` in `encounter.ts`), which reads
+ * `entry.level`/`entry.title` off THIS function's output and therefore
+ * automatically solves an easy pack from the easy solo cost, a hard pack
+ * from the hard solo cost, with no per-tier branch of its own.
  */
 export function fightTableEntryForNode(node: Pick<RunNode, 'fightNumber' | 'fightOption'>): FightSpec {
   const base = fightSpecFor(node.fightNumber!);
-  if (node.fightOption !== 'hard') return base;
-  return { ...base, level: base.level + 1, title: TITLE_BUMP[base.title] };
+  if (node.fightOption === 'hard') {
+    return { ...base, level: base.level + 1, title: TITLE_BUMP[base.title] };
+  }
+  if (node.fightOption === 'easy') {
+    return { ...base, level: Math.max(1, base.level - 1), title: capTitleAtNormal(base.title) };
+  }
+  return base;
 }
 
 /**

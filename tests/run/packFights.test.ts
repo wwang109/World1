@@ -280,6 +280,59 @@ describe('run/runState: PACK FIGHTS — BUDGET math (resolvePackMemberLevel + pa
     }
     expect(sawPack).toBe(true);
   });
+
+  it("an 'easy' fight-option's -1 level (and title cap) still feeds the budget solve for every pack member — THREE-TIER fight choices (USER-DIRECTED 2026-08-04): an easy pack solves its budget from the EASY solo cost, falling out of the SAME fightTableEntryForNode composition as solo/hard, no per-tier branch in the roll flow", () => {
+    let sawPack = false;
+    for (const seed of WIDE_SEEDS) {
+      const { state, nodeIds } = combatNodesThrough(seed, 70);
+      for (const nodeId of nodeIds) {
+        const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
+        if (node.kind !== 'fight' || node.fightOption !== 'easy') continue;
+        const pack = rollEncounter({ ...state, currentNodeId: nodeId });
+        if (pack.variant === 'solo') continue;
+        sawPack = true;
+        const entry = fightTableEntryForNode(node); // already the easy-shrunk spec (-1 level, title capped at normal)
+        const expectedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[pack.variant], entry.modifiers);
+        for (const unit of pack.units) {
+          expect(unit.level).toBe(expectedLevel);
+          expect(unit.title).toBe('normal'); // capPackTitle('normal') === 'normal'; easy's own cap already forces normal
+        }
+      }
+    }
+    expect(sawPack).toBe(true);
+  });
+
+  it("an easy pack's taxed budget never exceeds the EASY solo-equivalent cost, and is <= the standard/hard node's own budget at the same wave (the tier gradient survives the pack solve)", () => {
+    for (const seed of WIDE_SEEDS.slice(0, 15)) {
+      const { state, nodeIds } = combatNodesThrough(seed, 40);
+      const byWave = new Map<number, { easy?: string; standard?: string; hard?: string }>();
+      for (const nodeId of nodeIds) {
+        const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
+        if (node.kind !== 'fight' || !node.fightOption) continue;
+        const entry = byWave.get(node.fightNumber!) ?? {};
+        entry[node.fightOption] = nodeId;
+        byWave.set(node.fightNumber!, entry);
+      }
+      for (const [, tiers] of byWave) {
+        if (!tiers.easy || !tiers.standard || !tiers.hard) continue;
+        const easyNode = state.map.depths.flat().find((n) => n.id === tiers.easy)!;
+        const standardNode = state.map.depths.flat().find((n) => n.id === tiers.standard)!;
+        const hardNode = state.map.depths.flat().find((n) => n.id === tiers.hard)!;
+        const easyEntry = fightTableEntryForNode(easyNode);
+        const standardEntry = fightTableEntryForNode(standardNode);
+        const hardEntry = fightTableEntryForNode(hardNode);
+        // soloThreatDeci is the same "vs player" reference the pack budget
+        // solve taxes — the monotonic gradient must hold BEFORE any pack tax
+        // is applied, since the tax (packBudgetDeci) scales every tier's
+        // budget by the identical factor for a given pack size.
+        const easyDeci = soloThreatDeci(easyEntry.level, easyEntry.title, easyEntry.modifiers);
+        const standardDeci = soloThreatDeci(standardEntry.level, standardEntry.title, standardEntry.modifiers);
+        const hardDeci = soloThreatDeci(hardEntry.level, hardEntry.title, hardEntry.modifiers);
+        expect(easyDeci).toBeLessThanOrEqual(standardDeci);
+        expect(standardDeci).toBeLessThanOrEqual(hardDeci);
+      }
+    }
+  });
 });
 
 describe('run/runState: PACK FIGHTS — floor-fallback to solo (never ships an over-budget pack)', () => {
@@ -341,7 +394,7 @@ describe('run/runState: PACK FIGHTS — determinism (same seed -> identical pack
     }
   });
 
-  it('a fight column\'s two options (standard/hard) roll INDEPENDENT packs (distinct encounterSeed)', () => {
+  it('a fight column\'s standard/hard tiers (of its three: easy/standard/hard) roll INDEPENDENT packs (distinct encounterSeed)', () => {
     for (const seed of WIDE_SEEDS.slice(0, 10)) {
       const { state, nodeIds } = combatNodesThrough(seed, 6);
       for (const nodeId of nodeIds) {

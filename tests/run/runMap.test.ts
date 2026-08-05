@@ -128,7 +128,7 @@ describe('run/runMap: column invariants hold arbitrarily deep', () => {
 
 describe('run/runMap: boss cadence', () => {
   for (const seed of SEEDS) {
-    it(`seed ${seed}: every BOSS_EVERYth wave is a single-node boss column; others are 2-option fight columns`, () => {
+    it(`seed ${seed}: every BOSS_EVERYth wave is a single-node boss column; others are 3-option fight columns (easy/standard/hard, USER-DIRECTED 2026-08-04)`, () => {
       const map = generateRunMap(seed, 12);
       const columns = totalColumns(map);
       const fightColumns: { depth: number; wave: number; kind: string; nodeCount: number }[] = [];
@@ -148,13 +148,17 @@ describe('run/runMap: boss cadence', () => {
           expect(f.nodeCount).toBe(1);
         } else {
           expect(f.kind).toBe('fight');
-          expect(f.nodeCount).toBe(2);
-          const [a, b] = map.depths[f.depth]!;
-          expect(a!.fightNumber).toBe(b!.fightNumber);
-          expect(a!.id).not.toBe(b!.id);
-          expect(a!.encounterSeed).not.toBe(b!.encounterSeed);
-          const options = [a!.fightOption, b!.fightOption].sort();
-          expect(options).toEqual(['hard', 'standard']);
+          expect(f.nodeCount).toBe(3);
+          const [a, b, c] = map.depths[f.depth]!;
+          const ids = new Set([a!.id, b!.id, c!.id]);
+          expect(ids.size).toBe(3);
+          const seeds = new Set([a!.encounterSeed, b!.encounterSeed, c!.encounterSeed]);
+          expect(seeds.size).toBe(3);
+          expect(a!.fightNumber).toBe(wave);
+          expect(b!.fightNumber).toBe(wave);
+          expect(c!.fightNumber).toBe(wave);
+          const options = [a!.fightOption, b!.fightOption, c!.fightOption].sort();
+          expect(options).toEqual(['easy', 'hard', 'standard']);
         }
       });
     });

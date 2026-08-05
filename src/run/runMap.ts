@@ -31,7 +31,9 @@ import { shopCatalog, shopTypeIds } from '../data/shopTypes';
 import type { EventTheme } from '../data/events';
 
 /** `'event'`/`'shop'` are the two stop-column choice kinds; `'fight'` is the
- * mandatory single-node-or-2-option column ending every non-boss wave;
+ * mandatory single-node-or-3-option column ending every non-boss wave (see
+ * `RunNode.fightOption` — EASY/MEDIUM("standard")/HARD, USER-DIRECTED
+ * 2026-08-04, supersedes the 2026-07-30 two-option "standard/hard" rule);
  * `'boss'` ends every `BOSS_EVERY`th wave (a milestone boss, not a run-ending
  * one — see `recordBattleResult` in runState.ts, which now costs a LIFE on a
  * boss loss instead of ending the run). There is no separate `'elite'` map
@@ -54,16 +56,22 @@ export interface RunNode {
   fightNumber?: number;
   /**
    * Fight nodes only (non-boss waves; a boss wave's column has no option —
-   * it's a single mandatory node): which of the mandatory fight column's TWO
-   * risk options this node is. `'standard'` is exactly this fight number's
+   * it's a single mandatory node): which of the mandatory fight column's
+   * THREE risk options this node is (USER-DIRECTED 2026-08-04, supersedes the
+   * 2026-07-30 two-option "standard/hard" rule — `'standard'` keeps its
+   * original id/spelling on purpose so it stays the unchanged middle rung;
+   * the UI labels it "MEDIUM"). `'standard'` is exactly this fight number's
    * base spec; `'hard'` is one title rung up + 1 level (the ENEMY level is
    * uncapped — see `fightTableEntryForNode` in runState.ts) and therefore
-   * pays more via `battleGoldReward`'s difficulty score. Undefined on boss nodes.
+   * pays more via `battleGoldReward`'s difficulty score; `'easy'` is one
+   * level DOWN from `'standard'` (floored at 1) with its title capped at
+   * `'normal'` (never `'elite'`) and therefore pays less. Undefined on boss
+   * nodes.
    */
-  fightOption?: 'standard' | 'hard';
+  fightOption?: 'easy' | 'standard' | 'hard';
   /** Seed for `rollEncounter` — fight/boss nodes only. Each of a fight
-   * column's two options gets its OWN distinct seed (derived from that
-   * option's own node id), so the two previews differ and are reproducible. */
+   * column's three options gets its OWN distinct seed (derived from that
+   * option's own node id), so the previews differ and are reproducible. */
   encounterSeed?: number;
   /** Seed for `rollEventForNode` — event nodes only. */
   eventSeed?: number;
@@ -285,7 +293,10 @@ function generateWave(seed: number, wave: number, startDepth: number, bagsIn: Ma
   // Mandatory fight (non-boss wave) or boss (every BOSS_EVERYth wave) column
   // — fightNumber == wave (every wave ends in exactly one fight/boss). A boss
   // wave's column stays a single mandatory node (no choice); non-boss waves
-  // offer TWO fight options (standard + hard) so the player picks their risk.
+  // offer THREE fight options (easy/standard/hard, USER-DIRECTED 2026-08-04)
+  // so the player picks their risk — left-to-right in ascending difficulty
+  // order (easy, standard/"MEDIUM", hard) so the array order the map scenes
+  // render top-to-bottom already reads as a difficulty ladder.
   depth += 1;
   const isBossWave = wave % BOSS_EVERY === 0;
   if (isBossWave) {
@@ -296,9 +307,16 @@ function generateWave(seed: number, wave: number, startDepth: number, bagsIn: Ma
       encounterSeed: hashSeed('encounter', seed, id),
     }]);
   } else {
-    const idStandard = `d${depth}-0`;
-    const idHard = `d${depth}-1`;
+    const idEasy = `d${depth}-0`;
+    const idStandard = `d${depth}-1`;
+    const idHard = `d${depth}-2`;
     columns.push([
+      {
+        id: idEasy, depth, wave, kind: 'fight',
+        fightNumber: wave,
+        fightOption: 'easy',
+        encounterSeed: hashSeed('encounter', seed, idEasy),
+      },
       {
         id: idStandard, depth, wave, kind: 'fight',
         fightNumber: wave,
