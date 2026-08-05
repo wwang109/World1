@@ -243,7 +243,12 @@ describe('attrition: the global stalemate breaker', () => {
     expect(after.events.some((e) => e.kind === 'died')).toBe(true);
   });
 
-  it('a dead heat (equal initiative score, equal HP) resolves through the shared outcome path to a player win', () => {
+  it('a mirrored duel is decided by the APPLICATION ORDER: the player is hit first, falls first, and the sweep stops', () => {
+    // FIRST TO FALL LOSES (user-locked 2026-08-04). Equal score and equal HP used
+    // to be a "dead heat" resolved by the player-wins tie convention; there is no
+    // heat left to split — the score tie falls back to canonical order (player side
+    // first), so the player's unit takes the killing tick and the foe's tick never
+    // happens. The mirror-match convention is therefore INVERTED vs 2026-07-31.
     const cfg: CombatConfig = {
       playerTeam: [unit('hero', [], { maxHp: 5 })],
       enemyTeam: [unit('foe', [], { maxHp: 5 })],
@@ -251,16 +256,17 @@ describe('attrition: the global stalemate breaker', () => {
       ...NO_OTHER_ENDGAME,
       maxTurns: 200,
     };
-    const { events, result, turns } = simulate(cfg, 11);
+    const { events, result, turns, finalState } = simulate(cfg, 11);
     expect(turns).toBe(15);
-    expect(result).toBe('win'); // same tie convention as every other lethal source
+    expect(result).toBe('loss');
+    // ONE tick, ONE death: the enemy is never reached.
+    expect(attritionHits(events).map((e) => `${e.side}${e.unit}`)).toEqual(['player0']);
     const deaths = events.filter((e): e is Extract<CombatEvent, { kind: 'died' }> => e.kind === 'died');
-    expect(deaths.map((e) => [e.turn, e.side, e.unit])).toEqual([
-      [15, 'player', 0],
-      [15, 'enemy', 0],
-    ]);
+    expect(deaths.map((e) => [e.turn, e.side, e.unit])).toEqual([[15, 'player', 0]]);
+    expect(finalState.enemyTeam[0]!.alive).toBe(true);
+    expect(finalState.enemyTeam[0]!.stats.hp).toBe(5);
     const end = events[events.length - 1]!;
-    expect(end).toEqual({ turn: 15, kind: 'combatEnd', result: 'win', turns: 15 });
+    expect(end).toEqual({ turn: 15, kind: 'combatEnd', result: 'loss', turns: 15 });
   });
 
   it('a whole team wiped by attrition ends the fight (multi-unit death path)', () => {

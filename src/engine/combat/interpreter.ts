@@ -3,7 +3,7 @@ import type { Action, EffectSourceRef, Property, SkillDef } from '../types';
 import type { AntiHealCategory, AntiHealReduction, CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
-import { boardPowerLevel, effStat, foesOf, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
+import { anySideWiped, boardPowerLevel, effStat, foesOf, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 
 export interface Ctx {
@@ -854,8 +854,18 @@ export function applyCast(
     for (const target of resolveTargets(ctx, caster, skill, action)) {
       applyAction(ctx, caster, skill, action, mods, cast, target);
     }
+    // FIRST TO FALL LOSES (user-locked 2026-08-04): the fight ends at the exact
+    // application that wipes a side, so a cast that lands the killing blow STOPS
+    // right there — its remaining effects are "later in the same step" and never
+    // apply. Concretely: NO LIFESTEAL-BACK off the killing blow, and no self
+    // shield/buff/taunt tacked on after the last foe falls. The action loop is the
+    // finest order the DSL defines; the remaining FAN-OUT targets of the action
+    // that did the wiping need no check because every action is already a no-op on
+    // a dead target (see `dealDamage`, `applyDot`, `addStatus`). Consumes no RNG
+    // (nothing in the loop does), so the Rng call order is untouched.
+    if (anySideWiped(ctx.state)) break;
   }
-  if (skill.special !== undefined) {
+  if (skill.special !== undefined && !anySideWiped(ctx.state)) {
     getSpecial(skill.special)(ctx, caster, skill, slot, mods);
   }
   ctx.source = undefined;

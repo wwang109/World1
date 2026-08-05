@@ -100,11 +100,26 @@ function stepEntryOf(state: CombatState): StepEntry {
  * THE ONE PLACE combat outcome is decided (user-locked 2026-07-31: a fight is
  * ALWAYS decided — there is no draw).
  *
+ * FIRST TO FALL LOSES (user-locked 2026-08-04). Every damage in this engine can
+ * be said to be dealt or taken FIRST: the fight ends at the exact APPLICATION
+ * that wipes a side, and nothing later in the same step ever runs (no DoT tick
+ * after the killing blow, no further attrition/fatigue applications). This
+ * function is therefore called after every single potentially-lethal application
+ * — see `checkEnd` and `sweep` in `simulate` — and one application can only ever
+ * damage ONE victim (`dealDamage` takes a single victim), so at most one side can
+ * be freshly wiped when it runs.
+ *
  * `null` while combat continues; a side is dead when every unit is not alive.
- * A single-side wipe is trivially that side's defeat. When BOTH sides' last
- * units die inside the SAME step (one attrition tick, one DoT sweep, one cast),
- * the log's per-unit event order must NOT decide it — the fixed hierarchy below
- * does, evaluated on the state ENTERING the step:
+ * A single-side wipe is trivially that side's defeat — and that is now the ONLY
+ * reachable case.
+ *
+ * DEFENSIVE FALLBACK (rules 1-3 below): the both-sides-wiped branches are
+ * UNREACHABLE from any current code path — mutual wipes ceased to exist with the
+ * 2026-08-04 rule (the supersede is recorded in docs/design-locked.md). They are
+ * kept, not deleted, so the function stays total and safe if a future mechanic
+ * ever applies damage to two victims simultaneously. When BOTH sides' last units
+ * die inside the SAME application, the log's event order must NOT decide it —
+ * this fixed hierarchy does, evaluated on the state ENTERING the step:
  *
  *  1. LOWER INITIATIVE SCORE LOSES. Attrition is applied in ASCENDING initiative
  *     score (user-locked), so the side holding the lowest-score unit takes the
@@ -125,12 +140,14 @@ function decideOutcome(state: CombatState, before: StepEntry): CombatOutcome | n
   if (!enemyWiped && !playerWiped) return null;
   if (!playerWiped) return 'win';
   if (!enemyWiped) return 'loss';
+  /* c8 ignore start — unreachable defensive fallback (see the doc comment). */
   if (before.playerLowest !== null && before.enemyLowest !== null) {
     const byScore = compareInitiative(before.playerLowest, before.enemyLowest);
     if (byScore !== 0) return byScore < 0 ? 'loss' : 'win';
   }
   if (before.playerHp !== before.enemyHp) return before.playerHp < before.enemyHp ? 'loss' : 'win';
   return 'win'; // dead heat — player-wins convention
+  /* c8 ignore stop */
 }
 
 /**
@@ -360,6 +377,31 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
   };
   const checkEnd = (): CombatOutcome | null => decideOutcome(state, stepEntry);
 
+  /**
+   * FIRST TO FALL LOSES (user-locked 2026-08-04) — the sweep primitive.
+   *
+   * A sweep (burn, poison, attrition, fatigue) is an ORDERED sequence of per-unit
+   * applications, and each unit's application is exactly one potentially-lethal
+   * event. So the check runs after EVERY application and the sweep STOPS at the
+   * one that wipes a side: the remaining units are never reached, so no DoT tick,
+   * attrition tick or fatigue tick lands after the killing blow.
+   *
+   * `order` is computed by the caller BEFORE the sweep starts (canonical pool
+   * order, or `lowestInitiativeFirst` for attrition) and is never re-derived
+   * mid-sweep, so the application order is exactly the one the rules document.
+   * Consumes ZERO random numbers (nothing in the combat loop does — see the
+   * determinism test), so truncating a sweep cannot shift the Rng call order:
+   * the surviving prefix makes the identical (empty) sequence of draws.
+   */
+  const sweep = (order: CombatantState[], apply: (c: CombatantState) => void): CombatOutcome | null => {
+    for (const c of order) {
+      apply(c);
+      const decided = checkEnd();
+      if (decided !== null) return decided;
+    }
+    return null;
+  };
+
   let outcome = checkEnd();
   if (outcome !== null) return finish(outcome);
 
@@ -369,10 +411,11 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     const units = pool(state);
 
     // Start-of-turn effects resolve before readiness so dead units never gain.
-    // Only BURN ticks here; poison ticks at the end of the turn.
+    // Only BURN ticks here; poison ticks at the end of the turn. Swept in
+    // canonical order, one unit at a time, stopping at the tick that wipes a side
+    // (FIRST TO FALL LOSES — see `sweep`).
     beginStep();
-    for (const c of units) tickTurnDot(ctx, c, 'burn');
-    outcome = checkEnd();
+    outcome = sweep(units, (c) => tickTurnDot(ctx, c, 'burn'));
     if (outcome !== null) return finish(outcome);
 
     // Phase 1: every living combatant gains effective Speed exactly once.
@@ -505,7 +548,16 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         // here, right after this cast's own effects, before the cost event — and
         // AT MOST ONCE PER GLOBAL TURN, so a unit that resolves two casts in one
         // turn bleeds only on the first (see tickBleed).
-        tickBleed(ctx, c);
+        //
+        // FIRST TO FALL LOSES (user-locked 2026-08-04): the cast's own resolution
+        // is the earlier application of the two, so if it already wiped a side the
+        // fight ended THERE and this bleed never draws blood. The check is
+        // read-only (`decideOutcome` emits nothing) and we deliberately do NOT
+        // return here: `cost`/`cursor` are bookkeeping, not applications, so they
+        // still emit exactly as before and the fight is finished by the
+        // `checkEnd()` at the end of this performance — which keeps every log that
+        // ends on a killing cast byte-identical.
+        if (checkEnd() === null) tickBleed(ctx, c);
         events.push({
           turn: state.turn,
           kind: 'cost',
@@ -572,10 +624,10 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
 
     // End-of-turn POISON ticks: everyone has acted; deaths here deny nothing
     // this turn but start the next one. Fresh poison (applied this turn) is
-    // still flagged and skips — expireStatuses below clears the flag.
+    // still flagged and skips — expireStatuses below clears the flag. Swept one
+    // unit at a time in canonical order, stopping at the tick that wipes a side.
     beginStep();
-    for (const c of units) tickTurnDot(ctx, c, 'poison');
-    outcome = checkEnd();
+    outcome = sweep(units, (c) => tickTurnDot(ctx, c, 'poison'));
     if (outcome !== null) return finish(outcome);
 
     // ATTRITION — global stalemate breaker, one clearly-bounded turn step (the
@@ -599,9 +651,13 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
     //   keeps negate charges and expose out of it.
     // - Symmetric across both sides => PL-neutral, priced nowhere.
     // - Consumes ZERO random numbers: the Rng call order is unchanged.
-    // Deaths flow through `dealDamage` -> `died` -> the shared `checkEnd`, and a
-    // mutual wipe is resolved by `decideOutcome` (lower initiative score loses;
-    // see there) — consistent with the application order used right here.
+    // Deaths flow through `dealDamage` -> `died` -> the shared `checkEnd` after
+    // EVERY single tick (FIRST TO FALL LOSES, user-locked 2026-08-04): the sweep
+    // stops at the tick that wipes a side, so the units later in the order — the
+    // ones further AHEAD on tempo — are never reached that turn. The side holding
+    // the lowest-score unit is therefore the side that falls, which is exactly
+    // what the old mutual-wipe hierarchy said; it is now a consequence of the
+    // application order instead of a separate rule.
     if (state.turn >= attritionTurn) {
       const amount = attritionDamage(state.turn, attritionTurn);
       if (!attritionAnnounced) {
@@ -609,14 +665,18 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         events.push({ turn: state.turn, kind: 'attritionStart', amount });
       }
       beginStep();
-      for (const c of lowestInitiativeFirst(units)) {
+      outcome = sweep(lowestInitiativeFirst(units), (c) => {
         dealDamage(ctx, c, amount, 'true', { bypassShields: true, source: 'attrition' });
-      }
-      outcome = checkEnd();
+      });
       if (outcome !== null) return finish(outcome);
     }
 
-    // Fatigue backstop (whole pool, canonical order — ties go to the player).
+    // Fatigue backstop, swept in canonical pool order (player side first, then by
+    // index) — and, like every other sweep, it STOPS at the tick that wipes a side
+    // (FIRST TO FALL LOSES, user-locked 2026-08-04). Consequence worth stating
+    // plainly: in a perfectly mirrored fight the player's unit is first in
+    // canonical order, so it is the one that falls. Fatigue no longer "kills both
+    // and gives the tie to the player" — there is no tie left to give.
     if (state.turn >= fatigueTurn) {
       if (!fatigueAnnounced) {
         fatigueAnnounced = true;
@@ -624,8 +684,9 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
       }
       const amount = FATIGUE_BASE + (state.turn - fatigueTurn);
       beginStep();
-      for (const c of units) dealDamage(ctx, c, amount, 'true', { bypassShields: true, source: 'fatigue' });
-      outcome = checkEnd();
+      outcome = sweep(units, (c) => {
+        dealDamage(ctx, c, amount, 'true', { bypassShields: true, source: 'fatigue' });
+      });
       if (outcome !== null) return finish(outcome);
     }
 

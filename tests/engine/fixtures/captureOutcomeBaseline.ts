@@ -48,6 +48,28 @@ const next = {
     'size, speedWeight, cooldownTurns, tier, rarity, element, weapon, scope, aura, special, ' +
     'tierUpgrades) — is still hashed byte-for-byte.',
   note:
+    'Regression lock recaptured (2026-08-04) for the FIRST-TO-FALL OUTCOME RULE ' +
+    '(user-directed 2026-08-04): a REAL, REVIEWED RULE CHANGE. Combat now ends at ' +
+    'the exact APPLICATION that wipes a side, so nothing later in the same step ' +
+    'runs — no DoT/attrition/fatigue tick after the killing blow, no bleed tick on ' +
+    'a performer whose cast just won, and no lifesteal-back off a killing blow. ' +
+    'Mutual wipes therefore cannot occur and the 2026-07-30/31 tempo tiebreak is ' +
+    'unreachable (kept in decideOutcome as a documented defensive fallback). ' +
+    'Blast radius verified BEFORE regenerating, by diffing this engine against a ' +
+    'byte copy of the pre-change simulate.ts + interpreter.ts over all 740 fights ' +
+    'the engine suite sweeps: attritionOff 2/200 and attritionOn 3/200 logs moved ' +
+    '(#10 and #83 in both, plus #15 with attrition on). For EVERY moved log the ' +
+    'diff proved: (a) the events up to AND INCLUDING the death that wiped a side ' +
+    'are byte-identical, (b) the new log is a strict SUBSEQUENCE of the old one — ' +
+    'nothing was invented, (c) every removed event is a post-wipe application ' +
+    '(#10: one lifesteal heal on a killing blow; #83: one bleed tick after a ' +
+    'killing cast; #15: two attrition ticks after a side was already wiped), and ' +
+    '(d) `turns` did not move. ZERO winner flips in either sweep, and 0 of the 740 ' +
+    'fights was a former mutual wipe in the baseline families (1 was in the ' +
+    'wider 0x5117e5 sweep, and it kept its result). See ' +
+    'src/engine/combat/simulate.ts (`sweep`, `decideOutcome`), ' +
+    'src/engine/combat/interpreter.ts (`applyCast`) and ' +
+    'tests/engine/outcomeRule.test.ts. It supersedes the prior regen: ' +
     'Regression lock recaptured (2026-08-03) for the ANTI-HEAL WORLD RULE ' +
     '(game-director approved 2026-08-01, built 2026-08-03): a REAL, REVIEWED RULE ' +
     'CHANGE. Regular heals and lifesteal are taxed -20% per affliction category ' +

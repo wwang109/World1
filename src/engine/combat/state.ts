@@ -242,6 +242,20 @@ export function teamOf(state: CombatState, side: Side): CombatantState[] {
   return side === 'player' ? state.playerTeam : state.enemyTeam;
 }
 
+/**
+ * Is EITHER side completely wiped (every unit not alive)?
+ *
+ * FIRST TO FALL LOSES (user-locked 2026-08-04): the fight ends at the exact
+ * application that wipes a side, so this is the "combat is already over" test
+ * that lethal-application sites consult before running the NEXT application —
+ * `applyCast`'s effect loop uses it to stop a killing cast dead (no lifesteal-back,
+ * no self-shield after the last foe falls). Read-only, integer-free, no RNG; the
+ * one place that also decides WHO won is `decideOutcome` in simulate.ts.
+ */
+export function anySideWiped(state: CombatState): boolean {
+  return state.playerTeam.every((u) => !u.alive) || state.enemyTeam.every((u) => !u.alive);
+}
+
 /** The opposing team of `c`, canonical order. */
 export function foesOf(state: CombatState, c: CombatantState): CombatantState[] {
   return c.side === 'player' ? state.enemyTeam : state.playerTeam;

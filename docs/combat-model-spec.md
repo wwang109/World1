@@ -9,10 +9,28 @@ turn loop, the pacing currency, the cursor, and the event log.
 **Post-spec addition — attrition (locked 2026-07-30/31):** from
 `ATTRITION_START_TURN` (15), every living combatant takes accelerating TRUE
 damage each turn (shields bypassed, lowest initiative score ticked first), so
-every fight is decided — no draws; mutual wipes resolve
-lower-initiative-loses → lower-HP-loses → player wins. See
-`attritionDamage`/`decideOutcome` in `simulate.ts` and the register row in
-`docs/design-locked.md`.
+every fight is decided — no draws. See `attritionDamage` in `simulate.ts` and
+the register row in `docs/design-locked.md`.
+
+**The outcome rule — FIRST TO FALL LOSES (locked 2026-08-04):** every damage in
+this engine can be said to be dealt or taken FIRST, so the fight ends at the
+exact **application** that wipes a side, and nothing later in the same step ever
+applies — no DoT/attrition/fatigue tick after the killing blow, no bleed tick on
+a performer whose cast just won, no lifesteal-back off a killing blow. The
+application order is the one the loop already defines: a cast's effects in
+authored order → the performer's bleed tick; burn at the start of a turn, poison
+at the end; attrition in ascending initiative score, fatigue in canonical pool
+order — and both sweeps STOP at the tick that wipes a side, so the units later in
+the order are never reached that turn. Because one application only ever damages
+one victim, **mutual wipes cannot occur**: this supersedes the 2026-07-30/31
+tempo tiebreak (lower-initiative-loses → lower-HP-loses → player wins), which is
+now unreachable and kept in `decideOutcome` only as a documented defensive
+fallback for a future simultaneous-damage mechanic. One stated consequence: in a
+perfectly mirrored fight the score tie falls back to canonical order (player side
+first), so the PLAYER's unit takes the killing tick and the fight is a loss —
+the inverse of the retired "player wins ties" convention. See `sweep` /
+`decideOutcome` in `simulate.ts`, `applyCast` in `interpreter.ts`, and
+`tests/engine/outcomeRule.test.ts`.
 
 This is the single source of truth for the new loop. The **log auditor**
 (below) encodes every rule and must pass on every simulated fight.

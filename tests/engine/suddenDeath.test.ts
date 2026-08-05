@@ -30,23 +30,30 @@ describe('sudden death and termination', () => {
     }
   });
 
-  it('two zero-damage boards terminate via the fatigue backstop; player wins ties', () => {
+  // FIRST TO FALL LOSES (user-locked 2026-08-04): a mirrored fight is no longer a
+  // tie handed to the player — the fatigue/attrition sweep runs in canonical order
+  // (player side first), so the player's unit is the one that falls and the fight
+  // ends at that exact tick. Both cases below flipped from `win` for that reason,
+  // and for that reason only (the events before the death are unchanged).
+  it('two zero-damage boards terminate via the fatigue backstop; the mirrored player falls first', () => {
     const c = cfg(
       tc('turtle1', ['iron_bulwark', 'second_wind'], { attack: 20, maxHp: 200 }),
       tc('turtle2', ['iron_bulwark', 'second_wind'], { attack: 20, maxHp: 200 }),
       { suddenDeathRound: 5, fatigueTurn: 10, maxTurns: 200 },
     );
-    const { events, result } = simulate(c, 7);
+    const { events, result, finalState } = simulate(c, 7);
     expect(events.some((e) => e.kind === 'fatigueStart')).toBe(true);
-    expect(result).toBe('win'); // identical turtles die together -> player wins
+    expect(result).toBe('loss'); // identical turtles: the player is hit first
+    expect(events.filter((e) => e.kind === 'died')).toHaveLength(1);
+    expect(finalState.enemyTeam[0]!.alive).toBe(true);
   });
 
-  it('empty boards still resolve (fatigue kills both, player first)', () => {
+  it('empty boards still resolve (the first tick of the sweep decides it)', () => {
     const c = cfg(
       tc('a', [], { maxHp: 20 }),
       tc('b', [], { maxHp: 20 }),
       { suddenDeathRound: 1, fatigueTurn: 1, maxTurns: 100 },
     );
-    expect(simulate(c, 1).result).toBe('win');
+    expect(simulate(c, 1).result).toBe('loss');
   });
 });
