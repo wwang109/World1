@@ -56,7 +56,10 @@ export function getActiveRun(): RunState | null {
  * (see DesktopPrepScene/MobilePrepScene). Not part of `RunState`; it only
  * exists to let the player preview/reroll a seed before committing to it.
  */
-let pendingSeed = 1;
+// Session-random initial roll (Math.random is fine HERE — src/game glue; the
+// engine stays pure because the seed only ever enters the sim as plain data).
+// Without this, every fresh page load drafted the identical seed-1 run.
+let pendingSeed = 1 + Math.floor(Math.random() * 999999);
 
 export function getPendingSeed(): number {
   return pendingSeed;
@@ -74,6 +77,9 @@ export function rerollPendingSeed(): void {
 export function startRun(seed: number): void {
   activeRun = createRun(seed);
   noteRunStarted();
+  // Consume-and-refresh: the NEXT run's pending seed differs even when the
+  // player never touches the reroll button (StartScene commits directly).
+  rerollPendingSeed();
 }
 
 /** Installs the player's actual draft picks (one per `DRAFT_SET_KEYS` set)
