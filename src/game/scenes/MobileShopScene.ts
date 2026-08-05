@@ -8,12 +8,14 @@ import { setDeckBuildContext } from '../deckBuildContext';
 import type { SkillTier } from '../../engine/types';
 import type { CardOffer, GemOffer } from '../../run/shop';
 import { shopPoolInfo } from '../../run/shop';
-import { bagHasRoomFor, buyCard, buyGem, ensureShelf, rerollShelf } from '../shopActions';
+import { bagHasRoomFor, buyCard, buyGem, ensureShelf, mergeCard, mergeTargetFor, rerollShelf } from '../shopActions';
 import { demoState } from '../demoState';
 import {
-  buyCurrentShopCard, buyCurrentShopGem, currentNode, currentRunBagHasRoomFor, currentShopShelf,
-  ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, rerollCurrentShop, retireActiveRun,
+  buyCurrentShopCard, buyCurrentShopGem, currentNode, currentRunBagHasRoomFor, currentShopMergeTarget,
+  currentShopShelf, ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, mergeCurrentShopCard,
+  rerollCurrentShop, retireActiveRun,
 } from '../runStore';
+import type { MergeTarget } from '../../run/shop';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
@@ -304,9 +306,13 @@ export class MobileShopScene extends Phaser.Scene {
     const runMode = this.runShopId() !== null;
     const affordable = this.activeGold() >= offer.price;
     const hasRoom = runMode ? currentRunBagHasRoomFor(offer.skillId) : bagHasRoomFor(offer.skillId);
-    const canBuy = affordable && hasRoom;
+    // A duplicate MERGE never needs bag room (it upgrades an already-owned
+    // slot instead of adding a new one) — a full bag no longer blocks opening
+    // the confirm dialog when a merge target exists.
+    const mergeTarget = runMode ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
+    const canBuy = affordable && (hasRoom || mergeTarget != null);
     const btn = this.add.rectangle(centerX, y, this.W - 40, 40, canBuy ? 0xe8b446 : 0x16233a, canBuy ? 1 : 0.5).setOrigin(0.5, 0).setStrokeStyle(1, UI.border, canBuy ? 0.8 : 0.4);
-    const label = !affordable ? `NEED ${offer.price} GOLD` : !hasRoom ? 'BAG FULL' : `BUY · ${offer.price} GOLD`;
+    const label = !affordable ? `NEED ${offer.price} GOLD` : !hasRoom && !mergeTarget ? 'BAG FULL' : !hasRoom ? 'MERGE AVAILABLE' : `BUY · ${offer.price} GOLD`;
     this.add.text(centerX, y + 20, label, { fontSize: `${F.body}px`, color: canBuy ? UI.textOnChip : UI.textDisabled, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     if (canBuy) {
       btn.setInteractive({ useHandCursor: true });
@@ -360,6 +366,17 @@ export class MobileShopScene extends Phaser.Scene {
 
   // ---------- confirm ----------
 
+  /** Duplicate-merge target for the pending CARD buy, or null (no owned
+   * mergeable copy / this is a gem buy). Sourced from the run in Run Mode,
+   * `demoState` in the Sandbox — same split every other shop query uses. */
+  private mergeTargetForPendingBuy(shopId: string, runMode: boolean): MergeTarget | null {
+    const buy = this.pendingBuy;
+    if (!buy || buy.kind !== 'card') return null;
+    const offer = this.shelfFor(shopId).cards[buy.index];
+    if (!offer) return null;
+    return runMode ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
+  }
+
   private renderConfirm(): void {
     const shopId = this.activeShopId();
     const shelf = this.shelfFor(shopId);
@@ -369,19 +386,23 @@ export class MobileShopScene extends Phaser.Scene {
       ? (skillBook[shelf.cards[buy.index]?.skillId ?? '']?.name ?? 'card')
       : (gemBook[shelf.gems[buy.index]?.gemId ?? '']?.name ?? 'gem');
     const price = buy.kind === 'card' ? shelf.cards[buy.index]?.price ?? 0 : shelf.gems[buy.index]?.price ?? 0;
+    const mergeTarget = this.mergeTargetForPendingBuy(shopId, runMode);
 
     this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.72).setOrigin(0, 0).setInteractive();
-    const bw = this.W - 60; const bx = 30; const by = this.H / 2 - 70;
-    this.add.rectangle(bx, by, bw, 140, 0x141d2c).setOrigin(0, 0).setStrokeStyle(2, 0xe8b446);
+    const bw = this.W - 60; const bx = 30;
+    const bh = mergeTarget ? 172 : 140;
+    const by = this.H / 2 - bh / 2;
+    this.add.rectangle(bx, by, bw, bh, 0x141d2c).setOrigin(0, 0).setStrokeStyle(2, 0xe8b446);
     this.add.text(this.W / 2, by + 24, `Buy ${name}?`, { fontSize: `${F.heading}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(this.W / 2, by + 50, `${price} gold — leaves the shelf once bought.`, { fontSize: `${F.small}px`, color: UI.textFootnote, fontFamily: FONT.body }).setOrigin(0.5);
-    const mk = (dx: number, w: number, label: string, fill: number, color: string, fn: () => void): void => {
-      const r = this.add.rectangle(dx, by + 88, w, 36, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      r.on('pointerdown', fn);
-      this.add.text(dx + w / 2, by + 106, label, { fontSize: `${F.name}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    };
-    mk(bx + 16, (bw - 40) / 2, 'CANCEL', 0x1b2940, UI.textBright, () => { playSfx('uiBack'); this.pendingBuy = null; this.rerender(); });
-    mk(bx + 24 + (bw - 40) / 2, (bw - 40) / 2, 'BUY', 0xe8b446, UI.textOnChip, () => {
+    if (mergeTarget) {
+      this.add.text(this.W / 2, by + 72, `Already owned — MERGE → ${name} ${mergeTarget.toTier.toUpperCase()} (${mergeTarget.fromTier.toUpperCase()} → ${mergeTarget.toTier.toUpperCase()})`, {
+        fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', align: 'center', wordWrap: { width: bw - 32 },
+      }).setOrigin(0.5, 0);
+    }
+
+    type ConfirmButton = { label: string; fill: number; color: string; fn: () => void };
+    const doBuy = (): void => {
       const result = runMode
         ? (buy.kind === 'card' ? buyCurrentShopCard(buy.index) : buyCurrentShopGem(buy.index))
         : (buy.kind === 'card' ? buyCard(shopId, buy.index) : buyGem(shopId, buy.index));
@@ -391,6 +412,31 @@ export class MobileShopScene extends Phaser.Scene {
       this.rerender();
       if (!result.ok) this.showToast(result.reason === 'bag' ? 'Bag full — purchase cancelled' : 'Could not complete purchase', '#e8907a');
       else { playSfx('purchase'); this.showToast(`Bought ${name}`, '#9ad17a'); }
+    };
+    const doMerge = (): void => {
+      const result = runMode ? mergeCurrentShopCard(buy.index) : mergeCard(shopId, buy.index);
+      this.pendingBuy = null;
+      this.detailCardIndex = null;
+      this.detailGemIndex = null;
+      this.rerender();
+      if (!result.ok) this.showToast('Could not complete merge', '#e8907a');
+      else { playSfx('purchase'); this.showToast(`Merged into ${mergeTarget!.toTier.toUpperCase()} ${name}`, '#9ad17a'); }
+    };
+
+    const buttons: ConfirmButton[] = [
+      { label: 'CANCEL', fill: 0x1b2940, color: UI.textBright, fn: () => { playSfx('uiBack'); this.pendingBuy = null; this.rerender(); } },
+      { label: 'BUY', fill: 0xe8b446, color: UI.textOnChip, fn: doBuy },
+    ];
+    if (mergeTarget) buttons.push({ label: 'MERGE', fill: 0x7cab63, color: UI.textOnChip, fn: doMerge });
+
+    const margin = 16; const gap = 8;
+    const btnW = (bw - margin * 2 - gap * (buttons.length - 1)) / buttons.length;
+    const btnY = by + bh - 52;
+    buttons.forEach((b, i) => {
+      const dx = bx + margin + i * (btnW + gap);
+      const r = this.add.rectangle(dx, btnY, btnW, 36, b.fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+      r.on('pointerdown', b.fn);
+      this.add.text(dx + btnW / 2, btnY + 18, b.label, { fontSize: `${F.name}px`, color: b.color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
   }
 

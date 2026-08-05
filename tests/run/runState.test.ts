@@ -19,12 +19,16 @@ import {
   leaveShop,
   LIVES_PER_RUN,
   MAX_LEVEL,
+  mergeRunCard,
   recordBattleResult,
   rerollRunShop,
   retireRun,
   rollEncounter,
   runBagHasRoomFor,
+  runMergeTargetFor,
   setHeroAllocation,
+  type RunBagSlot,
+  type RunBoardPiece,
   type RunState,
 } from '../../src/run/runState';
 import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
@@ -32,6 +36,8 @@ import { battleGoldReward, rollShopStock } from '../../src/run/shop';
 import { BOSS_EVERY, ensureWavesThrough, type RunNode } from '../../src/run/runMap';
 import { bankedPL, LEVEL_STAT_COST } from '../../src/run/leveling';
 import { buildEnemyEncounter, TITLE_PRESETS } from '../../src/run/encounter';
+import { gemBook } from '../../src/data/gems';
+import type { SkillTier } from '../../src/engine/types';
 
 function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
   const draft = rollStartDraft(seed);
@@ -44,6 +50,32 @@ function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
 
 function startedRun(seed: number): RunState {
   return applyDraftResult(createRun(seed), draftPicksFor(seed));
+}
+
+/** Walk an active run forward (browsing shops, leaving events unresolved,
+ * winning every fight/boss) until the FIRST shop node is reached — returned
+ * with that node still `current` (uncommitted) so the caller can roll/browse
+ * its shelf. Shared by the shop-purchase and duplicate-merge describe blocks
+ * below. Throws if the guard is exceeded before finding one. */
+function stateAtFirstShop(seed: number): { state: RunState; nodeId: string } {
+  let state = startedRun(seed);
+  for (let guard = 0; guard < 200; guard++) {
+    const choices = availableChoices(state);
+    if (choices.length === 0) throw new Error('no shop node reachable for this seed');
+    const shop = choices.find((n) => n.kind === 'shop');
+    if (shop) {
+      state = chooseNode(state, shop.id);
+      return { state, nodeId: shop.id };
+    }
+    const node = choices[0]!;
+    state = chooseNode(state, node.id);
+    if (node.kind === 'event') {
+      state = leaveEvent(state);
+    } else if (node.kind === 'boss' || node.kind === 'fight') {
+      state = recordBattleResult(state, { won: true, goldEarned: 1 });
+    }
+  }
+  throw new Error('guard exceeded while looking for a shop node');
 }
 
 /** Walk an active run forward, always taking the first available choice,
@@ -478,27 +510,6 @@ describe('run/runState: battle outcomes', () => {
 });
 
 describe('run/runState: shop-node purchases', () => {
-  function stateAtFirstShop(seed: number): { state: RunState; nodeId: string } {
-    let state = startedRun(seed);
-    for (let guard = 0; guard < 200; guard++) {
-      const choices = availableChoices(state);
-      if (choices.length === 0) throw new Error('no shop node reachable for this seed');
-      const shop = choices.find((n) => n.kind === 'shop');
-      if (shop) {
-        state = chooseNode(state, shop.id);
-        return { state, nodeId: shop.id };
-      }
-      const node = choices[0]!;
-      state = chooseNode(state, node.id);
-      if (node.kind === 'event') {
-        state = leaveEvent(state);
-      } else if (node.kind === 'boss' || node.kind === 'fight') {
-        state = recordBattleResult(state, { won: true, goldEarned: 1 });
-      }
-    }
-    throw new Error('guard exceeded while looking for a shop node');
-  }
-
   it('ensureRunShopShelf rolls a shelf once and is idempotent after', () => {
     const { state, nodeId } = stateAtFirstShop(1);
     const withShelf = ensureRunShopShelf(state, nodeId);
@@ -567,6 +578,129 @@ describe('run/runState: shop-node purchases', () => {
   it('runBagHasRoomFor reflects the run bag, not the sandbox demoState bag', () => {
     const { state } = stateAtFirstShop(7);
     expect(runBagHasRoomFor(state, 'sword_slash')).toBe(true);
+  });
+});
+
+describe('run/runState: mergeRunCard + runMergeTargetFor (duplicate merging)', () => {
+  /** A shop node with gold=20 and its shelf's FIRST card offer forced to a
+   * known `skillId`/`price` (tier bronze) — every other offer/gem is left as
+   * whatever the seed rolled, so tests only ever touch index 0. */
+  function stateWithForcedOffer(seed: number, skillId: string, price: number): { state: RunState; nodeId: string } {
+    const { state, nodeId } = stateAtFirstShop(seed);
+    const withShelf = ensureRunShopShelf(state, nodeId);
+    const shelf = withShelf.shopShelves[nodeId]!;
+    return {
+      nodeId,
+      state: {
+        ...withShelf,
+        gold: 20,
+        shopShelves: {
+          ...withShelf.shopShelves,
+          [nodeId]: { ...shelf, cards: [{ skillId, tier: 'bronze', price }, ...shelf.cards.slice(1)] },
+        },
+      },
+    };
+  }
+
+  const boardPiece = (tier: SkillTier, skillId = 'sword_slash', slot = 0): RunBoardPiece => (
+    { instanceId: 'card_900', skillId, tier, slot }
+  );
+  const bagCard = (tier: SkillTier, skillId = 'sword_slash'): NonNullable<RunBagSlot> => (
+    { instanceId: 'card_901', skillId, tier }
+  );
+
+  it('runMergeTargetFor is null when the player owns no copy, and finds an owned board copy', () => {
+    const { state } = stateWithForcedOffer(3, 'sword_slash', 2);
+    expect(runMergeTargetFor(state, 'sword_slash')).toBeNull();
+    const owned = { ...state, pieces: [boardPiece('bronze')] };
+    expect(runMergeTargetFor(owned, 'sword_slash')).toEqual({
+      location: 'board', index: 0, instanceId: 'card_900', fromTier: 'bronze', toTier: 'silver',
+    });
+  });
+
+  it('upgrades tier IN PLACE (no new copy added) and consumes the shelf offer, same price/stats as a normal buy', () => {
+    const { state, nodeId } = stateWithForcedOffer(3, 'sword_slash', 2);
+    const owned = { ...state, pieces: [boardPiece('bronze')] };
+    const beforeShelfLen = owned.shopShelves[nodeId]!.cards.length;
+    const result = mergeRunCard(owned, nodeId, 0);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.pieces).toHaveLength(1); // merge replaces tier, never adds a count
+    expect(result.state.pieces[0]).toEqual(boardPiece('silver'));
+    expect(result.state.bagSlots).toEqual(owned.bagSlots);
+    expect(result.state.shopShelves[nodeId]!.cards.length).toBe(beforeShelfLen - 1);
+    expect(result.state.gold).toBe(owned.gold - 2);
+    expect(result.state.stats.goldSpent).toBe(owned.stats.goldSpent + 2);
+    expect(result.state.stats.cardsBought).toBe(owned.stats.cardsBought + 1); // a merge IS a purchase
+  });
+
+  it('targets the LOWEST-tier owned instance across board+bag', () => {
+    const { state, nodeId } = stateWithForcedOffer(3, 'sword_slash', 2);
+    const owned = { ...state, pieces: [boardPiece('gold')], bagSlots: [bagCard('bronze')] };
+    const result = mergeRunCard(owned, nodeId, 0);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.pieces[0]!.tier).toBe('gold'); // untouched — not the lowest tier
+    expect(result.state.bagSlots[0]).toEqual({ instanceId: 'card_901', skillId: 'sword_slash', tier: 'silver' });
+  });
+
+  it('on a tier TIE, the board copy is targeted over the bag copy', () => {
+    const { state, nodeId } = stateWithForcedOffer(3, 'sword_slash', 2);
+    const owned = { ...state, pieces: [boardPiece('bronze')], bagSlots: [bagCard('bronze')] };
+    const result = mergeRunCard(owned, nodeId, 0);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.pieces[0]!.tier).toBe('silver');
+    expect(result.state.bagSlots[0]).toEqual({ instanceId: 'card_901', skillId: 'sword_slash', tier: 'bronze' }); // untouched
+  });
+
+  it('a diamond-only collection has no merge target: fails with reason "no-target", no charge', () => {
+    const { state, nodeId } = stateWithForcedOffer(3, 'sword_slash', 2);
+    const owned = { ...state, pieces: [boardPiece('diamond')] };
+    const result = mergeRunCard(owned, nodeId, 0);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('no-target');
+    expect(result.state).toBe(owned);
+  });
+
+  it('fails cleanly (no charge, no reference change) when gold is short', () => {
+    const { state, nodeId } = stateWithForcedOffer(3, 'sword_slash', 2);
+    const owned = { ...state, gold: 1, pieces: [boardPiece('bronze')] };
+    const result = mergeRunCard(owned, nodeId, 0);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('gold');
+    expect(result.state).toBe(owned);
+  });
+
+  it('a socketed gem survives the merge — tier change never touches the socket', () => {
+    const { state, nodeId } = stateWithForcedOffer(3, 'sword_slash', 2);
+    const gem = gemBook.swift_charm!;
+    const owned = { ...state, pieces: [{ ...boardPiece('bronze'), gem }] };
+    const result = mergeRunCard(owned, nodeId, 0);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.pieces[0]!.gem).toBe(gem);
+    expect(result.state.pieces[0]!.tier).toBe('silver');
+  });
+
+  it('does not mutate the input state (immutability contract)', () => {
+    const { state, nodeId } = stateWithForcedOffer(3, 'sword_slash', 2);
+    const owned = { ...state, pieces: [boardPiece('bronze')] };
+    const piecesSnapshot = JSON.parse(JSON.stringify(owned.pieces));
+    const shelfSnapshot = JSON.parse(JSON.stringify(owned.shopShelves[nodeId]));
+    mergeRunCard(owned, nodeId, 0);
+    expect(owned.pieces).toEqual(piecesSnapshot);
+    expect(owned.shopShelves[nodeId]).toEqual(shelfSnapshot);
+  });
+
+  it('is deterministic: identical input -> identical output, every time', () => {
+    const { state, nodeId } = stateWithForcedOffer(3, 'sword_slash', 2);
+    const owned = { ...state, pieces: [boardPiece('bronze')] };
+    const a = mergeRunCard(owned, nodeId, 0);
+    const b = mergeRunCard(owned, nodeId, 0);
+    expect(a).toEqual(b);
   });
 });
 

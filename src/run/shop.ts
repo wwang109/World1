@@ -237,6 +237,84 @@ export function shopPoolInfo(shopId: string): ShopPoolInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Duplicate merging — "shopping for a card you already own upgrades it one
+// tier instead of adding a copy" (v1, USER-LOCKED 2026-08-04). Pure, and
+// generic over any {instanceId, skillId, tier}-shaped piece/slot so BOTH
+// `src/run/runState.ts` (RunBoardPiece/RunBagSlot) and `src/game/demoState.ts`
+// (OwnedBoardPiece/InventorySlot, the sandbox's mirror shape) can share this
+// ONE targeting rule without `src/run` importing `src/game` or the rule being
+// duplicated. No RNG, no gold math here — callers (buyRunCard's merge
+// sibling, shopActions.ts) own the price/shelf-consumption side.
+// ---------------------------------------------------------------------------
+
+/** Low -> high tier order a merge climbs. Mirrors the identically-named local
+ * constant in `encounter.ts` (kept separate on purpose — that one is a rank
+ * dial, this one is a shop-purchase dial; both must independently track
+ * `SkillTier`'s 4 members, which the exhaustiveness of `MERGEABLE_TIERS`
+ * below plus `tests/run/shop.test.ts` keep honest). */
+export const SKILL_TIER_ORDER: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
+
+/** Every tier a merge can originate FROM — every tier except the ceiling
+ * (diamond can never merge further). */
+const MERGEABLE_TIERS: readonly SkillTier[] = SKILL_TIER_ORDER.slice(0, -1);
+
+/** The tier directly above `tier`, or `null` if `tier` is already the ceiling
+ * (`'diamond'`) — a diamond instance has nowhere left to merge to. */
+export function nextSkillTier(tier: SkillTier): SkillTier | null {
+  const idx = SKILL_TIER_ORDER.indexOf(tier);
+  if (idx < 0 || idx >= SKILL_TIER_ORDER.length - 1) return null;
+  return SKILL_TIER_ORDER[idx + 1]!;
+}
+
+/** A structural (instanceId/skillId/tier)-shaped owned card/piece — the
+ * minimum shape `findMergeTarget` needs, satisfied by both `RunBoardPiece`/
+ * `RunBagSlot` (src/run) and `OwnedBoardPiece`/`InventorySlot` (src/game). */
+export interface MergeableCard {
+  instanceId: string;
+  skillId: string;
+  tier: SkillTier;
+}
+
+export interface MergeTarget {
+  /** Where the merge target instance lives — the board's `pieces` array or
+   * the `bag`/`bagSlots` array, at `index` in whichever one. */
+  location: 'board' | 'bag';
+  index: number;
+  instanceId: string;
+  fromTier: SkillTier;
+  toTier: SkillTier;
+}
+
+/**
+ * The merge target for a shop offer of `skillId`: the LOWEST-tier owned
+ * instance of that skill across BOTH `board` and `bag` — on a tier tie, the
+ * board copy wins (it's the live one). Returns `null` if the player owns no
+ * mergeable (non-diamond) instance of `skillId` (including owning none at
+ * all). Deterministic: within a tier, `board` is always checked before `bag`,
+ * and `Array#findIndex` always returns the first (lowest-index) match, so the
+ * same owned collection always yields the same target.
+ */
+export function findMergeTarget<P extends MergeableCard>(
+  skillId: string,
+  board: readonly P[],
+  bag: readonly (P | null)[],
+): MergeTarget | null {
+  for (const tier of MERGEABLE_TIERS) {
+    const boardIndex = board.findIndex((p) => p.skillId === skillId && p.tier === tier);
+    if (boardIndex >= 0) {
+      const piece = board[boardIndex]!;
+      return { location: 'board', index: boardIndex, instanceId: piece.instanceId, fromTier: tier, toTier: nextSkillTier(tier)! };
+    }
+    const bagIndex = bag.findIndex((c) => c != null && c.skillId === skillId && c.tier === tier);
+    if (bagIndex >= 0) {
+      const card = bag[bagIndex]!;
+      return { location: 'bag', index: bagIndex, instanceId: card.instanceId, fromTier: tier, toTier: nextSkillTier(tier)! };
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Battle gold reward.
 // ---------------------------------------------------------------------------
 

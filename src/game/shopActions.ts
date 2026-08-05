@@ -1,5 +1,5 @@
 import { skillBook } from '../data/skills';
-import { goldPriceOfCard, goldPriceOfGem, rollShopStock } from '../run/shop';
+import { findMergeTarget, goldPriceOfCard, goldPriceOfGem, rollShopStock, type MergeTarget } from '../run/shop';
 import { createOwnedCard, demoState, MAX_GOLD, type ShopShelfState } from './demoState';
 
 /**
@@ -78,6 +78,37 @@ export function buyCard(shopId: string, index: number): BuyResult {
   demoState.gold -= offer.price;
   const owned = createOwnedCard(offer.skillId, offer.tier);
   demoState.bagSlots[fit] = { instanceId: owned.instanceId, skillId: owned.skillId, tier: owned.tier };
+  shelf.cards = shelf.cards.filter((_, i) => i !== index);
+  return { ok: true };
+}
+
+/** Merge target preview for a shop card offer's `skillId` — null if the
+ * player owns no mergeable (non-diamond) instance of it. The BUY confirm
+ * dialog calls this to decide whether to surface the MERGE choice. */
+export function mergeTargetFor(skillId: string): MergeTarget | null {
+  return findMergeTarget(skillId, demoState.pieces, demoState.bagSlots);
+}
+
+export type MergeResult = { ok: true } | { ok: false; reason: 'gold' | 'no-target' | 'gone' };
+
+/** MERGE: buys the card offer at `index` on `shopId`'s current shelf,
+ * upgrading the player's existing lowest-tier owned instance of that skill
+ * one tier instead of adding a copy — same price/shelf-consumption as
+ * `buyCard`. Fails cleanly (no charge) if the wallet can't afford it or the
+ * player owns no mergeable copy of the offered skill. */
+export function mergeCard(shopId: string, index: number): MergeResult {
+  const shelf = demoState.shopShelves[shopId];
+  const offer = shelf?.cards[index];
+  if (!shelf || !offer) return { ok: false, reason: 'gone' };
+  if (demoState.gold < offer.price) return { ok: false, reason: 'gold' };
+  const target = findMergeTarget(offer.skillId, demoState.pieces, demoState.bagSlots);
+  if (!target) return { ok: false, reason: 'no-target' };
+  demoState.gold -= offer.price;
+  if (target.location === 'board') {
+    demoState.pieces = demoState.pieces.map((p, i) => (i === target.index ? { ...p, tier: target.toTier } : p));
+  } else {
+    demoState.bagSlots = demoState.bagSlots.map((c, i) => (i === target.index && c ? { ...c, tier: target.toTier } : c));
+  }
   shelf.cards = shelf.cards.filter((_, i) => i !== index);
   return { ok: true };
 }

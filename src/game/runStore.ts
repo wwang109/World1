@@ -20,13 +20,16 @@ import {
   heroAllocationCost,
   leaveEvent,
   leaveShop,
+  mergeRunCard,
   recordBattleResult,
   rerollRunShop,
   retireRun,
+  runMergeTargetFor,
   setHeroAllocation,
   WAVE_COUNT,
   rollEncounter,
   runBagHasRoomFor,
+  type MergeTarget,
   type RunBagSlot,
   type RunBoardPiece,
   type RunNode,
@@ -282,6 +285,25 @@ export function buyCurrentShopCard(index: number): ShopBuyResult {
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
   const result = buyRunCard(activeRun, node.id, index);
+  if (result.ok) { activeRun = result.state; return { ok: true }; }
+  return { ok: false, reason: result.reason };
+}
+
+export type ShopMergeResult = { ok: true } | { ok: false; reason: 'gold' | 'no-target' | 'gone' };
+
+/** Merge target preview for a shop card offer's `skillId` — null if the
+ * player owns no mergeable (non-diamond) instance of it. The BUY confirm
+ * dialog calls this to decide whether to surface the MERGE choice. */
+export function currentShopMergeTarget(skillId: string): MergeTarget | null {
+  return activeRun ? runMergeTargetFor(activeRun, skillId) : null;
+}
+
+/** MERGE: buys the card offer at `index` on the current shop node's shelf,
+ * upgrading an owned instance one tier instead of adding a copy. */
+export function mergeCurrentShopCard(index: number): ShopMergeResult {
+  const node = currentNode();
+  if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
+  const result = mergeRunCard(activeRun, node.id, index);
   if (result.ok) { activeRun = result.state; return { ok: true }; }
   return { ok: false, reason: result.reason };
 }

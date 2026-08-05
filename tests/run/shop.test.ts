@@ -3,13 +3,17 @@ import {
   battleGoldReward,
   cardMatchesFilter,
   cardPoolForShop,
+  findMergeTarget,
   gemMatchesFilter,
   gemPoolForShop,
   GOLD_PRICE_BY_TIER,
   goldPriceOfCard,
   goldPriceOfGem,
+  nextSkillTier,
   rollShopStock,
   shopPoolInfo,
+  SKILL_TIER_ORDER,
+  type MergeableCard,
 } from '../../src/run/shop';
 import { shopCatalog, shopTypeIds } from '../../src/data/shopTypes';
 import { skillBook } from '../../src/data/skills';
@@ -294,6 +298,70 @@ describe('run/shop: 16-theme catalog (docs/run-shops-design.md §3)', () => {
         }
       }
     }
+  });
+});
+
+describe('run/shop: duplicate merging (nextSkillTier + findMergeTarget)', () => {
+  function card(instanceId: string, skillId: string, tier: MergeableCard['tier']): MergeableCard {
+    return { instanceId, skillId, tier };
+  }
+
+  it('SKILL_TIER_ORDER is the 4 tiers low -> high', () => {
+    expect(SKILL_TIER_ORDER).toEqual(['bronze', 'silver', 'gold', 'diamond']);
+  });
+
+  it('nextSkillTier climbs one rung, and is null at the diamond ceiling', () => {
+    expect(nextSkillTier('bronze')).toBe('silver');
+    expect(nextSkillTier('silver')).toBe('gold');
+    expect(nextSkillTier('gold')).toBe('diamond');
+    expect(nextSkillTier('diamond')).toBeNull();
+  });
+
+  it('returns null when the player owns no copy of the skill at all', () => {
+    const board = [card('c1', 'sword_slash', 'bronze')];
+    const bag = [card('c2', 'fireball', 'bronze')];
+    expect(findMergeTarget('war_banner', board, bag)).toBeNull();
+  });
+
+  it('returns null when EVERY owned copy is already diamond', () => {
+    const board = [card('c1', 'sword_slash', 'diamond')];
+    const bag = [card('c2', 'sword_slash', 'diamond'), null];
+    expect(findMergeTarget('sword_slash', board, bag)).toBeNull();
+  });
+
+  it('targets the LOWEST-tier owned instance, regardless of board/bag location', () => {
+    const board = [card('c1', 'sword_slash', 'gold')];
+    const bag = [card('c2', 'sword_slash', 'bronze')];
+    const target = findMergeTarget('sword_slash', board, bag);
+    expect(target).toEqual({ location: 'bag', index: 0, instanceId: 'c2', fromTier: 'bronze', toTier: 'silver' });
+  });
+
+  it('on a tier TIE, the board copy wins over the bag copy', () => {
+    const board = [card('c1', 'sword_slash', 'bronze')];
+    const bag = [card('c2', 'sword_slash', 'bronze')];
+    const target = findMergeTarget('sword_slash', board, bag);
+    expect(target).toEqual({ location: 'board', index: 0, instanceId: 'c1', fromTier: 'bronze', toTier: 'silver' });
+  });
+
+  it('a diamond copy is skipped in favor of a lower-tier copy elsewhere', () => {
+    const board = [card('c1', 'sword_slash', 'diamond')];
+    const bag = [card('c2', 'sword_slash', 'silver')];
+    const target = findMergeTarget('sword_slash', board, bag);
+    expect(target).toEqual({ location: 'bag', index: 0, instanceId: 'c2', fromTier: 'silver', toTier: 'gold' });
+  });
+
+  it('null bag slots are skipped without throwing', () => {
+    const board: MergeableCard[] = [];
+    const bag = [null, card('c1', 'sword_slash', 'bronze'), null];
+    const target = findMergeTarget('sword_slash', board, bag);
+    expect(target).toEqual({ location: 'bag', index: 1, instanceId: 'c1', fromTier: 'bronze', toTier: 'silver' });
+  });
+
+  it('is generic over any {instanceId, skillId, tier}-shaped piece (structural, not a src/run-only type)', () => {
+    interface FancyPiece extends MergeableCard { slot: number; gem?: null }
+    const board: FancyPiece[] = [{ instanceId: 'p1', skillId: 'sword_slash', tier: 'bronze', slot: 0, gem: null }];
+    const target = findMergeTarget<FancyPiece>('sword_slash', board, []);
+    expect(target?.location).toBe('board');
   });
 });
 

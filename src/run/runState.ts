@@ -36,7 +36,7 @@ import {
   type RunNodeKind,
 } from './runMap';
 import { Rng } from '../engine/rng';
-import { rollShopStock, type CardOffer, type GemOffer } from './shop';
+import { findMergeTarget, rollShopStock, type CardOffer, type GemOffer, type MergeTarget } from './shop';
 
 // ---------------------------------------------------------------------------
 // Board / bag shapes — mirrors the OwnedBoardPiece / InventorySlot model in
@@ -797,6 +797,64 @@ export function buyRunCard(state: RunState, nodeId: string, index: number): RunB
   return { ok: true, state: nextState };
 }
 
+/** The merge target a shop offer of `skillId` would upgrade, or `null` if the
+ * player owns no mergeable (non-diamond) instance — the pure query the UI
+ * calls to decide whether a card's BUY confirm should offer a MERGE choice,
+ * and what tier it would produce. Spends no gold, touches no shelf. */
+export function runMergeTargetFor(state: RunState, skillId: string): MergeTarget | null {
+  return findMergeTarget(skillId, state.pieces, state.bagSlots);
+}
+
+export type RunMergeResult =
+  | { ok: true; state: RunState; target: MergeTarget }
+  | { ok: false; reason: 'gold' | 'no-target' | 'gone'; state: RunState };
+
+/**
+ * MERGE: buy the card offer at `index` on `nodeId`'s shelf, but instead of
+ * adding a new copy, upgrade the player's existing LOWEST-tier owned instance
+ * of that skill one tier (`runMergeTargetFor` — board preferred over bag on a
+ * tier tie). Same price as a normal buy, same shelf consumption, same
+ * `cardsBought`/`goldSpent` stats bump — a merge IS a purchase (locked
+ * design). Only `tier` changes on the merged instance: its `instanceId` and
+ * (board pieces only) socketed `gem` are untouched. Fails cleanly (no charge,
+ * shelf untouched) if the wallet can't afford it or the player owns no
+ * mergeable copy of the offered skill (e.g. every owned copy is already
+ * diamond, or the player owns none at all).
+ */
+export function mergeRunCard(state: RunState, nodeId: string, index: number): RunMergeResult {
+  const shelf = state.shopShelves[nodeId];
+  const offer = shelf?.cards[index];
+  if (!shelf || !offer) return { ok: false, reason: 'gone', state };
+  if (state.gold < offer.price) return { ok: false, reason: 'gold', state };
+  const target = runMergeTargetFor(state, offer.skillId);
+  if (!target) return { ok: false, reason: 'no-target', state };
+
+  const pieces = target.location === 'board'
+    ? state.pieces.map((piece, i) => (i === target.index ? { ...piece, tier: target.toTier } : piece))
+    : state.pieces;
+  const bagSlots = target.location === 'bag'
+    ? state.bagSlots.map((card, i) => (i === target.index && card ? { ...card, tier: target.toTier } : card))
+    : state.bagSlots;
+
+  const nextShelf: RunShopShelf = { ...shelf, cards: shelf.cards.filter((_, i) => i !== index) };
+  return {
+    ok: true,
+    target,
+    state: {
+      ...state,
+      gold: state.gold - offer.price,
+      pieces,
+      bagSlots,
+      shopShelves: { ...state.shopShelves, [nodeId]: nextShelf },
+      stats: {
+        ...state.stats,
+        goldSpent: state.stats.goldSpent + offer.price,
+        cardsBought: state.stats.cardsBought + 1,
+      },
+    },
+  };
+}
+
 /** Buys the gem offer at `index` on `nodeId`'s current shelf: deducts gold,
  * adds it to the (uncapped) gem pouch, and removes the offer from the shelf. */
 export function buyRunGem(state: RunState, nodeId: string, index: number): RunBuyResult {
@@ -879,4 +937,4 @@ export function buyHeroStatAllocation(state: RunState, stat: LevelStat): RunStat
 }
 
 export { WAVE_COUNT };
-export type { RunMap, RunNode, RunNodeKind };
+export type { RunMap, RunNode, RunNodeKind, MergeTarget };
