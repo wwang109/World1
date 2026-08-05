@@ -10,7 +10,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
-import { renderRunStatsAffordance, renderRunStatsGrid, renderRunStatsOverlay, runStatsPairs } from '../ui/RunStatsPanel';
+import { renderRunStatsGrid, renderRunStatsOverlay, runStatsPairs } from '../ui/RunStatsPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   choices,
@@ -114,13 +114,17 @@ export class MobileRunMapScene extends Phaser.Scene {
     }
   }
 
-  /** THE run HUD — identical header on every run screen (`runScreenTemplate`). */
+  /** THE run HUD — identical header on every run screen (`runScreenTemplate`).
+   * `onOpenStatsOverlay` puts the STATS opener ON the stat strip itself
+   * (tap DAY·WAVE·GOLD·LV·LIVES·BOSSES) — replaces the old floating "STATS"
+   * corner tag, which read as misplaced floating over the route board. */
   private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>> | undefined): void {
     renderRunHud(this, {
       screen: 'RUN',
       compact: true,
       snapshot: run ? snapshotRunProgress(run) : EMPTY_HUD_SNAPSHOT,
       onOpenStatPanel: run ? () => { this.statPanelOpen = true; this.rerender(); } : undefined,
+      onOpenStatsOverlay: run ? () => { this.statsOverlayOpen = true; this.rerender(); } : undefined,
       actions: run ? {
         secondary: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
@@ -134,10 +138,6 @@ export class MobileRunMapScene extends Phaser.Scene {
     const routeBounds = { x: 10, y: TEMPLATE.regions.content.y, w: this.W - 20, h: 310 };
     const route = snapshotRunRoute(run);
     renderRunRouteBoard(this, routeBounds, route, { mode: 'mobile' });
-    renderRunStatsAffordance(this, TEMPLATE.regions.content, {
-      compact: true,
-      onPress: () => { this.statsOverlayOpen = true; this.rerender(); },
-    });
 
     if (route.columns.length === 0) return;
     // FIXED position from the template (was derived from the route lane) so the

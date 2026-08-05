@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { type RunState } from '../runStore';
 import { FONT, UI } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
@@ -89,23 +90,22 @@ export interface RunHudOptions {
   /** Press handler for the banked-PL badge slot; omit to render no badge
    * (banked PL is 0, or the screen doesn't support the panel). */
   onOpenStatPanel?: () => void;
+  /**
+   * Mobile-only opener for `RunStatsPanel.ts#renderRunStatsOverlay` — when
+   * given AND `compact` is true, the WHOLE stats-strip rect becomes a tap
+   * target (plus a tiny "⌄" hint drawn right after the stats line) so the
+   * player never has to hunt for a separate floating STATS tag. Desktop
+   * ignores this (its ledger is a permanent flank panel, no opener needed);
+   * omit on any screen that has nothing to open (prep/shop/event/deck today —
+   * only the Run Map scenes wire this).
+   */
+  onOpenStatsOverlay?: () => void;
   actions?: RunHudActions;
   track?: Phaser.GameObjects.GameObject[];
 }
 
 function track(list: Phaser.GameObjects.GameObject[] | undefined, obj: Phaser.GameObjects.GameObject): void {
   list?.push(obj);
-}
-
-/**
- * Alarm colour for the last life. Exactly 1 — NOT `<= 1`: the pre-run "START A
- * NEW RUN" state reports 0 lives (there is no run yet), and `<= 1` painted that
- * whole strip red as if the player were about to die. In a real run 0 lives
- * means the run is already over and the end banner has replaced the strip, so 0
- * is never a live in-run value.
- */
-function livesColor(lives: number): string {
-  return lives === 1 ? '#e0654a' : UI.textAccent;
 }
 
 function drawSlotButton(
@@ -139,18 +139,79 @@ function drawSlotButton(
 
 /** Builds the stats-strip text — the ONE stat string every run screen shows
  * (DAY · WAVE · GOLD · LV · LIVES · BOSSES), so `renderRunHud` and
- * `renderRunStatsStrip` (battle's reduced chrome) can never diverge. */
+ * `renderRunStatsStrip` (battle's reduced chrome) can never diverge. Used
+ * ONLY as a hidden measuring string now (see `drawKickerTitleStats`) — the
+ * actual on-screen line is drawn as colored label/value segments below, but
+ * they must always read identically to this plain concatenation. */
 function statsStripText(compact: boolean, s: RunProgressSnapshot): string {
   return compact
     ? `D${s.day} · W${s.wave} · G${s.gold} · LV${s.heroLevel} · ♥${s.lives} · B${s.bossesCleared}`
     : `DAY ${s.day}   ·   WAVE ${s.wave}   ·   GOLD ${s.gold}   ·   LV ${s.heroLevel}   ·   LIVES ${s.lives}   ·   BOSSES ${s.bossesCleared}`;
 }
 
+/** Which color rule a segment's VALUE half follows — labels are always
+ * `UI.textMuted`. `gold` is the currency tint used everywhere else in the UI;
+ * `lives` goes danger-red at exactly 1 remaining (see the note below), plain
+ * `UI.textBright` otherwise. */
+type StatValueKind = 'default' | 'gold' | 'lives';
+
+interface StatSegment {
+  label: string;
+  value: string;
+  kind: StatValueKind;
+}
+
+/** Same six stats, same order, as `statsStripText` — split into label/value
+ * pairs so each half can carry its own color. */
+function statsStripSegments(compact: boolean, s: RunProgressSnapshot): StatSegment[] {
+  return compact
+    ? [
+      { label: 'D', value: `${s.day}`, kind: 'default' },
+      { label: 'W', value: `${s.wave}`, kind: 'default' },
+      { label: 'G', value: `${s.gold}`, kind: 'gold' },
+      { label: 'LV', value: `${s.heroLevel}`, kind: 'default' },
+      { label: '♥', value: `${s.lives}`, kind: 'lives' },
+      { label: 'B', value: `${s.bossesCleared}`, kind: 'default' },
+    ]
+    : [
+      { label: 'DAY ', value: `${s.day}`, kind: 'default' },
+      { label: 'WAVE ', value: `${s.wave}`, kind: 'default' },
+      { label: 'GOLD ', value: `${s.gold}`, kind: 'gold' },
+      { label: 'LV ', value: `${s.heroLevel}`, kind: 'default' },
+      { label: 'LIVES ', value: `${s.lives}`, kind: 'lives' },
+      { label: 'BOSSES ', value: `${s.bossesCleared}`, kind: 'default' },
+    ];
+}
+
+/**
+ * Alarm colour for the last life. Exactly 1 — NOT `<= 1`: the pre-run "START A
+ * NEW RUN" state reports 0 lives (there is no run yet), and `<= 1` painted that
+ * whole strip red as if the player were about to die. In a real run 0 lives
+ * means the run is already over and the end banner has replaced the strip, so 0
+ * is never a live in-run value.
+ */
+function statSegmentValueColor(kind: StatValueKind, lives: number): string {
+  if (kind === 'gold') return UI.textAccent;
+  if (kind === 'lives') return lives === 1 ? '#e0654a' : UI.textBright;
+  return UI.textBright;
+}
+
 /** Draws kicker + title + the stats string at `t`'s rects — shared by
  * `renderRunHud` (full chrome) and `renderRunStatsStrip` (battle's statsOnly
  * chrome). Kicker/title/stats sit at IDENTICAL rects in both chrome variants
  * (`runScreenTemplate`'s guarantee), so this one function is the only place
- * either of them is drawn from. */
+ * either of them is drawn from.
+ *
+ * The stats line is drawn as SEQUENTIAL label/value Text objects (Phaser text
+ * is single-color) rather than one string: labels in `UI.textMuted`, values in
+ * `UI.textBright` bold, with GOLD's value in the currency accent and LIVES'
+ * value in danger-red at exactly 1 remaining. A hidden measuring pass with the
+ * plain (`statsStripText`) string runs through the same `auditTextBlock`
+ * shrink policy FIRST so every segment shares one font size — shrinking
+ * segments independently could give mismatched sizes on a borderline-width
+ * screen. Returns the x the drawn line ends at (compact/left-aligned mode)
+ * so `renderRunHud` can hang its mobile disclosure hint right after it.
+ */
 function drawKickerTitleStats(
   scene: Phaser.Scene,
   t: RunScreenTemplate,
@@ -158,7 +219,7 @@ function drawKickerTitleStats(
   snapshot: RunProgressSnapshot,
   compact: boolean,
   track_: Phaser.GameObjects.GameObject[] | undefined,
-): void {
+): { statsEndX: number } {
   const F = compact ? { kicker: 9, title: 16, stats: 9 } : { kicker: 12, title: 26, stats: 12 };
 
   // ---- kicker + title ----
@@ -174,17 +235,50 @@ function drawKickerTitleStats(
   auditTextBlock(title, { name: 'Run HUD title', maxWidth: t.regions.title.width, maxHeight: t.regions.title.height + 4, minFontSize: 10 });
 
   // ---- stats strip — ALWAYS this order, ALWAYS this slot ----
-  const statsText = statsStripText(compact, snapshot);
   const statsRect = t.regions.stats;
-  const stats = scene.add.text(
-    compact ? statsRect.x : statsRect.x + statsRect.width,
-    statsRect.y,
-    statsText,
-    { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.stats}px`, color: livesColor(snapshot.lives) },
-  );
-  if (!compact) stats.setOrigin(1, 0);
-  track(track_, stats);
-  auditTextBlock(stats, { name: 'Run HUD stats', maxWidth: statsRect.width, maxHeight: statsRect.height + 6, minFontSize: 7 });
+  const baseStyle = { fontFamily: FONT.body, fontStyle: 'bold' as const, fontSize: `${F.stats}px` };
+
+  // Hidden measuring pass: same shrink-then-truncate policy as every other
+  // audited label, run ONCE against the plain string so the whole segmented
+  // line shares a single (possibly shrunk) font size.
+  const measure = scene.add.text(0, 0, statsStripText(compact, snapshot), baseStyle).setVisible(false);
+  auditTextBlock(measure, { name: 'Run HUD stats', maxWidth: statsRect.width, maxHeight: statsRect.height + 6, minFontSize: 7 });
+  const fontSize = Number.parseFloat(String(measure.style.fontSize));
+  measure.destroy();
+
+  const sep = compact ? ' · ' : '   ·   ';
+  const segments = statsStripSegments(compact, snapshot);
+  const segmentTexts: Phaser.GameObjects.Text[] = [];
+  let cursor = 0;
+  segments.forEach((seg, i) => {
+    const label = scene.add.text(cursor, statsRect.y, seg.label, {
+      ...baseStyle, fontSize: `${fontSize}px`, color: UI.textMuted,
+    });
+    segmentTexts.push(label);
+    cursor += label.width;
+    const value = scene.add.text(cursor, statsRect.y, seg.value, {
+      ...baseStyle, fontSize: `${fontSize}px`, color: statSegmentValueColor(seg.kind, snapshot.lives),
+    });
+    segmentTexts.push(value);
+    cursor += value.width;
+    if (i < segments.length - 1) {
+      const sepText = scene.add.text(cursor, statsRect.y, sep, { ...baseStyle, fontSize: `${fontSize}px`, color: UI.textMuted });
+      segmentTexts.push(sepText);
+      cursor += sepText.width;
+    }
+  });
+  const totalWidth = cursor;
+  // Left-aligned (compact) starts at the rect's left edge; full chrome stays
+  // right-aligned to the rect's right edge (unchanged from the old single-
+  // string `stats.setOrigin(1, 0)` behavior).
+  const startX = compact ? statsRect.x : statsRect.x + statsRect.width - totalWidth;
+  let x = startX;
+  for (const obj of segmentTexts) {
+    obj.setX(x);
+    x += obj.width;
+    track(track_, obj);
+  }
+  return { statsEndX: startX + totalWidth };
 }
 
 /**
@@ -200,7 +294,22 @@ export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
     ? { kicker: 9, title: 16, stats: 9, action: 8 }
     : { kicker: 12, title: 26, stats: 12, action: 10 };
 
-  drawKickerTitleStats(scene, t, opts.screen, opts.snapshot, opts.compact, opts.track);
+  const { statsEndX } = drawKickerTitleStats(scene, t, opts.screen, opts.snapshot, opts.compact, opts.track);
+
+  // ---- mobile STATS opener: the whole stats-strip rect is the tap target,
+  // plus a tiny "⌄" hint right after the line, so it reads as pressable
+  // instead of a plain readout (replaces the old floating STATS corner tag).
+  if (opts.compact && opts.onOpenStatsOverlay) {
+    const statsRect = t.regions.stats;
+    const hitZone = scene.add.rectangle(statsRect.x, statsRect.y - 2, statsRect.width, statsRect.height + 4, 0x000000, 0)
+      .setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    track(opts.track, hitZone);
+    hitZone.on('pointerdown', () => { playSfx('uiClick'); opts.onOpenStatsOverlay!(); });
+    const hint = scene.add.text(statsEndX + 4, statsRect.y, '⌄', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.stats + 1}px`, color: UI.textMuted,
+    });
+    track(opts.track, hint);
+  }
 
   // ---- banked-PL badge — its OWN slot (no longer fighting stats for the corner) ----
   if (opts.onOpenStatPanel) {

@@ -7,15 +7,18 @@ import { type Rect, runScreenTemplate } from './runScreenTemplate';
 
 /**
  * Run stats — a read-only ledger view over `RunState.stats`/`wins`/`losses`/
- * `bossesCleared` (see `src/run/runState.ts#RunStats`), shared by two
+ * `bossesCleared` (see `src/run/runState.ts#RunStats`), shown across several
  * surfaces:
  *   - the Run Map's end-summary banner (defeat/retired), which renders the
  *     grid straight into its own full-screen layout;
- *   - a toggleable in-run overlay (`renderRunStatsOverlay`), reached via a
- *     small "STATS" affordance the Run Map scenes draw in their OWN content
- *     region (deliberately not one of `RunProgressStrip.ts`'s shared HUD
- *     action slots — `primary` is reserved for each screen's single forward
- *     action, which the Run Map doesn't have; see `renderRunStatsAffordance`).
+ *   - DESKTOP's Run Map: a PERMANENT flank panel (`renderRunStatsFlankPanel`,
+ *     2026-08-04 density pass) beside the fixed choices column — no tap
+ *     needed, it's always on screen, so desktop no longer opens the overlay
+ *     below at all;
+ *   - MOBILE's Run Map: a toggleable overlay (`renderRunStatsOverlay`),
+ *     reached by tapping `RunProgressStrip.ts`'s stat strip itself
+ *     (`renderRunHud`'s `onOpenStatsOverlay` — the old floating "STATS"
+ *     corner tag this module used to draw is gone on both platforms).
  *
  * Pure presentation: every value already lives on `RunState`, floored/
  * accumulated by `src/run`. This module only formats and lays it out.
@@ -105,31 +108,108 @@ export function renderRunStatsGrid(
 }
 
 /**
- * Small "STATS" tag the Run Map scenes draw in the TOP-RIGHT corner of their
- * own `runScreenTemplate` content region (never inside the shared HUD action
- * row — see module doc). Opens `renderRunStatsOverlay` below.
+ * Desktop's PERMANENT run ledger — lives in the flank beside the fixed
+ * choices column, always visible (no tap needed). Replaces the old floating
+ * "STATS" corner tag on desktop entirely: reuses `renderRunStatsGrid` (the
+ * SAME ledger the end-summary banner and mobile's overlay show) inside a
+ * bordered panel with a header, so the numbers are never a one-off restyle.
+ * Desktop-only — mobile has no flank to put this in; its opener lives on
+ * `RunProgressStrip.ts`'s stat strip instead (`onOpenStatsOverlay`).
  */
-export function renderRunStatsAffordance(
+export function renderRunStatsFlankPanel(
   scene: Phaser.Scene,
-  contentRect: Rect,
-  opts: { compact: boolean; onPress: () => void },
+  rect: Rect,
+  run: RunStatsSource,
 ): void {
-  const w = opts.compact ? 62 : 76;
-  const h = opts.compact ? 20 : 24;
-  const x = contentRect.x + contentRect.width - w;
-  const y = contentRect.y;
-  const fontSize = opts.compact ? 9 : 11;
+  const { x, y, width: w, height: h } = rect;
+  scene.add.rectangle(x, y, w, h, UI.panelMuted, 0.55).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
 
-  const btn = scene.add.rectangle(x, y, w, h, UI.panelAlt, 0.92).setOrigin(0, 0)
-    .setStrokeStyle(1, UI.chip, 0.9).setInteractive({ useHandCursor: true }).setDepth(20);
-  const label = scene.add.text(x + w / 2, y + h / 2, 'STATS', {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${fontSize}px`, color: UI.textAccent,
-  }).setOrigin(0.5).setDepth(21);
-  auditTextBlock(label, { name: 'Run map STATS affordance', maxWidth: w - 8, maxHeight: h - 2, minFontSize: 7 });
+  const pad = 16;
+  const innerX = x + pad;
+  const innerW = w - pad * 2;
+  const pairs = runStatsPairs(run);
+  // Vertically centered — the flank is taller than this panel's natural
+  // content height (it reaches down to the content region's floor, see
+  // `DesktopRunMapScene#renderFlanks`), so center rather than top-pin it to
+  // avoid a lopsided block of empty space below the grid.
+  const blockH = 24 + 14 + runStatsGridHeight(pairs.length, false);
+  let cursor = y + Math.max(pad, (h - blockH) / 2);
 
-  btn.on('pointerover', () => btn.setFillStyle(UI.slotHover));
-  btn.on('pointerout', () => btn.setFillStyle(UI.panelAlt));
-  btn.on('pointerdown', () => { playSfx('uiClick'); opts.onPress(); });
+  const header = scene.add.text(innerX, cursor, 'RUN LEDGER', {
+    fontFamily: FONT.display, fontStyle: 'bold', fontSize: '17px', color: UI.text,
+  });
+  auditTextBlock(header, { name: 'Desktop run map ledger header', maxWidth: innerW, maxHeight: 22, minFontSize: 12 });
+  cursor += 24;
+
+  scene.add.rectangle(innerX, cursor, innerW, 1, UI.border, 0.5).setOrigin(0, 0);
+  cursor += 14;
+
+  renderRunStatsGrid(scene, innerX, cursor, innerW, pairs, { compact: false });
+}
+
+export interface RunBossCountdownInfo {
+  /** Waves remaining until the next `BOSS_EVERY`-th wave; 0 == this wave IS
+   * the boss wave (`src/run/runMap.ts#BOSS_EVERY`, read via the caller — this
+   * module only formats whatever it's handed). */
+  wavesRemaining: number;
+  /** The wave number the next boss milestone lands on. */
+  bossWave: number;
+}
+
+/**
+ * Desktop's companion callout in the OTHER flank (opposite the ledger) — the
+ * next milestone-boss countdown, so both sides of the fixed choices column
+ * carry real, permanent content instead of one side sitting empty. Pure
+ * presentation over caller-supplied `RunBossCountdownInfo` (the wave-cadence
+ * math is the run layer's, not this module's — see `runStore.ts#WAVE_COUNT`).
+ */
+export function renderRunBossCountdownPanel(
+  scene: Phaser.Scene,
+  rect: Rect,
+  info: RunBossCountdownInfo,
+  bossesCleared: number,
+): void {
+  const { x, y, width: w, height: h } = rect;
+  scene.add.rectangle(x, y, w, h, UI.panelMuted, 0.55).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
+
+  const pad = 16;
+  const innerX = x + pad;
+  const innerW = w - pad * 2;
+  const bossNow = info.wavesRemaining <= 0;
+
+  // Vertically centered content block — this panel's copy is short by
+  // design (a callout, not a dense grid), so it's centered in its bordered
+  // box rather than stretched, the same idiom a "highlight card" would use.
+  const blockH = 17 + 8 + 30 + 8 + 13 + 14 + 1 + 12 + 13;
+  let cursor = y + Math.max(pad, (h - blockH) / 2);
+
+  const kicker = scene.add.text(innerX, cursor, 'NEXT MILESTONE', {
+    fontFamily: FONT.display, fontStyle: 'bold', fontSize: '17px', color: UI.text,
+  });
+  auditTextBlock(kicker, { name: 'Desktop run map boss countdown header', maxWidth: innerW, maxHeight: 22, minFontSize: 12 });
+  cursor += 25;
+
+  const big = scene.add.text(innerX, cursor, bossNow ? 'BOSS THIS WAVE' : `${info.wavesRemaining} WAVE${info.wavesRemaining === 1 ? '' : 'S'} TO GO`, {
+    // Danger red matches the RETIRE/last-life tint elsewhere in the HUD, not
+    // `UI.bad` (a numeric fill color, not a valid CSS text color).
+    fontFamily: FONT.body, fontStyle: 'bold', fontSize: '20px', color: bossNow ? '#e0654a' : UI.textAccent,
+  });
+  auditTextBlock(big, { name: 'Desktop run map boss countdown headline', maxWidth: innerW, maxHeight: 28, minFontSize: 13 });
+  cursor += 38;
+
+  const sub = scene.add.text(innerX, cursor, `BOSS AT WAVE ${info.bossWave}`, {
+    fontFamily: FONT.body, fontSize: '11px', color: UI.textSoft,
+  });
+  auditTextBlock(sub, { name: 'Desktop run map boss countdown sub-line', maxWidth: innerW, maxHeight: 16, minFontSize: 8 });
+  cursor += 27;
+
+  scene.add.rectangle(innerX, cursor, innerW, 1, UI.border, 0.5).setOrigin(0, 0);
+  cursor += 13;
+
+  const clearedLine = scene.add.text(innerX, cursor, `BOSSES CLEARED ${bossesCleared}`, {
+    fontFamily: FONT.body, fontStyle: 'bold', fontSize: '12px', color: UI.textDim,
+  });
+  auditTextBlock(clearedLine, { name: 'Desktop run map bosses-cleared line', maxWidth: innerW, maxHeight: 16, minFontSize: 8 });
 }
 
 /**

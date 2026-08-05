@@ -10,7 +10,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
-import { renderRunStatsAffordance, renderRunStatsGrid, renderRunStatsOverlay, runStatsPairs } from '../ui/RunStatsPanel';
+import { renderRunBossCountdownPanel, renderRunStatsFlankPanel, renderRunStatsGrid, runStatsPairs } from '../ui/RunStatsPanel';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   choices,
@@ -21,6 +21,7 @@ import {
   pickNode,
   previewEncounter,
   retireActiveRun,
+  WAVE_COUNT,
   type RunNode,
   type RunNodeKind,
 } from '../runStore';
@@ -61,14 +62,12 @@ const KIND_LABEL: Record<RunNodeKind, string> = {
 export class DesktopRunMapScene extends Phaser.Scene {
   private statPanelOpen = false;
   private retireConfirmOpen = false;
-  private statsOverlayOpen = false;
 
   constructor() { super('DesktopRunMap'); }
 
   init(): void {
     this.statPanelOpen = false;
     this.retireConfirmOpen = false;
-    this.statsOverlayOpen = false;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -112,12 +111,6 @@ export class DesktopRunMapScene extends Phaser.Scene {
         onConfirm: () => { retireActiveRun(); this.rerender(); },
       });
     }
-    if (this.statsOverlayOpen) {
-      renderRunStatsOverlay(this, {
-        compact: false,
-        onClose: () => { this.statsOverlayOpen = false; this.rerender(); },
-      });
-    }
   }
 
   /** THE run HUD — identical header on every run screen (`runScreenTemplate`).
@@ -145,18 +138,56 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const route = snapshotRunRoute(run);
     const bounds = { x: GX, y: top, w: area, h: bottom - top };
     renderRunRouteBoard(this, bounds, route, { mode: 'desktop' });
-    renderRunStatsAffordance(this, TEMPLATE.regions.content, {
-      compact: false,
-      onPress: () => { this.statsOverlayOpen = true; this.rerender(); },
-    });
 
-    if (route.columns.length === 0) return;
     // FIXED position from the template — the choices used to be centred on the
     // player's current depth, so they slid across the screen as the run
     // advanced and had to be re-found every stop. The route board below still
     // shows where you are; the thing you CLICK never moves.
     const slot = TEMPLATE.contentSlots.choices;
+    this.renderFlanks(run, slot);
+    if (route.columns.length === 0) return;
     this.renderChoiceColumn(slot.x, slot.y, slot.width, slot.height);
+  }
+
+  /**
+   * Density pass (2026-08-04, live user feedback: "a lot of dead space ...
+   * stats is in a bad location"): the flanks either side of the FIXED choices
+   * column used to sit empty (just the thin route trail passing behind
+   * them). Desktop now gives the run ledger a PERMANENT home in the right
+   * flank — no tap required, unlike the floating "STATS" corner tag it
+   * replaces — and a next-boss-milestone countdown in the left flank, so
+   * both margins carry real, always-visible content and the three columns
+   * (countdown | choices | ledger) read as one balanced row.
+   */
+  private renderFlanks(
+    run: NonNullable<ReturnType<typeof getActiveRun>>,
+    choicesSlot: { x: number; y: number; width: number; height: number },
+  ): void {
+    const gap = 24;
+    const content = TEMPLATE.regions.content;
+    const contentRight = content.x + content.width;
+    const leftWidth = choicesSlot.x - GX - gap;
+    const rightX = choicesSlot.x + choicesSlot.width + gap;
+    const rightWidth = contentRight - rightX;
+    // Taller than the choices column itself — this reaches down past where
+    // the choices panels stop (closing the "desktop below-choices" dead band
+    // the flanks used to leave open) down to the content region's own floor.
+    const flankHeight = content.y + content.height - choicesSlot.y - 12;
+
+    if (leftWidth > 40) {
+      const snapshot = snapshotRunProgress(run);
+      const bossEvery = WAVE_COUNT;
+      const wavesRemaining = (bossEvery - (snapshot.wave % bossEvery)) % bossEvery;
+      renderRunBossCountdownPanel(
+        this,
+        { x: GX, y: choicesSlot.y, width: leftWidth, height: flankHeight },
+        { wavesRemaining, bossWave: snapshot.wave + wavesRemaining },
+        run.bossesCleared,
+      );
+    }
+    if (rightWidth > 40) {
+      renderRunStatsFlankPanel(this, { x: rightX, y: choicesSlot.y, width: rightWidth, height: flankHeight }, run);
+    }
   }
 
   private renderChoiceColumn(x: number, top: number, w: number, availableH: number): void {
