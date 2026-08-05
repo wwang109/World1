@@ -728,14 +728,16 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // A lethal damage event is the meaningful end of playback. Do not force
   // the player through separate DOWN/RESULT ticks after HP has already hit 0.
   // Multi-foe: the fight only ends when the player OR every enemy is down.
-  // EXCEPTION — same-step mutual wipe: truncating at the FIRST zero hides the
-  // other side's simultaneous death, freezes its HP bar at a stale value, and
-  // skips the explanatory RESULT line entirely — the player sees themselves
-  // die and then "VICTORY" (real playtest report). When BOTH sides ended at 0,
-  // keep the full tail (second DOWN + RESULT) so the outcome is legible.
+  // Same-step MUTUAL wipe (both sides ended at 0): playback still STOPS right
+  // here — the victor is already determined (tempo tiebreak) — but the final
+  // frame must tell the truth: both HP bars read 0 (backfilled from final
+  // state below) and the banner says BOTH FELL. Without that, the other
+  // side's bar froze at a stale value and "VICTORY" read like a bug
+  // (playtest report 2026-08-04; user chose stop-at-decision over playing
+  // the tail out).
   const finalHp = snapHp();
   const mutualWipe = finalHp.player <= 0 && (finalHp.enemies ?? [finalHp.enemy]).every((v) => v <= 0);
-  const lethalStep = mutualWipe ? -1 : hpByStep.findIndex((snapshot) =>
+  const lethalStep = hpByStep.findIndex((snapshot) =>
     snapshot.player <= 0 || (snapshot.enemies ?? [snapshot.enemy]).every((v) => v <= 0));
   if (lethalStep >= 0) {
     steps = steps.slice(0, lethalStep + 1);
@@ -744,6 +746,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     fxByStep = fxByStep.slice(0, lethalStep + 1);
     focusFoeByStep = focusFoeByStep.slice(0, lethalStep + 1);
     summaryByStep = summaryByStep.slice(0, lethalStep + 1);
+    if (mutualWipe) {
+      hpByStep[hpByStep.length - 1] = finalHp;
+      shieldByStep[shieldByStep.length - 1] = snapShield();
+    }
   }
   const resultStep = steps.findIndex((step) => {
     const line = linesByTurn.get(step.turn)?.[step.lineIndex];
