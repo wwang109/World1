@@ -162,15 +162,17 @@ export class MobileShopScene extends Phaser.Scene {
   // ---------- storefront ----------
 
   private renderStorefront(): void {
-    this.add.text(12, 50, 'CHOOSE A SHOP', { fontSize: `${F.label}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
+    this.add.text(12, 46, 'CHOOSE A SHOP', { fontSize: `${F.label}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
     // 16 themes won't fit as full-width rows (they ran off the bottom), so the
-    // picker is a 2-column grid sized to the remaining screen height.
-    const top = 70;
+    // picker is a 2-column grid sized to the remaining screen height. Sized
+    // (not capped low) to actually fill that height — the old fixed 76px cap
+    // left ~140px of dead space below row 8 on a 892-tall canvas.
+    const top = 60;
     const cols = 2;
-    const gap = 8;
+    const gap = 6;
     const cellW = (this.W - 20 - gap * (cols - 1)) / cols;
     const rows = Math.ceil(shopTypeIds.length / cols);
-    const h = Math.min(76, (this.H - top - 12 - gap * (rows - 1)) / rows);
+    const h = Math.min(100, (this.H - top - 12 - gap * (rows - 1)) / rows);
     shopTypeIds.forEach((id, i) => {
       const shop = shopCatalog[id]!;
       const x = 10 + (i % cols) * (cellW + gap);
@@ -222,15 +224,36 @@ export class MobileShopScene extends Phaser.Scene {
       }
     }
 
-    let y = top + 58;
     const cardSlots = info.cardSlots;
+    const gemSlots = info.gemSlots;
+
+    // Row heights fill the space between the header and the screen bottom
+    // (Run Mode: the footer bar) instead of a fixed 66/58px that left a
+    // large blank strip below a typical 4-card/3-gem shelf — that gap WAS
+    // the "dead space" complaint on mobile. A card row weighs more than a
+    // gem row (it shows a full CardToken, not just name+text+price), so it
+    // claims a bigger share of the same per-unit height.
+    const contentTop = top + 58;
+    const bottomLimit = (runShop ? TEMPLATE.regions.footer.y : this.H - MOBILE_PROFILE.safe.bottom) - 12;
+    const rowGap = 8;
+    const labelH = 16;
+    const cardWeight = 1.15;
+    const sectionGap = cardSlots > 0 && gemSlots > 0 ? 10 : 0;
+    const totalUnits = cardSlots * cardWeight + gemSlots;
+    const totalGaps = Math.max(0, cardSlots - 1) * rowGap + Math.max(0, gemSlots - 1) * rowGap + sectionGap;
+    const totalLabels = (cardSlots > 0 ? labelH : 0) + (gemSlots > 0 ? labelH : 0);
+    const usable = Math.max(0, bottomLimit - contentTop - totalLabels - totalGaps);
+    const unit = totalUnits > 0 ? usable / totalUnits : 0;
+    const cardH = Phaser.Math.Clamp(unit * cardWeight, 60, 100);
+    const gemH = Phaser.Math.Clamp(unit, 50, 84);
+
+    let y = contentTop;
     if (cardSlots > 0) {
       this.add.text(12, y, `CARDS · ${shelf.cards.length}/${cardSlots}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
-      y += 16;
-      const cardH = 66;
+      y += labelH;
       for (let i = 0; i < cardSlots; i++) {
         const offer = shelf.cards[i];
-        if (!offer) { this.emptySlot(y, cardH); y += cardH + 6; continue; }
+        if (!offer) { this.emptySlot(y, cardH); y += cardH + rowGap; continue; }
         const base = skillBook[offer.skillId]!;
         const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
         new CardToken(this, 10 + (this.W - 20) / 2, y + cardH / 2, skill, { width: this.W - 20, height: cardH, side: 'left' });
@@ -238,19 +261,20 @@ export class MobileShopScene extends Phaser.Scene {
         hit.on('pointerdown', () => { playSfx('uiClick'); this.detailCardIndex = i; this.detailTier = offer.tier; this.rerender(); });
         const affordable = this.activeGold() >= offer.price;
         this.add.text(this.W - 16, y + 6, `${offer.price} G`, { fontSize: `${F.small}px`, color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setBackgroundColor('#0b1420').setPadding(4, 2, 4, 2);
-        y += cardH + 6;
+        y += cardH + rowGap;
       }
-      y += 6;
+      // Undo the last row's trailing rowGap and replace it with the (only
+      // meaningful when a GEMS section follows) sectionGap — 0 otherwise, so
+      // `y` never drifts past where the cards content actually ends.
+      y += sectionGap - rowGap;
     }
 
-    const gemSlots = info.gemSlots;
     if (gemSlots > 0) {
       this.add.text(12, y, `GEMS · ${shelf.gems.length}/${gemSlots}`, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
-      y += 16;
-      const gemH = 58;
+      y += labelH;
       for (let i = 0; i < gemSlots; i++) {
         const offer = shelf.gems[i];
-        if (!offer) { this.emptySlot(y, gemH); y += gemH + 6; continue; }
+        if (!offer) { this.emptySlot(y, gemH); y += gemH + rowGap; continue; }
         const gem = gemBook[offer.gemId]!;
         const cell = this.add.rectangle(10, y, this.W - 20, gemH, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8).setInteractive({ useHandCursor: true });
         cell.on('pointerdown', () => { playSfx('uiClick'); this.detailGemIndex = i; this.rerender(); });
@@ -258,10 +282,10 @@ export class MobileShopScene extends Phaser.Scene {
         this.add.text(42, y + 8, gem.name, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' });
         const body = this.add.text(42, y + 24, stripCardTextMarkup(gem.text), { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: this.W - 100 } });
         let s = stripCardTextMarkup(gem.text);
-        while (s.length > 1 && body.height > 24) { s = s.slice(0, -1); body.setText(`${s}…`); }
+        while (s.length > 1 && body.height > gemH - 34) { s = s.slice(0, -1); body.setText(`${s}…`); }
         const affordable = this.activeGold() >= offer.price;
         this.add.text(this.W - 20, y + gemH - 18, `${offer.price} G`, { fontSize: `${F.small}px`, color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
-        y += gemH + 6;
+        y += gemH + rowGap;
       }
     }
 
