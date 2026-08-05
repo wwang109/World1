@@ -158,6 +158,9 @@ export interface BattleTimeline {
    * `undefined` = no specific foe (fallback steps, RESULT-only turns). */
   focusFoeByStep: Array<number | undefined>;
   outcome: string;
+  /** True when BOTH sides ended at 0 HP in the same step — the engine's tempo
+   * tiebreak decided `outcome`, and the banner should say both fell. */
+  mutualWipe: boolean;
   /** First playback step that contains the defeated unit's DOWN log (or the
    * normal end-of-playback RESULT step for a draw / event-less log). */
   outcomeStep: number;
@@ -634,7 +637,16 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         break;
       }
       case 'died': push(e.turn, 'DOWN', `${label(e)} falls`); break;
-      case 'combatEnd': push(e.turn, 'RESULT', `${outcome} · ${e.turns} turns`); break;
+      case 'combatEnd': {
+        // combatEnd is the log's final event, so HP here is final state — a
+        // same-step MUTUAL wipe (both sides at 0) is decided by the engine's
+        // tempo tiebreak (decideOutcome) and must SAY so, or the survivor-less
+        // "VICTORY" reads like a bug (live playtest report 2026-08-04).
+        const hp = snapHp();
+        const bothFell = hp.player <= 0 && (hp.enemies ?? [hp.enemy]).every((v) => v <= 0);
+        push(e.turn, 'RESULT', `${outcome} · ${e.turns} turns${bothFell ? ' · BOTH FELL — tempo tiebreak' : ''}`);
+        break;
+      }
       default: break;
     }
     // This event's own contribution (damage/heal/shield/dot increments above)
@@ -716,7 +728,14 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // A lethal damage event is the meaningful end of playback. Do not force
   // the player through separate DOWN/RESULT ticks after HP has already hit 0.
   // Multi-foe: the fight only ends when the player OR every enemy is down.
-  const lethalStep = hpByStep.findIndex((snapshot) =>
+  // EXCEPTION — same-step mutual wipe: truncating at the FIRST zero hides the
+  // other side's simultaneous death, freezes its HP bar at a stale value, and
+  // skips the explanatory RESULT line entirely — the player sees themselves
+  // die and then "VICTORY" (real playtest report). When BOTH sides ended at 0,
+  // keep the full tail (second DOWN + RESULT) so the outcome is legible.
+  const finalHp = snapHp();
+  const mutualWipe = finalHp.player <= 0 && (finalHp.enemies ?? [finalHp.enemy]).every((v) => v <= 0);
+  const lethalStep = mutualWipe ? -1 : hpByStep.findIndex((snapshot) =>
     snapshot.player <= 0 || (snapshot.enemies ?? [snapshot.enemy]).every((v) => v <= 0));
   if (lethalStep >= 0) {
     steps = steps.slice(0, lethalStep + 1);
@@ -758,6 +777,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     fxByStep,
     focusFoeByStep,
     outcome,
+    mutualWipe,
     outcomeStep,
     combatSummary,
     summaryByStep,

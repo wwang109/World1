@@ -111,6 +111,8 @@ export class DesktopBattleScene extends Phaser.Scene {
   private heroStats: ScalingStats = { attack: 0, magicPower: 0 };
   private heroStatLine = '';
   private outcome = '';
+  /** Both sides at 0 in the same step — tempo tiebreak decided `outcome`. */
+  private mutualWipe = false;
   private combatSummary: CombatSummary = { playerDamage: 0, enemyDamage: 0, playerHealing: 0, cards: [] };
   private summaryByStep: CombatSummary[] = [];
   private outcomeStep = -1;
@@ -290,6 +292,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.fxByStep = model.fxByStep;
     this.focusFoeByStep = model.focusFoeByStep;
     this.outcome = model.outcome;
+    this.mutualWipe = model.mutualWipe;
     this.outcomeStep = model.outcomeStep;
     this.combatSummary = model.combatSummary;
     this.summaryByStep = model.summaryByStep;
@@ -701,7 +704,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     const gridRows = Math.max(1, Math.ceil(summaryRows.length / columns));
 
     const pw = 640;
-    const bannerH = isOutcomeStep ? 52 : 0;
+    const bannerH = isOutcomeStep ? 52 + (this.mutualWipe ? 16 : 0) : 0;
     const bannerGap = isOutcomeStep ? 10 : 0;
     const pad = 16;
     // banner (if any) + totals row + CARD OUTPUT label + grid + padding
@@ -721,6 +724,13 @@ export class DesktopBattleScene extends Phaser.Scene {
         this.add.text(px + pw / 2 + 8, py + bannerH / 2 + 12, `LEVEL UP → LV ${currentHeroLevel()} · ${currentBankedPL()} PL BANKED`, {
           fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
         }).setOrigin(0, 0.5);
+      }
+      if (this.mutualWipe) {
+        // Same-step mutual kill: without this line the survivor-less
+        // "VICTORY"/"DEFEAT" reads like a bug (playtest report 2026-08-04).
+        this.add.text(px + pw / 2, py + bannerH - 10, 'BOTH FELL — the faster side takes it', {
+          fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textMuted,
+        }).setOrigin(0.5);
       }
     }
 

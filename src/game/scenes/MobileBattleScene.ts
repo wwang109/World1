@@ -113,6 +113,8 @@ export class MobileBattleScene extends Phaser.Scene {
   private heroStats: ScalingStats = { attack: 0, magicPower: 0 };
   private heroStatLine = '';
   private outcome = '';
+  /** Both sides at 0 in the same step — tempo tiebreak decided `outcome`. */
+  private mutualWipe = false;
   private combatSummary: CombatSummary = { playerDamage: 0, enemyDamage: 0, playerHealing: 0, cards: [] };
   private summaryByStep: CombatSummary[] = [];
   /** First playback step that contains the defeated unit's DOWN log. */
@@ -297,6 +299,7 @@ export class MobileBattleScene extends Phaser.Scene {
     this.fxByStep = model.fxByStep;
     this.focusFoeByStep = model.focusFoeByStep;
     this.outcome = model.outcome;
+    this.mutualWipe = model.mutualWipe;
     this.outcomeStep = model.outcomeStep;
     this.combatSummary = model.combatSummary;
     this.summaryByStep = model.summaryByStep;
@@ -609,7 +612,7 @@ export class MobileBattleScene extends Phaser.Scene {
       const summaryColumns = 2;
       const summaryRowH = 34;
       const summaryH = 74 + Math.max(1, Math.ceil(summaryRows.length / summaryColumns)) * summaryRowH;
-      const bannerH = isOutcomeStep ? (getBattleContext() === 'run' ? 66 : 52) : 0;
+      const bannerH = isOutcomeStep ? (getBattleContext() === 'run' ? 66 : 52) + (this.mutualWipe ? 16 : 0) : 0;
       const bannerGap = isOutcomeStep ? 8 : 0;
       const blockH = summaryH + bannerGap + bannerH;
       const summaryBy = top + (colH - blockH) / 2;
@@ -656,6 +659,13 @@ export class MobileBattleScene extends Phaser.Scene {
           // `resolveRunBattleResult` already applied it before this renders.
           this.add.text(this.W / 2, by + 50, `LEVEL UP → LV ${currentHeroLevel()} · ${currentBankedPL()} PL BANKED`, {
             fontSize: `${F.small}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
+          }).setOrigin(0.5).setDepth(D);
+        }
+        if (this.mutualWipe) {
+          // Same-step mutual kill: without this line the survivor-less
+          // "VICTORY"/"DEFEAT" reads like a bug (playtest report 2026-08-04).
+          this.add.text(this.W / 2, by + (getBattleContext() === 'run' ? 68 : 52), 'BOTH FELL — the faster side takes it', {
+            fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold',
           }).setOrigin(0.5).setDepth(D);
         }
       }
