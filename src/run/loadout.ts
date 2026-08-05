@@ -209,27 +209,30 @@ export function moveWithinStrip(
  * hold one gem; these helpers just manage attach/detach/swap of that single
  * slot. Gems themselves are reusable assets that move between fights (locked
  * design), hence `swapGem` returns the displaced gem rather than discarding it.
+ *
+ * Pure like every other export in this module: none of these mutate `piece`.
+ * Each returns a NEW piece (preserving the caller's concrete subtype, e.g.
+ * `OwnedBoardPiece`/`RunBoardPiece`, via the `T extends BoardPiece` generic)
+ * for the caller to splice back into its own board-pieces array.
  */
 
-/** Attach `gem` to an empty socket. No-op (returns false) if already occupied. */
-export function socketGem(piece: BoardPiece, gem: Gem): boolean {
-  if (piece.gem != null) return false;
-  piece.gem = gem;
-  return true;
+/** Attach `gem` to an empty socket, returning the new piece. Returns null
+ * (no-op) if the socket is already occupied — `piece` is untouched either way. */
+export function socketGem<T extends BoardPiece>(piece: T, gem: Gem): T | null {
+  if (piece.gem != null) return null;
+  return { ...piece, gem };
 }
 
-/** Remove and return the currently socketed gem, or null if none. */
-export function unsocketGem(piece: BoardPiece): Gem | null {
-  const current = piece.gem ?? null;
-  piece.gem = null;
-  return current;
+/** Remove the socketed gem, returning the new (emptied) piece alongside the
+ * gem that was removed (or null if none was socketed). */
+export function unsocketGem<T extends BoardPiece>(piece: T): { piece: T; gem: Gem | null } {
+  return { piece: { ...piece, gem: null }, gem: piece.gem ?? null };
 }
 
-/** Replace the socketed gem with `gem`, returning the displaced gem (or null). */
-export function swapGem(piece: BoardPiece, gem: Gem): Gem | null {
-  const displaced = piece.gem ?? null;
-  piece.gem = gem;
-  return displaced;
+/** Replace the socketed gem with `gem`, returning the new piece alongside the
+ * displaced gem (or null if the socket was empty). */
+export function swapGem<T extends BoardPiece>(piece: T, gem: Gem): { piece: T; displaced: Gem | null } {
+  return { piece: { ...piece, gem }, displaced: piece.gem ?? null };
 }
 
 /** Whether a piece currently holds a socketed gem. */

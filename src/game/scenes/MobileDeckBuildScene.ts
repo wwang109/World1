@@ -492,10 +492,13 @@ export class MobileDeckBuildScene extends Phaser.Scene {
   /**
    * Gem-socket panel for one deck piece (opened by TAPPING a deck card).
    * Every card has one socket: shows the current gem with UNSOCKET, and the
-   * pouch inventory with SOCKET/SWAP. All mutations go through run/loadout's
-   * socketGem/swapGem/unsocketGem; displaced gems return to
-   * `this.gemInventory`. The pouch list is masked + drag/wheel
-   * scrollable so an overflowing pouch never draws off-canvas.
+   * pouch inventory with SOCKET/SWAP. run/loadout's socketGem/swapGem/
+   * unsocketGem are pure — each returns the new piece rather than mutating
+   * `piece`, so every action here splices that new piece back into
+   * `this.pieces` (through the setter, so run-context persistence still
+   * fires); displaced gems return to `this.gemInventory`. The pouch list is
+   * masked + drag/wheel scrollable so an overflowing pouch never draws
+   * off-canvas.
    */
   private renderSocketPanel(): void {
     const piece = this.pieces.find((p) => p.instanceId === this.socketFor);
@@ -546,7 +549,8 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       const un = this.add.rectangle(px + pw - 88, curY + 8, 74, 32, 0x352019).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
       this.add.text(px + pw - 51, curY + 24, 'UNSOCKET', { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       un.on('pointerdown', () => {
-        const removed = unsocketGem(piece);
+        const { piece: updated, gem: removed } = unsocketGem(piece);
+        this.pieces = this.pieces.map((p) => (p.instanceId === piece.instanceId ? updated : p));
         if (removed) this.gemInventory = [...this.gemInventory, removed.id];
         close();
       });
@@ -590,7 +594,16 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         // consume ONE copy of this gem id from the pouch
         const at = this.gemInventory.indexOf(gem.id);
         if (at >= 0) this.gemInventory = this.gemInventory.filter((_, i) => i !== at);
-        const displaced = piece.gem ? swapGem(piece, gem) : (socketGem(piece, gem), null);
+        let updated = piece;
+        let displaced: typeof piece.gem | null = null;
+        if (piece.gem) {
+          const result = swapGem(piece, gem);
+          updated = result.piece;
+          displaced = result.displaced;
+        } else {
+          updated = socketGem(piece, gem) ?? piece;
+        }
+        this.pieces = this.pieces.map((p) => (p.instanceId === piece.instanceId ? updated : p));
         if (displaced) this.gemInventory = [...this.gemInventory, displaced.id];
         close();
       });

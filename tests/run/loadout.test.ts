@@ -21,50 +21,66 @@ function piece(overrides: Partial<BoardPiece> = {}): BoardPiece {
   return { skillId: 'sword_slash', slot: 0, ...overrides };
 }
 
-describe('run/loadout: gem socketing', () => {
-  it('socketGem attaches a gem into an empty socket', () => {
+describe('run/loadout: gem socketing (pure — never mutates the input piece)', () => {
+  it('socketGem attaches a gem into an empty socket, returning a NEW piece', () => {
     const p = piece();
     expect(hasGem(p)).toBe(false);
-    const ok = socketGem(p, venomGem);
-    expect(ok).toBe(true);
+    const next = socketGem(p, venomGem);
+    expect(next).not.toBeNull();
+    expect(next).not.toBe(p);
+    expect(next!.gem).toBe(venomGem);
+    expect(hasGem(next!)).toBe(true);
+    // input untouched
+    expect(p.gem).toBeUndefined();
+    expect(hasGem(p)).toBe(false);
+  });
+
+  it('socketGem into an occupied socket is a no-op and returns null', () => {
+    const p = piece({ gem: venomGem });
+    const next = socketGem(p, rubyGem);
+    expect(next).toBeNull();
+    // input untouched
+    expect(p.gem).toBe(venomGem);
+  });
+
+  it('unsocketGem removes the gem into the returned piece, emptying the slot; input untouched', () => {
+    const p = piece({ gem: venomGem });
+    const { piece: next, gem: removed } = unsocketGem(p);
+    expect(removed).toBe(venomGem);
+    expect(next).not.toBe(p);
+    expect(next.gem).toBeNull();
+    expect(hasGem(next)).toBe(false);
+    // input untouched
     expect(p.gem).toBe(venomGem);
     expect(hasGem(p)).toBe(true);
   });
 
-  it('socketGem into an occupied socket is a no-op and returns false', () => {
+  it('unsocketGem on an empty socket returns null and an equivalent (still empty) piece', () => {
+    const p = piece();
+    const { piece: next, gem: removed } = unsocketGem(p);
+    expect(removed).toBeNull();
+    expect(next.gem).toBeNull();
+    // input untouched
+    expect(p.gem).toBeUndefined();
+  });
+
+  it('swapGem replaces the gem in the returned piece and returns the displaced one; input untouched', () => {
     const p = piece({ gem: venomGem });
-    const ok = socketGem(p, rubyGem);
-    expect(ok).toBe(false);
+    const { piece: next, displaced } = swapGem(p, rubyGem);
+    expect(displaced).toBe(venomGem);
+    expect(next).not.toBe(p);
+    expect(next.gem).toBe(rubyGem);
+    // input untouched
     expect(p.gem).toBe(venomGem);
   });
 
-  it('unsocketGem removes and returns the current gem, emptying the slot', () => {
-    const p = piece({ gem: venomGem });
-    const removed = unsocketGem(p);
-    expect(removed).toBe(venomGem);
-    expect(p.gem).toBeNull();
-    expect(hasGem(p)).toBe(false);
-  });
-
-  it('unsocketGem on an empty socket returns null and leaves it empty', () => {
+  it('swapGem into an empty socket attaches in the returned piece and returns null; input untouched', () => {
     const p = piece();
-    const removed = unsocketGem(p);
-    expect(removed).toBeNull();
-    expect(p.gem).toBeNull();
-  });
-
-  it('swapGem replaces the current gem and returns the displaced one', () => {
-    const p = piece({ gem: venomGem });
-    const displaced = swapGem(p, rubyGem);
-    expect(displaced).toBe(venomGem);
-    expect(p.gem).toBe(rubyGem);
-  });
-
-  it('swapGem into an empty socket attaches and returns null', () => {
-    const p = piece();
-    const displaced = swapGem(p, rubyGem);
+    const { piece: next, displaced } = swapGem(p, rubyGem);
     expect(displaced).toBeNull();
-    expect(p.gem).toBe(rubyGem);
+    expect(next.gem).toBe(rubyGem);
+    // input untouched
+    expect(p.gem).toBeUndefined();
   });
 });
 

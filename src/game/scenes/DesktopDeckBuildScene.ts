@@ -468,8 +468,11 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
    * Gem-socket panel for one deck piece (opened by CLICKING a deck card).
    * Every card has one socket (availability-by-tier is a future rule): shows
    * the current gem with UNSOCKET, and the pouch inventory with SOCKET/SWAP.
-   * All mutations go through run/loadout's socketGem/swapGem/unsocketGem;
-   * displaced gems return to `this.gemInventory`.
+   * run/loadout's socketGem/swapGem/unsocketGem are pure — each returns the
+   * new piece rather than mutating `piece`, so every action here splices
+   * that new piece back into `this.pieces` (through the setter, so run-
+   * context persistence still fires); displaced gems return to
+   * `this.gemInventory`.
    */
   private renderSocketPanel(): void {
     const piece = this.pieces.find((p) => p.instanceId === this.socketFor);
@@ -510,7 +513,8 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       const un = this.add.rectangle(px + pw - 130, curY + 8, 96, rowH - 16, UI.badSoft).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
       this.add.text(px + pw - 82, curY + rowH / 2, 'UNSOCKET', { fontSize: `${F.tiny}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       un.on('pointerdown', () => {
-        const removed = unsocketGem(piece);
+        const { piece: updated, gem: removed } = unsocketGem(piece);
+        this.pieces = this.pieces.map((p) => (p.instanceId === piece.instanceId ? updated : p));
         if (removed) this.gemInventory = [...this.gemInventory, removed.id];
         close();
       });
@@ -540,7 +544,16 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
         // consume ONE copy of this gem id from the pouch
         const at = this.gemInventory.indexOf(gem.id);
         if (at >= 0) this.gemInventory = this.gemInventory.filter((_, i) => i !== at);
-        const displaced = piece.gem ? swapGem(piece, gem) : (socketGem(piece, gem), null);
+        let updated = piece;
+        let displaced: typeof piece.gem | null = null;
+        if (piece.gem) {
+          const result = swapGem(piece, gem);
+          updated = result.piece;
+          displaced = result.displaced;
+        } else {
+          updated = socketGem(piece, gem) ?? piece;
+        }
+        this.pieces = this.pieces.map((p) => (p.instanceId === piece.instanceId ? updated : p));
         if (displaced) this.gemInventory = [...this.gemInventory, displaced.id];
         close();
       });
