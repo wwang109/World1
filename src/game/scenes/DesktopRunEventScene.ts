@@ -16,6 +16,7 @@ import { eventThemeArea } from '../ui/eventThemeBlurb';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { gemHoverEntry } from '../ui/gemGlossary';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { rebuildScene } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
@@ -139,6 +140,13 @@ export class DesktopRunEventScene extends Phaser.Scene {
     auditTextBlock(areaLine, { name: 'Run event area intro', maxWidth: innerW, maxHeight: F.small * 3 + 12, minFontSize: 9 });
     let cursor = py + areaLine.height + 14;
 
+    const artW = Math.min(innerW, 520);
+    const artH = Math.round(artW * 0.5);
+    const artX = px + (pw - artW) / 2;
+    addRunArt(this, eventArtKey(event.theme), { x: artX, y: cursor, width: artW, height: artH }, 0.9);
+    this.add.rectangle(artX, cursor, artW, artH, UI.bg, 0.16).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.45);
+    cursor += artH + 16;
+
     // 2. Title.
     const title = this.add.text(innerX, cursor, event.title, {
       fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.text, wordWrap: { width: innerW },
@@ -183,6 +191,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
         title: choice.label,
         detail: `REWARD · ${choiceOutcomeHint(choice.outcome)}`,
         footer: costLabel,
+        image: { textureKey: choiceArtKey(choice.outcome.kind) },
         accent: UI.chip,
         enabled: affordable,
       };
@@ -257,6 +266,14 @@ export class DesktopRunEventScene extends Phaser.Scene {
 
     const { headline, detail } = outcomeHeadline(outcome);
     let cursor = cardTop + cardPad;
+    const outcomeIconSize = 44;
+    addRunArt(this, choiceArtKey(outcome.kind), {
+      x: innerX + (innerW - outcomeIconSize) / 2,
+      y: cursor,
+      width: outcomeIconSize,
+      height: outcomeIconSize,
+    });
+    cursor += outcomeIconSize + 10;
     const headlineText = this.add.text(innerX, cursor, headline, {
       fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.text, wordWrap: { width: innerW },
     });

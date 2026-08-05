@@ -5,6 +5,11 @@ import type { LayoutProfile } from '../layoutProfile';
 import type { RunNodeKind } from '../runStore';
 import { FONT, UI } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
+import { addRunArt } from './runArt';
+
+export interface RunChoiceImage {
+  textureKey: string;
+}
 
 export interface RunChoiceViewModel {
   nodeId: string;
@@ -12,6 +17,7 @@ export interface RunChoiceViewModel {
   title: string;
   detail: string;
   footer?: string;
+  image?: RunChoiceImage;
   accent: number;
   enabled: boolean;
 }
@@ -28,8 +34,10 @@ export function renderRunChoicePanel(
 ): void {
   const railW = 6;
   const inset = Math.max(14, opts.font.small + 6);
-  const contentX = bounds.x + railW + inset;
-  const contentW = Math.max(0, bounds.w - railW - inset * 2);
+  const imageSize = model.image ? Math.min(46, Math.max(28, bounds.h - inset * 2)) : 0;
+  const imageGap = imageSize > 0 ? 8 : 0;
+  const contentX = bounds.x + railW + inset + imageSize + imageGap;
+  const contentW = Math.max(0, bounds.w - railW - inset * 2 - imageSize - imageGap);
   const actionCopy = model.enabled ? 'SELECT' : 'LOCKED';
   const actionReserve = Math.max(56, opts.font.tiny * 6 + 8);
   const fill = model.enabled ? UI.panel : UI.panelMuted;
@@ -38,6 +46,14 @@ export function renderRunChoicePanel(
     .setOrigin(0, 0)
     .setStrokeStyle(2, model.accent, model.enabled ? 0.9 : 0.38);
   const rail = scene.add.rectangle(bounds.x, bounds.y, railW, bounds.h, model.accent, model.enabled ? 1 : 0.48).setOrigin(0, 0);
+  const image = model.image
+    ? addRunArt(scene, model.image.textureKey, {
+      x: bounds.x + railW + inset,
+      y: bounds.y + (bounds.h - imageSize) / 2,
+      width: imageSize,
+      height: imageSize,
+    }, model.enabled ? 1 : 0.48)
+    : undefined;
   const title = scene.add.text(contentX, bounds.y + inset - 2, model.title, {
     fontFamily: FONT.display,
     fontStyle: 'bold',
@@ -73,6 +89,7 @@ export function renderRunChoicePanel(
 
   trackObject(opts.track, panel);
   trackObject(opts.track, rail);
+  if (image) trackObject(opts.track, image);
   trackObject(opts.track, title);
   trackObject(opts.track, action);
   trackObject(opts.track, detail);
@@ -80,7 +97,7 @@ export function renderRunChoicePanel(
 
   auditControlLabel(panel, title, {
     name: `${model.nodeId} choice`,
-    horizontalPadding: railW + inset,
+    horizontalPadding: railW + inset + imageSize + imageGap,
     verticalPadding: inset,
     minFontSize: 8,
   });

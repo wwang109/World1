@@ -16,6 +16,7 @@ import { addHoverTipZone } from '../ui/hoverTip';
 import { gemHoverEntry } from '../ui/gemGlossary';
 import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { rebuildScene } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
@@ -145,6 +146,11 @@ export class MobileRunEventScene extends Phaser.Scene {
     auditTextBlock(areaLine, { name: 'Mobile run event area intro', maxWidth: innerW, maxHeight: F.tiny * 4 + 8, minFontSize: 8 });
     y += areaLine.height + 8;
 
+    const artH = Math.round(innerW * 0.5);
+    addRunArt(this, eventArtKey(event.theme), { x: innerX, y, width: innerW, height: artH }, 0.9);
+    this.add.rectangle(innerX, y, innerW, artH, 0x0b1420, 0.16).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
+    y += artH + 10;
+
     const title = this.add.text(innerX, y, event.title, {
       fontSize: `${F.title}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: innerW },
     });
@@ -226,6 +232,7 @@ export class MobileRunEventScene extends Phaser.Scene {
         title: choice.label,
         detail: `REWARD · ${choiceOutcomeHint(choice.outcome)}`,
         footer: costLabel,
+        image: { textureKey: choiceArtKey(choice.outcome.kind) },
         accent: UI.chip,
         enabled: affordable,
       };
@@ -298,6 +305,14 @@ export class MobileRunEventScene extends Phaser.Scene {
 
     let y = cardTop + cardPad;
     const { headline, detail } = outcomeHeadline(outcome);
+    const outcomeIconSize = 40;
+    addRunArt(this, choiceArtKey(outcome.kind), {
+      x: innerX + (innerW - outcomeIconSize) / 2,
+      y,
+      width: outcomeIconSize,
+      height: outcomeIconSize,
+    });
+    y += outcomeIconSize + 8;
     const headlineText = this.add.text(innerX, y, headline, {
       fontSize: `${F.title}px`, color: UI.text, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: innerW },
     });

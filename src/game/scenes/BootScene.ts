@@ -3,6 +3,7 @@ import { installUnlock } from '../audio/audioBus';
 import { applyDevLaunchConfig } from '../devLaunch';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { CARD_ART_CATALOG } from '../ui/cardArtCatalog';
+import { RUN_ART_ASSETS } from '../ui/runArt';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -29,6 +30,9 @@ export class BootScene extends Phaser.Scene {
     this.load.image('card-badge:template:debuff', '/game-art/template/badge-debuff.png');
     for (const entry of Object.values(CARD_ART_CATALOG)) {
       this.load.image(entry.textureKey, `/game-art/cards/${entry.fileName}`);
+    }
+    for (const asset of RUN_ART_ASSETS) {
+      this.load.image(asset.key, asset.path);
     }
   }
 
