@@ -18,6 +18,7 @@ import { rebuildScene } from '../sceneRebuild';
 import {
   currentEncounter, currentNode, enemyNameFor, getActiveRun, retireActiveRun, type RunNodeKind,
 } from '../runStore';
+import { truncateNameKeepingSuffix } from '../ui/controlLayoutAudit';
 
 const F = MOBILE_PROFILE.font;
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
@@ -107,9 +108,18 @@ export class MobileRunPrepScene extends Phaser.Scene {
     const color = KIND_COLOR[kind];
     this.add.rectangle(10, y, this.W - 20, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(2, color, 0.9);
     const name = enemyNameFor(encounter.enemyId);
-    this.add.text(20, y + 8, `${name}   ·   ${encounter.title.toUpperCase()}   ·   LV ${encounter.effectiveLevel}`, {
+    const nameSuffix = `   ·   ${encounter.title.toUpperCase()}   ·   LV ${encounter.effectiveLevel}`;
+    const nameText = this.add.text(20, y + 8, `${name}${nameSuffix}`, {
       fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold',
     });
+    // GUARD CONTRACT: enemy names (and future modifier-bearing titles) can be
+    // arbitrarily long; this single Text object has no wordWrap and the card
+    // is fixed-height, so an overlong string would otherwise run off the
+    // canvas. Truncate ONLY the name with a trailing ellipsis so the
+    // " · TITLE · LV n" suffix always stays fully visible. No-op
+    // (byte-identical) while the combined string already fits — true for
+    // every enemy name in the game today.
+    truncateNameKeepingSuffix(nameText, name, nameSuffix, this.W - 40);
     const s = encounter.setup.stats;
     this.add.text(20, y + 26, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower}`, {
       fontSize: `${F.tiny}px`, color: UI.textFootnote, fontFamily: FONT.body, fontStyle: 'bold',

@@ -1,3 +1,5 @@
+import { TEXT_SHRINK_FLOOR_PX } from '../theme';
+
 interface RectangleControl {
   displayWidth: number;
   displayHeight: number;
@@ -8,8 +10,10 @@ interface RectangleControl {
 interface TextControl {
   width: number;
   height: number;
+  text: string;
   style: { fontSize: string | number };
   setFontSize(size: number): unknown;
+  setText(value: string): unknown;
   setData(key: string, value: unknown): unknown;
 }
 
@@ -34,6 +38,9 @@ export interface ControlAuditResult {
   verticalClearance: number;
   fontSize: number;
   resized: boolean;
+  /** True if the label's text was shortened with a trailing '…' (only
+   * happens once shrinking hits `TEXT_SHRINK_FLOOR_PX` and it still overflows). */
+  truncated: boolean;
 }
 
 export interface TextBoxAuditResult {
@@ -43,6 +50,29 @@ export interface TextBoxAuditResult {
   height: number;
   fontSize: number;
   resized: boolean;
+  /** True if the text was shortened with a trailing '…' (only happens once
+   * shrinking hits `TEXT_SHRINK_FLOOR_PX` and it still overflows). */
+  truncated: boolean;
+}
+
+/**
+ * Ellipsis-before-shrink (policy, 2026-08, user-approved): once a caller's
+ * shrink loop bottoms out (at `TEXT_SHRINK_FLOOR_PX`, see theme.ts) and the
+ * text STILL overflows, drop trailing characters one at a time and append
+ * '…' rather than continuing to shrink the font below the floor. No-op
+ * (never touches `text`) when `overflow()` is already false.
+ */
+function truncateOverflowText(text: TextControl, overflow: () => boolean): boolean {
+  if (!overflow()) return false;
+  let candidate = text.text;
+  let truncated = false;
+  while (candidate.length > 1) {
+    candidate = candidate.slice(0, -1).trimEnd();
+    text.setText(`${candidate}…`);
+    truncated = true;
+    if (!overflow()) break;
+  }
+  return truncated;
 }
 
 /**
@@ -56,19 +86,23 @@ export function auditControlLabel(
 ): ControlAuditResult {
   const horizontalPadding = options.horizontalPadding ?? 8;
   const verticalPadding = options.verticalPadding ?? 5;
-  const minFontSize = options.minFontSize ?? 8;
+  // Floor wins over whatever a caller asks for — see TEXT_SHRINK_FLOOR_PX.
+  const minFontSize = Math.max(options.minFontSize ?? 8, TEXT_SHRINK_FLOOR_PX);
   let fontSize = Number.parseFloat(String(text.style.fontSize));
   let resized = false;
 
-  while (
-    fontSize > minFontSize
-    && (text.width > rect.displayWidth - horizontalPadding * 2
-      || text.height > rect.displayHeight - verticalPadding * 2)
-  ) {
+  const overflow = (): boolean => (
+    text.width > rect.displayWidth - horizontalPadding * 2
+    || text.height > rect.displayHeight - verticalPadding * 2
+  );
+
+  while (fontSize > minFontSize && overflow()) {
     fontSize -= 1;
     text.setFontSize(fontSize);
     resized = true;
   }
+
+  const truncated = truncateOverflowText(text, overflow);
 
   const horizontalClearance = (rect.displayWidth - text.width) / 2;
   const verticalClearance = (rect.displayHeight - text.height) / 2;
@@ -80,13 +114,14 @@ export function auditControlLabel(
     verticalClearance,
     fontSize,
     resized,
+    truncated,
   };
   rect.setData('controlLayoutAudit', result);
 
   const auditMode = typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).get('layoutAudit') === '1';
   if (!passed) {
-    const message = `[layout-audit] ${options.name}: label clearance ${horizontalClearance.toFixed(1)}px x ${verticalClearance.toFixed(1)}px`;
+    const message = `[layout-audit] ${options.name}: label clearance ${horizontalClearance.toFixed(1)}px x ${verticalClearance.toFixed(1)}px${truncated ? ' (still overflowing after truncation)' : ''}`;
     if (auditMode) {
       rect.setStrokeStyle(2, 0xc94c3b, 1);
       console.error(message);
@@ -106,18 +141,22 @@ export function auditTextBlock(
   text: TextControl,
   options: TextBoxAuditOptions,
 ): TextBoxAuditResult {
-  const minFontSize = options.minFontSize ?? 8;
+  // Floor wins over whatever a caller asks for — see TEXT_SHRINK_FLOOR_PX.
+  const minFontSize = Math.max(options.minFontSize ?? 8, TEXT_SHRINK_FLOOR_PX);
   let fontSize = Number.parseFloat(String(text.style.fontSize));
   let resized = false;
 
-  while (
-    fontSize > minFontSize
-    && (text.width > options.maxWidth || text.height > options.maxHeight)
-  ) {
+  const overflow = (): boolean => (
+    text.width > options.maxWidth || text.height > options.maxHeight
+  );
+
+  while (fontSize > minFontSize && overflow()) {
     fontSize -= 1;
     text.setFontSize(fontSize);
     resized = true;
   }
+
+  const truncated = truncateOverflowText(text, overflow);
 
   const passed = text.width <= options.maxWidth && text.height <= options.maxHeight;
   const result: TextBoxAuditResult = {
@@ -127,13 +166,14 @@ export function auditTextBlock(
     height: text.height,
     fontSize,
     resized,
+    truncated,
   };
   text.setData('textLayoutAudit', result);
 
   const auditMode = typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).get('layoutAudit') === '1';
   if (!passed) {
-    const message = `[layout-audit] ${options.name}: text ${text.width.toFixed(1)}px x ${text.height.toFixed(1)}px exceeds ${options.maxWidth}x${options.maxHeight}`;
+    const message = `[layout-audit] ${options.name}: text ${text.width.toFixed(1)}px x ${text.height.toFixed(1)}px exceeds ${options.maxWidth}x${options.maxHeight}${truncated ? ' (still overflowing after truncation)' : ''}`;
     if (auditMode) {
       console.error(message);
     } else {
@@ -142,4 +182,34 @@ export function auditTextBlock(
   }
 
   return result;
+}
+
+/**
+ * NAME-OVERFLOW GUARD CONTRACT: truncates ONLY the `name` portion of a
+ * "<name><suffix>" composite label (e.g. "Bandit Duelist   ·   ELITE   ·   LV
+ * 7") with a trailing ellipsis when the combined string would overflow
+ * `maxWidth` at the text object's CURRENT font size — `suffix` (title/LV, or
+ * '' when there's none) is never shortened, so it always stays fully
+ * visible. Sets `text`'s content directly (via `setText`) to the final
+ * (possibly truncated) string and returns the name portion actually used.
+ * No-op (byte-identical, single `setText` call with the untruncated string)
+ * when `name + suffix` already fits — true for every enemy name/title in the
+ * game today.
+ */
+export function truncateNameKeepingSuffix(
+  text: TextControl,
+  name: string,
+  suffix: string,
+  maxWidth: number,
+): string {
+  text.setText(`${name}${suffix}`);
+  if (text.width <= maxWidth) return name;
+  let candidate = name;
+  while (candidate.length > 1) {
+    candidate = candidate.slice(0, -1).trimEnd();
+    text.setText(`${candidate}…${suffix}`);
+    if (text.width <= maxWidth) return candidate;
+  }
+  text.setText(`${name.slice(0, 1)}…${suffix}`);
+  return name.slice(0, 1);
 }

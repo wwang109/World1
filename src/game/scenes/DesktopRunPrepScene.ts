@@ -19,6 +19,7 @@ import { rebuildScene } from '../sceneRebuild';
 import {
   currentEncounter, currentNode, enemyNameFor, getActiveRun, retireActiveRun, type RunNodeKind,
 } from '../runStore';
+import { truncateNameKeepingSuffix } from '../ui/controlLayoutAudit';
 
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
 
@@ -141,9 +142,17 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     cursor += 26 + 12;
 
     const name = enemyNameFor(encounter.enemyId);
-    this.add.text(innerX, cursor, name, {
+    const nameText = this.add.text(innerX, cursor, name, {
       fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.text,
     });
+    // GUARD CONTRACT: enemy names (and future modifier-bearing titles) can be
+    // arbitrarily long; this is a single unwrapped Text line inside a
+    // content-fit panel, so an overlong name would otherwise run off the
+    // panel. Truncate with a trailing ellipsis at the panel's inner width —
+    // the LV line below is a separate Text object and is never touched.
+    // No-op (byte-identical) while the name already fits — true for every
+    // enemy name in the game today.
+    truncateNameKeepingSuffix(nameText, name, '', innerW);
     cursor += F.name + 6;
     this.add.text(innerX, cursor, `LV ${encounter.effectiveLevel}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textDim,

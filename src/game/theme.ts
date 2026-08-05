@@ -159,6 +159,17 @@ export const TYPE_SCALE = {
   small: '12px',
 };
 
+/**
+ * Hard floor for the shared layout-audit auto-shrink helpers
+ * (`auditControlLabel`/`auditTextBlock` in `ui/controlLayoutAudit.ts`).
+ * Policy (2026-08, user-approved): text must never render smaller than this
+ * — a call site's own `minFontSize` is now just a (possibly higher)
+ * preference, this floor always wins. Once a label hits the floor and still
+ * overflows, the helpers truncate with a trailing '…' instead of shrinking
+ * further, so copy never drops to an unreadable 7-8px.
+ */
+export const TEXT_SHRINK_FLOOR_PX = 9;
+
 export const DISPLAY_THEME = {
   spacing: {
     page: 18,
