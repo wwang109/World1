@@ -49,6 +49,45 @@ Every dial is a PURE function of the 1-indexed fight number — no RNG:
   `buildEnemyEncounter` (`src/run/encounter.ts`): base monster + Title preset
   (rank/stat dials) + Level (priced stat economy) + Modifiers.
 
+## Packs (`rollEncounter`, `src/run/runState.ts` + `src/run/encounter.ts`)
+
+Non-boss fight nodes can roll as a **PACK** (2-3 LOWER-LEVEL foes) instead of
+one foe at the node's full track level — "fair but different": a pack leans
+on **action economy** (extra casts per round) instead of raw per-unit
+strength. `rollEncounter` now returns an `EncounterPack` (`{ variant, units }`,
+`variant: 'solo' | 'pair' | 'trio'`, `units: EncounterUnit[]`, length 1-3) —
+`units[0]` is the "primary" foe every pre-pack consumer used to read directly.
+
+- **Variant roll**: one `rng.int(100)` off the node's OWN `encounterSeed`
+  (fixed solo/pair/trio order) against `PACK_VARIANT_WEIGHTS`
+  (`encounter.ts`) — v1 mix **70 / 20 / 10**. **Boss nodes never roll a
+  variant** (always `'solo'`, no Rng draw spent on it) — packs are a
+  non-boss fight-column texture only. Members then roll their OWN enemy id
+  independently from `FIGHT_POOL` (can repeat).
+- **Level discount** (`PACK_LEVEL_DISCOUNT`): pair members roll at
+  `trackLevel − 3`, trio at `trackLevel − 5`, floored at 1 (`clampLevel`'s
+  floor). Deliberately steeper than a naive "split the stat budget N ways" —
+  the readiness engine's initiative check runs once per ALIVE unit per turn,
+  so an extra member is an extra FULL turn of casts, not just extra stats.
+- **Title cap** (`capPackTitle`): pack members are **mob/normal only** — no
+  elite/boss packs in v1. The node's base title/level still comes from the
+  SAME `fightTableEntryForNode` spec a solo roll would use (so a `'hard'`
+  option's +1 level lands on every member; its title bump is capped back down
+  to `'normal'` rather than skipped). Rank stays the ordinary
+  `TITLE_PRESETS[title].rank` per member — no second budget path.
+- **Gold/battle wiring is already generic**: `battleGoldReward` and
+  `resolveBattle`/`simulate` already accept a foe LIST (this is how the
+  Sandbox's 5v1 mode works) — `battleContext.ts#runBattleInput` just always
+  populates `BattleTimelineInput.enemyTeam` from `pack.units` (mirroring the
+  primary into the singular fields for 1v1-only readers), so a pack fight
+  flows through the existing multi-foe battle scenes/gold math unmodified.
+- **UI**: map choice hints (`runStore.ts#encounterHintDetail`) read
+  `"PACK OF 2 · Wolf · LV 3"` instead of a title chip for packs (title is
+  capped/uninformative); RunPrep's foe panel shows the whole roster on
+  desktop (`packMemberLines`, one line per distinct enemy+level, `"×N"` when
+  repeated) and a compact `"+N MORE"` suffix on mobile — both convey count +
+  level, never lie about the pack's shape.
+
 ## Gold economy
 
 Gold is an **economy-pacing knob, never a balance number** — PL remains the
@@ -154,7 +193,7 @@ Two layers, both pure/integer, no UI yet (a stats screen is separate):
 |---|---|
 | `runState.ts` | The `RunState` shape + every pure transition (create/choose/resolve node, battle result, retire, gold, shelves, event bags) |
 | `runMap.ts` | Lazy endless wave-ladder generation, node kinds, `BOSS_EVERY`, stop-choice anchoring |
-| `encounter.ts` | Additive enemy resolver: titles, ranks, modifiers, `buildEnemyEncounter`, `buildAutoHeroSetup` |
+| `encounter.ts` | Additive enemy resolver: titles, ranks, modifiers, `buildEnemyEncounter`, `buildAutoHeroSetup`; PACK constants (`PackVariant`, `PACK_VARIANT_WEIGHTS`, `PACK_LEVEL_DISCOUNT`, `capPackTitle`, `EncounterPack`) |
 | `leveling.ts` | `PL_PER_LEVEL`, `LEVEL_STAT_COST`, allocation math, monster auto-spend profiles |
 | `shop.ts` | Shop filters/pools, gold prices, `rollShopStock`, `shopPoolInfo`, `battleGoldReward` |
 | `events.ts` | Event roll/resolve/bonus-draft, affordability, no-repeat bags |

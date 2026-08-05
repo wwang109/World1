@@ -17,7 +17,7 @@ import { STAT_TOKEN } from '../ui/statLabels';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene } from '../sceneRebuild';
 import {
-  currentEncounter, currentNode, enemyNameFor, getActiveRun, retireActiveRun, type RunNodeKind,
+  currentEncounter, currentNode, enemyNameFor, getActiveRun, packMemberLines, retireActiveRun, type RunNodeKind,
 } from '../runStore';
 import { truncateNameKeepingSuffix } from '../ui/controlLayoutAudit';
 
@@ -66,8 +66,8 @@ export class DesktopRunPrepScene extends Phaser.Scene {
 
     const run = getActiveRun();
     const node = currentNode();
-    const encounter = currentEncounter();
-    if (!run || !node || !encounter) {
+    const pack = currentEncounter();
+    if (!run || !node || !pack) {
       // Reached with no committed combat node (e.g. a stale re-entry) —
       // there's nothing to prep; bounce back to the map.
       this.scene.start('DesktopRunMap');
@@ -75,9 +75,9 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     }
 
     this.renderHud(run, node.kind);
-    const foeBottom = this.renderFoePanel(node.kind, encounter);
+    const foeBottom = this.renderFoePanel(node.kind, pack);
     this.renderHeroPanel(run, foeBottom + DESKTOP_PROFILE.gap);
-    this.renderColumns(run, encounter);
+    this.renderColumns(run, pack);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
         compact: false,
@@ -114,8 +114,18 @@ export class DesktopRunPrepScene extends Phaser.Scene {
 
   /** Content-fit foe panel (density pass — the old version stretched to the
    * full column height, leaving a mostly-empty rectangle below the DMG/turn
-   * line). Uses the freed space for a matchup hint + the foe's card list. */
-  private renderFoePanel(kind: RunNodeKind, encounter: NonNullable<ReturnType<typeof currentEncounter>>): number {
+   * line). Uses the freed space for a matchup hint + the foe's card list.
+   *
+   * PACK FIGHTS: `pack.units[0]` (the PRIMARY member) supplies every stat/
+   * card/DMG-turn reading below, exactly like the pre-pack single-foe
+   * `EncounterUnit` did — desktop has room to also list the WHOLE roster
+   * (`packMemberLines`), inserted right under the LV line, so a pack's count
+   * and per-member levels are visible without replacing the primary's
+   * detailed stat readout. */
+  private renderFoePanel(kind: RunNodeKind, pack: NonNullable<ReturnType<typeof currentEncounter>>): number {
+    const encounter = pack.units[0]!;
+    const isPack = pack.variant !== 'solo';
+    const rosterLines = isPack ? packMemberLines(pack) : [];
     const panelX = GX;
     const panelTop = CONTENT_TOP;
     const innerX = panelX + PANEL_PAD;
@@ -125,6 +135,7 @@ export class DesktopRunPrepScene extends Phaser.Scene {
       .filter((n): n is string => Boolean(n));
     const cardListRows = Math.ceil(cardNames.length / 1);
     const panelH = PANEL_PAD * 2 + F.label + 10 + 16 + 26 + 12 + F.name + 6 + F.small + 14
+      + rosterLines.length * (F.small + 4)
       + F.body + 7 + F.small + 7 + F.body + 16 + F.tiny + 6 + cardListRows * (F.small + 4);
 
     this.add.rectangle(panelX, panelTop, PANEL_W, panelH, UI.panel, 0.92).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
@@ -136,8 +147,9 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     cursor += 16;
 
     const color = KIND_COLOR[kind];
+    const chipLabel = isPack ? `PACK ×${pack.units.length}` : encounter.title.toUpperCase();
     this.add.rectangle(innerX, cursor, 120, 26, color, 1).setOrigin(0, 0);
-    this.add.text(innerX + 60, cursor + 13, encounter.title.toUpperCase(), {
+    this.add.text(innerX + 60, cursor + 13, chipLabel, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textOnChip,
     }).setOrigin(0.5);
     cursor += 26 + 12;
@@ -159,6 +171,14 @@ export class DesktopRunPrepScene extends Phaser.Scene {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textDim,
     });
     cursor += F.small + 14;
+
+    // PACK roster — one line per distinct (enemy, level), "×N" when repeated.
+    for (const line of rosterLines) {
+      this.add.text(innerX, cursor, `· ${line}`, {
+        fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textSoft,
+      });
+      cursor += F.small + 4;
+    }
 
     const s = encounter.setup.stats;
     this.add.text(innerX, cursor, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower}`, {
@@ -227,7 +247,13 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: F.small + 4 }, ALL_STAT_ENTRIES);
   }
 
-  private renderColumns(run: NonNullable<ReturnType<typeof getActiveRun>>, encounter: NonNullable<ReturnType<typeof currentEncounter>>): void {
+  /** PACK FIGHTS: the ENEMY SKILLS board renders the PRIMARY member's board
+   * only (the multi-foe tabbed board idiom lives in the battle scenes, not
+   * here — see CLAUDE.md's "keep it simple" note for RunPrep) with a
+   * "(1 OF N)" count note appended to the column header when it's a pack. */
+  private renderColumns(run: NonNullable<ReturnType<typeof getActiveRun>>, pack: NonNullable<ReturnType<typeof currentEncounter>>): void {
+    const encounter = pack.units[0]!;
+    const isPack = pack.variant !== 'solo';
     const gap = DESKTOP_PROFILE.gap;
     const rightX = GX + PANEL_W + gap;
     const rightW = (SCREEN.width - GX) - rightX;
@@ -242,7 +268,7 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     this.add.text(leftColX + colW / 2, labelY, 'YOUR DECK', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
     }).setOrigin(0.5, 0);
-    this.add.text(rightColX + colW / 2, labelY, 'ENEMY SKILLS', {
+    this.add.text(rightColX + colW / 2, labelY, `ENEMY SKILLS${isPack ? ` (1 OF ${pack.units.length})` : ''}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent,
     }).setOrigin(0.5, 0);
 

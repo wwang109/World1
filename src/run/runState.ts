@@ -11,7 +11,19 @@ import { enemies } from '../data/enemies';
 import { skillBook } from '../data/skills';
 import { HERO_BOARD_SLOTS } from '../data/heroes';
 import { DRAFT_SET_KEYS, type DraftSetKey } from './draft';
-import { buildEnemyEncounter, ENEMY_MODIFIER_IDS, TITLE_PRESETS, type EncounterUnit, type EnemyTitle } from './encounter';
+import {
+  buildEnemyEncounter,
+  capPackTitle,
+  ENEMY_MODIFIER_IDS,
+  PACK_LEVEL_DISCOUNT,
+  PACK_SIZE,
+  PACK_VARIANT_WEIGHTS,
+  TITLE_PRESETS,
+  type EncounterPack,
+  type EncounterUnit,
+  type EnemyTitle,
+  type PackVariant,
+} from './encounter';
 import { canAfford, spentPL, type Allocation, type LevelStat } from './leveling';
 import type { EventTheme } from '../data/events';
 import {
@@ -472,14 +484,40 @@ export function chooseNode(state: RunState, nodeId: string): RunState {
 }
 
 /**
+ * PACK FIGHTS' variant roll — a single `rng.int(100)` compared against
+ * `PACK_VARIANT_WEIGHTS` in fixed (solo, pair, trio) order. Only ever called
+ * for non-boss fight nodes (see `rollEncounter`) — this is the ONE Rng draw
+ * `rollEncounter` spends on "how many foes", ahead of the per-member enemy-id
+ * draws so both stay reproducible from the node's `encounterSeed`.
+ */
+function rollPackVariant(rng: Rng): PackVariant {
+  const roll = rng.int(100);
+  if (roll < PACK_VARIANT_WEIGHTS.solo) return 'solo';
+  if (roll < PACK_VARIANT_WEIGHTS.solo + PACK_VARIANT_WEIGHTS.pair) return 'pair';
+  return 'trio';
+}
+
+/**
  * Resolve a fight/boss node's enemy encounter via the EXISTING dial resolver
  * (`buildEnemyEncounter` in encounter.ts): level/title/rank/modifiers all
  * come from `fightTableEntryForNode` (the endless fight-spec resolver — see
  * `fightSpecFor` above). Deterministic from the node's `encounterSeed`
  * (repeated calls for the same node return the identical encounter). Throws
  * if the current node isn't a combat node (e.g. mid-shop, mid-event, or idle).
+ *
+ * PACK FIGHTS (2026-08-04): non-boss fight nodes first roll a `PackVariant`
+ * (`rollPackVariant`, see `encounter.ts`'s PACK_* constants for the design
+ * rationale) — BOSS nodes skip that roll entirely and are always `'solo'`,
+ * so a boss's enemy pick stays byte-identical to before packs existed. Each
+ * pack member then rolls its OWN enemy id independently (can repeat) from the
+ * SAME node Rng, at `entry.level - PACK_LEVEL_DISCOUNT[variant]` (floored at
+ * 1) and `capPackTitle(entry.title)` (mob/normal only — no elite/boss packs
+ * in v1); a `'hard'` fight-option's +1 level still lands on every member via
+ * `entry.level` (the title bump is simply capped back down). Rank stays the
+ * SAME per-title budget every solo foe uses (`TITLE_PRESETS[title].rank`) —
+ * no new budget path, per member.
  */
-export function rollEncounter(state: RunState): EncounterUnit {
+export function rollEncounter(state: RunState): EncounterPack {
   const node = state.currentNodeId ? findNode(state.map, state.currentNodeId) : undefined;
   if (!node) {
     throw new Error('rollEncounter: no combat node is currently active');
@@ -492,10 +530,19 @@ export function rollEncounter(state: RunState): EncounterUnit {
   if (pool.length === 0) {
     throw new Error(`rollEncounter: no enemies available for node kind "${node.kind}"`);
   }
-  const enemyId = pool[rng.int(pool.length)]!;
   const entry = fightTableEntryForNode(node);
-  const rank = TITLE_PRESETS[entry.title].rank;
-  return buildEnemyEncounter(enemyId, entry.level, entry.title, rank, entry.modifiers);
+  const variant: PackVariant = node.kind === 'boss' ? 'solo' : rollPackVariant(rng);
+  const size = PACK_SIZE[variant];
+
+  const units: EncounterUnit[] = [];
+  for (let i = 0; i < size; i++) {
+    const enemyId = pool[rng.int(pool.length)]!;
+    const memberLevel = variant === 'solo' ? entry.level : Math.max(1, entry.level - PACK_LEVEL_DISCOUNT[variant]);
+    const memberTitle = variant === 'solo' ? entry.title : capPackTitle(entry.title);
+    const rank = TITLE_PRESETS[memberTitle].rank;
+    units.push(buildEnemyEncounter(enemyId, memberLevel, memberTitle, rank, entry.modifiers));
+  }
+  return { variant, units };
 }
 
 export interface BattleOutcome {

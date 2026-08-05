@@ -1,7 +1,7 @@
 import { enemies } from '../data/enemies';
 import type { EventDef } from '../data/events';
 import type { DraftCard, DraftSetKey } from '../run/draft';
-import type { EncounterUnit } from '../run/encounter';
+import type { EncounterPack } from '../run/encounter';
 import { applyBonusDraftPick, resolveEventChoice, rollEventForNode, type EventOutcome } from '../run/events';
 import { bankedPL, type Allocation } from '../run/leveling';
 import { battleStatsFromEvents } from '../run/logAnalysis';
@@ -148,10 +148,16 @@ export function pickNode(nodeId: string): void {
  * Preview the encounter a NOT-YET-CHOSEN fight/boss node would roll, without
  * committing to it — `rollEncounter` requires the node to already be
  * `currentNodeId`, so this composes it against a throwaway copy of the run
- * state. Used by the map's fight-node preview line (enemy name/LV/title).
- * Returns null for shop/event nodes (no encounter to preview).
+ * state. Used by the map's fight-node preview line (pack shape/enemy name/
+ * LV/title). Returns null for shop/event nodes (no encounter to preview).
+ *
+ * PACK FIGHTS: the returned `EncounterPack.units` is 1-3 entries (see
+ * `rollEncounter` in `src/run/runState.ts`) — this is deliberately the SAME
+ * call `battleContext.ts#runBattleInput` makes for the committed node, so a
+ * pack's map preview always matches the pack the FIGHT button actually
+ * starts (byte-identical, same `encounterSeed`).
  */
-export function previewEncounter(node: RunNode): EncounterUnit | null {
+export function previewEncounter(node: RunNode): EncounterPack | null {
   if (!activeRun || (node.kind !== 'fight' && node.kind !== 'boss')) return null;
   return rollEncounter({ ...activeRun, currentNodeId: node.id });
 }
@@ -164,11 +170,49 @@ export function enemyNameFor(enemyId: string): string {
 /** The already-rolled encounter for the CURRENT combat node (must already be
  * committed via `pickNode`) — RunPrepScene's read-only foe preview. Undefined
  * if there's no active run, no current node, or the current node isn't a
- * fight/boss. */
-export function currentEncounter(): EncounterUnit | undefined {
+ * fight/boss. Same `EncounterPack` shape as `previewEncounter` (1-3 units). */
+export function currentEncounter(): EncounterPack | undefined {
   const node = currentNode();
   if (!activeRun || !node || (node.kind !== 'fight' && node.kind !== 'boss')) return undefined;
   return rollEncounter(activeRun);
+}
+
+/**
+ * The map choice panel's one-line fight/boss hint — shared by both platforms'
+ * run map scenes so a pack's shape reads identically on desktop and mobile.
+ * Solo keeps the pre-pack grammar (`"Rogue · LV 6 · NORMAL"`); a pack leads
+ * with its count instead of a title (every pack member is mob/normal — see
+ * `capPackTitle` in `src/run/encounter.ts` — so a title chip would read as
+ * redundant/misleading): `"PACK OF 2 · Wolf · LV 3"`, naming the FIRST
+ * member as the representative foe (members can repeat/differ, but always
+ * share the same discounted level).
+ */
+export function encounterHintDetail(pack: EncounterPack): string {
+  const primary = pack.units[0]!;
+  const name = enemyNameFor(primary.enemyId);
+  if (pack.variant === 'solo') {
+    return `${name} · LV ${primary.effectiveLevel} · ${primary.title.toUpperCase()}`;
+  }
+  return `PACK OF ${pack.units.length} · ${name} · LV ${primary.effectiveLevel}`;
+}
+
+/**
+ * RunPrep's DESKTOP foe panel has room to list every pack member — one line
+ * per DISTINCT (enemy, level) pairing, annotated `×N` when more than one
+ * member shares it (members roll independently and can repeat). A solo
+ * encounter returns a single-entry array (same one line the panel always
+ * showed, pre-packs) so callers don't need a separate solo/pack branch just
+ * to decide whether to render this list.
+ */
+export function packMemberLines(pack: EncounterPack): string[] {
+  const counts = new Map<string, { name: string; level: number; count: number }>();
+  for (const unit of pack.units) {
+    const key = `${unit.enemyId}@${unit.effectiveLevel}`;
+    const existing = counts.get(key);
+    if (existing) existing.count += 1;
+    else counts.set(key, { name: enemyNameFor(unit.enemyId), level: unit.effectiveLevel, count: 1 });
+  }
+  return [...counts.values()].map((e) => (e.count > 1 ? `${e.name} · LV ${e.level} ×${e.count}` : `${e.name} · LV ${e.level}`));
 }
 
 // ---------------------------------------------------------------------------

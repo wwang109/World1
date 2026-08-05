@@ -44,25 +44,36 @@ function demoBattleInput(): BattleTimelineInput {
  * Builds the active run's CURRENT combat node into the same request shape the
  * sandbox reads off `demoState` — the node's encounter, resolved fresh.
  * `rollEncounter` is a pure function of the node's `encounterSeed`, so calling
- * it again here reproduces the IDENTICAL foe RunPrepScene already previewed.
+ * it again here reproduces the IDENTICAL pack RunPrepScene already previewed.
  * `null` if there's no active run or the current node isn't a combat node
  * (falls back to the demo input, which should never actually get exercised
  * in that case since only RunPrep's FIGHT button sets the 'run' context).
+ *
+ * PACK FIGHTS: `rollEncounter` returns 1-3 units (`EncounterPack`); the
+ * singular `enemyId`/`enemyLevel`/… fields mirror `units[0]` (the "primary"
+ * foe — same convention as `demoState.enemyTeam[0]`) while `enemyTeam` always
+ * carries the FULL roster (length 1 for a solo fight), so every downstream
+ * consumer (`buildBattleTimeline`, `battleRequestOf`, `resolveRunBattleResult`)
+ * reads the real pack instead of just the first member.
  */
 function runBattleInput(): BattleTimelineInput | null {
   const run = getActiveRun();
   const node = currentNode();
   if (!run || !node || (node.kind !== 'fight' && node.kind !== 'boss')) return null;
-  const encounter = rollEncounter(run);
+  const pack = rollEncounter(run);
+  const primary = pack.units[0]!;
   return {
     pieces: run.pieces,
     heroLevel: run.heroLevel,
     heroAllocation: run.heroAllocation,
-    enemyId: encounter.enemyId,
-    enemyLevel: encounter.level,
-    enemyTitle: encounter.title,
-    enemyRank: encounter.rank,
-    enemyModifiers: encounter.modifiers,
+    enemyId: primary.enemyId,
+    enemyLevel: primary.level,
+    enemyTitle: primary.title,
+    enemyRank: primary.rank,
+    enemyModifiers: primary.modifiers,
+    enemyTeam: pack.units.map((u) => ({
+      enemyId: u.enemyId, level: u.level, title: u.title, rank: u.rank, modifiers: [...u.modifiers],
+    })),
     seed: node.encounterSeed!,
   };
 }

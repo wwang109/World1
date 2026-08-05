@@ -16,7 +16,7 @@ import {
   choices,
   clearRun,
   currentNode,
-  enemyNameFor,
+  encounterHintDetail,
   getActiveRun,
   pickNode,
   previewEncounter,
@@ -245,12 +245,12 @@ export class DesktopRunMapScene extends Phaser.Scene {
     }
 
     if (node.kind === 'fight' || node.kind === 'boss') {
-      const encounter = previewEncounter(node);
+      const pack = previewEncounter(node);
       return {
         nodeId: node.id,
         kind: node.kind,
         title: titleLabel,
-        detail: encounter ? `${enemyNameFor(encounter.enemyId)} · LV ${encounter.effectiveLevel} · ${encounter.title.toUpperCase()}` : '',
+        detail: pack ? encounterHintDetail(pack) : '',
         accent: KIND_COLOR[node.kind],
         enabled: true,
       };

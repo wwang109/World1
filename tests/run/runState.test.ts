@@ -728,7 +728,7 @@ describe('run/runState: daily income (+1 gold per node committed)', () => {
     const goldAfterChoose = state0.gold;
     const encounter = rollEncounter(state0);
     const reward = battleGoldReward(
-      [{ level: encounter.level, title: encounter.title, rank: encounter.rank }],
+      [{ level: encounter.units[0]!.level, title: encounter.units[0]!.title, rank: encounter.units[0]!.rank }],
       state0.heroLevel,
     );
     const state = recordBattleResult(state0, { won: true, goldEarned: reward.base + reward.winBonus });
@@ -764,7 +764,7 @@ describe('run/runState: daily income (+1 gold per node committed)', () => {
         } else {
           const encounter = rollEncounter(state);
           const reward = battleGoldReward(
-            [{ level: encounter.level, title: encounter.title, rank: encounter.rank }],
+            [{ level: encounter.units[0]!.level, title: encounter.units[0]!.title, rank: encounter.units[0]!.rank }],
             state.heroLevel,
           );
           expectedGold += reward.base + reward.winBonus;
@@ -847,12 +847,14 @@ describe('run/runState: fight column offers 2 foe options (non-boss waves)', () 
         const hard = nodes.find((n) => n.fightOption === 'hard')!;
         const encounterStandard = rollEncounter({ ...state, currentNodeId: standard.id });
         const encounterHard = rollEncounter({ ...state, currentNodeId: hard.id });
+        // Full unit list (not just the primary) — matches what
+        // `resolveRunBattleResult` actually credits for a pack fight.
         const rewardStandard = battleGoldReward(
-          [{ level: encounterStandard.level, title: encounterStandard.title, rank: encounterStandard.rank }],
+          encounterStandard.units.map((u) => ({ level: u.level, title: u.title, rank: u.rank, modifiers: u.modifiers })),
           state.heroLevel,
         );
         const rewardHard = battleGoldReward(
-          [{ level: encounterHard.level, title: encounterHard.title, rank: encounterHard.rank }],
+          encounterHard.units.map((u) => ({ level: u.level, title: u.title, rank: u.rank, modifiers: u.modifiers })),
           state.heroLevel,
         );
         expect(rewardHard.winBonus).toBeGreaterThanOrEqual(rewardStandard.winBonus);

@@ -220,6 +220,85 @@ export interface EncounterUnit {
   modifiers: string[];
 }
 
+// ---------------------------------------------------------------------------
+// PACK FIGHTS (2026-08-04) — a fight-column node can roll as a PACK (2-3
+// LOWER-LEVEL foes) instead of one foe at the node's full track level, so
+// packs feel "fair but different" (action economy vs. individual strength)
+// rather than just "more HP to chew through". Every dial below is a NAMED,
+// exported constant so a later balance pass can retune the mix/discount
+// without touching the roll flow itself — the one place that actually spends
+// a node's `encounterSeed` on these rolls is `rollEncounter` in runState.ts
+// (it owns the Rng + node lookup; this module stays the pure per-unit
+// resolver, same split as everywhere else in this file).
+// ---------------------------------------------------------------------------
+
+/** How many enemies a fight node's PACK roll can produce. `'solo'` is the
+ * pre-pack behavior (and the large majority of rolls — see
+ * `PACK_VARIANT_WEIGHTS`). */
+export type PackVariant = 'solo' | 'pair' | 'trio';
+
+/** Unit count per variant. */
+export const PACK_SIZE: Record<PackVariant, number> = { solo: 1, pair: 2, trio: 3 };
+
+/**
+ * VARIANT MIX — rolled via a single `rng.int(100)` compared against these
+ * weights in fixed (solo, pair, trio) order (must sum to 100). v1 mix: mostly
+ * solo, packs as a minority flavor so "one strong foe" stays the default read
+ * of a fight node. BOSS nodes never roll a variant at all (always `'solo'`,
+ * see `rollEncounter`) — packs are a non-boss fight-column texture only.
+ */
+export const PACK_VARIANT_WEIGHTS: Record<PackVariant, number> = {
+  solo: 70,
+  pair: 20,
+  trio: 10,
+};
+
+/**
+ * LEVEL DISCOUNT (the fairness lever) — pack members roll at
+ * `max(1, trackLevel - PACK_LEVEL_DISCOUNT[variant])`, mirroring solo's
+ * `clampLevel` floor. Sized deliberately more aggressive than a naive "split
+ * the stat budget N ways" would suggest: the readiness engine's initiative
+ * comparison runs once per ALIVE unit every turn, so each extra pack member
+ * is an extra FULL turn of casts per round, not just extra stats — a pair at
+ * only "half a level" cheaper would out-damage a same-level solo foe on
+ * action economy alone, before its stats even mattered. -3 (pair) / -5 (trio)
+ * is the v1 balance-pass guess against that action-economy premium; retune
+ * THESE numbers, not the roll flow, when balance-designer runs the numbers.
+ */
+export const PACK_LEVEL_DISCOUNT: Record<'pair' | 'trio', number> = {
+  pair: 3,
+  trio: 5,
+};
+
+/**
+ * TITLE CAP — pack members are `mob`/`normal` titles only in v1 (no elite or
+ * boss packs): stacking a scarier per-unit RANK on top of the extra
+ * casts-per-round pack members already bring would double-count the same
+ * difficulty axis twice. A pack node's base title/level still comes from the
+ * SAME `fightTableEntryForNode` spec a solo node on that column would use —
+ * so a `'hard'` fight-option's +1 level still lands on every member, and its
+ * title bump (normal -> elite) is simply capped back down to `'normal'` here
+ * rather than skipped outright. No second budget path: this is a pure clamp
+ * over the existing title dial.
+ */
+export function capPackTitle(title: EnemyTitle): EnemyTitle {
+  return title === 'elite' || title === 'boss' ? 'normal' : title;
+}
+
+/**
+ * A resolved fight-node encounter: `variant` says how many foes, `units` is
+ * that many independently-rolled `EncounterUnit`s in roster order (`'solo'`
+ * is always exactly `units.length === 1`, byte-identical to calling
+ * `buildEnemyEncounter` once directly — the pre-pack shape). Every consumer
+ * that used to read a single `EncounterUnit` off `rollEncounter` now reads
+ * `units[0]` for "the primary foe" (name/LV/title previews, etc.) and the
+ * full `units` array when it needs the whole pack (battle team, gold reward).
+ */
+export interface EncounterPack {
+  variant: PackVariant;
+  units: EncounterUnit[];
+}
+
 /** Clamp any requested level to the valid floor (level 1 = no points spent). */
 function clampLevel(level: number): number {
   return Math.max(1, Math.floor(level));

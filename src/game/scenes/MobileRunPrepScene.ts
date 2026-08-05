@@ -58,16 +58,16 @@ export class MobileRunPrepScene extends Phaser.Scene {
 
     const run = getActiveRun();
     const node = currentNode();
-    const encounter = currentEncounter();
-    if (!run || !node || !encounter) {
+    const pack = currentEncounter();
+    if (!run || !node || !pack) {
       this.scene.start('MobileRunMap');
       return;
     }
 
     this.renderHud(run, node.kind);
-    let boardsTop = this.renderFoeCard(node.kind, encounter);
+    let boardsTop = this.renderFoeCard(node.kind, pack);
     boardsTop = this.renderHeroBand(run, boardsTop);
-    this.renderColumns(run, encounter, boardsTop);
+    this.renderColumns(run, pack, boardsTop);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
         compact: true,
@@ -102,14 +102,22 @@ export class MobileRunPrepScene extends Phaser.Scene {
     });
   }
 
-  /** Compact foe summary card; returns the y the board columns start at. */
-  private renderFoeCard(kind: RunNodeKind, encounter: NonNullable<ReturnType<typeof currentEncounter>>): number {
+  /** Compact foe summary card; returns the y the board columns start at.
+   *
+   * PACK FIGHTS: mobile has no room for a full roster list (see the desktop
+   * scene's `packMemberLines`), so a pack's title chip becomes a "+N MORE"
+   * suffix instead — count + shared level, same idea in less space. */
+  private renderFoeCard(kind: RunNodeKind, pack: NonNullable<ReturnType<typeof currentEncounter>>): number {
+    const encounter = pack.units[0]!;
+    const isPack = pack.variant !== 'solo';
     const y = TEMPLATE.regions.content.y;
     const h = 62;
     const color = KIND_COLOR[kind];
     this.add.rectangle(10, y, this.W - 20, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(2, color, 0.9);
     const name = enemyNameFor(encounter.enemyId);
-    const nameSuffix = `   ·   ${encounter.title.toUpperCase()}   ·   LV ${encounter.effectiveLevel}`;
+    const nameSuffix = isPack
+      ? `   ·   LV ${encounter.effectiveLevel}   ·   +${pack.units.length - 1} MORE`
+      : `   ·   ${encounter.title.toUpperCase()}   ·   LV ${encounter.effectiveLevel}`;
     const nameText = this.add.text(20, y + 8, `${name}${nameSuffix}`, {
       fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold',
     });
@@ -149,11 +157,15 @@ export class MobileRunPrepScene extends Phaser.Scene {
     return top + h + 8;
   }
 
+  /** PACK FIGHTS: shows the PRIMARY member's board (same "keep it simple"
+   * idiom as desktop) with a "(1 OF N)" count note on the column header. */
   private renderColumns(
     run: NonNullable<ReturnType<typeof getActiveRun>>,
-    encounter: NonNullable<ReturnType<typeof currentEncounter>>,
+    pack: NonNullable<ReturnType<typeof currentEncounter>>,
     top: number,
   ): void {
+    const encounter = pack.units[0]!;
+    const isPack = pack.variant !== 'solo';
     const footerTop = TEMPLATE.regions.footer.y - 8;
     const colH = footerTop - top;
     const gap = 8;
@@ -162,7 +174,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
     const rightX = 10 + colW + gap;
 
     this.add.text(leftX + colW / 2, top - 14, 'YOUR DECK', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0);
-    this.add.text(rightX + colW / 2, top - 14, 'ENEMY SKILLS', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0);
+    this.add.text(rightX + colW / 2, top - 14, `ENEMY SKILLS${isPack ? ` (1 OF ${pack.units.length})` : ''}`, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0);
 
     const heroSkills: SkillDef[] = [];
     const heroPieces: ColumnPiece[] = [];
