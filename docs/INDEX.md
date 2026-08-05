@@ -25,6 +25,7 @@ doc disagrees with code, code wins.** Three classes:
 | [`board-type-identity.md`](board-type-identity.md) | LIVING | Deck affinity: 3-of-a-type matchup attunement. |
 | [`run-tutorial-design.md`](run-tutorial-design.md) | LIVING (planned feature) | Skippable in-fight tutorial design — not yet built. |
 | [`icon-generation-prompts.md`](icon-generation-prompts.md) | LIVING (reference) | Image-generation prompt blocks for icons/card art. |
+| [`art-prompt-pack.md`](art-prompt-pack.md) | LIVING (reference) | Run-layer UI asset pack: one prompt block + final file path per placeholder in `public/game-art/placeholders/` (event areas, choice icons, coin, heart, boss, storefront). |
 | [`history/`](history/) | HISTORY | Everything superseded: Codex-era docs, pre-rebuild combat-ui spec, executed plans/proposals (superpowers/), pl-changelog. Each file's banner names its successor. |
 
 Adding a doc? Give it a scope line at the top, add a row here, and make sure
