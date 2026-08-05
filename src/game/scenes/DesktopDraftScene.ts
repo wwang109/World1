@@ -28,6 +28,10 @@ const SET_LABEL: Record<DraftSetKey, string> = {
 export class DesktopDraftScene extends Phaser.Scene {
   private picks: Partial<Record<DraftSetKey, string>> = {};
   private draft!: StartDraft;
+  /** Times the player rerolled the whole draft — strides the roll seed
+   * deterministically; scene-local on purpose (a fresh entry re-offers the
+   * seed's canonical draft). */
+  private rerolls = 0;
   /** True when a Run Mode run is sitting in 'drafting' status — the discriminator
    * between the sandbox draft (writes demoState) and the run-start draft
    * (writes the active run via `applyRunDraft`). No separate context flag/
@@ -38,6 +42,7 @@ export class DesktopDraftScene extends Phaser.Scene {
 
   init(): void {
     this.picks = {};
+    this.rerolls = 0;
     this.runContext = isRunDrafting();
   }
 
@@ -45,7 +50,7 @@ export class DesktopDraftScene extends Phaser.Scene {
 
   create(): void {
     const seed = this.runContext ? getActiveRun()!.seed : demoState.seed;
-    this.draft = rollStartDraft(seed);
+    this.draft = rollStartDraft(seed + this.rerolls * 7919);
     renderDesktopBackground(this);
     if (this.runContext) {
       // THE run HUD's kicker/title/stats — no DECK/BAG or RETIRE slot yet
@@ -118,6 +123,14 @@ export class DesktopDraftScene extends Phaser.Scene {
     const x = SCREEN.width - gx - w;
     const y = SCREEN.height - DESKTOP_PROFILE.safe.bottom - h;
     const ready = Object.keys(this.picks).length === DRAFT_SET_KEYS.length;
+    // REROLL sits beside START: a fresh 4×5 offer off a deterministic seed
+    // stride; picks point at cards that no longer exist, so they clear.
+    const rw = 150;
+    const rx = x - rw - 12;
+    const reroll = this.add.rectangle(rx, y, rw, h, UI.panelAlt, 1)
+      .setOrigin(0, 0).setStrokeStyle(2, UI.border, 0.8).setInteractive({ useHandCursor: true });
+    this.add.text(rx + rw / 2, y + h / 2, 'REROLL', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textBright }).setOrigin(0.5);
+    reroll.on('pointerdown', () => { playSfx('uiClick'); this.rerolls += 1; this.picks = {}; this.rerender(); });
     const btn = this.add.rectangle(x, y, w, h, ready ? UI.chip : UI.panelMuted, ready ? 1 : 0.5)
       .setOrigin(0, 0).setStrokeStyle(2, UI.border, ready ? 1 : 0.4);
     this.add.text(x + w / 2, y + h / 2, 'START', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: ready ? UI.textOnChip : UI.textSoft }).setOrigin(0.5);

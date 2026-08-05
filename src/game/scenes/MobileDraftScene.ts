@@ -33,6 +33,10 @@ export class MobileDraftScene extends Phaser.Scene {
   private picks: Partial<Record<DraftSetKey, string>> = {};
   private setIndex = 0;
   private draft!: StartDraft;
+  /** Times the player rerolled the whole draft — strides the roll seed
+   * deterministically; scene-local on purpose (a fresh entry re-offers the
+   * seed's canonical draft). */
+  private rerolls = 0;
   /** True when a Run Mode run is sitting in 'drafting' status — the
    * discriminator between the sandbox draft (writes demoState) and the
    * run-start draft (writes the active run via `applyRunDraft`). */
@@ -43,6 +47,7 @@ export class MobileDraftScene extends Phaser.Scene {
   init(): void {
     this.picks = {};
     this.setIndex = 0;
+    this.rerolls = 0;
     this.runContext = isRunDrafting();
   }
 
@@ -52,7 +57,7 @@ export class MobileDraftScene extends Phaser.Scene {
     this.W = SCREEN.width; this.H = SCREEN.height;
     this.cameras.main.setBackgroundColor(0x0b1420);
     const seed = this.runContext ? getActiveRun()!.seed : demoState.seed;
-    this.draft = rollStartDraft(seed);
+    this.draft = rollStartDraft(seed + this.rerolls * 7919);
     if (this.runContext) {
       // THE run HUD's kicker/title/stats — no DECK/BAG or RETIRE slot yet
       // (still 'drafting': no board, and RETIRE only applies once 'active').
@@ -122,6 +127,9 @@ export class MobileDraftScene extends Phaser.Scene {
   private renderFooter(): void {
     const ready = Object.keys(this.picks).length === DRAFT_SET_KEYS.length;
     const buttons: ActionButton[] = [];
+    // Fresh 4×5 offer off a deterministic seed stride; picks point at cards
+    // that no longer exist, so they clear (and nav returns to set 1).
+    buttons.push({ label: 'REROLL', onPress: () => { playSfx('uiClick'); this.rerolls += 1; this.picks = {}; this.setIndex = 0; this.rerender(); } });
     if (this.setIndex > 0) buttons.push({ label: 'BACK', onPress: () => { playSfx('uiClick'); this.setIndex -= 1; this.rerender(); } });
     if (this.setIndex < DRAFT_SET_KEYS.length - 1) {
       buttons.push({ label: 'NEXT', primary: true, flex: 2, onPress: () => { playSfx('uiClick'); this.setIndex += 1; this.rerender(); } });
