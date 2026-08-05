@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
@@ -147,7 +148,7 @@ export class MobileShopScene extends Phaser.Scene {
     tabs.forEach(([label, active, fn], i) => {
       const x = 10 + i * (w + gap);
       const r = this.add.rectangle(x, 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      r.on('pointerdown', fn);
+      r.on('pointerdown', () => { playSfx('uiClick'); fn(); });
       this.add.text(x + w / 2, 25, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
   }
@@ -173,7 +174,7 @@ export class MobileShopScene extends Phaser.Scene {
       const x = 10 + (i % cols) * (cellW + gap);
       const y = top + Math.floor(i / cols) * (h + gap);
       const cell = this.add.rectangle(x, y, cellW, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      cell.on('pointerdown', () => { ensureShelf(id); this.selectedShop = id; this.rerender(); });
+      cell.on('pointerdown', () => { playSfx('uiClick'); ensureShelf(id); this.selectedShop = id; this.rerender(); });
       this.add.text(x + 10, y + 8, shop.name.toUpperCase(), { fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold', wordWrap: { width: cellW - 20 } });
       this.add.text(x + 10, y + h - 14, `${shop.shelf.cards}C · ${shop.shelf.gems}G`, { fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold' });
     });
@@ -196,7 +197,7 @@ export class MobileShopScene extends Phaser.Scene {
       const backW = 70;
       const back = this.add.rectangle(10, top, backW, 24, 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       this.add.text(10 + backW / 2, top + 12, '‹ SHOPS', { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-      back.on('pointerdown', () => { this.selectedShop = null; this.rerender(); });
+      back.on('pointerdown', () => { playSfx('uiBack'); this.selectedShop = null; this.rerender(); });
       titleX = 18 + backW;
     }
     this.add.text(titleX, top, shop.name.toUpperCase(), { fontSize: `${F.lead}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold' });
@@ -215,7 +216,7 @@ export class MobileShopScene extends Phaser.Scene {
       this.add.text(this.W - 10 - rerollW / 2, rerollY + 12, 'REROLL · 1G', { fontSize: `${F.tiny}px`, color: canReroll ? UI.textOnChip : UI.textDisabled, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       if (canReroll) {
         rr.setInteractive({ useHandCursor: true });
-        rr.on('pointerdown', () => { runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
+        rr.on('pointerdown', () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
       }
     }
 
@@ -232,7 +233,7 @@ export class MobileShopScene extends Phaser.Scene {
         const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
         new CardToken(this, 10 + (this.W - 20) / 2, y + cardH / 2, skill, { width: this.W - 20, height: cardH, side: 'left' });
         const hit = this.add.rectangle(10 + (this.W - 20) / 2, y + cardH / 2, this.W - 20, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
-        hit.on('pointerdown', () => { this.detailCardIndex = i; this.detailTier = offer.tier; this.rerender(); });
+        hit.on('pointerdown', () => { playSfx('uiClick'); this.detailCardIndex = i; this.detailTier = offer.tier; this.rerender(); });
         const affordable = this.activeGold() >= offer.price;
         this.add.text(this.W - 16, y + 6, `${offer.price} G`, { fontSize: `${F.small}px`, color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setBackgroundColor('#0b1420').setPadding(4, 2, 4, 2);
         y += cardH + 6;
@@ -250,7 +251,7 @@ export class MobileShopScene extends Phaser.Scene {
         if (!offer) { this.emptySlot(y, gemH); y += gemH + 6; continue; }
         const gem = gemBook[offer.gemId]!;
         const cell = this.add.rectangle(10, y, this.W - 20, gemH, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8).setInteractive({ useHandCursor: true });
-        cell.on('pointerdown', () => { this.detailGemIndex = i; this.rerender(); });
+        cell.on('pointerdown', () => { playSfx('uiClick'); this.detailGemIndex = i; this.rerender(); });
         this.add.rectangle(28, y + gemH / 2, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
         this.add.text(42, y + 8, gem.name, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' });
         const body = this.add.text(42, y + 24, stripCardTextMarkup(gem.text), { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: this.W - 100 } });
@@ -283,7 +284,7 @@ export class MobileShopScene extends Phaser.Scene {
     const shown = this.detailTier === base.tier ? base : applyTier(base, this.detailTier);
 
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setInteractive();
-    veil.on('pointerdown', () => { this.detailCardIndex = null; this.rerender(); });
+    veil.on('pointerdown', () => { playSfx('uiBack'); this.detailCardIndex = null; this.rerender(); });
 
     const centerX = this.W / 2;
     const cardW = 150;
@@ -311,6 +312,7 @@ export class MobileShopScene extends Phaser.Scene {
       btn.setInteractive({ useHandCursor: true });
       btn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
         event.stopPropagation();
+        playSfx('uiClick');
         this.pendingBuy = { kind: 'card', index: this.detailCardIndex! };
         this.rerender();
       });
@@ -327,7 +329,7 @@ export class MobileShopScene extends Phaser.Scene {
     const gem: GemDef = gemBook[offer.gemId]!;
 
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setInteractive();
-    veil.on('pointerdown', () => { this.detailGemIndex = null; this.rerender(); });
+    veil.on('pointerdown', () => { playSfx('uiBack'); this.detailGemIndex = null; this.rerender(); });
 
     const centerX = this.W / 2;
     let y = 110;
@@ -349,6 +351,7 @@ export class MobileShopScene extends Phaser.Scene {
       btn.setInteractive({ useHandCursor: true });
       btn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
         event.stopPropagation();
+        playSfx('uiClick');
         this.pendingBuy = { kind: 'gem', index: this.detailGemIndex! };
         this.rerender();
       });
@@ -377,7 +380,7 @@ export class MobileShopScene extends Phaser.Scene {
       r.on('pointerdown', fn);
       this.add.text(dx + w / 2, by + 106, label, { fontSize: `${F.name}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };
-    mk(bx + 16, (bw - 40) / 2, 'CANCEL', 0x1b2940, UI.textBright, () => { this.pendingBuy = null; this.rerender(); });
+    mk(bx + 16, (bw - 40) / 2, 'CANCEL', 0x1b2940, UI.textBright, () => { playSfx('uiBack'); this.pendingBuy = null; this.rerender(); });
     mk(bx + 24 + (bw - 40) / 2, (bw - 40) / 2, 'BUY', 0xe8b446, UI.textOnChip, () => {
       const result = runMode
         ? (buy.kind === 'card' ? buyCurrentShopCard(buy.index) : buyCurrentShopGem(buy.index))
@@ -387,7 +390,7 @@ export class MobileShopScene extends Phaser.Scene {
       this.detailGemIndex = null;
       this.rerender();
       if (!result.ok) this.showToast(result.reason === 'bag' ? 'Bag full — purchase cancelled' : 'Could not complete purchase', '#e8907a');
-      else this.showToast(`Bought ${name}`, '#9ad17a');
+      else { playSfx('purchase'); this.showToast(`Bought ${name}`, '#9ad17a'); }
     });
   }
 

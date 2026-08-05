@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { gemPowerLevel, instancePowerLevelDeci } from '../../engine/balance';
 import { boardTypeIdentity, cardType } from '../../engine/combat/typeIdentity';
@@ -167,6 +168,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       // A TAP (no real movement) on a DECK card opens its gem-socket panel
       // instead of resolving as a drop.
       if (totalMove < 8 && src.where === 'deck') {
+        playSfx('uiClick');
         this.socketFor = src.instanceId;
         this.rerender();
         return;
@@ -247,7 +249,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     tabs.forEach(([label, active, fn], i) => {
       const x = 10 + i * (w + gap);
       const r = this.add.rectangle(x, 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      r.on('pointerdown', fn);
+      r.on('pointerdown', () => { playSfx('uiClick'); fn(); });
       this.add.text(x + w / 2, 25, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
   }
@@ -485,8 +487,8 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       r.on('pointerdown', fn);
       this.add.text(dx + w / 2, by + 106, label, { fontSize: `${F.name}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };
-    mk(bx + 16, (bw - 40) / 2, 'CANCEL', 0x1b2940, UI.textBright, () => { this.pendingTrash = null; this.rerender(); });
-    mk(bx + 24 + (bw - 40) / 2, (bw - 40) / 2, 'DELETE', 0x7a2e2a, '#ffffff', () => { this.removeSource(src); this.pendingTrash = null; this.rerender(); });
+    mk(bx + 16, (bw - 40) / 2, 'CANCEL', 0x1b2940, UI.textBright, () => { playSfx('uiBack'); this.pendingTrash = null; this.rerender(); });
+    mk(bx + 24 + (bw - 40) / 2, (bw - 40) / 2, 'DELETE', 0x7a2e2a, '#ffffff', () => { playSfx('uiClick'); this.removeSource(src); this.pendingTrash = null; this.rerender(); });
   }
 
   /**
@@ -508,7 +510,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
 
     const close = (): void => { this.socketFor = null; this.rerender(); };
     const scrim = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.78).setOrigin(0, 0).setInteractive();
-    scrim.on('pointerdown', close);
+    scrim.on('pointerdown', () => { playSfx('uiBack'); close(); });
 
     const pouch = this.gemInventory.map((id) => gemBook[id]).filter((g): g is NonNullable<typeof g> => Boolean(g));
     const pw = this.W - 24;
@@ -549,6 +551,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       const un = this.add.rectangle(px + pw - 88, curY + 8, 74, 32, 0x352019).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
       this.add.text(px + pw - 51, curY + 24, 'UNSOCKET', { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       un.on('pointerdown', () => {
+        playSfx('uiClick');
         const { piece: updated, gem: removed } = unsocketGem(piece);
         this.pieces = this.pieces.map((p) => (p.instanceId === piece.instanceId ? updated : p));
         if (removed) this.gemInventory = [...this.gemInventory, removed.id];
@@ -591,6 +594,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       const act = this.add.rectangle(pw - 28 - 66, rowH / 2 - 14, 60, 28, 0xb78a46).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
       const actLabel = this.add.text(pw - 28 - 36, rowH / 2, piece.gem ? 'SWAP' : 'SOCKET', { fontSize: `${F.tiny}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       act.on('pointerdown', () => {
+        playSfx('uiClick');
         // consume ONE copy of this gem id from the pouch
         const at = this.gemInventory.indexOf(gem.id);
         if (at >= 0) this.gemInventory = this.gemInventory.filter((_, i) => i !== at);

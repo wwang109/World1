@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { getActiveRun, type RunState } from '../runStore';
 import { FONT, UI } from '../theme';
 import { auditTextBlock } from './controlLayoutAudit';
@@ -128,7 +129,7 @@ export function renderRunStatsAffordance(
 
   btn.on('pointerover', () => btn.setFillStyle(UI.slotHover));
   btn.on('pointerout', () => btn.setFillStyle(UI.panelAlt));
-  btn.on('pointerdown', opts.onPress);
+  btn.on('pointerdown', () => { playSfx('uiClick'); opts.onPress(); });
 }
 
 /**
@@ -152,7 +153,7 @@ export function renderRunStatsOverlay(
   const { width: W, height: H } = t.canvas;
 
   scene.add.rectangle(0, 0, W, H, UI.shadow, 0.78).setOrigin(0, 0).setInteractive().setDepth(5500)
-    .on('pointerdown', opts.onClose);
+    .on('pointerdown', () => { playSfx('uiBack'); opts.onClose(); });
 
   const pairs = runStatsPairs(run);
   const gridH = runStatsGridHeight(pairs.length, opts.compact);
@@ -192,5 +193,5 @@ export function renderRunStatsOverlay(
   scene.add.text(innerX + innerW / 2, cursor + btnH / 2, 'CLOSE', {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize + 2}px`, color: UI.text,
   }).setOrigin(0.5).setDepth(5502);
-  closeBtn.on('pointerdown', opts.onClose);
+  closeBtn.on('pointerdown', () => { playSfx('uiBack'); opts.onClose(); });
 }

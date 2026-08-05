@@ -1,4 +1,5 @@
 ﻿import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { enemies } from '../../data/enemies';
@@ -95,7 +96,7 @@ export class DesktopPrepScene extends Phaser.Scene {
     const r = this.add.rectangle(x, y, w, h, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
     r.on('pointerover', () => r.setFillStyle(UI.slotHover));
     r.on('pointerout', () => r.setFillStyle(fill));
-    r.on('pointerdown', onClick);
+    r.on('pointerdown', () => { playSfx('uiClick'); onClick(); });
     this.add.text(x + w / 2, y + h / 2, label, { fontSize: `${size}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
   }
 
@@ -150,6 +151,7 @@ export class DesktopPrepScene extends Phaser.Scene {
         .setOrigin(0, 0).setStrokeStyle(isActive ? 2 : 1, isActive ? UI.chip : UI.border, isActive ? 1 : 0.6)
         .setInteractive({ useHandCursor: true });
       chip.on('pointerdown', () => {
+        playSfx('uiClick');
         if (isActive) { this.picker = i; } else { demoState.activeFoe = i; }
         this.rerender();
       });
@@ -163,6 +165,7 @@ export class DesktopPrepScene extends Phaser.Scene {
           .setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
         this.add.text(cx + chipW - 12, cy + 12, '✕', { fontSize: `${F.tiny}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
         remove.on('pointerdown', () => {
+          playSfx('uiClick');
           demoState.enemyTeam = demoState.enemyTeam.filter((_, idx) => idx !== i);
           syncPrimaryFoe();
           this.rerender();
@@ -426,7 +429,7 @@ export class DesktopPrepScene extends Phaser.Scene {
         const tab = this.add.rectangle(tx, colTop, tabW, tabH, isActive ? UI.panelAlt : UI.panelMuted)
           .setOrigin(0, 0).setStrokeStyle(isActive ? 2 : 1, isActive ? UI.chip : UI.border, isActive ? 1 : 0.6)
           .setInteractive({ useHandCursor: true });
-        tab.on('pointerdown', () => { demoState.activeFoe = i; this.rerender(); });
+        tab.on('pointerdown', () => { playSfx('uiClick'); demoState.activeFoe = i; this.rerender(); });
         const label = this.add.text(tx + tabW / 2, colTop + tabH / 2, enemies[encounter.enemyId]!.name.toUpperCase(), {
           fontSize: `${F.tiny}px`, color: isActive ? UI.text : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold',
         }).setOrigin(0.5);
@@ -444,7 +447,7 @@ export class DesktopPrepScene extends Phaser.Scene {
   private renderPicker(): void {
     const mode = this.picker!;
     const scrim = this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
-    scrim.on('pointerdown', () => { this.picker = null; this.rerender(); });
+    scrim.on('pointerdown', () => { playSfx('uiBack'); this.picker = null; this.rerender(); });
 
     const ids = Object.keys(enemies);
     const columns = 3;
@@ -474,6 +477,7 @@ export class DesktopPrepScene extends Phaser.Scene {
       this.text(cx + 12, cy + 6, def.name.toUpperCase(), F.small, UI.text, { bold: true });
       this.text(cx + 12, cy + 24, `${(def.isBoss ? 'boss' : def.isElite ? 'elite' : 'normal').toUpperCase()} · LV ${Math.max(1, def.baseDepth)}`, F.tiny, UI.textDim);
       r.on('pointerdown', () => {
+        playSfx('uiClick');
         const title = def.isBoss ? 'boss' as const : def.isElite ? 'elite' as const : 'normal' as const;
         if (mode === 'add') {
           demoState.enemyTeam = [...demoState.enemyTeam, {
@@ -500,7 +504,7 @@ export class DesktopPrepScene extends Phaser.Scene {
     fight.on('pointerover', () => fight.setFillStyle(UI.chipDark).setStrokeStyle(2, UI.chip, 1));
     fight.on('pointerout', () => fight.setFillStyle(UI.chip).setStrokeStyle(2, UI.border, 1));
     this.text(x + w / 2, y + FIGHT_H / 2, 'FIGHT', F.title, UI.textOnChip, { bold: true, display: true, origin: [0.5, 0.5] });
-    fight.on('pointerdown', () => { setBattleContext('demo'); this.scene.start('DesktopBattle'); });
+    fight.on('pointerdown', () => { playSfx('uiClick'); setBattleContext('demo'); this.scene.start('DesktopBattle'); });
   }
 }
 

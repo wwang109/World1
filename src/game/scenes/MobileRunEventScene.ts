@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { gemBook } from '../../data/gems';
 import type { EventChoiceDef, EventDef } from '../../data/events';
@@ -133,6 +134,7 @@ export class MobileRunEventScene extends Phaser.Scene {
       };
       renderRunChoicePanel(this, { x: 10, y, w: this.W - 20, h: rowH }, model, {
         font: F,
+        sfx: cost > 0 ? 'purchase' : 'uiClick',
         onSelect: () => {
           const outcome = resolveCurrentEventChoice(event.id, choice.id);
           if (!outcome) return;
@@ -178,6 +180,7 @@ export class MobileRunEventScene extends Phaser.Scene {
       auditControlLabel(hit, select, { name: `Mobile run event ${card.skillId} bonus pick`, horizontalPadding: 12, verticalPadding: 5, minFontSize: 8 });
       auditTextBlock(select, { name: `Mobile run event ${card.skillId} select label`, maxWidth: 64, maxHeight: F.tiny * 2, minFontSize: 8 });
       hit.on('pointerdown', () => {
+        playSfx('uiClick');
         const outcome = applyCurrentBonusDraftPick(card);
         if (!outcome) return;
         this.phase = 'outcome';

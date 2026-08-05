@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { applyDraftPicks } from '../draftActions';
 import { DRAFT_SET_KEYS, rollStartDraft, type DraftSetKey, type StartDraft } from '../../run/draft';
@@ -101,7 +102,7 @@ export class DesktopDraftScene extends Phaser.Scene {
         }
         const tok = new CardToken(this, cx + cardW / 2, cy + cardH / 2, skill, { width: cardW, height: cardH, side: 'left' });
         const hit = this.add.rectangle(cx + cardW / 2, cy + cardH / 2, cardW, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
-        hit.on('pointerdown', () => { this.picks[key] = card.skillId; this.rerender(); });
+        hit.on('pointerdown', () => { playSfx('uiClick'); this.picks[key] = card.skillId; this.rerender(); });
         if (isPicked) {
           this.add.text(cx + cardW - 6, cy + 6, '✓', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent }).setOrigin(1, 0);
         }
@@ -123,6 +124,7 @@ export class DesktopDraftScene extends Phaser.Scene {
     if (ready) {
       btn.setInteractive({ useHandCursor: true });
       btn.on('pointerdown', () => {
+        playSfx('uiClick');
         if (this.runContext) {
           applyRunDraft(this.picks);
           this.scene.start('DesktopRunMap');

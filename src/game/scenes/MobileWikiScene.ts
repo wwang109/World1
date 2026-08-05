@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { gemPowerLevel, instancePowerLevelDeci, powerLevelDeci } from '../../engine/balance';
 import { applyTier } from '../../engine/cards';
@@ -117,7 +118,7 @@ export class MobileWikiScene extends Phaser.Scene {
     tabs.forEach(([label, active, fn], i) => {
       const x = 10 + i * (w + gap);
       const r = this.add.rectangle(x, 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      r.on('pointerdown', fn);
+      r.on('pointerdown', () => { playSfx('uiClick'); fn(); });
       this.add.text(x + w / 2, 25, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
   }
@@ -146,6 +147,7 @@ export class MobileWikiScene extends Phaser.Scene {
         .setOrigin(0, 0).setStrokeStyle(1, active ? 0xe8b446 : 0x3a4a62, 0.9).setInteractive({ useHandCursor: true });
       this.add.text(tx + w / 2, y + 18, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       chip.on('pointerdown', () => {
+        playSfx('uiClick');
         if (this.view === v) return;
         this.view = v;
         this.rerender();
@@ -170,6 +172,7 @@ export class MobileWikiScene extends Phaser.Scene {
         this.add.text(x + w / 2, y + 65, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
         chip.setInteractive({ useHandCursor: true });
         chip.on('pointerdown', () => {
+          playSfx('uiClick');
           if (this.cardFilter === value) return;
           this.cardFilter = value;
           this.rerender();
@@ -325,10 +328,10 @@ export class MobileWikiScene extends Phaser.Scene {
         const localY = p.worldY - this.viewport.top - this.scrollY;
         if (this.view === 'cards') {
           const row = this.rows.find((r) => p.worldX >= r.baseX - r.token.width / 2 && p.worldX <= r.baseX + r.token.width / 2 && localY >= r.baseY && localY < r.baseY + r.h);
-          if (row) this.openDetail(row.skill);
+          if (row) { playSfx('uiClick'); this.openDetail(row.skill); }
         } else {
           const row = this.gemRows.find((r) => localY >= r.baseY && localY < r.baseY + r.h);
-          if (row) this.openGemDetail(row.gem);
+          if (row) { playSfx('uiClick'); this.openGemDetail(row.gem); }
         }
       }
     });
@@ -397,13 +400,13 @@ export class MobileWikiScene extends Phaser.Scene {
     if (!skill) return;
     const objs: Phaser.GameObjects.GameObject[] = [];
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setDepth(3000).setInteractive();
-    veil.on('pointerdown', () => this.closeDetail());
+    veil.on('pointerdown', () => { playSfx('uiBack'); this.closeDetail(); });
     objs.push(veil);
 
     const close = this.add.rectangle(this.W - 30, 46, 28, 28, 0x24344a, 1)
       .setOrigin(0.5).setDepth(3003).setStrokeStyle(1, 0x8a94a6, 0.8).setInteractive({ useHandCursor: true });
     const closeText = this.add.text(close.x, close.y, '×', { fontSize: `${F.xlarge}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(3004);
-    close.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => { event.stopPropagation(); this.closeDetail(); });
+    close.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => { event.stopPropagation(); playSfx('uiBack'); this.closeDetail(); });
     objs.push(close, closeText);
 
     const shown = this.detailTier === skill.tier ? skill : applyTier(skill, this.detailTier);
@@ -450,6 +453,7 @@ export class MobileWikiScene extends Phaser.Scene {
         chip.setInteractive({ useHandCursor: true });
         chip.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
           event.stopPropagation();
+          playSfx('uiClick');
           this.detailTier = t;
           this.renderCardDetail();
         });
@@ -473,6 +477,7 @@ export class MobileWikiScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(3003);
     btn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation();
+      playSfx('uiClick');
       const result = this.addToBag(skill, this.detailTier);
       this.closeDetail();
       if (result.ok) this.showToast(`Added ${this.detailTier} · bag ${result.used}/${SLOTS}`, '#9ad17a');
@@ -497,13 +502,13 @@ export class MobileWikiScene extends Phaser.Scene {
     if (!gem) return;
     const objs: Phaser.GameObjects.GameObject[] = [];
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setDepth(3000).setInteractive();
-    veil.on('pointerdown', () => this.closeDetail());
+    veil.on('pointerdown', () => { playSfx('uiBack'); this.closeDetail(); });
     objs.push(veil);
 
     const close = this.add.rectangle(this.W - 30, 46, 28, 28, 0x24344a, 1)
       .setOrigin(0.5).setDepth(3003).setStrokeStyle(1, 0x8a94a6, 0.8).setInteractive({ useHandCursor: true });
     const closeText = this.add.text(close.x, close.y, '×', { fontSize: `${F.xlarge}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(3004);
-    close.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => { event.stopPropagation(); this.closeDetail(); });
+    close.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => { event.stopPropagation(); playSfx('uiBack'); this.closeDetail(); });
     objs.push(close, closeText);
 
     const centerX = this.W / 2;
@@ -562,6 +567,7 @@ export class MobileWikiScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(3003);
     btn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation();
+      playSfx('uiClick');
       demoState.gemInventory = [...demoState.gemInventory, gem.id];
       this.renderGemDetail();
       this.showToast(`${gem.name} added to pouch`, '#9ad17a');

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { gemPowerLevel, powerLevel } from '../../engine/balance';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
@@ -80,6 +81,7 @@ export class UiKitScene extends Phaser.Scene {
       const chip = this.keep(this.add.rectangle(tx, 86, w, 30, active ? UI.chipDark : UI.panelMuted).setOrigin(0, 0));
       chip.setStrokeStyle(1, UI.border, active ? 1 : 0.6).setInteractive({ useHandCursor: true });
       chip.on('pointerdown', () => {
+        playSfx('uiClick');
         this.tab = key;
         this.renderAll();
       });

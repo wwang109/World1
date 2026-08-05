@@ -1,4 +1,5 @@
 ﻿import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { gemPowerLevel, powerLevelDeci } from '../../engine/balance';
 import { applyTier } from '../../engine/cards';
 import type { SkillDef, SkillTier } from '../../engine/types';
@@ -152,6 +153,7 @@ export class DesktopWikiScene extends Phaser.Scene {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim,
       }).setOrigin(0.5);
       tab.on('pointerdown', () => {
+        playSfx('uiClick');
         if (this.view === v) return;
         this.view = v;
         this.rerender();
@@ -183,6 +185,7 @@ export class DesktopWikiScene extends Phaser.Scene {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim,
       }).setOrigin(0.5);
       chip.on('pointerdown', () => {
+        playSfx('uiClick');
         if (this.filter === value) return;
         this.filter = value;
         this.selected = this.filteredSkills()[0];
@@ -332,7 +335,7 @@ export class DesktopWikiScene extends Phaser.Scene {
         const localY = p.worldY - this.viewport.top - this.scrollY;
         const row = this.galleryCards.find((r) => p.worldX >= r.baseX - r.w / 2 && p.worldX <= r.baseX + r.w / 2
           && localY >= r.baseY && localY < r.baseY + r.h);
-        if (row) this.selectCard(row.skill);
+        if (row) { playSfx('uiClick'); this.selectCard(row.skill); }
       }
     });
     this.input.on('wheel', (pointer: Phaser.Input.Pointer, _objs: unknown, _dx: number, dy: number) => {
@@ -416,6 +419,7 @@ export class DesktopWikiScene extends Phaser.Scene {
       if (allowed && !active) {
         chip.setInteractive({ useHandCursor: true });
         chip.on('pointerdown', () => {
+          playSfx('uiClick');
           this.tier = t;
           this.clearObjects(this.detailObjects);
           this.renderDetail();
@@ -442,6 +446,7 @@ export class DesktopWikiScene extends Phaser.Scene {
     button.on('pointerover', () => button.setFillStyle(UI.slotHover));
     button.on('pointerout', () => button.setFillStyle(UI.chip));
     button.on('pointerdown', () => {
+      playSfx('uiClick');
       const result = this.addToBag(skill, this.tier);
       if (result.ok) this.showToast(`Added ${this.tier} · bag ${result.used}/${SLOTS}`, UI.good);
       else this.showToast(`Bag full — no room for size ${Math.max(1, skill.size)}`, UI.bad);
@@ -536,6 +541,7 @@ export class DesktopWikiScene extends Phaser.Scene {
         .setOrigin(0, 0).setStrokeStyle(active ? 2 : 1, active ? GEM_RARITY_COLOR[gem.rarity] : UI.border, active ? 1 : 0.6)
         .setInteractive({ useHandCursor: true });
       cell.on('pointerdown', () => {
+        playSfx('uiClick');
         this.selectedGem = gem;
         this.renderGemGallery();
         this.clearObjects(this.detailObjects);
@@ -621,6 +627,7 @@ export class DesktopWikiScene extends Phaser.Scene {
     button.on('pointerover', () => button.setFillStyle(UI.slotHover));
     button.on('pointerout', () => button.setFillStyle(UI.chip));
     button.on('pointerdown', () => {
+      playSfx('uiClick');
       demoState.gemInventory = [...demoState.gemInventory, gem.id];
       this.clearObjects(this.detailObjects);
       this.renderGemDetail();

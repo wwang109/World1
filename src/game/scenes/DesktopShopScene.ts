@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
@@ -160,6 +161,7 @@ export class DesktopShopScene extends Phaser.Scene {
       cell.on('pointerover', () => cell.setStrokeStyle(2, UI.chip, 1));
       cell.on('pointerout', () => cell.setStrokeStyle(1, UI.border, 0.8));
       cell.on('pointerdown', () => {
+        playSfx('uiClick');
         ensureShelf(id);
         this.selectedShop = id;
         this.rerender();
@@ -196,7 +198,7 @@ export class DesktopShopScene extends Phaser.Scene {
       const backW = 90;
       const back = this.add.rectangle(gx, top, backW, 28, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       this.add.text(gx + backW / 2, top + 14, '‹ SHOPS', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }).setOrigin(0.5);
-      back.on('pointerdown', () => { this.selectedShop = null; this.rerender(); });
+      back.on('pointerdown', () => { playSfx('uiBack'); this.selectedShop = null; this.rerender(); });
       titleX = gx + backW + 16;
     }
     this.add.text(titleX, top, shop.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent });
@@ -221,7 +223,7 @@ export class DesktopShopScene extends Phaser.Scene {
       }).setOrigin(0.5);
       if (canReroll) {
         reroll.setInteractive({ useHandCursor: true });
-        reroll.on('pointerdown', () => { runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
+        reroll.on('pointerdown', () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
       }
     }
 
@@ -247,7 +249,7 @@ export class DesktopShopScene extends Phaser.Scene {
         const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
         const tok = new CardToken(this, cx + cardW / 2, cardTop + cardH / 2, skill, { width: cardW, height: cardH, side: 'left' });
         const hit = this.add.rectangle(cx + cardW / 2, cardTop + cardH / 2, cardW, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
-        hit.on('pointerdown', () => { this.detailCardIndex = i; this.detailTier = offer.tier; this.rerender(); });
+        hit.on('pointerdown', () => { playSfx('uiClick'); this.detailCardIndex = i; this.detailTier = offer.tier; this.rerender(); });
         const affordable = this.activeGold() >= offer.price;
         this.add.rectangle(cx, cardTop + cardH, cardW, 24, UI.panelMuted, 0.95).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.6);
         this.add.text(cx + cardW / 2, cardTop + cardH + 12, `${offer.price} GOLD`, {
@@ -274,7 +276,7 @@ export class DesktopShopScene extends Phaser.Scene {
         const gem = gemBook[offer.gemId]!;
         const cell = this.add.rectangle(cx, gemRowTop, gemW, gemH, UI.panel, 0.94)
           .setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8).setInteractive({ useHandCursor: true });
-        cell.on('pointerdown', () => { this.detailGemIndex = i; this.rerender(); });
+        cell.on('pointerdown', () => { playSfx('uiClick'); this.detailGemIndex = i; this.rerender(); });
         this.add.rectangle(cx + 22, gemRowTop + 22, 14, 14, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
         this.add.text(cx + 38, gemRowTop + 12, gem.name, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text });
         const body = this.add.text(cx + 16, gemRowTop + 40, stripCardTextMarkup(gem.text), {
@@ -319,7 +321,7 @@ export class DesktopShopScene extends Phaser.Scene {
     const shown = this.detailTier === base.tier ? base : applyTier(base, this.detailTier);
 
     this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.78).setOrigin(0, 0).setInteractive()
-      .on('pointerdown', () => { this.detailCardIndex = null; this.rerender(); });
+      .on('pointerdown', () => { playSfx('uiBack'); this.detailCardIndex = null; this.rerender(); });
 
     const pw = 420;
     const cardW = 220;
@@ -351,7 +353,7 @@ export class DesktopShopScene extends Phaser.Scene {
     this.add.text(centerX, y + 20, label, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: canBuy ? UI.textOnChip : UI.textSoft }).setOrigin(0.5);
     if (canBuy) {
       btn.setInteractive({ useHandCursor: true });
-      btn.on('pointerdown', () => { this.pendingBuy = { kind: 'card', index: this.detailCardIndex! }; this.rerender(); });
+      btn.on('pointerdown', () => { playSfx('uiClick'); this.pendingBuy = { kind: 'card', index: this.detailCardIndex! }; this.rerender(); });
     }
     this.add.text(px + pw - 16, py + 14, 'click outside to close', { fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textSoft }).setOrigin(1, 0);
   }
@@ -366,7 +368,7 @@ export class DesktopShopScene extends Phaser.Scene {
     const gem: GemDef = gemBook[offer.gemId]!;
 
     this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.78).setOrigin(0, 0).setInteractive()
-      .on('pointerdown', () => { this.detailGemIndex = null; this.rerender(); });
+      .on('pointerdown', () => { playSfx('uiBack'); this.detailGemIndex = null; this.rerender(); });
 
     const pw = 420; const ph = 320;
     const px = (SCREEN.width - pw) / 2;
@@ -395,7 +397,7 @@ export class DesktopShopScene extends Phaser.Scene {
     }).setOrigin(0.5);
     if (affordable) {
       btn.setInteractive({ useHandCursor: true });
-      btn.on('pointerdown', () => { this.pendingBuy = { kind: 'gem', index: this.detailGemIndex! }; this.rerender(); });
+      btn.on('pointerdown', () => { playSfx('uiClick'); this.pendingBuy = { kind: 'gem', index: this.detailGemIndex! }; this.rerender(); });
     }
     this.add.text(px + pw - 16, py + 14, 'click outside to close', { fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textSoft }).setOrigin(1, 0);
   }
@@ -422,7 +424,7 @@ export class DesktopShopScene extends Phaser.Scene {
       r.on('pointerdown', fn);
       this.add.text(dx + w / 2, by + 138, label, { fontSize: `${F.body}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };
-    mk(bx + 20, (bw - 60) / 2, 'CANCEL', UI.panelMuted, UI.text, () => { this.pendingBuy = null; this.rerender(); });
+    mk(bx + 20, (bw - 60) / 2, 'CANCEL', UI.panelMuted, UI.text, () => { playSfx('uiBack'); this.pendingBuy = null; this.rerender(); });
     mk(bx + 40 + (bw - 60) / 2, (bw - 60) / 2, 'BUY', UI.chip, UI.textOnChip, () => {
       const result = runMode
         ? (buy.kind === 'card' ? buyCurrentShopCard(buy.index) : buyCurrentShopGem(buy.index))
@@ -432,7 +434,7 @@ export class DesktopShopScene extends Phaser.Scene {
       this.detailGemIndex = null;
       this.rerender();
       if (!result.ok) this.showToast(result.reason === 'bag' ? 'Bag full — purchase cancelled' : 'Could not complete purchase', UI.bad);
-      else this.showToast(`Bought ${name}`, UI.good);
+      else { playSfx('purchase'); this.showToast(`Bought ${name}`, UI.good); }
     });
   }
 

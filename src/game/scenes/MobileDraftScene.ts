@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { applyDraftPicks } from '../draftActions';
@@ -77,7 +78,7 @@ export class MobileDraftScene extends Phaser.Scene {
     tabs.forEach(([label, active, fn], i) => {
       const x = 10 + i * (w + gap);
       const r = this.add.rectangle(x, 8, w, 34, active ? 0xb78a46 : 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      r.on('pointerdown', fn);
+      r.on('pointerdown', () => { playSfx('uiClick'); fn(); });
       this.add.text(x + w / 2, 25, label, { fontSize: `${F.tiny}px`, color: active ? UI.textOnChip : UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
   }
@@ -109,7 +110,7 @@ export class MobileDraftScene extends Phaser.Scene {
       }
       new CardToken(this, 10 + (this.W - 20) / 2, y + h / 2, skill, { width: this.W - 20, height: h, side: 'left' });
       const hit = this.add.rectangle(10 + (this.W - 20) / 2, y + h / 2, this.W - 20, h, 0xffffff, 0).setInteractive({ useHandCursor: true });
-      hit.on('pointerdown', () => { this.picks[key] = card.skillId; this.rerender(); });
+      hit.on('pointerdown', () => { playSfx('uiClick'); this.picks[key] = card.skillId; this.rerender(); });
       if (isPicked) {
         this.add.text(this.W - 18, y + 6, '✓ PICKED', { fontSize: `${F.tiny}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' })
           .setOrigin(1, 0).setBackgroundColor('#e8b446').setPadding(4, 2, 4, 2);
@@ -121,12 +122,13 @@ export class MobileDraftScene extends Phaser.Scene {
   private renderFooter(): void {
     const ready = Object.keys(this.picks).length === DRAFT_SET_KEYS.length;
     const buttons: ActionButton[] = [];
-    if (this.setIndex > 0) buttons.push({ label: 'BACK', onPress: () => { this.setIndex -= 1; this.rerender(); } });
+    if (this.setIndex > 0) buttons.push({ label: 'BACK', onPress: () => { playSfx('uiClick'); this.setIndex -= 1; this.rerender(); } });
     if (this.setIndex < DRAFT_SET_KEYS.length - 1) {
-      buttons.push({ label: 'NEXT', primary: true, flex: 2, onPress: () => { this.setIndex += 1; this.rerender(); } });
+      buttons.push({ label: 'NEXT', primary: true, flex: 2, onPress: () => { playSfx('uiClick'); this.setIndex += 1; this.rerender(); } });
     } else if (ready) {
       buttons.push({
         label: 'START', primary: true, flex: 2, onPress: () => {
+          playSfx('uiClick');
           if (this.runContext) {
             applyRunDraft(this.picks);
             this.scene.start('MobileRunMap');

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { LEVEL_STAT_COST, totalLevelPL, type Allocation, type LevelStat } from '../../run/leveling';
 import { commitHeroAllocation, currentBankedPL, currentHeroAllocation, currentHeroLevel, heroAllocationScratchCost } from '../runStore';
 import { FONT, SCREEN, UI } from '../theme';
@@ -73,7 +74,7 @@ export function renderRunStatPanel(
   const smallSize = compact ? 9 : 11;
   const labelSize = compact ? 10 : 12;
 
-  const cancelAndClose = (): void => { discardStatPanelScratch(); onCancel(); };
+  const cancelAndClose = (): void => { playSfx('uiBack'); discardStatPanelScratch(); onCancel(); };
 
   const scrim = scene.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.78).setOrigin(0, 0).setInteractive().setDepth(5000);
   scrim.on('pointerdown', cancelAndClose);
@@ -138,6 +139,7 @@ export function renderRunStatPanel(
     if (canSell) {
       minusBtn.setInteractive({ useHandCursor: true });
       minusBtn.on('pointerdown', () => {
+        playSfx('uiClick');
         const next = { ...ensureScratch(), [stat]: Math.max(0, (alloc[stat] ?? 0) - 1) };
         scratch = next;
         onChanged();
@@ -155,6 +157,7 @@ export function renderRunStatPanel(
     if (canBuy) {
       plusBtn.setInteractive({ useHandCursor: true });
       plusBtn.on('pointerdown', () => {
+        playSfx('uiClick');
         const next = { ...ensureScratch(), [stat]: (alloc[stat] ?? 0) + 1 };
         scratch = next;
         onChanged();
@@ -180,6 +183,7 @@ export function renderRunStatPanel(
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${labelSize}px`, color: UI.textOnChip,
   }).setOrigin(0.5).setDepth(5002);
   confirmBtn.on('pointerdown', () => {
+    playSfx(spent > 0 ? 'levelUp' : 'uiClick');
     commitHeroAllocation(ensureScratch());
     discardStatPanelScratch();
     onConfirm();
@@ -216,7 +220,7 @@ export function renderBankedPlBadge(
   scene.add.text(x - w / 2, y + h / 2, label, {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${fontSize}px`, color: UI.textOnChip,
   }).setOrigin(0.5);
-  badge.on('pointerdown', onPress);
+  badge.on('pointerdown', () => { playSfx('uiClick'); onPress(); });
   scene.tweens.add({ targets: badge, alpha: 0.75, duration: 650, yoyo: true, repeat: -1 });
   return w;
 }

@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
+import type { SfxKey } from '../audio/sfxRecipes';
 import type { LayoutProfile } from '../layoutProfile';
 import type { RunNodeKind } from '../runStore';
 import { FONT, UI } from '../theme';
@@ -22,7 +24,7 @@ export function renderRunChoicePanel(
   scene: Phaser.Scene,
   bounds: { x: number; y: number; w: number; h: number },
   model: RunChoiceViewModel,
-  opts: { font: LayoutProfile['font']; onSelect: () => void; track?: Phaser.GameObjects.GameObject[] },
+  opts: { font: LayoutProfile['font']; onSelect: () => void; track?: Phaser.GameObjects.GameObject[]; sfx?: SfxKey },
 ): void {
   const railW = 6;
   const inset = Math.max(14, opts.font.small + 6);
@@ -91,5 +93,5 @@ export function renderRunChoicePanel(
   panel.setInteractive({ useHandCursor: true });
   panel.on('pointerover', () => panel.setFillStyle(UI.slotHover, 0.95));
   panel.on('pointerout', () => panel.setFillStyle(fill, alpha));
-  panel.on('pointerdown', opts.onSelect);
+  panel.on('pointerdown', () => { playSfx(opts.sfx ?? 'uiClick'); opts.onSelect(); });
 }

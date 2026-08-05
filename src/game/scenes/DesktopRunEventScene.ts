@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { gemBook } from '../../data/gems';
 import type { EventChoiceDef, EventDef } from '../../data/events';
@@ -159,6 +160,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
       };
       renderRunChoicePanel(this, { x: innerX, y: cursor, w: innerW, h: rowH }, model, {
         font: F,
+        sfx: cost > 0 ? 'purchase' : 'uiClick',
         onSelect: () => {
           const outcome = resolveCurrentEventChoice(event.id, choice.id);
           if (!outcome) return;
@@ -211,6 +213,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
       const tok = new CardToken(this, cx + cardW / 2, cardTop + cardH / 2, shown, { width: cardW, height: cardH, side: 'left' });
       const hit = this.add.rectangle(cx + cardW / 2, cardTop + cardH / 2, cardW, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
       hit.on('pointerdown', () => {
+        playSfx('uiClick');
         const outcome = applyCurrentBonusDraftPick(card);
         if (!outcome) return;
         this.phase = 'outcome';

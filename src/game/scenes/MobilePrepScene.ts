@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { enemies } from '../../data/enemies';
@@ -83,7 +84,7 @@ export class MobilePrepScene extends Phaser.Scene {
 
   private button(dx: number, dy: number, w: number, h: number, label: string, fill: number, color: string, onClick: () => void, size = F.body): void {
     const r = this.add.rectangle(this.x(dx), this.y(dy), w, h, fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-    r.on('pointerdown', onClick);
+    r.on('pointerdown', () => { playSfx('uiClick'); onClick(); });
     this.add.text(this.x(dx) + w / 2, this.y(dy) + h / 2, label, { fontSize: `${size}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
   }
 
@@ -120,6 +121,7 @@ export class MobilePrepScene extends Phaser.Scene {
         .setOrigin(0, 0).setStrokeStyle(isActive ? 2 : 1, isActive ? 0xe8b446 : UI.border, isActive ? 0.9 : 0.5)
         .setInteractive({ useHandCursor: true });
       chip.on('pointerdown', () => {
+        playSfx('uiClick');
         if (isActive) { this.picker = i; } else { demoState.activeFoe = i; }
         this.rerender();
       });
@@ -130,6 +132,7 @@ export class MobilePrepScene extends Phaser.Scene {
           .setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
         this.add.text(this.x(cx + chipW - 10), this.y(cy + 10), '✕', { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
         remove.on('pointerdown', () => {
+          playSfx('uiClick');
           demoState.enemyTeam = demoState.enemyTeam.filter((_, idx) => idx !== i);
           syncPrimaryFoe();
           this.rerender();
@@ -151,7 +154,7 @@ export class MobilePrepScene extends Phaser.Scene {
   private renderPicker(): void {
     const mode = this.picker!;
     const scrim = this.add.rectangle(0, 0, this.W, this.H, UI.shadow, 0.75).setOrigin(0, 0).setInteractive();
-    scrim.on('pointerdown', () => { this.picker = null; this.rerender(); });
+    scrim.on('pointerdown', () => { playSfx('uiBack'); this.picker = null; this.rerender(); });
     const ids = Object.keys(enemies);
     const columns = 2;
     const cellW = (this.W - 40 - 8) / columns;
@@ -174,6 +177,7 @@ export class MobilePrepScene extends Phaser.Scene {
       this.text(cx + 10, cy + 6, def.name.toUpperCase(), F.small, UI.textBright, { bold: true });
       this.text(cx + 10, cy + 22, `${(def.isBoss ? 'boss' : def.isElite ? 'elite' : 'normal').toUpperCase()} · LV ${Math.max(1, def.baseDepth)}`, F.tiny, UI.textFootnote);
       r.on('pointerdown', () => {
+        playSfx('uiClick');
         const title = def.isBoss ? 'boss' as const : def.isElite ? 'elite' as const : 'normal' as const;
         if (mode === 'add') {
           demoState.enemyTeam = [...demoState.enemyTeam, {
@@ -394,11 +398,12 @@ export class MobilePrepScene extends Phaser.Scene {
       {
         label: `SEED ${demoState.seed}`,
         onPress: () => {
+          playSfx('uiClick');
           demoState.seed = 1 + Math.floor(Math.abs(Math.sin(demoState.seed * 97.13)) * 999999);
           this.rerender();
         },
       },
-      { label: 'FIGHT', primary: true, flex: 2, onPress: () => { setBattleContext('demo'); this.scene.start('MobileBattle'); } },
+      { label: 'FIGHT', primary: true, flex: 2, onPress: () => { playSfx('uiClick'); setBattleContext('demo'); this.scene.start('MobileBattle'); } },
     ]);
   }
 }

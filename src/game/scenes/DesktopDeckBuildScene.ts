@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { gemPowerLevel, instancePowerLevelDeci } from '../../engine/balance';
 import { boardTypeIdentity, cardType } from '../../engine/combat/typeIdentity';
@@ -180,6 +181,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       // A CLICK (no real movement) on a DECK card opens its gem-socket panel
       // instead of resolving as a drop.
       if (totalMove < 6 && src.where === 'deck') {
+        playSfx('uiClick');
         this.socketFor = src.instanceId;
         this.rerender();
         return;
@@ -482,7 +484,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
 
     const close = (): void => { this.socketFor = null; this.rerender(); };
     const scrim = this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, UI.shadow, 0.72).setOrigin(0, 0).setInteractive();
-    scrim.on('pointerdown', close);
+    scrim.on('pointerdown', () => { playSfx('uiBack'); close(); });
 
     const pouch = this.gemInventory.map((id) => gemBook[id]).filter((g): g is NonNullable<typeof g> => Boolean(g));
     const rowH = 52;
@@ -513,6 +515,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       const un = this.add.rectangle(px + pw - 130, curY + 8, 96, rowH - 16, UI.badSoft).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
       this.add.text(px + pw - 82, curY + rowH / 2, 'UNSOCKET', { fontSize: `${F.tiny}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       un.on('pointerdown', () => {
+        playSfx('uiClick');
         const { piece: updated, gem: removed } = unsocketGem(piece);
         this.pieces = this.pieces.map((p) => (p.instanceId === piece.instanceId ? updated : p));
         if (removed) this.gemInventory = [...this.gemInventory, removed.id];
@@ -541,6 +544,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       const act = this.add.rectangle(px + pw - 130, rowY + 8, 96, rowH - 16, UI.chip).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });
       this.add.text(px + pw - 82, rowY + rowH / 2, piece.gem ? 'SWAP' : 'SOCKET', { fontSize: `${F.tiny}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       act.on('pointerdown', () => {
+        playSfx('uiClick');
         // consume ONE copy of this gem id from the pouch
         const at = this.gemInventory.indexOf(gem.id);
         if (at >= 0) this.gemInventory = this.gemInventory.filter((_, i) => i !== at);
@@ -573,7 +577,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       r.on('pointerdown', fn);
       this.add.text(dx + w / 2, by + 138, label, { fontSize: `${F.body}px`, color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     };
-    mk(bx + 20, (bw - 60) / 2, 'CANCEL', UI.panelMuted, UI.text, () => { this.pendingTrash = null; this.rerender(); });
-    mk(bx + 40 + (bw - 60) / 2, (bw - 60) / 2, 'DELETE', UI.badSoft, '#ffffff', () => { this.removeSource(src); this.pendingTrash = null; this.rerender(); });
+    mk(bx + 20, (bw - 60) / 2, 'CANCEL', UI.panelMuted, UI.text, () => { playSfx('uiBack'); this.pendingTrash = null; this.rerender(); });
+    mk(bx + 40 + (bw - 60) / 2, (bw - 60) / 2, 'DELETE', UI.badSoft, '#ffffff', () => { playSfx('uiClick'); this.removeSource(src); this.pendingTrash = null; this.rerender(); });
   }
 }
