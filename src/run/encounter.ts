@@ -24,11 +24,14 @@ import type { BoardPiece, CombatantSetup, EnemyDef, SkillTier } from '../engine/
 import { enemies } from '../data/enemies';
 import { skillBook } from '../data/skills';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../data/heroes';
+import { TIER_BUDGET_DECI } from '../engine/balance';
 import {
   allocateMonsterPL,
   applyLevelAllocation,
   applyPlayerLevelAllocation,
   DEFAULT_PROFILE,
+  monsterLevelPL,
+  PL_PER_LEVEL,
   scaleMonsterToLevel,
   totalLevelPL,
   type Allocation,
@@ -254,23 +257,6 @@ export const PACK_VARIANT_WEIGHTS: Record<PackVariant, number> = {
 };
 
 /**
- * LEVEL DISCOUNT (the fairness lever) — pack members roll at
- * `max(1, trackLevel - PACK_LEVEL_DISCOUNT[variant])`, mirroring solo's
- * `clampLevel` floor. Sized deliberately more aggressive than a naive "split
- * the stat budget N ways" would suggest: the readiness engine's initiative
- * comparison runs once per ALIVE unit every turn, so each extra pack member
- * is an extra FULL turn of casts per round, not just extra stats — a pair at
- * only "half a level" cheaper would out-damage a same-level solo foe on
- * action economy alone, before its stats even mattered. -3 (pair) / -5 (trio)
- * is the v1 balance-pass guess against that action-economy premium; retune
- * THESE numbers, not the roll flow, when balance-designer runs the numbers.
- */
-export const PACK_LEVEL_DISCOUNT: Record<'pair' | 'trio', number> = {
-  pair: 3,
-  trio: 5,
-};
-
-/**
  * TITLE CAP — pack members are `mob`/`normal` titles only in v1 (no elite or
  * boss packs): stacking a scarier per-unit RANK on top of the extra
  * casts-per-round pack members already bring would double-count the same
@@ -284,6 +270,201 @@ export const PACK_LEVEL_DISCOUNT: Record<'pair' | 'trio', number> = {
 export function capPackTitle(title: EnemyTitle): EnemyTitle {
   return title === 'elite' || title === 'boss' ? 'normal' : title;
 }
+
+// ---------------------------------------------------------------------------
+// BUDGET-DERIVED PACK MEMBERS (balance-designer pass, 2026-08-04) — REPLACES
+// the old flat `PACK_LEVEL_DISCOUNT` (trackLevel - 3 / - 5). A flat discount
+// barely mattered at low levels (it floors at level 1 same as solo, so an
+// early pack was nearly as strong per-member as the solo it replaced, while
+// bringing 2-3x the casts/turn) and never checked the PACK'S TOTAL threat
+// against what a solo foe would actually cost at that depth — the two real
+// bugs reported from a live playtest. The replacement pins every pack to an
+// honest PL budget instead of a hand-picked level offset:
+//
+//   1. `soloThreatDeci(level, title)` — "what would a SOLO foe at this node
+//      cost", in the SAME deci-PL currency the card/gem audit uses: the
+//      monster's stat-scaling PL (`monsterLevelPL`, 3 PL/level — the exact
+//      constant every monster and the player level up through, see
+//      leveling.ts) PLUS its board's tier budget (`TIER_BUDGET_DECI` per
+//      card, summed across its deck after the title's rank/extraCards land —
+//      the exact currency `powerLevelDeci`'s tier-budget audit prices every
+//      card kit against). This is the depth-derived "vs player" reference
+//      CLAUDE.md calls out: the hero levels once per fight, so the solo
+//      threat at a node IS the fair comparison, never a separate stat.
+//   2. `packBudgetDeci` tapers that total by `PACK_ACTION_ECONOMY_TAX_PCT` per
+//      extra member (K-1 additional casts/round beyond the first) — an
+//      explicit, named price for the SAME action-economy premium the old
+//      flat discount was gesturing at, now applied to the shared budget
+//      instead of invented as a level offset.
+//   3. `resolvePackMemberLevel` splits the taxed budget evenly across members
+//      (packs stay a single homogeneous roster, same as the old discount) and
+//      solves the LEVEL that lands each member's stat spend on its exact
+//      share, net of the fixed cost of the capped title's own board (every
+//      member ships a full mob/normal board — that per-card tier budget is
+//      never negotiable, only the stat scaling flexes). If the solve can't
+//      even afford LEVEL 1 (0 PL of stats) within its share, the caller MUST
+//      fall back to a solo encounter — a pack is never shipped over its
+//      taxed budget (see `rollEncounter` in runState.ts).
+//
+// `REFERENCE_ENEMY_DECK_SIZE` prices "the board's tier budget" generically —
+// without knowing which specific enemy id a member will roll (enemies are PL
+// budgets, not identities — CLAUDE.md's balance philosophy) — as the WORST
+// CASE (largest) base card count across the whole roster (today: 2 cards for
+// most, 3 for `cleric`/`wolf_king` — see src/data/enemies.ts), derived live
+// from `enemies` rather than hand-typed, so a future bigger-decked enemy can
+// never silently under-price a pack member's deck cost and slip a pack over
+// its taxed budget (the ONE invariant this whole model must never break).
+// Sizing to the worst case is deliberately conservative for the COMMON
+// 2-card case (a real pack of 2-card enemies could technically afford a
+// touch more level than this prices in) — safety over precision, since the
+// alternative (pricing off the ACTUAL rolled enemy id) would require
+// resolving every member's enemy id BEFORE the level solve, entangling the
+// roll order; this generic constant keeps the solve a pure function of
+// (level, title, modifiers), independent of any specific roll.
+// ---------------------------------------------------------------------------
+
+/** See the rationale block above — the largest base deck size in the roster. */
+export const REFERENCE_ENEMY_DECK_SIZE = Math.max(2, ...Object.values(enemies).map((e) => e.pieces.length));
+
+/**
+ * ACTION ECONOMY TAX — percent the SHARED pack budget is discounted by per
+ * extra member beyond the first (K-1 extra members = K-1 extra full turns of
+ * casts per round). 30% is the v1 balance-pass rate: retune this ONE named
+ * constant, never the roll flow, when balance-designer revisits the numbers.
+ * Applied as integer deci-PL math via `packBudgetDeci` — see its doc comment.
+ */
+export const PACK_ACTION_ECONOMY_TAX_PCT = 30;
+
+/**
+ * The tier-budget PL (deci) of a round-robin `rank`-tiered deck of
+ * `deckSize` ALL-BRONZE base cards — the exact distribution
+ * `assignRankTiers` performs, but summed to a PL total instead of stamped
+ * onto pieces (every authored enemy card ships Bronze at the floor; see
+ * `REFERENCE_ENEMY_DECK_SIZE`). Mirrors `maxRankFor`'s ceiling clamp.
+ */
+function deckThreatDeci(deckSize: number, rank: number): number {
+  if (deckSize <= 0) return 0;
+  const total = Math.min(Math.max(0, Math.floor(rank)), maxRankFor(deckSize));
+  const base = Math.floor(total / deckSize);
+  const remainder = total % deckSize;
+  let deci = 0;
+  for (let i = 0; i < deckSize; i++) {
+    const steps = Math.min(MAX_TIER_STEPS, base + (i < remainder ? 1 : 0));
+    deci += TIER_BUDGET_DECI[TIER_ORDER[steps]!];
+  }
+  return deci;
+}
+
+/** The `forceTier` modifier in `modifierIds` (if any) — `buildEnemyEncounter`
+ * applies AT MOST one (`.find`, first match wins); mirrored here so the
+ * budget model prices the SAME override it actually ships. */
+function forceTierFor(modifierIds: readonly string[]): SkillTier | undefined {
+  for (const id of modifierIds) {
+    const forceTier = MODIFIER_PRESETS[id]?.forceTier;
+    if (forceTier) return forceTier;
+  }
+  return undefined;
+}
+
+/** Sum of every `bonusPL` modifier in `modifierIds` (deci) — the SAME PL
+ * `buildEnemyEncounter` auto-spends via `allocateMonsterPL(mod.bonusPL, ...)`
+ * for EVERY member (pack members and solo alike each roll the encounter's
+ * full modifier list independently — see `rollEncounter`), so it must be
+ * priced into both `soloThreatDeci` and each member's own share. */
+function modifierBonusDeci(modifierIds: readonly string[]): number {
+  let deci = 0;
+  for (const id of modifierIds) {
+    const preset = MODIFIER_PRESETS[id];
+    if (preset?.bonusPL) deci += preset.bonusPL * 10;
+  }
+  return deci;
+}
+
+/** The fixed board-threat PL (deci) every member at `title` ships — its
+ * rank/extraCards come straight from `TITLE_PRESETS`, never a second dial.
+ * A `forceTier` modifier (e.g. DIAMOND-POWERED) overrides the rank-tiered
+ * deck entirely, matching `buildEnemyEncounter`'s post-rank tier override. */
+function memberDeckDeci(title: EnemyTitle, modifierIds: readonly string[] = []): number {
+  const preset = TITLE_PRESETS[title];
+  const deckSize = REFERENCE_ENEMY_DECK_SIZE + preset.extraCards;
+  const forceTier = forceTierFor(modifierIds);
+  if (forceTier) return deckSize * TIER_BUDGET_DECI[forceTier];
+  return deckThreatDeci(deckSize, preset.rank);
+}
+
+/**
+ * Total threat PL (deci) of the SOLO encounter this node would build at
+ * `level`/`title`/`modifierIds` — the depth-derived "vs player" reference
+ * (see the rationale block above). `level` is the node's requested (track)
+ * level, NOT yet title-shifted; `effectiveLevel` (title-shifted) is what
+ * actually feeds the stat-PL term, matching `buildEnemyEncounter`'s own
+ * scaling order. `modifierIds` prices the SAME modifier stack every member
+ * (pack or solo) independently rolls — see `modifierBonusDeci`/`memberDeckDeci`.
+ */
+export function soloThreatDeci(level: number, title: EnemyTitle, modifierIds: readonly string[] = []): number {
+  const preset = TITLE_PRESETS[title];
+  const effectiveLevel = clampLevel(level) + preset.levelDelta;
+  const statDeci = Math.max(0, monsterLevelPL(effectiveLevel)) * 10 + modifierBonusDeci(modifierIds);
+  return statDeci + memberDeckDeci(title, modifierIds);
+}
+
+/**
+ * Taper the solo threat budget by `PACK_ACTION_ECONOMY_TAX_PCT` per extra
+ * member beyond the first: `budget = soloDeci * 100 / (100 + tax*(size-1))`,
+ * integer (floored) deci-PL. `size <= 1` is a no-op (no tax on a solo roll).
+ */
+export function packBudgetDeci(soloDeci: number, size: number): number {
+  const k = Math.max(1, Math.floor(size));
+  if (k <= 1) return soloDeci;
+  return Math.floor((soloDeci * 100) / (100 + PACK_ACTION_ECONOMY_TAX_PCT * (k - 1)));
+}
+
+/**
+ * Solve the LEVEL every member of a `size`-member pack should roll at, so the
+ * pack's TOTAL threat lands on (never over) the taxed solo budget for this
+ * node's `level`/`title`/`modifierIds`. Every member is capped to
+ * `capPackTitle(title)` (mob/normal — see `capPackTitle`) and ships that
+ * title's FIXED board plus the FULL modifier stack (`memberDeckDeci` +
+ * `modifierBonusDeci` — `rollEncounter` passes the SAME `entry.modifiers` to
+ * every member, exactly like the solo path); only the level (stat spend) is
+ * solved. Returns `null` when even LEVEL 1 (0 PL of stats) would exceed the
+ * member's even-split share — the caller (`rollEncounter`) MUST fall back to
+ * a solo encounter in that case; a pack is never shipped over its taxed
+ * budget.
+ */
+export function resolvePackMemberLevel(
+  level: number,
+  title: EnemyTitle,
+  size: number,
+  modifierIds: readonly string[] = [],
+): number | null {
+  const k = Math.max(1, Math.floor(size));
+  if (k <= 1) return clampLevel(level);
+  const budgetDeci = packBudgetDeci(soloThreatDeci(level, title, modifierIds), k);
+  const shareDeci = Math.floor(budgetDeci / k);
+  const memberTitle = capPackTitle(title);
+  const statBudgetDeci = shareDeci - memberDeckDeci(memberTitle, modifierIds) - modifierBonusDeci(modifierIds);
+  const memberLevel = 1 + Math.floor(statBudgetDeci / (PL_PER_LEVEL * 10));
+  return memberLevel >= 1 ? memberLevel : null;
+}
+
+/**
+ * EARLY-GAME GATE (2026-08-04) — no pack rolls before fight number
+ * `MIN_PACK_FIGHT_NUMBER`: the very first fight (fight 1 / wave 1) always
+ * builds a solo encounter, full stop, regardless of what the budget solve
+ * above would otherwise allow. Gating on the fight NUMBER (the track
+ * identity), not the resolved level, matters because a `'hard'` fight-option
+ * bumps level +1 on TOP of the base fight-1 spec — gating on level alone
+ * would let fight 1's hard option roll a pack the instant its level ticked
+ * up, defeating "the very first fight is always solo." The budget solve
+ * above already naturally floors out for most low levels on its own (two
+ * full Bronze-tier boards easily out-costs an early solo's whole threat
+ * budget) — this constant is the explicit, auditable backstop for the ONE
+ * case that must NEVER depend on a formula: a brand-new hero (LV 1-2, 4
+ * Bronze cards, no board depth to absorb multiple attackers) meeting their
+ * first fight.
+ */
+export const MIN_PACK_FIGHT_NUMBER = 2;
 
 /**
  * A resolved fight-node encounter: `variant` says how many foes, `units` is

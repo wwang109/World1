@@ -58,23 +58,62 @@ strength. `rollEncounter` now returns an `EncounterPack` (`{ variant, units }`,
 `variant: 'solo' | 'pair' | 'trio'`, `units: EncounterUnit[]`, length 1-3) —
 `units[0]` is the "primary" foe every pre-pack consumer used to read directly.
 
+- **Early-game gate** (`MIN_PACK_FIGHT_NUMBER`, `encounter.ts`): fight nodes
+  with `fightNumber < MIN_PACK_FIGHT_NUMBER` (v1: `2` — the very first fight
+  only) never roll the pack-variant Rng draw at all and are always `'solo'`.
+  Gated on the fight NUMBER, not the resolved level, because a `'hard'`
+  fight-option bumps level +1 on top of the base fight-1 spec — gating on
+  level would let fight 1's hard option pack the instant its level ticked up.
+  This is the explicit, auditable backstop for the ONE case that must never
+  depend on a formula: a brand-new hero (LV 1-2, 4 Bronze cards) meeting
+  their first fight. Below this gate is deliberately narrow — the BUDGET
+  math below naturally floors out packs for most of the early game anyway
+  (see next bullet); the gate only needs to guarantee fight 1 itself.
 - **Variant roll**: one `rng.int(100)` off the node's OWN `encounterSeed`
   (fixed solo/pair/trio order) against `PACK_VARIANT_WEIGHTS`
   (`encounter.ts`) — v1 mix **70 / 20 / 10**. **Boss nodes never roll a
   variant** (always `'solo'`, no Rng draw spent on it) — packs are a
   non-boss fight-column texture only. Members then roll their OWN enemy id
   independently from `FIGHT_POOL` (can repeat).
-- **Level discount** (`PACK_LEVEL_DISCOUNT`): pair members roll at
-  `trackLevel − 3`, trio at `trackLevel − 5`, floored at 1 (`clampLevel`'s
-  floor). Deliberately steeper than a naive "split the stat budget N ways" —
-  the readiness engine's initiative check runs once per ALIVE unit per turn,
-  so an extra member is an extra FULL turn of casts, not just extra stats.
+- **Budget-derived member level** (re-priced 2026-08-04, REPLACES the old
+  flat `PACK_LEVEL_DISCOUNT` trackLevel −3/−5): a flat discount barely
+  mattered at low levels (it floored at level 1 same as solo, so an early
+  pack was nearly as strong per-member as the solo it replaced, while
+  bringing 2-3x the casts/turn) and never checked the pack's TOTAL threat
+  against what a solo foe would actually cost at that depth — the two real
+  bugs a live playtest surfaced. The replacement (`encounter.ts`):
+  1. `soloThreatDeci(level, title, modifiers)` — the depth-derived "vs
+     player" reference: the SOLO encounter's stat-scaling PL
+     (`monsterLevelPL`, the same 3 PL/level currency every monster and the
+     player level through) plus its board's tier budget
+     (`TIER_BUDGET_DECI` per card, priced generically off
+     `REFERENCE_ENEMY_DECK_SIZE` — the WORST CASE base card count in the
+     roster, so this never under-prices a real enemy's deck) plus any
+     `MODIFIER_PRESETS` cost (bonus-PL stat mods, or a `forceTier` deck
+     override) — same currency `powerLevelDeci`'s tier-budget audit uses.
+  2. `packBudgetDeci` tapers that total by `PACK_ACTION_ECONOMY_TAX_PCT`
+     (v1: 30%) per extra member beyond the first — an explicit, named price
+     for the same action-economy premium (K−1 extra full turns of casts per
+     round) the old flat discount was gesturing at, now applied to the
+     shared budget instead of invented as a level offset.
+  3. `resolvePackMemberLevel` splits the taxed budget evenly across members
+     (packs stay a single homogeneous roster) and solves the LEVEL that
+     lands each member's stat spend on its exact share, net of the fixed
+     cost of its capped title's own board. If the solve can't even afford
+     LEVEL 1 within its share, `rollEncounter` **falls back to a solo
+     encounter** — a pack is never shipped over its taxed budget.
+  Worked examples (normal title): fight-track LV2/6/12 all floor to solo (a
+  2-3 card Bronze board is already most of an early solo's whole budget);
+  pairs first engage around LV18 (member LV1), trios around LV40 — elite/
+  boss-titled entries (extra rank/cards baked into their preset) engage much
+  earlier. `PACK_ACTION_ECONOMY_TAX_PCT`/`REFERENCE_ENEMY_DECK_SIZE` are
+  balance-designer's retune knobs; the roll flow itself never changes.
 - **Title cap** (`capPackTitle`): pack members are **mob/normal only** — no
   elite/boss packs in v1. The node's base title/level still comes from the
   SAME `fightTableEntryForNode` spec a solo roll would use (so a `'hard'`
-  option's +1 level lands on every member; its title bump is capped back down
-  to `'normal'` rather than skipped). Rank stays the ordinary
-  `TITLE_PRESETS[title].rank` per member — no second budget path.
+  option's +1 level feeds every member's budget solve; its title bump is
+  capped back down to `'normal'` rather than skipped). Rank stays the
+  ordinary `TITLE_PRESETS[title].rank` per member — no second budget path.
 - **Gold/battle wiring is already generic**: `battleGoldReward` and
   `resolveBattle`/`simulate` already accept a foe LIST (this is how the
   Sandbox's 5v1 mode works) — `battleContext.ts#runBattleInput` just always
@@ -205,7 +244,7 @@ Two layers, both pure/integer, no UI yet (a stats screen is separate):
 |---|---|
 | `runState.ts` | The `RunState` shape + every pure transition (create/choose/resolve node, battle result, retire, gold, shelves, event bags) |
 | `runMap.ts` | Lazy endless wave-ladder generation, node kinds, `BOSS_EVERY`, stop-choice anchoring |
-| `encounter.ts` | Additive enemy resolver: titles, ranks, modifiers, `buildEnemyEncounter`, `buildAutoHeroSetup`; PACK constants (`PackVariant`, `PACK_VARIANT_WEIGHTS`, `PACK_LEVEL_DISCOUNT`, `capPackTitle`, `EncounterPack`) |
+| `encounter.ts` | Additive enemy resolver: titles, ranks, modifiers, `buildEnemyEncounter`, `buildAutoHeroSetup`; PACK constants (`PackVariant`, `PACK_VARIANT_WEIGHTS`, `MIN_PACK_FIGHT_NUMBER`, `capPackTitle`, `EncounterPack`) and budget helpers (`soloThreatDeci`, `packBudgetDeci`, `resolvePackMemberLevel`, `PACK_ACTION_ECONOMY_TAX_PCT`, `REFERENCE_ENEMY_DECK_SIZE`) |
 | `leveling.ts` | `PL_PER_LEVEL`, `LEVEL_STAT_COST`, allocation math, monster auto-spend profiles |
 | `shop.ts` | Shop filters/pools, gold prices, `rollShopStock`, `shopPoolInfo`, `battleGoldReward` |
 | `events.ts` | Event roll/resolve/bonus-draft, affordability, no-repeat bags |

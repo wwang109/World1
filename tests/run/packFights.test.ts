@@ -15,19 +15,31 @@ import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/
 import { BOSS_EVERY, ensureWavesThrough } from '../../src/run/runMap';
 import {
   capPackTitle,
-  PACK_LEVEL_DISCOUNT,
+  MIN_PACK_FIGHT_NUMBER,
+  MODIFIER_PRESETS,
+  PACK_ACTION_ECONOMY_TAX_PCT,
   PACK_SIZE,
   PACK_VARIANT_WEIGHTS,
+  packBudgetDeci,
+  resolvePackMemberLevel,
+  soloThreatDeci,
   type PackVariant,
 } from '../../src/run/encounter';
+import { Rng } from '../../src/engine/rng';
+import { TIER_BUDGET_DECI } from '../../src/engine/balance';
+import { monsterLevelPL } from '../../src/run/leveling';
 
 /**
- * PACK FIGHTS (2026-08-04) — a fight-column node can roll 1-3 foes (see
- * `rollEncounter` in `src/run/runState.ts` + the `PACK_*` constants in
+ * PACK FIGHTS (2026-08-04, re-priced onto PL budgets 2026-08-04) — a
+ * fight-column node can roll 1-3 foes (see `rollEncounter` in
+ * `src/run/runState.ts` + the `PACK_*`/budget helpers in
  * `src/run/encounter.ts`). These tests cover the roll's own contract:
- * variant mix, the level-discount math (incl. the level-1 floor), the
- * boss-is-always-solo invariant, and the preview/committed determinism a
- * pack's map preview and battle-input rely on being byte-identical.
+ * variant mix (at levels where the budget solve can't distort it), the
+ * BUDGET math (pack total PL vs the taxed solo-equivalent budget, across a
+ * level sweep), the early-game gate (fight 1 is always solo), the
+ * floor-fallback-to-solo invariant, the boss-is-always-solo invariant, and
+ * the preview/committed determinism a pack's map preview and battle-input
+ * rely on being byte-identical.
  */
 
 function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
@@ -60,6 +72,19 @@ function combatNodesThrough(seed: number, throughWave: number): { state: RunStat
 
 const WIDE_SEEDS = Array.from({ length: 40 }, (_, i) => i + 1);
 
+/** Reproduce the RAW `rollPackVariant` draw (`runState.ts`, not exported) off
+ * a node's own `encounterSeed` — the SAME single `rng.int(100)` draw
+ * `rollEncounter` spends on "how many foes" whenever the early-game gate is
+ * open. Lets tests distinguish "the roll wanted a pack but the budget solve
+ * floored it back to solo" from "the roll wanted solo in the first place". */
+function rawPackVariant(encounterSeed: number): PackVariant {
+  const rng = new Rng(encounterSeed);
+  const roll = rng.int(100);
+  if (roll < PACK_VARIANT_WEIGHTS.solo) return 'solo';
+  if (roll < PACK_VARIANT_WEIGHTS.solo + PACK_VARIANT_WEIGHTS.pair) return 'pair';
+  return 'trio';
+}
+
 describe('run/runState: PACK FIGHTS — boss nodes are always solo', () => {
   it('never rolls a pack on a boss node, across many seeds', () => {
     for (const seed of WIDE_SEEDS) {
@@ -75,15 +100,62 @@ describe('run/runState: PACK FIGHTS — boss nodes are always solo', () => {
   });
 });
 
-describe('run/runState: PACK FIGHTS — variant mix', () => {
-  it('roughly matches PACK_VARIANT_WEIGHTS over many non-boss fight-node rolls', () => {
+describe('run/runState: PACK FIGHTS — early-game gate (MIN_PACK_FIGHT_NUMBER)', () => {
+  it('the very first fight (fightNumber 1 / wave 1) is ALWAYS solo, standard or hard, across many seeds', () => {
+    expect(MIN_PACK_FIGHT_NUMBER).toBeGreaterThan(1);
+    for (const seed of WIDE_SEEDS) {
+      const { state, nodeIds } = combatNodesThrough(seed, 1);
+      let sawFightOne = false;
+      for (const nodeId of nodeIds) {
+        const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
+        if (node.kind !== 'fight' || node.fightNumber !== 1) continue;
+        sawFightOne = true;
+        const pack = rollEncounter({ ...state, currentNodeId: nodeId });
+        expect(pack.variant).toBe('solo');
+        expect(pack.units).toHaveLength(1);
+      }
+      expect(sawFightOne).toBe(true);
+    }
+  });
+
+  it('fight nodes below MIN_PACK_FIGHT_NUMBER never spend the pack-variant Rng draw (gate short-circuits before rollPackVariant)', () => {
+    // Every fightNumber < MIN_PACK_FIGHT_NUMBER must resolve solo regardless
+    // of what the raw roll off its encounterSeed would have produced.
+    for (const seed of WIDE_SEEDS) {
+      const { state, nodeIds } = combatNodesThrough(seed, MIN_PACK_FIGHT_NUMBER);
+      for (const nodeId of nodeIds) {
+        const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
+        if (node.kind !== 'fight' || node.fightNumber! >= MIN_PACK_FIGHT_NUMBER) continue;
+        const pack = rollEncounter({ ...state, currentNodeId: nodeId });
+        expect(pack.variant).toBe('solo');
+      }
+    }
+  });
+});
+
+describe('run/runState: PACK FIGHTS — variant mix (deep enough that the budget solve never floors it)', () => {
+  it('roughly matches PACK_VARIANT_WEIGHTS once every level is comfortably above the pair/trio budget floor', () => {
+    // Pull the sample from a high wave band: by here `resolvePackMemberLevel`
+    // affords level 1+ for BOTH pair and trio at every title this ladder ever
+    // assigns a non-boss fight node, so the raw roll and the final `pack.variant`
+    // coincide and this is a clean sanity check of PACK_VARIANT_WEIGHTS itself.
+    // Filtering by BUDGET VIABILITY (not a hand-picked wave floor) is required
+    // here because viability isn't monotonic in wave alone — normal-titled
+    // entries need a much higher level than elite-titled ones, AND deep-run
+    // MODIFIER_PRESETS (`'diamond'`, forcing every card to Diamond tier) can
+    // push the viability floor for a given title BACK UP once they unlock
+    // past MAX_LEVEL — see `fightSpecFor`'s modifier-escalation doc comment.
     const counts: Record<PackVariant, number> = { solo: 0, pair: 0, trio: 0 };
     let total = 0;
     for (const seed of WIDE_SEEDS) {
-      const { state, nodeIds } = combatNodesThrough(seed, 6);
+      const { state, nodeIds } = combatNodesThrough(seed, 150);
       for (const nodeId of nodeIds) {
         const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
         if (node.kind !== 'fight') continue;
+        const entry = fightTableEntryForNode(node);
+        const pairViable = resolvePackMemberLevel(entry.level, entry.title, 2, entry.modifiers) !== null;
+        const trioViable = resolvePackMemberLevel(entry.level, entry.title, 3, entry.modifiers) !== null;
+        if (!pairViable || !trioViable) continue; // budget would floor one of these — skip
         const pack = rollEncounter({ ...state, currentNodeId: nodeId });
         counts[pack.variant] += 1;
         total += 1;
@@ -102,7 +174,7 @@ describe('run/runState: PACK FIGHTS — variant mix', () => {
   it('members roll independently and CAN repeat the same enemy id', () => {
     let sawRepeat = false;
     outer: for (const seed of WIDE_SEEDS) {
-      const { state, nodeIds } = combatNodesThrough(seed, 6);
+      const { state, nodeIds } = combatNodesThrough(seed, 150);
       for (const nodeId of nodeIds) {
         const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
         if (node.kind !== 'fight') continue;
@@ -116,27 +188,54 @@ describe('run/runState: PACK FIGHTS — variant mix', () => {
   });
 });
 
-describe('run/runState: PACK FIGHTS — level discount + title cap', () => {
-  it('pair members roll at trackLevel-3, trio at trackLevel-5, with the title capped to mob/normal', () => {
+describe('run/runState: PACK FIGHTS — BUDGET math (resolvePackMemberLevel + packBudgetDeci)', () => {
+  /** Independently recompute a resolved unit's threat PL (deci) from its
+   * ACTUAL scaled setup — stat PL via `monsterLevelPL` (title delta is 0 for
+   * both mob/normal, the only pack-member titles, so `unit.level ===
+   * unit.effectiveLevel`) plus its board's tier budget summed from the
+   * ACTUAL resolved `pieces[].tier` — rather than re-deriving through the
+   * same production helper twice, so this checks the real output, not just
+   * that two calls to the same function agree. */
+  function unitThreatDeci(level: number, pieces: readonly { tier?: string }[], modifiers: readonly string[]): number {
+    const modifierBonus = modifiers.reduce((sum, id) => sum + (MODIFIER_PRESETS[id]?.bonusPL ?? 0) * 10, 0);
+    const statDeci = Math.max(0, monsterLevelPL(level)) * 10 + modifierBonus;
+    const deckDeci = pieces.reduce((sum, p) => sum + TIER_BUDGET_DECI[(p.tier ?? 'bronze') as keyof typeof TIER_BUDGET_DECI], 0);
+    return statDeci + deckDeci;
+  }
+
+  it('a pack roll never ships over its taxed solo-equivalent budget, across a level sweep (waves 1..70)', () => {
     let sawPair = false;
     let sawTrio = false;
     for (const seed of WIDE_SEEDS) {
-      const { state, nodeIds } = combatNodesThrough(seed, 8);
+      const { state, nodeIds } = combatNodesThrough(seed, 70);
       for (const nodeId of nodeIds) {
         const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
         if (node.kind !== 'fight') continue;
         const pack = rollEncounter({ ...state, currentNodeId: nodeId });
         if (pack.variant === 'solo') continue;
         const entry = fightTableEntryForNode(node);
-        const discount = PACK_LEVEL_DISCOUNT[pack.variant];
-        const expectedLevel = Math.max(1, entry.level - discount);
+        const size = PACK_SIZE[pack.variant];
+        const budgetDeci = packBudgetDeci(soloThreatDeci(entry.level, entry.title, entry.modifiers), size);
+
+        expect(pack.units).toHaveLength(size);
+        // Every member is homogeneous (same solved level, capped title).
+        const expectedLevel = resolvePackMemberLevel(entry.level, entry.title, size, entry.modifiers);
+        expect(expectedLevel).not.toBeNull();
         const expectedTitle = capPackTitle(entry.title);
+        let totalDeci = 0;
         for (const unit of pack.units) {
           expect(unit.level).toBe(expectedLevel);
           expect(unit.title).toBe(expectedTitle);
-          expect(unit.title === 'elite' || unit.title === 'boss').toBe(false);
+          totalDeci += unitThreatDeci(unit.level, unit.setup.pieces, unit.modifiers);
         }
-        expect(pack.units).toHaveLength(PACK_SIZE[pack.variant]);
+        // The ONE hard invariant: never ship a pack over its taxed budget.
+        // (No tight lower bound here on purpose — `REFERENCE_ENEMY_DECK_SIZE`
+        // conservatively prices every member's deck cost off the WORST CASE
+        // base card count in the roster, so a pack of actually-smaller-decked
+        // enemies can land well under budget; that slack is intentional, see
+        // `REFERENCE_ENEMY_DECK_SIZE`'s rationale in encounter.ts.)
+        expect(totalDeci).toBeLessThanOrEqual(budgetDeci);
+
         if (pack.variant === 'pair') sawPair = true;
         if (pack.variant === 'trio') sawTrio = true;
       }
@@ -145,29 +244,29 @@ describe('run/runState: PACK FIGHTS — level discount + title cap', () => {
     expect(sawTrio).toBe(true);
   });
 
-  it('floors a pack member level at 1 when the discount would drive it below the floor', () => {
-    let found = false;
-    for (const seed of WIDE_SEEDS) {
-      const { state, nodeIds } = combatNodesThrough(seed, 3); // low track level (waves 1-3)
-      for (const nodeId of nodeIds) {
-        const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
-        if (node.kind !== 'fight') continue;
-        const pack = rollEncounter({ ...state, currentNodeId: nodeId });
-        if (pack.variant === 'solo') continue;
-        const entry = fightTableEntryForNode(node);
-        const discount = PACK_LEVEL_DISCOUNT[pack.variant];
-        if (entry.level - discount >= 1) continue; // this member's floor isn't actually engaged
-        found = true;
-        for (const unit of pack.units) expect(unit.level).toBe(1);
-      }
-    }
-    expect(found).toBe(true);
+  it('worked examples: normal-titled fight track LV2/LV6/LV12 all floor to solo (a 2-3 card Bronze board is already most of an early solo\'s whole budget); pairs/trios only engage much deeper (LV18/LV40)', () => {
+    expect(PACK_ACTION_ECONOMY_TAX_PCT).toBe(30);
+    expect(soloThreatDeci(2, 'normal')).toBe(330);
+    expect(resolvePackMemberLevel(2, 'normal', 2)).toBeNull();
+    expect(resolvePackMemberLevel(2, 'normal', 3)).toBeNull();
+
+    expect(soloThreatDeci(6, 'normal')).toBe(450);
+    expect(resolvePackMemberLevel(6, 'normal', 2)).toBeNull();
+    expect(resolvePackMemberLevel(6, 'normal', 3)).toBeNull();
+
+    expect(soloThreatDeci(12, 'normal')).toBe(630);
+    expect(resolvePackMemberLevel(12, 'normal', 2)).toBeNull();
+    expect(resolvePackMemberLevel(12, 'normal', 3)).toBeNull();
+
+    // Pairs first become viable at LV18 (member LV1); trios not until LV40.
+    expect(resolvePackMemberLevel(18, 'normal', 2)).toBe(1);
+    expect(resolvePackMemberLevel(40, 'normal', 3)).toBe(1);
   });
 
-  it("a 'hard' fight-option's +1 level still lands on every pack member (title bump is capped, not skipped)", () => {
+  it("a 'hard' fight-option's +1 level (and any title bump) still feeds the budget solve for every pack member", () => {
     let sawPack = false;
     for (const seed of WIDE_SEEDS) {
-      const { state, nodeIds } = combatNodesThrough(seed, 6);
+      const { state, nodeIds } = combatNodesThrough(seed, 70);
       for (const nodeId of nodeIds) {
         const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
         if (node.kind !== 'fight' || node.fightOption !== 'hard') continue;
@@ -175,12 +274,45 @@ describe('run/runState: PACK FIGHTS — level discount + title cap', () => {
         if (pack.variant === 'solo') continue;
         sawPack = true;
         const entry = fightTableEntryForNode(node); // already the hard-bumped spec
-        const discount = PACK_LEVEL_DISCOUNT[pack.variant];
-        const expectedLevel = Math.max(1, entry.level - discount);
+        const expectedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[pack.variant], entry.modifiers);
         for (const unit of pack.units) expect(unit.level).toBe(expectedLevel);
       }
     }
     expect(sawPack).toBe(true);
+  });
+});
+
+describe('run/runState: PACK FIGHTS — floor-fallback to solo (never ships an over-budget pack)', () => {
+  it('when the raw roll wants a pack but the budget solve floors below LV 1, the node falls back to solo', () => {
+    let found = false;
+    for (const seed of WIDE_SEEDS) {
+      const { state, nodeIds } = combatNodesThrough(seed, 8); // low track level (waves 2-8, gate-eligible)
+      for (const nodeId of nodeIds) {
+        const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
+        if (node.kind !== 'fight' || node.fightNumber! < MIN_PACK_FIGHT_NUMBER) continue;
+        const raw = rawPackVariant(node.encounterSeed!);
+        if (raw === 'solo') continue;
+        const entry = fightTableEntryForNode(node);
+        const solved = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[raw], entry.modifiers);
+        if (solved !== null) continue; // this node's budget actually affords the raw roll
+        found = true;
+        const pack = rollEncounter({ ...state, currentNodeId: nodeId });
+        expect(pack.variant).toBe('solo');
+        expect(pack.units).toHaveLength(1);
+      }
+    }
+    expect(found).toBe(true);
+  });
+
+  it('never returns a resolved member level below 1 for any (level, title, size) combo, across a wide sweep', () => {
+    for (const level of [1, 2, 3, 5, 8, 12, 20, 30, 50]) {
+      for (const title of ['normal', 'elite', 'boss'] as const) {
+        for (const size of [2, 3]) {
+          const level1OrNull = resolvePackMemberLevel(level, title, size);
+          if (level1OrNull !== null) expect(level1OrNull).toBeGreaterThanOrEqual(1);
+        }
+      }
+    }
   });
 });
 

@@ -15,9 +15,10 @@ import {
   buildEnemyEncounter,
   capPackTitle,
   ENEMY_MODIFIER_IDS,
-  PACK_LEVEL_DISCOUNT,
+  MIN_PACK_FIGHT_NUMBER,
   PACK_SIZE,
   PACK_VARIANT_WEIGHTS,
+  resolvePackMemberLevel,
   TITLE_PRESETS,
   type EncounterPack,
   type EncounterUnit,
@@ -505,17 +506,25 @@ function rollPackVariant(rng: Rng): PackVariant {
  * (repeated calls for the same node return the identical encounter). Throws
  * if the current node isn't a combat node (e.g. mid-shop, mid-event, or idle).
  *
- * PACK FIGHTS (2026-08-04): non-boss fight nodes first roll a `PackVariant`
- * (`rollPackVariant`, see `encounter.ts`'s PACK_* constants for the design
- * rationale) — BOSS nodes skip that roll entirely and are always `'solo'`,
- * so a boss's enemy pick stays byte-identical to before packs existed. Each
+ * PACK FIGHTS (2026-08-04, re-priced onto PL budgets 2026-08-04): non-boss
+ * fight nodes first roll a `PackVariant` (`rollPackVariant`) — BOSS nodes,
+ * and any fight node before `MIN_PACK_FIGHT_NUMBER` (the very first fight is
+ * ALWAYS solo — see `encounter.ts`'s early-gate doc comment), skip that roll
+ * entirely and are always `'solo'`, so those enemy picks stay byte-identical
+ * to before packs existed. For a pack roll, `resolvePackMemberLevel`
+ * (`encounter.ts`) solves the ONE shared member level whose total pack threat
+ * (stat PL + board PL, taxed by `PACK_ACTION_ECONOMY_TAX_PCT` per extra
+ * member) lands on the node's solo-equivalent PL budget — see the "BUDGET-
+ * DERIVED PACK MEMBERS" block in `encounter.ts` for the full model and
+ * worked rationale. If that solve can't even afford level 1 within its
+ * share, the roll FALLS BACK TO SOLO (never ships an over-budget pack). Each
  * pack member then rolls its OWN enemy id independently (can repeat) from the
- * SAME node Rng, at `entry.level - PACK_LEVEL_DISCOUNT[variant]` (floored at
- * 1) and `capPackTitle(entry.title)` (mob/normal only — no elite/boss packs
- * in v1); a `'hard'` fight-option's +1 level still lands on every member via
- * `entry.level` (the title bump is simply capped back down). Rank stays the
- * SAME per-title budget every solo foe uses (`TITLE_PRESETS[title].rank`) —
- * no new budget path, per member.
+ * SAME node Rng, at the solved level and `capPackTitle(entry.title)`
+ * (mob/normal only — no elite/boss packs in v1); a `'hard'` fight-option's +1
+ * level still lands on every member via `entry.level` feeding the solve (the
+ * title bump is simply capped back down). Rank stays the SAME per-title
+ * budget every solo foe uses (`TITLE_PRESETS[title].rank`) — no new budget
+ * path, per member.
  */
 export function rollEncounter(state: RunState): EncounterPack {
   const node = state.currentNodeId ? findNode(state.map, state.currentNodeId) : undefined;
@@ -531,15 +540,28 @@ export function rollEncounter(state: RunState): EncounterPack {
     throw new Error(`rollEncounter: no enemies available for node kind "${node.kind}"`);
   }
   const entry = fightTableEntryForNode(node);
-  const variant: PackVariant = node.kind === 'boss' ? 'solo' : rollPackVariant(rng);
+  const gateOpen = node.kind !== 'boss' && (node.fightNumber ?? 0) >= MIN_PACK_FIGHT_NUMBER;
+  let variant: PackVariant = gateOpen ? rollPackVariant(rng) : 'solo';
+
+  let memberLevel = entry.level;
+  let memberTitle: EnemyTitle = entry.title;
+  if (variant !== 'solo') {
+    const solvedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[variant], entry.modifiers);
+    if (solvedLevel === null) {
+      // Budget floor-fallback (encounter.ts#resolvePackMemberLevel): even
+      // level 1 would exceed this member's taxed share — ship solo instead.
+      variant = 'solo';
+    } else {
+      memberLevel = solvedLevel;
+      memberTitle = capPackTitle(entry.title);
+    }
+  }
   const size = PACK_SIZE[variant];
+  const rank = TITLE_PRESETS[memberTitle].rank;
 
   const units: EncounterUnit[] = [];
   for (let i = 0; i < size; i++) {
     const enemyId = pool[rng.int(pool.length)]!;
-    const memberLevel = variant === 'solo' ? entry.level : Math.max(1, entry.level - PACK_LEVEL_DISCOUNT[variant]);
-    const memberTitle = variant === 'solo' ? entry.title : capPackTitle(entry.title);
-    const rank = TITLE_PRESETS[memberTitle].rank;
     units.push(buildEnemyEncounter(enemyId, memberLevel, memberTitle, rank, entry.modifiers));
   }
   return { variant, units };
