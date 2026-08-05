@@ -133,17 +133,21 @@ export class DesktopRunMapScene extends Phaser.Scene {
 
   private renderTrail(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
     const area = SCREEN.width - GX * 2;
-    const top = CONTENT_TOP;
     const bottom = SCREEN.height - DESKTOP_PROFILE.safe.bottom;
     const route = snapshotRunRoute(run);
-    const bounds = { x: GX, y: top, w: area, h: bottom - top };
+    // The route board owns the FULL-WIDTH band BELOW the choices/flank row —
+    // it used to span the whole content region, which put its trail line and
+    // pips underneath the flank panels (user report: ledger/milestone covered
+    // the map progress). Now nothing overlaps it.
+    const slot = TEMPLATE.contentSlots.choices;
+    const laneTop = slot.y + slot.height + 16;
+    const bounds = { x: GX, y: laneTop, w: area, h: bottom - laneTop };
     renderRunRouteBoard(this, bounds, route, { mode: 'desktop' });
 
     // FIXED position from the template — the choices used to be centred on the
     // player's current depth, so they slid across the screen as the run
     // advanced and had to be re-found every stop. The route board below still
     // shows where you are; the thing you CLICK never moves.
-    const slot = TEMPLATE.contentSlots.choices;
     this.renderFlanks(run, slot);
     if (route.columns.length === 0) return;
     this.renderChoiceColumn(slot.x, slot.y, slot.width, slot.height);
@@ -169,10 +173,10 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const leftWidth = choicesSlot.x - GX - gap;
     const rightX = choicesSlot.x + choicesSlot.width + gap;
     const rightWidth = contentRight - rightX;
-    // Taller than the choices column itself — this reaches down past where
-    // the choices panels stop (closing the "desktop below-choices" dead band
-    // the flanks used to leave open) down to the content region's own floor.
-    const flankHeight = content.y + content.height - choicesSlot.y - 12;
+    // Flanks match the choices column's height exactly — the band below the
+    // whole row belongs to the route board (full-width map progress), which
+    // these panels covered when they stretched to the content floor.
+    const flankHeight = choicesSlot.height;
 
     if (leftWidth > 40) {
       const snapshot = snapshotRunProgress(run);

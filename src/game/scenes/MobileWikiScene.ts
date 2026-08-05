@@ -107,6 +107,7 @@ export class MobileWikiScene extends Phaser.Scene {
 
   private renderTabs(): void {
     const tabs: Array<[string, boolean, () => void]> = [
+      ['MENU', false, () => this.scene.start('Start')],
       ['PREP', false, () => this.scene.start('MobilePrep')],
       ['DECK', false, () => { setDeckBuildContext('demo'); this.scene.start('MobileDeckBuild'); }],
       ['WIKI', true, () => {}],

@@ -22,12 +22,14 @@ export function ensureShelf(shopId: string): ShopShelfState {
   return shelf;
 }
 
-/** REROLL: costs 1 gold, deals a brand-new shelf from the next seed offset.
- * No-op (returns false) if the wallet can't afford it. */
+// SANDBOX WALLET IS UNLIMITED (user-locked 2026-08-04): the sandbox is the
+// balance/deck-idea playground, so nothing here gates on or deducts gold.
+// Run Mode's real economy lives in src/run — untouched by this rule.
+
+/** REROLL: deals a brand-new shelf from the next seed offset. Free in the
+ * sandbox (unlimited wallet). */
 export function rerollShelf(shopId: string): boolean {
-  if (demoState.gold < 1) return false;
   const nextCount = (demoState.shopShelves[shopId]?.rerollCount ?? 0) + 1;
-  demoState.gold -= 1;
   const rolled = rollShopStock(shopId, demoState.seed + nextCount);
   demoState.shopShelves[shopId] = { cards: [...rolled.cards], gems: [...rolled.gems], rerollCount: nextCount };
   return true;
@@ -71,11 +73,9 @@ export function buyCard(shopId: string, index: number): BuyResult {
   const shelf = demoState.shopShelves[shopId];
   const offer = shelf?.cards[index];
   if (!shelf || !offer) return { ok: false, reason: 'gone' };
-  if (demoState.gold < offer.price) return { ok: false, reason: 'gold' };
   const size = Math.max(1, skillBook[offer.skillId]?.size ?? 1);
   const fit = nearestFit(bagOccupied(), size, 0);
   if (fit < 0) return { ok: false, reason: 'bag' };
-  demoState.gold -= offer.price;
   const owned = createOwnedCard(offer.skillId, offer.tier);
   demoState.bagSlots[fit] = { instanceId: owned.instanceId, skillId: owned.skillId, tier: owned.tier };
   shelf.cards = shelf.cards.filter((_, i) => i !== index);
@@ -100,10 +100,8 @@ export function mergeCard(shopId: string, index: number): MergeResult {
   const shelf = demoState.shopShelves[shopId];
   const offer = shelf?.cards[index];
   if (!shelf || !offer) return { ok: false, reason: 'gone' };
-  if (demoState.gold < offer.price) return { ok: false, reason: 'gold' };
   const target = findMergeTarget(offer.skillId, demoState.pieces, demoState.bagSlots);
   if (!target) return { ok: false, reason: 'no-target' };
-  demoState.gold -= offer.price;
   if (target.location === 'board') {
     demoState.pieces = demoState.pieces.map((p, i) => (i === target.index ? { ...p, tier: target.toTier } : p));
   } else {
@@ -119,8 +117,6 @@ export function buyGem(shopId: string, index: number): BuyResult {
   const shelf = demoState.shopShelves[shopId];
   const offer = shelf?.gems[index];
   if (!shelf || !offer) return { ok: false, reason: 'gone' };
-  if (demoState.gold < offer.price) return { ok: false, reason: 'gold' };
-  demoState.gold -= offer.price;
   demoState.gemInventory = [...demoState.gemInventory, offer.gemId];
   shelf.gems = shelf.gems.filter((_, i) => i !== index);
   return { ok: true };

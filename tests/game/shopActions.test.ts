@@ -25,7 +25,7 @@ describe('game/shopActions: duplicate merging (sandbox demoState)', () => {
     expect(mergeTargetFor('sword_slash')).toBeNull();
   });
 
-  it('mergeCard upgrades the owned board copy IN PLACE (no new copy added), deducts gold, consumes the offer', () => {
+  it('mergeCard upgrades the owned board copy IN PLACE (no new copy added), consumes the offer, never charges (sandbox wallet is unlimited)', () => {
     resetDemoState({
       gold: 20,
       pieces: [{ instanceId: 'card_900', skillId: 'sword_slash', tier: 'bronze', slot: 0 }],
@@ -36,7 +36,7 @@ describe('game/shopActions: duplicate merging (sandbox demoState)', () => {
     expect(result).toEqual({ ok: true });
     expect(demoState.pieces).toHaveLength(1);
     expect(demoState.pieces[0]).toEqual({ instanceId: 'card_900', skillId: 'sword_slash', tier: 'silver', slot: 0 });
-    expect(demoState.gold).toBe(18);
+    expect(demoState.gold).toBe(20);
     expect(demoState.shopShelves.armory!.cards).toHaveLength(0);
   });
 
@@ -66,24 +66,24 @@ describe('game/shopActions: duplicate merging (sandbox demoState)', () => {
     expect(demoState.pieces[0]!.tier).toBe('diamond');
   });
 
-  it('mergeCard fails with reason "gold" (no charge) when the wallet is short', () => {
+  it('mergeCard succeeds regardless of the wallet — the sandbox never gates on gold (user-locked 2026-08-04)', () => {
     resetDemoState({
-      gold: 1,
+      gold: 0,
       pieces: [{ instanceId: 'card_900', skillId: 'sword_slash', tier: 'bronze', slot: 0 }],
       bagSlots: [],
       shopShelves: shelfWith('sword_slash', 2),
     });
     const result = mergeCard('armory', 0);
-    expect(result).toEqual({ ok: false, reason: 'gold' });
-    expect(demoState.gold).toBe(1);
-    expect(demoState.shopShelves.armory!.cards).toHaveLength(1);
+    expect(result).toEqual({ ok: true });
+    expect(demoState.gold).toBe(0);
+    expect(demoState.pieces[0]!.tier).toBe('silver');
   });
 
-  it('buyCard (plain purchase) is unaffected by the merge feature — still adds a new copy', () => {
+  it('buyCard (plain purchase) is unaffected by the merge feature — still adds a new copy, free in the sandbox', () => {
     resetDemoState({ gold: 20, pieces: [], bagSlots: [], shopShelves: shelfWith('sword_slash', 2) });
     const result = buyCard('armory', 0);
     expect(result).toEqual({ ok: true });
     expect(demoState.bagSlots.some((s) => s?.skillId === 'sword_slash')).toBe(true);
-    expect(demoState.gold).toBe(18);
+    expect(demoState.gold).toBe(20);
   });
 });

@@ -46,11 +46,26 @@ export function cardGlossaryEntries(skill: SkillDef): GlossaryEntry[] {
  * hover, draft grids) rather than per-region zones (that's
  * `FantasyCardTemplateV2`'s own `showGlossary` idiom).
  */
+/** First sentence only — hover tips must stay glanceable (user feedback:
+ * the full bodies made the tip too long). The overlay/panel views keep the
+ * complete text via `cardGlossaryEntries`. */
+function brief(entry: GlossaryEntry): GlossaryEntry {
+  const firstStop = entry.body.indexOf('. ');
+  return firstStop < 0 ? entry : { ...entry, body: entry.body.slice(0, firstStop + 1) };
+}
+
 export function cardHoverEntries(skill: SkillDef): HoverTipEntry[] {
   const plDeci = powerLevelDeci(skill);
   const header: HoverTipEntry = {
     title: skill.name,
     body: `${skill.tier.toUpperCase()} · PL ${(plDeci / 10).toFixed(0)} — ${stripCardTextMarkup(skill.text)}`,
   };
-  return [header, ...cardGlossaryEntries(skill)];
+  // Hover carries only what the face can't teach at a glance: the scaling
+  // suffix + the card's own mechanical keywords, one brief line each. The
+  // universal entries (type/weight/slot/tier/PL) live in the overlay and
+  // socket-panel views, which scroll — not here.
+  const entries: GlossaryEntry[] = [];
+  if (STAT_SUFFIX_PATTERN.test(skill.text)) entries.push(statScalingSuffixEntry());
+  entries.push(...skillKeywordEntries(skill));
+  return [header, ...entries.map(brief)];
 }

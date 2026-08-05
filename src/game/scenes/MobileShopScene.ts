@@ -75,7 +75,15 @@ export class MobileShopScene extends Phaser.Scene {
 
   private activeGold(): number {
     const runShop = this.runShopId();
-    return runShop ? (getActiveRun()?.gold ?? 0) : demoState.gold;
+    // Sandbox wallet is unlimited (user-locked 2026-08-04): a plain int so
+    // every `activeGold() >= price` check passes without special cases.
+    return runShop ? (getActiveRun()?.gold ?? 0) : Number.MAX_SAFE_INTEGER;
+  }
+
+  /** Wallet label — the sandbox says the word instead of a giant number. */
+  private goldLabel(): string {
+    const gold = this.activeGold();
+    return gold === Number.MAX_SAFE_INTEGER ? 'GOLD UNLIMITED' : `GOLD ${gold}`;
   }
 
   /** The current shelf for `shopId`, sourced from the run in Run Mode or
@@ -139,6 +147,7 @@ export class MobileShopScene extends Phaser.Scene {
 
   private renderTabs(): void {
     const tabs: Array<[string, boolean, () => void]> = [
+      ['MENU', false, () => this.scene.start('Start')],
       ['PREP', false, () => this.scene.start('MobilePrep')],
       ['DECK', false, () => { setDeckBuildContext('demo'); this.scene.start('MobileDeckBuild'); }],
       ['WIKI', false, () => this.scene.start('MobileWiki')],
@@ -156,7 +165,7 @@ export class MobileShopScene extends Phaser.Scene {
   }
 
   private renderGoldBalance(): void {
-    this.add.text(this.W - 12, 50, `GOLD ${this.activeGold()}`, { fontSize: `${F.body}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
+    this.add.text(this.W - 12, 50, this.goldLabel(), { fontSize: `${F.body}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
   }
 
   // ---------- storefront ----------

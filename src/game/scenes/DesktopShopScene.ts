@@ -83,7 +83,15 @@ export class DesktopShopScene extends Phaser.Scene {
 
   private activeGold(): number {
     const runShop = this.runShopId();
-    return runShop ? (getActiveRun()?.gold ?? 0) : demoState.gold;
+    // Sandbox wallet is unlimited (user-locked 2026-08-04): a plain int so
+    // every `activeGold() >= price` check passes without special cases.
+    return runShop ? (getActiveRun()?.gold ?? 0) : Number.MAX_SAFE_INTEGER;
+  }
+
+  /** Wallet label — the sandbox says the word instead of a giant number. */
+  private goldLabel(): string {
+    const gold = this.activeGold();
+    return gold === Number.MAX_SAFE_INTEGER ? 'GOLD UNLIMITED' : `GOLD ${gold}`;
   }
 
   /** The current shelf for `shopId`, sourced from the run in Run Mode or
@@ -142,7 +150,7 @@ export class DesktopShopScene extends Phaser.Scene {
 
   private renderGoldBalance(): void {
     const gx = DESKTOP_LAYOUT.gutter;
-    this.add.text(SCREEN.width - gx, 102 + DESKTOP_LAYOUT.tabH / 2, `GOLD ${this.activeGold()}`, {
+    this.add.text(SCREEN.width - gx, 102 + DESKTOP_LAYOUT.tabH / 2, this.goldLabel(), {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.textAccent,
     }).setOrigin(1, 0.5);
   }

@@ -90,6 +90,8 @@ export class MobilePrepScene extends Phaser.Scene {
 
   private renderTabs(): void {
     const tabs: Array<[string, () => void]> = [
+      // Back to the Start screen (the sandbox predated it — user report).
+      ['MENU', () => this.scene.start('Start')],
       ['PREP', () => {}],
       ['DECK', () => { setDeckBuildContext('demo'); this.scene.start('MobileDeckBuild'); }],
       ['WIKI', () => this.scene.start('MobileWiki')],
