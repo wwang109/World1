@@ -149,6 +149,10 @@ export class MobileBattleScene extends Phaser.Scene {
     this.goldCreditedLog = null;
     this.goldPayout = 0;
     this.summaryOverride = null;
+    // Phaser reuses this instance across fights — without this reset, a row
+    // expanded in fight A renders pre-expanded at the same turn:line key in
+    // fight B (Desktop resets it in init(); this scene has no init()).
+    this.expanded = new Set();
     // The battle service owns combat, so the log is a round trip: show a status
     // line, then render once it lands. No local fallback exists by design.
     this.renderStatus('RESOLVING BATTLE…');
@@ -358,7 +362,12 @@ export class MobileBattleScene extends Phaser.Scene {
     // boards below — see RUN_HUD_TOP); the boards still take the majority of
     // the screen either way. Tap a HIT to expand its D: math. ----
     const dockTop = RUN_HUD_TOP;
-    const dockBottom = 158; // the dock's ABSOLUTE bottom edge — constant regardless of dockTop, so hpY/boardsTop below are unaffected by the reserved strip band.
+    // The dock's ABSOLUTE bottom edge — constant regardless of dockTop, so
+    // hpY/boardsTop key off it. 182 buys the transcript 4 visible rows under
+    // the statsOnly band (audit math: floor((dockBottom-dockTop-36)/21));
+    // the 24px comes out of the boards, NOT rowH — the tap target is already
+    // below minTap and must not shrink further.
+    const dockBottom = 182;
     const dockH = dockBottom - dockTop;
     this.add.rectangle(0, dockTop, this.W, dockH, 0x101a2a).setOrigin(0, 0).setStrokeStyle(2, 0xb78a46, 0.9);
     // Turnline (mockup): "T3   Hero 18 · SPD +16  ·  Bandit 25 · SPD +15"
