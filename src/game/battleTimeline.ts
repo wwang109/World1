@@ -71,6 +71,10 @@ export interface TurnFx {
   weapon?: WeaponType;
   /** Card display name — set only on `cast` fx. */
   cardName?: string;
+  /** Anti-heal world rule tax percent (0-60) — set only on a `heal` fx whose
+   * event carried a nonzero `antiHeal` reduction; undefined heals render
+   * byte-identically to before this field existed. */
+  antiHealPct?: number;
 }
 /** A single playback position: one IMPORTANT log line (or a turn's fallback
  * anchor line when it has no important lines) — `lineIndex` into that turn's
@@ -435,10 +439,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
    * keep their existing ailment-color fallback keyed off `source` instead. */
   const fxIdentity = (skill: SkillDef | undefined): Pick<TurnFx, 'archetype' | 'property' | 'element' | 'weapon'> =>
     skill ? { archetype: skill.archetypes[0], property: skill.property, element: skill.element, weapon: skill.weapon } : {};
-  const pushFx = (side: 'player' | 'enemy', kind: 'damage' | 'heal' | 'shield', amount: number, unit: number, source?: string, skill?: SkillDef): void => {
+  const pushFx = (side: 'player' | 'enemy', kind: 'damage' | 'heal' | 'shield', amount: number, unit: number, source?: string, skill?: SkillDef, antiHealPct?: number): void => {
     if (amount <= 0) return;
     const last = stepRecords[stepRecords.length - 1];
-    if (last) last.fx.push({ side, kind, amount, source, unit, ...fxIdentity(skill) });
+    if (last) last.fx.push({ side, kind, amount, source, unit, antiHealPct, ...fxIdentity(skill) });
   };
 
   // Step 0 — the pre-battle baseline. Without it, playback would open on the
@@ -555,8 +559,12 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const activeCard = activeCardByTurn.get(e.turn);
         if (activeCard) activeCard.healing += e.amount;
         const max = e.side === 'player' ? playerMax : enemyMaxes[u];
-        push(e.turn, 'BUFF', `${label(e)} +${e.amount} HP · ${e.hpAfter}/${max}`);
-        pushFx(e.side, 'heal', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined);
+        // Anti-heal world rule: a tax the receiver's own afflictions applied to
+        // this request — never invisible. Mirrors the blocked-damage idiom
+        // above (always spell out the reduction, never a bare number).
+        const antiHealTax = e.antiHeal ? ` (anti-heal −${e.antiHeal.pct}%: −${e.antiHeal.reduced})` : '';
+        push(e.turn, 'BUFF', `${label(e)} +${e.amount} HP${antiHealTax} · ${e.hpAfter}/${max}`);
+        pushFx(e.side, 'heal', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined, e.antiHeal?.pct);
         break;
       }
       case 'shieldGain': {

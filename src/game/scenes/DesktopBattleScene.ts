@@ -13,6 +13,7 @@ import type { BattleLog } from '../../run/resolveBattle';
 import { recipeForIdentity, fxTierFor, type FxRecipe, type FxTier } from '../ui/battleFxSpec';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
+import { playSfx } from '../audio/sfxSynth';
 import { renderDesktopBackground } from '../ui/DesktopNav';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
@@ -85,6 +86,11 @@ export class DesktopBattleScene extends Phaser.Scene {
    *  clicking a tab pins it (turns this off) until AUTO is tapped again. */
   private autoFollow = true;
   private lastFocusedFoe = -1;
+  /** The step `idx` the victory/defeat stinger already played for (-1 = not
+   * yet) — guards it to exactly once on forward arrival at `outcomeStep`,
+   * never on a re-render or a scrub back onto that same step. Reset on
+   * REPLAY (see `footerButtons`) and a fresh fight (`init`). */
+  private outcomeSoundStep = -1;
   private expanded = new Set<string>();
   private heroPieces: ColumnPiece[] = [];
   private heroSkills: SkillDef[] = [];
@@ -145,6 +151,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.focusedFoe = 0;
     this.autoFollow = true;
     this.lastFocusedFoe = -1;
+    this.outcomeSoundStep = -1;
     this.expanded = new Set();
     this.heroPieces = [];
     this.heroSkills = [];
@@ -305,6 +312,15 @@ export class DesktopBattleScene extends Phaser.Scene {
     const prevHp = forwardStep ? this.hpByStep[prevIdx] : undefined;
     const prevShield = forwardStep ? this.shieldByStep[prevIdx] : undefined;
     const isOutcomeStep = this.outcomeStep >= 0 && this.idx >= this.outcomeStep;
+    // Victory/defeat stinger — fires exactly once, the moment playback
+    // ARRIVES at the outcome step going forward (auto-play, one step-forward,
+    // or the END fast-forward); never on a re-render of the same step or a
+    // scrub backward onto it.
+    const arrivedForward = prevIdx === -1 || this.idx > prevIdx;
+    if (this.idx === this.outcomeStep && arrivedForward && this.outcomeSoundStep !== this.idx) {
+      this.outcomeSoundStep = this.idx;
+      playSfx(this.outcome === 'VICTORY' ? 'victory' : 'defeat');
+    }
     // Default: auto-visible only once playback reaches the outcome (the
     // "payoff" moment — unchanged from the old always-on-at-the-end
     // behavior), hidden while scrubbing mid-fight. `summaryOverride` lets the
@@ -449,10 +465,20 @@ export class DesktopBattleScene extends Phaser.Scene {
           if (bar) this.shakeBar(bar.shakeTargets);
           const dmgColor = fx.source ? (AILMENT_COLOR[fx.source] ?? '#d05c4e') : (recipe?.palette.color ?? '#d05c4e');
           this.spawnFxFloat(anchor.x, anchor.y, `−${fx.amount}`, dmgColor, tier);
+          // fx.source is set for un-attributed damage (poison/burn/bleed/
+          // fatigue/attrition ticks) — those get one shared "tick" cue;
+          // a skill hit's own property picks its impact voice.
+          playSfx(fx.source ? 'dotTick' : fx.property === 'magical' ? 'hitMagical' : fx.property === 'true' ? 'hitTrue' : 'hitPhysical');
         } else if (fx.kind === 'heal') {
-          this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fb56a', tier);
+          // Anti-heal world rule tax — visibly taxed float: the sickly
+          // (debuff/expose) tint carries a small "−N%" suffix so a reduced
+          // heal never reads as a plain, un-taxed number.
+          this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fb56a', tier,
+            fx.antiHealPct ? `−${fx.antiHealPct}%` : undefined);
+          playSfx('heal');
         } else if (fx.kind === 'shield') {
           this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fa8d3', tier);
+          playSfx('shieldGain');
         }
       }
     }
@@ -570,7 +596,7 @@ export class DesktopBattleScene extends Phaser.Scene {
    * run on). `summaryVisible` is this render's EFFECTIVE visibility (auto or
    * overridden) — the button just flips whatever is currently showing. */
   private footerButtons(summaryVisible: boolean): Array<{ label: string; primary?: boolean; active?: boolean; onPress: () => void }> {
-    const replay = { label: 'REPLAY', onPress: () => { this.stopPlayback(); this.idx = 0; this.render(); this.startPlayback(); } };
+    const replay = { label: 'REPLAY', onPress: () => { this.stopPlayback(); this.idx = 0; this.outcomeSoundStep = -1; this.render(); this.startPlayback(); } };
     const summary = {
       label: 'SUMMARY', active: summaryVisible,
       onPress: () => { this.summaryOverride = !summaryVisible; this.render(); },
@@ -786,27 +812,38 @@ export class DesktopBattleScene extends Phaser.Scene {
    * a fresh render() already kills in-flight tweens + destroys the previous
    * frame's objects before this ever runs again (see top of `render()`).
    */
-  private spawnFxFloat(x: number, y: number, text: string, color: string, tier: FxTier): void {
+  private spawnFxFloat(x: number, y: number, text: string, color: string, tier: FxTier, taxSuffix?: string): void {
     const fontSize = Math.round(F.body * tier.fontScale);
+    const fx = x + (Math.random() * 24 - 12);
     const t = this.add
-      .text(x + (Math.random() * 24 - 12), y - 4, text, {
+      .text(fx, y - 4, text, {
         fontFamily: FONT.body, fontSize: `${fontSize}px`, fontStyle: tier.bold ? 'bold' : 'normal', color,
       })
       .setOrigin(0.5)
       .setDepth(30)
       .setScale(0.5);
+    // Anti-heal world rule tax — a small sickly-tinted "−N%" riding just past
+    // the number, so a taxed heal never reads as a plain, un-taxed one. Same
+    // transient lifecycle as the number itself (pop/float/fade together,
+    // both destroyed at the end) — no separate cleanup path to leak.
+    const suffix = taxSuffix
+      ? this.add.text(fx + t.width / 2 + 3, y - 4, taxSuffix, {
+          fontFamily: FONT.body, fontSize: `${F.tiny}px`, fontStyle: 'bold', color: AILMENT_COLOR.expose ?? '#a678d8',
+        }).setOrigin(0, 0.5).setDepth(30).setScale(0.5)
+      : undefined;
+    const targets: Phaser.GameObjects.Text[] = suffix ? [t, suffix] : [t];
     const floatUp = (): void => {
       this.tweens.add({
-        targets: t, y: t.y - 26, alpha: 0, duration: 320, ease: 'Quad.easeOut',
-        onComplete: () => t.destroy(),
+        targets, y: '-=26', alpha: 0, duration: 320, ease: 'Quad.easeOut',
+        onComplete: () => { t.destroy(); suffix?.destroy(); },
       });
     };
     this.tweens.add({
-      targets: t, scale: 1, duration: 110, ease: 'Back.easeOut',
+      targets, scale: 1, duration: 110, ease: 'Back.easeOut',
       onComplete: () => {
         if (tier.flash) {
           this.tweens.add({
-            targets: t, alpha: 0.2, duration: 30, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
+            targets, alpha: 0.2, duration: 30, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
             onComplete: floatUp,
           });
         } else {
@@ -854,6 +891,7 @@ export class DesktopBattleScene extends Phaser.Scene {
           const recipe = cast ? recipeForIdentity(cast.archetype, cast.property, cast.element, cast.weapon) : undefined;
           if (recipe) {
             this.castTokenFx(token, recipe, cast?.cardName ?? piece.skill.name);
+            if (cast?.archetype) playSfx(`cast:${cast.archetype}`);
           } else {
             token.setScale(1);
             this.tweens.add({ targets: token, scale: 1.04, duration: 125, yoyo: true, ease: 'Sine.InOut' });

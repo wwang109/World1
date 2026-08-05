@@ -11,12 +11,16 @@ import { getBattleContext, getBattleTimelineInput } from '../battleContext';
 import { currentBankedPL, currentHeroLevel, resolveRunBattleResult } from '../runStore';
 import type { BattleLog } from '../../run/resolveBattle';
 import { recipeForIdentity, fxTierFor, type FxRecipe, type FxTier } from '../ui/battleFxSpec';
+import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
+import { playSfx } from '../audio/sfxSynth';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { footerY, renderActionBar, type ActionButton } from '../ui/ActionBar';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
+
+const F = MOBILE_PROFILE.font;
 
 /** Hover copy for every stat shown on a battle statline, in one shared tip. */
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
@@ -82,6 +86,11 @@ export class MobileBattleScene extends Phaser.Scene {
    *  tapping a tab pins it (turns this off) until AUTO is tapped again. */
   private autoFollow = true;
   private lastFocusedFoe = -1;
+  /** The step `idx` the victory/defeat stinger already played for (-1 = not
+   * yet) — guards it to exactly once on forward arrival at `outcomeStep`,
+   * never on a re-render or a scrub back onto that same step. Reset on
+   * REPLAY (see `footerButtons`) and a fresh fight (`create`). */
+  private outcomeSoundStep = -1;
   /** The `idx` shown by the previous render() call — used to detect a single
    * forward step (playback tick or one scrub click) vs. a jump/rewind, which
    * gates all FX (floating numbers, shakes, bar tweens) per the no-spam rule. */
@@ -126,6 +135,7 @@ export class MobileBattleScene extends Phaser.Scene {
     this.focusedFoe = 0;
     this.autoFollow = true;
     this.lastFocusedFoe = -1;
+    this.outcomeSoundStep = -1;
     this.goldCreditedLog = null;
     this.goldPayout = 0;
     this.summaryOverride = null;
@@ -163,7 +173,7 @@ export class MobileBattleScene extends Phaser.Scene {
   private renderStatus(message: string): void {
     this.children.removeAll();
     this.add.text(this.W / 2, this.H / 2, message, {
-      fontSize: '12px', color: '#8a94a6', fontFamily: FONT.body,
+      fontSize: `${F.body}px`, color: UI.textMuted, fontFamily: FONT.body,
       align: 'center', wordWrap: { width: this.W - 60 }, lineSpacing: 4,
     }).setOrigin(0.5);
   }
@@ -181,7 +191,7 @@ export class MobileBattleScene extends Phaser.Scene {
    * (auto-at-outcome or manually overridden) — the button flips whatever is
    * currently showing. */
   private footerButtons(summaryVisible: boolean): ActionButton[] {
-    const replay: ActionButton = { label: 'REPLAY', onPress: () => { this.stopPlayback(); this.idx = 0; this.render(); this.startPlayback(); } };
+    const replay: ActionButton = { label: 'REPLAY', onPress: () => { this.stopPlayback(); this.idx = 0; this.outcomeSoundStep = -1; this.render(); this.startPlayback(); } };
     const speed: ActionButton = {
       label: this.speedMult === 1 ? '×1' : this.speedMult === 2 ? '×2' : '×½',
       onPress: () => {
@@ -309,6 +319,15 @@ export class MobileBattleScene extends Phaser.Scene {
     // normal event-level delay. This gives the fall a readable moment without
     // making the victory/defeat animation feel late.
     const isOutcomeStep = this.outcomeStep >= 0 && this.idx >= this.outcomeStep;
+    // Victory/defeat stinger — fires exactly once, the moment playback
+    // ARRIVES at the outcome step going forward (auto-play, one step-forward,
+    // or the END fast-forward); never on a re-render of the same step or a
+    // scrub backward onto it.
+    const arrivedForward = prevIdx === -1 || this.idx > prevIdx;
+    if (this.idx === this.outcomeStep && arrivedForward && this.outcomeSoundStep !== this.idx) {
+      this.outcomeSoundStep = this.idx;
+      playSfx(this.outcome === 'VICTORY' ? 'victory' : 'defeat');
+    }
     // Default: auto-visible only once playback reaches the outcome (the
     // existing "payoff" behavior, unchanged), hidden while scrubbing
     // mid-fight. `summaryOverride` lets the player pin it open (to read the
@@ -321,7 +340,7 @@ export class MobileBattleScene extends Phaser.Scene {
     this.add.rectangle(0, 0, this.W, dockH, 0x101a2a).setOrigin(0, 0).setStrokeStyle(2, 0xb78a46, 0.9);
     // Turnline (mockup): "T3   Hero 18 · SPD +16  ·  Bandit 25 · SPD +15"
     const spd = this.speedByTurn.get(turn) ?? { player: '', enemy: '' };
-    this.add.text(12, 8, `T${turn}${!isOutcomeStep && this.playing ? ' ▶' : ''}`, { fontSize: '13px', color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' });
+    this.add.text(12, 8, `T${turn}${!isOutcomeStep && this.playing ? ' ▶' : ''}`, { fontSize: `${F.name}px`, color: '#b78a46', fontFamily: FONT.body, fontStyle: 'bold' });
     const turnStats = [
       spd.player && `${this.heroName} ${spd.player}`,
       ...this.foes.map((f, u) => {
@@ -329,7 +348,7 @@ export class MobileBattleScene extends Phaser.Scene {
         return line && `${f.name} ${line}`;
       }),
     ].filter(Boolean).join('   ·   ');
-    if (turnStats) this.boundedText(66, 9, turnStats, { fontSize: '11px', color: '#cdd4de', fontFamily: FONT.body }, this.W - 78);
+    if (turnStats) this.boundedText(66, 9, turnStats, { fontSize: `${F.label}px`, color: '#cdd4de', fontFamily: FONT.body }, this.W - 78);
     addHoverTipZone(this, { x: 12, y: 6, w: this.W - 24, h: 16 }, [TURNLINE_ENTRY]);
 
     // Rolling transcript: every line up through the current step's line —
@@ -357,13 +376,13 @@ export class MobileBattleScene extends Phaser.Scene {
       if (ly > dockH - 16) break;
       const key = `${t}:${local}`;
       this.add.rectangle(12, ly - 3, this.W - 24, 1, 0x1c2940).setOrigin(0, 0);
-      if (t !== prevTurn) this.add.text(turnX, ly + 2, `T${t}`, { fontSize: '9px', color: '#5a6a82', fontFamily: FONT.body, fontStyle: 'bold' });
+      if (t !== prevTurn) this.add.text(turnX, ly + 2, `T${t}`, { fontSize: `${F.tiny}px`, color: '#5a6a82', fontFamily: FONT.body, fontStyle: 'bold' });
       prevTurn = t;
-      this.boundedText(tagX, ly, line.tag, { fontSize: '11px', color: TAG_COLOR[line.tag] ?? UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }, textX - tagX - 6);
+      this.boundedText(tagX, ly, line.tag, { fontSize: `${F.label}px`, color: TAG_COLOR[line.tag] ?? UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' }, textX - tagX - 6);
       const textMaxW = this.W - textX - (line.detail ? 26 : 14);
-      this.boundedText(textX, ly, line.text, { fontSize: '12px', color: '#e8e0c8', fontFamily: FONT.body }, textMaxW);
+      this.boundedText(textX, ly, line.text, { fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.body }, textMaxW);
       if (line.detail) {
-        this.add.text(this.W - 12, ly, this.expanded.has(key) ? '▲' : '▾', { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body }).setOrigin(1, 0);
+        this.add.text(this.W - 12, ly, this.expanded.has(key) ? '▲' : '▾', { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(1, 0);
         const zone = this.add.rectangle(0, ly - 3, this.W, rowH, 0xffffff, 0.001).setOrigin(0, 0).setInteractive({ useHandCursor: true });
         zone.on('pointerdown', () => { if (this.expanded.has(key)) this.expanded.delete(key); else this.expanded.add(key); this.render(); });
         // HIT rows ALSO get a hover (desktop) tip reading the same D: string —
@@ -376,7 +395,7 @@ export class MobileBattleScene extends Phaser.Scene {
       }
       ly += rowH;
       if (line.detail && this.expanded.has(key) && ly < dockH - 12) {
-        const d = this.boundedText(textX, ly, line.detail, { fontSize: '10px', color: '#8a94a6', fontFamily: FONT.body }, this.W - textX - 14);
+        const d = this.boundedText(textX, ly, line.detail, { fontSize: `${F.small}px`, color: UI.textMuted, fontFamily: FONT.body }, this.W - textX - 14);
         ly += d.height + 4;
       }
     }
@@ -403,7 +422,7 @@ export class MobileBattleScene extends Phaser.Scene {
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
       shieldPoolsLabel(shield.playerPools),
     );
-    this.boundedText(120, hpY + 17, this.heroStatLine, { fontSize: '9px', color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
+    this.boundedText(120, hpY + 17, this.heroStatLine, { fontSize: `${F.tiny}px`, color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
     addHoverTipZone(this, { x: 120, y: hpY + 17, w: this.W - 120 - 84, h: 12 }, ALL_STAT_ENTRIES);
     const foeBars: Array<HpBarHandles | undefined> = [];
     /** Tab-mode float anchor for foes whose full bar isn't on screen. */
@@ -422,7 +441,7 @@ export class MobileBattleScene extends Phaser.Scene {
         animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
         shieldPoolsLabel(foePools),
       );
-      this.boundedText(120, barY + 17, foeModel.statLine, { fontSize: '9px', color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
+      this.boundedText(120, barY + 17, foeModel.statLine, { fontSize: `${F.tiny}px`, color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
       addHoverTipZone(this, { x: 120, y: barY + 17, w: this.W - 120 - 84, h: 12 }, ALL_STAT_ENTRIES);
     };
     let boardsTop: number;
@@ -449,7 +468,7 @@ export class MobileBattleScene extends Phaser.Scene {
           .setInteractive({ useHandCursor: true });
         tab.on('pointerdown', () => { this.focusedFoe = u; this.autoFollow = false; this.render(); });
         this.boundedText(tx + 5, tabY + 3, dead ? `✕ ${foeModel.name.toUpperCase()}` : foeModel.name.toUpperCase(), {
-          fontSize: '9px', color: dead ? '#5a6a82' : isActive ? '#e8e0c8' : '#9aa4b6', fontFamily: FONT.body, fontStyle: 'bold',
+          fontSize: `${F.tiny}px`, color: dead ? '#5a6a82' : isActive ? UI.textBright : UI.textFootnote, fontFamily: FONT.body, fontStyle: 'bold',
         }, tabW - 10);
         // Mini HP strip along the tab's bottom — every foe's health stays
         // readable even while another foe's full bar is focused.
@@ -462,7 +481,7 @@ export class MobileBattleScene extends Phaser.Scene {
       const auto = this.add.rectangle(ax, tabY, autoW, tabH, this.autoFollow ? 0xb78a46 : 0x101a2a)
         .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       auto.on('pointerdown', () => { this.autoFollow = !this.autoFollow; this.render(); });
-      this.add.text(ax + autoW / 2, tabY + tabH / 2, 'AUTO', { fontSize: '9px', color: this.autoFollow ? '#1a1208' : '#9aa4b6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(ax + autoW / 2, tabY + tabH / 2, 'AUTO', { fontSize: `${F.tiny}px`, color: this.autoFollow ? UI.textOnChip : UI.textFootnote, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       boardsTop = tabY + tabH + 8;
     }
 
@@ -485,10 +504,20 @@ export class MobileBattleScene extends Phaser.Scene {
           // DoT ticks float in their ailment's color (poison green, burn orange…)
           const dmgColor = fx.source ? (AILMENT_COLOR[fx.source] ?? '#d05c4e') : (recipe?.palette.color ?? '#d05c4e');
           this.spawnFxFloat(anchor.x, anchor.y, `−${fx.amount}`, dmgColor, tier);
+          // fx.source is set for un-attributed damage (poison/burn/bleed/
+          // fatigue/attrition ticks) — those get one shared "tick" cue;
+          // a skill hit's own property picks its impact voice.
+          playSfx(fx.source ? 'dotTick' : fx.property === 'magical' ? 'hitMagical' : fx.property === 'true' ? 'hitTrue' : 'hitPhysical');
         } else if (fx.kind === 'heal') {
-          this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fb56a', tier);
+          // Anti-heal world rule tax — visibly taxed float: the sickly
+          // (debuff/expose) tint carries a small "−N%" suffix so a reduced
+          // heal never reads as a plain, un-taxed number.
+          this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fb56a', tier,
+            fx.antiHealPct ? `−${fx.antiHealPct}%` : undefined);
+          playSfx('heal');
         } else if (fx.kind === 'shield') {
           this.spawnFxFloat(anchor.x, anchor.y, `+${fx.amount}`, recipe?.palette.color ?? '#5fa8d3', tier);
+          playSfx('shieldGain');
         }
       }
     }
@@ -554,19 +583,19 @@ export class MobileBattleScene extends Phaser.Scene {
       const by = summaryBy + summaryH + bannerGap;
       this.add.rectangle(deckX, summaryBy, this.W - 20, summaryH, 0x101a2a, 0.96)
         .setOrigin(0, 0).setStrokeStyle(1, 0xb78a46, 0.8).setDepth(D);
-      this.add.text(deckX + 12, summaryBy + 8, 'BATTLE LEDGER', { fontSize: '11px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setDepth(D);
+      this.add.text(deckX + 12, summaryBy + 8, 'BATTLE LEDGER', { fontSize: `${F.label}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setDepth(D);
       // "AS OF" marker makes it unmistakable this is a running tally, not the
       // final one, whenever this panel is showing mid-fight.
       const cardsLabel = isOutcomeStep ? `${summaryRows.length} EFFECTIVE CARDS` : `${summaryRows.length} CARDS · AS OF T${turn}`;
-      this.add.text(this.W - 30, summaryBy + 8, cardsLabel, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setDepth(D);
+      this.add.text(this.W - 30, summaryBy + 8, cardsLabel, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setDepth(D);
       this.add.rectangle(deckX + 10, summaryBy + 27, this.W - 40, 1, 0x2a3a52).setOrigin(0, 0).setDepth(D);
       const totalMetrics = [
         summary.playerDamage > 0 ? `YOU DMG ${summary.playerDamage}` : '',
         summary.enemyDamage > 0 ? `FOE DMG ${summary.enemyDamage}` : '',
         summary.playerHealing > 0 ? `HEAL ${summary.playerHealing}` : '',
       ].filter(Boolean).join('  ·  ');
-      this.boundedText(deckX + 12, summaryBy + 33, totalMetrics || 'No measurable output', { fontSize: '10px', color: '#cdd4de', fontFamily: FONT.body, fontStyle: 'bold' }, this.W - 44).setDepth(D);
-      this.add.text(deckX + 12, summaryBy + 52, isOutcomeStep ? 'CARD OUTPUT' : `CARD OUTPUT · AS OF T${turn}`, { fontSize: '9px', color: '#8a94a6', fontFamily: FONT.body, fontStyle: 'bold' }).setDepth(D);
+      this.boundedText(deckX + 12, summaryBy + 33, totalMetrics || 'No measurable output', { fontSize: `${F.small}px`, color: '#cdd4de', fontFamily: FONT.body, fontStyle: 'bold' }, this.W - 44).setDepth(D);
+      this.add.text(deckX + 12, summaryBy + 52, isOutcomeStep ? 'CARD OUTPUT' : `CARD OUTPUT · AS OF T${turn}`, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setDepth(D);
       summaryRows.forEach((row, index) => {
         const col = index % summaryColumns;
         const rowIndex = Math.floor(index / summaryColumns);
@@ -576,24 +605,24 @@ export class MobileBattleScene extends Phaser.Scene {
         const prefix = row.side === 'player' ? 'YOU' : 'FOE';
         const accent = row.side === 'player' ? 0x315f43 : 0x6c3838;
         this.add.rectangle(cellX, y, cellW - 6, 27, accent, 0.42).setOrigin(0, 0).setStrokeStyle(1, row.side === 'player' ? 0x4f9e57 : 0xb0483c, 0.55).setDepth(D);
-        this.boundedText(cellX + 6, y + 3, `${prefix} · ${row.name}`, { fontSize: '9px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }, cellW - 18).setDepth(D);
+        this.boundedText(cellX + 6, y + 3, `${prefix} · ${row.name}`, { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }, cellW - 18).setDepth(D);
         const metrics = [
           row.damage > 0 ? `DMG ${row.damage}` : '',
           row.shield > 0 ? `SHD ${row.shield}` : '',
           row.healing > 0 ? `HEAL ${row.healing}` : '',
           row.dots > 0 ? `DOT ${row.dots}` : '',
         ].filter(Boolean).join('  ·  ');
-        this.boundedText(cellX + 6, y + 15, metrics, { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body }, cellW - 18).setDepth(D);
+        this.boundedText(cellX + 6, y + 15, metrics, { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body }, cellW - 18).setDepth(D);
       });
       if (isOutcomeStep) {
         this.add.rectangle(deckX, by, this.W - 20, bannerH, good ? 0x143a1a : 0x3a1414, 0.92).setOrigin(0, 0).setStrokeStyle(2, good ? 0x4f9e57 : 0xb0483c).setDepth(D);
         this.add.text(this.W / 2 - 10, by + 26, this.outcome, { fontSize: '26px', color: good ? '#7fe08a' : '#f08a7a', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(1, 0.5).setDepth(D);
-        this.add.text(this.W / 2 + 6, by + 30, `+${this.goldPayout} GOLD`, { fontSize: '11px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5).setDepth(D);
+        this.add.text(this.W / 2 + 6, by + 30, `+${this.goldPayout} GOLD`, { fontSize: `${F.label}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0, 0.5).setDepth(D);
         if (getBattleContext() === 'run') {
           // The hero levels after EVERY fight, win or lose (locked design) —
           // `resolveRunBattleResult` already applied it before this renders.
           this.add.text(this.W / 2, by + 50, `LEVEL UP → LV ${currentHeroLevel()} · ${currentBankedPL()} PL BANKED`, {
-            fontSize: '10px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold',
+            fontSize: `${F.small}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
           }).setOrigin(0.5).setDepth(D);
         }
       }
@@ -620,7 +649,7 @@ export class MobileBattleScene extends Phaser.Scene {
       else this.add.rectangle(cx, yFor(i), 7, 2, passed ? 0x8a6a34 : 0x2c3e58).setOrigin(0.5, 0.5);
     }
     this.add.circle(cx, yFor(this.idx), 11, 0xe8b446).setStrokeStyle(2, 0x1a1208);
-    this.add.text(cx, yFor(this.idx) + 15, `T${this.steps[this.idx]?.turn ?? this.turns[0] ?? 1}`, { fontSize: '9px', color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0);
+    this.add.text(cx, yFor(this.idx) + 15, `T${this.steps[this.idx]?.turn ?? this.turns[0] ?? 1}`, { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0);
     const zone = this.add.rectangle(cx, top, 40, railLen || 20, 0xffffff, 0.001).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
     const setFromY = (y: number): void => {
       const i = railLen <= 0 ? 0 : Math.round(Math.max(0, Math.min(1, (y - top) / railLen)) * (n - 1));
@@ -644,7 +673,7 @@ export class MobileBattleScene extends Phaser.Scene {
   ): HpBarHandles {
     const barX = 120; const barW = this.W - barX - 84;
     const frac = (v: number): number => barW * Math.max(0, Math.min(1, v / max));
-    const nameText = this.boundedText(12, y, name.toUpperCase(), { fontSize: '12px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }, barX - 20);
+    const nameText = this.boundedText(12, y, name.toUpperCase(), { fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }, barX - 20);
     // Afflicted bars shift color toward their ailment (poison → green cast…)
     // and carry a colored border + one pip per ailment under the bar's end.
     const firstAilment = ailments.find((a) => AILMENT_TINT[a] !== undefined);
@@ -671,12 +700,12 @@ export class MobileBattleScene extends Phaser.Scene {
       this.tweens.add({ targets: shieldRect, width: shieldTarget, duration: 400, ease: 'Cubic.Out' });
     }
 
-    const hpText = this.add.text(this.W - 12, y, `${hp}/${max}`, { fontSize: '12px', color: '#e8e0c8', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
+    const hpText = this.add.text(this.W - 12, y, `${hp}/${max}`, { fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
     // Shield as a floating number in the strip's blue — no emoji (tofu in canvas fonts).
     // When more than one shield pool is stacked, break the total out by pool
     // (physical/magical/true) instead of one merged number.
     const shieldLabel = shield > 0 ? (poolsLabel ? `+${shield} (${poolsLabel})` : `+${shield}`) : '';
-    const shieldText = shield > 0 ? this.add.text(hpText.x - hpText.width - 6, y, shieldLabel, { fontSize: '11px', color: '#5fa8d3', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0) : undefined;
+    const shieldText = shield > 0 ? this.add.text(hpText.x - hpText.width - 6, y, shieldLabel, { fontSize: `${F.label}px`, color: '#5fa8d3', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0) : undefined;
 
     return {
       fillRect,
@@ -703,10 +732,11 @@ export class MobileBattleScene extends Phaser.Scene {
    * a fresh render() already kills in-flight tweens + destroys the previous
    * frame's objects before this ever runs again (see top of `render()`).
    */
-  private spawnFxFloat(x: number, y: number, text: string, color: string, tier: FxTier): void {
-    const fontSize = Math.round(14 * tier.fontScale);
+  private spawnFxFloat(x: number, y: number, text: string, color: string, tier: FxTier, taxSuffix?: string): void {
+    const fontSize = Math.round(F.lead * tier.fontScale);
+    const fx = x + (Math.random() * 24 - 12);
     const t = this.add
-      .text(x + (Math.random() * 24 - 12), y - 4, text, {
+      .text(fx, y - 4, text, {
         fontSize: `${fontSize}px`,
         color,
         fontFamily: FONT.body,
@@ -715,18 +745,28 @@ export class MobileBattleScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(30)
       .setScale(0.5);
+    // Anti-heal world rule tax — a small sickly-tinted "−N%" riding just past
+    // the number, so a taxed heal never reads as a plain, un-taxed one. Same
+    // transient lifecycle as the number itself (pop/float/fade together,
+    // both destroyed at the end) — no separate cleanup path to leak.
+    const suffix = taxSuffix
+      ? this.add.text(fx + t.width / 2 + 3, y - 4, taxSuffix, {
+          fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#a678d8', fontFamily: FONT.body, fontStyle: 'bold',
+        }).setOrigin(0, 0.5).setDepth(30).setScale(0.5)
+      : undefined;
+    const targets: Phaser.GameObjects.Text[] = suffix ? [t, suffix] : [t];
     const floatUp = (): void => {
       this.tweens.add({
-        targets: t, y: t.y - 26, alpha: 0, duration: 320, ease: 'Quad.easeOut',
-        onComplete: () => t.destroy(),
+        targets, y: '-=26', alpha: 0, duration: 320, ease: 'Quad.easeOut',
+        onComplete: () => { t.destroy(); suffix?.destroy(); },
       });
     };
     this.tweens.add({
-      targets: t, scale: 1, duration: 110, ease: 'Back.easeOut',
+      targets, scale: 1, duration: 110, ease: 'Back.easeOut',
       onComplete: () => {
         if (tier.flash) {
           this.tweens.add({
-            targets: t, alpha: 0.2, duration: 30, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
+            targets, alpha: 0.2, duration: 30, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
             onComplete: floatUp,
           });
         } else {
@@ -774,6 +814,7 @@ export class MobileBattleScene extends Phaser.Scene {
           const recipe = cast ? recipeForIdentity(cast.archetype, cast.property, cast.element, cast.weapon) : undefined;
           if (recipe) {
             this.castTokenFx(token, recipe, cast?.cardName ?? piece.skill.name);
+            if (cast?.archetype) playSfx(`cast:${cast.archetype}`);
           } else {
             token.setScale(1);
             this.tweens.add({ targets: token, scale: 1.04, duration: 125, yoyo: true, ease: 'Sine.InOut' });
@@ -829,7 +870,7 @@ export class MobileBattleScene extends Phaser.Scene {
       onComplete: () => flash.destroy(),
     });
     const nameText = this.add.text(token.x, token.y - h / 2 - 4, cardName, {
-      fontSize: '11px', color: palette.color, fontFamily: FONT.body, fontStyle: 'bold',
+      fontSize: `${F.label}px`, color: palette.color, fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(0.5, 1).setDepth(31).setAlpha(0);
     this.tweens.add({
       targets: nameText, alpha: 1, duration: 100, ease: 'Sine.easeOut',
