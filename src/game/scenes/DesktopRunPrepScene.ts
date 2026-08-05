@@ -75,7 +75,8 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     }
 
     this.renderHud(run, node.kind);
-    this.renderFoePanel(node.kind, encounter);
+    const foeBottom = this.renderFoePanel(node.kind, encounter);
+    this.renderHeroPanel(run, foeBottom + DESKTOP_PROFILE.gap);
     this.renderColumns(run, encounter);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
@@ -114,7 +115,7 @@ export class DesktopRunPrepScene extends Phaser.Scene {
   /** Content-fit foe panel (density pass — the old version stretched to the
    * full column height, leaving a mostly-empty rectangle below the DMG/turn
    * line). Uses the freed space for a matchup hint + the foe's card list. */
-  private renderFoePanel(kind: RunNodeKind, encounter: NonNullable<ReturnType<typeof currentEncounter>>): void {
+  private renderFoePanel(kind: RunNodeKind, encounter: NonNullable<ReturnType<typeof currentEncounter>>): number {
     const panelX = GX;
     const panelTop = CONTENT_TOP;
     const innerX = panelX + PANEL_PAD;
@@ -195,6 +196,35 @@ export class DesktopRunPrepScene extends Phaser.Scene {
       });
       cursor += F.small + 4;
     }
+    return panelTop + panelH;
+  }
+
+  /** Compact hero counterpart under THE FOE — the SAME stat grammar, so the
+   * matchup reads side-by-side without a DECK/BAG detour (user ask). */
+  private renderHeroPanel(run: NonNullable<ReturnType<typeof getActiveRun>>, panelTop: number): void {
+    const innerX = GX + PANEL_PAD;
+    const innerW = PANEL_W - PANEL_PAD * 2;
+    const panelH = PANEL_PAD * 2 + F.label + 10 + 16 + F.small + 12 + F.body + 7 + F.small + 4;
+    this.add.rectangle(GX, panelTop, PANEL_W, panelH, UI.panel, 0.92).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
+    let cursor = panelTop + PANEL_PAD;
+    this.add.text(innerX, cursor, 'YOU', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent });
+    cursor += F.label + 10;
+    this.add.rectangle(innerX, cursor, innerW, 1, UI.border, 0.6).setOrigin(0, 0);
+    cursor += 16;
+    this.add.text(innerX, cursor, `LV ${run.heroLevel} · ${run.pieces.length} cards`, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textDim,
+    });
+    cursor += F.small + 12;
+    const s = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation).setup.stats;
+    this.add.text(innerX, cursor, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower}`, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.text,
+    });
+    addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: F.body + 4 }, ALL_STAT_ENTRIES);
+    cursor += F.body + 7;
+    this.add.text(innerX, cursor, `${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist}`, {
+      fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
+    });
+    addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: F.small + 4 }, ALL_STAT_ENTRIES);
   }
 
   private renderColumns(run: NonNullable<ReturnType<typeof getActiveRun>>, encounter: NonNullable<ReturnType<typeof currentEncounter>>): void {

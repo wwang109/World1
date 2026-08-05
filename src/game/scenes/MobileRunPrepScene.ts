@@ -65,7 +65,8 @@ export class MobileRunPrepScene extends Phaser.Scene {
     }
 
     this.renderHud(run, node.kind);
-    const boardsTop = this.renderFoeCard(node.kind, encounter);
+    let boardsTop = this.renderFoeCard(node.kind, encounter);
+    boardsTop = this.renderHeroBand(run, boardsTop);
     this.renderColumns(run, encounter, boardsTop);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
@@ -129,6 +130,23 @@ export class MobileRunPrepScene extends Phaser.Scene {
     });
     addHoverTipZone(this, { x: 10, y: y + 22, w: this.W - 20, h: 32 }, ALL_STAT_ENTRIES);
     return y + h + 8;
+  }
+
+  /** Slim hero counterpart to the foe card — SAME stat grammar, so the
+   * matchup reads at a glance without a DECK/BAG detour (user ask). */
+  private renderHeroBand(run: NonNullable<ReturnType<typeof getActiveRun>>, top: number): number {
+    const h = 30;
+    this.add.rectangle(10, top, this.W - 20, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7);
+    const s = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation).setup.stats;
+    this.add.text(20, top + h / 2, `YOU · LV ${run.heroLevel}`, {
+      fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
+    this.add.text(this.W - 20, top + h / 2,
+      `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower} · ${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${STAT_TOKEN.speed} ${s.speed}`, {
+        fontSize: `${F.tiny}px`, color: UI.textFootnote, fontFamily: FONT.body, fontStyle: 'bold',
+      }).setOrigin(1, 0.5);
+    addHoverTipZone(this, { x: 10, y: top, w: this.W - 20, h }, ALL_STAT_ENTRIES);
+    return top + h + 8;
   }
 
   private renderColumns(
