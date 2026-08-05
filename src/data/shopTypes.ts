@@ -67,7 +67,14 @@ export interface ShopTypeDef {
   tierBias?: 'silver';
 }
 
-const SHELF = { cards: 4, gems: 3 } as const;
+// Bigger shelves (2026-08-04, "shops sell more" pass): the target is ~6 card
+// offers + ~5 gem offers per shelf everywhere a shop actually sells that
+// item at all — `rollShopStock`/`shopPoolInfo` already cap a shelf at
+// `min(shelf, pool)` (see the "pool arithmetic" section of `src/run/shop.ts`),
+// so declaring the bigger number here is enough: a thin theme (an element
+// stall, say) just shows its whole pool instead of an artificially truncated
+// slice of it — no logic change needed, only the declared target moves.
+const SHELF = { cards: 6, gems: 5 } as const;
 
 const defs: ShopTypeDef[] = [
   {
@@ -179,6 +186,10 @@ const defs: ShopTypeDef[] = [
     tagline: 'Facets for every socket.',
     cardFilter: [],
     gemFilter: [{ all: true }],
+    // Kept at 6 (not the standard 5-gem target, 2026-08-04) on purpose —
+    // Gemcutter's whole identity is "the biggest gem shelf in the game" (it
+    // rolls off the FULL 46-gem book via the `all` clause), and 6 is exactly
+    // the desktop/mobile gem grid's row capacity.
     shelf: { cards: 0, gems: 6 },
     minWave: 2,
   },
@@ -200,7 +211,7 @@ const defs: ShopTypeDef[] = [
         ],
       },
     ],
-    shelf: { cards: 6, gems: 2 },
+    shelf: { cards: 6, gems: 5 },
     priceDelta: 1,
   },
   {
@@ -226,7 +237,7 @@ const defs: ShopTypeDef[] = [
         ],
       },
     ],
-    shelf: { cards: 4, gems: 3 },
+    shelf: { cards: 6, gems: 5 },
   },
   {
     id: 'assassins_den',
@@ -248,14 +259,16 @@ const defs: ShopTypeDef[] = [
         ],
       },
     ],
-    shelf: { cards: 4, gems: 3 },
+    shelf: { cards: 6, gems: 5 },
   },
   {
     id: 'relic_vault',
     name: 'Relic Vault',
     tagline: 'Old power, honest price.',
     // Empty clause -> matches the whole card book; the "upgrade" identity
-    // comes from tierBias, not a narrower card filter.
+    // comes from tierBias + priceDelta, not a narrower card filter or a
+    // deliberately thin shelf (2026-08-04: raised to the standard 6/5 target
+    // like every other non-specialist shop — nothing locks this one thin).
     cardFilter: [{}],
     gemFilter: [
       {
@@ -271,7 +284,7 @@ const defs: ShopTypeDef[] = [
         ],
       },
     ],
-    shelf: { cards: 3, gems: 2 },
+    shelf: { cards: 6, gems: 5 },
     priceDelta: 1,
     minWave: 3,
     tierBias: 'silver',
@@ -280,14 +293,21 @@ const defs: ShopTypeDef[] = [
   // ---- Element specialist stalls (thin-by-design — docs/run-shops-design.md
   // §2b, USER-LOCKED: a narrow theme selling 1-7 cards is a specialist stall,
   // not a bug. Each pairs an element's card filter with its matching echo
-  // gems, so the elemental wheel gets a shopping identity of its own.) ----
+  // gems, so the elemental wheel gets a shopping identity of its own. The
+  // declared `shelf` below is the same 6/5 target every other shop uses
+  // (2026-08-04) — these pools are all <= 6 cards / <= 5 gems already, so
+  // `rollShopStock`/`shopPoolInfo` cap the ACTUAL shelf at the pool size
+  // regardless; raising the declared number here just stops artificially
+  // truncating a thin pool (e.g. Reliquary's 5 gems used to cap at 2, so 3
+  // of its own 5 gems could never appear at all) — the stall stays exactly
+  // as thin as its pool, never bigger.) ----
   {
     id: 'emberworks',
     name: 'Emberworks',
     tagline: 'Fire answers to nobody.',
     cardFilter: [{ elements: ['fire'] }],
     gemFilter: [{ ids: ['fireball_echo'] }],
-    shelf: { cards: 4, gems: 2 },
+    shelf: { cards: 6, gems: 5 },
   },
   {
     id: 'frosthold',
@@ -295,7 +315,7 @@ const defs: ShopTypeDef[] = [
     tagline: 'Cold patience.',
     cardFilter: [{ elements: ['frost'] }],
     gemFilter: [{ ids: ['mana_ward_echo', 'frost_ward_echo'] }],
-    shelf: { cards: 4, gems: 2 },
+    shelf: { cards: 6, gems: 5 },
   },
   {
     id: 'stormspire',
@@ -303,7 +323,7 @@ const defs: ShopTypeDef[] = [
     tagline: 'Thunder, sold by the bolt.',
     cardFilter: [{ elements: ['lightning'] }],
     gemFilter: [{ ids: ['arcane_bolt_echo'] }],
-    shelf: { cards: 4, gems: 2 },
+    shelf: { cards: 6, gems: 5 },
   },
   {
     id: 'grovekeep',
@@ -311,7 +331,7 @@ const defs: ShopTypeDef[] = [
     tagline: 'Roots outlast steel.',
     cardFilter: [{ elements: ['nature'] }],
     gemFilter: [{ ids: ['time_crystal_echo', 'second_wind_echo'] }],
-    shelf: { cards: 4, gems: 2 },
+    shelf: { cards: 6, gems: 5 },
   },
   {
     id: 'reliquary',
@@ -321,7 +341,7 @@ const defs: ShopTypeDef[] = [
     gemFilter: [
       { ids: ['mending_light_echo', 'ward_of_silence_echo', 'purify_echo', 'judgment_light_echo', 'prism_barrier_echo'] },
     ],
-    shelf: { cards: 4, gems: 2 },
+    shelf: { cards: 6, gems: 5 },
   },
   {
     id: 'umbral_stall',
@@ -329,7 +349,7 @@ const defs: ShopTypeDef[] = [
     tagline: 'Ask no questions.',
     cardFilter: [{ elements: ['dark'] }],
     gemFilter: [{ ids: ['shadow_bolt_echo', 'hex_of_frailty_echo', 'soul_rend_echo'] }],
-    shelf: { cards: 4, gems: 2 },
+    shelf: { cards: 6, gems: 5 },
   },
 ];
 

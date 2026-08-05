@@ -106,6 +106,35 @@ export function goldPriceOfGem(gemId: string): 1 | 2 | 3 {
 }
 
 // ---------------------------------------------------------------------------
+// SELL-BACK pricing (2026-08-04) — half of the item's own shop price,
+// rounded down, floored at 1 gold (never free/zero). Shared by BOTH
+// `src/run/runState.ts#sellRunCard`/`sellRunGem` and their sandbox mirror
+// (`src/game/shopActions.ts#sellCard`/`sellGem`) so there is exactly one
+// sell-pricing table, matching the existing `goldPriceOfCard`/
+// `goldPriceOfGem` idiom this economy already uses everywhere else. Gold
+// remains an economy-pacing knob, not a PL/balance number (see the comment
+// block above `GOLD_PRICE_BY_TIER`).
+// ---------------------------------------------------------------------------
+
+/** Sell-back price for a card at `tier` — half of `goldPriceOfCard(tier)`,
+ * rounded down, floored at 1 gold. Does NOT fold a shop's `priceDelta` (a
+ * sold card doesn't belong to any particular shop's markup/discount — it's
+ * priced off the tier alone, the same table every shop's buy price derives
+ * from before that shop's own delta is applied). */
+export function sellPriceOfCard(tier: SkillTier): number {
+  return Math.max(1, Math.floor(goldPriceOfCard(tier) / 2));
+}
+
+/** Sell-back price for a gem — half of its shop price (`goldPriceOfGem`,
+ * itself derived from the gem's own PL/rarity), rounded down, floored at 1
+ * gold. Given `goldPriceOfGem`'s 1-3 range this floors to 1 gold for every
+ * gem today (1/2->1, 2/2->1, 3/2->1) — an emergent property of that existing
+ * 3-band table, not a new distinction being introduced here. */
+export function sellPriceOfGem(gemId: string): number {
+  return Math.max(1, Math.floor(goldPriceOfGem(gemId) / 2));
+}
+
+// ---------------------------------------------------------------------------
 // Stocking — seeded, deterministic, reload-safe.
 // ---------------------------------------------------------------------------
 

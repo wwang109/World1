@@ -1,5 +1,14 @@
 import { skillBook } from '../data/skills';
-import { findMergeTarget, goldPriceOfCard, goldPriceOfGem, rollShopStock, type MergeTarget } from '../run/shop';
+import { bagAsBoardPieces, canPlace } from '../run/loadout';
+import {
+  findMergeTarget,
+  goldPriceOfCard,
+  goldPriceOfGem,
+  rollShopStock,
+  sellPriceOfCard,
+  sellPriceOfGem,
+  type MergeTarget,
+} from '../run/shop';
 import { createOwnedCard, demoState, MAX_GOLD, type ShopShelfState } from './demoState';
 
 /**
@@ -119,6 +128,84 @@ export function buyGem(shopId: string, index: number): BuyResult {
   if (!shelf || !offer) return { ok: false, reason: 'gone' };
   demoState.gemInventory = [...demoState.gemInventory, offer.gemId];
   shelf.gems = shelf.gems.filter((_, i) => i !== index);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Selling (2026-08-04) — sandbox mirror of `sellRunCard`/`sellRunGem`
+// (src/run/runState.ts): removes an owned board piece/bag card/pouch gem and
+// credits half-price gold (`sellPriceOfCard`/`sellPriceOfGem`,
+// src/run/shop.ts). The sandbox wallet is unlimited (nothing here ever GATES
+// on gold), but selling still credits the gold anyway — for consistency with
+// Run Mode's real economy, even though the sandbox itself ignores the number.
+// ---------------------------------------------------------------------------
+
+export type SellResult = { ok: true; goldReceived: number } | { ok: false; reason: 'empty' };
+
+/** SELL the board piece (`location: 'board'`) or bag card (`'bag'`) at
+ * `index`: removes it, credits half-price gold, and — board pieces ONLY —
+ * returns any socketed gem to the gem pouch instead of destroying it
+ * silently. Fails cleanly with reason `'empty'` if `index` is already empty. */
+export function sellCard(location: 'board' | 'bag', index: number): SellResult {
+  if (location === 'board') {
+    const piece = demoState.pieces[index];
+    if (!piece) return { ok: false, reason: 'empty' };
+    const price = sellPriceOfCard(piece.tier);
+    if (piece.gem) demoState.gemInventory = [...demoState.gemInventory, piece.gem.id];
+    demoState.pieces = demoState.pieces.filter((_, i) => i !== index);
+    demoState.gold = Math.max(0, Math.min(MAX_GOLD, demoState.gold + price));
+    return { ok: true, goldReceived: price };
+  }
+  const card = demoState.bagSlots[index];
+  if (!card) return { ok: false, reason: 'empty' };
+  const price = sellPriceOfCard(card.tier);
+  demoState.bagSlots = demoState.bagSlots.map((c, i) => (i === index ? null : c));
+  demoState.gold = Math.max(0, Math.min(MAX_GOLD, demoState.gold + price));
+  return { ok: true, goldReceived: price };
+}
+
+/** SELL the pouch gem at `pouchIndex` (same gold-credited-but-ignored idiom
+ * as `sellCard`). */
+export function sellGem(pouchIndex: number): SellResult {
+  const gemId = demoState.gemInventory[pouchIndex];
+  if (!gemId) return { ok: false, reason: 'empty' };
+  const price = sellPriceOfGem(gemId);
+  demoState.gemInventory = demoState.gemInventory.filter((_, i) => i !== pouchIndex);
+  demoState.gold = Math.max(0, Math.min(MAX_GOLD, demoState.gold + price));
+  return { ok: true, goldReceived: price };
+}
+
+// ---------------------------------------------------------------------------
+// BUY-TO-SLOT (2026-08-04) — sandbox mirror of `buyRunCardTo`: buys straight
+// into an explicit board/bag destination slot instead of `buyCard`'s
+// nearest-fit auto-placement. `buyCard`/`mergeCard` remain the plain-tap path.
+// ---------------------------------------------------------------------------
+
+export type BuyDestination = { where: 'board'; slot: number } | { where: 'bag'; slot: number };
+export type BuyToSlotResult = { ok: true } | { ok: false; reason: 'gold' | 'slot' | 'gone' };
+
+/** Buys the card offer at `index` on `shopId`'s current shelf straight into
+ * `dest` (an explicit board or bag leftmost slot). Footprint/occupancy is
+ * validated by the SAME `canPlace` overlap check the board editor uses — the
+ * bag axis reuses it too via `bagAsBoardPieces`, so there is exactly ONE
+ * overlap-check implementation for both. Free in the sandbox (unlimited
+ * wallet, same as `buyCard`); fails cleanly (`reason: 'slot'`) if the
+ * destination doesn't fit (out of bounds or overlapping an existing
+ * piece/card). */
+export function buyCardTo(shopId: string, index: number, dest: BuyDestination): BuyToSlotResult {
+  const shelf = demoState.shopShelves[shopId];
+  const offer = shelf?.cards[index];
+  if (!shelf || !offer) return { ok: false, reason: 'gone' };
+  if (dest.where === 'board') {
+    if (!canPlace(demoState.pieces, skillBook, offer.skillId, dest.slot, SLOTS)) return { ok: false, reason: 'slot' };
+    const owned = createOwnedCard(offer.skillId, offer.tier);
+    demoState.pieces = [...demoState.pieces, { instanceId: owned.instanceId, skillId: owned.skillId, tier: owned.tier, slot: dest.slot }];
+  } else {
+    if (!canPlace(bagAsBoardPieces(demoState.bagSlots), skillBook, offer.skillId, dest.slot, SLOTS)) return { ok: false, reason: 'slot' };
+    const owned = createOwnedCard(offer.skillId, offer.tier);
+    demoState.bagSlots[dest.slot] = { instanceId: owned.instanceId, skillId: owned.skillId, tier: owned.tier };
+  }
+  shelf.cards = shelf.cards.filter((_, i) => i !== index);
   return { ok: true };
 }
 

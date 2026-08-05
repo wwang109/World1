@@ -13,6 +13,7 @@ import {
   applyDraftResult,
   availableChoices,
   buyRunCard,
+  buyRunCardTo,
   buyRunGem,
   chooseNode,
   createRun,
@@ -25,10 +26,13 @@ import {
   rerollRunShop,
   retireRun,
   runMergeTargetFor,
+  sellRunCard,
+  sellRunGem,
   setHeroAllocation,
   WAVE_COUNT,
   rollEncounter,
   runBagHasRoomFor,
+  type BuyDestination,
   type MergeTarget,
   type RunBagSlot,
   type RunBoardPiece,
@@ -317,6 +321,21 @@ export function buyCurrentShopGem(index: number): ShopBuyResult {
   return { ok: false, reason: result.reason };
 }
 
+export type ShopBuyToSlotResult = { ok: true } | { ok: false; reason: 'gold' | 'slot' | 'gone' };
+
+/** BUY-TO-SLOT: buys the card offer at `index` on the current shop node's
+ * shelf straight into an explicit board/bag destination slot (the upcoming
+ * drag-to-deck UI's entry point) instead of `buyCurrentShopCard`'s
+ * nearest-fit auto-placement. `buyCurrentShopCard` remains the plain-tap
+ * path — this is purely additive alongside it. */
+export function buyCurrentShopCardTo(index: number, dest: BuyDestination): ShopBuyToSlotResult {
+  const node = currentNode();
+  if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
+  const result = buyRunCardTo(activeRun, node.id, index, dest);
+  if (result.ok) { activeRun = result.state; return { ok: true }; }
+  return { ok: false, reason: result.reason };
+}
+
 /** Whether the run's bag currently has room for a card of this skill. */
 export function currentRunBagHasRoomFor(skillId: string): boolean {
   return activeRun ? runBagHasRoomFor(activeRun, skillId) : false;
@@ -415,6 +434,35 @@ export function setCurrentRunGemInventory(gemInventory: string[]): void {
 }
 
 // ---------------------------------------------------------------------------
+// Selling (2026-08-04) — the run's SELL action: doesn't need a shop node open
+// (unlike buy/merge/reroll), it just removes an owned board piece/bag card/
+// pouch gem and credits half-price gold. Thin wrappers over `sellRunCard`/
+// `sellRunGem`, same idiom as the Deck/bag getters/setters above.
+// ---------------------------------------------------------------------------
+
+export type RunSellResult = { ok: true; goldReceived: number } | { ok: false; reason: 'empty' };
+
+/** SELL the board piece / bag card at `index` from the active run — the
+ * Deck/Bag build screens' SELL action. No-op (`'empty'`) if there's no
+ * active run or the slot is already empty. */
+export function sellCurrentRunCard(location: 'board' | 'bag', index: number): RunSellResult {
+  if (!activeRun) return { ok: false, reason: 'empty' };
+  const result = sellRunCard(activeRun, location, index);
+  if (!result.ok) return { ok: false, reason: result.reason };
+  activeRun = result.state;
+  return { ok: true, goldReceived: result.goldReceived };
+}
+
+/** SELL the pouch gem at `pouchIndex` from the active run. */
+export function sellCurrentRunGem(pouchIndex: number): RunSellResult {
+  if (!activeRun) return { ok: false, reason: 'empty' };
+  const result = sellRunGem(activeRun, pouchIndex);
+  if (!result.ok) return { ok: false, reason: result.reason };
+  activeRun = result.state;
+  return { ok: true, goldReceived: result.goldReceived };
+}
+
+// ---------------------------------------------------------------------------
 // Hero PL-budget stat allocation — reachable from the Run Map AND Run Prep
 // (see docs/release-game-plan.md "Hero leveling & stat allocation"). The
 // player edits a SCRATCH allocation locally (`RunStatPanel.ts`) and commits it
@@ -456,4 +504,4 @@ export function commitHeroAllocation(next: Allocation): void {
 }
 
 export { WAVE_COUNT };
-export type { RunBagSlot, RunBoardPiece, RunNode, RunNodeKind, RunState };
+export type { BuyDestination, RunBagSlot, RunBoardPiece, RunNode, RunNodeKind, RunState };

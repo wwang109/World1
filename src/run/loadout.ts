@@ -31,6 +31,26 @@ export function canPlace(
   return true;
 }
 
+/**
+ * Adapts a flat 1-D bag/rail-shaped array (`(T|null)[]`, a size-N card stored
+ * at its LEFTMOST slot with `null` covering the rest — the exact shape
+ * `RunBagSlot[]`/`InventorySlot[]` both use) into a `BoardPiece[]` view, so
+ * `canPlace`'s overlap check works against the bag axis directly. This is
+ * the ONE overlap-check implementation for both the board AND the bag —
+ * callers validating an explicit bag destination slot (e.g. shop buy-to-slot)
+ * reuse `canPlace(bagAsBoardPieces(bagSlots), ...)` instead of hand-rolling a
+ * second occupancy scan. Read-only: never mutates `slots`.
+ */
+export function bagAsBoardPieces<T extends { skillId: string; tier?: SkillTier }>(
+  slots: readonly (T | null)[],
+): BoardPiece[] {
+  const pieces: BoardPiece[] = [];
+  slots.forEach((card, slot) => {
+    if (card) pieces.push({ skillId: card.skillId, slot, tier: card.tier });
+  });
+  return pieces;
+}
+
 /** Clamp a raw slot guess into the board for a skill of the given size. */
 export function clampSlot(rawSlot: number, skillId: string, book: SkillBook, boardSize: number): number {
   const size = book[skillId]?.size ?? 1;

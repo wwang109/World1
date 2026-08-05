@@ -146,9 +146,9 @@ only balance currency (see the comment block in `src/run/shop.ts`).
 
 ## Shops (`src/run/shop.ts`, themes in `src/data/shopTypes.ts`)
 
-- 5 themed shops as declarative card/gem filters; a shop NODE opens a single
-  storefront (the 5-shop picker is Sandbox-only). The node's theme is decided
-  at map generation and shown on the choice panel.
+- **16 themed shops** as declarative card/gem filters; a shop NODE opens a
+  single storefront (the 16-shop picker is Sandbox-only). The node's theme is
+  decided at map generation and shown on the choice panel.
 - **Theme no-repeat**: draw-without-replacement bag per run, reshuffled when
   empty (shared `runMap.ts` logic).
 - **Stock**: `rollShopStock(shopId, seed, depth)` — deterministic;
@@ -156,10 +156,33 @@ only balance currency (see the comment block in `src/run/shop.ts`).
   (`baseSeed + rerollCount`). Tier split shifts with depth (depths 1-3 →
   70/25/5 bronze/silver/gold · 4-6 → 45/45/10 · 7-9 → 25/55/20; Diamond never
   appears in shops). Sandbox callers omit depth and get 70/25/5 unchanged.
+- **Shelf size** (2026-08-04, "shops sell more" pass): every shop targets ~6
+  card offers + ~5 gem offers (`ShopTypeDef.shelf`), capped gracefully at
+  whatever the theme's own pool actually holds — an element specialist stall
+  (thin-by-design, USER-LOCKED) just shows its whole 1-9-card pool instead of
+  an artificially truncated slice of it. Gemcutter is the one deliberate
+  exception, kept at 6 gems (its identity, matching the gem grid's row
+  capacity) and 0 cards.
 - `shopPoolInfo` caps shelf slot counts at the theme's whole pool and flags
   `fullStock` so the UI can hide REROLL instead of inviting wasted gold.
 - Per-NODE shelves persist in `RunState.shopShelves` (bought offers stay
   gone; reload-safe).
+- **Selling** (2026-08-04): `sellRunCard(state, 'board'|'bag', index)` /
+  `sellRunGem(state, pouchIndex)` — the reverse of a purchase. Half-price,
+  rounded down, floored at 1 gold (`sellPriceOfCard`/`sellPriceOfGem`,
+  `src/run/shop.ts`); a sold board piece's socketed gem returns to
+  `gemInventory` rather than being destroyed. Sold items do NOT return to any
+  shelf — REROLL pricing/behavior is unaffected. Sandbox mirror:
+  `sellCard`/`sellGem` in `src/game/shopActions.ts` (credits gold for
+  consistency even though the sandbox wallet is unlimited/ignored).
+- **Buy-to-slot** (2026-08-04, for the upcoming drag-to-deck UI):
+  `buyRunCardTo(state, nodeId, index, dest)` where
+  `dest: {where:'board', slot} | {where:'bag', slot}` — buys straight into an
+  explicit destination instead of nearest-fit, validating footprint/occupancy
+  via `canPlace` (`src/run/loadout.ts`; the bag axis reuses it too through
+  `bagAsBoardPieces`, so there's one overlap-check implementation for both).
+  `buyRunCard` (nearest-fit) stays the plain-tap path; buy-to-slot never
+  offers a merge. Sandbox mirror: `buyCardTo` in `src/game/shopActions.ts`.
 
 ## Events (`src/data/events.ts` + `src/run/events.ts`)
 
@@ -223,8 +246,9 @@ Two layers, both pure/integer, no UI yet (a stats screen is separate):
   `deepestDepth` / `deepestWave` (from `chooseNode`), and `livesLost`. Updated
   at the SAME transitions that already touch the counterpart field
   (`chooseNode`, `recordBattleResult`, `buyRunCard`/`buyRunGem`/
-  `rerollRunShop`, `resolveEventChoice`) — every transition still returns a
-  new `RunState` (`stats` included), no exception.
+  `buyRunCardTo`/`sellRunCard`/`sellRunGem`/`rerollRunShop`,
+  `resolveEventChoice`) — every transition still returns a new `RunState`
+  (`stats` included), no exception.
 - **Lifetime** (`src/meta/lifetimeStats.ts`, new module — `src/meta` has no
   other code yet): cross-run aggregation — `runsStarted`/`runsRetired`/
   `runsDead`, `totalFights`/`totalWins`/`totalLosses`/`totalBossesCleared`, a
@@ -246,10 +270,10 @@ Two layers, both pure/integer, no UI yet (a stats screen is separate):
 | `runMap.ts` | Lazy endless wave-ladder generation, node kinds, `BOSS_EVERY`, stop-choice anchoring |
 | `encounter.ts` | Additive enemy resolver: titles, ranks, modifiers, `buildEnemyEncounter`, `buildAutoHeroSetup`; PACK constants (`PackVariant`, `PACK_VARIANT_WEIGHTS`, `MIN_PACK_FIGHT_NUMBER`, `capPackTitle`, `EncounterPack`) and budget helpers (`soloThreatDeci`, `packBudgetDeci`, `resolvePackMemberLevel`, `PACK_ACTION_ECONOMY_TAX_PCT`, `REFERENCE_ENEMY_DECK_SIZE`) |
 | `leveling.ts` | `PL_PER_LEVEL`, `LEVEL_STAT_COST`, allocation math, monster auto-spend profiles |
-| `shop.ts` | Shop filters/pools, gold prices, `rollShopStock`, `shopPoolInfo`, `battleGoldReward` |
+| `shop.ts` | Shop filters/pools, gold prices, `rollShopStock`, `shopPoolInfo`, `battleGoldReward`, sell-back pricing (`sellPriceOfCard`, `sellPriceOfGem`) |
 | `events.ts` | Event roll/resolve/bonus-draft, affordability, no-repeat bags |
 | `draft.ts` | `rollStartDraft` — the 4-set start draft |
-| `loadout.ts` | Board/bag placement: `canPlace`, `shiftInsert`, `moveWithinStrip`, gem socket/unsocket/swap |
+| `loadout.ts` | Board/bag placement: `canPlace`, `shiftInsert`, `moveWithinStrip`, gem socket/unsocket/swap, `bagAsBoardPieces` (bag-as-`BoardPiece[]` view so `canPlace` validates the bag axis too) |
 | `resolveBattle.ts` | `BattleRequest → BattleLog` — the battle service's whole payload (the ONLY combat entry point above the engine) |
 | `analysis.ts` | `damagePerTurn` sustained-damage band (prep preview, served by the API) |
 | `logAnalysis.ts` | `cardContributions` — per-card damage/heal report from an event log; `battleStatsFromEvents` — the run stats ledger's per-fight delta |

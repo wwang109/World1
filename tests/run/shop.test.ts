@@ -11,6 +11,8 @@ import {
   goldPriceOfGem,
   nextSkillTier,
   rollShopStock,
+  sellPriceOfCard,
+  sellPriceOfGem,
   shopPoolInfo,
   SKILL_TIER_ORDER,
   type MergeableCard,
@@ -298,6 +300,76 @@ describe('run/shop: 16-theme catalog (docs/run-shops-design.md §3)', () => {
         }
       }
     }
+  });
+});
+
+describe('run/shop: bigger shelves (2026-08-04 "shops sell more" pass)', () => {
+  it('every non-Gemcutter shop declares the 6-card/5-gem target shelf', () => {
+    for (const id of shopTypeIds) {
+      if (id === 'gemcutter') continue;
+      const shop = shopCatalog[id]!;
+      expect(shop.shelf.gems).toBe(5);
+      // Gemcutter aside, every OTHER shop sells cards too (0-card shops don't exist any more).
+      expect(shop.shelf.cards).toBe(6);
+    }
+  });
+
+  it("Gemcutter keeps its bigger 6-gem shelf and 0-card identity", () => {
+    const shop = shopCatalog.gemcutter!;
+    expect(shop.shelf).toEqual({ cards: 0, gems: 6 });
+  });
+
+  it('a thin element stall whose pool is smaller than the shelf still caps gracefully (no throw, no dead slots beyond the pool)', () => {
+    for (const id of ['emberworks', 'frosthold', 'stormspire', 'grovekeep', 'reliquary', 'umbral_stall']) {
+      const info = shopPoolInfo(id);
+      const stock = rollShopStock(id, 42);
+      expect(stock.cards.length).toBe(info.cardSlots);
+      expect(stock.gems.length).toBe(info.gemSlots);
+      expect(info.cardSlots).toBeLessThanOrEqual(cardPoolForShop(id).length);
+      expect(info.gemSlots).toBeLessThanOrEqual(gemPoolForShop(id).length);
+    }
+  });
+
+  it('every card-selling shop with a large enough pool now actually fills 6 card slots (not artificially truncated)', () => {
+    for (const id of ['armory', 'wildworks', 'arcanum', 'sanctum', 'alchemist', 'bulwark', 'assassins_den', 'caravan', 'relic_vault']) {
+      const stock = rollShopStock(id, 7);
+      expect(stock.cards.length).toBe(6);
+    }
+  });
+
+  it('every gem-selling shop with a large enough pool now actually fills 5 gem slots', () => {
+    for (const id of ['armory', 'wildworks', 'bulwark', 'assassins_den', 'caravan', 'relic_vault']) {
+      const stock = rollShopStock(id, 7);
+      expect(stock.gems.length).toBe(5);
+    }
+  });
+});
+
+describe('run/shop: sell-back pricing (2026-08-04)', () => {
+  it('card sell price is half of goldPriceOfCard, floored, min 1', () => {
+    expect(sellPriceOfCard('bronze')).toBe(1); // floor(2/2) = 1
+    expect(sellPriceOfCard('silver')).toBe(1); // floor(3/2) = 1
+    expect(sellPriceOfCard('gold')).toBe(2); // floor(4/2) = 2
+    expect(sellPriceOfCard('diamond')).toBe(2); // floor(5/2) = 2
+  });
+
+  it('card sell price is always strictly less than (or, at bronze, half of) the buy price — never a free flip', () => {
+    for (const tier of SKILL_TIER_ORDER) {
+      expect(sellPriceOfCard(tier)).toBeLessThan(goldPriceOfCard(tier));
+    }
+  });
+
+  it('gem sell price is half of goldPriceOfGem, floored, min 1 (every gem sells for 1 given the 1-3 buy range)', () => {
+    for (const gem of Object.values(gemBook)) {
+      const buy = goldPriceOfGem(gem.id);
+      const sell = sellPriceOfGem(gem.id);
+      expect(sell).toBe(Math.max(1, Math.floor(buy / 2)));
+      expect(sell).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('throws on an unknown gem id (mirrors goldPriceOfGem)', () => {
+    expect(() => sellPriceOfGem('not-a-real-gem')).toThrow();
   });
 });
 

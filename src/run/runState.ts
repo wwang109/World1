@@ -37,7 +37,16 @@ import {
   type RunNodeKind,
 } from './runMap';
 import { Rng } from '../engine/rng';
-import { findMergeTarget, rollShopStock, type CardOffer, type GemOffer, type MergeTarget } from './shop';
+import {
+  findMergeTarget,
+  rollShopStock,
+  sellPriceOfCard,
+  sellPriceOfGem,
+  type CardOffer,
+  type GemOffer,
+  type MergeTarget,
+} from './shop';
+import { bagAsBoardPieces, canPlace } from './loadout';
 
 // ---------------------------------------------------------------------------
 // Board / bag shapes — mirrors the OwnedBoardPiece / InventorySlot model in
@@ -897,6 +906,161 @@ export function buyRunGem(state: RunState, nodeId: string, index: number): RunBu
     },
   };
   return { ok: true, state: nextState };
+}
+
+// ---------------------------------------------------------------------------
+// SELLING (2026-08-04) — the reverse of a shop purchase: removes an owned
+// board piece / bag card / pouch gem and credits half-price gold
+// (`sellPriceOfCard`/`sellPriceOfGem`, src/run/shop.ts). Sold items do NOT
+// return to any shop shelf (a shelf's stock and the player's owned
+// collection are independent — REROLL pricing/behavior is untouched by
+// selling). Purely additive alongside the existing buy/merge functions above
+// — no existing function in this file is modified.
+// ---------------------------------------------------------------------------
+
+export type RunSellResult =
+  | { ok: true; state: RunState; goldReceived: number }
+  | { ok: false; reason: 'empty'; state: RunState };
+
+/**
+ * SELL the board piece (`location: 'board'`) or bag card (`'bag'`) at
+ * `index`: removes it, credits `sellPriceOfCard(tier)` gold (folded into
+ * `stats.goldEarned`, the same counter a fight/event gold grant uses), and —
+ * board pieces ONLY — returns any socketed gem to `gemInventory` rather than
+ * destroying it silently (a bag card can never carry a gem in the current
+ * model, so the bag branch never touches `gemInventory`). Fails cleanly with
+ * reason `'empty'` (no state change) if `index` is out of range or already
+ * empty (a bag `null` slot, or a board index past the end).
+ */
+export function sellRunCard(state: RunState, location: 'board' | 'bag', index: number): RunSellResult {
+  if (location === 'board') {
+    const piece = state.pieces[index];
+    if (!piece) return { ok: false, reason: 'empty', state };
+    const price = sellPriceOfCard(piece.tier);
+    const gemInventory = piece.gem ? [...state.gemInventory, piece.gem.id] : state.gemInventory;
+    return {
+      ok: true,
+      goldReceived: price,
+      state: {
+        ...state,
+        pieces: state.pieces.filter((_, i) => i !== index),
+        gemInventory,
+        gold: state.gold + price,
+        stats: { ...state.stats, goldEarned: state.stats.goldEarned + price },
+      },
+    };
+  }
+  const card = state.bagSlots[index];
+  if (!card) return { ok: false, reason: 'empty', state };
+  const price = sellPriceOfCard(card.tier);
+  return {
+    ok: true,
+    goldReceived: price,
+    state: {
+      ...state,
+      // Null out only the card's OWN (leftmost) slot — a size-N card's
+      // trailing `null` placeholder(s) already read as free the instant this
+      // head slot clears (occupancy is derived by scanning for non-null
+      // cards and their skill size, see `runBagOccupied` above), so there is
+      // nothing else to clear.
+      bagSlots: state.bagSlots.map((c, i) => (i === index ? null : c)),
+      gold: state.gold + price,
+      stats: { ...state.stats, goldEarned: state.stats.goldEarned + price },
+    },
+  };
+}
+
+export type RunSellGemResult =
+  | { ok: true; state: RunState; goldReceived: number }
+  | { ok: false; reason: 'empty'; state: RunState };
+
+/** SELL the pouch gem at `pouchIndex`: removes it and credits
+ * `sellPriceOfGem` gold (folded into `stats.goldEarned`). Fails cleanly with
+ * reason `'empty'` (no state change) if `pouchIndex` is out of range. */
+export function sellRunGem(state: RunState, pouchIndex: number): RunSellGemResult {
+  const gemId = state.gemInventory[pouchIndex];
+  if (!gemId) return { ok: false, reason: 'empty', state };
+  const price = sellPriceOfGem(gemId);
+  return {
+    ok: true,
+    goldReceived: price,
+    state: {
+      ...state,
+      gemInventory: state.gemInventory.filter((_, i) => i !== pouchIndex),
+      gold: state.gold + price,
+      stats: { ...state.stats, goldEarned: state.stats.goldEarned + price },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// BUY-TO-SLOT (2026-08-04) — a variant of `buyRunCard` for the upcoming
+// drag-to-deck UI: buys straight into an explicit destination slot instead
+// of nearest-fit auto-placement. `buyRunCard`/`mergeRunCard` above are
+// UNCHANGED and remain the plain-tap path.
+// ---------------------------------------------------------------------------
+
+export type BuyDestination =
+  | { where: 'board'; slot: number }
+  | { where: 'bag'; slot: number };
+
+export type RunBuyToSlotResult =
+  | { ok: true; state: RunState }
+  | { ok: false; reason: 'gold' | 'slot' | 'gone'; state: RunState };
+
+/**
+ * Buys the card offer at `index` on `nodeId`'s shelf straight into `dest`
+ * (an explicit board or bag leftmost slot) instead of `buyRunCard`'s
+ * nearest-fit auto-placement. Footprint/occupancy is validated by the SAME
+ * `canPlace` overlap check `src/run/loadout.ts` already uses for manual
+ * board placement — the bag axis reuses it too via `bagAsBoardPieces` (a
+ * throwaway `BoardPiece[]` view of the bag's non-null entries), so there is
+ * exactly ONE overlap-check implementation for both axes, never a
+ * bag-specific duplicate. Fails cleanly (no charge, shelf untouched) if the
+ * wallet can't afford it, the offer is already gone, or the destination slot
+ * doesn't fit — out of bounds and "overlaps an existing piece/card" both
+ * collapse to `reason: 'slot'` (same as `canPlace` itself: it doesn't
+ * distinguish them, and neither does a caller need to). Does NOT offer a
+ * MERGE path (mirrors `buyRunCard`, not `mergeRunCard`) — a duplicate
+ * purchase through this entry point always adds a new copy.
+ */
+export function buyRunCardTo(
+  state: RunState,
+  nodeId: string,
+  index: number,
+  dest: BuyDestination,
+): RunBuyToSlotResult {
+  const shelf = state.shopShelves[nodeId];
+  const offer = shelf?.cards[index];
+  if (!shelf || !offer) return { ok: false, reason: 'gone', state };
+  if (state.gold < offer.price) return { ok: false, reason: 'gold', state };
+
+  const instanceId = `card_${String(state.nextCardInstanceId).padStart(3, '0')}`;
+  const nextShelf: RunShopShelf = { ...shelf, cards: shelf.cards.filter((_, i) => i !== index) };
+  const settle = {
+    nextCardInstanceId: state.nextCardInstanceId + 1,
+    gold: state.gold - offer.price,
+    shopShelves: { ...state.shopShelves, [nodeId]: nextShelf },
+    stats: { ...state.stats, goldSpent: state.stats.goldSpent + offer.price, cardsBought: state.stats.cardsBought + 1 },
+  };
+
+  if (dest.where === 'board') {
+    if (!canPlace(state.pieces, skillBook, offer.skillId, dest.slot, RUN_BOARD_SLOTS)) {
+      return { ok: false, reason: 'slot', state };
+    }
+    const pieces: RunBoardPiece[] = [
+      ...state.pieces,
+      { instanceId, skillId: offer.skillId, tier: offer.tier, slot: dest.slot },
+    ];
+    return { ok: true, state: { ...state, ...settle, pieces } };
+  }
+
+  if (!canPlace(bagAsBoardPieces(state.bagSlots), skillBook, offer.skillId, dest.slot, RUN_BOARD_SLOTS)) {
+    return { ok: false, reason: 'slot', state };
+  }
+  const bagSlots = [...state.bagSlots];
+  bagSlots[dest.slot] = { instanceId, skillId: offer.skillId, tier: offer.tier };
+  return { ok: true, state: { ...state, ...settle, bagSlots } };
 }
 
 // ---------------------------------------------------------------------------
