@@ -738,7 +738,11 @@ export class MobileShopScene extends Phaser.Scene {
     const shown = this.detailTier === base.tier ? base : applyTier(base, this.detailTier);
 
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setInteractive();
-    veil.on('pointerdown', () => { playSfx('uiBack'); this.detailCardIndex = null; this.rerender(); });
+    // consumePointer FIRST — see its doc comment: the BOARD/BAG columns sit
+    // directly under this full-screen veil, so this exact dismiss tap would
+    // otherwise also be reprocessed as a board/bag tap once `rerender()`
+    // closes the overlay and re-exposes whatever card was underneath.
+    veil.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiBack'); this.detailCardIndex = null; this.rerender(); });
 
     const centerX = this.W / 2;
     const cardW = 150;
@@ -785,7 +789,11 @@ export class MobileShopScene extends Phaser.Scene {
     const gem: GemDef = gemBook[offer.gemId]!;
 
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setInteractive();
-    veil.on('pointerdown', () => { playSfx('uiBack'); this.detailGemIndex = null; this.rerender(); });
+    // consumePointer FIRST — see its doc comment: the BOARD/BAG columns sit
+    // directly under this full-screen veil, so this exact dismiss tap would
+    // otherwise also be reprocessed as a board/bag tap once `rerender()`
+    // closes the overlay and re-exposes whatever card was underneath.
+    veil.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiBack'); this.detailGemIndex = null; this.rerender(); });
 
     const centerX = this.W / 2;
     let y = 110;
