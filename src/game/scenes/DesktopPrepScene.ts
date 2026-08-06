@@ -385,7 +385,7 @@ export class DesktopPrepScene extends Phaser.Scene {
     const heroStats = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces.map((p) => ({ ...p })), demoState.heroAllocation).setup.stats;
     new BoardColumn(this, {
       x: leftColX, y: colTop, width: colW, height: colH, side: 'left',
-      pieces: heroPieces, deck: heroSkills, stats: { attack: heroStats.attack, magicPower: heroStats.magicPower },
+      pieces: heroPieces, deck: heroSkills, stats: { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist },
     });
 
     const foeBoard = (encounter: ReturnType<typeof buildEnemyEncounter>, y: number, h: number): void => {
@@ -401,7 +401,7 @@ export class DesktopPrepScene extends Phaser.Scene {
       const foeStats = encounter.setup.stats;
       new BoardColumn(this, {
         x: rightColX, y, width: colW, height: h, side: 'right',
-        pieces: foePieces, deck: foeSkills, stats: { attack: foeStats.attack, magicPower: foeStats.magicPower },
+        pieces: foePieces, deck: foeSkills, stats: { attack: foeStats.attack, magicPower: foeStats.magicPower, armor: foeStats.armor, magicResist: foeStats.magicResist },
       });
     };
 

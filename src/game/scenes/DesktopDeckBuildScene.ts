@@ -116,7 +116,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
   create(): void {
     this.draggables = [];
     const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
-    this.heroStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower };
+    this.heroStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower, armor: hero.stats.armor, magicResist: hero.stats.magicResist };
     renderDesktopBackground(this);
     if (this.runContext) this.renderHud(); else renderDesktopHeader(this, 'DECK BUILD', 'deck');
     this.renderMeta(hero.stats);

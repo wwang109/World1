@@ -306,7 +306,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const encs = teamConfigs.map((cfg) => buildEnemyEncounter(cfg.enemyId, cfg.level, cfg.title, cfg.rank, cfg.modifiers));
   const foeSetups = encs.map((e) => e.setup);
   const heroName = hero.name;
-  const heroStats: ScalingStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower };
+  const heroStats: ScalingStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower, armor: hero.stats.armor, magicResist: hero.stats.magicResist };
 
   const heroPieces: BattlePiece[] = [];
   const heroSkills: SkillDef[] = [];
@@ -326,7 +326,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     }
     return {
       name: setup.name,
-      stats: { attack: setup.stats.attack, magicPower: setup.stats.magicPower },
+      stats: { attack: setup.stats.attack, magicPower: setup.stats.magicPower, armor: setup.stats.armor, magicResist: setup.stats.magicResist },
       maxHp: setup.stats.maxHp,
       boardSize: setup.boardSize,
       pieces,

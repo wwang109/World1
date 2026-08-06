@@ -110,7 +110,7 @@ export class MobileBattleScene extends Phaser.Scene {
   private heroSkills: SkillDef[] = [];
   private foes: FoeModel[] = [];
   private heroName = 'Hero';
-  private heroStats: ScalingStats = { attack: 0, magicPower: 0 };
+  private heroStats: ScalingStats = { attack: 0, magicPower: 0, armor: 0, magicResist: 0 };
   private heroStatLine = '';
   private outcome = '';
   /** Both sides at 0 in the same step — tempo tiebreak decided `outcome`. */

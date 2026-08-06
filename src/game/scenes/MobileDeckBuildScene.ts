@@ -102,7 +102,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     this.draggables = [];
     this.runContext = getDeckBuildContext() === 'run';
     const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
-    this.heroStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower };
+    this.heroStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower, armor: hero.stats.armor, magicResist: hero.stats.magicResist };
     this.cameras.main.setBackgroundColor(0x0b1420);
     if (this.runContext) this.renderHud(); else this.renderTabs();
     this.renderHeader();

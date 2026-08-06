@@ -25,37 +25,48 @@ describe('summarizeEffects — live stat scaling', () => {
 
   it('renders physical damage as the summed effective number (base + Attack)', () => {
     const skill = makeSkill({ property: 'physical', weapon: 'sword', effects: [{ kind: 'damage', power: 20 }] });
-    expect(summarizeEffects(skill, { attack: 17, magicPower: 4 })).toBe('DMG 37');
+    expect(summarizeEffects(skill, { attack: 17, magicPower: 4, armor: 0, magicResist: 0 })).toBe('DMG 37');
   });
 
   it('renders magical damage as the summed effective number (base + Magic Power)', () => {
     const skill = makeSkill({ property: 'magical', element: 'fire', effects: [{ kind: 'damage', power: 18 }] });
-    expect(summarizeEffects(skill, { attack: 5, magicPower: 12 })).toBe('DMG 30');
+    expect(summarizeEffects(skill, { attack: 5, magicPower: 12, armor: 0, magicResist: 0 })).toBe('DMG 30');
   });
 
   it('renders TRUE damage summed off whichever stat is higher, tagged (T)', () => {
     const skill = makeSkill({ property: 'true', effects: [{ kind: 'damage', power: 10 }] });
-    expect(summarizeEffects(skill, { attack: 20, magicPower: 8 })).toBe('DMG 30 (T)');
-    expect(summarizeEffects(skill, { attack: 8, magicPower: 20 })).toBe('DMG 30 (T)');
+    expect(summarizeEffects(skill, { attack: 20, magicPower: 8, armor: 0, magicResist: 0 })).toBe('DMG 30 (T)');
+    expect(summarizeEffects(skill, { attack: 8, magicPower: 20, armor: 0, magicResist: 0 })).toBe('DMG 30 (T)');
   });
 
-  it('renders magical heal/shield as the summed effective number', () => {
+  // DEFENSIVE output sums off the DEFENSIVE stat (2026-08-05). Magic Power is
+  // deliberately set HIGH and Magic Resist low here: under the old offense-only
+  // rule these read HEAL 32 / SHLD 28, so the numbers below only pass if the
+  // defensive side is what's actually being summed.
+  it('renders magical heal/shield summed off Magic Resist, NOT Magic Power', () => {
     const heal = makeSkill({ property: 'magical', element: 'nature', effects: [{ kind: 'heal', power: 20 }] });
-    expect(summarizeEffects(heal, { attack: 4, magicPower: 12 })).toBe('HEAL 32');
+    expect(summarizeEffects(heal, { attack: 4, magicPower: 12, armor: 3, magicResist: 7 })).toBe('HEAL 27');
     const shield = makeSkill({ property: 'magical', element: 'frost', effects: [{ kind: 'shield', power: 16 }] });
-    expect(summarizeEffects(shield, { attack: 4, magicPower: 12 })).toBe('SHLD 28');
+    expect(summarizeEffects(shield, { attack: 4, magicPower: 12, armor: 3, magicResist: 7 })).toBe('SHLD 23');
+  });
+
+  it('renders physical heal/shield summed off Armor, NOT Attack', () => {
+    const heal = makeSkill({ property: 'physical', weapon: 'sword', effects: [{ kind: 'heal', power: 20 }] });
+    expect(summarizeEffects(heal, { attack: 30, magicPower: 0, armor: 5, magicResist: 0 })).toBe('HEAL 25');
+    const shield = makeSkill({ property: 'physical', weapon: 'axe', effects: [{ kind: 'shield', power: 16 }] });
+    expect(summarizeEffects(shield, { attack: 30, magicPower: 0, armor: 5, magicResist: 0 })).toBe('SHLD 21');
   });
 
   it('never scales TRUE heal/shield — stays flat even with stats supplied, tagged (T)', () => {
     const heal = makeSkill({ property: 'true', effects: [{ kind: 'heal', power: 20 }] });
-    expect(summarizeEffects(heal, { attack: 99, magicPower: 99 })).toBe('HEAL 20 (T)');
+    expect(summarizeEffects(heal, { attack: 99, magicPower: 99, armor: 0, magicResist: 0 })).toBe('HEAL 20 (T)');
     const shield = makeSkill({ property: 'true', effects: [{ kind: 'shield', power: 16 }] });
-    expect(summarizeEffects(shield, { attack: 99, magicPower: 99 })).toBe('SHLD 16 (T)');
+    expect(summarizeEffects(shield, { attack: 99, magicPower: 99, armor: 0, magicResist: 0 })).toBe('SHLD 16 (T)');
   });
 
   it('falls back to bare base when the stat contribution is zero', () => {
     const skill = makeSkill({ property: 'physical', weapon: 'sword', effects: [{ kind: 'damage', power: 20 }] });
-    expect(summarizeEffects(skill, { attack: 0, magicPower: 0 })).toBe('DMG 20');
+    expect(summarizeEffects(skill, { attack: 0, magicPower: 0, armor: 0, magicResist: 0 })).toBe('DMG 20');
   });
 
   it('keeps non-scaling extras (DoTs, riders) unchanged alongside the scaled line', () => {
@@ -64,12 +75,12 @@ describe('summarizeEffects — live stat scaling', () => {
       weapon: 'axe',
       effects: [{ kind: 'damage', power: 12 }, { kind: 'poison', stacks: 5 }],
     });
-    expect(summarizeEffects(skill, { attack: 6, magicPower: 0 })).toBe('DMG 18 · PSN 5');
+    expect(summarizeEffects(skill, { attack: 6, magicPower: 0, armor: 0, magicResist: 0 })).toBe('DMG 18 · PSN 5');
   });
 
   it('leaves aura cards and passives untouched by the stats param', () => {
     const passive = makeSkill({ effects: [] });
-    expect(summarizeEffects(passive, { attack: 10, magicPower: 10 })).toBe('PASSIVE');
+    expect(summarizeEffects(passive, { attack: 10, magicPower: 10, armor: 0, magicResist: 0 })).toBe('PASSIVE');
   });
 });
 
@@ -89,7 +100,7 @@ describe('summarizeEffects — aura reach on the card face', () => {
   it('weight auras keep the reach word too', () => {
     const skill = makeSkill({ aura: { affects: 'adjacent', mods: { weightDelta: -5 } } });
     expect(summarizeEffects(skill)).toBe('NEAR -5 WT');
-    expect(summarizeEffects(skill, { attack: 10, magicPower: 10 })).toBe('NEAR -5 WT');
+    expect(summarizeEffects(skill, { attack: 10, magicPower: 10, armor: 0, magicResist: 0 })).toBe('NEAR -5 WT');
   });
 });
 
@@ -97,24 +108,30 @@ describe('summarizeEffects — desktop composition mode', () => {
   it('shows the formula (base +ATK) for physical damage, regardless of live stats', () => {
     const skill = makeSkill({ property: 'physical', weapon: 'sword', effects: [{ kind: 'damage', power: 20 }] });
     expect(summarizeEffects(skill, undefined, 'composition')).toBe('DMG 20 +ATK');
-    expect(summarizeEffects(skill, { attack: 17, magicPower: 4 }, 'composition')).toBe('DMG 20 +ATK');
+    expect(summarizeEffects(skill, { attack: 17, magicPower: 4, armor: 0, magicResist: 0 }, 'composition')).toBe('DMG 20 +ATK');
   });
 
-  it('shows the formula (base +MATK) for magical heal', () => {
+  it('shows the DEFENSIVE formula (base +MDEF) for magical heal — not +MATK', () => {
     const skill = makeSkill({ property: 'magical', element: 'nature', effects: [{ kind: 'heal', power: 20 }] });
-    expect(summarizeEffects(skill, { attack: 4, magicPower: 12 }, 'composition')).toBe('HEAL 20 +MATK');
+    expect(summarizeEffects(skill, { attack: 4, magicPower: 12, armor: 0, magicResist: 0 }, 'composition')).toBe('HEAL 20 +MDEF');
   });
 
-  it("labels a non-TRUE shield's composition line DEF (not SHLD), e.g. \"DEF 96 +ATK\"", () => {
+  // The label names the OUTPUT, the token names the STAT. Shield's composition
+  // label used to be 'DEF' to match the old card-data grammar; once the token
+  // itself became 'DEF' that produced the useless "DEF 96 +DEF", so the label
+  // is 'SHLD' in both modes now.
+  it('keeps the shield label SHLD so it never collides with the +DEF token', () => {
     const skill = makeSkill({ property: 'physical', weapon: 'axe', effects: [{ kind: 'shield', power: 96 }] });
-    expect(summarizeEffects(skill, undefined, 'composition')).toBe('DEF 96 +ATK');
+    expect(summarizeEffects(skill, undefined, 'composition')).toBe('SHLD 96 +DEF');
+    const magical = makeSkill({ property: 'magical', element: 'frost', effects: [{ kind: 'shield', power: 30 }] });
+    expect(summarizeEffects(magical, undefined, 'composition')).toBe('SHLD 30 +MDEF');
   });
 
   it('TRUE effects ignore composition mode — flat/summed number plus (T), same as summed mode', () => {
     const heal = makeSkill({ property: 'true', effects: [{ kind: 'heal', power: 60 }] });
-    expect(summarizeEffects(heal, { attack: 99, magicPower: 99 }, 'composition')).toBe('HEAL 60 (T)');
+    expect(summarizeEffects(heal, { attack: 99, magicPower: 99, armor: 0, magicResist: 0 }, 'composition')).toBe('HEAL 60 (T)');
     const dmg = makeSkill({ property: 'true', effects: [{ kind: 'damage', power: 10 }] });
-    expect(summarizeEffects(dmg, { attack: 20, magicPower: 8 }, 'composition')).toBe('DMG 30 (T)');
+    expect(summarizeEffects(dmg, { attack: 20, magicPower: 8, armor: 0, magicResist: 0 }, 'composition')).toBe('DMG 30 (T)');
   });
 
   it('leaves non-scaling extras (DoTs, stat riders) unaffected by mode', () => {
@@ -123,7 +140,7 @@ describe('summarizeEffects — desktop composition mode', () => {
       weapon: 'axe',
       effects: [{ kind: 'damage', power: 12 }, { kind: 'poison', stacks: 5 }],
     });
-    expect(summarizeEffects(skill, { attack: 6, magicPower: 0 }, 'composition')).toBe('DMG 12 +ATK · PSN 5');
+    expect(summarizeEffects(skill, { attack: 6, magicPower: 0, armor: 0, magicResist: 0 }, 'composition')).toBe('DMG 12 +ATK · PSN 5');
   });
 
   it('leaves aura cards untouched by mode', () => {

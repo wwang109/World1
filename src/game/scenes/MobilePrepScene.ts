@@ -362,7 +362,7 @@ export class MobilePrepScene extends Phaser.Scene {
     const colW = (this.W - 20 - 8) / 2;
     const foeColX = 10 + colW + 8;
     this.text(10 + colW / 2, sheetBottom + 6, 'YOUR DECK', F.small, '#b78a46', { bold: true, origin: [0.5, 0] });
-    new BoardColumn(this, { x: this.x(10), y: this.y(top), width: colW, height: colH, side: 'left', pieces: heroPieces, deck: heroSkills, stats: { attack: heroStats.attack, magicPower: heroStats.magicPower } });
+    new BoardColumn(this, { x: this.x(10), y: this.y(top), width: colW, height: colH, side: 'left', pieces: heroPieces, deck: heroSkills, stats: { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist } });
 
     // Enemy side: ONE board — the ACTIVE foe's — at any foe count, named in the
     // header. Desktop stacks two full boards because its 900px canvas has the
@@ -391,7 +391,7 @@ export class MobilePrepScene extends Phaser.Scene {
     const foeStats = encounter.setup.stats;
     new BoardColumn(this, {
       x: this.x(foeColX), y: this.y(top), width: colW, height: colH, side: 'right',
-      pieces: foePieces, deck: foeSkills, stats: { attack: foeStats.attack, magicPower: foeStats.magicPower },
+      pieces: foePieces, deck: foeSkills, stats: { attack: foeStats.attack, magicPower: foeStats.magicPower, armor: foeStats.armor, magicResist: foeStats.magicResist },
     });
   }
 

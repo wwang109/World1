@@ -48,10 +48,35 @@ export function describeAuraRange(skill: SkillDef): string | null {
 export interface ScalingStats {
   attack: number;
   magicPower: number;
+  armor: number;
+  magicResist: number;
 }
 
-/** The caster's scaling stat contribution for a given property, per the engine's `scaleStat` rule. */
-function statContribution(property: SkillDef['property'], stats: ScalingStats): number {
+/**
+ * Which SIDE of the stat sheet a line reads — the presentation mirror of the
+ * engine's `scaleStat` / `scaleDefStat` pair (src/engine/combat/interpreter.ts).
+ * A card's `property` picks WHICH stat; the ROLE of the line picks which side.
+ * Damage is offense; heal and shield are defensive output.
+ *
+ * This module MUST track that engine split. It previously had only the offense
+ * rule, so after the 2026-08-05 change every defensive line was wrong twice
+ * over: 'composition' mode printed the wrong TOKEN (`DEF 20 +ATK`), and
+ * 'summed' mode added the wrong STAT to the number itself (`SHLD 68` for a
+ * 48-base shield on a 20-Attack hero whose Armor was what actually applied).
+ */
+type ScalingRole = 'offense' | 'defense';
+
+/** The caster's scaling stat contribution, per the engine's `scaleStat` / `scaleDefStat` rules. */
+function statContribution(property: SkillDef['property'], stats: ScalingStats, role: ScalingRole): number {
+  if (role === 'defense') {
+    switch (property) {
+      case 'physical': return stats.armor;
+      case 'magical': return stats.magicResist;
+      // TRUE defensive output is FLAT BY IDENTITY — no stat term at all, so
+      // there is no "higher of the two" case here (unlike TRUE damage).
+      case 'true': return 0;
+    }
+  }
   switch (property) {
     case 'physical': return stats.attack;
     case 'magical': return stats.magicPower;
@@ -60,9 +85,12 @@ function statContribution(property: SkillDef['property'], stats: ScalingStats): 
 }
 
 /** `DMG 37` — the summed EFFECTIVE number (base + live stat) when stats are known and contribute; else the bare base number. */
-function scaledLabel(label: string, base: number, property: SkillDef['property'], stats: ScalingStats | undefined, statScales: boolean): string {
+function scaledLabel(
+  label: string, base: number, property: SkillDef['property'],
+  stats: ScalingStats | undefined, statScales: boolean, role: ScalingRole,
+): string {
   if (stats && statScales) {
-    const contribution = statContribution(property, stats);
+    const contribution = statContribution(property, stats, role);
     if (contribution) return `${label} ${base + contribution}`;
   }
   return `${label} ${base}`;
@@ -79,8 +107,9 @@ function scaledLabel(label: string, base: number, property: SkillDef['property']
  */
 export type SkillFaceMode = 'summed' | 'composition';
 
-/** The stat a non-TRUE effect scales off, per the engine's `scaleStat` rule. */
-function scalingStatKey(property: 'physical' | 'magical'): BuffableStat {
+/** The stat a non-TRUE effect scales off, per the engine's `scaleStat` / `scaleDefStat` rules. */
+function scalingStatKey(property: 'physical' | 'magical', role: ScalingRole): BuffableStat {
+  if (role === 'defense') return property === 'physical' ? 'armor' : 'magicResist';
   return property === 'physical' ? 'attack' : 'magicPower';
 }
 
@@ -95,11 +124,11 @@ function scalingStatKey(property: 'physical' | 'magical'): BuffableStat {
  */
 function effectLine(
   label: string, base: number, property: SkillDef['property'],
-  stats: ScalingStats | undefined, statScales: boolean, mode: SkillFaceMode,
+  stats: ScalingStats | undefined, statScales: boolean, mode: SkillFaceMode, role: ScalingRole,
 ): string {
-  if (property === 'true') return `${scaledLabel(label, base, property, stats, statScales)} (T)`;
-  if (mode === 'composition' && statScales) return `${label} ${base} +${STAT_TOKEN[scalingStatKey(property)]}`;
-  return scaledLabel(label, base, property, stats, statScales);
+  if (property === 'true') return `${scaledLabel(label, base, property, stats, statScales, role)} (T)`;
+  if (mode === 'composition' && statScales) return `${label} ${base} +${STAT_TOKEN[scalingStatKey(property, role)]}`;
+  return scaledLabel(label, base, property, stats, statScales, role);
 }
 
 /**
@@ -108,10 +137,11 @@ function effectLine(
  *
  * `mode` (default `'summed'`, mobile's long-standing behavior) picks the
  * number treatment for damage/heal/shield lines — see `SkillFaceMode`/
- * `effectLine`. Physical scales off Attack, magical off Magic Power, TRUE
- * damage off the higher of the two (and still gets a stat add, unlike TRUE
- * heal/shield, which are pure flat numbers) — see `cardGlossary.ts`'s `true`
- * entry.
+ * `effectLine`. WHICH stat each line reads is the `ScalingRole` split: DMG is
+ * offense (physical → Attack, magical → Magic Power, TRUE → higher of the
+ * two), while HEAL and SHLD/DEF are defensive output (physical → Armor,
+ * magical → Magic Resist, TRUE → flat, no stat add) — see `cardGlossary.ts`'s
+ * `true` entry.
  */
 export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed'): string {
   // Reach is the load-bearing word: an all-board +5 and an adjacent +15 are
@@ -150,12 +180,16 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: Sk
     }
   }
   const property = skill.property;
-  // Shield's composition-mode label is 'DEF' (matching the "+96 DEF (+Attack)"
-  // grammar the card data itself already uses) — 'summed'/mobile keeps 'SHLD'.
-  const shieldLabel = mode === 'composition' && property !== 'true' ? 'DEF' : 'SHLD';
-  if (damage) parts.push(effectLine('DMG', damage, property, stats, true, mode));
-  if (heal) parts.push(effectLine('HEAL', heal, property, stats, property !== 'true', mode));
-  if (shield) parts.push(effectLine(shieldLabel, shield, property, stats, property !== 'true', mode));
+  // Shield is ALWAYS 'SHLD'. Its composition-mode label used to be 'DEF', to
+  // match the "+96 DEF (+Attack)" grammar the card data used at the time — but
+  // once shields started scaling off Armor (2026-08-05) that data grammar became
+  // "Gain 96 (+DEF) physical shield", and a 'DEF' label beside a now-'DEF' stat
+  // token rendered the useless "DEF 96 +DEF". The label names the OUTPUT, the
+  // token names the STAT; they must not be the same word.
+  const shieldLabel = 'SHLD';
+  if (damage) parts.push(effectLine('DMG', damage, property, stats, true, mode, 'offense'));
+  if (heal) parts.push(effectLine('HEAL', heal, property, stats, property !== 'true', mode, 'defense'));
+  if (shield) parts.push(effectLine(shieldLabel, shield, property, stats, property !== 'true', mode, 'defense'));
   parts.push(...extras);
   return parts.join(' · ') || 'PASSIVE';
 }

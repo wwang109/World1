@@ -188,7 +188,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
     const heroStats = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation).setup.stats;
     new BoardColumn(this, {
       x: leftX, y: top, width: colW, height: colH, side: 'left',
-      pieces: heroPieces, deck: heroSkills, stats: { attack: heroStats.attack, magicPower: heroStats.magicPower },
+      pieces: heroPieces, deck: heroSkills, stats: { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist },
     });
 
     const foeSkills: SkillDef[] = [];
@@ -203,7 +203,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
     const foeStats = encounter.setup.stats;
     new BoardColumn(this, {
       x: rightX, y: top, width: colW, height: colH, side: 'right',
-      pieces: foePieces, deck: foeSkills, stats: { attack: foeStats.attack, magicPower: foeStats.magicPower },
+      pieces: foePieces, deck: foeSkills, stats: { attack: foeStats.attack, magicPower: foeStats.magicPower, armor: foeStats.armor, magicResist: foeStats.magicResist },
     });
   }
 
