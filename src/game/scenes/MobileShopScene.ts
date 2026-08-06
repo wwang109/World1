@@ -178,6 +178,16 @@ export class MobileShopScene extends Phaser.Scene {
    * under the same pixel, and starts a phantom drag/tap — which completes as
    * a SELL confirm on pointerup. Every button that can overlap a card must
    * call `consumePointer(pointer)` before mutating state.
+   *
+   * KNOWN RESIDUAL (audit 2026-08): this compares plain `downTime` NUMBERS,
+   * which is exactly the pattern `wasPointerConsumedByRebuild` (sceneRebuild.ts)
+   * moved away from — two genuinely distinct clicks CAN share a `downTime`
+   * (browsers with reduced timer resolution, or synthetic/automated input),
+   * so in principle a later click could false-positive against a stale
+   * `consumedPointerAt` and get silently swallowed. Not fixed here — this
+   * idiom predates the structural guard and is kept only for the
+   * belt-and-suspenders effect alongside it (`wireDrag`'s pointerdown handler
+   * checks both). New code should use `wasPointerConsumedByRebuild` alone.
    */
   private consumedPointerAt: number | null = null;
 
@@ -937,6 +947,13 @@ export class MobileShopScene extends Phaser.Scene {
     });
 
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      // Symmetric with the `pointerdown` guard above — `processUpEvents` has
+      // the SAME two-phase (per-object then scene-level) dispatch as
+      // `processDownEvents` (see `wasPointerConsumedByRebuild`'s doc comment,
+      // sceneRebuild.ts). No object-level `pointerup` handler rebuilds today,
+      // so `dragging` being null already protects this listener in practice —
+      // this guard is defense-in-depth against the first one that does.
+      if (wasPointerConsumedByRebuild(this, p)) return;
       scrolling = null;
       if (!dragging) return;
       const src = dragging.src;

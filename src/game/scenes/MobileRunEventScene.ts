@@ -107,6 +107,21 @@ export class MobileRunEventScene extends Phaser.Scene {
       this.renderChoices(run.gold, event, story);
     }
     if (this.retireConfirmOpen) {
+      // CORRECTED (audit 2026-08): unlike its RunPrep/RunMap siblings, THIS
+      // scene DOES register a scene-level generic pointerdown/pointermove/
+      // pointerup/wheel listener — conditionally, only when the event body
+      // text is long enough to need the small-scroll idiom (see the
+      // `this.input.on('pointerdown', …)` block inside `renderStory` below).
+      // So `renderRetireConfirm`'s rebuild-on-close COULD race that
+      // listener's stale-vs-fresh scene-level re-dispatch (see
+      // `wasPointerConsumedByRebuild`'s doc comment, sceneRebuild.ts). It's
+      // covered: that listener's FIRST line is
+      // `wasPointerConsumedByRebuild(this, p)`, and it guards ANY
+      // `rerender()`-calling handler in this scene automatically — including
+      // this RETIRE dialog's — since both close through the same
+      // `rebuildScene()` stamp. No PER-DIALOG guard is needed here, but the
+      // scene-level listener existing at all is the reason one is needed
+      // somewhere, which is not true of its five siblings.
       renderRetireConfirm(this, {
         compact: true,
         onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
@@ -213,7 +228,14 @@ export class MobileRunEventScene extends Phaser.Scene {
         scrollY = Phaser.Math.Clamp(startScroll + (p.worldY - startY), -maxScroll, 0);
         bodyContainer.setY(bodyBoxTop + bodyPad + scrollY);
       });
-      this.input.on('pointerup', () => { dragging = false; });
+      // Trivial today (just clears the local `dragging` flag), but `pointerup`
+      // gets the same two-phase re-dispatch risk as `pointerdown` — see
+      // `wasPointerConsumedByRebuild`'s doc comment — so it is guarded on the
+      // same terms as its sibling above rather than being a silent exception.
+      this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+        if (wasPointerConsumedByRebuild(this, p)) return;
+        dragging = false;
+      });
       this.input.on('wheel', (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
         if (!inBox(pointer.worldX, pointer.worldY)) return;
         scrollY = Phaser.Math.Clamp(scrollY - dy, -maxScroll, 0);

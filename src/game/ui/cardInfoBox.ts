@@ -87,7 +87,14 @@ export function renderCardInfoBox(
     scrollY = Phaser.Math.Clamp(startScroll + (p.worldY - startY), -maxScroll, 0);
     container.setY(y + scrollY);
   });
-  scene.input.on('pointerup', () => { dragging = false; });
+  // Trivial today (just clears the local `dragging` flag), but `pointerup`
+  // gets the same two-phase re-dispatch risk as `pointerdown` — see
+  // `wasPointerConsumedByRebuild`'s doc comment — so it is guarded on the
+  // same terms as its sibling above rather than being a silent exception.
+  scene.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+    if (wasPointerConsumedByRebuild(scene, p)) return;
+    dragging = false;
+  });
   scene.input.on('wheel', (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
     if (!inBox(pointer.worldX, pointer.worldY)) return;
     scrollY = Phaser.Math.Clamp(scrollY - dy, -maxScroll, 0);

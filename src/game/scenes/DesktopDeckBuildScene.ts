@@ -201,6 +201,14 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       }
     });
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      // Symmetric with the `pointerdown` guard above — Phaser's
+      // `processUpEvents` has the SAME two-phase (per-object then
+      // scene-level) dispatch as `processDownEvents` (see
+      // `wasPointerConsumedByRebuild`'s doc comment, sceneRebuild.ts). No
+      // object-level `pointerup` handler rebuilds today, so `dragging` being
+      // null already protects this listener in practice — this guard is
+      // defense-in-depth against the first one that does.
+      if (wasPointerConsumedByRebuild(this, p)) return;
       if (!dragging) return;
       const src = dragging.src;
       dragging = null;

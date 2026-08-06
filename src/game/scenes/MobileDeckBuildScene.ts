@@ -194,6 +194,14 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       }
     });
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      // Symmetric with the `pointerdown` guard above — Phaser's
+      // `processUpEvents` has the SAME two-phase (per-object then
+      // scene-level) dispatch as `processDownEvents` (see
+      // `wasPointerConsumedByRebuild`'s doc comment, sceneRebuild.ts). No
+      // object-level `pointerup` handler rebuilds today, so `dragging` being
+      // null already protects this listener in practice — this guard is
+      // defense-in-depth against the first one that does.
+      if (wasPointerConsumedByRebuild(this, p)) return;
       if (!dragging) return;
       const src = dragging.src;
       dragging = null;
@@ -841,7 +849,14 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         scrollY = Phaser.Math.Clamp(startScroll + (p.worldY - startY), -maxScroll, 0);
         rowContainers.forEach((c, i) => c.setY(listTop + scrollY + i * (rowH + rowGap)));
       });
-      this.input.on('pointerup', () => { dragging = false; });
+      // Trivial today (just clears the local `dragging` flag), but `pointerup`
+      // gets the same two-phase re-dispatch risk as `pointerdown` — see
+      // `wasPointerConsumedByRebuild`'s doc comment — so it is guarded on the
+      // same terms as its sibling above rather than being a silent exception.
+      this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+        if (wasPointerConsumedByRebuild(this, p)) return;
+        dragging = false;
+      });
       this.input.on('wheel', (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
         if (!inList(pointer.worldX, pointer.worldY)) return;
         scrollY = Phaser.Math.Clamp(scrollY - dy, -maxScroll, 0);

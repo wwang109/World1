@@ -335,6 +335,13 @@ export class DesktopWikiScene extends Phaser.Scene {
       this.applyScroll();
     });
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      // Symmetric with the `pointerdown` guard above — `processUpEvents` has
+      // the SAME two-phase (per-object then scene-level) dispatch as
+      // `processDownEvents` (see `wasPointerConsumedByRebuild`'s doc comment,
+      // sceneRebuild.ts). No object-level `pointerup` handler rebuilds today,
+      // so `dragging` being null already protects this listener in practice —
+      // this guard is defense-in-depth against the first one that does.
+      if (wasPointerConsumedByRebuild(this, p)) return;
       if (!dragging) return;
       dragging = false;
       if (totalMove < 8) {

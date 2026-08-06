@@ -104,6 +104,13 @@ export class DesktopRunEventScene extends Phaser.Scene {
       this.renderChoicePanel(run.gold, event, story);
     }
     if (this.retireConfirmOpen) {
+      // REVIEWED AND LEFT (audit 2026-08): no scene-level generic pointerdown/pointerup listener at all in this file — grep-confirmed.
+      // So `renderRetireConfirm`'s rebuild-on-close can never race a
+      // stale-vs-fresh scene-level re-dispatch (see
+      // `wasPointerConsumedByRebuild`'s doc comment, sceneRebuild.ts) — the
+      // mechanism that guard exists for cannot manifest here. No guard
+      // needed. (Contrast `MobileRunEventScene`, which DOES have one — its
+      // scroll listener for the event body text.)
       renderRetireConfirm(this, {
         compact: false,
         onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
