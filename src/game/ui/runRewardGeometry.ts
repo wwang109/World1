@@ -64,10 +64,20 @@ export function layoutFeatureGrid(rect: Rect, count: number, idealW: number, ide
   const maxCols = Math.max(1, Math.floor((rect.width + gap) / (idealW + gap)));
   const cols = Math.min(count, maxCols);
   const rows = Math.ceil(count / cols);
-  const scale = Math.min(
-    1,
-    (rect.width - gap * (cols - 1)) / (cols * idealW),
-    (rect.height - gap * (rows - 1)) / (rows * idealH),
+  // `cols` is bounded against `rect.width` via `maxCols` above, so its scale
+  // numerator can never go negative. `rows` has no equivalent bound against
+  // `rect.height` (it's just `count` divided across whatever `cols` width
+  // allowed), so the height-side numerator CAN go negative when enough rows'
+  // worth of `gap` alone exceeds `rect.height`. Clamp to 0 rather than let
+  // that flow through as a negative scale — a zero-size box is still a valid
+  // (if degenerate) box, never a negative-size one.
+  const scale = Math.max(
+    0,
+    Math.min(
+      1,
+      (rect.width - gap * (cols - 1)) / (cols * idealW),
+      (rect.height - gap * (rows - 1)) / (rows * idealH),
+    ),
   );
   const cellW = idealW * scale;
   const cellH = idealH * scale;

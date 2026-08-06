@@ -144,6 +144,32 @@ describe('layoutFeatureGrid', () => {
     }
   });
 
+  it('never returns a negative scale (and thus negative-width/height boxes) when rows overflow the rect height', () => {
+    // `cols` is bounded against `rect.width` via `maxCols`, so its scale
+    // numerator (`rect.width - gap * (cols - 1)`) can never go negative.
+    // `rows = Math.ceil(count / cols)` has no equivalent bound against
+    // `rect.height` — a tall stack of rows times a real gap can drive the
+    // height-side numerator negative. Concretely: cols=1 (200 wide ideal
+    // items only fit 1 per row in a 200-wide rect), rows=5, so the height
+    // numerator is `200 - 60*(5-1) = -40`, giving an unclamped scale of
+    // `-40/50 = -0.8` and negative cellW/cellH (-160/-8). The "degrades
+    // gracefully" case above stays just barely positive, which is why this
+    // went unnoticed.
+    const rect: Rect = { x: 0, y: 0, width: 200, height: 200 };
+    const cells = layoutFeatureGrid(rect, 5, 200, 10, 60);
+    expect(cells).toHaveLength(5);
+    for (const cell of cells) {
+      expect(cell.w).toBeGreaterThanOrEqual(0);
+      expect(cell.h).toBeGreaterThanOrEqual(0);
+    }
+    // Pin the chosen degenerate behavior: a scale that would go negative is
+    // clamped to zero (a zero-size box), never a negative-size one.
+    for (const cell of cells) {
+      expect(cell.w).toBe(0);
+      expect(cell.h).toBe(0);
+    }
+  });
+
   // Integration check against the REAL reward `feature` rects (pure geometry,
   // no Phaser). `FEATURE_CARD_SIZE` is imported straight from
   // `runRewardGeometry.ts` (the same constant `RunRewardPanel.ts` imports),
