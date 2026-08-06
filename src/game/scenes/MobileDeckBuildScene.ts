@@ -159,9 +159,10 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     let start = { x: 0, y: 0 };
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       // CONFIRMED INSTANCE (audit 2026-08, previously unguarded): this scene
-      // has NO manual `consumedPointerAt` field at all, unlike the shop
-      // scenes — every dialog below (TRASH/MERGE/socket panel/bag detail/
-      // RETIRE) closes via `this.rerender()` from its OWN pointerdown
+      // has NO manual pointer-consumption field of its own (same as the shop
+      // scenes, which removed their legacy `consumedPointerAt` idiom in the
+      // 2026-08 cleanup) — every dialog below (TRASH/MERGE/socket panel/bag
+      // detail/RETIRE) closes via `this.rerender()` from its OWN pointerdown
       // handler, which re-registers THIS listener before Phaser's scene-level
       // POINTER_DOWN for that same click fires (see
       // `wasPointerConsumedByRebuild`'s doc comment, sceneRebuild.ts). The

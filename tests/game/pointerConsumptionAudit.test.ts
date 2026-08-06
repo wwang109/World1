@@ -43,9 +43,14 @@ const GENERIC_POINTER_PHASES: Array<{ name: 'pointerdown' | 'pointerup'; pattern
   { name: 'pointerdown', pattern: /\.input\.on\(\s*['"]pointerdown['"]/ },
   { name: 'pointerup', pattern: /\.input\.on\(\s*['"]pointerup['"]/ },
 ];
-/** Either mitigation counts: the shared structural guard, or a scene's own
- * manual `consumedPointerAt`-downTime check (the shop scenes' pre-existing
- * idiom, which this repo keeps alongside the structural guard). */
+/** The shared structural guard. The shop scenes used to ALSO keep a manual
+ * `consumedPointerAt`-downTime check alongside it (a plain-`downTime`
+ * comparison — unsound, since two distinct clicks can share a `downTime` on
+ * browsers with reduced timer resolution or synthetic input); that legacy
+ * idiom was removed 2026-08 once the structural guard alone was confirmed to
+ * cover every call site. `consumedPointerAt` stays in this regex as a legal
+ * alternate guard shape — harmless, since nothing in the codebase matches it
+ * today — rather than narrowing this sweep on the same pass that removed it. */
 const GUARD = /wasPointerConsumedByRebuild\(|consumedPointerAt/;
 /** How many lines past the registration a guard must appear within — every
  * fixed listener in this repo puts it as the first real statement, but several

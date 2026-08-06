@@ -124,15 +124,27 @@ const consumedPointerEventByScene = new WeakMap<Phaser.Scene, TouchEvent | Mouse
  * for the proof (two distinct real clicks CAN legitimately share a
  * `downTime`; they can never share a `pointer.event`).
  *
- * `pointer.event` is `undefined` only before the FIRST event a given Pointer
- * has EVER processed (`node_modules/phaser/src/input/Pointer.js`:
- * `this.event;`, never assigned in the constructor). Any pointer that reaches
- * a REAL `'pointerdown'`/`'pointerup'` handler has, by definition, already
- * had a real `Event` assigned to it before Phaser dispatches
+ * `pointer.event` starts `undefined` (`node_modules/phaser/src/input/Pointer.js`:
+ * `this.event;`, never assigned in the constructor) and stays that way only
+ * before the FIRST event a given Pointer has EVER processed. Any pointer that
+ * reaches a REAL `'pointerdown'`/`'pointerup'` handler has, by definition,
+ * already had a real `Event` assigned to it before Phaser dispatches
  * (`InputManager#onMouseDown`/`onMouseUp`/`onTouchStart`/`onTouchEnd` call
  * `pointer.down(event)`/`pointer.up(event)` — which sets `.event` — BEFORE
  * `updateInputPlugins()` runs the two-phase dispatch above), so `undefined`
  * can never appear as `pointer.event` inside a real listener either.
+ *
+ * That is not the ONLY way `.event` can go absent, though — mid-session, not
+ * just pre-first-event: `InputPlugin#resetPointers()`
+ * (`node_modules/phaser/src/input/InputPlugin.js:3162`) loops every tracked
+ * Pointer and calls `Pointer#reset()` (`Pointer.js:1208`), which sets
+ * `.event` back to `null`. Nothing in `src/` calls `resetPointers()` today
+ * (grep-confirmed), so this cannot happen in this codebase as it stands — but
+ * if it ever is wired up (its own doc: "if input has been stolen from Phaser
+ * via a 3rd party component"), it is still harmless here: both the stamp site
+ * above (`activePointer?.event != null`) and the compare below
+ * (`consumed != null`) already null-check, so a reset pointer just makes this
+ * a safe no-op, never a false match.
  */
 export function wasPointerConsumedByRebuild(scene: Phaser.Scene, pointer: Phaser.Input.Pointer): boolean {
   const consumed = consumedPointerEventByScene.get(scene);

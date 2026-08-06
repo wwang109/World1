@@ -372,11 +372,12 @@ export function renderRunStatsStrip(scene: Phaser.Scene, opts: RunStatsStripOpti
  * the SAME physical click once this dialog's own handler closes it via
  * `rerender()` (see `sceneRebuild.ts`'s `wasPointerConsumedByRebuild` doc
  * comment — this is the exact mechanism CONFIRMED INSTANCE #20, audit
- * 2026-08, found here). `rebuildScene()` now stamps that pointer
- * automatically, so most callers need do nothing further; callers that keep
- * their OWN manual `consumedPointerAt` guard (the shop scenes) should still
- * call `this.consumePointer(pointer)` here for consistency with that
- * screen's documented contract.
+ * 2026-08, found here). `rebuildScene()` stamps that pointer automatically,
+ * so callers need do nothing further — the shop scenes' own manual
+ * `consumedPointerAt` guard (an unsound plain-`downTime` comparison) was
+ * removed 2026-08 in favor of relying on this structural guard alone; no
+ * caller of `renderRetireConfirm` needs a per-screen pointer-consumption
+ * idiom of its own anymore.
  */
 export function renderRetireConfirm(
   scene: Phaser.Scene,

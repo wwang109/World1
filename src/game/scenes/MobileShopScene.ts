@@ -160,44 +160,8 @@ export class MobileShopScene extends Phaser.Scene {
   private ownedColumns: OwnedColumnLayout | null = null;
   private sellZoneRectObj: Phaser.GameObjects.Rectangle | null = null;
   private sellZoneLabelObj: Phaser.GameObjects.Text | null = null;
-  /**
-   * `pointer.downTime` of the most recent click a DIALOG BUTTON (CANCEL/BUY/
-   * MERGE/SELL) already handled — read by `wireDrag`'s scene-wide generic
-   * pointerdown handler to skip re-processing that SAME physical click as a
-   * board/bag hit-test.
-   *
-   * Real bug this fixes (desktop twin discovered it first, 2026-08-05): the
-   * BOARD/BAG columns are now tall enough that a centered confirm dialog's
-   * buttons always sit ON TOP of a board/bag card underneath. Phaser
-   * dispatches a pointerdown to BOTH the button's own object-level listener
-   * AND the scene's generic `this.input.on('pointerdown')` listener for the
-   * SAME click — deterministically, not a timing race. If the button's
-   * handler calls `rerender()` (closing the dialog) BEFORE the generic
-   * listener runs, the generic listener sees the just-closed dialog state
-   * and the FRESH (rebuilt) `draggables`, "discovers" the card now exposed
-   * under the same pixel, and starts a phantom drag/tap — which completes as
-   * a SELL confirm on pointerup. Every button that can overlap a card must
-   * call `consumePointer(pointer)` before mutating state.
-   *
-   * KNOWN RESIDUAL (audit 2026-08): this compares plain `downTime` NUMBERS,
-   * which is exactly the pattern `wasPointerConsumedByRebuild` (sceneRebuild.ts)
-   * moved away from — two genuinely distinct clicks CAN share a `downTime`
-   * (browsers with reduced timer resolution, or synthetic/automated input),
-   * so in principle a later click could false-positive against a stale
-   * `consumedPointerAt` and get silently swallowed. Not fixed here — this
-   * idiom predates the structural guard and is kept only for the
-   * belt-and-suspenders effect alongside it (`wireDrag`'s pointerdown handler
-   * checks both). New code should use `wasPointerConsumedByRebuild` alone.
-   */
-  private consumedPointerAt: number | null = null;
 
   constructor() { super('MobileShop'); }
-
-  /** See `consumedPointerAt`. Call from every dialog-button's OWN pointerdown
-   * handler, before it mutates any pending-dialog state. */
-  private consumePointer(pointer: Phaser.Input.Pointer): void {
-    this.consumedPointerAt = pointer.downTime;
-  }
 
   init(): void {
     this.selectedShop = null;
@@ -210,7 +174,6 @@ export class MobileShopScene extends Phaser.Scene {
     this.toastObjects = [];
     this.retireConfirmOpen = false;
     this.shelfScrollY = 0;
-    this.consumedPointerAt = null;
     // rebuildScene() destroys the game objects but NOT the fields pointing at
     // them (scene-rebuild idiom).
     this.shelfThumb = null;
@@ -329,8 +292,8 @@ export class MobileShopScene extends Phaser.Scene {
     if (this.retireConfirmOpen) {
       renderRetireConfirm(this, {
         compact: true,
-        onCancel: (pointer) => { this.consumePointer(pointer); this.retireConfirmOpen = false; this.rerender(); },
-        onConfirm: (pointer) => { this.consumePointer(pointer); retireActiveRun(); this.scene.start('MobileRunMap'); },
+        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
+        onConfirm: () => { retireActiveRun(); this.scene.start('MobileRunMap'); },
       });
     }
   }
@@ -398,8 +361,10 @@ export class MobileShopScene extends Phaser.Scene {
       // scene into the shelf+BOARD/BAG layout — a storefront tile's own pixel
       // can land on a shelf/board/bag card in that FRESH layout, and the
       // rebuild's freshly re-registered wireDrag pointerdown listener would
-      // "discover" it. See `consumedPointerAt`'s doc comment.
-      cell.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiClick'); ensureShelf(id); this.selectedShop = id; this.rerender(); });
+      // "discover" it. `rerender()` below stamps the structural guard
+      // (`wasPointerConsumedByRebuild`, sceneRebuild.ts) that `wireDrag`'s
+      // pointerdown handler checks first, so that re-dispatch is a no-op.
+      cell.on('pointerdown', () => { playSfx('uiClick'); ensureShelf(id); this.selectedShop = id; this.rerender(); });
       const bannerH = Math.min(44, Math.round(h * 0.44));
       addRunArt(this, shopArtKey(id), { x, y, width: cellW, height: bannerH }, 0.8);
       this.add.rectangle(x, y, cellW, bannerH, 0x0b1420, 0.28).setOrigin(0, 0);
@@ -425,7 +390,7 @@ export class MobileShopScene extends Phaser.Scene {
       const backW = 70;
       const back = this.add.rectangle(10, top, backW, 24, 0x131f32).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       this.add.text(10 + backW / 2, top + 12, '‹ SHOPS', { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-      back.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiBack'); this.selectedShop = null; this.rerender(); });
+      back.on('pointerdown', () => { playSfx('uiBack'); this.selectedShop = null; this.rerender(); });
       titleX = 18 + backW;
     }
     this.add.text(titleX, top, shop.name.toUpperCase(), { fontSize: `${F.lead}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold' });
@@ -444,7 +409,7 @@ export class MobileShopScene extends Phaser.Scene {
       this.add.text(this.W - 10 - rerollW / 2, rerollY + 12, 'REROLL · 1G', { fontSize: `${F.tiny}px`, color: canReroll ? UI.textOnChip : UI.textDisabled, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       if (canReroll) {
         rr.setInteractive({ useHandCursor: true });
-        rr.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
+        rr.on('pointerdown', () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
       }
     }
 
@@ -506,7 +471,7 @@ export class MobileShopScene extends Phaser.Scene {
         }
         const gem = gemBook[offer.gemId]!;
         const cell = A(this.add.rectangle(10, y, this.W - 20, gemH, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8).setInteractive({ useHandCursor: true }));
-        cell.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiClick'); this.detailGemIndex = i; this.rerender(); });
+        cell.on('pointerdown', () => { playSfx('uiClick'); this.detailGemIndex = i; this.rerender(); });
         A(this.add.rectangle(28, y + gemH / 2, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45));
         A(this.add.text(42, y + 8, gem.name, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' }));
         const body = A(this.add.text(42, y + 24, stripCardTextMarkup(gem.text), { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: this.W - 100 } }));
@@ -753,11 +718,12 @@ export class MobileShopScene extends Phaser.Scene {
     const shown = this.detailTier === base.tier ? base : applyTier(base, this.detailTier);
 
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setInteractive();
-    // consumePointer FIRST — see its doc comment: the BOARD/BAG columns sit
-    // directly under this full-screen veil, so this exact dismiss tap would
-    // otherwise also be reprocessed as a board/bag tap once `rerender()`
-    // closes the overlay and re-exposes whatever card was underneath.
-    veil.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiBack'); this.detailCardIndex = null; this.rerender(); });
+    // The BOARD/BAG columns sit directly under this full-screen veil, so this
+    // exact dismiss tap would otherwise also be reprocessed as a board/bag
+    // tap once `rerender()` closes the overlay and re-exposes whatever card
+    // was underneath — `wasPointerConsumedByRebuild` (sceneRebuild.ts) is
+    // what stops that; see `wireDrag`'s pointerdown handler.
+    veil.on('pointerdown', () => { playSfx('uiBack'); this.detailCardIndex = null; this.rerender(); });
 
     const centerX = this.W / 2;
     const cardW = 150;
@@ -804,11 +770,12 @@ export class MobileShopScene extends Phaser.Scene {
     const gem: GemDef = gemBook[offer.gemId]!;
 
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setInteractive();
-    // consumePointer FIRST — see its doc comment: the BOARD/BAG columns sit
-    // directly under this full-screen veil, so this exact dismiss tap would
-    // otherwise also be reprocessed as a board/bag tap once `rerender()`
-    // closes the overlay and re-exposes whatever card was underneath.
-    veil.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiBack'); this.detailGemIndex = null; this.rerender(); });
+    // The BOARD/BAG columns sit directly under this full-screen veil, so this
+    // exact dismiss tap would otherwise also be reprocessed as a board/bag
+    // tap once `rerender()` closes the overlay and re-exposes whatever card
+    // was underneath — `wasPointerConsumedByRebuild` (sceneRebuild.ts) is
+    // what stops that; see `wireDrag`'s pointerdown handler.
+    veil.on('pointerdown', () => { playSfx('uiBack'); this.detailGemIndex = null; this.rerender(); });
 
     const centerX = this.W / 2;
     let y = 110;
@@ -882,14 +849,13 @@ export class MobileShopScene extends Phaser.Scene {
     };
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      // See `consumedPointerAt` — a dialog button already handled this exact
-      // physical click (and likely just closed the dialog + rebuilt the
-      // scene); don't ALSO reinterpret it as a fresh board/bag hit-test.
-      if (p.downTime === this.consumedPointerAt) return;
-      // Structural backstop (sceneRebuild.ts) — catches any rerender()-calling
-      // handler that forgot the manual `consumePointer()` call above (e.g. the
-      // storefront shop tiles, which have no dialog to guard behind a state
-      // flag at all — see `renderStorefront`).
+      // A dialog button already handled this exact physical click (and
+      // likely just closed the dialog + rebuilt the scene via `rerender()`)
+      // — don't ALSO reinterpret it as a fresh board/bag hit-test. See
+      // `wasPointerConsumedByRebuild`'s doc comment (sceneRebuild.ts): this
+      // structural guard covers EVERY rerender()-calling handler above,
+      // including the storefront shop tiles, which have no dialog to guard
+      // behind a state flag at all (see `renderStorefront`).
       if (wasPointerConsumedByRebuild(this, p)) return;
       if (this.pendingBuy || this.pendingSell || this.retireConfirmOpen) return;
       // A shelfCard's registered bounds are its UNCLIPPED position inside the
@@ -1103,10 +1069,11 @@ export class MobileShopScene extends Phaser.Scene {
     buttons.forEach((b, i) => {
       const dx = bx + margin + i * (btnW + gap);
       const r = this.add.rectangle(dx, btnY, btnW, 36, b.fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      // consumePointer FIRST — see its doc comment: the BOARD/BAG columns now
-      // sit directly under this dialog, so this exact click would otherwise
-      // also be reprocessed as a board/bag tap once `b.fn()` closes it.
-      r.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); b.fn(); });
+      // The BOARD/BAG columns now sit directly under this dialog, so this
+      // exact click would otherwise also be reprocessed as a board/bag tap
+      // once `b.fn()`'s `rerender()` closes it — `wasPointerConsumedByRebuild`
+      // (sceneRebuild.ts) is what stops that; see `wireDrag`'s pointerdown.
+      r.on('pointerdown', () => { b.fn(); });
       this.add.text(dx + btnW / 2, btnY + 18, b.label, { fontSize: `${F.name}px`, color: b.color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
   }
@@ -1142,10 +1109,10 @@ export class MobileShopScene extends Phaser.Scene {
     const btnY = by + bh - 52;
     const cancel = this.add.rectangle(bx + margin, btnY, btnW, 36, 0x1b2940).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
     this.add.text(bx + margin + btnW / 2, btnY + 18, 'CANCEL', { fontSize: `${F.name}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    cancel.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiBack'); this.pendingSell = null; this.rerender(); });
+    cancel.on('pointerdown', () => { playSfx('uiBack'); this.pendingSell = null; this.rerender(); });
     const sellBtn = this.add.rectangle(bx + margin + btnW + gap, btnY, btnW, 36, 0x7a2e2a).setOrigin(0, 0).setStrokeStyle(1, 0xd05c4e, 1).setInteractive({ useHandCursor: true });
     this.add.text(bx + margin + btnW + gap + btnW / 2, btnY + 18, 'SELL', { fontSize: `${F.name}px`, color: '#ffffff', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    sellBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); doSell(); });
+    sellBtn.on('pointerdown', () => { doSell(); });
   }
 
   private showToast(text: string, color: string): void {
