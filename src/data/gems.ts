@@ -112,7 +112,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'shield', power: 4 }],
-    text: 'Also +4 shield (+ATK/MATK).',
+    text: 'Also +4 shield (+DEF/MDEF).',
   },
   mana_ward_echo: {
     // echo of mana_ward
@@ -121,7 +121,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'shield', power: 4 }],
-    text: 'Also +4 shield (+ATK/MATK).',
+    text: 'Also +4 shield (+DEF/MDEF).',
   },
   mending_light_echo: {
     // echo of mending_light
@@ -130,7 +130,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'heal', power: 4 }],
-    text: 'Also +4 HP (+ATK/MATK).',
+    text: 'Also +4 HP (+DEF/MDEF).',
   },
   time_crystal_echo: {
     // echo of time_crystal
@@ -326,7 +326,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'heal', power: 8 }],
-    text: 'Also +8 HP (+ATK/MATK).',
+    text: 'Also +8 HP (+DEF/MDEF).',
   },
   war_banner_echo: {
     // echo of war_banner
@@ -423,7 +423,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'epic',
     actions: [{ kind: 'shield', power: 12 }],
-    text: 'Also +12 shield (+ATK/MATK).',
+    text: 'Also +12 shield (+DEF/MDEF).',
   },
 
   // ---- Legendary (8 PL / 80 deci) ----

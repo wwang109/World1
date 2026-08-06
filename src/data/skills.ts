@@ -240,7 +240,7 @@ const defs: SkillDef[] = [
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'shield', power: 48 }],
-    text: 'Gain 48 (+ATK) physical shield.',
+    text: 'Gain 48 (+DEF) physical shield.',
   },
   {
     id: 'mana_ward',
@@ -252,7 +252,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'frost',
     effects: [{ kind: 'shield', power: 20 }],
-    text: 'Gain 20 (+MATK) magical shield.',
+    text: 'Gain 20 (+MDEF) magical shield.',
   },
   {
     id: 'prism_barrier',
@@ -293,21 +293,21 @@ const defs: SkillDef[] = [
           { kind: 'guard', property: 'magical', pct: 50, turns: 2 },
           { kind: 'shield', power: 10 },
         ],
-        text: '-50% incoming magical damage (2 turns) · Gain 10 (+MATK) magical shield.',
+        text: '-50% incoming magical damage (2 turns) · Gain 10 (+MDEF) magical shield.',
       },
       gold: {
         effects: [
           { kind: 'guard', property: 'magical', pct: 50, turns: 2 },
           { kind: 'shield', power: 20 },
         ],
-        text: '-50% incoming magical damage (2 turns) · Gain 20 (+MATK) magical shield.',
+        text: '-50% incoming magical damage (2 turns) · Gain 20 (+MDEF) magical shield.',
       },
       diamond: {
         effects: [
           { kind: 'guard', property: 'magical', pct: 50, turns: 2 },
           { kind: 'shield', power: 30 },
         ],
-        text: '-50% incoming magical damage (2 turns) · Gain 30 (+MATK) magical shield.',
+        text: '-50% incoming magical damage (2 turns) · Gain 30 (+MDEF) magical shield.',
       },
     },
   },
@@ -333,21 +333,21 @@ const defs: SkillDef[] = [
           { kind: 'negate', property: 'magical', charges: 1 },
           { kind: 'shield', power: 10 },
         ],
-        text: '{{Negate}} the next magical attack · Gain 10 (+MATK) magical shield.',
+        text: '{{Negate}} the next magical attack · Gain 10 (+MDEF) magical shield.',
       },
       gold: {
         effects: [
           { kind: 'negate', property: 'magical', charges: 1 },
           { kind: 'shield', power: 20 },
         ],
-        text: '{{Negate}} the next magical attack · Gain 20 (+MATK) magical shield.',
+        text: '{{Negate}} the next magical attack · Gain 20 (+MDEF) magical shield.',
       },
       diamond: {
         effects: [
           { kind: 'negate', property: 'magical', charges: 1 },
           { kind: 'shield', power: 30 },
         ],
-        text: '{{Negate}} the next magical attack · Gain 30 (+MATK) magical shield.',
+        text: '{{Negate}} the next magical attack · Gain 30 (+MDEF) magical shield.',
       },
     },
   },
@@ -363,7 +363,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'holy',
     effects: [{ kind: 'heal', power: 48 }],
-    text: 'Restore 48 (+MATK) HP.',
+    text: 'Restore 48 (+MDEF) HP.',
   },
   {
     id: 'second_wind',
@@ -1236,7 +1236,7 @@ const defs: SkillDef[] = [
     tier: 'bronze',
     element: 'nature',
     effects: [{ kind: 'heal', power: 20 }],
-    text: 'Restore 20 (+MATK) HP.',
+    text: 'Restore 20 (+MDEF) HP.',
   },
   {
     id: 'blooming_vine',
@@ -1290,7 +1290,7 @@ const defs: SkillDef[] = [
       { kind: 'heal', power: 30 },
       { kind: 'shield', power: 18 },
     ],
-    text: 'Restore 30 (+MATK) HP · Gain 18 (+MATK) magical shield — a thorned bark ward.',
+    text: 'Restore 30 (+MDEF) HP · Gain 18 (+MDEF) magical shield — a thorned bark ward.',
   },
 
   // ---- Frost (slow/control identity) ----
@@ -1476,7 +1476,7 @@ const defs: SkillDef[] = [
     rarity: 'common',
     tier: 'bronze',
     effects: [{ kind: 'shield', power: 20 }],
-    text: 'Gain 20 (+ATK) physical shield.',
+    text: 'Gain 20 (+DEF) physical shield.',
   },
   {
     id: 'aegis_wall',
@@ -1489,7 +1489,7 @@ const defs: SkillDef[] = [
     rarity: 'rare',
     tier: 'bronze',
     effects: [{ kind: 'shield', power: 44 }],
-    text: 'Gain 44 (+ATK) physical shield. Lighter stance (weight 16).',
+    text: 'Gain 44 (+DEF) physical shield. Lighter stance (weight 16).',
   },
   {
     id: 'sanctified_bulwark',
@@ -1504,7 +1504,7 @@ const defs: SkillDef[] = [
       { kind: 'guard', property: 'magical', pct: 20, turns: 2 },
       { kind: 'shield', power: 12 },
     ],
-    text: 'Gain 12 (+MATK) magical shield · -20% incoming magical damage (2 turns).',
+    text: 'Gain 12 (+MDEF) magical shield · -20% incoming magical damage (2 turns).',
   },
   {
     id: 'fortress_bastion',
@@ -1516,7 +1516,7 @@ const defs: SkillDef[] = [
     rarity: 'epic',
     tier: 'bronze',
     effects: [{ kind: 'shield', power: 96 }],
-    text: 'Gain 96 (+ATK) physical shield.',
+    text: 'Gain 96 (+DEF) physical shield.',
   },
 
   // ---- Support (buff-aura identity) ----
@@ -1659,7 +1659,7 @@ const defs: SkillDef[] = [
     rarity: 'rare',
     tier: 'bronze',
     effects: [{ kind: 'heal', power: 48 }],
-    text: 'Restore 48 (+ATK) HP.',
+    text: 'Restore 48 (+DEF) HP.',
   },
 
   // ---- True (ignores-defense identity) ----

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { skillBook } from '../../src/data/skills';
+import { gemBook } from '../../src/data/gems';
 import type { Action, AuraDef, SkillTier } from '../../src/engine/types';
 
 // Drift guard: every numeric magnitude a card's `effects`/`aura` carries must
@@ -80,11 +81,60 @@ function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined):
   return expected;
 }
 
+/**
+ * STAT-TOKEN drift guard (added 2026-08-05, after a real miss).
+ *
+ * The numeric guard above audits HOW MUCH; this audits BOOSTED BY WHAT. When
+ * shields/heals moved to defensive-stat scaling (engine commit `9960720`), 16
+ * card texts kept advertising "(+ATK)"/"(+MATK)" on defensive clauses and NOT
+ * ONE test failed — the numbers were all still correct, so the numeric guard
+ * had nothing to catch. The text lied to the player until a human spotted it.
+ *
+ * The rule audited (docs/card-text-style-guide.md, "Which stat token"): a
+ * card's `property` picks WHICH stat, the ROLE of the clause picks WHICH SIDE
+ * of the stat sheet — OFFENSE (damage) reads ATK/MATK, DEFENSE (shield/heal)
+ * reads DEF/MDEF. TRUE carries no token on defense (flat by identity) and
+ * "(+best stat)" on offense.
+ *
+ * Deliberately asserts only what is UNAMBIGUOUS: a text may not carry a stat
+ * token belonging to the OPPOSITE role for a role it actually has. It does not
+ * demand a token be present — TRUE clauses correctly have none, and a card
+ * mixing both roles legitimately carries one of each, which is why this is a
+ * forbidden-token check rather than an exact-template match.
+ */
+const OFFENSE_TOKENS = ['(+ATK)', '(+MATK)', '(+ATK/MATK)'] as const;
+const DEFENSE_TOKENS = ['(+DEF)', '(+MDEF)', '(+DEF/MDEF)'] as const;
+
+function assertStatTokens(label: string, text: string, effects: readonly Action[]): void {
+  const hasOffense = effects.some((e) => e.kind === 'damage');
+  const hasDefense = effects.some((e) => e.kind === 'shield' || e.kind === 'heal');
+
+  // A purely defensive card must never advertise an offensive stat, and vice
+  // versa. A card with BOTH roles is exempt: either token is legitimately its.
+  if (hasDefense && !hasOffense) {
+    for (const token of OFFENSE_TOKENS) {
+      expect(
+        text.includes(token),
+        `${label}: defensive card advertises the OFFENSIVE token ${token} — shields/heals scale off DEF/MDEF: "${text}"`,
+      ).toBe(false);
+    }
+  }
+  if (hasOffense && !hasDefense) {
+    for (const token of DEFENSE_TOKENS) {
+      expect(
+        text.includes(token),
+        `${label}: offensive card advertises the DEFENSIVE token ${token} — damage scales off ATK/MATK: "${text}"`,
+      ).toBe(false);
+    }
+  }
+}
+
 function assertTextCoversKit(label: string, text: string, effects: readonly Action[], aura: AuraDef | undefined): void {
   const nums = numbersInText(text);
   for (const n of expectedNumbers(effects, aura)) {
     expect(nums, `${label}: expected number ${n} not found in text: "${text}"`).toContain(n);
   }
+  assertStatTokens(label, text, effects);
 }
 
 describe('card text drift guard', () => {
@@ -110,5 +160,36 @@ describe('card text drift guard', () => {
         }
       });
     }
+  }
+});
+
+// A gem's action is appended onto its HOST card and resolved by the SAME role
+// rule, so a gem's dual token drifts for exactly the same reason a card's does
+// — and drifted in the same 2026-08-05 pass. Gems name both stats they could
+// scale with (they can't know the host's property), so the pair is the token.
+describe('gem text stat-token drift guard', () => {
+  for (const gem of Object.values(gemBook)) {
+    // `Gem` is a union: stat gems carry `mods`, not `actions`, and their
+    // "Passive: hero +4 SPD" text names a stat that is not a scaling term.
+    if (gem.kind !== 'effect') continue;
+    const actions: readonly Action[] = gem.actions;
+    if (!actions.length) continue;
+    it(`${gem.id}: names the stat pair its ROLE actually scales off`, () => {
+      assertStatTokens(gem.id, gem.text, actions);
+      const hasDefense = actions.some((a) => a.kind === 'shield' || a.kind === 'heal');
+      const hasOffense = actions.some((a) => a.kind === 'damage');
+      if (hasDefense && !hasOffense) {
+        expect(
+          gem.text.includes('(+ATK/MATK)'),
+          `${gem.id}: defensive gem names the offensive pair: "${gem.text}"`,
+        ).toBe(false);
+      }
+      if (hasOffense && !hasDefense) {
+        expect(
+          gem.text.includes('(+DEF/MDEF)'),
+          `${gem.id}: offensive gem names the defensive pair: "${gem.text}"`,
+        ).toBe(false);
+      }
+    });
   }
 });

@@ -130,11 +130,11 @@ a sentence: **how much, boosted by what, of what kind.**
 | `damage` (physical, weapon) | `Deal {power} (+ATK) {Weapon} damage.` — `{Weapon}` is the capitalized weapon noun (Sword/Axe/Lance/Bow/Beast). |
 | `damage` (magical, element) | `Deal {power} (+MATK) {Element} damage.` — `{Element}` is the capitalized element noun (Fire/Lightning/Nature/Frost/Holy/Dark). |
 | `damage` (true) | `Deal {power} (+best stat) TRUE damage — ignores DEF/MDEF.` |
-| `heal` (physical) | `Restore {power} (+ATK) HP.` |
-| `heal` (magical) | `Restore {power} (+MATK) HP.` |
+| `heal` (physical) | `Restore {power} (+DEF) HP.` — healing is DEFENSIVE output, so it scales off Armor, not Attack (see the role note below). |
+| `heal` (magical) | `Restore {power} (+MDEF) HP.` — likewise Magic Resist, not Magic Power. |
 | `heal` (true) | `Restore {power} HP.` (or `Restore {power} TRUE HP.` when a card already spells out "TRUE" for flavor emphasis) — no stat clause; the omitted "(+stat)" is what signals it's flat (per §3). |
-| `shield` (physical) | `Gain {power} (+ATK) physical shield.` — "physical shield" already implies it blocks physical only; don't restate it. |
-| `shield` (magical) | `Gain {power} (+MATK) magical shield.` — likewise; the type name carries the blocking rule. |
+| `shield` (physical) | `Gain {power} (+DEF) physical shield.` — "physical shield" already implies it blocks physical only; don't restate it. Scales off Armor, not Attack (see the role note below). |
+| `shield` (magical) | `Gain {power} (+MDEF) magical shield.` — likewise; the type name carries the blocking rule. Scales off Magic Resist, not Magic Power. |
 | `shield` (true) | `Gain {power} TRUE shield — blocks all damage types.` (flavor may extend this, e.g. `"— blocks TRUE damage fully; physical/magical drain it 2:1."`) |
 | `poison` | `Poison {stacks} stacks ({turns} turns).` — each stack deals damage scaling with your scaling stat; append `(poison bypasses shields)` the first/only time a card introduces poison, to disambiguate from burn. |
 | `burn` | `Burn {stacks} stacks ({turns} turns).` |
@@ -149,9 +149,30 @@ a sentence: **how much, boosted by what, of what kind.**
 | `negate` | `Negate the next {charges} {magical} attack(s).` — name the `property` in lowercase ("physical"/"magical"), or say "any" for TRUE. Singular "attack" and NO numeral if `charges` = 1 (the drift guard exempts `charges = 1`, mirroring `stun`). |
 
 Examples from the live card set: `arcane_bolt` → `"Deal 18 (+MATK) Lightning
-damage."`; `mending_light` → `"Restore 48 (+MATK) HP."`; `iron_bulwark` →
-`"Gain 48 (+ATK) physical shield."`; `soul_rend` → `"Deal 27 (+best stat)
+damage."`; `mending_light` → `"Restore 48 (+MDEF) HP."`; `iron_bulwark` →
+`"Gain 48 (+DEF) physical shield."`; `soul_rend` → `"Deal 27 (+best stat)
 TRUE damage — ignores DEF/MDEF."`
+
+#### Which stat token: the ROLE picks the side, the property picks the stat
+
+The `(+STAT)` token is NOT a function of the card's `property` alone. The
+card's `property` picks WHICH stat; the ROLE of that clause picks WHICH SIDE
+of the stat sheet to read (user-approved 2026-08-04, engine commit `9960720`;
+`scaleStat` / `scaleDefStat` in `src/engine/combat/interpreter.ts`):
+
+| Clause role | physical | magical | TRUE |
+|---|---|---|---|
+| OFFENSE — `damage` | `(+ATK)` | `(+MATK)` | `(+best stat)` |
+| DEFENSE — `shield`, `heal` | `(+DEF)` | `(+MDEF)` | *no token* (flat by identity) |
+
+Two consequences worth stating, because both look like mistakes and are not:
+
+- **One card may carry two different tokens.** A card that attacks *and*
+  shields correctly reads `"Deal 20 (+ATK) Sword damage · Gain 18 (+DEF)
+  physical shield."` The tokens differ because the roles differ.
+- **The token is not a re-price.** ATK/MATK/DEF/MDEF all cost 1 PL per +1
+  and all start at 1, so the output bought per PL spent is unchanged — only
+  WHICH stat buys it moves. Never "rebalance" a card because its token changed.
 
 ### Riders
 
@@ -167,16 +188,17 @@ TRUE damage — ignores DEF/MDEF."`
 
 Gems append a `damage`/`heal`/`shield` action onto whichever card they're
 socketed into, so a gem's own text can't name a specific stat — it inherits
-the HOST CARD's scaling stat (ATK for physical, MATK for magical, the
-higher of the two for TRUE) at cast time. The old `"(+stat)"` placeholder
+the HOST CARD's scaling stat at cast time, resolved by the same ROLE rule as
+main-card text: a `damage` gem reads ATK/MATK (higher of the two for TRUE),
+while a `heal`/`shield` gem reads DEF/MDEF. The old `"(+stat)"` placeholder
 read like a raw variable name; the fix keeps the same number-first shape as
 main-card text but spells out both stats the gem could possibly scale with:
 
 | Gem action | Template |
 |---|---|
 | `damage` | `Also +{power} damage (+ATK/MATK).` |
-| `heal` | `Also +{power} HP (+ATK/MATK).` |
-| `shield` | `Also +{power} shield (+ATK/MATK).` |
+| `heal` | `Also +{power} HP (+DEF/MDEF).` |
+| `shield` | `Also +{power} shield (+DEF/MDEF).` |
 
 Non-scaling gem riders (poison/burn/slow/disrupt/lifesteal/shieldBreak/
 debuffStat/comboBonus/guard) are untouched by this pass — their existing
