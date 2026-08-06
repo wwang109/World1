@@ -1,4 +1,4 @@
-import type { Rect } from './runScreenTemplate';
+import type { Rect, RunTemplatePlatform } from './runScreenTemplate';
 
 /**
  * Pure geometry for the reward template's `feature` slot — shared by
@@ -15,6 +15,22 @@ import type { Rect } from './runScreenTemplate';
  */
 
 export interface Box { x: number; y: number; w: number; h: number }
+
+/**
+ * Ideal (never-exceeded) feature-visual size for a reward/bonus-draft CARD,
+ * per platform. Lives here (moved 2026-08-06, was a same-named literal
+ * inside `RunRewardPanel.ts`) so `RunRewardPanel.ts` and
+ * `tests/game/runRewardGeometry.test.ts`'s "real reward feature rect"
+ * checks share the ONE constant — drift between the renderer and the test
+ * that's supposed to catch its regressions is no longer possible by
+ * construction. `RunRewardPanel.ts`'s own doc comment (`renderFeature`)
+ * explains WHY these are ~35% larger than the card's natural board-slot size;
+ * this is just the value, kept next to the pure geometry that consumes it.
+ */
+export const FEATURE_CARD_SIZE: Record<RunTemplatePlatform, { w: number; h: number }> = {
+  desktop: { w: 192, h: 315 },
+  mobile: { w: 170, h: 279 },
+};
 
 /** Centers a `{w,h}` box (clamped to never exceed `rect`) inside `rect`,
  * returning its top-left — the one place that does this arithmetic, so every

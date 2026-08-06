@@ -31,7 +31,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { addRunArt, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { setDeckBuildContext } from '../deckBuildContext';
-import { rebuildScene } from '../sceneRebuild';
+import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 
 /** Structural shape shared by `ShopShelfState` (demoState) and `RunShopShelf`
@@ -348,8 +348,8 @@ export class DesktopShopScene extends Phaser.Scene {
     if (this.retireConfirmOpen) {
       renderRetireConfirm(this, {
         compact: false,
-        onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
-        onConfirm: () => { retireActiveRun(); this.scene.start('DesktopRunMap'); },
+        onCancel: (pointer) => { this.consumePointer(pointer); this.retireConfirmOpen = false; this.rerender(); },
+        onConfirm: (pointer) => { this.consumePointer(pointer); retireActiveRun(); this.scene.start('DesktopRunMap'); },
       });
     }
   }
@@ -412,7 +412,13 @@ export class DesktopShopScene extends Phaser.Scene {
         .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true });
       cell.on('pointerover', () => cell.setStrokeStyle(2, UI.chip, 1));
       cell.on('pointerout', () => cell.setStrokeStyle(1, UI.border, 0.8));
-      cell.on('pointerdown', () => {
+      // CONFIRMED INSTANCE (#22, audit 2026-08): entering a shop rebuilds the
+      // scene into the shelf+BOARD/BAG layout — a storefront tile's own pixel
+      // can land on a shelf/board/bag card in that FRESH layout, and the
+      // rebuild's freshly re-registered wireDrag pointerdown listener would
+      // "discover" it. See `consumedPointerAt`'s doc comment.
+      cell.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        this.consumePointer(pointer);
         playSfx('uiClick');
         ensureShelf(id);
         this.selectedShop = id;
@@ -463,7 +469,7 @@ export class DesktopShopScene extends Phaser.Scene {
       const backW = 90;
       const back = this.add.rectangle(gx, top, backW, 28, UI.panelAlt).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
       this.add.text(gx + backW / 2, top + 14, '‹ SHOPS', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }).setOrigin(0.5);
-      back.on('pointerdown', () => { playSfx('uiBack'); this.selectedShop = null; this.rerender(); });
+      back.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiBack'); this.selectedShop = null; this.rerender(); });
       titleX = gx + backW + 16;
     }
     this.add.text(titleX, top, shop.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent });
@@ -488,7 +494,7 @@ export class DesktopShopScene extends Phaser.Scene {
       }).setOrigin(0.5);
       if (canReroll) {
         reroll.setInteractive({ useHandCursor: true });
-        reroll.on('pointerdown', () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
+        reroll.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });
       }
     }
 
@@ -586,7 +592,7 @@ export class DesktopShopScene extends Phaser.Scene {
         const gem = gemBook[offer.gemId]!;
         const cell = A(this.add.rectangle(cx, cy, gemW, gemH, UI.panel, 0.94)
           .setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8).setInteractive({ useHandCursor: true }));
-        cell.on('pointerdown', () => { playSfx('uiClick'); this.detailGemIndex = i; this.rerender(); });
+        cell.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiClick'); this.detailGemIndex = i; this.rerender(); });
         A(this.add.rectangle(cx + 22, cy + 22, 14, 14, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45));
         A(this.add.text(cx + 38, cy + 12, gem.name, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }));
         const body = A(this.add.text(cx + 16, cy + 40, stripCardTextMarkup(gem.text), {
@@ -906,7 +912,7 @@ export class DesktopShopScene extends Phaser.Scene {
     this.add.text(centerX, btnY + 20, label, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: canBuy ? UI.textOnChip : UI.textSoft }).setOrigin(0.5);
     if (canBuy) {
       btn.setInteractive({ useHandCursor: true });
-      btn.on('pointerdown', () => { playSfx('uiClick'); this.pendingBuy = { kind: 'card', index: this.detailCardIndex! }; this.rerender(); });
+      btn.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiClick'); this.pendingBuy = { kind: 'card', index: this.detailCardIndex! }; this.rerender(); });
     }
   }
 
@@ -940,7 +946,7 @@ export class DesktopShopScene extends Phaser.Scene {
     }).setOrigin(0.5);
     if (affordable) {
       btn.setInteractive({ useHandCursor: true });
-      btn.on('pointerdown', () => { playSfx('uiClick'); this.pendingBuy = { kind: 'gem', index: this.detailGemIndex! }; this.rerender(); });
+      btn.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiClick'); this.pendingBuy = { kind: 'gem', index: this.detailGemIndex! }; this.rerender(); });
     }
   }
 
@@ -993,6 +999,11 @@ export class DesktopShopScene extends Phaser.Scene {
       // physical click (and likely just closed the dialog + rebuilt the
       // scene); don't ALSO reinterpret it as a fresh board/bag hit-test.
       if (p.downTime === this.consumedPointerAt) return;
+      // Structural backstop (sceneRebuild.ts) — catches any rerender()-calling
+      // handler that forgot the manual `consumePointer()` call above (e.g. the
+      // storefront shop tiles, which have no dialog to guard behind a state
+      // flag at all — see `renderStorefront`).
+      if (wasPointerConsumedByRebuild(this, p)) return;
       if (this.pendingBuy || this.pendingSell || this.retireConfirmOpen) return;
       // A shelfCard's registered bounds are its UNCLIPPED position inside the
       // scrollable container — a card scrolled below the masked viewport

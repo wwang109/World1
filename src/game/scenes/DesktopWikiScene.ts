@@ -11,7 +11,7 @@ import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, TIER_COLOR, UI } from '../theme';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
-import { rebuildScene } from '../sceneRebuild';
+import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 
 const F = DESKTOP_PROFILE.font;
 const SLOTS = 10;
@@ -317,6 +317,12 @@ export class DesktopWikiScene extends Phaser.Scene {
     let startScroll = 0;
     let totalMove = 0;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      // See `wasPointerConsumedByRebuild` (sceneRebuild.ts) — the CARDS/GEMS
+      // and ALL/WEAPON/MAGIC filter chips (`renderFilterRow`) call
+      // `rerender()` from their own pointerdown handler; without this, a
+      // rebuild-timed click landing inside the (freshly laid out) gallery
+      // viewport would immediately start a phantom scroll-drag / tap-select.
+      if (wasPointerConsumedByRebuild(this, p)) return;
       if (!this.inViewport(p.worldX, p.worldY)) return;
       dragging = true;
       startY = p.worldY; startX = p.worldX; startScroll = this.scrollY; totalMove = 0;

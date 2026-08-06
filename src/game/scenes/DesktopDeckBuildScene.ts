@@ -22,7 +22,7 @@ import { powerLevelEntry } from '../ui/cardGlossary';
 import { renderCardInfoBox } from '../ui/cardInfoBox';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { STAT_TOKEN } from '../ui/statLabels';
-import { rebuildScene } from '../sceneRebuild';
+import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
@@ -127,6 +127,10 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     if (this.pendingMerge) this.renderMergeConfirm();
     if (this.socketFor) this.renderSocketPanel();
     if (this.retireConfirmOpen) {
+      // `onCancel`/`onConfirm` don't need to manually consume the pointer
+      // here (unlike the shop scenes) — this scene's `wireDrag` guards on
+      // `wasPointerConsumedByRebuild` instead, which `rebuildScene()` (called
+      // by `this.rerender()`) stamps automatically. See wireDrag's comment.
       renderRetireConfirm(this, {
         compact: false,
         onCancel: () => { this.retireConfirmOpen = false; this.rerender(); },
@@ -163,7 +167,17 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     let totalMove = 0;
     let start = { x: 0, y: 0 };
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.pendingTrash || this.pendingMerge || this.socketFor) return; // dialog/panel owns input
+      // CONFIRMED INSTANCE (audit 2026-08, previously unguarded): this scene
+      // has NO manual `consumedPointerAt` field at all, unlike the shop
+      // scenes — every dialog below (TRASH/MERGE/socket panel/RETIRE) closes
+      // via `this.rerender()` from its OWN pointerdown handler, which
+      // re-registers THIS listener before Phaser's scene-level POINTER_DOWN
+      // for that same click fires (see `wasPointerConsumedByRebuild`'s doc
+      // comment, sceneRebuild.ts). The state-flag check below does NOT catch
+      // this — the flag is cleared in the same synchronous handler, before
+      // the rebuild. This structural guard is what actually protects it.
+      if (wasPointerConsumedByRebuild(this, p)) return;
+      if (this.pendingTrash || this.pendingMerge || this.socketFor || this.retireConfirmOpen) return; // dialog/panel owns input
       const hit = this.draggables.find((d) => d.bounds.contains(p.worldX, p.worldY));
       if (!hit) return;
       dragging = { token: hit.token, src: hit.src, home: { x: hit.token.x, y: hit.token.y } };

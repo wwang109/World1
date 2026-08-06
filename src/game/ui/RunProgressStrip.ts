@@ -362,17 +362,31 @@ export function renderRunStatsStrip(scene: Phaser.Scene, opts: RunStatsStripOpti
   scene.add.rectangle(content.x, dividerY, content.width, 1, UI.border, 0.55).setOrigin(0, 0);
 }
 
-/** RETIRE confirm — a scrim + 2-button dialog, shared by every screen that
- * exposes the tertiary RETIRE action. Callers own the open/close boolean. */
+/**
+ * RETIRE confirm — a scrim + 2-button dialog, shared by every screen that
+ * exposes the tertiary RETIRE action. Callers own the open/close boolean.
+ *
+ * `onCancel`/`onConfirm` receive the triggering `Phaser.Input.Pointer` — NOT
+ * decorative. On any screen with a scene-level generic `pointerdown` listener
+ * that hit-tests fresh content (drag wiring, etc.), that listener re-fires for
+ * the SAME physical click once this dialog's own handler closes it via
+ * `rerender()` (see `sceneRebuild.ts`'s `wasPointerConsumedByRebuild` doc
+ * comment — this is the exact mechanism CONFIRMED INSTANCE #20, audit
+ * 2026-08, found here). `rebuildScene()` now stamps that pointer
+ * automatically, so most callers need do nothing further; callers that keep
+ * their OWN manual `consumedPointerAt` guard (the shop scenes) should still
+ * call `this.consumePointer(pointer)` here for consistency with that
+ * screen's documented contract.
+ */
 export function renderRetireConfirm(
   scene: Phaser.Scene,
-  opts: { compact: boolean; onConfirm: () => void; onCancel: () => void },
+  opts: { compact: boolean; onConfirm: (pointer: Phaser.Input.Pointer) => void; onCancel: (pointer: Phaser.Input.Pointer) => void },
 ): void {
   const platform = opts.compact ? 'mobile' : 'desktop';
   const t = runScreenTemplate(platform);
   const { width: W, height: H } = t.canvas;
   scene.add.rectangle(0, 0, W, H, UI.shadow, 0.78).setOrigin(0, 0).setInteractive().setDepth(6000)
-    .on('pointerdown', opts.onCancel);
+    .on('pointerdown', (pointer: Phaser.Input.Pointer) => opts.onCancel(pointer));
 
   const pw = Math.min(W - 40, opts.compact ? W - 32 : 440);
   const ph = opts.compact ? 168 : 176;
@@ -396,7 +410,7 @@ export function renderRetireConfirm(
   scene.add.text(px + 24 + btnW / 2, btnY + 20, 'CANCEL', {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${bodySize}px`, color: UI.text,
   }).setOrigin(0.5).setDepth(6002);
-  cancelBtn.on('pointerdown', opts.onCancel);
+  cancelBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => opts.onCancel(pointer));
 
   const retireX = px + 24 + btnW + 12;
   const retireBtn = scene.add.rectangle(retireX, btnY, btnW, 40, UI.bad, 1).setOrigin(0, 0)
@@ -404,5 +418,5 @@ export function renderRetireConfirm(
   scene.add.text(retireX + btnW / 2, btnY + 20, 'RETIRE', {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${bodySize}px`, color: '#2a0d06',
   }).setOrigin(0.5).setDepth(6002);
-  retireBtn.on('pointerdown', opts.onConfirm);
+  retireBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => opts.onConfirm(pointer));
 }

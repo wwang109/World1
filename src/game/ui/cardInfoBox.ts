@@ -3,6 +3,7 @@ import type { SkillDef } from '../../engine/types';
 import { FONT, UI } from '../theme';
 import { stripCardTextMarkup } from './cardTextMarkup';
 import { cardGlossaryEntries } from './cardHoverEntries';
+import { wasPointerConsumedByRebuild } from '../sceneRebuild';
 
 /**
  * "What this card does" block: the full markup-stripped skill text, then a
@@ -70,6 +71,12 @@ export function renderCardInfoBox(
   let startScroll = 0;
   const inBox = (px: number, py: number): boolean => px >= x && px <= x + w && py >= y && py <= y + h;
   scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+    // See `wasPointerConsumedByRebuild` (sceneRebuild.ts) — this box is
+    // mounted inside dialogs (gem socket panel, card detail, …) that a
+    // sibling button can close via `rerender()`; without this, that same
+    // click can start a phantom scroll-drag over whatever now sits at this
+    // pixel in the rebuilt frame.
+    if (wasPointerConsumedByRebuild(scene, p)) return;
     if (!inBox(p.worldX, p.worldY)) return;
     dragging = true;
     startY = p.worldY;

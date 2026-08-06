@@ -10,7 +10,7 @@ import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { addHoverTipZone } from './hoverTip';
 import { gemHoverEntry } from './gemGlossary';
 import { addRunArt, choiceArtKey } from './runArt';
-import { centeredBox, layoutFeatureGrid } from './runRewardGeometry';
+import { centeredBox, FEATURE_CARD_SIZE, layoutFeatureGrid } from './runRewardGeometry';
 import type { RunRewardFeature, RunRewardViewModel } from './runRewardViewModel';
 import type { Rect, RunScreenTemplate, RunTemplatePlatform } from './runScreenTemplate';
 
@@ -26,14 +26,16 @@ import type { Rect, RunScreenTemplate, RunTemplatePlatform } from './runScreenTe
  * panel's documented "feature gets whatever's left, never a fixed ceiling"
  * invariant — and every existing containment/gap test on that rect — intact;
  * on a genuinely small `feature` rect this still clamps down exactly as
- * before. Also doubles as the per-card ideal size for the bonus-draft grid
- * (`renderRunBonusDraftPicker` below), so a reward card and a draft-pick card
- * read as the same visual weight.
+ * before.
+ *
+ * The CARD variant (`FEATURE_CARD_SIZE`) lives in `runRewardGeometry.ts`
+ * instead of here — it's imported above — because that pure module also
+ * doubles as the per-card ideal size for the bonus-draft grid
+ * (`renderRunBonusDraftPicker` below, so a reward card and a draft-pick card
+ * read as the same visual weight) and is unit-tested directly against the
+ * template's real `feature` rects in `tests/game/runRewardGeometry.test.ts` —
+ * a single source of truth instead of a hand-synced duplicate.
  */
-const FEATURE_CARD_SIZE: Record<RunTemplatePlatform, { w: number; h: number }> = {
-  desktop: { w: 192, h: 315 },
-  mobile: { w: 170, h: 279 },
-};
 const FEATURE_GEM_CHIP_SIZE: Record<RunTemplatePlatform, { w: number; h: number }> = {
   desktop: { w: 351, h: 76 },
   mobile: { w: 351, h: 70 },

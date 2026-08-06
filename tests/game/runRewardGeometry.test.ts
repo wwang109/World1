@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { centeredBox, layoutFeatureGrid, type Box } from '../../src/game/ui/runRewardGeometry';
+import { DESKTOP_PROFILE, MOBILE_PROFILE } from '../../src/game/layoutProfile';
+import { centeredBox, FEATURE_CARD_SIZE, layoutFeatureGrid, type Box } from '../../src/game/ui/runRewardGeometry';
 import { runScreenTemplate, type Rect } from '../../src/game/ui/runScreenTemplate';
 
 function within(inner: Box, outer: Rect): boolean {
@@ -144,29 +145,59 @@ describe('layoutFeatureGrid', () => {
   });
 
   // Integration check against the REAL reward `feature` rects (pure geometry,
-  // no Phaser) — proves the bonus-draft picker's actual inputs (both
-  // platforms' template + BONUS_DRAFT_SIZE=5, src/run/events.ts) never
-  // overflow the panel, using the same ~35%-scaled-up ideal card size
-  // `RunRewardPanel.ts`'s `FEATURE_CARD_SIZE` uses (kept in sync by hand,
-  // since that constant lives in a Phaser-importing module this pure test
-  // can't import directly).
-  const IDEAL_CARD: Record<'desktop' | 'mobile', { w: number; h: number }> = {
-    desktop: { w: 192, h: 315 },
-    mobile: { w: 170, h: 279 },
-  };
-  const GRID_GAP: Record<'desktop' | 'mobile', number> = { desktop: 12, mobile: 8 };
+  // no Phaser). `FEATURE_CARD_SIZE` is imported straight from
+  // `runRewardGeometry.ts` (the same constant `RunRewardPanel.ts` imports),
+  // and the gap comes from the platform's own `layoutProfile.ts` — no
+  // hand-typed duplicate of either value exists anywhere, so drift between
+  // this test and the real renderer's inputs is impossible by construction.
+  //
+  // NOTE on what this can and can't catch: `layoutFeatureGrid` is DESIGNED
+  // to never overflow or overlap regardless of how large `idealW`/`idealH`
+  // are (see "degrades gracefully" and "never scales a cell up" above) — so
+  // a bare containment/non-overlap check can NEVER go red from a bad
+  // `FEATURE_CARD_SIZE`, no matter how the constant is wired up; an
+  // oversized ideal just gets scaled down harder, silently. To make this
+  // test actually sensitive to `FEATURE_CARD_SIZE` drift, it also pins
+  // today's REAL relationship between the ideal size and each platform's
+  // real rect: desktop's `feature` is spacious enough that 5 cards at the
+  // real ideal size fit in one UNSCALED row, and mobile's is narrow enough
+  // that they wrap to (at least) 2 columns. Both facts flip if
+  // `FEATURE_CARD_SIZE` is bumped past what the real rect can hold that way.
+  const GRID_GAP: Record<'desktop' | 'mobile', number> = { desktop: DESKTOP_PROFILE.gap, mobile: MOBILE_PROFILE.gap };
   const BONUS_DRAFT_SIZE = 5;
 
-  for (const platform of ['desktop', 'mobile'] as const) {
-    it(`${platform}: a real ${BONUS_DRAFT_SIZE}-card bonus-draft grid fits wholly inside the template's feature rect`, () => {
-      const feature = runScreenTemplate(platform).contentSlots.reward.feature;
-      const ideal = IDEAL_CARD[platform];
-      const cells = layoutFeatureGrid(feature, BONUS_DRAFT_SIZE, ideal.w, ideal.h, GRID_GAP[platform]);
-      expect(cells).toHaveLength(BONUS_DRAFT_SIZE);
-      for (const cell of cells) expect(within(cell, feature)).toBe(true);
-      for (let i = 0; i < cells.length; i++) {
-        for (let j = i + 1; j < cells.length; j++) expect(overlaps(cells[i]!, cells[j]!)).toBe(false);
-      }
-    });
-  }
+  it('desktop: a real 5-card bonus-draft grid fits wholly inside the feature rect, unscaled, on one row', () => {
+    const feature = runScreenTemplate('desktop').contentSlots.reward.feature;
+    const ideal = FEATURE_CARD_SIZE.desktop;
+    const cells = layoutFeatureGrid(feature, BONUS_DRAFT_SIZE, ideal.w, ideal.h, GRID_GAP.desktop);
+    expect(cells).toHaveLength(BONUS_DRAFT_SIZE);
+    for (const cell of cells) expect(within(cell, feature)).toBe(true);
+    for (let i = 0; i < cells.length; i++) {
+      for (let j = i + 1; j < cells.length; j++) expect(overlaps(cells[i]!, cells[j]!)).toBe(false);
+    }
+    // Load-bearing on FEATURE_CARD_SIZE.desktop: today it fits one row,
+    // unscaled — bump it past what 1376px-wide rect holds in a single row
+    // and both of these go red.
+    for (const cell of cells) {
+      expect(cell.w).toBe(ideal.w);
+      expect(cell.h).toBe(ideal.h);
+    }
+    expect(new Set(cells.map((c) => c.y)).size).toBe(1);
+  });
+
+  it('mobile: a real 5-card bonus-draft grid fits wholly inside the feature rect, wrapped into columns', () => {
+    const feature = runScreenTemplate('mobile').contentSlots.reward.feature;
+    const ideal = FEATURE_CARD_SIZE.mobile;
+    const cells = layoutFeatureGrid(feature, BONUS_DRAFT_SIZE, ideal.w, ideal.h, GRID_GAP.mobile);
+    expect(cells).toHaveLength(BONUS_DRAFT_SIZE);
+    for (const cell of cells) expect(within(cell, feature)).toBe(true);
+    for (let i = 0; i < cells.length; i++) {
+      for (let j = i + 1; j < cells.length; j++) expect(overlaps(cells[i]!, cells[j]!)).toBe(false);
+    }
+    // Load-bearing on FEATURE_CARD_SIZE.mobile: today's real ideal size
+    // wraps into (at least) 2 columns, so the first two cards share a row —
+    // bump the ideal past what the 392px-wide rect can fit two-abreast and
+    // this collapses to a single column, going red.
+    expect(cells[0]!.y).toBe(cells[1]!.y);
+  });
 });

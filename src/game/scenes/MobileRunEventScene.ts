@@ -13,7 +13,7 @@ import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
 import { renderRunBonusDraftPicker, renderRunRewardPanel } from '../ui/RunRewardPanel';
 import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
-import { rebuildScene } from '../sceneRebuild';
+import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   applyCurrentBonusDraftPick,
@@ -201,6 +201,10 @@ export class MobileRunEventScene extends Phaser.Scene {
         px >= innerX && px <= innerX + innerW && py >= bodyBoxTop && py <= bodyBoxTop + boxH
       );
       this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+        // See `wasPointerConsumedByRebuild` (sceneRebuild.ts) — RETIRE/DECK
+        // actions in the HUD (and the choice rows themselves) call
+        // `rerender()` from their own pointerdown handler.
+        if (wasPointerConsumedByRebuild(this, p)) return;
         if (!inBox(p.worldX, p.worldY)) return;
         dragging = true; startY = p.worldY; startScroll = scrollY;
       });

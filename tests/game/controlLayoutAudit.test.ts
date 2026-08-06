@@ -58,20 +58,36 @@ function makeTextStub(initial: string, opts: { widthPerChar: number; fontSensiti
 }
 
 describe('game/ui/controlLayoutAudit: auditTextBlock (node-side, no DOM)', () => {
-  it('passed is false when truncation keeps under a third of the string ("gutted") — the reported bug', () => {
+  it('GUT_RATIO is the ONLY thing making passed false: a width-only gutting case that already fits vertically', () => {
     // Width is font-size-independent here, so the shrink loop cannot help —
     // only truncation can, and truncation has to cut almost everything to
     // reach `maxWidth`. This is the exact shape of the reported bug: a
     // "REWARD - Choose a card from the shop for free" line collapsing to "R…".
+    //
+    // Crucially, `maxHeight` is generous and the stub's `height` never
+    // changes with truncation, so the HEIGHT clause of `passed` is satisfied
+    // throughout — and we assert the WIDTH clause explicitly too, once
+    // truncation is done. That isolates `gutted` as the only remaining thing
+    // that can flip `passed` to false: proven below by asserting `width` and
+    // `height` are independently within bounds BEFORE asserting `passed` is
+    // false. (Sanity check: set GUT_RATIO = 0 in controlLayoutAudit.ts and
+    // this test goes red — unlike the height-only scenario below, which
+    // stays green under GUT_RATIO = 0 because it fails on the height clause
+    // alone.)
     const before = 'REWARD - Choose a card from the shop for free this run';
     const widthPerChar = 6;
     const text = makeTextStub(before, { widthPerChar });
     // Only ~10% of the string can survive at this maxWidth.
     const maxWidth = Math.floor((before.length * widthPerChar) / 10);
-    const result = auditTextBlock(text, { name: 'reward-choice', maxWidth, maxHeight: 200 });
+    const maxHeight = 200;
+    const result = auditTextBlock(text, { name: 'reward-choice', maxWidth, maxHeight });
     expect(result.truncated).toBe(true);
-    expect(result.passed).toBe(false);
+    // Both bare clauses hold on their own — width and height both fit — so
+    // the only remaining lever for `passed` is the gutting check.
+    expect(result.width).toBeLessThanOrEqual(maxWidth);
+    expect(result.height).toBeLessThanOrEqual(maxHeight);
     expect(text.text.replace(/…$/, '').length / before.length).toBeLessThan(1 / 3);
+    expect(result.passed).toBe(false);
   });
 
   it('passed is true for a mild tail trim — most of the string survives', () => {
@@ -138,9 +154,15 @@ describe('game/ui/controlLayoutAudit: auditTextBlock (node-side, no DOM)', () =>
     // `truncateOverflowText` still fires — uselessly chewing through a
     // string that already fit on width, all the way down to one character,
     // because nothing it does can ever satisfy the height side of `overflow`.
-    // This is exactly the bug GUT_RATIO exists to catch: the box needs to be
-    // TALLER, not the string shorter, and `passed: false` must say so instead
-    // of reporting a fitted "R…" as a success.
+    //
+    // NOTE: this scenario's `passed: false` comes from the plain HEIGHT
+    // clause of `passed` (`height <= options.maxHeight`) — the stub's
+    // height is a fixed 40 against a maxHeight of 20, so this fails
+    // regardless of `gutted`/GUT_RATIO. It is NOT a GUT_RATIO regression
+    // test (see the case above for that); it is here to pin the OTHER half
+    // of the original incident — truncation firing uselessly against a
+    // height-only overflow, right down to one character, and the result
+    // still correctly reporting failure instead of a false "R…" pass.
     const before = 'REWARD - Choose a card from the shop for free this run';
     const text = makeTextStub(before, { widthPerChar: 2, height: 40 }); // plenty of width headroom
     const result = auditTextBlock(text, { name: 'reward-detail', maxWidth: 400, maxHeight: 20 });

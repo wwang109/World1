@@ -140,12 +140,17 @@ function assertStatTokens(label: string, text: string, effects: readonly Action[
  * phrasing is a real overclaim, not a harmless generalization.
  *
  * Scoped to TRUE specifically: that's the exact shape of the shipped bug (a
- * single-property effect described as blanket coverage). Neither of the two
- * live TRUE-scoped instances of this style guide date (`purify_echo`) had a
- * numeric mismatch — the numbers were right, the CLAIM was wrong — so the
- * drift guard above had nothing to catch it. This is deliberately a stronger
- * check than "words present"; it fails on the literal universal words the
- * style guide bans, not on the property name being absent.
+ * single-property effect described as blanket coverage). There is exactly
+ * ONE live TRUE-scoped guard/negate in the game today (the gem
+ * `purify_echo`) — every other guard/negate is physical- or magical-scoped
+ * and short-circuits out of this check before the assertion below ever runs.
+ * That one instance had no numeric mismatch — the number was right, the
+ * CLAIM was wrong — so the drift guard above had nothing to catch it. This
+ * check is deliberately stronger than "words present" (it fails on the
+ * literal universal words the style guide bans, not on the property name
+ * being absent), but be clear-eyed about its coverage: it is a single-case
+ * regression pin for `purify_echo`, not a broad audit of guard/negate
+ * phrasing across the catalog — it only ever gets to fire once.
  */
 function assertNoUniversalGuardNegateOverclaim(label: string, text: string, effects: readonly Action[]): void {
   const trueScoped = effects.some((e) => (e.kind === 'guard' || e.kind === 'negate') && e.property === 'true');

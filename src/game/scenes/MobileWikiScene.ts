@@ -12,7 +12,7 @@ import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, TIER_COLOR, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
-import { rebuildScene } from '../sceneRebuild';
+import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 
 const F = MOBILE_PROFILE.font;
 const SLOTS = 10;
@@ -308,6 +308,17 @@ export class MobileWikiScene extends Phaser.Scene {
     let startScroll = 0;
     let totalMove = 0;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      // See `wasPointerConsumedByRebuild` (sceneRebuild.ts) — the CARDS/GEMS
+      // and ALL/WEAPON/MAGIC filter chips (`renderFilterBand`) call
+      // `rerender()` from their own pointerdown handler; without this, a
+      // rebuild-timed click landing inside the (freshly laid out) catalog
+      // viewport would immediately start a phantom scroll-drag / tap-select.
+      // (`this.detailOpen` below is a plain, correctly-timed guard — opening/
+      // closing the detail overlay does NOT rebuild the scene, so this
+      // listener is never re-registered mid-click for that flow; the veil's
+      // own pointerdown separately guards THAT case with
+      // `event.stopPropagation()` — see `renderCardDetail`/`renderGemDetail`.)
+      if (wasPointerConsumedByRebuild(this, p)) return;
       if (this.detailOpen) return;
       const { top, height } = this.viewport;
       if (p.worldY < top || p.worldY > top + height) return;
@@ -401,7 +412,19 @@ export class MobileWikiScene extends Phaser.Scene {
     if (!skill) return;
     const objs: Phaser.GameObjects.GameObject[] = [];
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setDepth(3000).setInteractive();
-    veil.on('pointerdown', () => { playSfx('uiBack'); this.closeDetail(); });
+    // ADJACENT FINDING (audit 2026-08, same sweep as `wasPointerConsumedByRebuild`):
+    // this handler mutates `detailOpen` to false WITHOUT a scene rebuild — the
+    // scene-level `wireScroll` pointerdown listener is the SAME (never
+    // re-registered) one, but it re-evaluates `this.detailOpen` for THIS same
+    // click right after this handler runs, now sees it false, and can start a
+    // phantom scroll-drag that reopens a detail panel on release. The
+    // sibling `close` button below already guards this correctly via
+    // `event.stopPropagation()` — mirror it here.
+    veil.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      playSfx('uiBack');
+      this.closeDetail();
+    });
     objs.push(veil);
 
     const close = this.add.rectangle(this.W - 30, 46, 28, 28, 0x24344a, 1)
@@ -503,7 +526,19 @@ export class MobileWikiScene extends Phaser.Scene {
     if (!gem) return;
     const objs: Phaser.GameObjects.GameObject[] = [];
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setDepth(3000).setInteractive();
-    veil.on('pointerdown', () => { playSfx('uiBack'); this.closeDetail(); });
+    // ADJACENT FINDING (audit 2026-08, same sweep as `wasPointerConsumedByRebuild`):
+    // this handler mutates `detailOpen` to false WITHOUT a scene rebuild — the
+    // scene-level `wireScroll` pointerdown listener is the SAME (never
+    // re-registered) one, but it re-evaluates `this.detailOpen` for THIS same
+    // click right after this handler runs, now sees it false, and can start a
+    // phantom scroll-drag that reopens a detail panel on release. The
+    // sibling `close` button below already guards this correctly via
+    // `event.stopPropagation()` — mirror it here.
+    veil.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      playSfx('uiBack');
+      this.closeDetail();
+    });
     objs.push(veil);
 
     const close = this.add.rectangle(this.W - 30, 46, 28, 28, 0x24344a, 1)
