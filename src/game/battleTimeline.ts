@@ -271,6 +271,39 @@ function explainStatus(e: Extract<CombatEvent, { kind: 'statusApplied' }>): stri
   }
 }
 
+/**
+ * Property-qualified GUARD token, mirroring `shieldToken`'s P./M./T. split.
+ *
+ * A `guard` carries its OWN `property` (engine `Action` union, src/engine/types.ts)
+ * and reduces ONLY incoming damage of that property — and it is NOT inferable
+ * from the card's property, because a gem can graft a differently-typed guard
+ * onto any card (e.g. a TRUE guard). A bare "Guard" therefore tells the player
+ * nothing about what it actually covers; the pool tokens on the same log
+ * (P.SHIELD / M.SHIELD / T.SHIELD) already set the precedent.
+ */
+function guardToken(property: Property | undefined): string {
+  if (!property) return 'Guard';
+  return property === 'physical' ? 'P.GUARD' : property === 'magical' ? 'M.GUARD' : 'T.GUARD';
+}
+
+/**
+ * Property-qualified NEGATE token, exactly mirroring `guardToken` above.
+ *
+ * A `negate` carries its OWN `property` (not inferable from the card's) and
+ * fully blocks only incoming hits of that property — a bare "Negate" told the
+ * player nothing about what it stops, same gap Guard had before P./M./T.GUARD.
+ */
+function negateToken(property: Property | undefined): string {
+  if (!property) return 'Negate';
+  return property === 'physical' ? 'P.NEGATE' : property === 'magical' ? 'M.NEGATE' : 'T.NEGATE';
+}
+
+/** The defensive scaling stat token for a shield/heal, per the engine's
+ * `scaleDefStat` (physical → Armor, magical → Magic Resist, TRUE → none). */
+function defStatToken(property: Property): string {
+  return property === 'physical' ? STAT_TOKEN.armor : STAT_TOKEN.magicResist;
+}
+
 /** The HIT `D:` math detail (locked grammar): base n + (n LABEL) … = total. */
 export function formatDmg(c: NonNullable<Extract<CombatEvent, { kind: 'damage' }>['calculation']>): string {
   const stat = c.scalingStat === 'attack' ? STAT_TOKEN.attack : STAT_TOKEN.magicPower;
@@ -286,6 +319,61 @@ export function formatDmg(c: NonNullable<Extract<CombatEvent, { kind: 'damage' }
   add('GUARD', -c.guardReduction);
   add('BLOCK', -c.shieldBlocked);
   return `D: ${terms.join(' ')} = ${c.hpDamage}`;
+}
+
+/**
+ * The heal `H:` math detail — the same derivation grammar as `formatDmg` and
+ * `formatShield`, so a healed number is reconstructable instead of appearing
+ * from nowhere: `base + (stat) + (skill) − (anti-heal) − (overheal) = landed`.
+ *
+ * TWO EMITTERS, TWO SHAPES (see the `heal` event in src/engine/combat/events.ts):
+ *
+ * - A `heal` ACTION always carries `calculation`, so the strip opens with the
+ *   card's flat `base` and adds the caster's DEFENSIVE scaling stat (DEF / MDEF
+ *   — healing is defensive output, see `scaleDefStat`) plus any flat aura/gem
+ *   heal bonus (`SKILL`, same token the HIT strip uses for that family). A TRUE
+ *   heal is flat by identity: zero stat term, zero skill term, and it opens with
+ *   `flat` to keep saying so (it is also immune to the anti-heal tax).
+ * - The `lifesteal` rider carries NO `calculation` — its request is a percentage
+ *   of damage dealt, with no card base and no stat term to split — so the strip
+ *   opens with the whole request (`heal N`) instead of inventing a `base 0`.
+ *   A pre-migration log without `calculation` degrades to that same reading,
+ *   which stays true: the printed request is all the event knows.
+ *
+ * Returns undefined when there is nothing to derive (no stat/skill term, no tax,
+ * no waste) — a strip reading "base 49 = 49" would be pure noise.
+ */
+export function formatHeal(e: Extract<CombatEvent, { kind: 'heal' }>): string | undefined {
+  const c = e.calculation;
+  const reduced = e.antiHeal?.reduced ?? 0;
+  const buildUp = c ? c.statBonus + c.healFlat : 0;
+  if (buildUp <= 0 && reduced <= 0 && e.overheal <= 0) return undefined;
+  // `amount + overheal + antiHeal.reduced` is the pre-tax request (the identity
+  // documented on the event); with a `calculation` we can open with its parts.
+  const request = e.amount + e.overheal + reduced;
+  const terms = [c && !e.flat ? `base ${c.power}` : `${e.flat ? 'flat' : 'heal'} ${request}`];
+  if (c && c.statBonus > 0) terms.push(`+ (${c.statBonus} ${defStatToken(c.property)})`);
+  if (c && c.healFlat > 0) terms.push(`+ (${c.healFlat} SKILL)`);
+  if (reduced > 0) terms.push(`− (${reduced} ANTI-HEAL)`);
+  if (e.overheal > 0) terms.push(`− (${e.overheal} OVERHEAL)`);
+  return `H: ${terms.join(' ')} = ${e.amount}`;
+}
+
+/**
+ * The shield `S:` math detail, same grammar. The engine DOES report this one:
+ * `calculation.power` is the card's flat base and `calculation.statBonus` the
+ * caster's DEFENSIVE scaling stat (Armor / Magic Resist — see `scaleDefStat`),
+ * and `wasted` is the part the maxHp shield cap refused.
+ */
+export function formatShield(e: Extract<CombatEvent, { kind: 'shieldGain' }>): string | undefined {
+  const c = e.calculation;
+  // No breakdown, or nothing to break down (a flat TRUE shield that fit under
+  // the cap) — a strip reading "92 = 92" would be noise.
+  if (!c || (c.statBonus <= 0 && e.wasted <= 0)) return undefined;
+  const terms = [`base ${c.power}`];
+  if (c.statBonus > 0) terms.push(`+ (${c.statBonus} ${defStatToken(e.property)})`);
+  if (e.wasted > 0) terms.push(`− (${e.wasted} CAPPED)`);
+  return `S: ${terms.join(' ')} = ${e.amount}`;
 }
 
 /**
@@ -404,6 +492,29 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const unitOf = (e: { unit?: number }): number => e.unit ?? 0;
   const label = (e: Extract<CombatEvent, { side: 'player' | 'enemy' }>): string =>
     (e.side === 'player' ? heroName : (foes[unitOf(e as { unit?: number })]?.name ?? foeName));
+  // Turn-start readiness row: the engine emits one `gain` event PER LIVING
+  // COMBATANT at the top of every turn, always consecutively (before any
+  // play/busy/wait event for that turn — see simulate.ts Phase 1). Buffer the
+  // turn number here while those events land (each just updates `speed`,
+  // below); the first non-`gain` event flushes ONE combined 'READY' row
+  // naming every combatant's post-gain readiness — the same
+  // "Name readiness · SPD +speed" grammar already used by the header
+  // turnline, just also kept as a scrollable transcript row per the
+  // 2026-08-05 bug report (readiness was visible in the header but had
+  // drifted out of the per-turn log rows entirely).
+  let pendingGainTurn: number | null = null;
+  const flushGainRow = (): void => {
+    if (pendingGainTurn === null) return;
+    const t = pendingGainTurn;
+    pendingGainTurn = null;
+    const parts: string[] = [];
+    if (speed.player) parts.push(`${heroName} ${speed.player}`);
+    foes.forEach((f, u) => {
+      const line = speed.enemyUnits?.[u] ?? (u === 0 ? speed.enemy : '');
+      if (line) parts.push(`${f.name} ${line}`);
+    });
+    if (parts.length > 0) push(t, 'READY', parts.join('   ·   '));
+  };
   // Every IMPORTANT line (anything but PLAY) becomes its own playback step,
   // captured here in event order; folded into per-turn-ordered final arrays
   // (with fallback steps for import-less turns) once the loop below ends.
@@ -455,6 +566,17 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   push(battle.events[0]?.turn ?? 1, 'START', `${heroName} ${curPlayer}/${playerMax} vs ${foesLabel}`);
 
   for (const e of battle.events) {
+    // Flush the buffered turn-start readiness row BEFORE this event's own
+    // focus/step bookkeeping runs — every `gain` event for a turn lands
+    // consecutively (simulate.ts Phase 1) before anything else that turn, so
+    // the first non-`gain` event we see is exactly the flush point. The row
+    // itself isn't foe-specific, so it deliberately does not disturb
+    // `curFocus` for the event that actually triggers the flush.
+    if (e.kind !== 'gain' && pendingGainTurn !== null) {
+      const readyStepStart = stepRecords.length;
+      flushGainRow();
+      for (let i = readyStepStart; i < stepRecords.length; i++) stepRecords[i]!.summary = lastSummarySnapshot;
+    }
     const sided = e as { side?: 'player' | 'enemy'; unit?: number };
     if (e.kind === 'play') curActor = { side: e.side, unit: unitOf(e) };
     if (sided.side === 'enemy') curFocus = sided.unit ?? 0;
@@ -462,17 +584,26 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     const stepCountBeforeEvent = stepRecords.length;
     switch (e.kind) {
       // Readiness gain — mockup turnline: "Hero 18 · SPD +16 · Bandit 25 · SPD +15".
+      // Buffered into ONE 'READY' transcript row per turn (see `flushGainRow`
+      // above) rather than pushed per-combatant — the turn-start banked
+      // readiness the 2026-08-05 bug report asked to see back in the scrolling
+      // log, not just the header's current-turn-only turnline.
       case 'gain': {
         const line = `${e.readinessAfter} · SPD +${e.speed}`;
         if (e.side === 'player') speed.player = line;
         else { speed.enemyUnits![unitOf(e)] = line; if (unitOf(e) === 0) speed.enemy = line; }
+        pendingGainTurn = e.turn;
         break;
       }
       case 'play': {
         // Multi-slot cards carry their span progress: the cast turn is 1/N,
-        // the busy turns below continue 2/N … N/N.
+        // the busy turns below continue 2/N … N/N. `weight` is the readiness
+        // this cast just spent (the `cost` event that follows always pays
+        // exactly `weight` — see docs/combat-model-spec.md §5.2) — shown here
+        // so the deduction the READY row's next banked number reflects is
+        // visible at the moment it's paid, not just implied.
         const progress = e.slotCount > 1 ? ` · ${e.slotIndex}/${e.slotCount}` : '';
-        push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress}`);
+        push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress} · WEIGHT ${e.weight}`);
         const slots = playSlotByTurn.get(e.turn) ?? {};
         if (e.side === 'player') slots.player = e.slot;
         else {
@@ -565,8 +696,11 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // Anti-heal world rule: a tax the receiver's own afflictions applied to
         // this request — never invisible. Mirrors the blocked-damage idiom
         // above (always spell out the reduction, never a bare number).
+        // The expandable `H:` strip carries the derivation (request − tax −
+        // overheal = landed), same affordance as a HIT's `D:` math strip, so
+        // the printed number is reconstructable rather than asserted.
         const antiHealTax = e.antiHeal ? ` (anti-heal −${e.antiHeal.pct}%: −${e.antiHeal.reduced})` : '';
-        push(e.turn, 'BUFF', `${label(e)} +${e.amount} HP${antiHealTax} · ${e.hpAfter}/${max}`);
+        push(e.turn, 'BUFF', `${label(e)} +${e.amount} HP${antiHealTax} · ${e.hpAfter}/${max}`, formatHeal(e));
         pushFx(e.side, 'heal', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined, e.antiHeal?.pct);
         break;
       }
@@ -583,13 +717,16 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // damage — otherwise indistinguishable from a typed shield's number).
         // A statBonus breakdown (present once the engine reports it) shows the
         // card's flat base + the scaling-stat contribution; TRUE shields are
-        // flat by design (statBonus 0) and stay a plain number.
+        // flat by design (statBonus 0) and stay a plain number. That stat is the
+        // DEFENSIVE one (Armor / Magic Resist, `scaleDefStat`) — this line used
+        // to name ATK/MATK, which has been the wrong stat since shields started
+        // scaling off defence (2026-08-04): right number, wrong label.
         const token = shieldToken(e.property);
         const calc = e.calculation;
         const text = calc && calc.statBonus > 0
-          ? `${label(e)} +${e.amount} ${token} (${calc.power} + ${calc.statBonus} ${e.property === 'magical' ? STAT_TOKEN.magicPower : STAT_TOKEN.attack})`
+          ? `${label(e)} +${e.amount} ${token} (${calc.power} + ${calc.statBonus} ${defStatToken(e.property)})`
           : `${label(e)} +${e.amount} ${token}`;
-        push(e.turn, 'BUFF', text);
+        push(e.turn, 'BUFF', text, formatShield(e));
         pushFx(e.side, 'shield', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined);
         break;
       }
@@ -601,7 +738,15 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       }
       case 'statusApplied': {
         const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'negate';
-        const cap = e.status.charAt(0).toUpperCase() + e.status.slice(1);
+        // Guard and negate each cover ONE property (their own, not the card's),
+        // so both are named by a property-qualified token exactly like the
+        // shield pools are — a bare "Guard"/"Negate" left the player no way to
+        // know what it stops.
+        const cap = e.status === 'guard'
+          ? guardToken(e.property)
+          : e.status === 'negate'
+            ? negateToken(e.property)
+            : e.status.charAt(0).toUpperCase() + e.status.slice(1);
         // Defensive/support statuses (guard/buff/debuff/expose/negate) carry a
         // plain-language explanation as the row's expandable detail — tap/click
         // to expand, same affordance as a HIT's D: math strip, no hover.
@@ -667,6 +812,14 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       enemyUnits: dotsEnemies.map((m) => [...m.keys()]),
     });
     speedByTurn.set(e.turn, { ...speed, enemyUnits: [...speed.enemyUnits!] });
+  }
+  // Defensive: every real log's last event is `combatEnd` (never `gain`), so
+  // the in-loop flush above always fires before the loop ends. Flush any
+  // leftover batch anyway in case a truncated/synthetic log ends mid-batch.
+  if (pendingGainTurn !== null) {
+    const readyStepStart = stepRecords.length;
+    flushGainRow();
+    for (let i = readyStepStart; i < stepRecords.length; i++) stepRecords[i]!.summary = lastSummarySnapshot;
   }
   // The final tally uses the SAME snapshot function as every per-step
   // snapshot — the non-regression guarantee (last `summaryByStep` entry ===

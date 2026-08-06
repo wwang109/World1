@@ -159,4 +159,125 @@ describe('runScreenTemplate', () => {
   it(`mobile statsOnly: content.y is ~62`, () => {
     expect(runScreenTemplate('mobile', 'statsOnly').regions.content.y).toBe(62);
   });
+
+  // The REWARD slot is the fix for a reward block that ran off the bottom of a
+  // 900-tall canvas. These assertions are the guard: the button row must be
+  // reserved INSIDE content and the panel must stop a declared gap short of it,
+  // on both platforms and for any future tweak to the region math.
+  for (const platform of ['desktop', 'mobile'] as const) {
+    it(`${platform}: reward buttons are reserved inside content, bottom-anchored`, () => {
+      const t = runScreenTemplate(platform);
+      const { content } = t.regions;
+      const { buttons } = t.contentSlots.reward;
+      expect(buttons.x).toBe(content.x);
+      expect(buttons.width).toBe(content.width);
+      expect(buttons.height).toBeGreaterThan(0);
+      // Pinned to the BOTTOM of content — never pushed past it by a tall reward.
+      expect(buttons.y + buttons.height).toBe(content.y + content.height);
+      expect(buttons.y).toBeGreaterThanOrEqual(content.y);
+    });
+
+    it(`${platform}: reward panel stops a declared gap short of the buttons`, () => {
+      const t = runScreenTemplate(platform);
+      const { panel, gap, buttons } = t.contentSlots.reward;
+      expect(gap).toBeGreaterThan(0);
+      expect(panel.height).toBeGreaterThan(0);
+      // Panel bottom + gap lands exactly on the button row: no overlap, no drift.
+      expect(panel.y + panel.height + gap).toBe(buttons.y);
+    });
+
+    it(`${platform}: reward panel never escapes content`, () => {
+      const t = runScreenTemplate(platform);
+      const { content } = t.regions;
+      const { panel } = t.contentSlots.reward;
+      expect(panel.x).toBeGreaterThanOrEqual(content.x);
+      expect(panel.y).toBeGreaterThanOrEqual(content.y);
+      expect(panel.x + panel.width).toBeLessThanOrEqual(content.x + content.width);
+      expect(panel.y + panel.height).toBeLessThanOrEqual(content.y + content.height);
+    });
+  }
+
+  // The reward panel's INNER sub-rects (icon/headline/detail/feature) — the
+  // "single reusable reward format" every outcome kind (card/gem/gold/level/
+  // nothing) renders into via `RunRewardPanel.ts`, never a per-kind cursor.
+  // `feature` (the actual card/gem visual) is the one that shrinks: it gets
+  // whatever the panel has left after the three fixed rows above it, so it
+  // can never push past the panel's own bottom edge (already proven not to
+  // escape `content` by the tests above).
+  const REWARD_INNER_KEYS = ['icon', 'headline', 'detail', 'feature'] as const;
+
+  for (const platform of ['desktop', 'mobile'] as const) {
+    it(`${platform}: every reward inner sub-rect sits wholly inside the panel`, () => {
+      const t = runScreenTemplate(platform);
+      const { panel } = t.contentSlots.reward;
+      for (const key of REWARD_INNER_KEYS) {
+        const r = t.contentSlots.reward[key];
+        expect(within(r, panel)).toBe(true);
+        expect(r.width).toBeGreaterThan(0);
+        expect(r.height).toBeGreaterThan(0);
+      }
+    });
+
+    it(`${platform}: reward inner sub-rects never overlap each other`, () => {
+      const t = runScreenTemplate(platform);
+      for (let i = 0; i < REWARD_INNER_KEYS.length; i++) {
+        for (let j = i + 1; j < REWARD_INNER_KEYS.length; j++) {
+          const a = t.contentSlots.reward[REWARD_INNER_KEYS[i]!];
+          const b = t.contentSlots.reward[REWARD_INNER_KEYS[j]!];
+          expect(overlaps(a, b)).toBe(false);
+        }
+      }
+    });
+
+    it(`${platform}: reward inner sub-rects stack top-to-bottom in icon/headline/detail/feature order`, () => {
+      const t = runScreenTemplate(platform);
+      const { icon, headline, detail, feature } = t.contentSlots.reward;
+      expect(icon.y).toBeLessThan(headline.y);
+      expect(headline.y).toBeLessThan(detail.y);
+      expect(detail.y).toBeLessThan(feature.y);
+    });
+
+    it(`${platform}: a real, POSITIVE, CONSISTENT gap separates every consecutive reward inner sub-rect`, () => {
+      // `overlaps()` alone would NOT catch two rects left touching edge-to-
+      // edge with a zero gap (touching isn't overlapping) — this is the
+      // sharper check: measure each gap directly and require it be the same
+      // positive value between every pair, so a gap silently dropped to 0
+      // (or made inconsistent) fails here even though nothing "overlaps".
+      const t = runScreenTemplate(platform);
+      const { icon, headline, detail, feature } = t.contentSlots.reward;
+      const gapIconHeadline = headline.y - (icon.y + icon.height);
+      const gapHeadlineDetail = detail.y - (headline.y + headline.height);
+      const gapDetailFeature = feature.y - (detail.y + detail.height);
+      expect(gapIconHeadline).toBeGreaterThan(0);
+      expect(gapHeadlineDetail).toBe(gapIconHeadline);
+      expect(gapDetailFeature).toBe(gapIconHeadline);
+    });
+
+    it(`${platform}: feature's bottom edge IS the panel's bottom edge (the shrinking part, not the ceiling)`, () => {
+      const t = runScreenTemplate(platform);
+      const { panel, feature } = t.contentSlots.reward;
+      expect(feature.y + feature.height).toBe(panel.y + panel.height);
+    });
+
+    it(`${platform}: the declared gap still separates the panel (via feature) from buttons`, () => {
+      // Same assertion shape as "reward panel stops a declared gap short of
+      // the buttons" above, restated against `feature` specifically — proves
+      // the inner subdivision didn't reopen the gap it closed. Deleting the
+      // `+ innerGap` term in `buildRewardSlot`'s `featureTop` calculation
+      // (i.e. letting `feature` swallow the gap) makes this fail: `feature`
+      // would still end at `panel` bottom either way, but that gap-removal
+      // bug actually shows up in the row-order test above instead, since
+      // detail/feature would then sit flush — this assertion is the belt for
+      // that suspender, checked directly against `buttons.y`.
+      const t = runScreenTemplate(platform);
+      const { gap, buttons, feature } = t.contentSlots.reward;
+      expect(feature.y + feature.height + gap).toBe(buttons.y);
+    });
+
+    it(`${platform}: reward inner sub-rects are deterministic (no run/content dependency)`, () => {
+      const a = runScreenTemplate(platform).contentSlots.reward;
+      const b = runScreenTemplate(platform).contentSlots.reward;
+      expect(a).toEqual(b);
+    });
+  }
 });

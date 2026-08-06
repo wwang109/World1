@@ -72,7 +72,99 @@ export interface RunScreenTemplate {
    * slid across the screen as a run advanced and you had to re-find them each
    * time — exactly the "information moving around" the template exists to stop.
    */
-  contentSlots: { choices: Rect };
+  contentSlots: {
+    choices: Rect;
+    /**
+     * The REWARD block — the ONE template every resolved event outcome (and
+     * the "PICK ONE TO KEEP" bonus-draft row) renders into, so the reward
+     * screen is a consistent, reusable FORMAT rather than a per-outcome-kind
+     * layout: `RunRewardPanel.ts` reads these rects, `renderRunRewardPanel`
+     * never advances a cursor. Declared parts:
+     *
+     *   panel    — everything above the buttons. A HARD CEILING, not a
+     *              suggestion: content taller than this must shrink to it.
+     *   gap      — the breathing room between panel and buttons, declared
+     *              here so it is identical on every reward screen.
+     *   buttons  — a FIXED bottom-anchored row. It is reserved before the
+     *              panel gets any space, so a tall reward can never push the
+     *              confirm action off the bottom of the screen.
+     *   icon     — the small outcome-kind icon (top of panel).
+     *   headline — "Gained a BRONZE card" — the one-line (up to 2) summary.
+     *   detail   — an optional second line ("The gamble paid off.").
+     *   feature  — the reward's own visual: a `CardToken` for `grantCard`, a
+     *              gem chip for `grantGem`, nothing for gold/level/nothing.
+     *              Gets WHATEVER is left down to the panel's bottom edge, so
+     *              it is the one part that shrinks — never the ceiling.
+     *
+     * `icon`/`headline`/`detail`/`feature` are stacked top-to-bottom INSIDE
+     * `panel`, ANCHORED AT `panel.y` — the reward screen owns the WHOLE panel
+     * (it does not share it with a re-shown story header): once a choice
+     * resolves, the outcome replaces the event's narrative column entirely,
+     * exactly the way `RunChoicePanel` replaces nothing — it IS the content.
+     * This exists because the reward section used to render BELOW the full
+     * story column (area caption + a 260px art image + title + a body-text
+     * panel with no height cap), so a flat 230px card appended to a cursor
+     * that column had already pushed to ~650-790px (on a 900-tall canvas)
+     * had nowhere to go — clamping the card's height alone couldn't fix that,
+     * since even the headline could already start past the panel's bottom
+     * edge. Giving the reward screen the whole panel (not "whatever's left
+     * under the header") makes the fit arithmetically guaranteed instead of
+     * probable.
+     */
+    reward: {
+      panel: Rect; gap: number; buttons: Rect;
+      icon: Rect; headline: Rect; detail: Rect; feature: Rect;
+    };
+  };
+}
+
+/** Height of the reward confirm-button row, and the gap above it. Declared
+ * per platform, never inline at a call site. */
+const REWARD_BUTTON_H: Record<RunTemplatePlatform, number> = { desktop: 44, mobile: 40 };
+const REWARD_GAP: Record<RunTemplatePlatform, number> = { desktop: 20, mobile: 14 };
+
+/** Fixed per-platform heights for the reward panel's top three rows (icon,
+ * headline, detail) and the gap between every consecutive pair of
+ * icon/headline/detail/feature — `feature` (the actual card/gem visual) gets
+ * whatever height remains down to the panel's bottom edge, never a fixed
+ * size, which is what makes it the part that shrinks instead of the ceiling
+ * that gets breached. */
+const REWARD_ICON_H: Record<RunTemplatePlatform, number> = { desktop: 56, mobile: 48 };
+const REWARD_HEADLINE_H: Record<RunTemplatePlatform, number> = { desktop: 64, mobile: 52 };
+const REWARD_DETAIL_H: Record<RunTemplatePlatform, number> = { desktop: 28, mobile: 22 };
+const REWARD_INNER_GAP: Record<RunTemplatePlatform, number> = { desktop: 14, mobile: 10 };
+
+/** Splits `content` into the reward panel / gap / bottom-anchored button row,
+ * then subdivides the panel itself into the icon/headline/detail/feature
+ * stack (see the `reward` doc comment above). The BUTTONS are reserved
+ * first — the panel gets whatever is left — and `feature` is reserved
+ * LAST, getting whatever the panel has left after icon/headline/detail: two
+ * nested applications of the same "fixed items first, flexible item gets the
+ * remainder" rule, which is what makes both the button row AND the feature
+ * visual arithmetically incapable of pushing anything off the bottom edge. */
+function buildRewardSlot(content: Rect, platform: RunTemplatePlatform): RunScreenTemplate['contentSlots']['reward'] {
+  const buttonH = REWARD_BUTTON_H[platform];
+  const gap = REWARD_GAP[platform];
+  const buttons: Rect = {
+    x: content.x,
+    y: content.y + content.height - buttonH,
+    width: content.width,
+    height: buttonH,
+  };
+  const panel: Rect = {
+    x: content.x,
+    y: content.y,
+    width: content.width,
+    height: Math.max(0, content.height - buttonH - gap),
+  };
+  const panelBottom = panel.y + panel.height;
+  const innerGap = REWARD_INNER_GAP[platform];
+  const icon: Rect = { x: panel.x, y: panel.y, width: panel.width, height: REWARD_ICON_H[platform] };
+  const headline: Rect = { x: panel.x, y: icon.y + icon.height + innerGap, width: panel.width, height: REWARD_HEADLINE_H[platform] };
+  const detail: Rect = { x: panel.x, y: headline.y + headline.height + innerGap, width: panel.width, height: REWARD_DETAIL_H[platform] };
+  const featureTop = detail.y + detail.height + innerGap;
+  const feature: Rect = { x: panel.x, y: featureTop, width: panel.width, height: Math.max(0, panelBottom - featureTop) };
+  return { panel, gap, buttons, icon, headline, detail, feature };
 }
 
 /** Splits `region` into `count` equal-width slots left to right, `gap` apart. */
@@ -131,7 +223,7 @@ function buildDesktopTemplate(chrome: RunTemplateChrome): RunScreenTemplate {
     regions,
     actionSlots: { back, secondary, tertiary, primary },
     actionRegionOf: { back: 'actions', secondary: 'actions', tertiary: 'actions', primary: 'actions' },
-    contentSlots: { choices },
+    contentSlots: { choices, reward: buildRewardSlot(regions.content, 'desktop') },
   };
 }
 
@@ -176,7 +268,7 @@ function buildMobileTemplate(chrome: RunTemplateChrome): RunScreenTemplate {
     regions,
     actionSlots: { back, secondary, tertiary, primary: statsOnly ? unusedRect(sx) : { ...regions.footer } },
     actionRegionOf: { back: 'actions', secondary: 'actions', tertiary: 'actions', primary: 'footer' },
-    contentSlots: { choices },
+    contentSlots: { choices, reward: buildRewardSlot(regions.content, 'mobile') },
   };
 }
 

@@ -71,17 +71,68 @@ export interface CardTokenSpec {
 
 export const TOKEN_COMPACT_HEIGHT = 42;
 /**
+ * Padding tokens for the small chip/scrim pill rendered BEHIND a text label
+ * (corner badges, the playback "▶ NEXT" chip). Any caller building one of
+ * these pills should go through `chipBox()` below rather than hand-rolling a
+ * rect sized from `text.width`/`text.height` — the labels this spec drives
+ * use non-center origins (0 or 1) so they can anchor flush to a token edge,
+ * and a chip that reused that same origin grows ASYMMETRICALLY (all the
+ * extra size lands on one side), which reads as off-center and pressed
+ * against the edge. `chipBox()` centers on the text's true glyph bounds
+ * instead, so the pad is identical on both sides of both axes no matter what
+ * origin the text itself uses.
+ */
+export const CHIP_PAD_X = 4;
+export const CHIP_PAD_Y = 2;
+
+/**
+ * Minimal shape `chipBox()` needs from a rendered text object. Matches
+ * Phaser's `Text` (x/y/originX/originY/width/height) by duck typing, so
+ * `CardToken.ts` can pass a real `Phaser.GameObjects.Text` straight in
+ * without this module ever importing Phaser.
+ */
+export interface ChipTextLike {
+  x: number;
+  y: number;
+  originX: number;
+  originY: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * The chip/pill rect for a text label, centered on the text's TRUE glyph
+ * bounds and padded symmetrically on both axes — regardless of what origin
+ * the text itself uses to anchor to a token edge. See `CHIP_PAD_X`/`_Y` above
+ * for why this exists: a rect built from the text's own (possibly corner)
+ * origin grows lopsided, not a pill around the text.
+ */
+export function chipBox(text: ChipTextLike, padX = CHIP_PAD_X, padY = CHIP_PAD_Y): TokenBox {
+  return {
+    x: text.x + (0.5 - text.originX) * text.width,
+    y: text.y + (0.5 - text.originY) * text.height,
+    width: text.width + padX * 2,
+    height: text.height + padY * 2,
+  };
+}
+
+/**
  * Below this token height the inward TOP (slot number) and inward BOTTOM
  * (weight) corner badges collide: the slot label is top-aligned at
  * `-h/2 + CORNER_PAD` and ~13px tall, the weight badge bottom-aligned at
- * `h/2 - CORNER_PAD` and ~12px tall, so they meet once `h < 35`. The slot
- * number is the one dropped — weight feeds the initiative math, while position
- * is already implied by row order (and empty slots still print their number).
+ * `h/2 - CORNER_PAD` and ~12px tall, so they meet once `h < 2*CORNER_PAD+25`.
+ * The slot number is the one dropped — weight feeds the initiative math,
+ * while position is already implied by row order (and empty slots still
+ * print their number).
  */
-export const SLOT_LABEL_MIN_HEIGHT = 35;
-const EDGE_PAD = 6;
+export const SLOT_LABEL_MIN_HEIGHT = 39;
+// EDGE_PAD/CORNER_PAD are the label's inset from the token's true edge.
+// They're padded out by CHIP_PAD_X/Y so that once chipBox() adds its
+// symmetric pill padding, the CHIP's outer edge — not just the text's —
+// keeps a steady ~6px / ~5px gap from the card edge on every side.
+const EDGE_PAD = 6 + CHIP_PAD_X;
 const TEXT_PAD = 10;
-const CORNER_PAD = 5;
+const CORNER_PAD = 5 + CHIP_PAD_Y;
 const ACCESSORY_SIZE = 16;
 const ACCESSORY_GAP = 4;
 /** Horizontal room reserved for the weight badge + its scrim ("W10"). */

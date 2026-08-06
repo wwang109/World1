@@ -4,7 +4,7 @@ import { eventThemeBlurb } from '../ui/eventThemeBlurb';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
-import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
+import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
@@ -255,8 +255,14 @@ export class DesktopRunMapScene extends Phaser.Scene {
     }
     const gap = 12;
     // Density pass: compact content-fit rows (name + one hint line) instead of
-    // stretching to a big mostly-empty box — cap at 92 (was 170).
-    const panelH = Math.min(92, (availableH - gap * (options.length - 1)) / options.length);
+    // stretching to a big mostly-empty box — cap at 92 (was 170). The 92 is a
+    // CEILING on wasted space, never a licence to squeeze below what the stack
+    // needs: shop rows carry a footer, and under the floor the detail line
+    // silently ellipsizes rather than overflowing (see `runChoicePanelMinHeight`).
+    const panelH = Math.max(
+      runChoicePanelMinHeight(F, true),
+      Math.min(92, (availableH - gap * (options.length - 1)) / options.length),
+    );
     let y = top;
     for (const node of options) {
       renderRunChoicePanel(this, { x, y, w, h: panelH }, this.choiceViewModel(node), {

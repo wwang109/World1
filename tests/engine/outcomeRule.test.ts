@@ -471,14 +471,21 @@ describe('no fight ever reaches the turn cap, and decisive fights are unchanged'
   // NOT a spec for any individual mechanic: it says "attrition work must not reach
   // fights decided before ATTRITION_START_TURN". A deliberate, reviewed rule change
   // elsewhere in the engine legitimately moves these logs and the fixture is then
-  // regenerated (last regeneration: 2026-08-05, for DEFENSIVE-STAT SCALING of shields
-  // and heals — a real, reviewed rule change whose blast radius was enumerated before
-  // regenerating: 153/200 logs moved in EACH sweep, with 2 winner flips (#9, #138) and
-  // 13 turn changes. Containment was proven by exhaustion rather than by inspecting
-  // each log: NOT ONE moved log lacks a shieldGain/heal event, and all 15 logs that
-  // have one but did not move are accounted for (12 carry only a zero stat term —
-  // TRUE, flat by identity; 3 carry only a `leeching_fang` lifesteal heal, which
-  // scales off damage dealt, never off a stat). Earlier regens: FIRST-TO-FALL
+  // regenerated (last regeneration: 2026-08-06, for the additive, PRESENTATION-ONLY
+  // `heal.calculation` block — the shieldGain.calculation sibling that lets the battle
+  // log show where a healed number came from. Blast radius enumerated before
+  // regenerating: 137/200 logs moved in EACH sweep (128 decided before the threshold),
+  // with ZERO winner flips and ZERO turn changes, as a field the sim never reads must
+  // produce. Containment proven by exhaustion in BOTH directions: the moved set is
+  // exactly the set of logs containing a heal-ACTION heal, and the 5 heal-carrying
+  // logs that did not move (#4, #14, #92, #142, #192) are exactly those whose only
+  // heal is a `leeching_fang` lifesteal, which deliberately carries no calculation
+  // block. Stripping `calculation` in the normalizer instead was rejected: it is
+  // engine-derived arithmetic, not card copy, and a blanket strip would have dropped
+  // the already-hashed damage/shieldGain calculations too. Earlier regens:
+  // DEFENSIVE-STAT SCALING of shields and heals (2026-08-05; 153/200 in each sweep,
+  // 2 winner flips (#9, #138), 13 turn changes, 0 moved logs without a shieldGain/heal
+  // event), FIRST-TO-FALL
   // (1/200 attritionOff, 2/200 attritionOn — each a POST-WIPE application that no
   // longer runs; 0 winner flips, 0 turn changes), the
   // anti-heal world rule (75/200), the TRUE-heal re-price, "bleed ticks at most once

@@ -135,6 +135,9 @@ export class MobileShopScene extends Phaser.Scene {
    * the player's scroll position. */
   private shelfContainer: Phaser.GameObjects.Container | null = null;
   private shelfScrollY = 0;
+  private shelfThumb: Phaser.GameObjects.Rectangle | null = null;
+  private shelfFadeTop: Phaser.GameObjects.Rectangle | null = null;
+  private shelfFadeBottom: Phaser.GameObjects.Rectangle | null = null;
   private shelfViewport = { x: 0, y: 0, width: 0, height: 0 };
   private shelfMaxScroll = 0;
 
@@ -156,6 +159,11 @@ export class MobileShopScene extends Phaser.Scene {
     this.toastObjects = [];
     this.retireConfirmOpen = false;
     this.shelfScrollY = 0;
+    // rebuildScene() destroys the game objects but NOT the fields pointing at
+    // them (scene-rebuild idiom).
+    this.shelfThumb = null;
+    this.shelfFadeTop = null;
+    this.shelfFadeBottom = null;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -364,7 +372,6 @@ export class MobileShopScene extends Phaser.Scene {
       titleX = 18 + backW;
     }
     this.add.text(titleX, top, shop.name.toUpperCase(), { fontSize: `${F.lead}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold' });
-    addRunArt(this, shopArtKey(shopId), { x: titleX, y: top + F.lead + 5, width: 100, height: 24 }, 0.7);
 
     // A thin shop whose whole pool already fits the shelf can never reveal
     // anything new on reroll (docs/run-shops-design.md §2b, USER-LOCKED).
@@ -390,7 +397,7 @@ export class MobileShopScene extends Phaser.Scene {
     // Scrollable viewport for the CARDS+GEMS list — bottom-anchored above the
     // fixed STRIP_BAND_H reserved for BOARD/BAG/SELL/POUCH (see that
     // constant's comment, incl. the exact overflow number this replaces).
-    const contentTop = top + 58;
+    const contentTop = top + 54;
     const bottomLimit = (runShop ? TEMPLATE.regions.footer.y : this.H - MOBILE_PROFILE.safe.bottom) - 6;
     const viewportBottom = bottomLimit - STRIP_BAND_H - STRIP_GAP;
     const viewportH = Math.max(40, viewportBottom - contentTop);
@@ -471,6 +478,57 @@ export class MobileShopScene extends Phaser.Scene {
     // Invisible interactive "swallow" rect so a scroll-drag started over the
     // viewport doesn't fall through to anything behind it.
     this.add.rectangle(this.shelfViewport.x, this.shelfViewport.y, this.shelfViewport.width, this.shelfViewport.height, 0xffffff, 0.001).setOrigin(0, 0);
+    this.renderShelfScrollAffordance();
+  }
+
+  /**
+   * Scroll affordance for the masked shelf — the mobile twin of
+   * `DesktopShopScene.renderShelfScrollAffordance` (both-platforms rule).
+   *
+   * The mask was doing its job and still looked like a bug: with the shelf
+   * taller than its viewport, the GEMS row was sliced through the middle of a
+   * gem's text with NOTHING on screen saying "there is more, scroll". A cut
+   * with no affordance reads as broken layout, not as a scroll region. Drawn
+   * OUTSIDE the masked container so it can't be clipped by its own mask.
+   */
+  private renderShelfScrollAffordance(): void {
+    const v = this.shelfViewport;
+    if (!v || this.shelfMaxScroll <= 0) return;
+
+    const trackW = 3;
+    const trackX = v.x + v.width - trackW;
+    this.add.rectangle(trackX, v.y, trackW, v.height, 0x24344a, 0.5).setOrigin(0, 0);
+
+    // Thumb length is the visible FRACTION of the content, so it doubles as a
+    // read on how much is hidden.
+    const visibleFraction = v.height / (v.height + this.shelfMaxScroll);
+    const thumbH = Math.max(20, v.height * visibleFraction);
+    const progress = this.shelfMaxScroll > 0 ? -this.shelfScrollY / this.shelfMaxScroll : 0;
+    this.shelfThumb = this.add.rectangle(trackX, v.y, trackW, thumbH, UI.chip, 0.85).setOrigin(0, 0);
+
+    // Edge fades: only on the side that actually has more content, so they
+    // double as direction hints rather than permanent decoration.
+    const fadeH = 12;
+    this.shelfFadeTop = this.add.rectangle(v.x, v.y, v.width - trackW, fadeH, UI.bg, 0.55).setOrigin(0, 0);
+    this.shelfFadeBottom = this.add.rectangle(v.x, v.y + v.height - fadeH, v.width - trackW, fadeH, UI.bg, 0.55).setOrigin(0, 0);
+    this.syncShelfScrollAffordance();
+  }
+
+  /**
+   * Move the thumb / fades to match `shelfScrollY`. MUST be called everywhere
+   * that field changes — scrolling only calls `shelfContainer.setY()`, it does
+   * NOT rebuild the scene, so an affordance positioned once at render time
+   * stays frozen while the content slides under it. A scrollbar that does not
+   * track the finger is worse than none: it actively lies about the position.
+   */
+  private syncShelfScrollAffordance(): void {
+    const v = this.shelfViewport;
+    const thumb = this.shelfThumb;
+    if (!v || !thumb || this.shelfMaxScroll <= 0) return;
+    const progress = Phaser.Math.Clamp(-this.shelfScrollY / this.shelfMaxScroll, 0, 1);
+    thumb.y = v.y + (v.height - thumb.height) * progress;
+    this.shelfFadeTop?.setVisible(progress > 0.01);
+    this.shelfFadeBottom?.setVisible(progress < 0.99);
   }
 
   // ---------- owned strips: BOARD · BAG · SELL ZONE · GEM POUCH ----------
@@ -526,6 +584,13 @@ export class MobileShopScene extends Phaser.Scene {
     return name.length > 8 ? `${name.slice(0, 7)}…` : `${name}·${tier[0]!.toUpperCase()}`;
   }
 
+  /** Pixel width of a card occupying `span` consecutive slots — the cells it
+   * covers PLUS the gaps between them, so a x3 card reads as one wide token
+   * exactly like `MobileDeckBuildScene` spans a multi-slot card down a column. */
+  private spanW(span: number, cellW: number): number {
+    return cellW * span + CELL_GAP * (span - 1);
+  }
+
   private renderBoardRow(rowX: number, y: number, cellW: number): void {
     const occ = this.boardOccupied();
     const bySlot = new Map(this.pieces.map((p) => [p.slot, p]));
@@ -533,9 +598,16 @@ export class MobileShopScene extends Phaser.Scene {
       const cx = rowX + slot * (cellW + CELL_GAP);
       const piece = bySlot.get(slot);
       if (piece) {
+        // SPAN the token across every slot the card occupies. Drawing it at a
+        // fixed cellW left the covered slots blank — `occ[]` marks them, so the
+        // empty-cell branch skipped them too — and a x3 card read as one box
+        // followed by two holes in the row.
+        const span = this.sizeOf(piece.skillId);
+        const w = this.spanW(span, cellW);
         const idx = this.pieces.findIndex((p) => p.instanceId === piece.instanceId);
-        const box = this.makeMiniToken(cx, y, cellW, this.slotBoxLabel(piece.skillId, piece.tier));
-        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, y, cellW, CELL_H), src: { kind: 'board', index: idx }, obj: box });
+        const box = this.makeMiniToken(cx, y, w, this.slotBoxLabel(piece.skillId, piece.tier));
+        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, y, w, CELL_H), src: { kind: 'board', index: idx }, obj: box });
+        slot += span - 1;
       } else if (!occ[slot]) {
         this.add.rectangle(cx, y, cellW, CELL_H, 0x121e30, 0.45).setOrigin(0, 0).setStrokeStyle(1, 0x24344a, 0.9);
       }
@@ -548,8 +620,12 @@ export class MobileShopScene extends Phaser.Scene {
       const cx = rowX + slot * (cellW + CELL_GAP);
       const card = this.bagSlots[slot];
       if (card) {
-        const box = this.makeMiniToken(cx, y, cellW, this.slotBoxLabel(card.skillId, card.tier));
-        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, y, cellW, CELL_H), src: { kind: 'bag', index: slot }, obj: box });
+        // Spans its slots, same as the board row above.
+        const span = this.sizeOf(card.skillId);
+        const w = this.spanW(span, cellW);
+        const box = this.makeMiniToken(cx, y, w, this.slotBoxLabel(card.skillId, card.tier));
+        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, y, w, CELL_H), src: { kind: 'bag', index: slot }, obj: box });
+        slot += span - 1;
       } else if (!occ[slot]) {
         this.add.rectangle(cx, y, cellW, CELL_H, 0x121e30, 0.45).setOrigin(0, 0).setStrokeStyle(1, 0x24344a, 0.9);
       }
@@ -771,6 +847,7 @@ export class MobileShopScene extends Phaser.Scene {
       if (scrolling) {
         this.shelfScrollY = Phaser.Math.Clamp(scrolling.startScroll + (p.worldY - scrolling.startY), -this.shelfMaxScroll, 0);
         this.shelfContainer?.setY(this.shelfScrollY);
+        this.syncShelfScrollAffordance();
       }
     });
 
@@ -835,6 +912,7 @@ export class MobileShopScene extends Phaser.Scene {
       if (this.shelfMaxScroll <= 0 || !inViewport(pointer.worldX, pointer.worldY)) return;
       this.shelfScrollY = Phaser.Math.Clamp(this.shelfScrollY - dy, -this.shelfMaxScroll, 0);
       this.shelfContainer?.setY(this.shelfScrollY);
+      this.syncShelfScrollAffordance();
     });
   }
 

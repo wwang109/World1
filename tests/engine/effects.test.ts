@@ -339,6 +339,62 @@ describe('healing', () => {
     const { events } = simulate(c, 1);
     expect(events.find((e) => e.kind === 'heal')).toMatchObject({ amount: 25, flat: true, hpAfter: 75 });
   });
+
+  // The heal event reports HOW the request was built, the sibling of
+  // shieldGain.calculation. Without it the UI could only print the post-tax
+  // total, and reconstructing the split in the renderer would mean re-running
+  // stat/gem/aura resolution there — a number that can silently disagree.
+  it('reports the request split on the event: card base + the MAGICAL defensive stat', () => {
+    // Mending Light (48 magical) cast by a 6-MDEF hero: 48 + 6 = 54 requested.
+    const c = cfg(
+      tc('hero', ['mending_light'], { magicResist: 6, maxHp: 500, hp: 100, speed: 20 }),
+      tc('dummy', [], { speed: 1 }),
+      { ...NO_ENDGAME, maxTurns: 1 },
+    );
+    expect(simulate(c, 1).events.find((e) => e.kind === 'heal')).toMatchObject({
+      amount: 54,
+      calculation: { power: 48, statBonus: 6, healFlat: 0, property: 'magical' },
+    });
+  });
+
+  it('a PHYSICAL heal reports Armor as its stat term (healing is defensive output)', () => {
+    // Vital Surge (48 physical) cast by a 7-Armor hero: 48 + 7 = 55.
+    const c = cfg(
+      tc('hero', ['vital_surge'], { armor: 7, attack: 99, maxHp: 500, hp: 100, speed: 20 }),
+      tc('dummy', [], { speed: 1 }),
+      { ...NO_ENDGAME, maxTurns: 1 },
+    );
+    expect(simulate(c, 1).events.find((e) => e.kind === 'heal')).toMatchObject({
+      amount: 55,
+      calculation: { power: 48, statBonus: 7, healFlat: 0, property: 'physical' },
+    });
+  });
+
+  it('a TRUE heal reports a ZERO stat term — flat by identity, like a TRUE shield', () => {
+    const c = cfg(
+      tc('hero', ['second_wind'], { armor: 30, magicResist: 30, maxHp: 500, hp: 100, speed: 20 }),
+      tc('dummy', [], { speed: 1 }),
+      { ...NO_ENDGAME, maxTurns: 1 },
+    );
+    expect(simulate(c, 1).events.find((e) => e.kind === 'heal')).toMatchObject({
+      amount: 25,
+      flat: true,
+      calculation: { power: 25, statBonus: 0, healFlat: 0, property: 'true' },
+    });
+  });
+
+  it('reports a flat aura heal bonus separately, and the parts sum to the heal', () => {
+    // Mending Aura (+10 to adjacent healing cards) at slot 2 touches Mending
+    // Light at slots 0-1: 48 base + 6 MDEF + 10 aura = 64.
+    const hero = tc('hero', [], { magicResist: 6, maxHp: 500, hp: 100, speed: 20 }, {
+      pieces: [{ skillId: 'mending_light', slot: 0 }, { skillId: 'mending_aura', slot: 2 }],
+    });
+    const heal = simulate(cfg(hero, tc('dummy', [], { speed: 1 }), { ...NO_ENDGAME, maxTurns: 1 }), 1)
+      .events.find((e): e is Extract<Events[number], { kind: 'heal' }> => e.kind === 'heal')!;
+    expect(heal).toMatchObject({ amount: 64, calculation: { power: 48, statBonus: 6, healFlat: 10, property: 'magical' } });
+    const c = heal.calculation!;
+    expect(c.power + c.statBonus + c.healFlat - heal.overheal).toBe(heal.amount);
+  });
 });
 
 describe('damage over time (global-turn durations)', () => {

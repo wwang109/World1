@@ -1,22 +1,21 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
-import { gemBook } from '../../data/gems';
 import type { EventChoiceDef, EventDef } from '../../data/events';
 import type { DraftCard } from '../../run/draft';
 import type { EventOutcome } from '../../run/events';
 import { applyTier } from '../../engine/cards';
 import { DESKTOP_PROFILE } from '../layoutProfile';
-import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
+import { FONT, SCREEN, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
-import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
-import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
-import { choiceOutcomeHint, outcomeHeadline } from '../ui/eventOutcomeText';
+import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
+import { auditTextBlock } from '../ui/controlLayoutAudit';
+import { choiceOutcomeHint } from '../ui/eventOutcomeText';
 import { eventThemeArea } from '../ui/eventThemeBlurb';
-import { addHoverTipZone } from '../ui/hoverTip';
-import { gemHoverEntry } from '../ui/gemGlossary';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
+import { renderRunRewardPanel } from '../ui/RunRewardPanel';
+import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { rebuildScene } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
@@ -32,20 +31,27 @@ import {
 const F = DESKTOP_PROFILE.font;
 const TEMPLATE = runScreenTemplate('desktop');
 
-/** The one flowing story column every phase renders into — computed ONCE by
- * `renderStory` off the event's actual theme/title/body (identical across
- * phases, since the body never changes), so choices/outcome always start at
- * the SAME y a fixed pixel below the body, never a far-away hardcoded slot. */
+/** The one flowing story column the CHOOSING phase renders into — computed
+ * ONCE by `renderStory` off the event's actual theme/title/body. Once a
+ * choice resolves (`outcome`/`bonusDraftPick`), the story column is REPLACED
+ * by the reward template (`TEMPLATE.contentSlots.reward` via
+ * `renderRunRewardPanel`/the bonus-draft picker below) rather than shown
+ * alongside it — see the module doc for why. */
 interface StoryLayout { px: number; pw: number; innerX: number; innerW: number; contentTop: number }
 
 /**
  * Desktop Run Event — a single top-down STORY PAGE for a `event` map node
- * (docs/run-events-design.md §4): area-intro caption (`eventThemeArea`) →
- * title → body (in its own framed panel) → then, directly below with no gap
- * jump, either the 2-3 choice rows, the bonusDraft picker, or (once a choice
- * resolves) the outcome text with a CONTINUE › button immediately under it —
- * the outcome replaces the choices IN PLACE so the eye never has to travel
- * far to confirm. Reachable at ?scene=desktop-runevent.
+ * (docs/run-events-design.md §4) while CHOOSING: area-intro caption
+ * (`eventThemeArea`) → title → body (in its own framed panel) → the 2-3
+ * choice rows. Once a choice resolves, the screen switches to the ONE reward
+ * template every outcome kind shares (`RunRewardPanel.ts`, driven by
+ * `buildRunRewardViewModel`) or the bonus-draft picker — both laid into
+ * `TEMPLATE.contentSlots.reward`'s declared rects (`panel` a hard ceiling,
+ * `headline`/`feature` sub-rects, `buttons` a fixed bottom-anchored row
+ * reserved BEFORE the panel gets space) instead of the story column, so a
+ * card, a gem, or nothing at all always fits by construction — see
+ * `runScreenTemplate.ts`'s doc comment on `reward`. Reachable at
+ * ?scene=desktop-runevent.
  */
 export class DesktopRunEventScene extends Phaser.Scene {
   private phase: 'choosing' | 'bonusDraftPick' | 'outcome' = 'choosing';
@@ -79,10 +85,17 @@ export class DesktopRunEventScene extends Phaser.Scene {
     }
 
     this.renderHud(run);
-    const story = this.renderStory(event);
-    if (this.phase === 'outcome' && this.outcome) this.renderOutcomePanel(this.outcome, story);
-    else if (this.phase === 'bonusDraftPick') this.renderBonusDraftPicker(story);
-    else this.renderChoicePanel(run.gold, event, story);
+    if (this.phase === 'outcome' && this.outcome) {
+      renderRunRewardPanel(this, TEMPLATE, buildRunRewardViewModel(this.outcome), {
+        font: F,
+        onContinue: () => this.continueToMap(),
+      });
+    } else if (this.phase === 'bonusDraftPick') {
+      this.renderBonusDraftPicker();
+    } else {
+      const story = this.renderStory(event);
+      this.renderChoicePanel(run.gold, event, story);
+    }
     if (this.retireConfirmOpen) {
       renderRetireConfirm(this, {
         compact: false,
@@ -94,9 +107,9 @@ export class DesktopRunEventScene extends Phaser.Scene {
 
   /** THE run HUD — identical header on every run screen. The HUD's own
    * CONTINUE › (top-right, this screen's primary go-forward action) still
-   * fires once the outcome resolves — same handler as the in-story button
-   * directly under the outcome text (see `renderOutcomePanel`), so whichever
-   * one the player reaches for both do the same thing. */
+   * fires once the outcome resolves — same handler as `renderRunRewardPanel`'s
+   * own CONTINUE button, so whichever one the player reaches for both do the
+   * same thing. */
   private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
     renderRunHud(this, {
       screen: 'EVENT',
@@ -119,11 +132,10 @@ export class DesktopRunEventScene extends Phaser.Scene {
     return { px, py, pw };
   }
 
-  // ---------- story (area intro → title → body panel) ----------
+  // ---------- story (area intro → title → body panel; CHOOSING phase only) ----------
 
-  /** Renders the narrative header ONCE per phase-render (area caption, title,
-   * framed body) and returns where the phase-specific content below it should
-   * start — the SAME y every phase, since the story content is identical. */
+  /** Renders the narrative header (area caption, title, framed body) for the
+   * CHOOSING phase and returns where the choice rows below it should start. */
   private renderStory(event: EventDef): StoryLayout {
     const { px, py, pw } = this.panelGeometry();
     const inset = 32;
@@ -177,7 +189,9 @@ export class DesktopRunEventScene extends Phaser.Scene {
 
   private renderChoicePanel(gold: number, event: EventDef, story: StoryLayout): void {
     const { innerX, innerW } = story;
-    const rowH = 84;
+    // ASK the panel how tall it needs to be; never guess. The old hand-picked
+    // 84 was ~15px short of its own content and silently ate the REWARD hint.
+    const rowH = runChoicePanelMinHeight(F, true);
     const rowGap = 10;
     let cursor = story.contentTop;
 
@@ -217,30 +231,43 @@ export class DesktopRunEventScene extends Phaser.Scene {
 
   // ---------- bonusDraft picker ----------
 
-  /** Reused from the standalone panel it used to be — now just another block
-   * in the same story-flow column, directly under the body. */
-  private renderBonusDraftPicker(story: StoryLayout): void {
-    const { innerX, innerW } = story;
-    let cursor = story.contentTop;
+  /** The "PICK ONE TO KEEP" mini-draft — laid into the SAME reward template
+   * region as the resolved-outcome screen (`TEMPLATE.contentSlots.reward`):
+   * the label sits in `headline`, the card row in `feature`. Since this phase
+   * (like `outcome`) replaces the story column rather than sitting below it,
+   * `feature`'s generous remainder-of-panel height means the row is never
+   * tight, let alone clipped. */
+  private renderBonusDraftPicker(): void {
+    const { panel, headline, feature } = TEMPLATE.contentSlots.reward;
+    this.add.rectangle(panel.x, panel.y, panel.width, panel.height, UI.panelMuted, 0.94)
+      .setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.6);
 
-    const label = this.add.text(innerX, cursor, 'PICK ONE TO KEEP', {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent,
-    });
-    auditTextBlock(label, { name: 'Run event bonus draft title', maxWidth: innerW, maxHeight: F.name * 2, minFontSize: 10 });
-    cursor += label.height + 14;
+    const label = this.add.text(headline.x + headline.width / 2, headline.y, 'PICK ONE TO KEEP', {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textAccent, align: 'center',
+    }).setOrigin(0.5, 0);
+    auditTextBlock(label, { name: 'Run event bonus draft title', maxWidth: headline.width - 64, maxHeight: headline.height, minFontSize: 10 });
 
     const cards = this.bonusDraftCards;
     const n = Math.max(1, cards.length);
     const gap = DESKTOP_PROFILE.gap;
-    const cardH = 230;
-    const cardW = (innerW - gap * (n - 1)) / n;
+    const idealCardW = 142;
+    const idealCardH = Math.round(idealCardW * (690 / 420));
+    // `feature` is the reward template's own remainder-of-panel rect — a hard
+    // ceiling exactly like the resolved outcome's feature visual, never a
+    // flat demand: shrink to fit the row across `n` cards before shrinking
+    // below the ideal per-card size.
+    const cardH = Math.min(idealCardH, feature.height);
+    const cardW = Math.min(idealCardW, (feature.width - gap * (n - 1)) / n);
+    const rowW = cardW * n + gap * (n - 1);
+    const rowX = feature.x + (feature.width - rowW) / 2;
+    const rowY = feature.y + (feature.height - cardH) / 2;
     cards.forEach((card, i) => {
       const skill = skillBook[card.skillId];
       if (!skill) return;
       const shown = card.tier === skill.tier ? skill : applyTier(skill, card.tier);
-      const cx = innerX + i * (cardW + gap);
-      const tok = new CardToken(this, cx + cardW / 2, cursor + cardH / 2, shown, { width: cardW, height: cardH, side: 'left' });
-      const hit = this.add.rectangle(cx + cardW / 2, cursor + cardH / 2, cardW, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
+      const cx = rowX + i * (cardW + gap);
+      const tok = new CardToken(this, cx + cardW / 2, rowY + cardH / 2, shown, { width: cardW, height: cardH, side: 'left' });
+      const hit = this.add.rectangle(cx + cardW / 2, rowY + cardH / 2, cardW, cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
       hit.on('pointerdown', () => {
         playSfx('uiClick');
         const outcome = applyCurrentBonusDraftPick(card);
@@ -251,87 +278,5 @@ export class DesktopRunEventScene extends Phaser.Scene {
       });
       void tok;
     });
-  }
-
-  // ---------- outcome ----------
-
-  /** Outcome replaces the choices IN PLACE (same `story.contentTop`), and
-   * CONTINUE › sits immediately below it — the confirm action adjacent to
-   * the message it confirms (the user's core complaint). */
-  private renderOutcomePanel(outcome: EventOutcome, story: StoryLayout): void {
-    const { px, pw, innerX, innerW } = story;
-    const cardPad = 20;
-    const cardTop = story.contentTop;
-    const card = this.add.rectangle(px, cardTop, pw, 10, UI.panelMuted, 0.94).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.6);
-
-    const { headline, detail } = outcomeHeadline(outcome);
-    let cursor = cardTop + cardPad;
-    const outcomeIconSize = 44;
-    addRunArt(this, choiceArtKey(outcome.kind), {
-      x: innerX + (innerW - outcomeIconSize) / 2,
-      y: cursor,
-      width: outcomeIconSize,
-      height: outcomeIconSize,
-    });
-    cursor += outcomeIconSize + 10;
-    const headlineText = this.add.text(innerX, cursor, headline, {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.text, wordWrap: { width: innerW },
-    });
-    auditTextBlock(headlineText, { name: 'Run event outcome headline', maxWidth: innerW, maxHeight: F.title * 2, minFontSize: 12 });
-    cursor += headlineText.height + 8;
-    if (detail) {
-      const detailText = this.add.text(innerX, cursor, detail, {
-        fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim, wordWrap: { width: innerW },
-      });
-      auditTextBlock(detailText, { name: 'Run event outcome detail', maxWidth: innerW, maxHeight: F.small * 2, minFontSize: 8 });
-      cursor += detailText.height + 10;
-    }
-    cursor += 8;
-
-    if (outcome.kind === 'grantCard' && !outcome.fellBack) {
-      const skill = skillBook[outcome.skillId];
-      if (skill) {
-        const shown = outcome.tier === skill.tier ? skill : applyTier(skill, outcome.tier);
-        const cardW = 142;
-        const cardH = Math.round(cardW * (690 / 420));
-        new CardToken(this, innerX + cardW / 2, cursor + cardH / 2, shown, { width: cardW, height: cardH, side: 'left' });
-        cursor += cardH + 16;
-      }
-    } else if (outcome.kind === 'grantGem') {
-      const gem = gemBook[outcome.gemId];
-      if (gem) {
-        const chipW = 260;
-        const chipY = cursor;
-        this.add.rectangle(innerX, chipY, chipW, 56, UI.panelAlt, 0.9).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.9);
-        this.add.rectangle(innerX + 24, chipY + 28, 14, 14, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-        this.add.text(innerX + 44, chipY + 18, gem.name, {
-          fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text,
-        });
-        addHoverTipZone(this, { x: innerX, y: chipY, w: chipW, h: 56 }, [gemHoverEntry(gem)]);
-        cursor += 56 + 16;
-      }
-    }
-
-    const cardBoxH = cursor - cardTop + (cardPad - 16 > 0 ? cardPad - 16 : cardPad);
-    card.setSize(pw, Math.max(cardBoxH, headlineText.height + cardPad * 2));
-    cursor += 4;
-
-    // CONTINUE › — IMMEDIATELY below the outcome, adjacent to what it
-    // confirms. The HUD's own primary CONTINUE (top of screen) still works
-    // too (`renderHud`), same handler — this one just puts it where the eye
-    // already is.
-    this.renderInlineContinue(innerX, innerW, cursor);
-  }
-
-  private renderInlineContinue(x: number, w: number, y: number): void {
-    const h = 56;
-    const btn = this.add.rectangle(x, y, w, h, UI.chip, 1).setOrigin(0, 0).setStrokeStyle(2, UI.border, 0.9).setInteractive({ useHandCursor: true });
-    const label = this.add.text(x + w / 2, y + h / 2, 'CONTINUE ›', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name + 2}px`, color: UI.textOnChip,
-    }).setOrigin(0.5);
-    auditControlLabel(btn, label, { name: 'Run event inline continue', horizontalPadding: 16, verticalPadding: 10, minFontSize: 10 });
-    btn.on('pointerover', () => btn.setFillStyle(UI.chipDark));
-    btn.on('pointerout', () => btn.setFillStyle(UI.chip));
-    btn.on('pointerdown', () => { playSfx('uiClick'); this.continueToMap(); });
   }
 }

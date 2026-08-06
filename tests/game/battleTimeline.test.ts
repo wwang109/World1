@@ -231,7 +231,16 @@ describe('game/battleTimeline', () => {
     it('shows the card-power + stat-bonus breakdown for a typed shield gain, tagged with its pool', () => {
       const line = lines.find((l) => l.tag === 'BUFF' && l.text.includes('M.SHIELD'));
       expect(line).toBeDefined();
-      expect(line!.text).toContain('+108 M.SHIELD (96 + 12 MATK)');
+      // The stat named must be the DEFENSIVE one the engine actually added
+      // (`scaleDefStat`: magical -> Magic Resist), not MATK. Shields stopped
+      // scaling off Magic Power on 2026-08-04; this label had not followed.
+      expect(line!.text).toContain('+108 M.SHIELD (96 + 12 MDEF)');
+      expect(line!.text).not.toContain('MATK');
+    });
+
+    it('carries the shield derivation as an expandable S: strip, same grammar as a HIT D: strip', () => {
+      const line = lines.find((l) => l.tag === 'BUFF' && l.text.includes('M.SHIELD'));
+      expect(line!.detail).toBe('S: base 96 + (12 MDEF) = 108');
     });
 
     it('renders a TRUE shield gain as a plain number tagged T.SHIELD, no breakdown', () => {
@@ -249,6 +258,97 @@ describe('game/battleTimeline', () => {
     });
   });
 
+  // A healed number used to appear from nowhere: the line printed the post-tax
+  // total and the tax, but never the request they came from, so a player could
+  // not check the arithmetic (the HIT line has done this properly for ages).
+  describe('heal derivation (expandable H: strip)', () => {
+    const events: CombatEvent[] = [
+      // Mending Light (base 48) cast by a 1-MDEF hero on a target carrying one
+      // affliction category: request 49, anti-heal floors the REDUCTION
+      // (floor(49*20/100) = 9), so 40 HP lands.
+      {
+        turn: 1, kind: 'heal', side: 'player', unit: 0, amount: 40, overheal: 0, flat: false,
+        hpAfter: 46, antiHeal: { categories: ['dot'], pct: 20, reduced: 9 },
+        calculation: { power: 48, statBonus: 1, healFlat: 0, property: 'magical' },
+      },
+      // Physical heal boosted by a flat aura/gem heal bonus: 20 + 6 DEF + 4.
+      {
+        turn: 1, kind: 'heal', side: 'player', unit: 0, amount: 30, overheal: 0, flat: false,
+        hpAfter: 76, calculation: { power: 20, statBonus: 6, healFlat: 4, property: 'physical' },
+      },
+      // TRUE (flat) heal that mostly overheals — the wasted part was invisible.
+      {
+        turn: 1, kind: 'heal', side: 'enemy', unit: 0, amount: 10, overheal: 15, flat: true, hpAfter: 100,
+        calculation: { power: 25, statBonus: 0, healFlat: 0, property: 'true' },
+      },
+      // LIFESTEAL: a percentage of damage dealt, so the engine sends no
+      // `calculation` — there is no card base or stat term to split.
+      {
+        turn: 1, kind: 'heal', side: 'player', unit: 0, amount: 33, overheal: 0, flat: false,
+        hpAfter: 91, antiHeal: { categories: ['dot'], pct: 20, reduced: 8 },
+      },
+      // Nothing taxed, nothing wasted, no stat/aura term: the printed number IS
+      // the request, with and without a calculation block.
+      {
+        turn: 1, kind: 'heal', side: 'player', unit: 0, amount: 12, overheal: 0, flat: false, hpAfter: 58,
+        calculation: { power: 12, statBonus: 0, healFlat: 0, property: 'magical' },
+      },
+      { turn: 1, kind: 'heal', side: 'player', unit: 0, amount: 7, overheal: 0, flat: false, hpAfter: 65 },
+      // Shield gain that overflows the maxHp shield cap.
+      {
+        turn: 1, kind: 'shieldGain', side: 'player', unit: 0, property: 'physical',
+        amount: 20, wasted: 8, totalAfter: 100, calculation: { power: 24, statBonus: 4 },
+      },
+      { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+    ];
+    const lines = [...buildBattleTimeline(BASE, { events, result: 'win', turns: 2 }).linesByTurn.values()].flat();
+
+    it('spells out base + stat − anti-heal = landed, so the printed total is reconstructable', () => {
+      // The request (49) used to appear from nowhere; now the card's flat base
+      // and the caster's defensive stat are both named, straight off the
+      // engine's `calculation` block — never re-derived in the renderer.
+      const line = lines.find((l) => l.text.includes('+40 HP'));
+      expect(line).toBeDefined();
+      expect(line!.text).toContain('(anti-heal −20%: −9)');
+      expect(line!.detail).toBe('H: base 48 + (1 MDEF) − (9 ANTI-HEAL) = 40');
+    });
+
+    it('names the PHYSICAL defensive stat DEF and a flat aura/gem bonus SKILL', () => {
+      const line = lines.find((l) => l.text.includes('+30 HP'));
+      expect(line!.detail).toBe('H: base 20 + (6 DEF) + (4 SKILL) = 30');
+      expect(line!.detail).not.toContain('ATK');
+    });
+
+    it('surfaces OVERHEAL, and still opens a TRUE heal with `flat` (no stat term by identity)', () => {
+      const line = lines.find((l) => l.text.includes('+10 HP'));
+      expect(line!.detail).toBe('H: flat 25 − (15 OVERHEAL) = 10');
+      expect(line!.detail).not.toContain('MDEF');
+    });
+
+    it('opens a LIFESTEAL heal with the whole request — it has no card base to split', () => {
+      // The engine deliberately omits `calculation` there (percentage of damage
+      // dealt); the strip must not invent a `base 0` term.
+      const line = lines.find((l) => l.text.includes('+33 HP'));
+      expect(line!.detail).toBe('H: heal 41 − (8 ANTI-HEAL) = 33');
+      expect(line!.detail).not.toContain('base');
+    });
+
+    it('omits the strip when the calculation has nothing to break down', () => {
+      const line = lines.find((l) => l.text.includes('+12 HP'));
+      expect(line!.detail).toBeUndefined();
+    });
+
+    it('omits the strip for a calculation-less heal with nothing to derive', () => {
+      const line = lines.find((l) => l.text.includes('+7 HP'));
+      expect(line!.detail).toBeUndefined();
+    });
+
+    it('shows the shield cap as a CAPPED term rather than silently shrinking the number', () => {
+      const line = lines.find((l) => l.text.includes('P.SHIELD'));
+      expect(line!.detail).toBe('S: base 24 + (4 DEF) − (8 CAPPED) = 20');
+    });
+  });
+
   describe('status explanations (expandable detail, no hover)', () => {
     const events: CombatEvent[] = [
       { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'guard', property: 'physical', pct: 20, turns: 2 },
@@ -263,13 +363,21 @@ describe('game/battleTimeline', () => {
     const model = buildBattleTimeline(BASE, log);
     const lines = [...model.linesByTurn.values()].flat();
 
-    it('explains a guard status as -pct% incoming <property> damage, duration', () => {
-      const line = lines.find((l) => l.text.includes('Guard'));
+    it('names a guard by the PROPERTY it covers (P./M./T.GUARD, mirroring the shield pools)', () => {
+      // A guard only reduces damage of its OWN property, and that property is
+      // not inferable from the card (a gem can graft a TRUE guard onto any
+      // card) — a bare "Guard" left the player guessing.
+      const line = lines.find((l) => l.text.includes('GUARD'));
+      expect(line?.text).toContain('P.GUARD');
       expect(line?.detail).toBe('-20% incoming physical damage, 2 turns.');
     });
 
-    it('explains a negate status as fully blocking N hits of a property', () => {
-      const line = lines.find((l) => l.text.includes('Negate'));
+    it('names a negate by the PROPERTY it covers (P./M./T.NEGATE, mirroring guard)', () => {
+      // Same gap as guard had: a negate only blocks hits of its OWN property,
+      // not inferable from the card, so a bare "Negate" told the player
+      // nothing about what it stops.
+      const line = lines.find((l) => l.text.includes('NEGATE'));
+      expect(line?.text).toContain('M.NEGATE');
       expect(line?.detail).toBe('Fully blocks the next 1 magical hit.');
     });
 

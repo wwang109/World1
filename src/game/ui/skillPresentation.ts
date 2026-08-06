@@ -168,8 +168,16 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: Sk
       case 'buffStat': extras.push(`+${action.pct}% ${STAT_TOKEN[action.stat]}`); break;
       case 'debuffStat': extras.push(`-${action.pct}% ${STAT_TOKEN[action.stat]}`); break;
       case 'expose': extras.push(`EXPOSE ${action.pct}%`); break;
-      case 'guard': extras.push(`GUARD ${action.pct}%`); break;
-      case 'negate': extras.push(`NEGATE ×${action.charges}`); break;
+      // A guard covers ONE property, carried by the ACTION (not by the card —
+      // a gem can graft a differently-typed guard onto any card), so the face
+      // token names it: P.GUARD / M.GUARD / T.GUARD, mirroring the battle
+      // log's P./M./T.SHIELD pool tokens. A bare "GUARD 20%" told the player
+      // nothing about which damage it actually stops.
+      case 'guard': extras.push(`${action.property === 'physical' ? 'P' : action.property === 'magical' ? 'M' : 'T'}.GUARD ${action.pct}%`); break;
+      // A negate covers ONE property, carried by the ACTION exactly like guard
+      // above — same gap, same fix: P.NEGATE / M.NEGATE / T.NEGATE, mirroring
+      // the battle log's negateToken (battleTimeline.ts).
+      case 'negate': extras.push(`${action.property === 'physical' ? 'P' : action.property === 'magical' ? 'M' : 'T'}.NEGATE ×${action.charges}`); break;
       case 'cleanse': extras.push(`CLEANSE ${action.charges}`); break;
       case 'taunt': extras.push('TAUNT'); break;
       case 'lifesteal': extras.push(`LSTEAL ${action.pct}%`); break;

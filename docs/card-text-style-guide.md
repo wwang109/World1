@@ -145,8 +145,8 @@ a sentence: **how much, boosted by what, of what kind.**
 | `debuffStat` | `Reduce the enemy's {Stat} by {pct}% for {turns} turns.` |
 | `expose` | `Expose the enemy — +{pct}% damage from all direct hits ({turns} turns).` |
 | `cleanse` | `Remove up to {charges} of your ailments.` — name the number of removable effects; "ailments" covers poisons/burns/bleeds/stuns/debuffs/expose. |
-| `guard` | `Reduce incoming {element/magical} damage by {pct}% for {turns} turns.` — name the `property` in lowercase ("physical"/"magical"), or say "all" for TRUE. |
-| `negate` | `Negate the next {charges} {magical} attack(s).` — name the `property` in lowercase ("physical"/"magical"), or say "any" for TRUE. Singular "attack" and NO numeral if `charges` = 1 (the drift guard exempts `charges = 1`, mirroring `stun`). |
+| `guard` | `Reduce incoming {property} damage by {pct}% for {turns} turns.` — name the `property` in lowercase ("physical"/"magical"), or **"TRUE" in caps** for true. **Never say "all"/"all types."** Guard only ever reduces damage of its own matching `property` (`src/engine/combat/interpreter.ts`, the guard loop keys off `s.property !== property`) — a TRUE guard blocks TRUE damage ONLY, not physical/magical too. (A 2026-08-06 bug: `purify_echo`'s text claimed "all types" for a TRUE-property guard; the gem only ever cut TRUE damage. Fixed in data + this row — don't reintroduce it.) |
+| `negate` | `Negate the next {charges} {property} attack(s).` — name the `property` in lowercase ("physical"/"magical"), or **"TRUE" in caps** for true. **Never say "any."** Negate is the same matching-`property` shape as guard (`s.property === property` in the interpreter) — a TRUE negate cancels TRUE hits ONLY. Singular "attack" and NO numeral if `charges` = 1 (the drift guard exempts `charges = 1`, mirroring `stun`). |
 
 Examples from the live card set: `arcane_bolt` → `"Deal 18 (+MATK) Lightning
 damage."`; `mending_light` → `"Restore 48 (+MDEF) HP."`; `iron_bulwark` →

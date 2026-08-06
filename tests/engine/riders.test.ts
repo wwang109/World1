@@ -47,6 +47,24 @@ describe('special ability riders', () => {
     expect(events.find((e) => e.kind === 'heal')).toMatchObject({ side: 'player', amount: 11, hpAfter: 61 });
   });
 
+  it('a lifesteal heal carries NO calculation block — it has no card base to split', () => {
+    // Deliberate asymmetry with the `heal` action (documented on the event in
+    // src/engine/combat/events.ts): a lifesteal request is a percentage of
+    // damage dealt, with no card base, no stat term and no aura term, so
+    // reporting `power = stolen` would claim a card base that does not exist.
+    // Same contract as damage.calculation, which DoT/fatigue damage omits.
+    const c = cfg(
+      tc('hero', ['leeching_fang'], { attack: 10, speed: 20, maxHp: 100, hp: 50 }),
+      tc('wall', [], { maxHp: 500, speed: 10 }),
+      { ...NO_ENDGAME, maxTurns: 1 },
+    );
+    const heal = simulate(c, 1).events.find(
+      (e): e is Extract<Events[number], { kind: 'heal' }> => e.kind === 'heal',
+    )!;
+    expect(heal.amount).toBe(11);
+    expect('calculation' in heal).toBe(false);
+  });
+
   it('lifesteal only counts damage that reached HP', () => {
     // Enemy shields first; the blocked portion must not heal the attacker.
     const c = cfg(

@@ -178,7 +178,7 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
     case 'guard':
       return {
         title: 'Guard',
-        body: `Reduces incoming ${action.property === 'true' ? 'all' : action.property} damage by ${action.pct}% for ${action.turns} global turns (capped at 60%).`,
+        body: `Reduces incoming ${action.property === 'true' ? 'TRUE' : action.property} damage by ${action.pct}% for ${action.turns} global turns (capped at 60%). Only blocks damage of this matching property — a TRUE guard does not reduce physical/magical hits.`,
       };
     case 'negate':
       return {

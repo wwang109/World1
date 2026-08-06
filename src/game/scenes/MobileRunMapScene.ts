@@ -4,7 +4,7 @@ import { eventThemeBlurb } from '../ui/eventThemeBlurb';
 import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
-import { renderRunChoicePanel, type RunChoiceViewModel } from '../ui/RunChoicePanel';
+import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
@@ -206,7 +206,13 @@ export class MobileRunMapScene extends Phaser.Scene {
       availableH -= F.tiny + 6;
     }
     const gap = 10;
-    const h = Math.min(94, (availableH - gap * (options.length - 1)) / options.length);
+    // The 94 is a CEILING on wasted space, never a licence to squeeze below what
+    // the stack needs: shop nodes carry a footer, and under the floor the detail
+    // line silently ellipsizes instead of overflowing (see runChoicePanelMinHeight).
+    const h = Math.max(
+      runChoicePanelMinHeight(F, true),
+      Math.min(94, (availableH - gap * (options.length - 1)) / options.length),
+    );
     let y = top;
     for (const node of options) {
       renderRunChoicePanel(this, { x, y, w, h }, this.choiceViewModel(node), {

@@ -39,7 +39,7 @@ interface HpBarHandles {
 }
 
 const TAG_COLOR: Record<string, string> = {
-  START: '#e8b446', PLAY: '#4f9e57', HIT: '#d05c4e', BUFF: '#5fb56a',
+  START: '#e8b446', READY: '#5fa8d3', PLAY: '#4f9e57', HIT: '#d05c4e', BUFF: '#5fb56a',
   DEBUFF: '#a678d8', WAIT: '#c9a15a', DOWN: '#d05c4e', RESULT: '#e8b446',
 };
 /** Ailment identity colors — used to tint the afflicted side's HP bar and its DoT tick numbers. */

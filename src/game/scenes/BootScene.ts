@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { installUnlock } from '../audio/audioBus';
 import { applyDevLaunchConfig } from '../devLaunch';
 import { ACTIVE_PROFILE } from '../layoutProfile';
+import { FONT, SCREEN, UI } from '../theme';
 import { CARD_ART_CATALOG } from '../ui/cardArtCatalog';
 import { RUN_ART_ASSETS } from '../ui/runArt';
 
@@ -10,7 +11,47 @@ export class BootScene extends Phaser.Scene {
     super('Boot');
   }
 
+  /** Loading UI, built before any `this.load.*` calls so it paints on the
+   * very first frame — a Boot preload with no art loaded yet still shows the
+   * wordmark + an empty bar instead of a black canvas. Wired to the real
+   * loader ('progress'/'complete'), never a fake timer. */
+  private buildLoadingUi(): void {
+    const mobile = ACTIVE_PROFILE.id === 'mobile';
+    const cx = SCREEN.width / 2;
+    const F = ACTIVE_PROFILE.font;
+    this.cameras.main.setBackgroundColor(UI.bg);
+
+    const titleY = Math.round(SCREEN.height * (mobile ? 0.42 : 0.44));
+    this.add.text(cx, titleY - (mobile ? 34 : 44), 'A ROGUELITE SKILL-BOARD BATTLER', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textMuted, letterSpacing: 2,
+    }).setOrigin(0.5);
+    this.add.text(cx, titleY, 'WORLD1', {
+      fontFamily: FONT.display ?? FONT.body, fontStyle: 'bold', fontSize: `${mobile ? 44 : 64}px`, color: UI.textBright,
+    }).setOrigin(0.5);
+
+    const barY = titleY + (mobile ? 64 : 84);
+    const barW = mobile ? SCREEN.width - 80 : 340;
+    const barH = mobile ? 8 : 10;
+    const barX = cx - barW / 2;
+    this.add.rectangle(cx, barY, barW, barH, UI.chipDark, 1).setStrokeStyle(1, UI.border, 0.6);
+    const fill = this.add.rectangle(barX, barY, 0, barH - 2, UI.chip, 1).setOrigin(0, 0.5);
+    const pct = this.add.text(cx, barY + barH / 2 + (mobile ? 12 : 16), '0%', {
+      fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted,
+    }).setOrigin(0.5);
+
+    const innerW = barW - 2;
+    this.load.on('progress', (value: number) => {
+      fill.width = Math.max(0, innerW * value);
+      pct.setText(`${Math.round(value * 100)}%`);
+    });
+    this.load.on('complete', () => {
+      fill.width = innerW;
+      pct.setText('100%');
+    });
+  }
+
   preload(): void {
+    this.buildLoadingUi();
     this.load.image('card-template-parts', '/game-art/card-template-parts-transparent.png');
     this.load.image('card-badge:template:sword', '/game-art/template/badge-sword.png');
     this.load.image('card-badge:template:lance', '/game-art/template/badge-lance.png');

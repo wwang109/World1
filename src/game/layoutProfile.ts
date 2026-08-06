@@ -53,6 +53,7 @@ export function detectProfile(search?: string): LayoutProfile {
   if (ui === 'mobile') return MOBILE_PROFILE;
   if (ui === 'desktop') return DESKTOP_PROFILE;
   if (['desktop-wiki', 'desktop-prep', 'desktop-deck', 'desktop-battle', 'desktop-shop', 'desktop-draft', 'desktop-runmap', 'desktop-runprep', 'desktop-runevent'].includes(params.get('scene') ?? '')) return DESKTOP_PROFILE;
+  if (['mprep', 'mdeck', 'mbattle', 'mwiki', 'mobile-shop', 'mobile-draft', 'mrunmap', 'mrunprep', 'mrunevent'].includes(params.get('scene') ?? '')) return MOBILE_PROFILE;
   const screen = window.screen;
   const shortEdge = screen ? Math.min(screen.width, screen.height) : 9999;
   const coarse = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;

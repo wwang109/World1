@@ -295,6 +295,34 @@ export type CombatEvent =
        */
       antiHeal?: AntiHealReduction;
       sourceCard?: EffectSourceRef;
+      /**
+       * How the REQUESTED heal was built, so the UI can explain the number
+       * instead of asserting it — the `heal` sibling of `shieldGain.calculation`.
+       * `power` is the card's flat base, `statBonus` the caster's DEFENSIVE
+       * scaling-stat contribution (ARMOR for physical, MAGIC RESIST for magical —
+       * healing is defensive output, see `scaleDefStat` in combat/interpreter.ts),
+       * and `healFlat` the flat aura/gem heal bonus. `property` is the CASTING
+       * CARD's property: it names which defensive stat `statBonus` came from, and
+       * lives inside this block rather than on the event because the event itself
+       * is not always typed (see below).
+       * TRUE heals are FLAT BY IDENTITY — no stat term and no aura term, so
+       * `statBonus` and `healFlat` are 0 (the same way TRUE shields report 0).
+       * Request is `power + statBonus + healFlat`; the anti-heal tax and the
+       * maxHp clamp then produce `amount` (`request − antiHeal.reduced − overheal`).
+       *
+       * EMITTED BY THE `heal` ACTION ONLY. The other emitter of this event is the
+       * `lifesteal` rider, whose request is a PERCENTAGE OF DAMAGE DEALT — it has
+       * no card base, no stat term and no aura term, so there is nothing to split
+       * and it OMITS this block entirely (rather than reporting a fake
+       * `power = stolen`, which would claim a card base that does not exist).
+       * Same contract as `damage.calculation`, which direct hits carry and
+       * DoT/fatigue/attrition damage omits. Consumers must handle its absence:
+       * for a calculation-less heal the printed `amount + overheal +
+       * antiHeal.reduced` IS the whole request.
+       * Optional in the type (not just by emitter) so hand-built fixtures and
+       * previously captured logs stay assignable.
+       */
+      calculation?: { power: number; statBonus: number; healFlat: number; property: Property };
     }
   | {
       turn: number;

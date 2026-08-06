@@ -224,7 +224,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'guard', property: 'true', pct: 20, turns: 1 }],
-    text: 'Also -20% incoming damage, all types (1 turn).',
+    text: 'Also -20% incoming TRUE damage (1 turn).',
   },
 
   // ---- Rare (4 PL / 40 deci) ----

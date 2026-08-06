@@ -607,14 +607,23 @@ function applyAction(
       let amount: number;
       let flat = false;
       let antiHeal: AntiHealReduction | undefined;
+      // The requested heal's parts, reported on the event so the UI can explain
+      // the number without re-deriving gem/aura/stat resolution (which could
+      // silently disagree with this line). Mirrors shieldGain.calculation.
+      let statBonus = 0;
+      let healFlat = 0;
       if (property === 'true') {
+        // Flat by identity: no stat term, no aura term — both stay 0, exactly as
+        // a TRUE shield reports statBonus 0.
         amount = action.power;
         flat = true;
       } else {
+        statBonus = scaleDefStat(caster, property);
+        healFlat = mods.healFlat;
         // ANTI-HEAL WORLD RULE: a regular heal is taxed −20% per affliction
         // category active on the RECEIVER (cap −60%). TRUE heals skip this
         // branch entirely — irreducible by identity.
-        const taxed = applyAntiHeal(target, action.power + scaleDefStat(caster, property) + mods.healFlat);
+        const taxed = applyAntiHeal(target, action.power + statBonus + healFlat);
         amount = taxed.amount;
         antiHeal = taxed.antiHeal;
       }
@@ -625,7 +634,7 @@ function applyAction(
       // per-card report credits its full output; `amount` is the effective HP
       // restored, `overheal` the wasted remainder (attempted = amount + overheal).
       if (amount > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: amount - healed, flat, hpAfter: target.stats.hp, ...(antiHeal ? { antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}) });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: amount - healed, flat, hpAfter: target.stats.hp, ...(antiHeal ? { antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}), calculation: { power: action.power, statBonus, healFlat, property } });
       }
       break;
     }
@@ -780,6 +789,12 @@ function applyAction(
       caster.stats.hp = Math.min(caster.stats.maxHp, caster.stats.hp + amount);
       const healed = caster.stats.hp - before;
       if (healed > 0) {
+        // NO `calculation` BLOCK (deliberate): a lifesteal request is
+        // `floor(damageDealt * pct / 100)` — there is no card base, no stat term
+        // and no aura term to split, so reporting `power = stolen` would claim a
+        // card base that does not exist. Same contract as `damage.calculation`,
+        // which DoT/fatigue/attrition damage omits for the same reason; the
+        // renderer treats a calculation-less heal's printed request as whole.
         ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: caster.side, unit: caster.index, amount: healed, overheal: amount - healed, flat: false, hpAfter: caster.stats.hp, ...(taxed.antiHeal ? { antiHeal: taxed.antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}) });
       }
       break;

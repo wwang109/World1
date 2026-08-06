@@ -48,6 +48,41 @@ const next = {
     'size, speedWeight, cooldownTurns, tier, rarity, element, weapon, scope, aura, special, ' +
     'tierUpgrades) — is still hashed byte-for-byte.',
   note:
+    'Regression lock recaptured (2026-08-06) for the HEAL DERIVATION BLOCK ' +
+    '(`heal.calculation`): an ADDITIVE, PRESENTATION-ONLY EVENT FIELD — NOT a rule ' +
+    'change. The sim reads nothing from it and every number it reports was already ' +
+    'being applied. The heal event now carries { power, statBonus, healFlat, ' +
+    'property }, the sibling of shieldGain.calculation, so the battle log can print ' +
+    '"H: base 48 + (1 MDEF) - (9 ANTI-HEAL) = 40" instead of a request that appears ' +
+    'from nowhere; the alternative — re-deriving the split in the renderer — would ' +
+    're-run gem/aura/stat resolution outside the engine and could silently disagree ' +
+    'with it. TRUE heals report a ZERO stat term (flat by identity, exactly as TRUE ' +
+    'shields do), and the OTHER emitter of this event, the LIFESTEAL rider, OMITS ' +
+    'the block entirely: its request is a percentage of damage dealt, with no card ' +
+    'base and no stat term to split (same contract as damage.calculation, which ' +
+    'DoT/fatigue/attrition damage omits). Blast radius verified BEFORE regenerating, ' +
+    'over both 200-fight sweeps and IDENTICAL in each: 137/200 logs moved (128 of ' +
+    'them decided before ATTRITION_START_TURN), with ZERO winner flips and ZERO turn ' +
+    'changes — the signature of a field the sim never consumes. CONTAINMENT PROVEN ' +
+    'BY EXHAUSTION, both directions: the moved set is EXACTLY the set of logs ' +
+    'containing a heal-ACTION heal (0 logs moved without one; 0 logs carrying one ' +
+    'stayed put). 142 logs contain a heal event at all, and the 5 that did NOT move ' +
+    '(#4, #14, #92, #142, #192) are precisely the logs whose ONLY heal is a ' +
+    '`leeching_fang` LIFESTEAL — the deliberate omission above, proven by their ' +
+    'bytes standing still. 45 of the moved logs carry only zero-term (TRUE/flat) ' +
+    'heal calculations: they move because the BLOCK itself is new, unlike the ' +
+    '2026-08-05 stat-scaling regen where zero-term heals stayed put. ON THE ' +
+    'NORMALIZER (see `normalization` above): stripping `calculation` there instead — ' +
+    'which would have cost no fixture churn at all — was evaluated FIRST and ' +
+    'REJECTED. It is engine-derived ARITHMETIC, not authored copy: two heals with ' +
+    'the same landed amount but a different (power, statBonus, healFlat) split are a ' +
+    'real difference in the sim\'s math, and this lock is what would catch it. A ' +
+    'blanket strip would also drop the ALREADY-HASHED damage.calculation and ' +
+    'shieldGain.calculation and re-hash nearly every one of the 200 logs — a BIGGER ' +
+    'regeneration buying permanently LESS coverage. See ' +
+    'src/engine/combat/interpreter.ts (the `heal` and `lifesteal` cases), ' +
+    'src/engine/combat/events.ts (heal.calculation docs), src/game/battleTimeline.ts ' +
+    '(formatHeal) and tests/engine/effects.test.ts. It supersedes the prior regen: ' +
     'Regression lock recaptured (2026-08-05) for DEFENSIVE-STAT SCALING of shields ' +
     'and heals (user-approved 2026-08-04): a REAL, REVIEWED RULE CHANGE. A card\'s ' +
     '`property` still picks WHICH stat scales its output, but the ROLE of the action ' +

@@ -84,6 +84,43 @@ describe('summarizeEffects — live stat scaling', () => {
   });
 });
 
+// Guard and negate each cover ONE property carried by the action itself (not
+// inferable from the card — a gem can graft a differently-typed one onto any
+// card), so the card face names it P./M./T.GUARD and P./M./T.NEGATE, mirroring
+// the P./M./T.SHIELD pool tokens. A bare "GUARD 20%"/"NEGATE ×1" told the
+// player nothing about what it actually stops.
+describe('summarizeEffects — guard/negate property tokens', () => {
+  it('names a physical guard P.GUARD', () => {
+    const skill = makeSkill({ effects: [{ kind: 'guard', property: 'physical', pct: 20, turns: 2 }] });
+    expect(summarizeEffects(skill)).toBe('P.GUARD 20%');
+  });
+
+  it('names a magical guard M.GUARD', () => {
+    const skill = makeSkill({ effects: [{ kind: 'guard', property: 'magical', pct: 15, turns: 1 }] });
+    expect(summarizeEffects(skill)).toBe('M.GUARD 15%');
+  });
+
+  it('names a TRUE guard T.GUARD', () => {
+    const skill = makeSkill({ effects: [{ kind: 'guard', property: 'true', pct: 10, turns: 1 }] });
+    expect(summarizeEffects(skill)).toBe('T.GUARD 10%');
+  });
+
+  it('names a physical negate P.NEGATE', () => {
+    const skill = makeSkill({ effects: [{ kind: 'negate', property: 'physical', charges: 1 }] });
+    expect(summarizeEffects(skill)).toBe('P.NEGATE ×1');
+  });
+
+  it('names a magical negate M.NEGATE', () => {
+    const skill = makeSkill({ effects: [{ kind: 'negate', property: 'magical', charges: 2 }] });
+    expect(summarizeEffects(skill)).toBe('M.NEGATE ×2');
+  });
+
+  it('names a TRUE negate T.NEGATE', () => {
+    const skill = makeSkill({ effects: [{ kind: 'negate', property: 'true', charges: 1 }] });
+    expect(summarizeEffects(skill)).toBe('T.NEGATE ×1');
+  });
+});
+
 describe('summarizeEffects — aura reach on the card face', () => {
   it('all-board auras lead with ALL', () => {
     const skill = makeSkill({ aura: { affects: 'allBoard', mods: { damageFlat: 5 } } });

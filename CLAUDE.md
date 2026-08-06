@@ -152,3 +152,55 @@ Use `/orchestrate <goal>` to run the delegate → summary → verify loop, or
   user's say-so; branch off, don't commit to a shared main directly.
 - Workers return a **structured summary** (what changed, files, test result,
   deviations, open questions) so the orchestrator can verify the path.
+
+### Keep the main chat free — delegate by default (USER-LOCKED 2026-08-05)
+
+**The main session's ONLY job is tracking tasks and their progress.** It
+dispatches; it does not implement. Any task with real work in it — a fix, a
+feature, an investigation, a layout pass — goes to an agent. The orchestrator
+writes the brief, keeps the task list current, reads the result, and gates it.
+Nothing else. It should never be the thing that is busy.
+
+- **Always spin an agent.** Do not do the work inline "because it's quick" —
+  that is exactly how the main context fills and the user is left waiting.
+  Trivial one-liners and answering a direct question are the only exceptions.
+- **Dispatch in parallel.** Independent tasks go out in one message as several
+  background agents, not one at a time.
+- **Every brief carries**: the both-platforms rule, `npm test` must stay green,
+  **do NOT commit**, a concrete verification bar (Playwright route + viewport +
+  what the screenshot must prove), and a warning about any determinism-critical
+  surface it might touch.
+- **Then audit.** When an agent reports done, a SEPARATE agent verifies the
+  claim before it is called done — see below.
+
+### Audit every "done" (USER-LOCKED 2026-08-05)
+
+Never report a task complete on a worker's own say-so. Spin a `code-reviewer`
+agent to verify it adversarially first. This is not ceremony: on 2026-08-05,
+three consecutive audits each found a real defect in work that had already been
+reported complete — a dead import with the bug still live, a fix applied to
+desktop only in violation of the both-platforms rule, and a scrollbar thumb
+that never moved. Brief the auditor to report **what is wrong**, not to
+re-summarize what works.
+
+### Reporting: three buckets (USER-LOCKED 2026-08-05)
+
+Every status update uses exactly these sections, in this order:
+
+1. **IN PROGRESS** — dispatched to an agent, not back yet. One line each.
+2. **DONE — AWAITING YOUR CONFIRMATION** — the agent finished AND an audit
+   passed, but the user has not seen it work. This is the sign-off queue: an
+   item sits here until the user says it is good. **Passing an audit is not
+   the same as being accepted** — three audits on 2026-08-05 each still missed
+   things the user caught by looking at the running game.
+   Give every item here a **short NAME** (2–4 words, e.g. "shelf scrollbar",
+   "board spanning") alongside its number, and say where to look to check it.
+   The user confirms by naming it, so a bare "#4" is not enough to point at.
+3. **NOT STARTED / BLOCKED** — no agent, or waiting on a decision. Name the
+   decision needed.
+
+Nothing leaves bucket 2 except by the user's word. **Once the user confirms an
+item, DELETE the task** (`TaskUpdate` with `status: "deleted"`) — it is gone
+from the list and never mentioned again. Do NOT keep confirmed work around as
+a "completed" trophy row; re-raising finished items is, in the user's words,
+"just wasting token". A clean audit is one line; spend the words on what failed.

@@ -26,6 +26,31 @@ function trackObject(track: Phaser.GameObjects.GameObject[] | undefined, object:
   track?.push(object);
 }
 
+/** Rendered height of one line of text at `fontSize` — Phaser's line box runs
+ * a little over the point size, and rounding down here is what silently eats
+ * the detail row, so this deliberately over-estimates. */
+function lineH(fontSize: number): number {
+  return Math.ceil(fontSize * 1.4);
+}
+
+/**
+ * The SMALLEST `bounds.h` that fits this panel's whole stack:
+ *
+ *   inset · title · 5 · detail · [7 · footer] · inset
+ *
+ * Callers must size rows with this, not a hand-picked number. Every row here
+ * is laid out from the TOP except the footer, which is pinned to the BOTTOM,
+ * so when a row is too short the two collide and `detail` is the one that
+ * loses — `auditTextBlock` shrinks it to the leftover height and ellipsizes.
+ * That is not a visible overflow, it is a line that quietly becomes "R…":
+ * the event choices shipped at h=84 needing ~99, so every "REWARD · ..." hint
+ * rendered as a single letter. Ask for the height instead of guessing it.
+ */
+export function runChoicePanelMinHeight(font: LayoutProfile['font'], hasFooter: boolean): number {
+  const inset = Math.max(14, font.small + 6);
+  return inset * 2 + lineH(font.name) + 5 + lineH(font.small) + (hasFooter ? 7 + lineH(font.tiny) : 0);
+}
+
 export function renderRunChoicePanel(
   scene: Phaser.Scene,
   bounds: { x: number; y: number; w: number; h: number },

@@ -1,5 +1,10 @@
 import { TEXT_SHRINK_FLOOR_PX } from '../theme';
 
+/** Least fraction of a string that must SURVIVE truncation for the result to
+ * still count as laid out rather than gutted — see the gutting check in
+ * `auditTextBlock`. Trimming a tail is fine; keeping one letter is a bug. */
+const GUT_RATIO = 1 / 3;
+
 interface RectangleControl {
   displayWidth: number;
   displayHeight: number;
@@ -156,9 +161,24 @@ export function auditTextBlock(
     resized = true;
   }
 
+  const before = String(text.text);
   const truncated = truncateOverflowText(text, overflow);
 
-  const passed = text.width <= options.maxWidth && text.height <= options.maxHeight;
+  // GUTTING CHECK (2026-08-05). Fitting is not the same as being readable, and
+  // for a long time this function conflated them: it shrank, then truncated,
+  // then declared PASS because the result fit. A box far too small for its text
+  // therefore reported success while showing a single letter — the run event
+  // choices rendered "REWARD · A card" as "R…" and nothing complained, because
+  // by this function's old definition "R…" fits and is therefore fine.
+  //
+  // Truncation is legitimate for trimming a tail ("Sanctified Bulwa…"). It is a
+  // LAYOUT BUG when almost nothing survives: that means the box is mis-sized,
+  // not that the text is slightly long. Keeping under a third of the content is
+  // treated as a failure so it surfaces like any other overflow.
+  const kept = String(text.text).replace(/…$/, '');
+  const gutted = truncated && before.length > 0 && kept.length / before.length < GUT_RATIO;
+
+  const passed = text.width <= options.maxWidth && text.height <= options.maxHeight && !gutted;
   const result: TextBoxAuditResult = {
     name: options.name,
     passed,

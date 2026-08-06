@@ -248,6 +248,16 @@ describe('anti-heal reduction of regular heals', () => {
     expect(ev.amount).toBe(100);
     expect(ev.antiHeal).toBeUndefined();
   });
+
+  it('the reported calculation reconciles with the tax: parts − reduced − overheal = amount', () => {
+    // The event's `calculation` is the PRE-TAX request; anti-heal is a separate
+    // subtraction, so a UI strip can print base/stat/aura, then the tax, and
+    // land exactly on the number the sim applied.
+    const ev = healOf(castWith('mend100', [DOT, DEBUFF]).events);
+    expect(ev.calculation).toEqual({ power: 100, statBonus: 0, healFlat: 0, property: 'magical' });
+    const c = ev.calculation!;
+    expect(c.power + c.statBonus + c.healFlat - (ev.antiHeal?.reduced ?? 0) - ev.overheal).toBe(ev.amount);
+  });
 });
 
 describe('TRUE heal immunity', () => {

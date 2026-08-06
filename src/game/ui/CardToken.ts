@@ -5,7 +5,7 @@ import { cardType, IDENTITY_THRESHOLD } from '../../engine/combat/typeIdentity';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { fantasyTemplateCardArtKey } from './cardArtPresentation';
 import { summarizeEffects, type ScalingStats, type SkillFaceMode } from './skillPresentation';
-import { cardTokenSpec, type CardTokenSpec } from './cardTokenSpec';
+import { cardTokenSpec, chipBox, type CardTokenSpec } from './cardTokenSpec';
 
 /** A small badge rendered into the token's reserved accessory rail
  *  (gem socket, tier plate, …). Purely visual — the caller owns meaning. */
@@ -137,9 +137,12 @@ export class CardToken extends Phaser.GameObjects.Container {
     }
 
     // small dark scrim so a corner label stays readable over bright art.
+    // Centered on the text's true glyph bounds (see `chipBox`) rather than
+    // reusing the text's own corner origin, so the pad reads as a pill
+    // around the label instead of growing lopsided off one edge.
     const scrimLabel = (t: Phaser.GameObjects.Text): void => {
-      const scrim = scene.add.rectangle(t.x, t.y, t.width + 8, t.height + 3, 0x0b1420, 0.55)
-        .setOrigin(spec.cornerOriginX, t.originY);
+      const box = chipBox(t);
+      const scrim = scene.add.rectangle(box.x, box.y, box.width, box.height, 0x0b1420, 0.55).setOrigin(0.5);
       this.add(scrim);
       this.add(t);
     };
@@ -176,8 +179,10 @@ export class CardToken extends Phaser.GameObjects.Container {
       const t = scene.add.text(spec.cursorBadge.x, spec.cursorBadge.y, badgeText, {
         fontSize: '9px', color: '#1a1208', fontFamily: FONT.body, fontStyle: 'bold',
       }).setOrigin(side === 'left' ? 1 : 0, 1);
-      const chip = scene.add.rectangle(spec.cursorBadge.x, spec.cursorBadge.y, t.width + 10, t.height + 4, 0xe8b446)
-        .setOrigin(side === 'left' ? 1 : 0, 1);
+      // Same fix as `scrimLabel`: center the pill on the text's true bounds
+      // instead of reusing its corner origin.
+      const box = chipBox(t);
+      const chip = scene.add.rectangle(box.x, box.y, box.width, box.height, 0xe8b446).setOrigin(0.5);
       this.add(chip);
       this.add(t);
     }

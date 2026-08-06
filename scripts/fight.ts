@@ -118,13 +118,29 @@ for (const e of events) {
       );
       if (e.calculation) console.log(`${t} │  calc             ${fmtDamage(e.calculation)}`);
       break;
-    case 'heal':
+    case 'heal': {
       console.log(
         `${t} │  ${tag(e.side)} heals ${e.amount}${e.flat ? ' (flat)' : ''}${
           e.antiHeal ? ` [anti-heal -${e.antiHeal.pct}%: -${e.antiHeal.reduced} from ${e.antiHeal.categories.join('+')}]` : ''
         } -> ${e.hpAfter} hp`,
       );
+      // Same `calc` line the damage case prints. A LIFESTEAL heal carries no
+      // calculation (percentage of damage dealt — no base to split), so this
+      // line simply doesn't appear for one.
+      const hc = e.calculation;
+      if (hc) {
+        const terms = [`${hc.power}`];
+        const add = (label: string, value: number): void => {
+          if (value !== 0) terms.push(`${value > 0 ? '+' : '-'}${label}${Math.abs(value)}`);
+        };
+        add(hc.property === 'physical' ? 'ARMOR' : 'MRES', hc.statBonus);
+        add('AURA', hc.healFlat);
+        add('ANTIHEAL', -(e.antiHeal?.reduced ?? 0));
+        add('OVERHEAL', -e.overheal);
+        console.log(`${t} │  calc             ${terms.join(' ')} = ${e.amount} HP`);
+      }
       break;
+    }
     case 'shieldGain':
       console.log(`${t} │  ${tag(e.side)} +${e.amount} ${e.property} shield${e.wasted ? ` (${e.wasted} wasted)` : ''} -> ${e.totalAfter} total`);
       break;
