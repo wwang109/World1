@@ -471,12 +471,16 @@ describe('no fight ever reaches the turn cap, and decisive fights are unchanged'
   // NOT a spec for any individual mechanic: it says "attrition work must not reach
   // fights decided before ATTRITION_START_TURN". A deliberate, reviewed rule change
   // elsewhere in the engine legitimately moves these logs and the fixture is then
-  // regenerated (last regeneration: 2026-08-04, for the FIRST-TO-FALL rule — a real,
-  // reviewed rule change whose blast radius was enumerated before regenerating:
-  // 1/200 attritionOff and 2/200 attritionOn logs moved, each one because a
-  // POST-WIPE application (a bleed tick after a killing cast, or an attrition tick
-  // after a side was already wiped) no longer runs; 0 winner flips, 0 turn changes,
-  // and every log identical up to and including the wipe. Earlier regens: the
+  // regenerated (last regeneration: 2026-08-05, for DEFENSIVE-STAT SCALING of shields
+  // and heals — a real, reviewed rule change whose blast radius was enumerated before
+  // regenerating: 153/200 logs moved in EACH sweep, with 2 winner flips (#9, #138) and
+  // 13 turn changes. Containment was proven by exhaustion rather than by inspecting
+  // each log: NOT ONE moved log lacks a shieldGain/heal event, and all 15 logs that
+  // have one but did not move are accounted for (12 carry only a zero stat term —
+  // TRUE, flat by identity; 3 carry only a `leeching_fang` lifesteal heal, which
+  // scales off damage dealt, never off a stat). Earlier regens: FIRST-TO-FALL
+  // (1/200 attritionOff, 2/200 attritionOn — each a POST-WIPE application that no
+  // longer runs; 0 winner flips, 0 turn changes), the
   // anti-heal world rule (75/200), the TRUE-heal re-price, "bleed ticks at most once
   // per global turn" (8/200), and additive shield event metadata. Hashing goes
   // through the shared `outcomeHash` normalizer, which strips presentation-only card

@@ -60,15 +60,18 @@ describe('special ability riders', () => {
   });
 
   it('shieldBreak strips shields before the hit lands', () => {
+    // The turtle's 10 now sits in ARMOR, not Attack: shields are defensive output
+    // (2026-08-04), so Armor is what sizes Bulwark's pool. Armor also MITIGATES, so
+    // the hero carries Attack 20 rather than 10 to land the same 52 on arrival.
     const c = cfg(
-      tc('hero', ['shield_splitter'], { attack: 10, speed: 10, maxHp: 500 }),
-      tc('turtle', ['iron_bulwark'], { attack: 10, speed: 30, maxHp: 200 }),
+      tc('hero', ['shield_splitter'], { attack: 20, speed: 10, maxHp: 500 }),
+      tc('turtle', ['iron_bulwark'], { attack: 0, armor: 10, speed: 30, maxHp: 200 }),
       { ...NO_ENDGAME, maxTurns: 3 },
     );
     const { events } = simulate(c, 1);
-    // Bulwark: 48 flat + 10 Attack = 58 physical shield. Splitter shatters 24 of it
-    // (shieldBreak magnitude unchanged), leaving 34 shield; then hits 42 flat + 10
-    // Attack = 52: 34 of it is blocked by the remaining shield, 18 lands.
+    // Bulwark: 48 flat + 10 Armor = 58 physical shield. Splitter shatters 24 of it
+    // (shieldBreak magnitude unchanged), leaving 34 shield; then hits 42 flat + 20
+    // Attack = 62, −10 Armor = 52: 34 of it is blocked by the shield, 18 lands.
     const broken = events.find((e) => e.kind === 'shieldBroken');
     expect(broken).toMatchObject({ amount: 24, totalAfter: 34 });
     const hit = events.find((e) => e.kind === 'damage' && e.side === 'enemy');

@@ -193,7 +193,29 @@ export function resolveTargets(
   return [pickByPolicy(caster, living)];
 }
 
-/** Scaling stat for a property: Attack / Magic Power / higher of the two. */
+/**
+ * ROLE-BASED STAT SCALING (user-approved 2026-08-04). A card's `property` picks
+ * WHICH stat scales its output; the ROLE of the action picks WHICH SIDE of the
+ * stat sheet that lookup reads. Two rules, one sibling each, side by side:
+ *
+ *   `scaleStat`    — OFFENSE (damage).  physical → Attack, magical → Magic
+ *                    Power, TRUE → the higher of the two.
+ *   `scaleDefStat` — DEFENSE (shield / heal). physical → Armor, magical →
+ *                    Magic Resist, TRUE → 0 (flat by identity, see below).
+ *
+ * WHY defense scales off defensive stats: with one offense-only rule every
+ * power-bearing action read Attack/Magic Power, so DEF/MDEF were mitigation-only
+ * and a tank's best SHIELD stat was Attack — a card could honestly print
+ * "SHIELD 12 +ATK". Defensive stats now buy defensive output. This is
+ * PL-NEUTRAL, not a buff: attack / magicPower / armor / magicResist all cost 1
+ * PL per +1 and all start at 1 (`LEVEL_STAT_COST`, `BASE_HERO_STATS` in
+ * src/run/leveling.ts), so the output bought per PL spent is unchanged — only
+ * WHICH stat buys it moves. No prices in src/engine/balance.ts change.
+ *
+ * A future third role is one more sibling here, never a branch at a call site.
+ */
+
+/** OFFENSE scaling stat: Attack / Magic Power / higher of the two. */
 function scaleStat(c: CombatantState, property: Property): number {
   switch (property) {
     case 'physical':
@@ -202,6 +224,26 @@ function scaleStat(c: CombatantState, property: Property): number {
       return effStat(c, 'magicPower');
     case 'true':
       return Math.max(effStat(c, 'attack'), effStat(c, 'magicPower'));
+  }
+}
+
+/**
+ * DEFENSE scaling stat (shield / heal): Armor / Magic Resist.
+ *
+ * Returns 0 for TRUE — mirroring `mitigation()` below, which returns 0 for the
+ * same reason: TRUE defensive output is FLAT BY IDENTITY. A TRUE shield or TRUE
+ * heal has no stat term at all, so there is no "higher of the two" case to
+ * define (unlike TRUE damage, which has one). Callers may therefore hand this
+ * any property without a TRUE branch of their own.
+ */
+function scaleDefStat(c: CombatantState, property: Property): number {
+  switch (property) {
+    case 'physical':
+      return effStat(c, 'armor');
+    case 'magical':
+      return effStat(c, 'magicResist');
+    case 'true':
+      return 0;
   }
 }
 
@@ -559,8 +601,9 @@ function applyAction(
       const target = enemy;
       if (!target.alive) break;
       // TRUE heals are flat: exact amount, no scaling, no aura math.
-      // Non-TRUE heals are the card's flat base + the caster's scaling stat +
-      // any FLAT aura/gem heal bonus.
+      // Non-TRUE heals are the card's flat base + the caster's DEFENSIVE scaling
+      // stat (Armor for physical, Magic Resist for magical — healing is
+      // defensive output, see `scaleDefStat`) + any FLAT aura/gem heal bonus.
       let amount: number;
       let flat = false;
       let antiHeal: AntiHealReduction | undefined;
@@ -571,7 +614,7 @@ function applyAction(
         // ANTI-HEAL WORLD RULE: a regular heal is taxed −20% per affliction
         // category active on the RECEIVER (cap −60%). TRUE heals skip this
         // branch entirely — irreducible by identity.
-        const taxed = applyAntiHeal(target, action.power + scaleStat(caster, property) + mods.healFlat);
+        const taxed = applyAntiHeal(target, action.power + scaleDefStat(caster, property) + mods.healFlat);
         amount = taxed.amount;
         antiHeal = taxed.antiHeal;
       }
@@ -589,9 +632,11 @@ function applyAction(
     case 'shield': {
       if (!caster.alive) break;
       // Shields stack and carry over, but total shield is hard-capped at maxHp.
-      // TRUE shields are the flat base; others add the caster's scaling stat.
-      // TRUE shields are flat by design: no stat contribution at all.
-      const statBonus = property === 'true' ? 0 : scaleStat(caster, property);
+      // A typed shield is the card's flat base plus the caster's DEFENSIVE scaling
+      // stat (Armor for physical, Magic Resist for magical — plating is defensive
+      // output, see `scaleDefStat`). TRUE shields are flat by design: no stat
+      // contribution at all, which `scaleDefStat` reports as 0.
+      const statBonus = scaleDefStat(caster, property);
       const request = action.power + statBonus;
       const room = Math.max(0, caster.stats.maxHp - totalShield(caster));
       const gain = Math.min(request, room);

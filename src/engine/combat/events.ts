@@ -316,7 +316,10 @@ export type CombatEvent =
       /**
        * How the REQUESTED pool was built, so the UI can explain the number:
        * `power` is the card's flat base and `statBonus` the caster's scaling-stat
-       * contribution (Attack for physical, Magic Power for magical).
+       * contribution. Shields are DEFENSIVE output, so that stat is ARMOR for
+       * physical and MAGIC RESIST for magical (user-approved 2026-08-04; see
+       * `scaleDefStat` in combat/interpreter.ts) — not Attack/Magic Power, which
+       * scale damage only.
        * TRUE shields are FLAT BY DESIGN — they never scale, so `statBonus` is 0.
        * Granted amount is `min(power + statBonus, maxHp − current shield)`; the
        * remainder is reported as `wasted`.

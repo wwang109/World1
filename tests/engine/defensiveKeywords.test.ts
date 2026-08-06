@@ -250,7 +250,11 @@ describe('Magical Negate', () => {
 
   it('a negated hit spends no shield', () => {
     const c = cfg(
-      tc('hero', ['shield_negate'], { magicPower: 20, magicResist: 0, speed: 10, maxHp: 200 }, { skillBook: KW_BOOK }),
+      // Magic Resist 20 / Magic Power 0: a magical shield scales off MAGIC RESIST
+      // (defensive output, 2026-08-04), so Warded Barrier still banks the same 40
+      // its Magic-Power-scaled predecessor did. MR's OTHER job — mitigation — never
+      // runs here: the bolt is negated before any damage math.
+      tc('hero', ['shield_negate'], { magicPower: 0, magicResist: 20, speed: 10, maxHp: 200 }, { skillBook: KW_BOOK }),
       tc('mage', ['mbolt'], { magicPower: 40, speed: 10 }, { skillBook: KW_BOOK }),
       { ...OPT, maxTurns: 1 },
     );

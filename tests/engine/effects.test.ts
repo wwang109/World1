@@ -141,13 +141,16 @@ describe('typed shields', () => {
   });
 
   it('shields stack, carry over, and are capped at max HP', () => {
+    // Armor 30 / Attack 0: a physical shield scales off ARMOR (see the
+    // defensive-scaling suite), so the requested pool is the same 50 the
+    // pre-2026-08-04 Attack-scaled version of this test measured.
     const c = cfg(
-      tc('turtle', ['phys_wall'], { attack: 30, speed: 20, maxHp: 80 }, { skillBook: shieldBook }),
+      tc('turtle', ['phys_wall'], { attack: 0, armor: 30, speed: 20, maxHp: 80 }, { skillBook: shieldBook }),
       tc('dummy', [], { speed: 10 }, { skillBook: shieldBook }),
       { ...NO_ENDGAME, skillBook: shieldBook, maxTurns: 4 },
     );
     const { events, finalState } = simulate(c, 1);
-    // Each cast requests 20 flat + 30 Attack = 50; cap is maxHp 80: 50, then 30 (20 wasted), then 0.
+    // Each cast requests 20 flat + 30 Armor = 50; cap is maxHp 80: 50, then 30 (20 wasted), then 0.
     const gains = events.filter((e) => e.kind === 'shieldGain') as Extract<Events[number], { kind: 'shieldGain' }>[];
     expect(gains[0]).toMatchObject({ amount: 50, wasted: 0, totalAfter: 50 });
     expect(gains[1]).toMatchObject({ amount: 30, wasted: 20, totalAfter: 80 });
@@ -158,11 +161,11 @@ describe('typed shields', () => {
   });
 
   it('shieldGain reports its breakdown: base power + scaling stat (TRUE shields are flat)', () => {
-    // Physical shield: 20 flat base + 30 Attack. maxHp 80 -> first cast grants
-    // the full 50, the second is capped to 30 with 20 wasted; the breakdown
-    // reports the REQUEST both times, unchanged by the cap.
+    // Physical shield: 20 flat base + 30 ARMOR (shields are defensive output).
+    // maxHp 80 -> first cast grants the full 50, the second is capped to 30 with
+    // 20 wasted; the breakdown reports the REQUEST both times, unchanged by the cap.
     const physical = cfg(
-      tc('turtle', ['phys_wall'], { attack: 30, speed: 20, maxHp: 80 }, { skillBook: shieldBook }),
+      tc('turtle', ['phys_wall'], { attack: 0, armor: 30, speed: 20, maxHp: 80 }, { skillBook: shieldBook }),
       tc('dummy', [], { speed: 10 }, { skillBook: shieldBook }),
       { ...NO_ENDGAME, skillBook: shieldBook, maxTurns: 4 },
     );
@@ -198,7 +201,9 @@ describe('typed shields', () => {
     // The turtle casts a physical wall AND a true wall, so the two pools are
     // distinguishable in poolsAfter (the merged totalAfter cannot show that).
     const c = cfg(
-      tc('turtle', ['phys_wall', 'true_wall'], { attack: 10, speed: 20, maxHp: 500 }, { skillBook: shieldBook }),
+      // Armor 10 / Attack 0: the physical pool scales off ARMOR. The dummy never
+      // attacks, so Armor's mitigation half is inert and only the pool is measured.
+      tc('turtle', ['phys_wall', 'true_wall'], { attack: 0, armor: 10, speed: 20, maxHp: 500 }, { skillBook: shieldBook }),
       tc('dummy', [], { speed: 1 }, { skillBook: shieldBook }),
       { ...NO_ENDGAME, skillBook: shieldBook, maxTurns: 2 },
     );
@@ -206,7 +211,7 @@ describe('typed shields', () => {
     const gains = events.filter(
       (e): e is Extract<Events[number], { kind: 'shieldGain' }> => e.kind === 'shieldGain',
     );
-    // Physical: 20 base + 10 Attack = 30. True: flat 50, no stat.
+    // Physical: 20 base + 10 Armor = 30. True: flat 50, no stat.
     expect(gains[0]).toMatchObject({
       property: 'physical',
       amount: 30,
@@ -248,8 +253,8 @@ describe('typed shields', () => {
   });
 
   it('a matching pool drains point-for-point and only the SPILL pays the 2:1 true rate', () => {
-    // Turtle holds 20 magical (10 base + 10 MP) and 50 true; a 40 magical hit
-    // eats the 20 magical pool 1:1, then spends 40 true to block the last 20.
+    // Turtle holds 20 magical (10 base + 10 Magic Resist) and 50 true; a 40 magical
+    // hit eats the 20 magical pool 1:1, then spends 40 true to block the last 20.
     const spillBook: SkillBook = {
       ...shieldBook,
       magic_wall: {
@@ -278,17 +283,23 @@ describe('typed shields', () => {
       },
     };
     // Turtle (score 12−1) shields twice first; the hero (score 10−10) then fires once.
+    //
+    // Magic Resist 10 now does DOUBLE DUTY (2026-08-04): it both SIZES the turtle's
+    // magical pool (10 base + 10 MR = 20) and MITIGATES the incoming bolt by 10. The
+    // hero's Magic Power is 20 rather than 10 so the hit still ARRIVES at 40 after
+    // that mitigation (30 flat + 20 MP = 50, −10 MR = 40) — keeping this test on the
+    // one thing it measures: how a 40 hit splits across a 20 magical + 50 true pool.
     const c = cfg(
-      tc('hero', ['big_bolt'], { magicPower: 10, speed: 10 }, { skillBook: spillBook }),
-      tc('turtle', ['magic_wall', 'true_wall'], { magicPower: 10, speed: 12, maxHp: 200 }, { skillBook: spillBook }),
+      tc('hero', ['big_bolt'], { magicPower: 20, speed: 10 }, { skillBook: spillBook }),
+      tc('turtle', ['magic_wall', 'true_wall'], { magicResist: 10, speed: 12, maxHp: 200 }, { skillBook: spillBook }),
       { ...NO_ENDGAME, skillBook: spillBook, maxTurns: 1 },
     );
     const { events } = simulate(c, 1);
     const hit = events.find(
       (e): e is Extract<Events[number], { kind: 'damage' }> => e.kind === 'damage' && e.side === 'enemy',
     )!;
-    // 30 flat + 10 MP = 40 incoming; 20 blocked by the magical pool 1:1, the
-    // remaining 20 costs 40 true points.
+    // 30 flat + 20 MP = 50, −10 Magic Resist = 40 incoming; 20 blocked by the
+    // magical pool 1:1, the remaining 20 costs 40 true points.
     expect(hit).toMatchObject({ amount: 40, blocked: 40, hpAfter: 200 });
     expect(hit.shieldDrain).toEqual({ physical: 0, magical: 20, true: 40 });
     expect(hit.blocked).toBe(hit.shieldDrain!.magical + Math.floor(hit.shieldDrain!.true / 2));

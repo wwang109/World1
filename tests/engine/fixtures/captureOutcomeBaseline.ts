@@ -48,6 +48,29 @@ const next = {
     'size, speedWeight, cooldownTurns, tier, rarity, element, weapon, scope, aura, special, ' +
     'tierUpgrades) — is still hashed byte-for-byte.',
   note:
+    'Regression lock recaptured (2026-08-05) for DEFENSIVE-STAT SCALING of shields ' +
+    'and heals (user-approved 2026-08-04): a REAL, REVIEWED RULE CHANGE. A card\'s ' +
+    '`property` still picks WHICH stat scales its output, but the ROLE of the action ' +
+    'now picks WHICH SIDE of the stat sheet that lookup reads — defensive output ' +
+    '(shield / heal) scales off Armor (physical) and Magic Resist (magical) via the ' +
+    'new `scaleDefStat`, where it previously read Attack / Magic Power via ' +
+    '`scaleStat`. TRUE stays flat by identity (0 stat term), exactly as before. ' +
+    'PL-NEUTRAL: attack/magicPower/armor/magicResist all cost 1 PL per +1 and all ' +
+    'start at 1 (LEVEL_STAT_COST, BASE_HERO_STATS in src/run/leveling.ts), so no ' +
+    'price in src/engine/balance.ts moves — only WHICH stat buys the output. ' +
+    'Blast radius verified BEFORE regenerating, over both 200-fight sweeps: ' +
+    '153/200 logs moved in EACH sweep (142 of them decided before ' +
+    'ATTRITION_START_TURN), with 2 winner flips (#9 and #138, the same two in both ' +
+    'sweeps) and 13 turn changes — the expected consequence of every shield pool and ' +
+    'heal resizing. CONTAINMENT PROVEN BY EXHAUSTION: 0 logs moved WITHOUT containing ' +
+    'a shieldGain or heal event, so nothing outside the changed mechanic drifted. The ' +
+    '15 logs that DO contain one and did NOT move are each explained: 12 carry only a ' +
+    'zero stat term (TRUE shields/heals, flat by identity under both rules) and 3 ' +
+    '(#4, #65, #142) carry only a `leeching_fang` LIFESTEAL heal, which is a ' +
+    'percentage of damage dealt and never had a stat-scaling term under either rule. ' +
+    'See src/engine/combat/interpreter.ts (`scaleDefStat` and its `scaleStat` ' +
+    'sibling), src/engine/combat/events.ts (shieldGain.calculation.statBonus docs) ' +
+    'and tests/engine/effects.test.ts. It supersedes the prior regen: ' +
     'Regression lock recaptured (2026-08-04) for the FIRST-TO-FALL OUTCOME RULE ' +
     '(user-directed 2026-08-04): a REAL, REVIEWED RULE CHANGE. Combat now ends at ' +
     'the exact APPLICATION that wipes a side, so nothing later in the same step ' +
