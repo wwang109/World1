@@ -129,12 +129,40 @@ function assertStatTokens(label: string, text: string, effects: readonly Action[
   }
 }
 
+/**
+ * GUARD/NEGATE property-overclaim guard (added 2026-08-06, after a real miss:
+ * `purify_echo` shipped with "-20% incoming damage, all types" on a TRUE-
+ * property guard, which only ever cuts TRUE damage — see docs/card-text-
+ * style-guide.md §2, the `guard`/`negate` rows: "Never say 'all'/'all
+ * types'"/"Never say 'any'". A guard/negate covers ONLY its own `property`
+ * (`src/engine/combat/interpreter.ts`), and that property is not always the
+ * host card's — a gem can graft a TRUE guard onto any card — so "all"/"any"
+ * phrasing is a real overclaim, not a harmless generalization.
+ *
+ * Scoped to TRUE specifically: that's the exact shape of the shipped bug (a
+ * single-property effect described as blanket coverage). Neither of the two
+ * live TRUE-scoped instances of this style guide date (`purify_echo`) had a
+ * numeric mismatch — the numbers were right, the CLAIM was wrong — so the
+ * drift guard above had nothing to catch it. This is deliberately a stronger
+ * check than "words present"; it fails on the literal universal words the
+ * style guide bans, not on the property name being absent.
+ */
+function assertNoUniversalGuardNegateOverclaim(label: string, text: string, effects: readonly Action[]): void {
+  const trueScoped = effects.some((e) => (e.kind === 'guard' || e.kind === 'negate') && e.property === 'true');
+  if (!trueScoped) return;
+  expect(
+    /\ball\b/i.test(text) || /\bany\b/i.test(text),
+    `${label}: TRUE-scoped guard/negate uses universal "all"/"any" phrasing, but it only ever covers TRUE damage/hits: "${text}"`,
+  ).toBe(false);
+}
+
 function assertTextCoversKit(label: string, text: string, effects: readonly Action[], aura: AuraDef | undefined): void {
   const nums = numbersInText(text);
   for (const n of expectedNumbers(effects, aura)) {
     expect(nums, `${label}: expected number ${n} not found in text: "${text}"`).toContain(n);
   }
   assertStatTokens(label, text, effects);
+  assertNoUniversalGuardNegateOverclaim(label, text, effects);
 }
 
 describe('card text drift guard', () => {
@@ -175,7 +203,14 @@ describe('gem text stat-token drift guard', () => {
     const actions: readonly Action[] = gem.actions;
     if (!actions.length) continue;
     it(`${gem.id}: names the stat pair its ROLE actually scales off`, () => {
-      assertStatTokens(gem.id, gem.text, actions);
+      // 2026-08-06: widened from a bare `assertStatTokens` call to the full
+      // `assertTextCoversKit` — gems previously got only the stat-token half
+      // of the drift guard; the numeric drift check and the TRUE-scoped
+      // guard/negate overclaim check (this file's real miss, `purify_echo`)
+      // now run against gemBook too. Verified against the whole gem catalog
+      // first: every 'effect' gem's authored numbers already appear in its
+      // text, so this closes the gap without introducing any new failures.
+      assertTextCoversKit(gem.id, gem.text, actions, undefined);
       const hasDefense = actions.some((a) => a.kind === 'shield' || a.kind === 'heal');
       const hasOffense = actions.some((a) => a.kind === 'damage');
       if (hasDefense && !hasOffense) {

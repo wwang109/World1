@@ -261,14 +261,18 @@ describe('runScreenTemplate', () => {
 
     it(`${platform}: the declared gap still separates the panel (via feature) from buttons`, () => {
       // Same assertion shape as "reward panel stops a declared gap short of
-      // the buttons" above, restated against `feature` specifically — proves
-      // the inner subdivision didn't reopen the gap it closed. Deleting the
-      // `+ innerGap` term in `buildRewardSlot`'s `featureTop` calculation
-      // (i.e. letting `feature` swallow the gap) makes this fail: `feature`
-      // would still end at `panel` bottom either way, but that gap-removal
-      // bug actually shows up in the row-order test above instead, since
-      // detail/feature would then sit flush — this assertion is the belt for
-      // that suspender, checked directly against `buttons.y`.
+      // the buttons" above, restated against `feature` specifically. NOTE:
+      // this follows algebraically from two facts already proven by other
+      // tests in this file — "feature's bottom edge IS the panel's bottom
+      // edge" above, and "reward panel stops a declared gap short of the
+      // buttons" further up — so it holds REGARDLESS of whether
+      // `buildRewardSlot`'s `featureTop` still adds its `+ innerGap` term;
+      // it is NOT the guard against that term being dropped. That regression
+      // (the icon/headline/detail/feature stack losing its innermost gap) is
+      // caught by the sibling "a real, POSITIVE, CONSISTENT gap separates
+      // every consecutive reward inner sub-rect" test above, via
+      // `gapDetailFeature` collapsing to 0. This assertion exists only as an
+      // explicit restatement checked directly against `buttons.y`.
       const t = runScreenTemplate(platform);
       const { gap, buttons, feature } = t.contentSlots.reward;
       expect(feature.y + feature.height + gap).toBe(buttons.y);

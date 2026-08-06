@@ -3,7 +3,7 @@ import type { SkillDef } from '../../engine/types';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
-import { choiceArtKey } from './runArt';
+import { choiceArtKey } from './runArtKeys';
 import { outcomeHeadline } from './eventOutcomeText';
 
 /**
@@ -40,7 +40,10 @@ export interface RunRewardViewModel {
 /** Pure mapping from a resolved `EventOutcome` to the one reward template —
  * `DesktopRunEventScene`/`MobileRunEventScene` both call this instead of
  * building their own per-kind display, so a new outcome kind only needs a
- * case added HERE, never in either scene. */
+ * case added HERE, never in either scene. No Phaser import anywhere in this
+ * module's dependency chain (deliberately imports `choiceArtKey` from
+ * `runArtKeys.ts`, not the Phaser-touching `runArt.ts`) — unit tested
+ * directly in tests/game/runRewardViewModel.test.ts. */
 export function buildRunRewardViewModel(outcome: EventOutcome): RunRewardViewModel {
   const { headline, detail } = outcomeHeadline(outcome);
   const iconKey = choiceArtKey(outcome.kind);

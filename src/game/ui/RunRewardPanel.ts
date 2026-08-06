@@ -1,37 +1,48 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
-import type { LayoutProfile } from '../layoutProfile';
+import { applyTier } from '../../engine/cards';
+import { skillBook } from '../../data/skills';
+import type { DraftCard } from '../../run/draft';
+import { DESKTOP_PROFILE, MOBILE_PROFILE, type LayoutProfile } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, UI } from '../theme';
 import { CardToken } from './CardToken';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { addHoverTipZone } from './hoverTip';
 import { gemHoverEntry } from './gemGlossary';
-import { addRunArt } from './runArt';
+import { addRunArt, choiceArtKey } from './runArt';
+import { centeredBox, layoutFeatureGrid } from './runRewardGeometry';
 import type { RunRewardFeature, RunRewardViewModel } from './runRewardViewModel';
 import type { Rect, RunScreenTemplate, RunTemplatePlatform } from './runScreenTemplate';
 
-/** Ideal (never-exceeded) feature-visual sizes per platform — the renderer
+/**
+ * Ideal (never-exceeded) feature-visual sizes per platform — the renderer
  * clamps DOWN to the feature rect when it's ever smaller than this, but
- * never stretches up to fill it: a reward screen with a small card still
- * looks like a card, not a poster. */
+ * never stretches past it. These are ~35% larger than the card/gem's OWN
+ * natural size elsewhere (a board slot, a shop shelf): `feature` now owns
+ * the WHOLE panel remainder (see `runScreenTemplate.ts`'s `reward` doc), so
+ * at the old literal board-slot size the feature sat as a small token
+ * floating inside as much as ~500px of otherwise-empty panel. Scaling the
+ * IDEAL up (rather than shrinking the template's reserved rect) keeps the
+ * panel's documented "feature gets whatever's left, never a fixed ceiling"
+ * invariant — and every existing containment/gap test on that rect — intact;
+ * on a genuinely small `feature` rect this still clamps down exactly as
+ * before. Also doubles as the per-card ideal size for the bonus-draft grid
+ * (`renderRunBonusDraftPicker` below), so a reward card and a draft-pick card
+ * read as the same visual weight.
+ */
 const FEATURE_CARD_SIZE: Record<RunTemplatePlatform, { w: number; h: number }> = {
-  desktop: { w: 142, h: 233 },
-  mobile: { w: 126, h: 207 },
+  desktop: { w: 192, h: 315 },
+  mobile: { w: 170, h: 279 },
 };
 const FEATURE_GEM_CHIP_SIZE: Record<RunTemplatePlatform, { w: number; h: number }> = {
-  desktop: { w: 260, h: 56 },
-  mobile: { w: 260, h: 52 },
+  desktop: { w: 351, h: 76 },
+  mobile: { w: 351, h: 70 },
 };
-const FEATURE_ICON_SIZE: Record<RunTemplatePlatform, number> = { desktop: 96, mobile: 80 };
+const FEATURE_ICON_SIZE: Record<RunTemplatePlatform, number> = { desktop: 130, mobile: 108 };
 
-/** Centers a `{w,h}` box (clamped to never exceed `rect`) inside `rect`,
- * returning its top-left — the one place that does this arithmetic, so every
- * feature variant below places itself the same way. */
-function centeredBox(rect: Rect, w: number, h: number): { x: number; y: number; w: number; h: number } {
-  const boxW = Math.min(w, rect.width);
-  const boxH = Math.min(h, rect.height);
-  return { x: rect.x + (rect.width - boxW) / 2, y: rect.y + (rect.height - boxH) / 2, w: boxW, h: boxH };
-}
+/** Gap between bonus-draft grid cells — the platform's own spacing constant,
+ * never a literal re-typed at the call site. */
+const GRID_GAP: Record<RunTemplatePlatform, number> = { desktop: DESKTOP_PROFILE.gap, mobile: MOBILE_PROFILE.gap };
 
 function renderFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, feature: RunRewardFeature, iconKey: string, rect: Rect): void {
   if (feature.kind === 'card') {
@@ -47,7 +58,12 @@ function renderFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, featu
   }
   if (feature.kind === 'gem') {
     const ideal = FEATURE_GEM_CHIP_SIZE[platform];
-    const box = centeredBox(rect, ideal.w, ideal.h);
+    // Same uniform-scale clamp as the card branch above (this used to scale
+    // width/height INDEPENDENTLY via `centeredBox`'s own per-axis min, which
+    // could squash/stretch the chip's aspect ratio despite this module's own
+    // doc comment claiming aspect-preserving clamping for both feature kinds).
+    const scale = Math.min(1, rect.width / ideal.w, rect.height / ideal.h);
+    const box = centeredBox(rect, ideal.w * scale, ideal.h * scale);
     const gem = feature.gem;
     const chip = scene.add.rectangle(box.x, box.y, box.w, box.h, UI.panelAlt, 0.9)
       .setOrigin(0, 0)
@@ -69,6 +85,19 @@ function renderFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, featu
   addRunArt(scene, iconKey, { x: box.x, y: box.y, width: box.w, height: box.h }, 0.85);
 }
 
+/** Renders the small top-of-panel outcome icon into `rect` — shared by the
+ * resolved-outcome screen (`model.iconKey`) and the bonus-draft picker (a
+ * fixed `'bonusDraft'` icon key), so both draw the icon row identically. */
+function renderIcon(scene: Phaser.Scene, rect: Rect, iconKey: string): void {
+  const size = Math.min(56, rect.height, rect.width);
+  addRunArt(scene, iconKey, {
+    x: rect.x + (rect.width - size) / 2,
+    y: rect.y + (rect.height - size) / 2,
+    width: size,
+    height: size,
+  });
+}
+
 function renderContinueButton(scene: Phaser.Scene, rect: Rect, font: LayoutProfile['font'], onContinue: () => void): void {
   const btn = scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, UI.chip, 1)
     .setOrigin(0, 0)
@@ -83,6 +112,15 @@ function renderContinueButton(scene: Phaser.Scene, rect: Rect, font: LayoutProfi
   btn.on('pointerdown', () => { playSfx('uiClick'); onContinue(); });
 }
 
+/** The reward panel's background plate — identical on the resolved-outcome
+ * screen and the bonus-draft picker (both own the WHOLE panel, see
+ * `runScreenTemplate.ts`'s `reward` doc). */
+function renderPanelBackground(scene: Phaser.Scene, panel: Rect): void {
+  scene.add.rectangle(panel.x, panel.y, panel.width, panel.height, UI.panelMuted, 0.94)
+    .setOrigin(0, 0)
+    .setStrokeStyle(2, UI.chip, 0.6);
+}
+
 /**
  * THE reward-outcome renderer — one component shared by `DesktopRunEventScene`
  * and `MobileRunEventScene` (differing only in which platform's template they
@@ -91,7 +129,11 @@ function renderContinueButton(scene: Phaser.Scene, rect: Rect, font: LayoutProfi
  * rect — no cursor, no per-`EventOutcome`-kind layout branch. Fits by
  * construction: `feature` is sized to (and clamped by) its own rect, and
  * CONTINUE lives in the template's separately-reserved `buttons` row, so a
- * card, a gem, or nothing at all all end up on-screen the same way.
+ * card, a gem, or nothing at all all end up on-screen the same way. The
+ * "PICK ONE TO KEEP" bonus-draft picker (`renderRunBonusDraftPicker` below)
+ * is this module's other reward-screen renderer, sharing the same panel/icon/
+ * headline rects and the same `centeredBox`/`layoutFeatureGrid` clamp-and-
+ * center geometry (`runRewardGeometry.ts`) for its `feature` slot.
  */
 export function renderRunRewardPanel(
   scene: Phaser.Scene,
@@ -101,17 +143,8 @@ export function renderRunRewardPanel(
 ): void {
   const { panel, icon, headline, detail, feature, buttons } = template.contentSlots.reward;
 
-  scene.add.rectangle(panel.x, panel.y, panel.width, panel.height, UI.panelMuted, 0.94)
-    .setOrigin(0, 0)
-    .setStrokeStyle(2, UI.chip, 0.6);
-
-  const iconSize = Math.min(56, icon.height, icon.width);
-  addRunArt(scene, model.iconKey, {
-    x: icon.x + (icon.width - iconSize) / 2,
-    y: icon.y + (icon.height - iconSize) / 2,
-    width: iconSize,
-    height: iconSize,
-  });
+  renderPanelBackground(scene, panel);
+  renderIcon(scene, icon, model.iconKey);
 
   const headlineMaxW = Math.min(headline.width - 64, 760);
   const headlineText = scene.add.text(headline.x + headline.width / 2, headline.y, model.headline, {
@@ -131,4 +164,49 @@ export function renderRunRewardPanel(
 
   renderFeature(scene, template.platform, model.feature, model.iconKey, feature);
   renderContinueButton(scene, buttons, opts.font, opts.onContinue);
+}
+
+/**
+ * The "PICK ONE TO KEEP" bonus-draft picker — THE one implementation both
+ * `DesktopRunEventScene` and `MobileRunEventScene` call for a resolved
+ * `bonusDraft` outcome, in place of each scene's own hand-rolled row/column
+ * math (which had already drifted — see the module doc above and
+ * `runRewardGeometry.ts`'s doc comment). Uses the SAME `panel`/`icon`/`headline` rects
+ * `renderRunRewardPanel` uses (icon = the `bonusDraft` choice art, headline =
+ * "PICK ONE TO KEEP"), then fills `feature` with a `layoutFeatureGrid` of
+ * `cards.length` card-sized cells — `FEATURE_CARD_SIZE[platform]` is the same
+ * ideal card size the resolved-outcome screen's own `grantCard` feature uses,
+ * so a reward card and a draft-pick card read as the same visual weight. No
+ * `detail` row (the picker never has one) — left blank exactly like every
+ * other outcome that has no detail text, not a special case.
+ */
+export function renderRunBonusDraftPicker(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  cards: readonly DraftCard[],
+  opts: { font: LayoutProfile['font']; onPick: (card: DraftCard) => void },
+): void {
+  const { panel, icon, headline, feature } = template.contentSlots.reward;
+
+  renderPanelBackground(scene, panel);
+  renderIcon(scene, icon, choiceArtKey('bonusDraft'));
+
+  const label = scene.add.text(headline.x + headline.width / 2, headline.y, 'PICK ONE TO KEEP', {
+    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${opts.font.title}px`, color: UI.textAccent, align: 'center',
+  }).setOrigin(0.5, 0);
+  auditTextBlock(label, { name: 'Run reward bonus draft title', maxWidth: headline.width - 64, maxHeight: headline.height, minFontSize: 10 });
+
+  const ideal = FEATURE_CARD_SIZE[template.platform];
+  const cells = layoutFeatureGrid(feature, cards.length, ideal.w, ideal.h, GRID_GAP[template.platform]);
+  cards.forEach((card, i) => {
+    const cell = cells[i];
+    const skill = skillBook[card.skillId];
+    if (!cell || !skill) return;
+    const shown = card.tier === skill.tier ? skill : applyTier(skill, card.tier);
+    const cx = cell.x + cell.w / 2;
+    const cy = cell.y + cell.h / 2;
+    new CardToken(scene, cx, cy, shown, { width: cell.w, height: cell.h, side: 'left' });
+    const hit = scene.add.rectangle(cx, cy, cell.w, cell.h, 0xffffff, 0).setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(card); });
+  });
 }

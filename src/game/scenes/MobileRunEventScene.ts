@@ -1,20 +1,16 @@
 import Phaser from 'phaser';
-import { playSfx } from '../audio/sfxSynth';
-import { skillBook } from '../../data/skills';
 import type { EventChoiceDef, EventDef } from '../../data/events';
 import type { DraftCard } from '../../run/draft';
 import type { EventOutcome } from '../../run/events';
-import { applyTier } from '../../engine/cards';
 import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
-import { CardToken } from '../ui/CardToken';
-import { auditControlLabel, auditTextBlock } from '../ui/controlLayoutAudit';
+import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { choiceOutcomeHint } from '../ui/eventOutcomeText';
 import { eventThemeArea } from '../ui/eventThemeBlurb';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
-import { renderRunRewardPanel } from '../ui/RunRewardPanel';
+import { renderRunBonusDraftPicker, renderRunRewardPanel } from '../ui/RunRewardPanel';
 import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { rebuildScene } from '../sceneRebuild';
@@ -34,9 +30,9 @@ const TEMPLATE = runScreenTemplate('mobile');
 /** The one flowing story column the CHOOSING phase renders into — computed
  * ONCE by `renderStory` off the event's actual theme/title/body. Once a
  * choice resolves (`outcome`/`bonusDraftPick`), the story column is REPLACED
- * by the reward template (`TEMPLATE.contentSlots.reward` via
- * `renderRunRewardPanel`/the bonus-draft picker below) rather than shown
- * alongside it — see the module doc for why. */
+ * by the reward template (`RunRewardPanel.ts`'s `renderRunRewardPanel`/
+ * `renderRunBonusDraftPicker`) rather than shown alongside it — see the
+ * module doc for why. */
 interface StoryLayout { innerX: number; innerW: number; contentTop: number }
 
 /**
@@ -44,11 +40,15 @@ interface StoryLayout { innerX: number; innerW: number; contentTop: number }
  * single top-down story page (area-intro caption → title → body panel) while
  * CHOOSING, stacked above the choice rows. Once a choice resolves, the screen
  * switches to the ONE reward template every outcome kind shares
- * (`RunRewardPanel.ts`, driven by `buildRunRewardViewModel`) or the
- * bonus-draft picker — both laid into `TEMPLATE.contentSlots.reward`'s
- * declared rects (`panel` a hard ceiling, `headline`/`feature` sub-rects,
- * `buttons` a fixed slot reserved BEFORE the panel gets space) instead of the
- * story column, so a card, a gem, or nothing at all always fits by
+ * (`RunRewardPanel.ts`'s `renderRunRewardPanel`, driven by
+ * `buildRunRewardViewModel`) or, for a `bonusDraft` outcome, that same
+ * module's `renderRunBonusDraftPicker` — the SAME shared renderer
+ * `DesktopRunEventScene` calls (this used to be a hand-rolled per-scene
+ * stacked-row layout that had drifted from desktop's centered row; it is now
+ * one implementation). Both read `TEMPLATE.contentSlots.reward`'s declared
+ * rects (`panel` a hard ceiling, `headline`/`feature` sub-rects, `buttons` a
+ * fixed slot reserved BEFORE the panel gets space) instead of the story
+ * column, so a card, a gem, or a 5-card draft grid always fits by
  * construction. The HUD's fixed footer primary CONTINUE › still fires the
  * same handler as the reward panel's own CONTINUE button. Reachable at
  * ?scene=mrunevent.
@@ -92,7 +92,16 @@ export class MobileRunEventScene extends Phaser.Scene {
         onContinue: () => this.continueToMap(),
       });
     } else if (this.phase === 'bonusDraftPick') {
-      this.renderBonusDraftPicker();
+      renderRunBonusDraftPicker(this, TEMPLATE, this.bonusDraftCards, {
+        font: F,
+        onPick: (card) => {
+          const outcome = applyCurrentBonusDraftPick(card);
+          if (!outcome) return;
+          this.phase = 'outcome';
+          this.outcome = outcome;
+          this.rerender();
+        },
+      });
     } else {
       const story = this.renderStory(event, event.choices.length * (80 + 8) - 8);
       this.renderChoices(run.gold, event, story);
@@ -256,57 +265,5 @@ export class MobileRunEventScene extends Phaser.Scene {
       });
       y += rowH + gap;
     });
-  }
-
-  // ---------- bonusDraft picker ----------
-
-  /** The "PICK ONE TO KEEP" mini-draft — laid into the SAME reward template
-   * region as the resolved-outcome screen (`TEMPLATE.contentSlots.reward`):
-   * the label sits in `headline`, the stacked card rows in `feature`. Since
-   * this phase (like `outcome`) replaces the story column rather than
-   * sitting below it, `feature`'s generous remainder-of-panel height means
-   * the rows are never tight, let alone clipped. */
-  private renderBonusDraftPicker(): void {
-    const { panel, headline, feature } = TEMPLATE.contentSlots.reward;
-    this.add.rectangle(panel.x, panel.y, panel.width, panel.height, UI.panelMuted, 0.94)
-      .setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.6);
-
-    const title = this.add.text(headline.x + headline.width / 2, headline.y, 'PICK ONE TO KEEP', {
-      fontSize: `${F.title}px`, color: UI.textAccent, fontFamily: FONT.display, fontStyle: 'bold', align: 'center',
-    }).setOrigin(0.5, 0);
-    auditTextBlock(title, { name: 'Mobile run event bonus draft title', maxWidth: headline.width - 24, maxHeight: headline.height, minFontSize: 10 });
-
-    const cards = this.bonusDraftCards;
-    const n = Math.max(1, cards.length);
-    const gap = 8;
-    // `feature` is the reward template's own remainder-of-panel rect — a hard
-    // ceiling exactly like the resolved outcome's feature visual, never a
-    // flat per-row demand: shrink the stacked rows to fit before shrinking
-    // below the ideal per-row height.
-    const rowH = Math.max(40, Math.min(70, (feature.height - gap * (n - 1)) / n));
-    const rowW = Math.min(feature.width, this.W - 20);
-    const rowX = feature.x + (feature.width - rowW) / 2;
-    let y = feature.y;
-    for (const card of cards) {
-      const skill = skillBook[card.skillId];
-      if (!skill) { y += rowH + gap; continue; }
-      const shown = card.tier === skill.tier ? skill : applyTier(skill, card.tier);
-      new CardToken(this, rowX + rowW / 2, y + rowH / 2, shown, { width: rowW, height: rowH, side: 'left' });
-      const hit = this.add.rectangle(rowX + rowW / 2, y + rowH / 2, rowW, rowH, 0xffffff, 0).setInteractive({ useHandCursor: true });
-      const select = this.add.text(rowX + rowW - 10, y + 8, 'SELECT', {
-        fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
-      }).setOrigin(1, 0);
-      auditControlLabel(hit, select, { name: `Mobile run event ${card.skillId} bonus pick`, horizontalPadding: 12, verticalPadding: 5, minFontSize: 8 });
-      auditTextBlock(select, { name: `Mobile run event ${card.skillId} select label`, maxWidth: 64, maxHeight: F.tiny * 2, minFontSize: 8 });
-      hit.on('pointerdown', () => {
-        playSfx('uiClick');
-        const outcome = applyCurrentBonusDraftPick(card);
-        if (!outcome) return;
-        this.phase = 'outcome';
-        this.outcome = outcome;
-        this.rerender();
-      });
-      y += rowH + gap;
-    }
   }
 }

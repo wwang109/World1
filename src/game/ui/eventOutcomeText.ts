@@ -58,7 +58,12 @@ export function outcomeHeadline(outcome: EventOutcome): { headline: string; deta
           };
     case 'nothing':
       return { headline: outcome.gambled ? 'The gamble came up empty' : 'Nothing happens', detail: '' };
-    default:
-      return { headline: '', detail: '' };
+    default: {
+      // Exhaustiveness guard (same idiom as `applySpec` in src/run/events.ts):
+      // a future `EventOutcome` kind added to the union without a case here
+      // fails to COMPILE rather than silently rendering an icon with no text.
+      const exhaustive: never = outcome;
+      throw new Error(`outcomeHeadline: unknown outcome kind "${(exhaustive as EventOutcome).kind}"`);
+    }
   }
 }

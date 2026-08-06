@@ -402,4 +402,115 @@ describe('game/battleTimeline', () => {
       expect(line!.detail).toBeUndefined();
     });
   });
+
+  // ---- READY row and PLAY WEIGHT (2026-08-06 gap-closing pass) ----
+  // `grep -rn "READY|WEIGHT" tests/` returned nothing before this block: the
+  // turn-start readiness row (`flushGainRow`, battleTimeline.ts:495-517) and
+  // the PLAY row's `· WEIGHT n` suffix (:606) had zero regression coverage.
+  describe('READY row (turn-start readiness) and PLAY row WEIGHT', () => {
+    it('flushes ONE READY row per turn, BEFORE the first non-gain event, in "Name readiness · SPD +speed" grammar', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'gain', side: 'player', unit: 0, baseSpeed: 10, speedModifier: 0, speed: 10, readinessBefore: 0, readinessAfter: 10 },
+        { turn: 1, kind: 'gain', side: 'enemy', unit: 0, baseSpeed: 8, speedModifier: 0, speed: 8, readinessBefore: 0, readinessAfter: 8 },
+        { turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const turn1 = model.linesByTurn.get(1)!;
+      const readyIndex = turn1.findIndex((l) => l.tag === 'READY');
+      const playIndex = turn1.findIndex((l) => l.tag === 'PLAY');
+      expect(readyIndex).toBeGreaterThanOrEqual(0);
+      // The row is flushed the moment the first non-`gain` event of the turn
+      // is seen (the `play` here) — so it must land BEFORE that event's own line.
+      expect(playIndex).toBeGreaterThan(readyIndex);
+      expect(turn1[readyIndex]!.text).toBe(`${model.heroName} 10 · SPD +10   ·   ${model.foeName} 8 · SPD +8`);
+    });
+
+    it('the READY row carries every living combatant, including every enemy UNIT in a multi-foe fight', () => {
+      const multiInput: BattleTimelineInput = {
+        ...BASE,
+        enemyTeam: [
+          { enemyId: 'bandit_duelist', level: 1, title: 'elite', rank: 2, modifiers: [] },
+          { enemyId: 'giant_rat', level: 1, title: 'normal', rank: 0, modifiers: [] },
+        ],
+      };
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'gain', side: 'player', unit: 0, baseSpeed: 10, speedModifier: 0, speed: 10, readinessBefore: 0, readinessAfter: 10 },
+        { turn: 1, kind: 'gain', side: 'enemy', unit: 0, baseSpeed: 8, speedModifier: 0, speed: 8, readinessBefore: 0, readinessAfter: 8 },
+        { turn: 1, kind: 'gain', side: 'enemy', unit: 1, baseSpeed: 5, speedModifier: 0, speed: 5, readinessBefore: 0, readinessAfter: 5 },
+        { turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(multiInput, { events, result: 'win', turns: 2 });
+      const readyLine = model.linesByTurn.get(1)!.find((l) => l.tag === 'READY');
+      expect(readyLine).toBeDefined();
+      const parts = readyLine!.text.split('   ·   ');
+      expect(parts).toHaveLength(3);
+      expect(parts[0]).toBe(`${model.heroName} 10 · SPD +10`);
+      expect(parts[1]).toBe(`${model.foes[0]!.name} 8 · SPD +8`);
+      expect(parts[2]).toBe(`${model.foes[1]!.name} 5 · SPD +5`);
+    });
+
+    it('the PLAY row appends "· WEIGHT n" from the readiness the cast just paid', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'gain', side: 'player', unit: 0, baseSpeed: 10, speedModifier: 0, speed: 10, readinessBefore: 0, readinessAfter: 10 },
+        { turn: 1, kind: 'gain', side: 'enemy', unit: 0, baseSpeed: 8, speedModifier: 0, speed: 8, readinessBefore: 0, readinessAfter: 8 },
+        { turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const playLine = model.linesByTurn.get(1)!.find((l) => l.tag === 'PLAY');
+      expect(playLine).toBeDefined();
+      expect(playLine!.text).toContain('· WEIGHT 6');
+    });
+
+    it("reconciles readiness turn over turn: leftover after paying weight + this turn's SPD gain = next turn's READY value", () => {
+      const events: CombatEvent[] = [
+        // Turn 1: both sides gain; the hero acts and pays 6 of its 10
+        // readiness (leftover 4). The enemy doesn't act, so its whole 8
+        // carries over untouched.
+        { turn: 1, kind: 'gain', side: 'player', unit: 0, baseSpeed: 10, speedModifier: 0, speed: 10, readinessBefore: 0, readinessAfter: 10 },
+        { turn: 1, kind: 'gain', side: 'enemy', unit: 0, baseSpeed: 8, speedModifier: 0, speed: 8, readinessBefore: 0, readinessAfter: 8 },
+        { turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 1, kind: 'cost', side: 'player', unit: 0, readinessBefore: 10, readinessAfter: 4, paid: 6 },
+        // Turn 2: readinessBefore on each gain IS that leftover; readinessAfter
+        // must be leftover + this turn's speed.
+        { turn: 2, kind: 'gain', side: 'player', unit: 0, baseSpeed: 11, speedModifier: 0, speed: 11, readinessBefore: 4, readinessAfter: 15 },
+        { turn: 2, kind: 'gain', side: 'enemy', unit: 0, baseSpeed: 8, speedModifier: 0, speed: 8, readinessBefore: 8, readinessAfter: 16 },
+        { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 0, skillId: 'sword_slash', weight: 10, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 3 });
+      const turn2Ready = model.linesByTurn.get(2)!.find((l) => l.tag === 'READY');
+      expect(turn2Ready).toBeDefined();
+      const parsed = new Map<string, { readiness: number; speed: number }>();
+      for (const part of turn2Ready!.text.split('   ·   ')) {
+        const m = part.match(/^(.*) (\d+) · SPD \+(\d+)$/);
+        expect(m, `could not parse READY row segment: "${part}"`).not.toBeNull();
+        parsed.set(m![1]!, { readiness: Number(m![2]), speed: Number(m![3]) });
+      }
+      const heroLeftover = 10 - 6; // turn 1's gain.readinessAfter − weight paid
+      const enemyLeftover = 8; // enemy never acted turn 1 — nothing paid
+      expect(parsed.get(model.heroName)).toEqual({ readiness: heroLeftover + 11, speed: 11 });
+      expect(parsed.get(model.foeName)).toEqual({ readiness: enemyLeftover + 8, speed: 8 });
+    });
+
+    it('flushes a trailing READY row via the post-loop safety flush when a synthetic log ends mid gain-batch (no trailing non-gain event)', () => {
+      // Every REAL log's last event is `combatEnd` (never `gain`), so the
+      // in-loop flush (triggered by the next non-gain event) always fires
+      // first — this makes the post-loop flush dead code for real logs. But
+      // it IS reachable for a hand-built fixture like this one, which ends
+      // immediately after a turn's gain sweep with nothing after it. Pinning
+      // this documents the intent and stops a future cleanup pass from
+      // deleting it as "unreachable".
+      const events: CombatEvent[] = [
+        { turn: 5, kind: 'gain', side: 'player', unit: 0, baseSpeed: 12, speedModifier: 0, speed: 12, readinessBefore: 0, readinessAfter: 12 },
+        { turn: 5, kind: 'gain', side: 'enemy', unit: 0, baseSpeed: 9, speedModifier: 0, speed: 9, readinessBefore: 0, readinessAfter: 9 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 5 });
+      const readyLine = model.linesByTurn.get(5)?.find((l) => l.tag === 'READY');
+      expect(readyLine).toBeDefined();
+      expect(readyLine!.text).toBe(`${model.heroName} 12 · SPD +12   ·   ${model.foeName} 9 · SPD +9`);
+    });
+  });
 });
