@@ -5,7 +5,7 @@ import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
 import { shopCatalog, shopTypeIds } from '../../data/shopTypes';
 import { setDeckBuildContext } from '../deckBuildContext';
-import type { Gem, SkillTier } from '../../engine/types';
+import type { Gem, SkillDef, SkillTier } from '../../engine/types';
 import type { CardOffer, GemOffer } from '../../run/shop';
 import { sellPriceOfCard, sellPriceOfGem, shopPoolInfo } from '../../run/shop';
 import { canPlace, bagAsBoardPieces } from '../../run/loadout';
@@ -31,6 +31,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { addRunArt, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
 import { runScreenTemplate } from '../ui/runScreenTemplate';
 import { rebuildScene } from '../sceneRebuild';
+import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 
 /** Structural shape shared by `ShopShelfState` (demoState) and `RunShopShelf`
  * (run) — the shop scene reads/writes through this either way. */
@@ -57,10 +58,18 @@ type DragSource =
 
 interface DragEntry { bounds: Phaser.Geom.Rectangle; src: DragSource; obj: Phaser.GameObjects.Container }
 
-interface OwnedStripLayout {
-  rowX: number;
-  boardY: number;
-  bagY: number;
+/**
+ * Geometry the drag hit-testing (`wireDrag`) and the invalid-drop flash need
+ * to agree with what `renderOwnedColumns` actually drew — computed once per
+ * render, shared by both.
+ */
+interface OwnedColumnLayout {
+  boardX: number;
+  bagX: number;
+  colW: number;
+  colTop: number;
+  rowH: number;
+  rowGap: number;
   sellRect: Phaser.Geom.Rectangle;
 }
 
@@ -68,36 +77,38 @@ const F = MOBILE_PROFILE.font;
 const TEMPLATE = runScreenTemplate('mobile');
 
 const BOARD_BAG_SLOTS = 10;
-const CELL_GAP = 3;
-const CELL_H = 32;
-const SELL_ZONE_H = 28;
-const POUCH_CELL_H = 24;
 
 /**
- * Reserved band under the (now scrollable) shelf grid for the new owned-item
- * strips (BOARD · BAG · SELL ZONE · GEM POUCH), bottom-anchored above the
- * footer (Run Mode) / screen edge (Sandbox). FIXED height, independent of a
- * shop's stock — the shelf viewport above it absorbs any stock-size variance
- * via scrolling:
- *   BOARD  12 (label) + 2 + 32 (cell)  = 46
- *   BAG    12 + 2 + 32                 = 46
- *   gap                                 = 6
- *   SELL   28                           = 28
- *   gap                                 = 6
- *   POUCH  12 + 2 + 24                  = 38
- *   total  46 + 46 + 6 + 28 + 6 + 38    = 170
- *
- * MEASURED FIX (2026-08-04): the OLD code clamped card/gem row heights to fit
- * a fixed bottom (`Phaser.Math.Clamp(unit, 60/50, 100/84)`) — at full 6-card/
- * 5-gem stock those floors (360+40 card rows, then 290 gem rows) pushed the
- * shelf's bottom edge to y=882, 56px past the actual bottom limit of 826
- * (footer.y=838, minus the old 12px pad). That's the exact bug this pass
- * fixes: the shelf grid is now a MASKED SCROLLABLE viewport (fixed rows,
- * `Math.max(0, contentH - viewportH)` clamps the scroll, never the rows) —
- * it can no longer push into the footer regardless of offer count, and the
- * new BOARD/BAG/SELL/POUCH band below it is its own fixed 170px region.
+ * YOUR BOARD / BAG are two VERTICAL columns BELOW the shelf — the same
+ * "deck-build" idiom `MobileDeckBuildScene.renderColumns` uses (a column of
+ * real `CardToken`s, multi-slot cards spanning rows), sized off the SAME
+ * `colW`/`gap` formula that scene uses so the two screens read identically.
+ * Replaces the old 36×32 horizontal mini-token strip (2026-08-04..08-05) —
+ * much more spacious: a full card render (art, name, effects, affinity)
+ * instead of a truncated name/tier label, per the user's explicit
+ * "more spacing" ask.
  */
-const STRIP_BAND_H = 170;
+const OWNED_ROW_GAP = 5; // matches MobileDeckBuildScene's column row gap
+/** Fixed column height (10 rows) — the shelf viewport above absorbs any
+ * leftover/shortfall via scrolling, same fixed-band idiom the old strip used. */
+const OWNED_COL_H = 380;
+const SELL_ZONE_H = 28;
+const POUCH_LABEL_H = 12;
+const POUCH_LABEL_GAP = 2;
+const POUCH_CELL_H = 24;
+/** SELL ZONE + GEM POUCH, stacked directly under the two columns:
+ *   gap (column bottom → SELL ZONE)   = 6
+ *   SELL ZONE                          = 28
+ *   gap                                 = 6
+ *   POUCH label + gap + cell           = 12 + 2 + 24 = 38
+ *   total                               = 78
+ */
+const OWNED_FOOTER_H = 6 + SELL_ZONE_H + 6 + POUCH_LABEL_H + POUCH_LABEL_GAP + POUCH_CELL_H;
+/** Whole reserved band under the (scrollable) shelf viewport: columns + the
+ * SELL ZONE/POUCH footer beneath them. FIXED height, independent of a shop's
+ * stock — the shelf viewport above it absorbs 100% of any stock-size
+ * variance via scrolling instead of pushing this band around. */
+const OWNED_BAND_H = OWNED_COL_H + OWNED_FOOTER_H;
 const STRIP_GAP = 8;
 
 /**
@@ -107,12 +118,16 @@ const STRIP_GAP = 8;
  * BUY opens a confirm dialog (mirrors the deck-build trash-confirm).
  * Reachable at ?scene=mobile-shop.
  *
- * 2026-08-04: DRAG-TO-BUY + SELLING + the shelf-overflow fix. A compact
- * BOARD/BAG strip (same sandbox/run split `MobileDeckBuildScene` uses) sits
- * below the (now scrollable) shelf, with a SELL ZONE and a gem POUCH row
- * beneath it. Dragging a shelf card onto a board/bag slot opens the BUY
- * confirm pre-targeted at that destination; dragging an owned card/gem onto
- * SELL ZONE (or tapping it) opens a SELL confirm.
+ * 2026-08-04: DRAG-TO-BUY + SELLING + the shelf-overflow fix. A YOUR
+ * BOARD/BAG pair of columns (same sandbox/run split `MobileDeckBuildScene`
+ * uses) sits below the (now scrollable) shelf, with a SELL ZONE and a gem
+ * POUCH row beneath it. Dragging a shelf card onto a board/bag slot opens
+ * the BUY confirm pre-targeted at that destination; dragging an owned
+ * card/gem onto SELL ZONE (or tapping it) opens a SELL confirm.
+ *
+ * 2026-08-05: BOARD/BAG went VERTICAL — two `CardToken` columns (the same
+ * deck-build idiom, multi-slot cards spanning rows) in place of the old
+ * horizontal 36px mini-token strip. See `OWNED_COL_H`/`OWNED_BAND_H`.
  */
 export class MobileShopScene extends Phaser.Scene {
   private W = SCREEN.width;
@@ -142,11 +157,37 @@ export class MobileShopScene extends Phaser.Scene {
   private shelfMaxScroll = 0;
 
   private draggables: DragEntry[] = [];
-  private ownedStrip: OwnedStripLayout | null = null;
+  private ownedColumns: OwnedColumnLayout | null = null;
   private sellZoneRectObj: Phaser.GameObjects.Rectangle | null = null;
   private sellZoneLabelObj: Phaser.GameObjects.Text | null = null;
+  /**
+   * `pointer.downTime` of the most recent click a DIALOG BUTTON (CANCEL/BUY/
+   * MERGE/SELL) already handled — read by `wireDrag`'s scene-wide generic
+   * pointerdown handler to skip re-processing that SAME physical click as a
+   * board/bag hit-test.
+   *
+   * Real bug this fixes (desktop twin discovered it first, 2026-08-05): the
+   * BOARD/BAG columns are now tall enough that a centered confirm dialog's
+   * buttons always sit ON TOP of a board/bag card underneath. Phaser
+   * dispatches a pointerdown to BOTH the button's own object-level listener
+   * AND the scene's generic `this.input.on('pointerdown')` listener for the
+   * SAME click — deterministically, not a timing race. If the button's
+   * handler calls `rerender()` (closing the dialog) BEFORE the generic
+   * listener runs, the generic listener sees the just-closed dialog state
+   * and the FRESH (rebuilt) `draggables`, "discovers" the card now exposed
+   * under the same pixel, and starts a phantom drag/tap — which completes as
+   * a SELL confirm on pointerup. Every button that can overlap a card must
+   * call `consumePointer(pointer)` before mutating state.
+   */
+  private consumedPointerAt: number | null = null;
 
   constructor() { super('MobileShop'); }
+
+  /** See `consumedPointerAt`. Call from every dialog-button's OWN pointerdown
+   * handler, before it mutates any pending-dialog state. */
+  private consumePointer(pointer: Phaser.Input.Pointer): void {
+    this.consumedPointerAt = pointer.downTime;
+  }
 
   init(): void {
     this.selectedShop = null;
@@ -159,6 +200,7 @@ export class MobileShopScene extends Phaser.Scene {
     this.toastObjects = [];
     this.retireConfirmOpen = false;
     this.shelfScrollY = 0;
+    this.consumedPointerAt = null;
     // rebuildScene() destroys the game objects but NOT the fields pointing at
     // them (scene-rebuild idiom).
     this.shelfThumb = null;
@@ -251,7 +293,7 @@ export class MobileShopScene extends Phaser.Scene {
     this.W = SCREEN.width; this.H = SCREEN.height;
     this.draggables = [];
     this.shelfContainer = null;
-    this.ownedStrip = null;
+    this.ownedColumns = null;
     this.sellZoneRectObj = null;
     this.sellZoneLabelObj = null;
     this.cameras.main.setBackgroundColor(0x0b1420);
@@ -265,7 +307,7 @@ export class MobileShopScene extends Phaser.Scene {
     const shopId = runShop ?? this.selectedShop;
     if (shopId) {
       this.renderShelf(shopId);
-      this.renderOwnedStrips();
+      this.renderOwnedColumns();
     } else {
       this.renderStorefront();
     }
@@ -395,11 +437,11 @@ export class MobileShopScene extends Phaser.Scene {
     const gemSlots = info.gemSlots;
 
     // Scrollable viewport for the CARDS+GEMS list — bottom-anchored above the
-    // fixed STRIP_BAND_H reserved for BOARD/BAG/SELL/POUCH (see that
-    // constant's comment, incl. the exact overflow number this replaces).
+    // fixed OWNED_BAND_H reserved for the BOARD/BAG columns + SELL ZONE/POUCH
+    // beneath them (see that constant's comment).
     const contentTop = top + 54;
     const bottomLimit = (runShop ? TEMPLATE.regions.footer.y : this.H - MOBILE_PROFILE.safe.bottom) - 6;
-    const viewportBottom = bottomLimit - STRIP_BAND_H - STRIP_GAP;
+    const viewportBottom = bottomLimit - OWNED_BAND_H - STRIP_GAP;
     const viewportH = Math.max(40, viewportBottom - contentTop);
     this.shelfViewport = { x: 10, y: contentTop, width: this.W - 20, height: viewportH };
 
@@ -531,104 +573,129 @@ export class MobileShopScene extends Phaser.Scene {
     this.shelfFadeBottom?.setVisible(progress < 0.99);
   }
 
-  // ---------- owned strips: BOARD · BAG · SELL ZONE · GEM POUCH ----------
+  // ---------- owned columns: BOARD · BAG · SELL ZONE · GEM POUCH ----------
 
-  private renderOwnedStrips(): void {
-    const rowW = this.W - 20;
-    const cellW = (rowW - CELL_GAP * (BOARD_BAG_SLOTS - 1)) / BOARD_BAG_SLOTS;
-    const rowX = 10;
-    const stripTop = this.shelfViewport.y + this.shelfViewport.height + STRIP_GAP;
+  /**
+   * YOUR BOARD / BAG — two vertical `BoardColumn`s (the SAME shared 10-slot
+   * column-of-`CardToken`s component battle/prep already render with — "one
+   * component, no per-screen copies") side by side below the shelf, with a
+   * SELL ZONE and GEM POUCH stacked underneath them. Replaces the old
+   * 36×32 horizontal mini-token strip: much more spacious (a full card
+   * render — art, name, effects, affinity — instead of a truncated
+   * name/tier label), per the user's explicit "more spacing" ask.
+   */
+  private renderOwnedColumns(): void {
+    const colW = (this.W - 20 - 8) / 2; // matches MobileDeckBuildScene's column width
+    const boardX = 10;
+    const bagX = 10 + colW + 8;
+    const colTop = this.shelfViewport.y + this.shelfViewport.height + STRIP_GAP;
+    const rowGap = OWNED_ROW_GAP;
+    const colH = OWNED_COL_H;
+    const rowH = (colH - rowGap * (BOARD_BAG_SLOTS - 1)) / BOARD_BAG_SLOTS;
+    const colBottom = colTop + colH;
 
-    this.add.text(rowX, stripTop, `BOARD · ${this.boardOccupied().filter(Boolean).length}/${BOARD_BAG_SLOTS}`, {
+    this.add.text(boardX + colW / 2, colTop - 4, `BOARD · ${this.boardOccupied().filter(Boolean).length}/${BOARD_BAG_SLOTS}`, {
       fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
-    });
-    const boardY = stripTop + 14;
-    this.renderBoardRow(rowX, boardY, cellW);
-
-    const bagLabelY = boardY + CELL_H + 6;
-    this.add.text(rowX, bagLabelY, `BAG · ${this.bagOccupied().filter(Boolean).length}/${BOARD_BAG_SLOTS}`, {
+    }).setOrigin(0.5, 1);
+    this.add.text(bagX + colW / 2, colTop - 4, `BAG · ${this.bagOccupied().filter(Boolean).length}/${BOARD_BAG_SLOTS}`, {
       fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
-    });
-    const bagY = bagLabelY + 14;
-    this.renderBagRow(rowX, bagY, cellW);
+    }).setOrigin(0.5, 1);
 
-    const sellY = bagY + CELL_H + 6;
-    const sellRect = new Phaser.Geom.Rectangle(rowX, sellY, rowW, SELL_ZONE_H);
-    this.sellZoneRectObj = this.add.rectangle(rowX, sellY, rowW, SELL_ZONE_H, UI.badSoft, 0.35).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8);
-    this.sellZoneLabelObj = this.add.text(rowX + rowW / 2, sellY + SELL_ZONE_H / 2, 'SELL ZONE — drag or tap to sell', {
+    const boardPieces: ColumnPiece[] = [];
+    const boardSkills: SkillDef[] = [];
+    for (const p of this.pieces) {
+      const skill = skillBook[p.skillId];
+      if (!skill) continue;
+      boardPieces.push({ skill, slot: p.slot });
+      boardSkills.push(skill);
+    }
+    const boardCol = new BoardColumn(this, {
+      x: boardX, y: colTop, width: colW, height: colH, side: 'left',
+      slotCount: BOARD_BAG_SLOTS, gap: rowGap, pieces: boardPieces, deck: boardSkills,
+    });
+    this.wireColumnDraggables(boardCol, boardX, colTop, colW, rowH, rowGap, (slot) => {
+      const piece = this.pieces.find((p) => p.slot === slot);
+      if (!piece || !skillBook[piece.skillId]) return null;
+      return { size: this.sizeOf(piece.skillId), src: { kind: 'board', index: this.pieces.indexOf(piece) } };
+    });
+
+    const bagPieces: ColumnPiece[] = [];
+    const bagSkills: SkillDef[] = [];
+    this.bagSlots.forEach((card, index) => {
+      if (!card) return;
+      const skill = skillBook[card.skillId];
+      if (!skill) return;
+      bagPieces.push({ skill, slot: index });
+      bagSkills.push(skill);
+    });
+    const bagCol = new BoardColumn(this, {
+      x: bagX, y: colTop, width: colW, height: colH, side: 'right',
+      slotCount: BOARD_BAG_SLOTS, gap: rowGap, pieces: bagPieces, deck: bagSkills,
+    });
+    this.wireColumnDraggables(bagCol, bagX, colTop, colW, rowH, rowGap, (slot) => {
+      const card = this.bagSlots[slot];
+      if (!card || !skillBook[card.skillId]) return null;
+      return { size: this.sizeOf(card.skillId), src: { kind: 'bag', index: slot } };
+    });
+
+    // SELL ZONE + GEM POUCH, stacked directly under the two columns.
+    const rowX = boardX;
+    const rowW = bagX + colW - boardX;
+    let y = colBottom + 6;
+    const sellRect = new Phaser.Geom.Rectangle(rowX, y, rowW, SELL_ZONE_H);
+    this.sellZoneRectObj = this.add.rectangle(rowX, y, rowW, SELL_ZONE_H, UI.badSoft, 0.35).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8);
+    this.sellZoneLabelObj = this.add.text(rowX + rowW / 2, y + SELL_ZONE_H / 2, 'SELL ZONE — drag or tap to sell', {
       fontSize: `${F.tiny}px`, color: '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(0.5);
+    y += SELL_ZONE_H + 6;
 
-    const pouchLabelY = sellY + SELL_ZONE_H + 6;
-    this.add.text(rowX, pouchLabelY, `GEM POUCH · ${this.gemInventory.length}`, {
+    this.add.text(rowX, y, `GEM POUCH · ${this.gemInventory.length}`, {
       fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
     });
-    const pouchY = pouchLabelY + 14;
-    this.renderPouchRow(rowX, pouchY, rowW);
+    y += POUCH_LABEL_H + POUCH_LABEL_GAP;
+    this.renderPouchRow(rowX, y, rowW);
 
-    this.ownedStrip = { rowX, boardY, bagY, sellRect };
+    this.ownedColumns = { boardX, bagX, colW, colTop, rowH, rowGap, sellRect };
 
+    // One-shot invalid-drop flash — read + cleared here so it never survives
+    // past the single rebuild it was set for.
     if (this.invalidFlash) {
       const flash = this.invalidFlash;
       this.invalidFlash = null;
-      const y = flash.where === 'board' ? boardY : bagY;
-      const cx = rowX + flash.index * (cellW + CELL_GAP);
-      const overlay = this.add.rectangle(cx, y, cellW, CELL_H, UI.bad, 0.6).setOrigin(0, 0).setStrokeStyle(2, UI.bad, 1);
+      const fx = flash.where === 'board' ? boardX : bagX;
+      const fy = colTop + flash.index * (rowH + rowGap);
+      const overlay = this.add.rectangle(fx, fy, colW, rowH, UI.bad, 0.6).setOrigin(0, 0).setStrokeStyle(2, UI.bad, 1);
       this.tweens.add({ targets: overlay, alpha: 0, duration: 420, onComplete: () => overlay.destroy() });
     }
   }
 
-  private slotBoxLabel(skillId: string, tier: SkillTier): string {
-    const skill = skillBook[skillId];
-    const name = skill?.name ?? skillId;
-    return name.length > 8 ? `${name.slice(0, 7)}…` : `${name}·${tier[0]!.toUpperCase()}`;
-  }
-
-  /** Pixel width of a card occupying `span` consecutive slots — the cells it
-   * covers PLUS the gaps between them, so a x3 card reads as one wide token
-   * exactly like `MobileDeckBuildScene` spans a multi-slot card down a column. */
-  private spanW(span: number, cellW: number): number {
-    return cellW * span + CELL_GAP * (span - 1);
-  }
-
-  private renderBoardRow(rowX: number, y: number, cellW: number): void {
-    const occ = this.boardOccupied();
-    const bySlot = new Map(this.pieces.map((p) => [p.slot, p]));
-    for (let slot = 0; slot < BOARD_BAG_SLOTS; slot++) {
-      const cx = rowX + slot * (cellW + CELL_GAP);
-      const piece = bySlot.get(slot);
-      if (piece) {
-        // SPAN the token across every slot the card occupies. Drawing it at a
-        // fixed cellW left the covered slots blank — `occ[]` marks them, so the
-        // empty-cell branch skipped them too — and a x3 card read as one box
-        // followed by two holes in the row.
-        const span = this.sizeOf(piece.skillId);
-        const w = this.spanW(span, cellW);
-        const idx = this.pieces.findIndex((p) => p.instanceId === piece.instanceId);
-        const box = this.makeMiniToken(cx, y, w, this.slotBoxLabel(piece.skillId, piece.tier));
-        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, y, w, CELL_H), src: { kind: 'board', index: idx }, obj: box });
-        slot += span - 1;
-      } else if (!occ[slot]) {
-        this.add.rectangle(cx, y, cellW, CELL_H, 0x121e30, 0.45).setOrigin(0, 0).setStrokeStyle(1, 0x24344a, 0.9);
+  /**
+   * Registers a drag hit-box for every OCCUPIED row a rendered `BoardColumn`
+   * drew — replicates the column's own row-consumption loop (a span-N piece
+   * occupies N rows but renders exactly ONE token) to pair each token with
+   * its bounds, the same idiom `DesktopBattleScene.pulseTokenAt` uses to
+   * reach into a `BoardColumn`'s token list without the component needing
+   * to expose that mapping itself.
+   */
+  private wireColumnDraggables(
+    col: BoardColumn,
+    colX: number, colTop: number, colW: number, rowH: number, rowGap: number,
+    occupantAt: (slot: number) => { size: number; src: DragSource } | null,
+  ): void {
+    let tokenIdx = 0;
+    for (let slot = 0; slot < BOARD_BAG_SLOTS; ) {
+      const occupant = occupantAt(slot);
+      const span = occupant?.size ?? 1;
+      if (occupant) {
+        const token = col.tokens[tokenIdx];
+        if (token) {
+          const y = colTop + slot * (rowH + rowGap);
+          const h = rowH * span + rowGap * (span - 1);
+          this.draggables.push({ bounds: new Phaser.Geom.Rectangle(colX, y, colW, h), src: occupant.src, obj: token });
+        }
       }
-    }
-  }
-
-  private renderBagRow(rowX: number, y: number, cellW: number): void {
-    const occ = this.bagOccupied();
-    for (let slot = 0; slot < BOARD_BAG_SLOTS; slot++) {
-      const cx = rowX + slot * (cellW + CELL_GAP);
-      const card = this.bagSlots[slot];
-      if (card) {
-        // Spans its slots, same as the board row above.
-        const span = this.sizeOf(card.skillId);
-        const w = this.spanW(span, cellW);
-        const box = this.makeMiniToken(cx, y, w, this.slotBoxLabel(card.skillId, card.tier));
-        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, y, w, CELL_H), src: { kind: 'bag', index: slot }, obj: box });
-        slot += span - 1;
-      } else if (!occ[slot]) {
-        this.add.rectangle(cx, y, cellW, CELL_H, 0x121e30, 0.45).setOrigin(0, 0).setStrokeStyle(1, 0x24344a, 0.9);
-      }
+      tokenIdx += 1;
+      slot += span;
     }
   }
 
@@ -658,18 +725,6 @@ export class MobileShopScene extends Phaser.Scene {
         fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold',
       }).setOrigin(0, 0.5);
     }
-  }
-
-  /** A compact custom token (not the full `CardToken`) for the BOARD/BAG mini
-   * strips — a truncated name/tier line on a plain panel. */
-  private makeMiniToken(x: number, y: number, w: number, label: string): Phaser.GameObjects.Container {
-    const box = this.add.container(x, y);
-    const bg = this.add.rectangle(w / 2, CELL_H / 2, w, CELL_H, 0x16233a, 0.95).setStrokeStyle(1, UI.border, 0.8);
-    const text = this.add.text(w / 2, CELL_H / 2, label, {
-      fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold', align: 'center', wordWrap: { width: w - 4 },
-    }).setOrigin(0.5);
-    box.add([bg, text]);
-    return box;
   }
 
   // ---------- card/gem inspect overlays (tap, no drag) ----------
@@ -804,8 +859,20 @@ export class MobileShopScene extends Phaser.Scene {
     };
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      // See `consumedPointerAt` — a dialog button already handled this exact
+      // physical click (and likely just closed the dialog + rebuilt the
+      // scene); don't ALSO reinterpret it as a fresh board/bag hit-test.
+      if (p.downTime === this.consumedPointerAt) return;
       if (this.pendingBuy || this.pendingSell || this.retireConfirmOpen) return;
-      const hit = this.draggables.find((d) => this.worldBounds(d).contains(p.worldX, p.worldY));
+      // A shelfCard's registered bounds are its UNCLIPPED position inside the
+      // scrollable container — a card scrolled below the masked viewport
+      // still has bounds sitting where it would be, invisible but "clickable"
+      // there. Gate shelfCard hits on `inViewport` too, or a scrolled-away
+      // card can steal a tap intended for whatever's actually visible at
+      // that pixel — the BOARD/BAG columns now sit directly below a shelf
+      // viewport short enough that even a default 6-card shop needs scrolling.
+      const hit = this.draggables.find((d) => this.worldBounds(d).contains(p.worldX, p.worldY)
+        && (d.src.kind !== 'shelfCard' || inViewport(p.worldX, p.worldY)));
       if (hit) {
         dragging = { src: hit.src, obj: hit.obj };
         totalMove = 0;
@@ -832,7 +899,7 @@ export class MobileShopScene extends Phaser.Scene {
         }
         if (dragging.src.kind !== 'shelfCard' && this.sellZoneRectObj && this.sellZoneLabelObj) {
           const sell = this.sellRefFor(dragging.src);
-          const hovering = sell != null && this.ownedStrip != null && this.ownedStrip.sellRect.contains(p.worldX, p.worldY);
+          const hovering = sell != null && this.ownedColumns != null && this.ownedColumns.sellRect.contains(p.worldX, p.worldY);
           if (hovering && sell) {
             const preview = this.sellPreview(sell);
             this.sellZoneRectObj.setFillStyle(UI.bad, 0.55);
@@ -869,13 +936,19 @@ export class MobileShopScene extends Phaser.Scene {
           this.rerender();
           return;
         }
-        const strip = this.ownedStrip;
+        // Vertical columns: BOARD/BAG are told apart by X range (which
+        // column the pointer is over), the slot by Y position within that
+        // column's row pitch — the mirror image of the old horizontal strip,
+        // which told them apart by Y band and read the slot off X.
+        const strip = this.ownedColumns;
         let where: 'board' | 'bag' | null = null;
-        if (strip && p.worldY >= strip.boardY && p.worldY <= strip.boardY + CELL_H) where = 'board';
-        else if (strip && p.worldY >= strip.bagY && p.worldY <= strip.bagY + CELL_H) where = 'bag';
+        const colBottom = strip ? strip.colTop + BOARD_BAG_SLOTS * strip.rowH + (BOARD_BAG_SLOTS - 1) * strip.rowGap : 0;
+        if (strip && p.worldY >= strip.colTop && p.worldY <= colBottom) {
+          if (p.worldX >= strip.boardX && p.worldX <= strip.boardX + strip.colW) where = 'board';
+          else if (p.worldX >= strip.bagX && p.worldX <= strip.bagX + strip.colW) where = 'bag';
+        }
         if (where && strip) {
-          const cellW = (this.W - 20 - CELL_GAP * (BOARD_BAG_SLOTS - 1)) / BOARD_BAG_SLOTS;
-          const slot = Phaser.Math.Clamp(Math.floor((p.worldX - strip.rowX) / (cellW + CELL_GAP)), 0, BOARD_BAG_SLOTS - 1);
+          const slot = Phaser.Math.Clamp(Math.floor((p.worldY - strip.colTop) / (strip.rowH + strip.rowGap)), 0, BOARD_BAG_SLOTS - 1);
           const offer = shelf.cards[src.index];
           if (offer) {
             const fits = where === 'board'
@@ -901,7 +974,7 @@ export class MobileShopScene extends Phaser.Scene {
         return;
       }
       draggedObj.setDepth(0).setAlpha(1);
-      const strip = this.ownedStrip;
+      const strip = this.ownedColumns;
       if (strip && strip.sellRect.contains(p.worldX, p.worldY)) {
         this.pendingSell = this.sellRefFor(src);
       }
@@ -995,7 +1068,10 @@ export class MobileShopScene extends Phaser.Scene {
     buttons.forEach((b, i) => {
       const dx = bx + margin + i * (btnW + gap);
       const r = this.add.rectangle(dx, btnY, btnW, 36, b.fill).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-      r.on('pointerdown', b.fn);
+      // consumePointer FIRST — see its doc comment: the BOARD/BAG columns now
+      // sit directly under this dialog, so this exact click would otherwise
+      // also be reprocessed as a board/bag tap once `b.fn()` closes it.
+      r.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); b.fn(); });
       this.add.text(dx + btnW / 2, btnY + 18, b.label, { fontSize: `${F.name}px`, color: b.color, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     });
   }
@@ -1031,10 +1107,10 @@ export class MobileShopScene extends Phaser.Scene {
     const btnY = by + bh - 52;
     const cancel = this.add.rectangle(bx + margin, btnY, btnW, 36, 0x1b2940).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
     this.add.text(bx + margin + btnW / 2, btnY + 18, 'CANCEL', { fontSize: `${F.name}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    cancel.on('pointerdown', () => { playSfx('uiBack'); this.pendingSell = null; this.rerender(); });
+    cancel.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); playSfx('uiBack'); this.pendingSell = null; this.rerender(); });
     const sellBtn = this.add.rectangle(bx + margin + btnW + gap, btnY, btnW, 36, 0x7a2e2a).setOrigin(0, 0).setStrokeStyle(1, 0xd05c4e, 1).setInteractive({ useHandCursor: true });
     this.add.text(bx + margin + btnW + gap + btnW / 2, btnY + 18, 'SELL', { fontSize: `${F.name}px`, color: '#ffffff', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
-    sellBtn.on('pointerdown', doSell);
+    sellBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.consumePointer(pointer); doSell(); });
   }
 
   private showToast(text: string, color: string): void {

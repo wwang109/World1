@@ -994,7 +994,15 @@ export class DesktopShopScene extends Phaser.Scene {
       // scene); don't ALSO reinterpret it as a fresh board/bag hit-test.
       if (p.downTime === this.consumedPointerAt) return;
       if (this.pendingBuy || this.pendingSell || this.retireConfirmOpen) return;
-      const hit = this.draggables.find((d) => this.worldBounds(d).contains(p.worldX, p.worldY));
+      // A shelfCard's registered bounds are its UNCLIPPED position inside the
+      // scrollable container — a card scrolled below the masked viewport
+      // still has bounds sitting where it would be, invisible but "clickable"
+      // there. Gate shelfCard hits on `inViewport` too, or a scrolled-away
+      // card can steal a tap intended for whatever's actually visible at
+      // that pixel (the BOARD/BAG columns, once the shelf is short enough to
+      // need scrolling at all — true for mobile's default stock).
+      const hit = this.draggables.find((d) => this.worldBounds(d).contains(p.worldX, p.worldY)
+        && (d.src.kind !== 'shelfCard' || inViewport(p.worldX, p.worldY)));
       if (hit) {
         dragging = { src: hit.src, obj: hit.obj };
         totalMove = 0;
