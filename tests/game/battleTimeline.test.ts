@@ -403,6 +403,81 @@ describe('game/battleTimeline', () => {
     });
   });
 
+  // ---- Applied-vs-ticking log clarity (2026-08 pass) ----
+  // Before this, a stacking DoT's APPLICATION ("Poison 5") and its TICK
+  // ("Poison · Hero −5 · 41/100") shared one tag/color (DEBUFF) and read as
+  // the same kind of moment. Now: DEBUFF is application-only, ticks get their
+  // own 'EFFECT' tag, and a RE-application onto an existing pile shows the
+  // APPLIED delta plus the resulting total — never just the merged total,
+  // which hid whether a big number was a fresh heavy hit or a small top-up.
+  //
+  // The engine (`applyDot`, combat/interpreter.ts) MERGES piles: a
+  // reapplication's `statusApplied.stacks` is the pile's NEW TOTAL, not the
+  // delta, and the delta is not on the event at all — `buildBattleTimeline`
+  // reconstructs it by tracking a running pile per (victim, kind) as it walks
+  // the log. That running total must also account for every TICK in between
+  // (poison/bleed fall by 1, burn halves-and-floors — simulate.ts) or a
+  // reapplication after even one tick would print the wrong delta. This log
+  // interleaves ticks between two poison top-ups (and one burn top-up)
+  // specifically to prove that: a naive "delta = new total − last APPLIED
+  // total" would say the turn-3 poison top-up applied 7 − 5 = 2; the true
+  // applied amount is 3 (7 − 4, the pile having already decayed to 4 by the
+  // turn-2 tick before this reapplication merged onto it).
+  describe('DoT re-application delta + EFFECT tag (applied vs ticking)', () => {
+    const events: CombatEvent[] = [
+      // Turn 1 — fresh applications (no existing pile): whole amount IS the
+      // delta, so the line stays the single-number reading from before.
+      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', property: 'physical', stacks: 5, turns: 5 },
+      { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'burn', property: 'magical', stacks: 8, turns: 8 },
+      // Turn 2 — each pile ticks once: poison 5 -> 4, burn 8 -> 4 (halved).
+      { turn: 2, kind: 'damage', side: 'enemy', unit: 0, amount: 5, property: 'physical', blocked: 0, hpAfter: 95, source: 'poison' },
+      { turn: 2, kind: 'damage', side: 'player', unit: 0, amount: 16, property: 'magical', blocked: 0, hpAfter: 84, source: 'burn' },
+      // Turn 3 — top up BOTH piles. Poison: true delta is 7 - 4 = 3 (NOT
+      // 7 - 5 = 2, which is what a same-turn-application-only tracker would
+      // wrongly compute). Burn: true delta is 6 - 4 = 2.
+      { turn: 3, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', property: 'physical', stacks: 7, turns: 7 },
+      { turn: 3, kind: 'statusApplied', side: 'player', unit: 0, status: 'burn', property: 'magical', stacks: 6, turns: 6 },
+      // Turn 4 — poison ticks again: 7 -> 6.
+      { turn: 4, kind: 'damage', side: 'enemy', unit: 0, amount: 7, property: 'physical', blocked: 0, hpAfter: 88, source: 'poison' },
+      // Turn 5 — poison topped up a SECOND time: true delta is 9 - 6 = 3.
+      { turn: 5, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', property: 'physical', stacks: 9, turns: 9 },
+      { turn: 6, kind: 'combatEnd', result: 'win', turns: 6 },
+    ];
+    const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 6 });
+    const lines = [...model.linesByTurn.values()].flat();
+    const debuffPoison = lines.filter((l) => l.tag === 'DEBUFF' && l.text.includes('Poison'));
+    const debuffBurn = lines.filter((l) => l.tag === 'DEBUFF' && l.text.includes('Burn'));
+    const effectPoison = lines.filter((l) => l.tag === 'EFFECT' && l.text.includes('Poison'));
+
+    it('a fresh application shows only the amount — applied and total are the same number', () => {
+      expect(debuffPoison[0]!.text).toMatch(/Poison 5$/);
+      expect(debuffBurn[0]!.text).toMatch(/Burn 8$/);
+    });
+
+    it('a tick gets its own EFFECT tag — never DEBUFF (applied) and never HIT (a card striking you)', () => {
+      expect(effectPoison).toHaveLength(2);
+      expect(effectPoison[0]!.text).toContain('Poison · ');
+      expect(effectPoison[0]!.text).toContain('−5');
+      expect(lines.some((l) => l.tag === 'HIT' && l.text.includes('Poison'))).toBe(false);
+      expect(lines.some((l) => l.tag === 'DEBUFF' && l.text.includes('−'))).toBe(false);
+    });
+
+    it('a re-application after one intervening tick shows the true applied delta, not a stale one', () => {
+      expect(debuffPoison[1]!.text).toContain('Poison +3 (7 total)');
+    });
+
+    it('a pile topped up TWICE keeps computing the correct delta the second time too', () => {
+      expect(debuffPoison[2]!.text).toContain('Poison +3 (9 total)');
+    });
+
+    it("mirrors the engine's burn-specific halving decay, not the poison/bleed -1 rule", () => {
+      // Burn halves-and-floors (8 -> 4) rather than falling by one stack, so
+      // its delta math differs from poison's even though both use the same
+      // reconstruction path — this pins that the HALVING is actually applied.
+      expect(debuffBurn[1]!.text).toContain('Burn +2 (6 total)');
+    });
+  });
+
   // ---- READY row and PLAY WEIGHT (2026-08-06 gap-closing pass) ----
   // `grep -rn "READY|WEIGHT" tests/` returned nothing before this block: the
   // turn-start readiness row (`flushGainRow`, battleTimeline.ts:495-517) and

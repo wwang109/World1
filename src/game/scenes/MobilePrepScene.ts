@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
-import { applyTier } from '../../engine/cards';
+import { applyTier, resolveDisplaySkill } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { enemies } from '../../data/enemies';
 import { setDeckBuildContext } from '../deckBuildContext';
@@ -350,8 +350,11 @@ export class MobilePrepScene extends Phaser.Scene {
     const heroSkills: SkillDef[] = [];
     const heroPieces: ColumnPiece[] = [];
     for (const p of demoState.pieces) {
-      const skill = skillBook[p.skillId];
-      if (!skill) continue;
+      const base = skillBook[p.skillId];
+      if (!base) continue;
+      // Tier + socketed-gem fold (resolver seam, display-only) so YOUR DECK's
+      // face numbers match what the card actually casts — see `resolveDisplaySkill`.
+      const skill = resolveDisplaySkill(base, p);
       heroPieces.push({ skill, slot: p.slot });
       heroSkills.push(skill);
     }

@@ -85,9 +85,16 @@ export interface RunScreenTemplate {
      *              suggestion: content taller than this must shrink to it.
      *   gap      — the breathing room between panel and buttons, declared
      *              here so it is identical on every reward screen.
-     *   buttons  — a FIXED bottom-anchored row. It is reserved before the
-     *              panel gets any space, so a tall reward can never push the
-     *              confirm action off the bottom of the screen.
+     *   buttons  — a FIXED bottom-anchored row, reserved before the panel
+     *              gets any space so a tall reward can never push the confirm
+     *              action off the bottom of the screen — DESKTOP ONLY (see
+     *              `REWARD_BUTTON_H`'s doc comment). Mobile's primary
+     *              go-forward action lives solely in the HUD's thumb-
+     *              reachable footer (`renderRunHud`'s `primary` role); its
+     *              `buttons` rect is a zero-height placeholder (still
+     *              populated so every platform shares this shape) rather than
+     *              a second reserved row `RunRewardPanel.ts` would otherwise
+     *              draw a duplicate CONTINUE into (task #33, 2026-08-07).
      *   icon     — the small outcome-kind icon (top of panel).
      *   headline — "Gained a BRONZE card" — the one-line (up to 2) summary.
      *   detail   — an optional second line ("The gamble paid off.").
@@ -118,10 +125,29 @@ export interface RunScreenTemplate {
   };
 }
 
-/** Height of the reward confirm-button row, and the gap above it. Declared
- * per platform, never inline at a call site. */
-const REWARD_BUTTON_H: Record<RunTemplatePlatform, number> = { desktop: 44, mobile: 40 };
-const REWARD_GAP: Record<RunTemplatePlatform, number> = { desktop: 20, mobile: 14 };
+/**
+ * Height of the reward confirm-button row, and the gap above it — DESKTOP
+ * ONLY. Missing platforms fall back to 0 (`buildRewardSlot` below), the same
+ * `Partial` + `??` idiom `REWARD_PANEL_MAX_W`/`_H` already use for a
+ * desktop-only tweak.
+ *
+ * Mobile never had its own row here (REMOVED 2026-08-07, task #33): its
+ * primary go-forward action already lives in the HUD's thumb-reachable
+ * footer (`renderRunHud`'s `primary` role, `runScreenTemplate`'s `footer`
+ * region) — the same slot every other mobile run screen's forward action
+ * (FIGHT, LEAVE SHOP, …) uses. `RunRewardPanel.ts` used to ALSO draw a
+ * second CONTINUE into this reserved row on mobile, stacking two identical
+ * buttons a thumb's-width apart for no reason (both called the exact same
+ * handler); reserving a row for a button that's no longer drawn there would
+ * just trade "duplicate button" for "dead gap above the footer," so the
+ * reservation itself is desktop-only now, not merely the draw call. Desktop
+ * keeps its own in-panel row: its primary action sits in the HEADER instead
+ * (`runScreenTemplate`'s `actions` region, top-right), physically far from
+ * this panel, so a bottom-anchored confirm right under the content it
+ * confirms still earns its keep there.
+ */
+const REWARD_BUTTON_H: Partial<Record<RunTemplatePlatform, number>> = { desktop: 44 };
+const REWARD_GAP: Partial<Record<RunTemplatePlatform, number>> = { desktop: 20 };
 
 /** Fixed per-platform heights for the reward panel's top three rows (icon,
  * headline, detail) and the gap between every consecutive pair of
@@ -194,17 +220,21 @@ const REWARD_PANEL_MAX_H: Partial<Record<RunTemplatePlatform, number>> = { deskt
  * centered horizontally in `content` and BOTTOM-anchored within the
  * available vertical band: any slack from the cap collects ABOVE the panel
  * (nearer the header) rather than between the panel and the buttons row, so
- * CONTINUE stays exactly `gap` (plus the panel's own bottom padding) below
- * the panel's visible content by construction — "sits near the content,"
- * not "happens to." `feature` is still reserved LAST, getting whatever the
+ * on DESKTOP — the only platform that draws a button into `buttons`, see
+ * `REWARD_BUTTON_H`'s doc comment — CONTINUE stays exactly `gap` (plus the
+ * panel's own bottom padding) below the panel's visible content by
+ * construction — "sits near the content," not "happens to." On mobile
+ * `buttonH`/`gap` are both 0, so the panel simply extends to fill the whole
+ * of `content` instead of stopping short of a row nothing draws into.
+ * `feature` is still reserved LAST, getting whatever the
  * (now much smaller, on desktop) panel has left after icon/headline/detail:
  * the same "fixed items first, flexible item gets the remainder" rule as
  * before, still arithmetically incapable of pushing anything off the
  * bottom edge — capping `panel` only ever makes it SMALLER than the space
  * `buttons` already reserved around, never bigger. */
 export function buildRewardSlot(content: Rect, platform: RunTemplatePlatform): RunScreenTemplate['contentSlots']['reward'] {
-  const buttonH = REWARD_BUTTON_H[platform];
-  const gap = REWARD_GAP[platform];
+  const buttonH = REWARD_BUTTON_H[platform] ?? 0;
+  const gap = REWARD_GAP[platform] ?? 0;
   const buttons: Rect = {
     x: content.x,
     y: content.y + content.height - buttonH,

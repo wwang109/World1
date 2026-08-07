@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { gemPowerLevel, instancePowerLevelDeci } from '../../engine/balance';
+import { resolveDisplaySkill } from '../../engine/cards';
 import { boardTypeIdentity, cardType } from '../../engine/combat/typeIdentity';
 import type { Gem, SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
@@ -374,7 +375,13 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     for (let row = 0; row < SLOTS; row++) {
       const piece = deckBySlot.get(row);
       if (piece) {
-        const skill = skillBook[piece.skillId]!;
+        const base = skillBook[piece.skillId]!;
+        // Tier + socketed-gem fold (resolver seam, display-only) so the deck
+        // face's numbers match what the card actually casts — see
+        // `resolveDisplaySkill`. `attachCardHover` below keeps the BASE skill
+        // (its PL number prices the base card only — see that function's doc
+        // comment on why gem-inflated `effects` must never reach `powerLevelDeci`).
+        const skill = resolveDisplaySkill(base, piece);
         const span = this.sizeOf(piece.skillId);
         const h = rowH * span + gap * (span - 1);
         const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
@@ -384,7 +391,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
           accessories: piece.gem ? [{ label: '◆' }] : undefined,
         });
         this.makeDraggable(tok, { where: 'deck', instanceId: piece.instanceId, card: { instanceId: piece.instanceId, skillId: piece.skillId, tier: piece.tier } });
-        this.attachCardHover(tok, skill, piece.gem);
+        this.attachCardHover(tok, base, piece.gem);
         row += span - 1;
       } else if (!deckOcc[row]) { empty(deckX, row, 'left'); }
     }
@@ -607,10 +614,13 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
 
     // Card info block: full skill text + a glossary entry for every
     // abbreviation the card face uses (drag/wheel-scrollable if it overflows).
+    // Resolved (tier + socketed-gem) so this text matches the face's number —
+    // NOT fed into the PL numbers above, which price the base card only (see
+    // `resolveDisplaySkill`'s doc comment on why those must stay separate).
     const infoTop = py + 40;
     this.add.text(px + 20, infoTop - 12, 'CARD INFO', { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' });
     this.add.rectangle(px + 20, infoTop, pw - 40, INFO_H, UI.panel, 0.7).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
-    renderCardInfoBox(this, px + 20, infoTop, pw - 40, INFO_H, skill);
+    renderCardInfoBox(this, px + 20, infoTop, pw - 40, INFO_H, resolveDisplaySkill(skill, piece));
 
     // Current socket row.
     const curY = infoTop + INFO_H + 14;

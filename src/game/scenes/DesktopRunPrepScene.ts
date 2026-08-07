@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { applyTier } from '../../engine/cards';
+import { applyTier, resolveDisplaySkill } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import type { SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
@@ -285,7 +285,9 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     for (const p of run.pieces) {
       const base = skillBook[p.skillId];
       if (!base) continue;
-      const skill = p.tier === base.tier ? base : applyTier(base, p.tier);
+      // Tier + socketed-gem fold (resolver seam, display-only) so YOUR DECK's
+      // face numbers match what the card actually casts — see `resolveDisplaySkill`.
+      const skill = resolveDisplaySkill(base, p);
       heroPieces.push({ skill, slot: p.slot });
       heroSkills.push(skill);
     }

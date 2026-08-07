@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
-import { applyTier } from '../../engine/cards';
+import { applyTier, resolveDisplaySkill } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
 import { shopCatalog, shopTypeIds } from '../../data/shopTypes';
@@ -605,8 +605,11 @@ export class MobileShopScene extends Phaser.Scene {
     const boardPieces: ColumnPiece[] = [];
     const boardSkills: SkillDef[] = [];
     for (const p of this.pieces) {
-      const skill = skillBook[p.skillId];
-      if (!skill) continue;
+      const base = skillBook[p.skillId];
+      if (!base) continue;
+      // Tier + socketed-gem fold (resolver seam, display-only) so BOARD's
+      // face numbers match what the card actually casts — see `resolveDisplaySkill`.
+      const skill = resolveDisplaySkill(base, p);
       boardPieces.push({ skill, slot: p.slot });
       boardSkills.push(skill);
     }
@@ -758,7 +761,15 @@ export class MobileShopScene extends Phaser.Scene {
     if (!card) { this.inspectOwned = null; return; }
     const base = skillBook[card.skillId];
     if (!base) { this.inspectOwned = null; return; }
-    const shown = card.tier === base.tier ? base : applyTier(base, card.tier);
+    // Board pieces can carry a socketed gem (bag slots structurally cannot —
+    // see `BagSlotLike`); fold tier + gem for a board piece's face (the
+    // "effective number at a glance" the socket bought), tier-only for bag.
+    // See `resolveDisplaySkill`'s doc comment for why gem-folding lives here
+    // and not in `powerLevelDeci`/PL math.
+    const boardPiece = owned.location === 'board' ? (card as BoardPieceLike) : null;
+    const shown = boardPiece ? resolveDisplaySkill(base, boardPiece) : (card.tier === base.tier ? base : applyTier(base, card.tier));
+    const gem = boardPiece?.gem ?? null;
+    const gemDef = gem ? gemBook[gem.id] : undefined;
 
     const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setInteractive();
     // Same rebuild-timing hazard as `renderCardDetail`'s veil — see its doc
@@ -782,6 +793,27 @@ export class MobileShopScene extends Phaser.Scene {
     this.add.text(centerX, y, stripCardTextMarkup(shown.text), {
       fontFamily: FONT.body, fontSize: `${F.label}px`, color: '#c9b896', align: 'center', wordWrap: { width: this.W - 40 }, lineSpacing: 3,
     }).setOrigin(0.5, 0);
+    y += F.label + 8;
+
+    // DERIVATION: the card face/text above already show the gem-inflated
+    // total — this row is the "why" (which gem, what it does verbatim), so a
+    // player can tell an inflated number from a naturally big one. The gem's
+    // OWN text is unmodified here (same convention as the shelf/wiki/socket
+    // panel — see `resolveDisplaySkill`'s doc comment).
+    if (gemDef) {
+      const rowW = this.W - 40;
+      const rowX = 20;
+      const rowY = y;
+      this.add.rectangle(centerX, rowY + 18, rowW, 44, 0x101a2a, 0.85).setOrigin(0.5, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gemDef.rarity], 0.9);
+      this.add.rectangle(rowX + 16, rowY + 22, 10, 10, GEM_RARITY_COLOR[gemDef.rarity]).setOrigin(0.5).setAngle(45);
+      this.add.text(rowX + 30, rowY + 8, `SOCKETED · ${gemDef.name}`, {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textBright,
+      }).setOrigin(0, 0);
+      this.add.text(rowX + 30, rowY + 22, stripCardTextMarkup(gemDef.text), {
+        fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: '#e8b446', wordWrap: { width: rowW - 46 },
+      }).setOrigin(0, 0);
+      y = rowY + 44 + 8;
+    }
 
     this.add.text(centerX, this.H - 40, 'Drag onto the SELL ZONE to sell · tap anywhere to close', {
       fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted, align: 'center', wordWrap: { width: this.W - 40 },

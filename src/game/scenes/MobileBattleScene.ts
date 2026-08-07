@@ -53,9 +53,20 @@ interface HpBarHandles {
 /** The result overlay (scrim + ledger + banner) draws above the board. */
 const OUTCOME_DEPTH = 40;
 
+// DEBUFF ("an effect was just APPLIED to you") vs EFFECT ("that effect is
+// DEALING DAMAGE right now") are deliberately split into their own tags AND
+// colors (2026-08 log-clarity pass) — before this they shared one tag/color
+// and a fresh "Poison 5" application read identically to a "Poison -5" tick.
+// EFFECT gets a color in neither the HIT (red/coral) nor the DEBUFF (rose)
+// family, and outside the per-ailment palette below (poison green / burn
+// orange / bleed red / stun tan / expose purple) so the TAG itself never
+// implies one specific ailment — the floating combat numbers already carry
+// that per-ailment color via AILMENT_COLOR. Kept byte-identical to
+// DesktopBattleScene's map — a new tag must be added to BOTH or it renders
+// untinted on whichever scene is missed.
 const TAG_COLOR: Record<string, string> = {
   START: '#e8b446', READY: '#5fa8d3', PLAY: '#4f9e57', HIT: '#d05c4e', BUFF: '#5fb56a',
-  DEBUFF: '#a678d8', WAIT: '#c9a15a', DOWN: '#d05c4e', RESULT: '#e8b446',
+  DEBUFF: '#d8578f', EFFECT: '#3fb6c4', WAIT: '#c9a15a', DOWN: '#d05c4e', RESULT: '#e8b446',
 };
 /** Ailment identity colors — used to tint the afflicted side's HP bar and its DoT tick numbers. */
 const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8' };

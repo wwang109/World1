@@ -203,6 +203,56 @@ export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece): SkillDe
   return { ...tiered, effects, cooldownTurns: Math.max(0, baseCooldown - cooldownReduction) };
 }
 
+/**
+ * Card-FACE display fold — DISPLAY ONLY; never feed this to the core loop.
+ * Extends `resolveEffectiveSkill`'s tier + effect-gem fold with this piece's
+ * OWN card-scope stat-gem flat mods (`gemCardMods`), baked directly into the
+ * matching EXISTING actions' `power` — the same way `autoScaleTier` bakes a
+ * tier bump into `power` and keeps `text` honest via `retextScaledNumbers`.
+ * A card-scope gem's `damageFlat` bumps every existing `damage` action
+ * regardless of property; `healFlat` bumps every existing `heal` action
+ * EXCEPT on a TRUE-property card — mirroring the engine's OWN per-property
+ * split exactly: `interpreter.ts`'s heal case skips `mods` entirely for TRUE
+ * ("flat by identity: no stat term, no aura term"), while its `shield` case
+ * never reads `mods` for ANY property, so a card-scope gem's `healFlat`
+ * never touches a shield line here either.
+ *
+ * WHY a separate function from `resolveEffectiveSkill`: that function's
+ * output IS what the core loop casts (`state.ts`'s `initCombatant`) — card-
+ * scope stat-gem mods are applied there SEPARATELY, at cast time, folded
+ * together with board auras so both can react to a changing board (see
+ * `resolveAuras`/`aurasOn`). Baking them into `effects` a second time here
+ * would double them if this output were ever fed back into the loop, so it
+ * must not be. A card only ever displays its OWN socket on its face (board
+ * auras are a separate, already-existing highlight feature, out of scope
+ * here) — folding just the piece's own mods is safe and keeps the face's
+ * "effective number at a glance" convention (CardToken's summed mode already
+ * folds live ATK/DEF the same way) honest for sockets too.
+ *
+ * NEVER feed this into `powerLevelDeci`/`instancePowerLevelDeci` — those
+ * price a card's AUTHORED sink actions against its tier budget, and the
+ * gem's own PL is accounted separately (`gemPowerLevelDeci`, added on top,
+ * never re-derived from inflated `power`); pricing the gem-bumped `effects`
+ * here would double-count the gem's Power Level.
+ */
+export function resolveDisplaySkill(def: SkillDef, piece: BoardPiece): SkillDef {
+  const effective = resolveEffectiveSkill(def, piece);
+  const cardMods = gemCardMods(piece.gem);
+  const dmgAdd = cardMods.damageFlat ?? 0;
+  // TRUE heals are flat by identity (interpreter.ts skips `mods` entirely
+  // for them) — a card-scope healFlat gem cannot touch one, so never fold it
+  // in here either.
+  const healAdd = effective.property === 'true' ? 0 : (cardMods.healFlat ?? 0);
+  if (!dmgAdd && !healAdd) return effective;
+  const before = effective.effects;
+  const after = before.map((a) => {
+    if (dmgAdd && a.kind === 'damage') return { ...a, power: a.power + dmgAdd };
+    if (healAdd && a.kind === 'heal') return { ...a, power: a.power + healAdd };
+    return a;
+  });
+  return { ...effective, effects: after, text: retextScaledNumbers(effective.text, before, after) };
+}
+
 /** A card-scope stat gem's card mods as an AuraMods-shaped bundle; `{}` otherwise. */
 export function gemCardMods(gem: Gem | null | undefined): Partial<AuraMods> {
   if (!gem || gem.kind !== 'stat' || gem.scope !== 'card' || !gem.mods.card) return {};

@@ -2,8 +2,9 @@ import type { Gem } from '../engine/types';
 
 // Gem catalog, priced with the Power Level system's SOCKET/GEM rules
 // (src/engine/balance.ts, docs/power-level-reference.md "Socket / Gem PL
-// accounting"). Each gem's OWN PL must land inside its rarity's band
-// (±0.5 PL): Common 2 · Rare 4 · Epic 6 · Legendary 8 — checked by
+// accounting"). Each gem's OWN PL must land EXACTLY on its rarity's band
+// (BUDGET_TOLERANCE_DECI = 0, same zero tolerance as the card audit — user-
+// locked 2026-07-19): Common 2 · Rare 4 · Epic 6 · Legendary 8 — checked by
 // `isGemOnBudget` (see tests/engine/gemAudit.test.ts). Gem PL is uncapped
 // bonus power stacked on top of a card's authored (tier-budgeted) kit; it is
 // NEVER folded into the base-card audit.
@@ -218,13 +219,31 @@ export const gemBook: Record<string, GemDef> = {
     text: '+4 damage (+ATK/MATK).',
   },
   purify_echo: {
-    // echo of purify
+    // echo of purify — BUT purify's signature effect is `cleanse` (charges),
+    // not guard, and cleanse cannot be echoed here: PRICE.cleansePerCharge
+    // is 25 deci/charge, not a multiple of 20, so NO integer charge count
+    // lands EXACTLY on ANY gem rarity band (1 charge = 25, already over
+    // Common's 20; 2/3/4 charges = 50/75/100, none of which hit 20/40/60/80
+    // either — verified by direct computation, not just by hand). Building
+    // one would need PRICE.cleansePerCharge repriced, which would also blow
+    // `purify`'s own Bronze budget (4 charges = 100 exactly today) — a
+    // cross-cutting pricing change flagged to game-director/content-designer,
+    // not made unilaterally here. Kept as a `guard` for lack of a priceable
+    // alternative, but retargeted OFF `true`: the honesty fix (2026-08-06,
+    // see docs/card-text-style-guide.md's `guard` row) correctly described a
+    // TRUE-only block, but TRUE is a rare property in this catalog (~8 of
+    // ~94 damage effects), so a TRUE-only guard is close to inert most
+    // fights. Guard is priced property-generic (no cost difference by
+    // property), so retargeting to `magical` — matching the
+    // frost_ward_echo/ward_of_silence_echo convention — is a zero-cost,
+    // same-magnitude swap to a property that actually triggers regularly:
+    // 20*1*1 = 20 deci = Common exactly (unchanged number, unchanged price).
     id: 'purify_echo',
     name: 'Purifying Ward',
     kind: 'effect',
     rarity: 'common',
-    actions: [{ kind: 'guard', property: 'true', pct: 20, turns: 1 }],
-    text: '-20% incoming TRUE damage (1 turn).',
+    actions: [{ kind: 'guard', property: 'magical', pct: 20, turns: 1 }],
+    text: '-20% incoming magical damage (1 turn).',
   },
 
   // ---- Rare (4 PL / 40 deci) ----

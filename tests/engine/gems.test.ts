@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { simulate } from '../../src/engine/combat/simulate';
 import { initCombatState, type CombatantState } from '../../src/engine/combat/state';
 import { aurasOn } from '../../src/engine/combat/auras';
-import { resolveEffectiveSkill } from '../../src/engine/cards';
+import { resolveDisplaySkill, resolveEffectiveSkill } from '../../src/engine/cards';
 import { skillBook } from '../../src/data/skills';
 import type { BoardPiece, Gem } from '../../src/engine/types';
 import { cfg, tc, NO_ENDGAME } from '../helpers';
@@ -123,6 +123,52 @@ describe('gems: hero-scope stat gems fold into base stats', () => {
       ),
     );
     expect(state.player.stats.attack).toBe(20);
+  });
+});
+
+describe('resolveDisplaySkill: card-FACE gem fold (display-only)', () => {
+  it("a card-scope healFlat gem bumps a heal action's power AND retexts the flavor number (task 35: HEAL 20 + 8 gem -> HEAL 28)", () => {
+    const def = skillBook['verdant_touch']!; // "Restore 20 (+MDEF) HP."
+    const healGem: Gem = { kind: 'stat', id: 'g_heal', rarity: 'legendary', scope: 'card', mods: { card: { healFlat: 8 } } };
+    const shown = resolveDisplaySkill(def, { skillId: 'verdant_touch', slot: 0, gem: healGem });
+    expect(shown.effects).toEqual([{ kind: 'heal', power: 28 }]);
+    expect(shown.text).toBe('Restore 28 (+MDEF) HP.');
+    // The un-gemmed base def is never mutated.
+    expect(def.effects).toEqual([{ kind: 'heal', power: 20 }]);
+  });
+
+  it("a card-scope damageFlat gem bumps a damage action's power AND retexts the flavor number", () => {
+    const def = skillBook['sword_slash']!; // "Deal 20 (+ATK) Sword damage."
+    const dmgGem: Gem = { kind: 'stat', id: 'g_dmg', rarity: 'rare', scope: 'card', mods: { card: { damageFlat: 6 } } };
+    const shown = resolveDisplaySkill(def, { skillId: 'sword_slash', slot: 0, gem: dmgGem });
+    expect(shown.effects).toEqual([{ kind: 'damage', power: 26 }]);
+    expect(shown.text).toBe('Deal 26 (+ATK) Sword damage.');
+  });
+
+  it("a card-scope healFlat gem never touches a shield action — mirrors the engine's own split (interpreter.ts's shield case never reads mods)", () => {
+    const def = skillBook['mana_ward']!; // "Gain 20 (+MDEF) magical shield."
+    const healGem: Gem = { kind: 'stat', id: 'g_heal', rarity: 'legendary', scope: 'card', mods: { card: { healFlat: 8 } } };
+    const shown = resolveDisplaySkill(def, { skillId: 'mana_ward', slot: 0, gem: healGem });
+    expect(shown.effects).toEqual(def.effects);
+    expect(shown.text).toBe(def.text);
+  });
+
+  it('an effect gem\'s appended actions still show up (delegates to resolveEffectiveSkill unchanged)', () => {
+    const def = skillBook['sword_slash']!;
+    const shown = resolveDisplaySkill(def, { skillId: 'sword_slash', slot: 0, gem: poisonGem });
+    expect(shown.effects).toEqual([...def.effects, ...poisonGem.actions]);
+  });
+
+  it('a hero-scope stat gem never folds into the card face (it boosts the combatant, not this card)', () => {
+    const def = skillBook['sword_slash']!;
+    const heroGem: Gem = { kind: 'stat', id: 'g_might', rarity: 'epic', scope: 'hero', mods: { hero: { attack: 7 } } };
+    expect(resolveDisplaySkill(def, { skillId: 'sword_slash', slot: 0, gem: heroGem })).toBe(def);
+  });
+
+  it('un-gemmed pieces resolve to the same SkillDef reference as resolveEffectiveSkill (no display-only divergence)', () => {
+    const def = skillBook['sword_slash']!;
+    expect(resolveDisplaySkill(def, { skillId: 'sword_slash', slot: 0 })).toBe(def);
+    expect(resolveDisplaySkill(def, { skillId: 'sword_slash', slot: 0, gem: null })).toBe(def);
   });
 });
 

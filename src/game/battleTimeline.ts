@@ -144,8 +144,8 @@ export interface BattleTimeline {
   playSlotByTurn: Map<number, { player?: number; enemy?: number }>;
   turns: number[];
   /** Flat, event-level playback timeline — one entry per IMPORTANT log line
-   * (HIT/DEBUFF/BUFF/DOWN/RESULT), plus one fallback entry for any turn that
-   * had none. Playback steps event-by-event, not turn-by-turn. */
+   * (HIT/EFFECT/DEBUFF/BUFF/DOWN/RESULT), plus one fallback entry for any turn
+   * that had none. Playback steps event-by-event, not turn-by-turn. */
   steps: PlaybackStep[];
   /** HP/shield snapshots captured at each step's exact position in the event
    * stream (not just per-turn) so the bars animate on the precise event. */
@@ -670,8 +670,14 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         if (e.source === 'skill') {
           push(e.turn, 'HIT', `${label(e)} ${dmgText} · ${hp}`, e.calculation ? formatDmg(e.calculation) : undefined);
         } else {
+          // A DoT/attrition/fatigue tick is a DIFFERENT moment than a HIT (a
+          // card striking you) or a DEBUFF (an effect just being APPLIED to
+          // you) — its own 'EFFECT' tag says "an ongoing effect is dealing
+          // damage right now" without colliding with either of those (2026-08
+          // log-clarity pass; user chose a new tag over reusing HIT or DEBUFF
+          // specifically so a poison tick can never be misread as a card hit).
           const cap = e.source.charAt(0).toUpperCase() + e.source.slice(1);
-          push(e.turn, 'DEBUFF', `${cap} · ${label(e)} ${dmgText} · ${hp}`);
+          push(e.turn, 'EFFECT', `${cap} · ${label(e)} ${dmgText} · ${hp}`);
         }
         const activeCard = activeCardByTurn.get(e.turn);
         if (e.source === 'skill' && activeCard) {
@@ -681,6 +687,23 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           playerDamage += dealt;
         } else if (e.source === 'skill' && activeCard?.side === 'enemy' && e.side === 'player') {
           enemyDamage += dealt;
+        }
+        // Mirror the engine's own stack-decay rule (tickTurnDot / tickBleed,
+        // combat/simulate.ts) onto the running pile total tracked below (the
+        // same `dotsPlayer`/`dotsEnemies` map the ailment-badge keys use) — a
+        // tick silently shrinks its pile with no event of its own beyond this
+        // `damage` line, so without this the tracked total goes stale the
+        // moment a pile ticks even once, corrupting the very next
+        // re-application's delta (see the `statusApplied` case below).
+        // Poison/bleed fall by exactly one stack per tick; burn HALVES
+        // (floored) — both locked in simulate.ts. `cur === undefined` (no
+        // pile tracked) can't happen for a living victim mid-tick — a tick
+        // only ever fires on an already-applied pile — but is guarded anyway
+        // so a hand-built/partial event fixture never throws.
+        if (e.source === 'poison' || e.source === 'burn' || e.source === 'bleed') {
+          const bucket = e.side === 'player' ? dotsPlayer : dotsEnemies[u]!;
+          const cur = bucket.get(e.source);
+          if (cur !== undefined) bucket.set(e.source, e.source === 'burn' ? Math.floor(cur / 2) : Math.max(0, cur - 1));
         }
         pushFx(e.side, 'damage', dealt, u, e.source !== 'skill' ? e.source : undefined,
           e.source === 'skill' && e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined);
@@ -747,15 +770,35 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           : e.status === 'negate'
             ? negateToken(e.property)
             : e.status.charAt(0).toUpperCase() + e.status.slice(1);
+        const bucket = e.side === 'player' ? dotsPlayer : dotsEnemies[unitOf(e)]!;
+        // Stacking DoTs (poison/burn/bleed) MERGE onto ONE pile per victim —
+        // a reapplication's `stacks` field is the pile's NEW TOTAL, never the
+        // delta (see `applyDot`, combat/interpreter.ts: "pile.stacks =
+        // (pile.stacks ?? 0) + stacks"). Showing only that total ("Poison 8")
+        // hides whether this was a small top-up or a fresh heavy application
+        // — the delta isn't on the event, so it's reconstructed here from the
+        // running pile total this file already tracks (`dotsPlayer`/
+        // `dotsEnemies`, kept in lockstep with every intervening tick by the
+        // `damage` case above). No prior total tracked — a genuinely fresh
+        // pile, or one that fully expired first — means this application's
+        // whole amount IS the delta, so it stays the single-number reading
+        // that already existed before this feature.
+        let stacksText = '';
+        if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') {
+          const total = e.stacks ?? 0;
+          const prior = bucket.get(e.status);
+          stacksText = prior !== undefined ? ` +${total - prior} (${total} total)` : total ? ` ${total}` : '';
+        } else if (e.stacks) {
+          stacksText = ` ${e.stacks}`;
+        }
         // Defensive/support statuses (guard/buff/debuff/expose/negate) carry a
         // plain-language explanation as the row's expandable detail — tap/click
         // to expand, same affordance as a HIT's D: math strip, no hover.
-        push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap}${e.stacks ? ` ${e.stacks}` : ''}`, explainStatus(e));
+        push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap}${stacksText}`, explainStatus(e));
         if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') {
           const dotCard = activeCardByTurn.get(e.turn);
           if (dotCard) dotCard.dots += e.stacks ?? 1;
         }
-        const bucket = e.side === 'player' ? dotsPlayer : dotsEnemies[unitOf(e)]!;
         if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') bucket.set(e.status, e.stacks ?? 0);
         else if (e.status === 'stun') bucket.set('stun', e.turns);
         else if (e.status === 'expose') bucket.set('expose', e.pct ?? 0);

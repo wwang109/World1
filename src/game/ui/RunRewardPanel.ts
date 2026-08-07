@@ -140,13 +140,27 @@ function renderPanelBackground(scene: Phaser.Scene, panel: Rect): void {
  * pass in). Reads `template.contentSlots.reward`'s declared rects
  * (panel/icon/headline/detail/feature/buttons) and places every part into its
  * rect — no cursor, no per-`EventOutcome`-kind layout branch. Fits by
- * construction: `feature` is sized to (and clamped by) its own rect, and
- * CONTINUE lives in the template's separately-reserved `buttons` row, so a
- * card, a gem, or nothing at all all end up on-screen the same way. The
- * "PICK ONE TO KEEP" bonus-draft picker (`renderRunBonusDraftPicker` below)
- * is this module's other reward-screen renderer, sharing the same panel/icon/
- * headline rects and the same `centeredBox`/`layoutFeatureGrid` clamp-and-
- * center geometry (`runRewardGeometry.ts`) for its `feature` slot.
+ * construction: `feature` is sized to (and clamped by) its own rect.
+ *
+ * CONTINUE lives in the template's separately-reserved `buttons` row on
+ * DESKTOP ONLY (`template.platform === 'desktop'`) — its primary go-forward
+ * action sits in the HEADER (`runScreenTemplate`'s `actions` region,
+ * top-right), physically far from this panel, so a bottom-anchored confirm
+ * right under the content it confirms earns its own button there. On MOBILE
+ * this used to ALSO draw a second CONTINUE into `buttons`, stacking two
+ * identical buttons — the HUD's thumb-reachable footer (`renderRunHud`'s
+ * `primary` role) already puts one right below it, calling the exact same
+ * handler — a thumb's-width apart for no reason (task #33, 2026-08-07 fix).
+ * Mobile's `buttons` rect is zero-height (`runScreenTemplate.ts`'s
+ * `REWARD_BUTTON_H`), so skipping the draw here leaves no dead gap: the
+ * panel already extends to fill the space that reservation would have cost.
+ *
+ * The "PICK ONE TO KEEP" bonus-draft picker (`renderRunBonusDraftPicker`
+ * below) is this module's other reward-screen renderer, sharing the same
+ * panel/icon/headline rects and the same `centeredBox`/`layoutFeatureGrid`
+ * clamp-and-center geometry (`runRewardGeometry.ts`) for its `feature` slot —
+ * it never drew a `buttons` CONTINUE on either platform (picking a card IS
+ * the confirm action), so it needed no change here.
  */
 export function renderRunRewardPanel(
   scene: Phaser.Scene,
@@ -176,7 +190,11 @@ export function renderRunRewardPanel(
   }
 
   renderFeature(scene, template.platform, model.feature, model.iconKey, feature);
-  renderContinueButton(scene, buttons, opts.font, opts.onContinue);
+  // Desktop only — see the module doc above for why mobile does not repeat
+  // the HUD footer's CONTINUE here.
+  if (template.platform === 'desktop') {
+    renderContinueButton(scene, buttons, opts.font, opts.onContinue);
+  }
 }
 
 /**

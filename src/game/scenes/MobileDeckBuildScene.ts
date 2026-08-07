@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { gemPowerLevel, instancePowerLevelDeci, powerLevelDeci } from '../../engine/balance';
+import { resolveDisplaySkill } from '../../engine/cards';
 import { boardTypeIdentity, cardType } from '../../engine/combat/typeIdentity';
 import type { Gem, SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
@@ -385,7 +386,9 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     for (let row = 0; row < SLOTS; row++) {
       const piece = deckBySlot.get(row);
       if (piece) {
-        const skill = skillBook[piece.skillId]!;
+        // Tier + socketed-gem fold (resolver seam, display-only) so the deck
+        // face's numbers match what the card actually casts — see `resolveDisplaySkill`.
+        const skill = resolveDisplaySkill(skillBook[piece.skillId]!, piece);
         const span = this.sizeOf(piece.skillId);
         const h = rowH * span + gap * (span - 1);
         const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
@@ -746,10 +749,13 @@ export class MobileDeckBuildScene extends Phaser.Scene {
 
     // Card info block: full skill text + a glossary entry for every
     // abbreviation the card face uses (drag/wheel-scrollable if it overflows).
+    // Resolved (tier + socketed-gem) so this text matches the face's number —
+    // NOT fed into the PL numbers above, which price the base card only (see
+    // `resolveDisplaySkill`'s doc comment on why those must stay separate).
     const infoTop = py + 30;
     this.add.text(px + 14, infoTop - 12, 'CARD INFO', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
     this.add.rectangle(px + 14, infoTop, pw - 28, INFO_H, 0x101a2a, 0.7).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
-    renderCardInfoBox(this, px + 14, infoTop, pw - 28, INFO_H, skill);
+    renderCardInfoBox(this, px + 14, infoTop, pw - 28, INFO_H, resolveDisplaySkill(skill, piece));
 
     // Current socket row.
     const curY = infoTop + INFO_H + 12;

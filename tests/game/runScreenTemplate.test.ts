@@ -163,25 +163,52 @@ describe('runScreenTemplate', () => {
 
   // The REWARD slot is the fix for a reward block that ran off the bottom of a
   // 900-tall canvas. These assertions are the guard: the button row must be
-  // reserved INSIDE content and the panel must stop a declared gap short of it,
-  // on both platforms and for any future tweak to the region math.
+  // reserved INSIDE content (its position, on both platforms) and the panel
+  // must stop a declared gap short of it, on both platforms and for any
+  // future tweak to the region math.
   for (const platform of ['desktop', 'mobile'] as const) {
-    it(`${platform}: reward buttons are reserved inside content, bottom-anchored`, () => {
+    it(`${platform}: reward buttons sit at the bottom of content`, () => {
       const t = runScreenTemplate(platform);
       const { content } = t.regions;
       const { buttons } = t.contentSlots.reward;
       expect(buttons.x).toBe(content.x);
       expect(buttons.width).toBe(content.width);
-      expect(buttons.height).toBeGreaterThan(0);
       // Pinned to the BOTTOM of content — never pushed past it by a tall reward.
       expect(buttons.y + buttons.height).toBe(content.y + content.height);
       expect(buttons.y).toBeGreaterThanOrEqual(content.y);
     });
 
+    // DESKTOP ONLY: `buttons` reserves real height there because
+    // `RunRewardPanel.ts` draws its own in-panel CONTINUE into it (the
+    // primary go-forward action lives in the HEADER on desktop, far from
+    // this panel). MOBILE reserves none (task #33, 2026-08-07): its primary
+    // action already lives in the HUD's footer, and a second CONTINUE drawn
+    // into this row duplicated it a thumb's-width away — see
+    // `runScreenTemplate.ts`'s `REWARD_BUTTON_H` doc comment.
+    if (platform === 'desktop') {
+      it(`${platform}: reward buttons reserve real height inside content`, () => {
+        const t = runScreenTemplate(platform);
+        const { buttons } = t.contentSlots.reward;
+        expect(buttons.height).toBeGreaterThan(0);
+      });
+    } else {
+      it(`${platform}: reward buttons reserve NO height — the row is a zero-height placeholder`, () => {
+        const t = runScreenTemplate(platform);
+        const { buttons } = t.contentSlots.reward;
+        expect(buttons.height).toBe(0);
+      });
+    }
+
     it(`${platform}: reward panel stops a declared gap short of the buttons`, () => {
       const t = runScreenTemplate(platform);
       const { panel, gap, buttons } = t.contentSlots.reward;
-      expect(gap).toBeGreaterThan(0);
+      // DESKTOP ONLY: a real gap separates the panel from its own in-panel
+      // CONTINUE. Mobile draws no button there, so both `gap` and the
+      // reserved `buttons` row collapse to 0 (see the sibling test above) —
+      // the panel simply extends to fill the space that reservation would
+      // have cost, which is what the arithmetic identity below still proves.
+      if (platform === 'desktop') expect(gap).toBeGreaterThan(0);
+      else expect(gap).toBe(0);
       expect(panel.height).toBeGreaterThan(0);
       // Panel bottom + gap lands exactly on the button row: no overlap, no drift.
       expect(panel.y + panel.height + gap).toBe(buttons.y);

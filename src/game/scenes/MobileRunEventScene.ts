@@ -48,12 +48,13 @@ interface StoryLayout { innerX: number; innerW: number; contentTop: number }
  * `DesktopRunEventScene` calls (this used to be a hand-rolled per-scene
  * stacked-row layout that had drifted from desktop's centered row; it is now
  * one implementation). Both read `TEMPLATE.contentSlots.reward`'s declared
- * rects (`panel` a hard ceiling, `headline`/`feature` sub-rects, `buttons` a
- * fixed slot reserved BEFORE the panel gets space) instead of the story
- * column, so a card, a gem, or a 5-card draft grid always fits by
- * construction. The HUD's fixed footer primary CONTINUE › still fires the
- * same handler as the reward panel's own CONTINUE button. Reachable at
- * ?scene=mrunevent.
+ * rects (`panel` a hard ceiling, `headline`/`feature` sub-rects) instead of
+ * the story column, so a card, a gem, or a 5-card draft grid always fits by
+ * construction. The `outcome` phase's CONTINUE lives ONLY in the HUD's fixed
+ * footer primary slot (`renderHud` below) — `RunRewardPanel.ts` no longer
+ * draws a second one into its own `buttons` row on mobile (task #33,
+ * 2026-08-07: the two used to stack a thumb's-width apart, calling the exact
+ * same handler). Reachable at ?scene=mrunevent.
  */
 export class MobileRunEventScene extends Phaser.Scene {
   private W = SCREEN.width;
@@ -133,8 +134,10 @@ export class MobileRunEventScene extends Phaser.Scene {
   }
 
   /** THE run HUD — identical header on every run screen. The HUD's fixed
-   * footer CONTINUE › still fires once the outcome resolves — same handler
-   * as `renderRunRewardPanel`'s own CONTINUE button. */
+   * footer CONTINUE › is the ONLY continue action once the outcome resolves
+   * (`renderRunRewardPanel` draws no in-panel one on mobile — see its module
+   * doc, task #33) — no dead footer slot while `choosing`/`bonusDraftPick`,
+   * which correctly show none. */
   private renderHud(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
     renderRunHud(this, {
       screen: 'EVENT',
