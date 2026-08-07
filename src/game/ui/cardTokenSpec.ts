@@ -54,7 +54,9 @@ export interface CardTokenSpec {
   showSlotLabel: boolean;
   /** Inward BOTTOM corner (weight badge). */
   weight: { x: number; y: number };
-  /** Outward BOTTOM corner ("▶ NEXT" playback chip). */
+  /** Inward BOTTOM corner, inset clear of the weight badge ("▶ NEXT"
+   * playback chip). NOT the same inset as `weight` — see
+   * `CURSOR_BADGE_INSET`. */
   cursorBadge: { x: number; y: number };
   /**
    * Reserved accessory rail — fixed-size boxes running HORIZONTALLY along the
@@ -117,6 +119,15 @@ export function chipBox(text: ChipTextLike, padX = CHIP_PAD_X, padY = CHIP_PAD_Y
 }
 
 /**
+ * True when two `chipBox()` rects overlap on BOTH axes. The intersection
+ * test behind the "cursor chip clear of the weight badge" guard — see the
+ * `cardTokenSpec.test.ts` case of the same name.
+ */
+export function boxesOverlap(a: TokenBox, b: TokenBox): boolean {
+  return Math.abs(a.x - b.x) < (a.width + b.width) / 2 && Math.abs(a.y - b.y) < (a.height + b.height) / 2;
+}
+
+/**
  * Below this token height the inward TOP (slot number) and inward BOTTOM
  * (weight) corner badges collide: the slot label is top-aligned at
  * `-h/2 + CORNER_PAD` and ~13px tall, the weight badge bottom-aligned at
@@ -137,6 +148,26 @@ const ACCESSORY_SIZE = 16;
 const ACCESSORY_GAP = 4;
 /** Horizontal room reserved for the weight badge + its scrim ("W10"). */
 const WEIGHT_BADGE_CLEARANCE = 34;
+/**
+ * Horizontal inset of the "▶ NEXT" / "NEXT ◀" playback chip from the
+ * token's INWARD edge (see `cursorBadge` below) — deliberately MORE than
+ * `WEIGHT_BADGE_CLEARANCE`, which only reserves room for the weight badge's
+ * OWN footprint, not the chip's.
+ *
+ * Both chips anchor with `chipBox()`'s origin trick (see its comment), so
+ * each chip's edge flush with its anchor is FIXED regardless of that chip's
+ * own text width — only its far edge grows with the text. That means what
+ * has to clear the weight badge's (data-driven, variable-width) far edge is
+ * this inset, not the "▶ NEXT" chip's own (fixed) text width. Sized for the
+ * weight badge's realistic worst case, a 3-digit "W" + digits label (e.g.
+ * "W999" ≈ 29px at the badge's shared 9px bold font) plus both chips'
+ * `CHIP_PAD_X` pill padding on the facing sides, plus a few px of margin:
+ * EDGE_PAD(10) + 29 + 2*CHIP_PAD_X(8) ≈ 47, rounded up to 56. See the
+ * "keeps the NEXT cursor chip's pill clear of the weight badge's pill" test
+ * for the box-level guard (this constant alone doesn't prove no overlap —
+ * that test does, using each chip's real rendered pill).
+ */
+const CURSOR_BADGE_INSET = 56;
 
 export function cardTokenSpec(
   width: number,
@@ -177,10 +208,12 @@ export function cardTokenSpec(
     slotLabel: { x: inwardX, y: -height / 2 + CORNER_PAD },
     showSlotLabel: height >= SLOT_LABEL_MIN_HEIGHT,
     weight: { x: inwardX, y: height / 2 - CORNER_PAD },
-    // Inset by the weight clearance: the NEXT chip and the weight badge both
-    // live in the bottom INWARD corner (the chip points into the gutter), so
-    // anchoring both to the edge drew "▶ NEXT" straight through "W10".
-    cursorBadge: { x: mirror * (width / 2 - WEIGHT_BADGE_CLEARANCE), y: height / 2 },
+    // The NEXT chip and the weight badge both live in the bottom INWARD
+    // corner (the chip points into the gutter). CURSOR_BADGE_INSET (not
+    // WEIGHT_BADGE_CLEARANCE — that one only sizes the weight badge's own
+    // footprint) pushes the chip in far enough to clear it; see that
+    // constant's comment for the derivation.
+    cursorBadge: { x: mirror * (width / 2 - CURSOR_BADGE_INSET), y: height / 2 },
     accessorySlot,
     accessoryMax,
   };

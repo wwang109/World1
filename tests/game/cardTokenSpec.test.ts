@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  cardTokenSpec, chipBox, CHIP_PAD_X, CHIP_PAD_Y, SLOT_LABEL_MIN_HEIGHT, TOKEN_COMPACT_HEIGHT,
+  boxesOverlap, cardTokenSpec, chipBox, CHIP_PAD_X, CHIP_PAD_Y, SLOT_LABEL_MIN_HEIGHT, TOKEN_COMPACT_HEIGHT,
   type ChipTextLike,
 } from '../../src/game/ui/cardTokenSpec';
 
@@ -102,6 +102,30 @@ describe('cardTokenSpec', () => {
       const spec = cardTokenSpec(W, H, side);
       expect(Math.abs(spec.cursorBadge.x)).toBeLessThan(Math.abs(spec.weight.x));
       expect(Math.abs(spec.weight.x) - Math.abs(spec.cursorBadge.x)).toBeGreaterThanOrEqual(20);
+    }
+  });
+
+  it("keeps the NEXT cursor chip's pill clear of the weight badge's pill (#30 regression)", () => {
+    // The ANCHOR gap the test above checks isn't the actual guard: both
+    // badges render as `chipBox()` PILLS sized off their real text, not
+    // their bare anchors, and after the #12 centering fix the cursor chip's
+    // rendered pill still overlapped "W10"/"W20" even though the anchors
+    // looked far enough apart. Measured (canvas, the badges' shared 9px bold
+    // font) widths: "▶ NEXT"/"NEXT ◀" ≈ 38px; "W" + 1-3 digits ranges from
+    // "W1" ≈ 17px up to a very safe "W999"-sized ≈ 32px upper bound.
+    const CURSOR_TEXT_WIDTH = 40;
+    const WEIGHT_TEXT_WIDTHS = [14, 20, 26, 32];
+    const CHIP_HEIGHT = 11; // shared 9px bold font's line box.
+    for (const [w, h] of [[140, SLOT_LABEL_MIN_HEIGHT], [W, H]] as const) {
+      for (const side of ['left', 'right'] as const) {
+        const spec = cardTokenSpec(w, h, side);
+        const cursorOriginX = side === 'left' ? 1 : 0; // matches CardToken.ts's t.setOrigin(...)
+        const cursorBox = chipBox(fakeText(spec.cursorBadge.x, spec.cursorBadge.y, cursorOriginX, 1, CURSOR_TEXT_WIDTH, CHIP_HEIGHT));
+        for (const weightTextWidth of WEIGHT_TEXT_WIDTHS) {
+          const weightBox = chipBox(fakeText(spec.weight.x, spec.weight.y, spec.cornerOriginX, 1, weightTextWidth, CHIP_HEIGHT));
+          expect(boxesOverlap(cursorBox, weightBox)).toBe(false);
+        }
+      }
     }
   });
 
