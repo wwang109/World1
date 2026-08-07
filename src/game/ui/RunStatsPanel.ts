@@ -3,7 +3,8 @@ import { playSfx } from '../audio/sfxSynth';
 import { getActiveRun, type RunState } from '../runStore';
 import { FONT, UI } from '../theme';
 import { auditTextBlock } from './controlLayoutAudit';
-import { type Rect, runScreenTemplate } from './runScreenTemplate';
+import type { Rect } from './runScreenTemplate';
+import { runScreenLayout } from './runScreenLayout';
 
 /**
  * Run stats — a read-only ledger view over `RunState.stats`/`wins`/`losses`/
@@ -229,7 +230,7 @@ export function renderRunStatsOverlay(
   if (!run) { opts.onClose(); return; }
 
   const platform = opts.compact ? 'mobile' : 'desktop';
-  const t = runScreenTemplate(platform);
+  const t = runScreenLayout(platform);
   const { width: W, height: H } = t.canvas;
 
   scene.add.rectangle(0, 0, W, H, UI.shadow, 0.78).setOrigin(0, 0).setInteractive().setDepth(5500)

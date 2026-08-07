@@ -20,18 +20,25 @@ import { DesktopRunPrepScene } from './game/scenes/DesktopRunPrepScene';
 import { MobileRunPrepScene } from './game/scenes/MobileRunPrepScene';
 import { DesktopRunEventScene } from './game/scenes/DesktopRunEventScene';
 import { MobileRunEventScene } from './game/scenes/MobileRunEventScene';
-import { SCREEN } from './game/theme';
-import { computeRenderScale, installRenderScale } from './game/renderScale';
+import { devicePixels, installFillHost, installRenderScale, uiScale } from './game/renderScale';
 
-// Crisp text: the canvas backing store is sized to PHYSICAL pixels by
-// `renderScale` (design size x FIT ratio x devicePixelRatio) and the camera is
-// zoomed to match, so design coordinates stay in profile space while glyphs
-// rasterize at native density. Text `resolution` is a modest supersample on
-// top of that — it CANNOT rescue an upscaled canvas (the glyph texture is
-// resampled into the canvas first), so it stays low now that the buffer
+// The canvas FILLS the browser window (Phaser.Scale.RESIZE) -- no letterbox,
+// no crop. `installFillHost` must run BEFORE the game is constructed: it sizes
+// the #app parent in PHYSICAL pixels and pins the canvas to 100vw x 100vh, so
+// Phaser's RESIZE mode builds a full-density backing store while the canvas
+// still displays at exactly the window size. See `game/renderScale.ts` for the
+// whole model and `game/viewport.ts` for the design-space contract scenes get.
+const sizeFillHost = installFillHost();
+window.addEventListener('resize', sizeFillHost);
+window.addEventListener('orientationchange', sizeFillHost);
+
+// Crisp text: the canvas backing store is sized to PHYSICAL pixels (above) and
+// the camera is zoomed to match, so design coordinates stay in profile space
+// while glyphs rasterize at native density. Text `resolution` is a modest
+// supersample on top of that -- it CANNOT rescue an upscaled canvas (the glyph
+// texture is resampled into the canvas first), so it stays low once the buffer
 // itself carries the density.
-const RENDER_SCALE = computeRenderScale();
-const TEXT_RESOLUTION = RENDER_SCALE >= 2 ? 1 : 2;
+const TEXT_RESOLUTION = uiScale() * devicePixels() >= 2 ? 1 : 2;
 Phaser.GameObjects.GameObjectFactory.register(
   'text',
   function (this: Phaser.GameObjects.GameObjectFactory, x: number, y: number, text: string | string[], style?: Phaser.Types.GameObjects.Text.TextStyle) {
@@ -42,16 +49,28 @@ Phaser.GameObjects.GameObjectFactory.register(
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
-  width: Math.round(SCREEN.width * RENDER_SCALE),
-  height: Math.round(SCREEN.height * RENDER_SCALE),
+  // RESIZE overwrites these from the parent's size on the first refresh -- they
+  // only matter for the very first frame, before the Scale Manager runs.
+  width: window.innerWidth * devicePixels(),
+  height: window.innerHeight * devicePixels(),
   parent: 'app',
-  backgroundColor: '#f6f0e7',
+  backgroundColor: '#0e0e12',
   // Integer device-pixel placement: without this, layout math that lands a
   // label at x=241.33 smears its glyph edges across two pixel columns.
   roundPixels: true,
   scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    // FILL THE WINDOW. FIT scaled the design canvas uniformly and letterboxed
+    // every window whose aspect wasn't the profile's -- 204px of black down
+    // each side of a 2326x1199 window. RESIZE makes the canvas exactly the
+    // window instead; the UI scale moved into the CAMERA (renderScale.ts) so
+    // nothing shrinks and nothing is cropped, and `SCREEN.width`/`SCREEN.height`
+    // (theme.ts) became live getters onto the resulting design viewport
+    // (viewport.ts).
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.NO_CENTER,
+    // We own the parent element's size (installFillHost) -- Phaser must not
+    // restyle it out from under us.
+    expandParent: false,
   },
   scene: [
     BootScene, StartScene, UiKitScene,
@@ -60,7 +79,7 @@ const game = new Phaser.Game({
   ],
 });
 
-installRenderScale(game, RENDER_SCALE);
+installRenderScale(game);
 
 // Dev aid: lets Playwright smoke scripts hit-test Phaser input directly
 // (see docs/screenshot-howto.md).

@@ -5,7 +5,7 @@ import { cardType, IDENTITY_THRESHOLD } from '../../engine/combat/typeIdentity';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { fantasyTemplateCardArtKey } from './cardArtPresentation';
 import { summarizeEffects, type ScalingStats, type SkillFaceMode } from './skillPresentation';
-import { cardTokenSpec, chipBox, type CardTokenSpec } from './cardTokenSpec';
+import { cardTokenSpec, chipBox, type CardTokenSpec, type TokenBox } from './cardTokenSpec';
 
 /** A small badge rendered into the token's reserved accessory rail
  *  (gem socket, tier plate, …). Purely visual — the caller owns meaning. */
@@ -42,6 +42,15 @@ export interface CardTokenOptions {
   faceMode?: SkillFaceMode;
   /** Badges for the accessory rail (rendered bottom-up on the inward edge). */
   accessories?: TokenAccessory[];
+  /**
+   * Opt-in "ⓘ" inspect button, OUTWARD top corner — the shop's owned board/
+   * bag columns pass this so the whole card body stays a pure drag surface
+   * (no tap-to-inspect racing the drag gesture); every other CardToken caller
+   * (battle, prep, deck build, draft, shelf offers) omits it and renders
+   * exactly as before. See `cardTokenSpec.ts`'s `inspectButton`/`withInspect`
+   * for the reserved-strip geometry this relies on.
+   */
+  onInspect?: () => void;
 }
 
 /** The active platform's default card-face number treatment — mobile keeps
@@ -79,7 +88,7 @@ export class CardToken extends Phaser.GameObjects.Container {
     this.sourceOpts = opts;
     const { width: w, height: h } = opts;
     const side = opts.side ?? 'left';
-    const spec = cardTokenSpec(w, h, side, opts.accessories?.length ?? 0);
+    const spec = cardTokenSpec(w, h, side, opts.accessories?.length ?? 0, Boolean(opts.onInspect));
 
     // background panel
     const bg = scene.add.rectangle(0, 0, w, h, 0x121e30).setOrigin(0.5).setStrokeStyle(1, UI.battleOutline ?? 0x24344a, 0.9);
@@ -169,6 +178,11 @@ export class CardToken extends Phaser.GameObjects.Container {
     // accessory rail — gem sockets / tier plates / future attachments.
     this.renderAccessories(scene, spec, opts.accessories ?? []);
 
+    // opt-in "ⓘ" inspect button — OUTWARD top corner (see `onInspect`'s doc).
+    if (opts.onInspect && spec.inspectButton) {
+      this.renderInspectButton(scene, spec.inspectButton, opts.onInspect);
+    }
+
     if (opts.state === 'cursor' || opts.state === 'drag') {
       bg.setStrokeStyle(3, 0xe8b446, 1);
     }
@@ -204,13 +218,52 @@ export class CardToken extends Phaser.GameObjects.Container {
   }
 
   /**
+   * The "ⓘ" inspect button — a small dedicated hit target so the REST of the
+   * card body is free to be a pure drag surface (the shop's owned board/bag
+   * columns need this: dragging the whole card must never race a tap-to-
+   * inspect). Its own object-level `pointerdown` fires BEFORE the scene's
+   * generic drag listener for the same physical event (Phaser's two-phase
+   * dispatch — see `sceneRebuild.ts`'s `wasPointerConsumedByRebuild` doc
+   * comment), so a caller whose `onInspect` calls `rerender()` gets that
+   * guard automatically; no `stopPropagation()`/consume-flag needed here.
+   *
+   * The VISUAL footprint is `spec.inspectButton`'s small square (matches the
+   * accessory rail's scale), but the INTERACTIVE hit area is widened to
+   * `ACTIVE_PROFILE.minTap` on its own (a real, if imperfect, touch target —
+   * see the doc note below on the one case this can't fully satisfy).
+   */
+  private renderInspectButton(scene: Phaser.Scene, box: TokenBox, onInspect: () => void): void {
+    const btn = scene.add.rectangle(box.x, box.y, box.width, box.height, 0x0b1420, 0.85)
+      .setOrigin(0.5).setStrokeStyle(1, 0xe8b446, 0.9);
+    const label = scene.add.text(box.x, box.y, 'i', {
+      fontSize: '10px', color: '#e8b446', fontFamily: FONT.display, fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.add(btn);
+    this.add(label);
+    // Hit area centered on the button, independent of its drawn size — see
+    // the doc comment above. On the tightest shipped row (mobile's compact
+    // board/bag, ~33px tall) a full `minTap` square unavoidably extends a
+    // few px past this token's own top edge into the row gap/neighbor; that
+    // is a deliberate, minor trade-off for a comfortable tap target rather
+    // than a token-bounds violation elsewhere in this component.
+    const hit = Math.max(box.width, ACTIVE_PROFILE.minTap);
+    btn.setInteractive({
+      hitArea: new Phaser.Geom.Rectangle(-hit / 2, -hit / 2, hit, hit),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      useHandCursor: true,
+    });
+    btn.on('pointerdown', () => onInspect());
+  }
+
+  /**
    * A dimmed clone of this token left in the source slot while the real one
    * is dragged — plus a dashed outline so the origin reads as "will vacate".
    * Caller destroys it on drop (scene restarts usually handle it anyway).
    */
   spawnGhost(): Phaser.GameObjects.Container {
     const scene = this.scene;
-    const ghost = new CardToken(scene, this.x, this.y, this.sourceSkill, { ...this.sourceOpts, state: 'none' });
+    // Decorative only — no inspect button on a dimmed, non-interactive ghost.
+    const ghost = new CardToken(scene, this.x, this.y, this.sourceSkill, { ...this.sourceOpts, state: 'none', onInspect: undefined });
     ghost.setAlpha(0.35);
     const { width: w, height: h } = this.sourceOpts;
     const outline = scene.add.graphics();

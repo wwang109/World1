@@ -69,6 +69,17 @@ export interface CardTokenSpec {
    */
   accessorySlot: (index: number) => TokenBox;
   accessoryMax: number;
+  /**
+   * The opt-in "ⓘ" inspect button (see `CardTokenOptions.onInspect`) — a
+   * fixed square in the OUTWARD top corner (the mirror of `slotLabel`'s
+   * inward one), or `null` when the caller didn't ask for one. Unlike the
+   * other corner badges (which anchor a growing text label), this is a fixed
+   * box: `cardTokenSpec` reserves a full-height vertical strip on the
+   * OUTWARD edge for it (see `textX`'s `withInspect` adjustment below), so it
+   * is guaranteed clear of the name/effects/affinity text at ANY y, not just
+   * near this one corner.
+   */
+  inspectButton: TokenBox | null;
 }
 
 export const TOKEN_COMPACT_HEIGHT = 42;
@@ -148,6 +159,13 @@ const ACCESSORY_SIZE = 16;
 const ACCESSORY_GAP = 4;
 /** Horizontal room reserved for the weight badge + its scrim ("W10"). */
 const WEIGHT_BADGE_CLEARANCE = 34;
+/** Visual footprint of the opt-in "ⓘ" inspect button — same square scale as
+ * an accessory box, since it lives in the equivalent OUTWARD-side corner. */
+export const INSPECT_BUTTON_SIZE = 16;
+/** Clearance between the inspect button's footprint and where text may
+ * start, on top of `EDGE_PAD` — mirrors `ACCESSORY_GAP`'s role on the other
+ * corner. */
+const INSPECT_GAP = 4;
 /**
  * Horizontal inset of the "▶ NEXT" / "NEXT ◀" playback chip from the
  * token's INWARD edge (see `cursorBadge` below) — deliberately MORE than
@@ -174,10 +192,16 @@ export function cardTokenSpec(
   height: number,
   side: TokenSide = 'left',
   accessoryCount = 0,
+  withInspect = false,
 ): CardTokenSpec {
   const mirror = side === 'left' ? 1 : -1;
   const inwardX = mirror * (width / 2 - EDGE_PAD);
-  const textX = -mirror * (width / 2 - TEXT_PAD);
+  // The inspect button reserves a full-height vertical strip on the OUTWARD
+  // edge (the same edge text starts from) — shifting `textX` inward by the
+  // button's footprint + gap keeps EVERY text line (name/effects/affinity/
+  // compactLine, at any y) clear of it, rather than only clearing one corner.
+  const inspectReserve = withInspect ? (EDGE_PAD + INSPECT_BUTTON_SIZE + INSPECT_GAP - TEXT_PAD) : 0;
+  const textX = -mirror * (width / 2 - TEXT_PAD - inspectReserve);
   // Accessories sit inward of the weight badge; shrink text clamps so lines stay clear.
   const accessoryInset = accessoryCount > 0
     ? WEIGHT_BADGE_CLEARANCE + accessoryCount * (ACCESSORY_SIZE + ACCESSORY_GAP)
@@ -201,10 +225,10 @@ export function cardTokenSpec(
     textX,
     textOriginX: side === 'left' ? 0 : 1,
     textAlign: side === 'left' ? 'left' : 'right',
-    name: { dy: -14, fontSize: 12, maxWidth: width - TEXT_PAD * 2 - accessoryInset },
-    effects: { dy: 1, fontSize: 10, maxWidth: width - TEXT_PAD * 2 - accessoryInset },
-    affinity: { dy: 15, fontSize: 9, maxWidth: width - TEXT_PAD * 2 - accessoryInset },
-    compactLine: { dy: 0, fontSize: 10, maxWidth: width - 52 - accessoryInset },
+    name: { dy: -14, fontSize: 12, maxWidth: width - TEXT_PAD * 2 - accessoryInset - inspectReserve },
+    effects: { dy: 1, fontSize: 10, maxWidth: width - TEXT_PAD * 2 - accessoryInset - inspectReserve },
+    affinity: { dy: 15, fontSize: 9, maxWidth: width - TEXT_PAD * 2 - accessoryInset - inspectReserve },
+    compactLine: { dy: 0, fontSize: 10, maxWidth: width - 52 - accessoryInset - inspectReserve },
     slotLabel: { x: inwardX, y: -height / 2 + CORNER_PAD },
     showSlotLabel: height >= SLOT_LABEL_MIN_HEIGHT,
     weight: { x: inwardX, y: height / 2 - CORNER_PAD },
@@ -216,5 +240,13 @@ export function cardTokenSpec(
     cursorBadge: { x: mirror * (width / 2 - CURSOR_BADGE_INSET), y: height / 2 },
     accessorySlot,
     accessoryMax,
+    inspectButton: withInspect
+      ? {
+        x: -mirror * (width / 2 - EDGE_PAD - INSPECT_BUTTON_SIZE / 2),
+        y: -height / 2 + CORNER_PAD + INSPECT_BUTTON_SIZE / 2,
+        width: INSPECT_BUTTON_SIZE,
+        height: INSPECT_BUTTON_SIZE,
+      }
+      : null,
   };
 }

@@ -3,6 +3,7 @@ import { playSfx } from '../audio/sfxSynth';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { getLifetimeStats } from '../metaStore';
 import { FONT, SCREEN, UI } from '../theme';
+import { brandMarkCenterY, renderBrandMark } from '../ui/brandMark';
 import { getActiveRun, getPendingSeed, rerollPendingSeed, startRun } from '../runStore';
 
 /**
@@ -26,14 +27,9 @@ export class StartScene extends Phaser.Scene {
     const cx = SCREEN.width / 2;
     this.cameras.main.setBackgroundColor(0x0b1420);
 
-    const titleY = Math.round(SCREEN.height * (mobile ? 0.26 : 0.3));
-    this.add.text(cx, titleY - (mobile ? 34 : 44), 'A ROGUELITE SKILL-BOARD BATTLER', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textMuted, letterSpacing: 2,
-    }).setOrigin(0.5);
-    this.add.text(cx, titleY, 'WORLD1', {
-      fontFamily: FONT.display ?? FONT.body, fontStyle: 'bold', fontSize: `${mobile ? 44 : 64}px`, color: UI.textBright,
-    }).setOrigin(0.5);
-    this.add.rectangle(cx, titleY + (mobile ? 34 : 46), mobile ? 180 : 260, 2, 0xb78a46, 0.9);
+    // Same block, same metrics, as the loading screen draws (`ui/brandMark.ts`)
+    // -- the handoff Boot -> Start must not make the logo jump.
+    renderBrandMark(this, cx, brandMarkCenterY(mobile ? 0.26 : 0.3), { rule: true });
 
     const btnW = mobile ? SCREEN.width - 80 : 340;
     const btnH = mobile ? 54 : 58;

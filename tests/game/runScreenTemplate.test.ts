@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildRewardSlot,
   runScreenTemplate,
   type Rect,
   type RunActionRole,
@@ -253,29 +254,31 @@ describe('runScreenTemplate', () => {
       expect(gapDetailFeature).toBe(gapIconHeadline);
     });
 
-    it(`${platform}: feature's bottom edge IS the panel's bottom edge (the shrinking part, not the ceiling)`, () => {
+    it(`${platform}: feature's bottom edge sits the panel's own padding short of the panel's bottom edge`, () => {
+      // CHANGED 2026-08-06 (redesign): this used to assert `feature` reached
+      // the panel's bottom edge EXACTLY — correct when the panel was a
+      // borderless fill with no inset. The panel is now a padded FRAME
+      // (`REWARD_PANEL_PAD`, `runScreenTemplate.ts`), so `feature` stops one
+      // padding-width short of the border, matching the SAME padding applied
+      // at the icon's top (`icon.y - panel.y`) — derived here, not
+      // hardcoded, so this can't drift from whatever the constant actually
+      // is. `feature` is still the ONE part that shrinks (never the panel
+      // itself), which is what this test's original name was guarding.
       const t = runScreenTemplate(platform);
-      const { panel, feature } = t.contentSlots.reward;
-      expect(feature.y + feature.height).toBe(panel.y + panel.height);
+      const { panel, icon, feature } = t.contentSlots.reward;
+      const pad = icon.y - panel.y;
+      expect(pad).toBeGreaterThan(0);
+      expect(feature.y + feature.height).toBe(panel.y + panel.height - pad);
     });
 
-    it(`${platform}: the declared gap still separates the panel (via feature) from buttons`, () => {
-      // Same assertion shape as "reward panel stops a declared gap short of
-      // the buttons" above, restated against `feature` specifically. NOTE:
-      // this follows algebraically from two facts already proven by other
-      // tests in this file — "feature's bottom edge IS the panel's bottom
-      // edge" above, and "reward panel stops a declared gap short of the
-      // buttons" further up — so it holds REGARDLESS of whether
-      // `buildRewardSlot`'s `featureTop` still adds its `+ innerGap` term;
-      // it is NOT the guard against that term being dropped. That regression
-      // (the icon/headline/detail/feature stack losing its innermost gap) is
-      // caught by the sibling "a real, POSITIVE, CONSISTENT gap separates
-      // every consecutive reward inner sub-rect" test above, via
-      // `gapDetailFeature` collapsing to 0. This assertion exists only as an
-      // explicit restatement checked directly against `buttons.y`.
+    it(`${platform}: the declared gap (plus the panel's own padding) still separates feature from buttons`, () => {
+      // Same shape as "reward panel stops a declared gap short of the
+      // buttons" above, restated against `feature` — updated for the
+      // redesign's panel padding (see the sibling test above) the same way.
       const t = runScreenTemplate(platform);
-      const { gap, buttons, feature } = t.contentSlots.reward;
-      expect(feature.y + feature.height + gap).toBe(buttons.y);
+      const { gap, buttons, feature, panel, icon } = t.contentSlots.reward;
+      const pad = icon.y - panel.y;
+      expect(feature.y + feature.height + pad + gap).toBe(buttons.y);
     });
 
     it(`${platform}: reward inner sub-rects are deterministic (no run/content dependency)`, () => {
@@ -284,4 +287,50 @@ describe('runScreenTemplate', () => {
       expect(a).toEqual(b);
     });
   }
+
+  // 2026-08-06 redesign: a reward panel that filled its ENTIRE region read as
+  // "a token lost in a stadium" on a wide desktop window (Phaser.Scale.EXPAND
+  // lets `content.width` exceed 1900px there) — these pin the fix, driving
+  // `buildRewardSlot` directly against SYNTHETIC content rects (a wide/tall
+  // window the real, fixed-per-platform template can't otherwise exercise).
+  describe('reward panel is capped and content-centered (2026-08-06 redesign)', () => {
+    it('desktop: panel is capped well short of a wide content region, and centered horizontally within it', () => {
+      const wide: Rect = { x: 32, y: 130, width: 1900, height: 900 };
+      const capped = buildRewardSlot(wide, 'desktop');
+      expect(capped.panel.width).toBeLessThan(wide.width / 2);
+      const leftMargin = capped.panel.x - wide.x;
+      const rightMargin = wide.x + wide.width - (capped.panel.x + capped.panel.width);
+      expect(leftMargin).toBeCloseTo(rightMargin);
+    });
+
+    it('desktop: panel is capped well short of a tall content region, and bottom-anchored (slack collects ABOVE it, not below)', () => {
+      const tall: Rect = { x: 32, y: 130, width: 1376, height: 2000 };
+      const capped = buildRewardSlot(tall, 'desktop');
+      expect(capped.panel.height).toBeLessThan(tall.height / 2);
+      // Bottom-anchored: the panel's bottom sits exactly `gap` above the
+      // buttons row regardless of how much slack the height cap leaves.
+      expect(capped.panel.y + capped.panel.height + capped.gap).toBe(capped.buttons.y);
+      // All the slack from the cap is ABOVE the panel, not split around it —
+      // "CONTINUE sits near the content" by construction.
+      expect(capped.panel.y).toBeGreaterThan(tall.y + 100);
+    });
+
+    it("mobile: panel is NOT capped — still fills the available height (bonus-draft's wrapped grid needs the room)", () => {
+      const t = runScreenTemplate('mobile');
+      const { content } = t.regions;
+      const { panel, gap, buttons } = t.contentSlots.reward;
+      expect(panel.width).toBe(content.width);
+      expect(panel.y).toBe(content.y);
+      expect(panel.y + panel.height + gap).toBe(buttons.y);
+    });
+
+    it('never lets the panel exceed content on either axis, even far past the cap', () => {
+      const huge: Rect = { x: 0, y: 0, width: 4000, height: 4000 };
+      for (const platform of PLATFORMS) {
+        const capped = buildRewardSlot(huge, platform);
+        expect(capped.panel.width).toBeLessThanOrEqual(huge.width);
+        expect(capped.panel.height).toBeLessThanOrEqual(huge.height);
+      }
+    });
+  });
 });

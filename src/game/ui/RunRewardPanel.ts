@@ -10,23 +10,22 @@ import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { addHoverTipZone } from './hoverTip';
 import { gemHoverEntry } from './gemGlossary';
 import { addRunArt, choiceArtKey } from './runArt';
-import { centeredBox, FEATURE_CARD_SIZE, layoutFeatureGrid } from './runRewardGeometry';
+import { FEATURE_CARD_SIZE, layoutFeatureGrid, topAnchoredBox } from './runRewardGeometry';
 import type { RunRewardFeature, RunRewardViewModel } from './runRewardViewModel';
 import type { Rect, RunScreenTemplate, RunTemplatePlatform } from './runScreenTemplate';
 
 /**
  * Ideal (never-exceeded) feature-visual sizes per platform — the renderer
  * clamps DOWN to the feature rect when it's ever smaller than this, but
- * never stretches past it. These are ~35% larger than the card/gem's OWN
- * natural size elsewhere (a board slot, a shop shelf): `feature` now owns
- * the WHOLE panel remainder (see `runScreenTemplate.ts`'s `reward` doc), so
- * at the old literal board-slot size the feature sat as a small token
- * floating inside as much as ~500px of otherwise-empty panel. Scaling the
- * IDEAL up (rather than shrinking the template's reserved rect) keeps the
- * panel's documented "feature gets whatever's left, never a fixed ceiling"
- * invariant — and every existing containment/gap test on that rect — intact;
- * on a genuinely small `feature` rect this still clamps down exactly as
- * before.
+ * never stretches past it. These are the gem/icon's OWN natural size
+ * elsewhere (a board slot, a shop shelf) — REVERTED 2026-08-06 from a ~35%
+ * bump a same-day earlier pass introduced to keep the feature from looking
+ * small inside the (then still full-region-sized) reward panel; now that
+ * the panel is capped and centered to hug its content
+ * (`runScreenTemplate.ts`'s `REWARD_PANEL_MAX_W`/`_H`), the bump is no
+ * longer needed — see `runRewardGeometry.ts`'s `FEATURE_CARD_SIZE` doc
+ * comment for the full rationale (the card variant lives there, reverted
+ * alongside these).
  *
  * The CARD variant (`FEATURE_CARD_SIZE`) lives in `runRewardGeometry.ts`
  * instead of here — it's imported above — because that pure module also
@@ -37,15 +36,27 @@ import type { Rect, RunScreenTemplate, RunTemplatePlatform } from './runScreenTe
  * a single source of truth instead of a hand-synced duplicate.
  */
 const FEATURE_GEM_CHIP_SIZE: Record<RunTemplatePlatform, { w: number; h: number }> = {
-  desktop: { w: 351, h: 76 },
-  mobile: { w: 351, h: 70 },
+  desktop: { w: 260, h: 56 },
+  mobile: { w: 260, h: 52 },
 };
-const FEATURE_ICON_SIZE: Record<RunTemplatePlatform, number> = { desktop: 130, mobile: 108 };
+const FEATURE_ICON_SIZE: Record<RunTemplatePlatform, number> = { desktop: 96, mobile: 80 };
 
 /** Gap between bonus-draft grid cells — the platform's own spacing constant,
  * never a literal re-typed at the call site. */
 const GRID_GAP: Record<RunTemplatePlatform, number> = { desktop: DESKTOP_PROFILE.gap, mobile: MOBILE_PROFILE.gap };
 
+/**
+ * Renders the ONE reward visual (card/gem/icon) into `rect`. Every branch
+ * anchors at the TOP of `rect` (`topAnchoredBox`, not `centeredBox`) so the
+ * feature sits close under the headline/detail stack instead of floating in
+ * the middle of whatever height `feature` happens to have — `feature` isn't
+ * always tight (mobile's stays generous even after the 2026-08-06 redesign,
+ * since it also has to fit the bonus-draft grid's wrapped rows; see
+ * `runScreenTemplate.ts`'s doc comment on `REWARD_PANEL_MAX_H`). The
+ * bonus-draft GRID (`renderRunBonusDraftPicker` below) is unaffected — it
+ * still uses `layoutFeatureGrid`'s own centering, which is the right call
+ * for a multi-item grid that's expected to use more of the available room.
+ */
 function renderFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, feature: RunRewardFeature, iconKey: string, rect: Rect): void {
   if (feature.kind === 'card') {
     const ideal = FEATURE_CARD_SIZE[platform];
@@ -54,7 +65,7 @@ function renderFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, featu
     const scale = Math.min(1, rect.width / ideal.w, rect.height / ideal.h);
     const w = ideal.w * scale;
     const h = ideal.h * scale;
-    const box = centeredBox(rect, w, h);
+    const box = topAnchoredBox(rect, w, h);
     new CardToken(scene, box.x + box.w / 2, box.y + box.h / 2, feature.skill, { width: box.w, height: box.h, side: 'left' });
     return;
   }
@@ -65,7 +76,7 @@ function renderFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, featu
     // could squash/stretch the chip's aspect ratio despite this module's own
     // doc comment claiming aspect-preserving clamping for both feature kinds).
     const scale = Math.min(1, rect.width / ideal.w, rect.height / ideal.h);
-    const box = centeredBox(rect, ideal.w * scale, ideal.h * scale);
+    const box = topAnchoredBox(rect, ideal.w * scale, ideal.h * scale);
     const gem = feature.gem;
     const chip = scene.add.rectangle(box.x, box.y, box.w, box.h, UI.panelAlt, 0.9)
       .setOrigin(0, 0)
@@ -83,7 +94,7 @@ function renderFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, featu
   // `icon` — the fallback feature for gold/level/nothing/upgrade outcomes: a
   // bigger version of the same top-of-panel icon, so the slot is never blank.
   const size = Math.min(FEATURE_ICON_SIZE[platform], rect.width, rect.height);
-  const box = centeredBox(rect, size, size);
+  const box = topAnchoredBox(rect, size, size);
   addRunArt(scene, iconKey, { x: box.x, y: box.y, width: box.w, height: box.h }, 0.85);
 }
 

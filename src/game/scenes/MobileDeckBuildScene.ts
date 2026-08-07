@@ -23,7 +23,7 @@ import { STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
-import { runScreenTemplate } from '../ui/runScreenTemplate';
+import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import {
   currentHeroAllocation, currentHeroLevel,
   currentRunBagSlots, currentRunGemInventory, currentRunPieces, getActiveRun, retireActiveRun,
@@ -32,7 +32,9 @@ import {
 
 const F = MOBILE_PROFILE.font;
 const SLOTS = 10;
-const TEMPLATE = runScreenTemplate('mobile');
+// LIVE reference: every `TEMPLATE.*` read below resolves against the
+// CURRENT viewport (the canvas fills the window -- see game/viewport.ts).
+const TEMPLATE = runScreenLayoutRef('mobile');
 
 type Source =
   | { where: 'deck'; instanceId: string; card: OwnedCard }

@@ -134,15 +134,75 @@ const REWARD_HEADLINE_H: Record<RunTemplatePlatform, number> = { desktop: 64, mo
 const REWARD_DETAIL_H: Record<RunTemplatePlatform, number> = { desktop: 28, mobile: 22 };
 const REWARD_INNER_GAP: Record<RunTemplatePlatform, number> = { desktop: 14, mobile: 10 };
 
+/**
+ * Breathing room between the panel's own border and the icon/headline/
+ * detail/feature stack it frames — applied on all four sides. Before this
+ * existed, the stack touched the panel's edges exactly (icon flush against
+ * the top border, `feature` flush against the bottom one): fine as pure
+ * rect math, but a visibly unfinished "frame with no mat" once the panel
+ * actually reads as a frame (see `REWARD_PANEL_MAX_W`/`_H` below) rather
+ * than an edge-to-edge fill.
+ */
+const REWARD_PANEL_PAD: Record<RunTemplatePlatform, number> = { desktop: 24, mobile: 16 };
+
+/**
+ * Reasoned CEILING on the reward panel's size — DESKTOP ONLY. Before this
+ * existed, `panel` took the WHOLE remainder of `content` (deliberately, per
+ * the module's original "feature gets whatever's left, never a fixed
+ * ceiling" invariant). That was fine at a 1440x900 window, but the game now
+ * runs `Phaser.Scale.EXPAND` (`viewport.ts`): on a wide desktop window
+ * `content.width` can exceed 1900px, and a single ~140px-wide card centered
+ * in a panel that wide reads as a token lost in a stadium, not a reward —
+ * exactly the live-screenshot regression this redesign (2026-08-06) fixes.
+ * Capping the panel (and centering it in `content`, see `buildRewardSlot`)
+ * makes the reward read as a deliberately-sized announcement card again.
+ *
+ * WIDTH (850): generous enough for the bonus-draft's 5-card row at its own
+ * natural, un-bumped ideal size (`RunRewardPanel.ts`'s
+ * `FEATURE_CARD_SIZE.desktop` — reverted alongside this cap, see that
+ * file's doc comment — 142px wide) plus its inter-card gap and this
+ * module's own side padding: `5*142 + 4*DESKTOP_PROFILE.gap(12) +
+ * 2*REWARD_PANEL_PAD(24) = 806`, rounded up to 850 for a comfortable
+ * (not razor-thin) margin either side of that row.
+ *
+ * HEIGHT (480): the tight icon+headline+detail+feature stack at a SINGLE
+ * card's natural height (233) plus top/bottom padding:
+ * `56+14+64+14+28+14+233 + 2*24 = 471`, rounded up to 480. The SAME height
+ * fits the 5-card bonus-draft row — one row is exactly as tall as one card,
+ * it only needs the WIDTH above — so this ceiling never squeezes it.
+ *
+ * Mobile is deliberately NOT capped here: its bonus-draft row wraps into 2-3
+ * STACKED rows (its narrow column only fits 2 cards across), which already
+ * needs more height than a tight single-card stack provides — capping it as
+ * tight as desktop's single-card case would only shrink that wrapped grid.
+ * A single feature on mobile instead gets a dedicated top-anchor in
+ * `RunRewardPanel.ts`'s `renderFeature` (see its doc comment) so it still
+ * sits close under the headline instead of centering in that leftover
+ * height, without taking room away from the grid.
+ */
+const REWARD_PANEL_MAX_W: Partial<Record<RunTemplatePlatform, number>> = { desktop: 850 };
+const REWARD_PANEL_MAX_H: Partial<Record<RunTemplatePlatform, number>> = { desktop: 480 };
+
 /** Splits `content` into the reward panel / gap / bottom-anchored button row,
  * then subdivides the panel itself into the icon/headline/detail/feature
  * stack (see the `reward` doc comment above). The BUTTONS are reserved
- * first — the panel gets whatever is left — and `feature` is reserved
- * LAST, getting whatever the panel has left after icon/headline/detail: two
- * nested applications of the same "fixed items first, flexible item gets the
- * remainder" rule, which is what makes both the button row AND the feature
- * visual arithmetically incapable of pushing anything off the bottom edge. */
-function buildRewardSlot(content: Rect, platform: RunTemplatePlatform): RunScreenTemplate['contentSlots']['reward'] {
+ * first, at their ORIGINAL full-content-width bottom-anchored rect (a
+ * full-bleed confirm bar reads fine as its own thing, and staying full-width
+ * keeps every containment/gap invariant below unchanged) — the panel then
+ * gets AT MOST `REWARD_PANEL_MAX_W`/`_H` (desktop only; mobile still gets
+ * whatever is left, see that constant's doc comment) of what's left,
+ * centered horizontally in `content` and BOTTOM-anchored within the
+ * available vertical band: any slack from the cap collects ABOVE the panel
+ * (nearer the header) rather than between the panel and the buttons row, so
+ * CONTINUE stays exactly `gap` (plus the panel's own bottom padding) below
+ * the panel's visible content by construction — "sits near the content,"
+ * not "happens to." `feature` is still reserved LAST, getting whatever the
+ * (now much smaller, on desktop) panel has left after icon/headline/detail:
+ * the same "fixed items first, flexible item gets the remainder" rule as
+ * before, still arithmetically incapable of pushing anything off the
+ * bottom edge — capping `panel` only ever makes it SMALLER than the space
+ * `buttons` already reserved around, never bigger. */
+export function buildRewardSlot(content: Rect, platform: RunTemplatePlatform): RunScreenTemplate['contentSlots']['reward'] {
   const buttonH = REWARD_BUTTON_H[platform];
   const gap = REWARD_GAP[platform];
   const buttons: Rect = {
@@ -151,19 +211,29 @@ function buildRewardSlot(content: Rect, platform: RunTemplatePlatform): RunScree
     width: content.width,
     height: buttonH,
   };
+
+  const availableH = Math.max(0, content.height - buttonH - gap);
+  const maxW = REWARD_PANEL_MAX_W[platform] ?? content.width;
+  const maxH = REWARD_PANEL_MAX_H[platform] ?? availableH;
+  const panelW = Math.min(content.width, maxW);
+  const panelH = Math.min(availableH, maxH);
   const panel: Rect = {
-    x: content.x,
-    y: content.y,
-    width: content.width,
-    height: Math.max(0, content.height - buttonH - gap),
+    x: content.x + (content.width - panelW) / 2,
+    y: content.y + (availableH - panelH),
+    width: panelW,
+    height: panelH,
   };
-  const panelBottom = panel.y + panel.height;
+
+  const pad = REWARD_PANEL_PAD[platform];
+  const innerX = panel.x + pad;
+  const innerW = Math.max(0, panel.width - pad * 2);
   const innerGap = REWARD_INNER_GAP[platform];
-  const icon: Rect = { x: panel.x, y: panel.y, width: panel.width, height: REWARD_ICON_H[platform] };
-  const headline: Rect = { x: panel.x, y: icon.y + icon.height + innerGap, width: panel.width, height: REWARD_HEADLINE_H[platform] };
-  const detail: Rect = { x: panel.x, y: headline.y + headline.height + innerGap, width: panel.width, height: REWARD_DETAIL_H[platform] };
+  const icon: Rect = { x: innerX, y: panel.y + pad, width: innerW, height: REWARD_ICON_H[platform] };
+  const headline: Rect = { x: innerX, y: icon.y + icon.height + innerGap, width: innerW, height: REWARD_HEADLINE_H[platform] };
+  const detail: Rect = { x: innerX, y: headline.y + headline.height + innerGap, width: innerW, height: REWARD_DETAIL_H[platform] };
   const featureTop = detail.y + detail.height + innerGap;
-  const feature: Rect = { x: panel.x, y: featureTop, width: panel.width, height: Math.max(0, panelBottom - featureTop) };
+  const featureBottom = panel.y + panel.height - pad;
+  const feature: Rect = { x: innerX, y: featureTop, width: innerW, height: Math.max(0, featureBottom - featureTop) };
   return { panel, gap, buttons, icon, headline, detail, feature };
 }
 

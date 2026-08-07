@@ -20,7 +20,7 @@ import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
-import { runScreenTemplate } from '../ui/runScreenTemplate';
+import { runScreenLayout } from '../ui/runScreenLayout';
 
 const F = MOBILE_PROFILE.font;
 /**
@@ -30,7 +30,10 @@ const F = MOBILE_PROFILE.font;
  * there) so the log dock/HP block/boards sit at one geometry regardless of
  * context — only whether the strip itself is drawn varies.
  */
-const RUN_HUD_TOP = runScreenTemplate('mobile', 'statsOnly').regions.content.y;
+// `content.y` is a TOP anchor -- invariant under the fill-the-window
+// viewport (only right/bottom/centre-anchored geometry moves), so this stays
+// a plain module constant.
+const RUN_HUD_TOP = runScreenLayout('mobile', 'statsOnly').regions.content.y;
 
 /** Hover copy for every stat shown on a battle statline, in one shared tip. */
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);

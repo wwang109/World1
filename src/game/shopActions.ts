@@ -1,5 +1,6 @@
 import { skillBook } from '../data/skills';
-import { bagAsBoardPieces, canPlace } from '../run/loadout';
+import { bagAsBoardPieces, canPlace, moveWithinStrip, shiftInsert } from '../run/loadout';
+import type { Gem, SkillBook, SkillTier } from '../engine/types';
 import {
   findMergeTarget,
   goldPriceOfCard,
@@ -210,3 +211,135 @@ export function buyCardTo(shopId: string, index: number, dest: BuyDestination): 
 }
 
 export { goldPriceOfCard, goldPriceOfGem, MAX_GOLD };
+
+// ---------------------------------------------------------------------------
+// REARRANGE (2026-08-06) — dragging an OWNED board/bag card to a new BOARD or
+// BAG slot. This is placement, not a purchase: no gold, no shelf. Pure,
+// structural-typed transforms (so ONE implementation serves both the
+// Sandbox's `OwnedBoardPiece[]`/`InventorySlot[]` and the active run's
+// `RunBoardPiece[]`/`RunBagSlot[]` — the two scenes pass whichever their own
+// `pieces`/`bagSlots` getters currently read from, mirroring `DeskBuild`'s
+// already-shipped `toDeck`/`toBag`, which this ports the ALGORITHM of
+// (`moveWithinStrip` reorders within one strip, `shiftInsert` inserts across
+// strips) rather than reimplementing placement rules here.
+// ---------------------------------------------------------------------------
+
+export interface ShopBoardPiece { instanceId: string; skillId: string; tier: SkillTier; slot: number; gem?: Gem | null }
+export type ShopBagCard = { instanceId: string; skillId: string; tier: SkillTier };
+export type ShopBagSlot = ShopBagCard | null;
+
+export type RearrangeSource = { location: 'board'; index: number } | { location: 'bag'; index: number };
+
+export interface RearrangeOutcome {
+  pieces: ShopBoardPiece[];
+  bagSlots: ShopBagSlot[];
+  /** A gem the moved card had socketed, bounced back to the pouch — only
+   * ever set on a BOARD -> BAG move (bag cards cannot hold a gem, same rule
+   * `sellCard` already follows for a sold board piece). */
+  displacedGemId: string | null;
+}
+
+function sizeOfSkill(book: SkillBook, skillId: string): number {
+  return Math.max(1, book[skillId]?.size ?? 1);
+}
+
+/**
+ * Move an owned board/bag card so its leftmost slot lands at (or nearest to)
+ * `preferSlot` on the BOARD. A board-origin drag REORDERS within the board
+ * (`moveWithinStrip` — dropping on another card swaps/reorders it out of the
+ * way); a bag-origin drag INSERTS across into the board (`shiftInsert` —
+ * pushes neighbors, since there is no "origin" on this strip to reorder
+ * around). Returns `null` when no arrangement fits at all (a genuinely full
+ * board, or a multi-slot card with no free run of that length) — the caller
+ * should treat that as a rejected drop (flash), not silently apply anything.
+ */
+export function moveToBoard(
+  pieces: readonly ShopBoardPiece[],
+  bagSlots: readonly ShopBagSlot[],
+  book: SkillBook,
+  src: RearrangeSource,
+  preferSlot: number,
+  slots: number,
+): RearrangeOutcome | null {
+  if (src.location === 'board') {
+    const moving = pieces[src.index];
+    if (!moving) return null;
+    const size = sizeOfSkill(book, moving.skillId);
+    const others = pieces
+      .filter((_, i) => i !== src.index)
+      .map((p) => ({ id: p.instanceId, start: p.slot, size: sizeOfSkill(book, p.skillId) }));
+    const plan = moveWithinStrip(others, size, moving.slot, preferSlot, slots);
+    if (!plan) return null;
+    const nextPieces = pieces
+      .filter((_, i) => i !== src.index)
+      .map((p) => {
+        const moved = plan.moved.find((m) => m.id === p.instanceId);
+        return moved ? { ...p, slot: moved.start } : p;
+      })
+      .concat({ ...moving, slot: plan.movedStart })
+      .sort((a, b) => a.slot - b.slot);
+    return { pieces: nextPieces, bagSlots: [...bagSlots], displacedGemId: null };
+  }
+  const moving = bagSlots[src.index];
+  if (!moving) return null;
+  const size = sizeOfSkill(book, moving.skillId);
+  const others = pieces.map((p) => ({ id: p.instanceId, start: p.slot, size: sizeOfSkill(book, p.skillId) }));
+  const plan = shiftInsert(others, size, preferSlot, slots);
+  if (!plan) return null;
+  const nextBag = bagSlots.map((c, i) => (i === src.index ? null : c));
+  const nextPieces = pieces
+    .map((p) => {
+      const moved = plan.moved.find((m) => m.id === p.instanceId);
+      return moved ? { ...p, slot: moved.start } : p;
+    })
+    .concat({ instanceId: moving.instanceId, skillId: moving.skillId, tier: moving.tier, slot: plan.movedStart });
+  nextPieces.sort((a, b) => a.slot - b.slot);
+  return { pieces: nextPieces, bagSlots: nextBag, displacedGemId: null };
+}
+
+/**
+ * Move an owned board/bag card so its leftmost slot lands at (or nearest to)
+ * `preferSlot` in the BAG — the mirror of `moveToBoard`. A board card
+ * carrying a socketed gem has it unsocketed back to the pouch
+ * (`displacedGemId`) since bag cards structurally cannot hold one.
+ */
+export function moveToBag(
+  pieces: readonly ShopBoardPiece[],
+  bagSlots: readonly ShopBagSlot[],
+  book: SkillBook,
+  src: RearrangeSource,
+  preferSlot: number,
+  slots: number,
+): RearrangeOutcome | null {
+  if (src.location === 'bag') {
+    const moving = bagSlots[src.index];
+    if (!moving) return null;
+    const size = sizeOfSkill(book, moving.skillId);
+    const others = bagSlots.flatMap((c, i) => (c && i !== src.index ? [{ id: String(i), start: i, size: sizeOfSkill(book, c.skillId) }] : []));
+    const plan = moveWithinStrip(others, size, src.index, preferSlot, slots);
+    if (!plan) return null;
+    const next: ShopBagSlot[] = Array(slots).fill(null);
+    bagSlots.forEach((c, i) => {
+      if (!c || i === src.index) return;
+      const moved = plan.moved.find((m) => m.id === String(i));
+      if (moved) next[moved.start] = c;
+    });
+    next[plan.movedStart] = moving;
+    return { pieces: [...pieces], bagSlots: next, displacedGemId: null };
+  }
+  const moving = pieces[src.index];
+  if (!moving) return null;
+  const size = sizeOfSkill(book, moving.skillId);
+  const others = bagSlots.flatMap((c, i) => (c ? [{ id: String(i), start: i, size: sizeOfSkill(book, c.skillId) }] : []));
+  const plan = shiftInsert(others, size, preferSlot, slots);
+  if (!plan) return null;
+  const next: ShopBagSlot[] = Array(slots).fill(null);
+  bagSlots.forEach((c, i) => {
+    if (!c) return;
+    const moved = plan.moved.find((m) => m.id === String(i));
+    if (moved) next[moved.start] = c;
+  });
+  next[plan.movedStart] = { instanceId: moving.instanceId, skillId: moving.skillId, tier: moving.tier };
+  const nextPieces = pieces.filter((_, i) => i !== src.index);
+  return { pieces: nextPieces, bagSlots: next, displacedGemId: moving.gem?.id ?? null };
+}

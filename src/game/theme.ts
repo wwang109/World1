@@ -1,5 +1,6 @@
 import type { Archetype, Property, Rarity, SkillTier } from '../engine/types';
 import { ACTIVE_PROFILE } from './layoutProfile';
+import { viewport } from './viewport';
 
 export const PROPERTY_COLOR: Record<Property, number> = {
   physical: 0xd98a3d,
@@ -215,11 +216,26 @@ export const FONT = {
   body: 'Verdana, Segoe UI, sans-serif',
 };
 
-// SCREEN reflects the ACTIVE layout profile's canvas (mobile-first). The old
-// desktop scenes still read this; a dedicated desktop build comes later.
+/**
+ * SCREEN — the drawable area, in design coordinates.
+ *
+ * `width`/`height` are LIVE GETTERS onto `viewport()`, not constants: the game
+ * runs `Phaser.Scale.EXPAND` (see `viewport.ts`), so the canvas fills the
+ * browser window and whichever axis has slack grows PAST the profile canvas.
+ * They are floored at the profile's canvas size, so every layout that fits
+ * today still fits — the extra space is a bonus, never a deficit.
+ *
+ * THE ONE RULE: read `SCREEN.width`/`SCREEN.height` at LAYOUT time (inside
+ * `create()` / a render method). Capturing either into a module-level `const`
+ * freezes it at the design size and silently opts that geometry out of ever
+ * following the window.
+ *
+ * `safeX`/`safeTop`/`safeBottom` stay plain constants — insets are a property
+ * of the device, not of the window size.
+ */
 export const SCREEN = {
-  width: ACTIVE_PROFILE.canvas.width,
-  height: ACTIVE_PROFILE.canvas.height,
+  get width(): number { return viewport().width; },
+  get height(): number { return viewport().height; },
   safeX: ACTIVE_PROFILE.safe.x,
   safeTop: ACTIVE_PROFILE.safe.top,
   safeBottom: ACTIVE_PROFILE.safe.bottom,
@@ -227,12 +243,13 @@ export const SCREEN = {
 
 export const FOOTER_ACTION_LAYOUT = {
   height: 44,
-  y: SCREEN.height - SCREEN.safeBottom - 44,
+  /** Bottom-anchored, so it must be a getter for the same reason `SCREEN.height` is. */
+  get y(): number { return SCREEN.height - SCREEN.safeBottom - 44; },
   firstWidth: 164,
   secondX: 182,
   secondWidth: 152,
   thirdX: 352,
-} as const;
+};
 
 /** Shared geometry for the hero/enemy information blocks in Battle. */
 export const BATTLE_SIDE_LAYOUT = {

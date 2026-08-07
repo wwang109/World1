@@ -26,6 +26,14 @@ export interface BoardColumnOptions {
   /** Card-face number treatment override — see `CardTokenOptions.faceMode`.
    * Normally omitted: `CardToken` already defaults per ACTIVE platform. */
   faceMode?: SkillFaceMode;
+  /**
+   * Opt-in per-slot inspect callback — when supplied, every OCCUPIED row's
+   * token gets a `CardToken.onInspect` button (see its doc comment) wired to
+   * `onInspectSlot(row)`. Omitted by every caller except the shop's owned
+   * BOARD/BAG columns: battle, prep, deck build, and draft render exactly as
+   * before (no button).
+   */
+  onInspectSlot?: (row: number) => void;
 }
 
 /**
@@ -59,8 +67,10 @@ export class BoardColumn {
       const cx = opts.x + opts.width / 2;
       const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
       if (piece) {
+        const currentRow = row;
         this.tokens.push(new CardToken(scene, cx, cy, piece.skill, {
           width: opts.width, height: h, side, slotLabel: label, deck: opts.deck, state: piece.state, stats: opts.stats, faceMode: opts.faceMode,
+          onInspect: opts.onInspectSlot ? () => opts.onInspectSlot!(currentRow) : undefined,
         }));
         row += span;
       } else {

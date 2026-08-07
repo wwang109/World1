@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { skillBook } from '../../src/data/skills';
+import type { Gem } from '../../src/engine/types';
 import { demoState, resetDemoState, type ShopShelfState } from '../../src/game/demoState';
-import { buyCard, buyCardTo, mergeCard, mergeTargetFor, sellCard, sellGem } from '../../src/game/shopActions';
+import {
+  buyCard, buyCardTo, mergeCard, mergeTargetFor, moveToBag, moveToBoard, sellCard, sellGem,
+  type ShopBagSlot, type ShopBoardPiece,
+} from '../../src/game/shopActions';
 import { sellPriceOfCard, sellPriceOfGem } from '../../src/run/shop';
 
 /**
@@ -200,5 +205,111 @@ describe('game/shopActions: buyCardTo (buy-to-slot, sandbox mirror)', () => {
   it('fails cleanly with reason "gone" for an out-of-range offer index', () => {
     const result = buyCardTo('armory', 99, { where: 'board', slot: 0 });
     expect(result).toEqual({ ok: false, reason: 'gone' });
+  });
+});
+
+/**
+ * REARRANGE (2026-08-06) — dragging an OWNED board/bag card to a new board/
+ * bag slot (task #32: this move never existed in the shop at all — only
+ * BUY-to-slot and SELL did). `moveToBoard`/`moveToBag` are pure — no
+ * `demoState` mutation, no `resetDemoState` needed — so these tests build
+ * plain pieces/bagSlots arrays and check the returned outcome directly, the
+ * same way `tests/run/loadout.test.ts` exercises the `moveWithinStrip`/
+ * `shiftInsert` primitives these two functions are built from.
+ */
+describe('game/shopActions: REARRANGE (owned board/bag drag)', () => {
+  const swiftCharm = { id: 'swift_charm', kind: 'stat', rarity: 'common', name: 'x', text: 'x', mods: {} } as unknown as Gem;
+  const empty10: ShopBagSlot[] = Array(10).fill(null);
+
+  it('moveToBoard: a board-origin drag to an empty slot simply relocates it', () => {
+    const pieces: ShopBoardPiece[] = [{ instanceId: 'a', skillId: 'sword_slash', tier: 'bronze', slot: 0 }];
+    const outcome = moveToBoard(pieces, empty10, skillBook, { location: 'board', index: 0 }, 5, 10);
+    expect(outcome).not.toBeNull();
+    expect(outcome!.pieces).toEqual([{ instanceId: 'a', skillId: 'sword_slash', tier: 'bronze', slot: 5 }]);
+    expect(outcome!.bagSlots).toEqual(empty10);
+    expect(outcome!.displacedGemId).toBeNull();
+  });
+
+  it('moveToBoard: dropping a board card ONTO another board card swaps them (reorder, not a rejection)', () => {
+    const pieces: ShopBoardPiece[] = [
+      { instanceId: 'a', skillId: 'sword_slash', tier: 'bronze', slot: 0 },
+      { instanceId: 'b', skillId: 'war_banner', tier: 'bronze', slot: 1 },
+    ];
+    const outcome = moveToBoard(pieces, empty10, skillBook, { location: 'board', index: 0 }, 1, 10);
+    expect(outcome).not.toBeNull();
+    const bySlot = new Map(outcome!.pieces.map((p) => [p.instanceId, p.slot]));
+    expect(bySlot.get('a')).toBe(1);
+    expect(bySlot.get('b')).toBe(0);
+  });
+
+  it('moveToBoard: a bag-origin drag INSERTS into the board, pushing the occupant at the target slot rather than refusing the drop', () => {
+    const pieces: ShopBoardPiece[] = [{ instanceId: 'x', skillId: 'sword_slash', tier: 'bronze', slot: 2 }];
+    const bagSlots: ShopBagSlot[] = [{ instanceId: 'y', skillId: 'war_banner', tier: 'bronze' }, ...Array(9).fill(null)];
+    const outcome = moveToBoard(pieces, bagSlots, skillBook, { location: 'bag', index: 0 }, 2, 10);
+    expect(outcome).not.toBeNull();
+    const bySlot = new Map(outcome!.pieces.map((p) => [p.instanceId, p.slot]));
+    expect(bySlot.get('y')).toBe(2); // the dragged card lands where it was dropped
+    expect(bySlot.get('x')).toBe(3); // the occupant slides out of the way, not destroyed
+    expect(outcome!.bagSlots[0]).toBeNull(); // vacated its bag slot
+  });
+
+  it('moveToBoard: a size-2 card spans correctly when crossing over from the bag', () => {
+    const bagSlots: ShopBagSlot[] = [{ instanceId: 'f', skillId: 'fireball', tier: 'bronze' }, null, ...Array(8).fill(null)];
+    const outcome = moveToBoard([], bagSlots, skillBook, { location: 'bag', index: 0 }, 3, 10);
+    expect(outcome).not.toBeNull();
+    expect(outcome!.pieces).toEqual([{ instanceId: 'f', skillId: 'fireball', tier: 'bronze', slot: 3 }]);
+  });
+
+  it('moveToBoard: refuses the drop (null) when the board genuinely has no room anywhere', () => {
+    const pieces: ShopBoardPiece[] = Array.from({ length: 10 }, (_, i) => ({ instanceId: `c${i}`, skillId: 'sword_slash', tier: 'bronze', slot: i }));
+    const bagSlots: ShopBagSlot[] = [{ instanceId: 'z', skillId: 'war_banner', tier: 'bronze' }, ...Array(9).fill(null)];
+    const outcome = moveToBoard(pieces, bagSlots, skillBook, { location: 'bag', index: 0 }, 0, 10);
+    expect(outcome).toBeNull();
+  });
+
+  it('moveToBag: a bag-origin drag to an empty slot simply relocates it', () => {
+    const bagSlots: ShopBagSlot[] = [{ instanceId: 'a', skillId: 'sword_slash', tier: 'bronze' }, ...Array(9).fill(null)];
+    const outcome = moveToBag([], bagSlots, skillBook, { location: 'bag', index: 0 }, 5, 10);
+    expect(outcome).not.toBeNull();
+    expect(outcome!.bagSlots[5]).toEqual({ instanceId: 'a', skillId: 'sword_slash', tier: 'bronze' });
+    expect(outcome!.bagSlots[0]).toBeNull();
+  });
+
+  it('moveToBag: a board-origin drag INSERTS into the bag, pushing the occupant at the target slot', () => {
+    const pieces: ShopBoardPiece[] = [{ instanceId: 'p', skillId: 'sword_slash', tier: 'bronze', slot: 0 }];
+    const bagSlots: ShopBagSlot[] = [{ instanceId: 'y', skillId: 'war_banner', tier: 'bronze' }, ...Array(9).fill(null)];
+    const outcome = moveToBag(pieces, bagSlots, skillBook, { location: 'board', index: 0 }, 0, 10);
+    expect(outcome).not.toBeNull();
+    expect(outcome!.pieces).toEqual([]); // removed from the board
+    expect(outcome!.bagSlots[0]).toEqual({ instanceId: 'p', skillId: 'sword_slash', tier: 'bronze' });
+    expect(outcome!.bagSlots[1]).toEqual({ instanceId: 'y', skillId: 'war_banner', tier: 'bronze' }); // pushed, not destroyed
+  });
+
+  it('moveToBag: a socketed gem on the moved board card bounces back to the pouch (bag cards cannot hold one), mirroring sellCard', () => {
+    const pieces: ShopBoardPiece[] = [{ instanceId: 'a', skillId: 'sword_slash', tier: 'bronze', slot: 0, gem: swiftCharm }];
+    const outcome = moveToBag(pieces, empty10, skillBook, { location: 'board', index: 0 }, 4, 10);
+    expect(outcome).not.toBeNull();
+    expect(outcome!.displacedGemId).toBe('swift_charm');
+    expect(outcome!.bagSlots[4]).toEqual({ instanceId: 'a', skillId: 'sword_slash', tier: 'bronze' });
+  });
+
+  it('moveToBag: a card with no gem never fabricates a displacedGemId', () => {
+    const pieces: ShopBoardPiece[] = [{ instanceId: 'a', skillId: 'sword_slash', tier: 'bronze', slot: 0 }];
+    const outcome = moveToBag(pieces, empty10, skillBook, { location: 'board', index: 0 }, 4, 10);
+    expect(outcome!.displacedGemId).toBeNull();
+  });
+
+  it('moveToBag: refuses the drop (null) when the bag genuinely has no room anywhere', () => {
+    const bagSlots: ShopBagSlot[] = Array.from({ length: 10 }, (_, i) => ({ instanceId: `c${i}`, skillId: 'sword_slash', tier: 'bronze' }));
+    const pieces: ShopBoardPiece[] = [{ instanceId: 'z', skillId: 'war_banner', tier: 'bronze', slot: 0 }];
+    const outcome = moveToBag(pieces, bagSlots, skillBook, { location: 'board', index: 0 }, 0, 10);
+    expect(outcome).toBeNull();
+  });
+
+  it('moveToBoard/moveToBag both return null for an out-of-range source index (defensive)', () => {
+    expect(moveToBoard([], empty10, skillBook, { location: 'board', index: 0 }, 0, 10)).toBeNull();
+    expect(moveToBoard([], empty10, skillBook, { location: 'bag', index: 0 }, 0, 10)).toBeNull();
+    expect(moveToBag([], empty10, skillBook, { location: 'board', index: 0 }, 0, 10)).toBeNull();
+    expect(moveToBag([], empty10, skillBook, { location: 'bag', index: 0 }, 0, 10)).toBeNull();
   });
 });

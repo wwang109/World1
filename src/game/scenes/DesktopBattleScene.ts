@@ -20,7 +20,7 @@ import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
-import { runScreenTemplate } from '../ui/runScreenTemplate';
+import { runScreenLayout } from '../ui/runScreenLayout';
 
 /** Hover copy for every stat shown on a battle statline, in one shared tip. */
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
@@ -60,7 +60,10 @@ const GAP = 12;
  * section up to ~60px of height (see `boardH` below) — unlike Mobile, which
  * protects board height by shrinking its log dock instead.
  */
-const TOP_MARGIN = runScreenTemplate('desktop', 'statsOnly').regions.content.y;
+// `content.y` is a TOP anchor -- invariant under the fill-the-window
+// viewport (only right/bottom/centre-anchored geometry moves), so this stays
+// a plain module constant.
+const TOP_MARGIN = runScreenLayout('desktop', 'statsOnly').regions.content.y;
 const FOOTER_H = 44;
 const FOOTER_BOTTOM = 24;
 const SCRUBBER_H = 28;

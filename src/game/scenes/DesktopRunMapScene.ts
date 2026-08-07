@@ -8,7 +8,7 @@ import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel 
 import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
-import { runScreenTemplate } from '../ui/runScreenTemplate';
+import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addRunArt, eventArtKey, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderRunBossCountdownPanel, renderRunStatsFlankPanel, renderRunStatsGrid, runStatsPairs } from '../ui/RunStatsPanel';
@@ -29,7 +29,9 @@ import {
 } from '../runStore';
 
 const F = DESKTOP_PROFILE.font;
-const TEMPLATE = runScreenTemplate('desktop');
+// LIVE reference: every `TEMPLATE.*` read below resolves against the
+// CURRENT viewport (the canvas fills the window -- see game/viewport.ts).
+const TEMPLATE = runScreenLayoutRef('desktop');
 
 const GX = DESKTOP_PROFILE.safe.x;
 const CONTENT_TOP = TEMPLATE.regions.content.y;

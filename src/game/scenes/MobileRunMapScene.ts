@@ -8,7 +8,7 @@ import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel 
 import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
-import { runScreenTemplate } from '../ui/runScreenTemplate';
+import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addRunArt, eventArtKey, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderRunStatsGrid, renderRunStatsOverlay, runStatsPairs } from '../ui/RunStatsPanel';
@@ -28,7 +28,9 @@ import {
 } from '../runStore';
 
 const F = MOBILE_PROFILE.font;
-const TEMPLATE = runScreenTemplate('mobile');
+// LIVE reference: every `TEMPLATE.*` read below resolves against the
+// CURRENT viewport (the canvas fills the window -- see game/viewport.ts).
+const TEMPLATE = runScreenLayoutRef('mobile');
 const EMPTY_HUD_SNAPSHOT = { day: 0, wave: 1, gold: 0, heroLevel: 1, lives: 0, bossesCleared: 0, wins: 0, losses: 0 };
 
 /** Steel-blue / gold-bronze / green / red — same palette as the desktop map. */

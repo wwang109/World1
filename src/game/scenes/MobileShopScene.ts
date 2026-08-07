@@ -10,8 +10,8 @@ import type { CardOffer, GemOffer } from '../../run/shop';
 import { sellPriceOfCard, sellPriceOfGem, shopPoolInfo } from '../../run/shop';
 import { canPlace, bagAsBoardPieces } from '../../run/loadout';
 import {
-  bagHasRoomFor, buyCard, buyCardTo, buyGem, ensureShelf, mergeCard, mergeTargetFor, rerollShelf,
-  sellCard, sellGem, type BuyDestination,
+  bagHasRoomFor, buyCard, buyCardTo, buyGem, ensureShelf, mergeCard, mergeTargetFor, moveToBag, moveToBoard,
+  rerollShelf, sellCard, sellGem, type BuyDestination, type RearrangeOutcome,
 } from '../shopActions';
 import { demoState, type InventorySlot, type OwnedBoardPiece } from '../demoState';
 import {
@@ -29,7 +29,7 @@ import { CardToken } from '../ui/CardToken';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { addRunArt, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
-import { runScreenTemplate } from '../ui/runScreenTemplate';
+import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 
@@ -74,7 +74,9 @@ interface OwnedColumnLayout {
 }
 
 const F = MOBILE_PROFILE.font;
-const TEMPLATE = runScreenTemplate('mobile');
+// LIVE reference: every `TEMPLATE.*` read below resolves against the
+// CURRENT viewport (the canvas fills the window -- see game/viewport.ts).
+const TEMPLATE = runScreenLayoutRef('mobile');
 
 const BOARD_BAG_SLOTS = 10;
 
@@ -128,6 +130,17 @@ const STRIP_GAP = 8;
  * 2026-08-05: BOARD/BAG went VERTICAL — two `CardToken` columns (the same
  * deck-build idiom, multi-slot cards spanning rows) in place of the old
  * horizontal 36px mini-token strip. See `OWNED_COL_H`/`OWNED_BAND_H`.
+ *
+ * 2026-08-06: BOARD<->BAG REARRANGE (task #32 — this move never existed in
+ * the shop before; only BUY-to-slot and SELL did) — dragging an owned card
+ * onto a board/bag slot now moves it there via `moveToBoard`/`moveToBag`
+ * (`src/game/shopActions.ts`, built from `run/loadout.ts`'s
+ * `moveWithinStrip`/`shiftInsert`, the same primitives DeckBuild's
+ * `toDeck`/`toBag` already ship with). This also resolved a tap-vs-drag
+ * conflict: an owned card's body is now a PURE drag surface (tap-to-sell is
+ * gone; SELL is drag-onto-the-SELL-ZONE only) so a real drag never races a
+ * tap branch, and inspect moved to the `CardToken`'s own "ⓘ" button — the
+ * ONLY way to open the owned-card detail veil now (`renderOwnedCardDetail`).
  */
 export class MobileShopScene extends Phaser.Scene {
   private W = SCREEN.width;
@@ -136,6 +149,12 @@ export class MobileShopScene extends Phaser.Scene {
   private detailCardIndex: number | null = null;
   private detailGemIndex: number | null = null;
   private detailTier: SkillTier = 'bronze';
+  /** OWNED board/bag card whose "ⓘ" button opened the detail veil — mutually
+   * exclusive with `detailCardIndex`/`detailGemIndex` (both-platforms twin
+   * of `DesktopShopScene`'s `inspectOwned`). The whole card body is a pure
+   * drag surface now (2026-08-06) — this button is the ONLY way to open it,
+   * replacing the tap-to-sell shortcut that used to double as an inspect. */
+  private inspectOwned: { location: 'board' | 'bag'; index: number } | null = null;
   private pendingBuy: PendingBuy | null = null;
   private pendingSell: PendingSell | null = null;
   /** One-shot transient red flash on an invalid BUY-to-slot drop — read and
@@ -168,6 +187,7 @@ export class MobileShopScene extends Phaser.Scene {
     this.detailCardIndex = null;
     this.detailGemIndex = null;
     this.detailTier = 'bronze';
+    this.inspectOwned = null;
     this.pendingBuy = null;
     this.pendingSell = null;
     this.invalidFlash = null;
@@ -287,6 +307,7 @@ export class MobileShopScene extends Phaser.Scene {
     this.wireDrag();
     if (this.pendingBuy) this.renderConfirm();
     else if (this.pendingSell) this.renderSellConfirm();
+    else if (this.inspectOwned) this.renderOwnedCardDetail();
     else if (this.detailCardIndex !== null) this.renderCardDetail();
     else if (this.detailGemIndex !== null) this.renderGemDetail();
     if (this.retireConfirmOpen) {
@@ -471,7 +492,7 @@ export class MobileShopScene extends Phaser.Scene {
         }
         const gem = gemBook[offer.gemId]!;
         const cell = A(this.add.rectangle(10, y, this.W - 20, gemH, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8).setInteractive({ useHandCursor: true }));
-        cell.on('pointerdown', () => { playSfx('uiClick'); this.detailGemIndex = i; this.rerender(); });
+        cell.on('pointerdown', () => { playSfx('uiClick'); this.detailGemIndex = i; this.inspectOwned = null; this.rerender(); });
         A(this.add.rectangle(28, y + gemH / 2, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45));
         A(this.add.text(42, y + 8, gem.name, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' }));
         const body = A(this.add.text(42, y + 24, stripCardTextMarkup(gem.text), { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: this.W - 100 } }));
@@ -592,6 +613,14 @@ export class MobileShopScene extends Phaser.Scene {
     const boardCol = new BoardColumn(this, {
       x: boardX, y: colTop, width: colW, height: colH, side: 'left',
       slotCount: BOARD_BAG_SLOTS, gap: rowGap, pieces: boardPieces, deck: boardSkills,
+      onInspectSlot: (slot) => {
+        const piece = this.pieces.find((p) => p.slot === slot);
+        if (!piece) return;
+        this.detailCardIndex = null;
+        this.detailGemIndex = null;
+        this.inspectOwned = { location: 'board', index: this.pieces.indexOf(piece) };
+        this.rerender();
+      },
     });
     this.wireColumnDraggables(boardCol, boardX, colTop, colW, rowH, rowGap, (slot) => {
       const piece = this.pieces.find((p) => p.slot === slot);
@@ -611,6 +640,13 @@ export class MobileShopScene extends Phaser.Scene {
     const bagCol = new BoardColumn(this, {
       x: bagX, y: colTop, width: colW, height: colH, side: 'right',
       slotCount: BOARD_BAG_SLOTS, gap: rowGap, pieces: bagPieces, deck: bagSkills,
+      onInspectSlot: (slot) => {
+        if (!this.bagSlots[slot]) return;
+        this.detailCardIndex = null;
+        this.detailGemIndex = null;
+        this.inspectOwned = { location: 'bag', index: slot };
+        this.rerender();
+      },
     });
     this.wireColumnDraggables(bagCol, bagX, colTop, colW, rowH, rowGap, (slot) => {
       const card = this.bagSlots[slot];
@@ -624,7 +660,7 @@ export class MobileShopScene extends Phaser.Scene {
     let y = colBottom + 6;
     const sellRect = new Phaser.Geom.Rectangle(rowX, y, rowW, SELL_ZONE_H);
     this.sellZoneRectObj = this.add.rectangle(rowX, y, rowW, SELL_ZONE_H, UI.badSoft, 0.35).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8);
-    this.sellZoneLabelObj = this.add.text(rowX + rowW / 2, y + SELL_ZONE_H / 2, 'SELL ZONE — drag or tap to sell', {
+    this.sellZoneLabelObj = this.add.text(rowX + rowW / 2, y + SELL_ZONE_H / 2, 'SELL ZONE — drag a card or gem here (or tap a gem)', {
       fontSize: `${F.tiny}px`, color: '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(0.5);
     y += SELL_ZONE_H + 6;
@@ -708,6 +744,49 @@ export class MobileShopScene extends Phaser.Scene {
   }
 
   // ---------- card/gem inspect overlays (tap, no drag) ----------
+
+  /**
+   * OWNED board/bag card detail — opened ONLY by a `CardToken` "ⓘ" button
+   * (2026-08-06; see `inspectOwned`'s doc comment), same full-screen veil
+   * idiom as `renderCardDetail`/`renderGemDetail`. Read-only: no BUY (it's
+   * already owned) and no SELL button either — SELL stays a single gesture,
+   * drag onto the SELL ZONE, exactly as the coordinator's brief asked for.
+   */
+  private renderOwnedCardDetail(): void {
+    const owned = this.inspectOwned!;
+    const card = owned.location === 'board' ? this.pieces[owned.index] : this.bagSlots[owned.index];
+    if (!card) { this.inspectOwned = null; return; }
+    const base = skillBook[card.skillId];
+    if (!base) { this.inspectOwned = null; return; }
+    const shown = card.tier === base.tier ? base : applyTier(base, card.tier);
+
+    const veil = this.add.rectangle(0, 0, this.W, this.H, 0x05070c, 0.86).setOrigin(0, 0).setInteractive();
+    // Same rebuild-timing hazard as `renderCardDetail`'s veil — see its doc
+    // comment; `wasPointerConsumedByRebuild` (sceneRebuild.ts) covers it.
+    veil.on('pointerdown', () => { playSfx('uiBack'); this.inspectOwned = null; this.rerender(); });
+
+    const centerX = this.W / 2;
+    const cardW = 150;
+    const cardH = cardW * (690 / 420);
+    let y = 70;
+    const cardY = y + cardH / 2;
+    new FantasyCardTemplateV2(this, centerX, cardY, shown, { width: cardW, height: cardH, tier: card.tier, glossary: false });
+    y = cardY + cardH / 2 + 10;
+
+    this.add.text(centerX, y, base.name, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.heading}px`, color: UI.textBright, align: 'center', wordWrap: { width: this.W - 40 } }).setOrigin(0.5, 0);
+    y += 24;
+    this.add.text(centerX, y, `${card.tier.toUpperCase()} · ${owned.location.toUpperCase()}`, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textAccent,
+    }).setOrigin(0.5, 0);
+    y += F.small + 8;
+    this.add.text(centerX, y, stripCardTextMarkup(shown.text), {
+      fontFamily: FONT.body, fontSize: `${F.label}px`, color: '#c9b896', align: 'center', wordWrap: { width: this.W - 40 }, lineSpacing: 3,
+    }).setOrigin(0.5, 0);
+
+    this.add.text(centerX, this.H - 40, 'Drag onto the SELL ZONE to sell · tap anywhere to close', {
+      fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted, align: 'center', wordWrap: { width: this.W - 40 },
+    }).setOrigin(0.5, 0);
+  }
 
   private renderCardDetail(): void {
     const shopId = this.activeShopId();
@@ -835,6 +914,33 @@ export class MobileShopScene extends Phaser.Scene {
     return { name: skill.name, tierLabel: card.tier.toUpperCase(), price: sellPriceOfCard(card.tier) };
   }
 
+  /** Which BOARD/BAG column (and slot within it) a drop point lands in, or
+   * `null` outside both columns' band — shared by the shelf-card BUY-to-slot
+   * drop and the owned-card REARRANGE drop so the two can never disagree
+   * about the same geometry `renderOwnedColumns` drew. */
+  private columnHitTest(worldX: number, worldY: number): { where: 'board' | 'bag'; slot: number } | null {
+    const strip = this.ownedColumns;
+    if (!strip) return null;
+    const colBottom = strip.colTop + BOARD_BAG_SLOTS * strip.rowH + (BOARD_BAG_SLOTS - 1) * strip.rowGap;
+    if (worldY < strip.colTop || worldY > colBottom) return null;
+    let where: 'board' | 'bag' | null = null;
+    if (worldX >= strip.boardX && worldX <= strip.boardX + strip.colW) where = 'board';
+    else if (worldX >= strip.bagX && worldX <= strip.bagX + strip.colW) where = 'bag';
+    if (!where) return null;
+    const slot = Phaser.Math.Clamp(Math.floor((worldY - strip.colTop) / (strip.rowH + strip.rowGap)), 0, BOARD_BAG_SLOTS - 1);
+    return { where, slot };
+  }
+
+  /** Applies a `moveToBoard`/`moveToBag` outcome — splices the new pieces/
+   * bagSlots back through the mode-aware (`sandbox` vs. `run`) setters and
+   * bounces any displaced gem to the pouch, exactly like `sellCard` already
+   * does for a sold board piece's socket. */
+  private applyRearrange(outcome: RearrangeOutcome): void {
+    this.pieces = outcome.pieces;
+    this.bagSlots = outcome.bagSlots;
+    if (outcome.displacedGemId) this.gemInventory = [...this.gemInventory, outcome.displacedGemId];
+  }
+
   private wireDrag(): void {
     this.input.removeAllListeners();
     let dragging: { src: DragSource; obj: Phaser.GameObjects.Container } | null = null;
@@ -900,7 +1006,7 @@ export class MobileShopScene extends Phaser.Scene {
             if (preview) this.sellZoneLabelObj.setText(`SELL ${preview.name} → +${preview.price}G`);
           } else {
             this.sellZoneRectObj.setFillStyle(UI.badSoft, 0.35);
-            this.sellZoneLabelObj.setText('SELL ZONE — drag or tap to sell');
+            this.sellZoneLabelObj.setText('SELL ZONE — drag a card or gem here (or tap a gem)');
           }
         }
         return;
@@ -934,22 +1040,13 @@ export class MobileShopScene extends Phaser.Scene {
           playSfx('uiClick');
           this.detailCardIndex = src.index;
           this.detailTier = shelf.cards[src.index]?.tier ?? 'bronze';
+          this.inspectOwned = null;
           this.rerender();
           return;
         }
-        // Vertical columns: BOARD/BAG are told apart by X range (which
-        // column the pointer is over), the slot by Y position within that
-        // column's row pitch — the mirror image of the old horizontal strip,
-        // which told them apart by Y band and read the slot off X.
-        const strip = this.ownedColumns;
-        let where: 'board' | 'bag' | null = null;
-        const colBottom = strip ? strip.colTop + BOARD_BAG_SLOTS * strip.rowH + (BOARD_BAG_SLOTS - 1) * strip.rowGap : 0;
-        if (strip && p.worldY >= strip.colTop && p.worldY <= colBottom) {
-          if (p.worldX >= strip.boardX && p.worldX <= strip.boardX + strip.colW) where = 'board';
-          else if (p.worldX >= strip.bagX && p.worldX <= strip.bagX + strip.colW) where = 'bag';
-        }
-        if (where && strip) {
-          const slot = Phaser.Math.Clamp(Math.floor((p.worldY - strip.colTop) / (strip.rowH + strip.rowGap)), 0, BOARD_BAG_SLOTS - 1);
+        const hit = this.columnHitTest(p.worldX, p.worldY);
+        if (hit) {
+          const { where, slot } = hit;
           const offer = shelf.cards[src.index];
           if (offer) {
             const fits = where === 'board'
@@ -967,17 +1064,47 @@ export class MobileShopScene extends Phaser.Scene {
         return;
       }
 
-      // board/bag/gem: SELL flow
-      if (totalMove < 8) {
-        playSfx('uiClick');
-        this.pendingSell = this.sellRefFor(src);
+      // GEM (pouch): unchanged — tap OR drag onto the SELL ZONE both open the
+      // same SELL confirm, so there is no tap/drag ambiguity to resolve here
+      // (there is no gem "rearrange" destination for a drag to conflict with).
+      if (src.kind === 'gem') {
+        if (totalMove < 8) {
+          playSfx('uiClick');
+          this.pendingSell = this.sellRefFor(src);
+          this.rerender();
+          return;
+        }
+        draggedObj.setDepth(0).setAlpha(1);
+        const strip = this.ownedColumns;
+        if (strip && strip.sellRect.contains(p.worldX, p.worldY)) {
+          this.pendingSell = this.sellRefFor(src);
+        }
         this.rerender();
         return;
       }
+
+      // OWNED board/bag card: the whole body is a pure drag surface now
+      // (2026-08-06) — a plain tap does nothing (inspect moved to the
+      // CardToken's own "ⓘ" button; SELL moved to drag-onto-the-SELL-ZONE
+      // only, since a tap-to-sell shortcut would have raced the same drag
+      // gesture this fixes). `this.rerender()` still runs on a tap to clear
+      // the depth/alpha bump `pointerdown` applied to the token.
+      if (totalMove < 8) { this.rerender(); return; }
       draggedObj.setDepth(0).setAlpha(1);
       const strip = this.ownedColumns;
       if (strip && strip.sellRect.contains(p.worldX, p.worldY)) {
         this.pendingSell = this.sellRefFor(src);
+        this.rerender();
+        return;
+      }
+      const hit = this.columnHitTest(p.worldX, p.worldY);
+      if (hit) {
+        const rearrangeSrc = src.kind === 'board' ? { location: 'board' as const, index: src.index } : { location: 'bag' as const, index: src.index };
+        const outcome = hit.where === 'board'
+          ? moveToBoard(this.pieces, this.bagSlots, skillBook, rearrangeSrc, hit.slot, BOARD_BAG_SLOTS)
+          : moveToBag(this.pieces, this.bagSlots, skillBook, rearrangeSrc, hit.slot, BOARD_BAG_SLOTS);
+        if (outcome) this.applyRearrange(outcome);
+        else this.invalidFlash = { where: hit.where, index: hit.slot };
       }
       this.rerender();
     });

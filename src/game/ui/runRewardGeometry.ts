@@ -18,28 +18,56 @@ export interface Box { x: number; y: number; w: number; h: number }
 
 /**
  * Ideal (never-exceeded) feature-visual size for a reward/bonus-draft CARD,
- * per platform. Lives here (moved 2026-08-06, was a same-named literal
- * inside `RunRewardPanel.ts`) so `RunRewardPanel.ts` and
- * `tests/game/runRewardGeometry.test.ts`'s "real reward feature rect"
- * checks share the ONE constant — drift between the renderer and the test
- * that's supposed to catch its regressions is no longer possible by
- * construction. `RunRewardPanel.ts`'s own doc comment (`renderFeature`)
- * explains WHY these are ~35% larger than the card's natural board-slot size;
- * this is just the value, kept next to the pure geometry that consumes it.
+ * per platform — the card's own natural board-slot size (a `CardToken` on
+ * the prep board or a shop shelf uses the same proportions). Lives here
+ * (moved 2026-08-06, was a same-named literal inside `RunRewardPanel.ts`) so
+ * `RunRewardPanel.ts` and `tests/game/runRewardGeometry.test.ts`'s "real
+ * reward feature rect" checks share the ONE constant — drift between the
+ * renderer and the test that's supposed to catch its regressions is no
+ * longer possible by construction.
+ *
+ * REVERTED 2026-08-06 from a ~35% bump (142x233 -> 192x315 desktop) that a
+ * same-day earlier pass introduced to keep a card from looking small inside
+ * the (then still full-region-sized) reward panel. That was treating the
+ * symptom: once the panel itself is capped and centered to hug its content
+ * (`runScreenTemplate.ts`'s `REWARD_PANEL_MAX_W`/`_H`), the card no longer
+ * sits in a stadium and the bump is no longer needed — keeping both changes
+ * stacked would just make the card the largest thing in the frame for no
+ * reason. Back to the card's own natural size.
  */
 export const FEATURE_CARD_SIZE: Record<RunTemplatePlatform, { w: number; h: number }> = {
-  desktop: { w: 192, h: 315 },
-  mobile: { w: 170, h: 279 },
+  desktop: { w: 142, h: 233 },
+  mobile: { w: 126, h: 207 },
 };
 
 /** Centers a `{w,h}` box (clamped to never exceed `rect`) inside `rect`,
  * returning its top-left — the one place that does this arithmetic, so every
- * feature variant (single card/gem/icon, and the bonus-draft grid below)
- * places itself the same way. */
+ * feature variant (the bonus-draft grid below, and — via `layoutFeatureGrid`
+ * — its own row/grid centering) places itself the same way. */
 export function centeredBox(rect: Rect, w: number, h: number): Box {
   const boxW = Math.min(w, rect.width);
   const boxH = Math.min(h, rect.height);
   return { x: rect.x + (rect.width - boxW) / 2, y: rect.y + (rect.height - boxH) / 2, w: boxW, h: boxH };
+}
+
+/**
+ * Like `centeredBox` (clamped to never exceed `rect`), but anchored at the
+ * TOP of `rect` — still horizontally centered — instead of vertically
+ * centered. Used for a SINGLE reward feature (card/gem/icon,
+ * `RunRewardPanel.ts`'s `renderFeature`) so it sits close under the
+ * headline/detail stack instead of floating in the middle of whatever
+ * height `feature` happens to have. That distinction matters because
+ * `feature`'s height isn't always tight: mobile's stays generous even after
+ * the redesign above, since it also has to fit the bonus-draft grid's
+ * wrapped rows (see `runScreenTemplate.ts`'s doc comment) — top-anchoring
+ * the single-item case keeps IT from drifting into that leftover room
+ * without taking any room away from the grid, which keeps using
+ * `centeredBox`/`layoutFeatureGrid`'s own centering, unchanged.
+ */
+export function topAnchoredBox(rect: Rect, w: number, h: number): Box {
+  const boxW = Math.min(w, rect.width);
+  const boxH = Math.min(h, rect.height);
+  return { x: rect.x + (rect.width - boxW) / 2, y: rect.y, w: boxW, h: boxH };
 }
 
 /**

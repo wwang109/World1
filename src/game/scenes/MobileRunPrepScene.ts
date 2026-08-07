@@ -9,7 +9,7 @@ import { FONT, SCREEN, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
-import { runScreenTemplate } from '../ui/runScreenTemplate';
+import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import { STAT_TOKEN } from '../ui/statLabels';
@@ -22,7 +22,9 @@ import { truncateNameKeepingSuffix } from '../ui/controlLayoutAudit';
 
 const F = MOBILE_PROFILE.font;
 const ALL_STAT_ENTRIES = STAT_LABELS.map(statHoverEntry);
-const TEMPLATE = runScreenTemplate('mobile');
+// LIVE reference: every `TEMPLATE.*` read below resolves against the
+// CURRENT viewport (the canvas fills the window -- see game/viewport.ts).
+const TEMPLATE = runScreenLayoutRef('mobile');
 
 const KIND_COLOR: Record<RunNodeKind, number> = {
   fight: 0x4a7ab5, event: UI.chip, shop: UI.good, boss: UI.bad,

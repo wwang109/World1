@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  boxesOverlap, cardTokenSpec, chipBox, CHIP_PAD_X, CHIP_PAD_Y, SLOT_LABEL_MIN_HEIGHT, TOKEN_COMPACT_HEIGHT,
-  type ChipTextLike,
+  boxesOverlap, cardTokenSpec, chipBox, CHIP_PAD_X, CHIP_PAD_Y, INSPECT_BUTTON_SIZE, SLOT_LABEL_MIN_HEIGHT,
+  TOKEN_COMPACT_HEIGHT, type ChipTextLike, type TokenBox,
 } from '../../src/game/ui/cardTokenSpec';
 
 const W = 620;
@@ -161,6 +161,66 @@ describe('cardTokenSpec', () => {
         }
       }
     }
+  });
+
+  describe('inspect button (opt-in, shop board/bag only)', () => {
+    it('is absent unless requested, and appears (in bounds) once it is', () => {
+      for (const side of ['left', 'right'] as const) {
+        expect(cardTokenSpec(W, H, side).inspectButton).toBeNull();
+        expect(cardTokenSpec(W, H, side, 0, false).inspectButton).toBeNull();
+        const spec = cardTokenSpec(W, H, side, 0, true);
+        expect(spec.inspectButton).not.toBeNull();
+        const btn = spec.inspectButton!;
+        expect(btn.width).toBe(INSPECT_BUTTON_SIZE);
+        expect(btn.height).toBe(INSPECT_BUTTON_SIZE);
+        expect(Math.abs(btn.x) + btn.width / 2).toBeLessThanOrEqual(W / 2);
+        expect(Math.abs(btn.y) + btn.height / 2).toBeLessThanOrEqual(H / 2);
+      }
+    });
+
+    it('mirrors to the OUTWARD corner (opposite the inward slot-label/weight corner)', () => {
+      const left = cardTokenSpec(W, H, 'left', 0, true);
+      const right = cardTokenSpec(W, H, 'right', 0, true);
+      expect(right.inspectButton!.x).toBe(-left.inspectButton!.x);
+      // Opposite sign from the inward corner badges on the SAME side.
+      expect(Math.sign(left.inspectButton!.x)).toBe(-Math.sign(left.inwardX));
+    });
+
+    it('never intersects the slot-label, weight, or accessory-rail corner boxes, at both mirrored sides and the small shipped token size', () => {
+      const CORNER_TEXT_WIDTHS = [10, 24, 48];
+      for (const [w, h] of [[140, SLOT_LABEL_MIN_HEIGHT], [W, H]] as const) {
+        for (const side of ['left', 'right'] as const) {
+          for (const accessoryCount of [0, 2]) {
+            const spec = cardTokenSpec(w, h, side, accessoryCount, true);
+            const btn = spec.inspectButton!;
+            const btnBox: TokenBox = { x: btn.x, y: btn.y, width: btn.width, height: btn.height };
+            for (const labelWidth of CORNER_TEXT_WIDTHS) {
+              const weightBox = chipBox(fakeText(spec.weight.x, spec.weight.y, spec.cornerOriginX, 1, labelWidth, 11));
+              expect(boxesOverlap(btnBox, weightBox)).toBe(false);
+              const slotBox = chipBox(fakeText(spec.slotLabel.x, spec.slotLabel.y, spec.cornerOriginX, 0, labelWidth, 12));
+              expect(boxesOverlap(btnBox, slotBox)).toBe(false);
+            }
+            for (let i = 0; i < accessoryCount; i++) {
+              expect(boxesOverlap(btnBox, spec.accessorySlot(i))).toBe(false);
+            }
+          }
+        }
+      }
+    });
+
+    it('shrinks every text line so the reserved outward strip stays clear at any y, not just at the button\'s own corner', () => {
+      const bare = cardTokenSpec(W, H, 'left', 0, false);
+      const withInspect = cardTokenSpec(W, H, 'left', 0, true);
+      expect(withInspect.textX).toBeGreaterThan(bare.textX); // shifted inward (less negative)
+      expect(withInspect.name.maxWidth).toBeLessThan(bare.name.maxWidth);
+      expect(withInspect.effects.maxWidth).toBeLessThan(bare.effects.maxWidth);
+      expect(withInspect.affinity.maxWidth).toBeLessThan(bare.affinity.maxWidth);
+      expect(withInspect.compactLine.maxWidth).toBeLessThan(bare.compactLine.maxWidth);
+      // The button's inward edge must not pass the shifted text's outward start.
+      const btn = withInspect.inspectButton!;
+      const btnInwardEdge = Math.abs(btn.x) - btn.width / 2; // distance-from-center minus half-width, toward center
+      expect(Math.abs(withInspect.textX)).toBeLessThanOrEqual(btnInwardEdge + 0.001);
+    });
   });
 });
 

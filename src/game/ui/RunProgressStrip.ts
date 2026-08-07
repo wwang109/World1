@@ -4,7 +4,8 @@ import { type RunState } from '../runStore';
 import { FONT, UI } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { renderBankedPlBadge } from './RunStatPanel';
-import { runScreenTemplate, type Rect, type RunActionRole, type RunScreenTemplate } from './runScreenTemplate';
+import type { Rect, RunActionRole, RunScreenTemplate } from './runScreenTemplate';
+import { runScreenLayout } from './runScreenLayout';
 
 /**
  * THE run HUD — one identical header drawn on EVERY Run Mode screen (map,
@@ -284,12 +285,12 @@ function drawKickerTitleStats(
 /**
  * Draws the shared Run Mode header (kicker/title/stats/badge/actions) at the
  * IDENTICAL coordinates on every screen (`runScreenTemplate`). The scene's own
- * content starts at `runScreenTemplate(platform).regions.content` — callers
+ * content starts at `runScreenLayout(platform).regions.content` — callers
  * lay out everything else themselves, but must not draw above that y.
  */
 export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
   const platform = opts.compact ? 'mobile' : 'desktop';
-  const t = runScreenTemplate(platform);
+  const t = runScreenLayout(platform);
   const F = opts.compact
     ? { kicker: 9, title: 16, stats: 9, action: 8 }
     : { kicker: 12, title: 26, stats: 12, action: 10 };
@@ -349,7 +350,7 @@ export interface RunStatsStripOptions {
  */
 export function renderRunStatsStrip(scene: Phaser.Scene, opts: RunStatsStripOptions): void {
   const platform = opts.compact ? 'mobile' : 'desktop';
-  const t = runScreenTemplate(platform, 'statsOnly');
+  const t = runScreenLayout(platform, 'statsOnly');
   drawKickerTitleStats(scene, t, 'BATTLE', opts.snapshot, opts.compact, opts.track);
 
   // Divider just below the stats strip — statsOnly has no badge/actions band
@@ -384,7 +385,7 @@ export function renderRetireConfirm(
   opts: { compact: boolean; onConfirm: (pointer: Phaser.Input.Pointer) => void; onCancel: (pointer: Phaser.Input.Pointer) => void },
 ): void {
   const platform = opts.compact ? 'mobile' : 'desktop';
-  const t = runScreenTemplate(platform);
+  const t = runScreenLayout(platform);
   const { width: W, height: H } = t.canvas;
   scene.add.rectangle(0, 0, W, H, UI.shadow, 0.78).setOrigin(0, 0).setInteractive().setDepth(6000)
     .on('pointerdown', (pointer: Phaser.Input.Pointer) => opts.onCancel(pointer));

@@ -3,51 +3,112 @@ import { installUnlock } from '../audio/audioBus';
 import { applyDevLaunchConfig } from '../devLaunch';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
+import { applyRenderScale } from '../renderScale';
+import { brandMarkCenterY, renderBrandMark, type BrandMark } from '../ui/brandMark';
 import { CARD_ART_CATALOG } from '../ui/cardArtCatalog';
 import { RUN_ART_ASSETS } from '../ui/runArt';
+
+/** Where the wordmark block sits, as a fraction of viewport height. Boot
+ * centres it (there is nothing else on screen); the title screen sits higher
+ * to leave room for its two doors. */
+const BOOT_TITLE_FRACTION: Record<'mobile' | 'desktop', number> = { mobile: 0.42, desktop: 0.44 };
+/** Wordmark centre -> progress bar centre. */
+const BAR_GAP: Record<'mobile' | 'desktop', number> = { mobile: 64, desktop: 84 };
+const BAR_HEIGHT: Record<'mobile' | 'desktop', number> = { mobile: 8, desktop: 10 };
+/** Desktop's bar is a fixed width; mobile's is the screen minus this margin. */
+const BAR_WIDTH_DESKTOP = 340;
+const BAR_SIDE_MARGIN_MOBILE = 80;
+/** Bar bottom edge -> percentage label centre. */
+const PCT_GAP: Record<'mobile' | 'desktop', number> = { mobile: 12, desktop: 16 };
 
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('Boot');
   }
 
+  /** The loading UI's movable parts, kept so `layoutLoadingUi` can re-centre
+   * them on a window resize -- the canvas fills the window now, so the
+   * viewport can change WHILE the loader is running. This scene cannot use the
+   * project's usual resize answer (re-run `create()`): its `create()` starts
+   * the next scene. */
+  private ui: {
+    brand: BrandMark;
+    track: Phaser.GameObjects.Rectangle;
+    fill: Phaser.GameObjects.Rectangle;
+    pct: Phaser.GameObjects.Text;
+  } | null = null;
+
+  private progress = 0;
+
   /** Loading UI, built before any `this.load.*` calls so it paints on the
    * very first frame — a Boot preload with no art loaded yet still shows the
    * wordmark + an empty bar instead of a black canvas. Wired to the real
    * loader ('progress'/'complete'), never a fake timer. */
   private buildLoadingUi(): void {
-    const mobile = ACTIVE_PROFILE.id === 'mobile';
-    const cx = SCREEN.width / 2;
+    const id = ACTIVE_PROFILE.id;
     const F = ACTIVE_PROFILE.font;
     this.cameras.main.setBackgroundColor(UI.bg);
 
-    const titleY = Math.round(SCREEN.height * (mobile ? 0.42 : 0.44));
-    this.add.text(cx, titleY - (mobile ? 34 : 44), 'A ROGUELITE SKILL-BOARD BATTLER', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textMuted, letterSpacing: 2,
-    }).setOrigin(0.5);
-    this.add.text(cx, titleY, 'WORLD1', {
-      fontFamily: FONT.display ?? FONT.body, fontStyle: 'bold', fontSize: `${mobile ? 44 : 64}px`, color: UI.textBright,
-    }).setOrigin(0.5);
-
-    const barY = titleY + (mobile ? 64 : 84);
-    const barW = mobile ? SCREEN.width - 80 : 340;
-    const barH = mobile ? 8 : 10;
-    const barX = cx - barW / 2;
-    this.add.rectangle(cx, barY, barW, barH, UI.chipDark, 1).setStrokeStyle(1, UI.border, 0.6);
-    const fill = this.add.rectangle(barX, barY, 0, barH - 2, UI.chip, 1).setOrigin(0, 0.5);
-    const pct = this.add.text(cx, barY + barH / 2 + (mobile ? 12 : 16), '0%', {
+    const brand = renderBrandMark(this, SCREEN.width / 2, brandMarkCenterY(BOOT_TITLE_FRACTION[id]));
+    const barH = BAR_HEIGHT[id];
+    const track = this.add.rectangle(0, 0, 10, barH, UI.chipDark, 1).setStrokeStyle(1, UI.border, 0.6);
+    const fill = this.add.rectangle(0, 0, 0, barH - 2, UI.chip, 1).setOrigin(0, 0.5);
+    const pct = this.add.text(0, 0, '0%', {
       fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted,
     }).setOrigin(0.5);
+    this.ui = { brand, track, fill, pct };
+    this.layoutLoadingUi();
 
-    const innerW = barW - 2;
+    // The canvas fills the window, so the viewport can change mid-load. Phaser
+    // resizes the canvas and the camera by itself; this puts the loading UI
+    // back in the middle of the new one.
+    const onResize = (): void => {
+      applyRenderScale(this);
+      this.layoutLoadingUi();
+    };
+    this.scale.on(Phaser.Scale.Events.RESIZE, onResize);
+    // Dropping `ui` here as well as unsubscribing is not belt-and-braces: a
+    // RESIZE dispatched in the same tick that the load completes can reach this
+    // handler AFTER `create()` has started the next scene and destroyed these
+    // objects (Phaser's emitter iterates a snapshot of its listener list), and
+    // repositioning a destroyed Rectangle throws.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off(Phaser.Scale.Events.RESIZE, onResize);
+      this.ui = null;
+    });
+
     this.load.on('progress', (value: number) => {
-      fill.width = Math.max(0, innerW * value);
+      this.progress = value;
       pct.setText(`${Math.round(value * 100)}%`);
+      this.layoutLoadingUi();
     });
     this.load.on('complete', () => {
-      fill.width = innerW;
+      this.progress = 1;
       pct.setText('100%');
+      this.layoutLoadingUi();
     });
+  }
+
+  /** Positions every part of the loading UI from the CURRENT viewport. Called
+   * on build, on every progress tick, and on every resize -- it is the only
+   * place loading-screen geometry is computed. */
+  private layoutLoadingUi(): void {
+    const ui = this.ui;
+    // `scene` is nulled by `GameObject.destroy()`, so this also covers the
+    // window between the objects dying and SHUTDOWN clearing `ui`.
+    if (!ui || !ui.track.scene) return;
+    const id = ACTIVE_PROFILE.id;
+    const cx = SCREEN.width / 2;
+    const titleY = brandMarkCenterY(BOOT_TITLE_FRACTION[id]);
+    ui.brand.setCenter(cx, titleY);
+
+    const barY = titleY + BAR_GAP[id];
+    const barH = BAR_HEIGHT[id];
+    const barW = id === 'mobile' ? SCREEN.width - BAR_SIDE_MARGIN_MOBILE : BAR_WIDTH_DESKTOP;
+    ui.track.setPosition(cx, barY).setSize(barW, barH);
+    ui.fill.setPosition(cx - barW / 2, barY);
+    ui.fill.width = Math.max(0, (barW - 2) * this.progress);
+    ui.pct.setPosition(cx, barY + barH / 2 + PCT_GAP[id]);
   }
 
   preload(): void {

@@ -196,14 +196,38 @@ main-card text but spells out both stats the gem could possibly scale with:
 
 | Gem action | Template |
 |---|---|
-| `damage` | `Also +{power} damage (+ATK/MATK).` |
-| `heal` | `Also +{power} HP (+DEF/MDEF).` |
-| `shield` | `Also +{power} shield (+DEF/MDEF).` |
+| `damage` | `+{power} damage (+ATK/MATK).` |
+| `heal` | `+{power} HP (+DEF/MDEF).` |
+| `shield` | `+{power} shield (+DEF/MDEF).` |
 
-Non-scaling gem riders (poison/burn/slow/disrupt/lifesteal/shieldBreak/
-debuffStat/comboBonus/guard) are untouched by this pass — their existing
-`"Also {{Keyword}} ..."` phrasing already leads with the number and never
-carried a `"(+stat)"` clause, so there was nothing to fix.
+**No leading "Also" (2026-08-06 fix).** Gem text never gets concatenated
+after a host card's text — every render site (shop shelf, wiki gem list,
+event reward panel, deck-build socket row) shows a gem's `text` completely
+standalone, in its own box, never appended to another card's sentence. An
+opener that means "in addition to [the preceding clause]" when there is no
+preceding clause is a dangling fragment, not a style choice — this was
+raised more than once and is now the locked rule: **gem text never starts
+with "Also".** Every gem line must read as a complete, self-contained
+phrase:
+
+- **Effects whose template already opens on a symbol or a `{{Keyword}}`
+  token** (a leading `+`/`-` number, or a capitalized keyword like `{{Slow}}`,
+  `{{Lifesteal}}`, `{{Shatter}}`, `{{Disrupt}}`, `{{Combo}}`) — just drop
+  "Also "; the result is already a well-formed fragment, no other edit
+  needed. Covers `damage`/`heal`/`shield` (above), `slow`, `lifesteal`,
+  `shieldBreak`, `disrupt`, `comboBonus`, `buffStat`, `debuffStat`, and
+  `guard`, e.g. `{{Slow}} the enemy's next action by +8 weight.`,
+  `-10% enemy DEF (2 turns).`, `-20% incoming TRUE damage (1 turn).`
+- **Effects whose template opens on a bare lowercase verb** (`poison`,
+  `burn` use `apply {{Keyword}} ...`) — drop "Also " AND capitalize the
+  verb, since it is now the sentence-initial word: `apply {{Poison}} 2
+  (poison bypasses shields).` → `Apply {{Poison}} 2 (poison bypasses
+  shields).` Dropping "Also" alone here would leave a lowercase orphaned
+  verb, which is not a complete phrase.
+
+Every gem's `text` must still stand alone as a complete phrase with no
+lead-in — this is the same requirement as any other card text, just without
+an "Also" shortcut to paper over it.
 
 ### Composing multi-effect cards
 

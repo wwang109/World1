@@ -12,7 +12,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
 import { renderRunBonusDraftPicker, renderRunRewardPanel } from '../ui/RunRewardPanel';
 import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
-import { runScreenTemplate } from '../ui/runScreenTemplate';
+import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
@@ -25,7 +25,9 @@ import {
 } from '../runStore';
 
 const F = MOBILE_PROFILE.font;
-const TEMPLATE = runScreenTemplate('mobile');
+// LIVE reference: every `TEMPLATE.*` read below resolves against the
+// CURRENT viewport (the canvas fills the window -- see game/viewport.ts).
+const TEMPLATE = runScreenLayoutRef('mobile');
 
 /** The one flowing story column the CHOOSING phase renders into — computed
  * ONCE by `renderStory` off the event's actual theme/title/body. Once a

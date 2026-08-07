@@ -22,7 +22,7 @@ export const gemBook: Record<string, GemDef> = {
     // poison priced LINEARLY per stack (2026-07-23): 2 stacks × 10 deci = 20
     // deci = Common exactly (ticks 2,1 = 3 total).
     actions: [{ kind: 'poison', stacks: 2 }],
-    text: 'Also apply {{Poison}} 2 (poison bypasses shields).',
+    text: 'Apply {{Poison}} 2 (poison bypasses shields).',
   },
   swift_charm: {
     id: 'swift_charm',
@@ -42,7 +42,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'slow', weight: 8 }],
-    text: "Also {{Slow}} the enemy's next action by +8 weight.",
+    text: "{{Slow}} the enemy's next action by +8 weight.",
   },
 
   // ---- Echo gems (one per skill, weaker versions of the skill's signature
@@ -54,7 +54,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also +4 damage (+ATK/MATK).',
+    text: '+4 damage (+ATK/MATK).',
   },
   savage_bite_echo: {
     // echo of savage_bite
@@ -63,7 +63,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also +4 damage (+ATK/MATK).',
+    text: '+4 damage (+ATK/MATK).',
   },
   hunter_shot_echo: {
     // echo of hunter_shot
@@ -72,7 +72,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also +4 damage (+ATK/MATK).',
+    text: '+4 damage (+ATK/MATK).',
   },
   arcane_bolt_echo: {
     // echo of arcane_bolt
@@ -81,7 +81,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also +4 damage (+ATK/MATK).',
+    text: '+4 damage (+ATK/MATK).',
   },
   fireball_echo: {
     // echo of fireball
@@ -92,7 +92,7 @@ export const gemBook: Record<string, GemDef> = {
     // burn priced LINEARLY per stack (2026-07-23): 2 stacks × 10 deci = 20
     // deci = Common exactly (ticks 4,2 = 6 total).
     actions: [{ kind: 'burn', stacks: 2 }],
-    text: 'Also apply {{Burn}} 2.',
+    text: 'Apply {{Burn}} 2.',
   },
   venom_fang_echo: {
     // echo of venom_fang
@@ -103,7 +103,7 @@ export const gemBook: Record<string, GemDef> = {
     // poison priced LINEARLY per stack (2026-07-23): 2 stacks × 10 deci = 20
     // deci = Common exactly (ticks 2,1 = 3 total).
     actions: [{ kind: 'poison', stacks: 2 }],
-    text: 'Also apply {{Poison}} 2 (poison bypasses shields).',
+    text: 'Apply {{Poison}} 2 (poison bypasses shields).',
   },
   iron_bulwark_echo: {
     // echo of iron_bulwark
@@ -112,7 +112,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'shield', power: 4 }],
-    text: 'Also +4 shield (+DEF/MDEF).',
+    text: '+4 shield (+DEF/MDEF).',
   },
   mana_ward_echo: {
     // echo of mana_ward
@@ -121,7 +121,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'shield', power: 4 }],
-    text: 'Also +4 shield (+DEF/MDEF).',
+    text: '+4 shield (+DEF/MDEF).',
   },
   mending_light_echo: {
     // echo of mending_light
@@ -130,7 +130,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'heal', power: 4 }],
-    text: 'Also +4 HP (+DEF/MDEF).',
+    text: '+4 HP (+DEF/MDEF).',
   },
   time_crystal_echo: {
     // echo of time_crystal
@@ -149,7 +149,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'slow', weight: 8 }],
-    text: "Also {{Slow}} the enemy's next action by +8 weight.",
+    text: "{{Slow}} the enemy's next action by +8 weight.",
   },
   leeching_fang_echo: {
     // echo of leeching_fang
@@ -158,7 +158,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'lifesteal', pct: 30 }],
-    text: 'Also {{Lifesteal}} 30% of damage dealt.',
+    text: '{{Lifesteal}} 30% of damage dealt.',
   },
   shield_splitter_echo: {
     // echo of shield_splitter
@@ -167,7 +167,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'shieldBreak', amount: 16 }],
-    text: 'Also {{Shatter}} 16 enemy shield.',
+    text: '{{Shatter}} 16 enemy shield.',
   },
   concussive_shot_echo: {
     // echo of concussive_shot. disrupt re-priced to the escalating bracket
@@ -179,7 +179,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'disrupt', amount: 4 }],
-    text: 'Also {{Disrupt}} 4 banked readiness.',
+    text: '{{Disrupt}} 4 banked readiness.',
   },
   armor_break_echo: {
     // echo of armor_break
@@ -188,7 +188,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'debuffStat', stat: 'armor', pct: 10, turns: 2 }],
-    text: 'Also -10% enemy DEF (2 turns).',
+    text: '-10% enemy DEF (2 turns).',
   },
   slow_hex_echo: {
     // echo of slow_hex
@@ -197,7 +197,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'debuffStat', stat: 'speed', pct: 10, turns: 2 }],
-    text: 'Also -10% enemy SPD (2 turns).',
+    text: '-10% enemy SPD (2 turns).',
   },
   judgment_light_echo: {
     // echo of judgment_light
@@ -206,7 +206,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'debuffStat', stat: 'magicResist', pct: 10, turns: 2 }],
-    text: 'Also -10% enemy MDEF (2 turns).',
+    text: '-10% enemy MDEF (2 turns).',
   },
   shadow_bolt_echo: {
     // echo of shadow_bolt
@@ -215,7 +215,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'damage', power: 4 }],
-    text: 'Also +4 damage (+ATK/MATK).',
+    text: '+4 damage (+ATK/MATK).',
   },
   purify_echo: {
     // echo of purify
@@ -224,7 +224,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'common',
     actions: [{ kind: 'guard', property: 'true', pct: 20, turns: 1 }],
-    text: 'Also -20% incoming TRUE damage (1 turn).',
+    text: '-20% incoming TRUE damage (1 turn).',
   },
 
   // ---- Rare (4 PL / 40 deci) ----
@@ -238,7 +238,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'slow', weight: 16 }],
-    text: "Also {{Slow}} the enemy's next action by +16 weight.",
+    text: "{{Slow}} the enemy's next action by +16 weight.",
   },
   lightweight_core: {
     id: 'lightweight_core',
@@ -268,7 +268,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'slow', weight: 16 }],
-    text: "Also {{Slow}} the enemy's next action by +16 weight.",
+    text: "{{Slow}} the enemy's next action by +16 weight.",
   },
 
   // ---- Rare echo gems (40 deci each) ----
@@ -279,7 +279,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'damage', power: 8 }],
-    text: 'Also +8 damage (+ATK/MATK).',
+    text: '+8 damage (+ATK/MATK).',
   },
   crushing_blow_echo: {
     // echo of crushing_blow
@@ -288,7 +288,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'damage', power: 8 }],
-    text: 'Also +8 damage (+ATK/MATK).',
+    text: '+8 damage (+ATK/MATK).',
   },
   crippling_strike_echo: {
     // echo of crippling_strike
@@ -297,7 +297,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'debuffStat', stat: 'attack', pct: 20, turns: 2 }],
-    text: 'Also -20% enemy ATK (2 turns).',
+    text: '-20% enemy ATK (2 turns).',
   },
   frost_ward_echo: {
     // echo of frost_ward
@@ -307,7 +307,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'rare',
     // guard re-priced to parity (1x): 20*2*1 = 40 deci = Rare exactly (was pct 16).
     actions: [{ kind: 'guard', property: 'magical', pct: 20, turns: 2 }],
-    text: 'Also -20% incoming magical damage (2 turns).',
+    text: '-20% incoming magical damage (2 turns).',
   },
   ward_of_silence_echo: {
     // echo of ward_of_silence
@@ -317,7 +317,7 @@ export const gemBook: Record<string, GemDef> = {
     rarity: 'rare',
     // guard re-priced to parity (1x): 40*1*1 = 40 deci = Rare exactly (was pct 32).
     actions: [{ kind: 'guard', property: 'magical', pct: 40, turns: 1 }],
-    text: 'Also -40% incoming magical damage (1 turn).',
+    text: '-40% incoming magical damage (1 turn).',
   },
   second_wind_echo: {
     // echo of second_wind
@@ -326,7 +326,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'heal', power: 8 }],
-    text: 'Also +8 HP (+DEF/MDEF).',
+    text: '+8 HP (+DEF/MDEF).',
   },
   war_banner_echo: {
     // echo of war_banner
@@ -345,7 +345,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'buffStat', stat: 'attack', pct: 20, turns: 2 }],
-    text: 'Also +20% ATK (2 turns).',
+    text: '+20% ATK (2 turns).',
   },
   follow_through_echo: {
     // echo of follow_through. Re-fit for the 2026-07-23 comboPerPoint cut
@@ -355,7 +355,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'comboBonus', amount: 16 }],
-    text: 'Also {{Combo}} +16 damage (previous cast shared an archetype).',
+    text: '{{Combo}} +16 damage (previous cast shared an archetype).',
   },
   hex_of_frailty_echo: {
     // echo of hex_of_frailty
@@ -364,7 +364,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'debuffStat', stat: 'magicResist', pct: 20, turns: 2 }],
-    text: 'Also -20% enemy MDEF (2 turns).',
+    text: '-20% enemy MDEF (2 turns).',
   },
   stunning_smash_echo: {
     // echo of stunning_smash. Re-themed stun -> slow for the same reason as
@@ -375,7 +375,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'slow', weight: 16 }],
-    text: "Also {{Slow}} the enemy's next action by +16 weight.",
+    text: "{{Slow}} the enemy's next action by +16 weight.",
   },
   purging_strike_echo: {
     // echo of purging_strike
@@ -384,7 +384,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'rare',
     actions: [{ kind: 'damage', power: 8 }],
-    text: 'Also +8 damage (+ATK/MATK).',
+    text: '+8 damage (+ATK/MATK).',
   },
 
   // ---- Epic (6 PL / 60 deci) ----
@@ -394,7 +394,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'epic',
     actions: [{ kind: 'debuffStat', stat: 'armor', pct: 30, turns: 2 }],
-    text: 'Also -30% enemy DEF (2 turns).',
+    text: '-30% enemy DEF (2 turns).',
   },
   empowering_core: {
     id: 'empowering_core',
@@ -423,7 +423,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'epic',
     actions: [{ kind: 'shield', power: 12 }],
-    text: 'Also +12 shield (+DEF/MDEF).',
+    text: '+12 shield (+DEF/MDEF).',
   },
 
   // ---- Legendary (8 PL / 80 deci) ----
@@ -436,7 +436,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'legendary',
     actions: [{ kind: 'slow', weight: 32 }],
-    text: "Also {{Slow}} the enemy's next action by +32 weight.",
+    text: "{{Slow}} the enemy's next action by +32 weight.",
   },
   restorative_core: {
     id: 'restorative_core',
@@ -468,7 +468,7 @@ export const gemBook: Record<string, GemDef> = {
     kind: 'effect',
     rarity: 'legendary',
     actions: [{ kind: 'damage', power: 16 }],
-    text: 'Also +16 damage (+ATK/MATK).',
+    text: '+16 damage (+ATK/MATK).',
   },
 };
 
