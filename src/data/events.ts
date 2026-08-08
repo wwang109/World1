@@ -14,17 +14,20 @@
 // genuinely SAFE choice — cost 0, and if it's a gamble, one whose worst
 // branch is `nothing` — so a broke player is never soft-locked.
 //
-// `upgradeCard` (2026-08-04): bumps ONE already-owned card +1 tier
-// (bronze->silver->gold->diamond). v1 has NO picker — the resolver
-// (`src/run/events.ts#upgradeCardOutcome`) deterministically targets the
-// lowest-tier eligible (non-diamond) card, preferring a board `pieces` slot
-// over a bag card, tie-broken by ascending board `slot`/bag array order. If
-// nothing is eligible (every owned card is diamond, or the player owns none),
-// it STILL credits `CARD_FALLBACK_GOLD` but reports `{fellBack: true}` while
-// staying `kind: 'upgradeCard'` (deliberately NOT re-kinded to `grantGold`
-// like `grantCard`'s full-bag fallback — "nothing to upgrade" needs its own
-// UI line, not "bag was full"). A future pass may add a choose-your-card
-// picker UI; this is the deterministic placeholder.
+// `upgradeCard` (2026-08-04, picker added 2026-08-08): bumps ONE
+// player-CHOSEN already-owned card +1 tier (bronze->silver->gold->diamond).
+// The resolver (`src/run/events.ts#upgradeCardOutcome`) collects every
+// eligible (non-diamond) owned card — board `pieces` first (ascending
+// `slot`), then bag `bagSlots` (array order) — and, when at least one exists,
+// returns a deferred `{kind:'upgradeCardPick', options}` outcome instead of
+// resolving immediately; the UI shows those options (same "roll now, pick
+// later" shape as `bonusDraft`) and `applyUpgradeCardPick` finalizes whichever
+// one the player taps. If nothing is eligible (every owned card is diamond,
+// or the player owns none), it resolves immediately: STILL credits
+// `CARD_FALLBACK_GOLD` but reports `{fellBack: true}` while staying
+// `kind: 'upgradeCard'` (deliberately NOT re-kinded to `grantGold` like
+// `grantCard`'s full-bag fallback — "nothing to upgrade" needs its own UI
+// line, not "bag was full").
 
 import type { SkillTier } from '../engine/types';
 import type { CardFilter, GemFilter } from './shopTypes';

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { applyTier, resolveDisplaySkill } from '../../engine/cards';
+import { applyTier, gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import type { SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
@@ -12,7 +12,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
-import { STAT_TOKEN } from '../ui/statLabels';
+import { gemStatSuffix, STAT_TOKEN } from '../ui/statLabels';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene } from '../sceneRebuild';
 import {
@@ -153,12 +153,16 @@ export class MobileRunPrepScene extends Phaser.Scene {
   private renderHeroBand(run: NonNullable<ReturnType<typeof getActiveRun>>, top: number): number {
     const h = 30;
     this.add.rectangle(10, top, this.W - 20, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7);
-    const s = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation).setup.stats;
+    const heroSetup = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation).setup;
+    // Hero-scope stat gems fold in here too (`resolveDisplayHeroStats`), each
+    // bumped stat getting its own "(+N)" attribution (`gemStatSuffix`).
+    const s = resolveDisplayHeroStats(heroSetup.stats, heroSetup.pieces);
+    const gemAdds = gemHeroStats(heroSetup.pieces);
     this.add.text(20, top + h / 2, `YOU · LV ${run.heroLevel}`, {
       fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(0, 0.5);
     this.add.text(this.W - 20, top + h / 2,
-      `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower} · ${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${STAT_TOKEN.speed} ${s.speed}`, {
+      `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.attack} ${s.attack}${gemStatSuffix('attack', gemAdds)} · ${STAT_TOKEN.magicPower} ${s.magicPower}${gemStatSuffix('magicPower', gemAdds)} · ${STAT_TOKEN.armor} ${s.armor}${gemStatSuffix('armor', gemAdds)} · ${STAT_TOKEN.magicResist} ${s.magicResist}${gemStatSuffix('magicResist', gemAdds)} · ${STAT_TOKEN.speed} ${s.speed}${gemStatSuffix('speed', gemAdds)}`, {
         fontSize: `${F.tiny}px`, color: UI.textFootnote, fontFamily: FONT.body, fontStyle: 'bold',
       }).setOrigin(1, 0.5);
     addHoverTipZone(this, { x: 10, y: top, w: this.W - 20, h }, ALL_STAT_ENTRIES);
@@ -195,7 +199,9 @@ export class MobileRunPrepScene extends Phaser.Scene {
       heroPieces.push({ skill, slot: p.slot });
       heroSkills.push(skill);
     }
-    const heroStats = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation).setup.stats;
+    const heroSetup = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation).setup;
+    // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
+    const heroStats = resolveDisplayHeroStats(heroSetup.stats, heroSetup.pieces);
     new BoardColumn(this, {
       x: leftX, y: top, width: colW, height: colH, side: 'left',
       pieces: heroPieces, deck: heroSkills, stats: { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist },

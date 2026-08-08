@@ -138,6 +138,15 @@ export const UI = {
   textSoft: '#8d724a',
   /** Bronze accent as a text color (string twin of `chip`). */
   textAccent: '#c69948',
+  /**
+   * Hero-scope stat-gem bonus attribution — reuses the existing "good/
+   * positive" green (see the `color === UI.good ? '#9ad17a' : ...` toast
+   * idiom) so a gem-boosted stat's "+N" reads as a DIFFERENT kind of bonus
+   * than `textAccent`'s level-buy "+N", wherever both can appear side by
+   * side (the HERO stat-allocation grid) or a stat total needs its gem
+   * contribution called out (a hero statline / deck-build header).
+   */
+  textGem: '#9ad17a',
   /** Dark ink for text sitting on a bronze chip/button fill. */
   textOnChip: '#1a1208',
   /** Mobile scenes' de-facto primary/heading text tone (cream, cooler than `text`). */

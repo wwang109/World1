@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { weightOf, type SkillDef } from '../../engine/types';
-import { ELEMENT_COLOR, FONT, PROPERTY_COLOR, UI, WEAPON_COLOR } from '../theme';
+import { weightOf, type SkillDef, type SkillTier } from '../../engine/types';
+import { ELEMENT_COLOR, FONT, PROPERTY_COLOR, TIER_COLOR, UI, WEAPON_COLOR } from '../theme';
 import { cardType, IDENTITY_THRESHOLD } from '../../engine/combat/typeIdentity';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { fantasyTemplateCardArtKey } from './cardArtPresentation';
@@ -42,6 +42,18 @@ export interface CardTokenOptions {
   faceMode?: SkillFaceMode;
   /** Badges for the accessory rail (rendered bottom-up on the inward edge). */
   accessories?: TokenAccessory[];
+  /**
+   * This card INSTANCE's tier (bronze/silver/gold/diamond) — when supplied,
+   * the token's outer frame is stroked in `TIER_COLOR[tier]` instead of the
+   * generic outline, so tier reads at a glance without opening the inspect
+   * dock. Optional and additive: omitted by any caller with no per-instance
+   * tier handy (a bare unowned `SkillDef`, e.g. deck build's "available
+   * skills" list) — those keep today's generic-colored frame, just at the
+   * same slightly thicker weight every token now draws (see the stroke width
+   * below). Callers that DO track an instance tier (shop shelf offers, owned
+   * board/bag pieces) should pass it.
+   */
+  tier?: SkillTier;
   /**
    * Opt-in "ⓘ" inspect button, OUTWARD top corner — the shop's owned board/
    * bag columns pass this so the whole card body stays a pure drag surface
@@ -90,8 +102,13 @@ export class CardToken extends Phaser.GameObjects.Container {
     const side = opts.side ?? 'left';
     const spec = cardTokenSpec(w, h, side, opts.accessories?.length ?? 0, Boolean(opts.onInspect));
 
-    // background panel
-    const bg = scene.add.rectangle(0, 0, w, h, 0x121e30).setOrigin(0.5).setStrokeStyle(1, UI.battleOutline ?? 0x24344a, 0.9);
+    // background panel. Frame stroke is TIER-colored whenever an instance
+    // tier is known (see `CardTokenOptions.tier`); a bump from 1px to 2px
+    // ("slight", not a slab — see that field's doc comment) applies either
+    // way, so every token reads a touch crisper even where tier isn't wired
+    // up yet. `cursor`/`drag` state below still overrides this outright.
+    const frameColor = opts.tier ? TIER_COLOR[opts.tier] : (UI.battleOutline ?? 0x24344a);
+    const bg = scene.add.rectangle(0, 0, w, h, 0x121e30).setOrigin(0.5).setStrokeStyle(2, frameColor, opts.tier ? 0.95 : 0.9);
     this.add(bg);
 
     // card art, cover-fit and masked to the token rect. Children are LOCAL

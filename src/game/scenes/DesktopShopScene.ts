@@ -23,7 +23,7 @@ import {
 import type { MergeTarget } from '../../run/shop';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { DESKTOP_PROFILE } from '../layoutProfile';
-import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
+import { FONT, GEM_RARITY_COLOR, SCREEN, TIER_COLOR, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
@@ -550,9 +550,17 @@ export class DesktopShopScene extends Phaser.Scene {
         }
         const base = skillBook[offer.skillId]!;
         const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
-        const tok = new CardToken(this, cx + cardW / 2, cy + cardH / 2, skill, { width: cardW, height: cardH, side: 'left' });
+        const tok = new CardToken(this, cx + cardW / 2, cy + cardH / 2, skill, { width: cardW, height: cardH, side: 'left', tier: offer.tier });
         A(tok);
         this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, cy, cardW, cardH), src: { kind: 'shelfCard', index: i }, obj: tok });
+        // MERGE affordance — same lookup the BUY confirm dialog already uses
+        // (`mergeTargetForPendingBuy`'s sibling read, done here up front for
+        // every shelf offer instead of just the pending one). Overlaid, not
+        // baked into CardToken: the badge is shop-specific chrome, and
+        // CardToken stays feature-agnostic for its other (battle/prep/deck
+        // build/draft) callers.
+        const shelfMergeTarget = runShop ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
+        if (shelfMergeTarget) A(this.renderMergeBadge(cx + 4, cy + 4, shelfMergeTarget, F.tiny, i));
         const affordable = this.activeGold() >= offer.price;
         A(this.add.rectangle(cx, cy + cardH, cardW, priceStripH, UI.panelMuted, 0.95).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.6));
         A(this.add.text(cx + cardW / 2, cy + cardH + 12, `${offer.price} GOLD`, {
@@ -624,6 +632,65 @@ export class DesktopShopScene extends Phaser.Scene {
     // viewport doesn't fall through to anything behind it.
     this.add.rectangle(this.shelfViewport.x, this.shelfViewport.y, this.shelfViewport.width, this.shelfViewport.height, 0xffffff, 0.001).setOrigin(0, 0);
     this.renderShelfScrollAffordance();
+  }
+
+  /**
+   * MERGE affordance overlay — a small outlined tag pinned to a shelf offer's
+   * top-left corner (`cx+4, cy+4`, clear of the offer's OWN tier-colored
+   * frame and of the top-RIGHT "×N SLOTS" span tag a multi-slot offer might
+   * show) when the player already owns a mergeable copy of that skill.
+   *
+   * DESIGN NOTE (why a corner tag, not a glowing/animated border): the
+   * offer's frame just became the tier-legibility channel (tier color +
+   * slightly thicker stroke, `CardTokenOptions.tier`). Animating or
+   * recoloring THAT same border for "mergeable" would read as "this is a
+   * better tier," not "you can merge this" — the exact collision the design
+   * brief called out. A merge signal needs its OWN channel: a shape
+   * (bordered pill, not a borderless scrim like the weight/slot badges) and
+   * its own color (`UI.good`, the SAME green the BUY-confirm dialog's MERGE
+   * button already uses — see `mergeTargetForPendingBuy`'s caller — so this
+   * doesn't invent a new "merge = X color" convention).
+   *
+   * The label itself hints the DECISION, not just the fact: "MERGE →
+   * <résultant tier>" — merging always targets an OWNED copy of the SAME
+   * skill (see `findMergeTarget` in `src/run/shop.ts`), so there is no
+   * different card name to show; the tier it becomes is the one piece of
+   * information the player doesn't already have on screen. That tier word is
+   * itself colored via `TIER_COLOR[toTier]`, tying back into the border
+   * feature — read the outline as "you can act," read the word's color as
+   * "here's what it becomes."
+   *
+   * MOTION: a single slow (1.6s), low-contrast (1 <-> 0.7 alpha) breathe on
+   * the badge container ONLY — never the card, never its frame — so several
+   * mergeable offers on one shelf stay ambient instead of a wall of flashing
+   * borders. `staggerIndex` offsets each badge's phase (a few hundred ms per
+   * offer, wrapped) so a shelf full of them doesn't breathe in lockstep.
+   * Lifecycle: `this.tweens.add(...)`, same as every other looping tween in
+   * these scenes (see `RunStatPanel.renderBankedPlBadge`) — `rebuildScene()`
+   * calls `scene.tweens.killAll()` before every `create()`, so this tween is
+   * torn down on the NEXT buy/sell/reroll/drag rebuild automatically; nothing
+   * here needs its own cleanup hook.
+   */
+  private renderMergeBadge(x: number, y: number, target: MergeTarget, fontPx: number, staggerIndex: number): Phaser.GameObjects.Container {
+    const goodHex = `#${UI.good.toString(16).padStart(6, '0')}`;
+    const tierHex = `#${TIER_COLOR[target.toTier].toString(16).padStart(6, '0')}`;
+    const padX = 6;
+    const padY = 3;
+    const prefix = this.add.text(padX, padY, '▲ MERGE ', {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${fontPx}px`, color: goodHex,
+    }).setOrigin(0, 0);
+    const suffix = this.add.text(padX + prefix.width, padY, `→ ${target.toTier.toUpperCase()}`, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${fontPx}px`, color: tierHex,
+    }).setOrigin(0, 0);
+    const w = padX * 2 + prefix.width + suffix.width;
+    const h = padY * 2 + Math.max(prefix.height, suffix.height);
+    const plate = this.add.rectangle(0, 0, w, h, 0x0b1420, 0.85).setOrigin(0, 0).setStrokeStyle(1, UI.good, 0.9);
+    const badge = this.add.container(x, y, [plate, prefix, suffix]);
+    this.tweens.add({
+      targets: badge, alpha: 0.7, duration: 1600, delay: (staggerIndex % 4) * 240,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    });
+    return badge;
   }
 
   /**
@@ -726,7 +793,7 @@ export class DesktopShopScene extends Phaser.Scene {
       // Tier + socketed-gem fold (resolver seam, display-only) so YOUR BOARD's
       // face numbers match what the card actually casts — see `resolveDisplaySkill`.
       const skill = resolveDisplaySkill(base, p);
-      boardPieces.push({ skill, slot: p.slot });
+      boardPieces.push({ skill, slot: p.slot, tier: p.tier });
       boardSkills.push(skill);
     }
     const boardCol = new BoardColumn(this, {
@@ -753,7 +820,7 @@ export class DesktopShopScene extends Phaser.Scene {
       if (!card) return;
       const skill = skillBook[card.skillId];
       if (!skill) return;
-      bagPieces.push({ skill, slot: index });
+      bagPieces.push({ skill, slot: index, tier: card.tier });
       bagSkills.push(skill);
     });
     const bagCol = new BoardColumn(this, {

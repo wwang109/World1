@@ -48,6 +48,55 @@ const next = {
     'size, speedWeight, cooldownTurns, tier, rarity, element, weapon, scope, aura, special, ' +
     'tierUpgrades) — is still hashed byte-for-byte.',
   note:
+    'Regression lock recaptured (2026-08-07) for the MULTI-HIT STAT SPLIT ' +
+    '(user-locked 2026-08-07): a REAL, REVIEWED RULE CHANGE that moves real damage ' +
+    'numbers. The caster\'s scaling stat (Attack / Magic Power / higher for TRUE) is ' +
+    'now a PER-CAST resource split across a cast\'s `damage` actions, not a full add ' +
+    'RE-DELIVERED by each one. Twin Slash at ATK 20 was 2x(6+20) = 52 and is now ' +
+    '2x(6+10) = 32; a cast\'s total stat contribution is finally HIT-COUNT-INVARIANT. ' +
+    'WHY: multi-hit previously scaled SUPERLINEARLY with hero stats (a 3-hit card ' +
+    'delivered 3x the stat) while powerLevelDeci priced only the summed flat base ' +
+    'plus a FLAT PRICE.extraHitPremium — a fixed 3 PL against an effect worth ' +
+    '(hits-1)x(ATK-DEF), i.e. ~1 PL at ATK 10 but ~21 PL at ATK 50 and ~40 PL at the ' +
+    'level-30 ceiling. Splitting the stat is what makes an honest flat price possible ' +
+    'at all. The split is exact integer arithmetic (`statShare`): shares sum to ' +
+    'EXACTLY the stat for any hit count and any sign, with the remainder FRONT-LOADED ' +
+    '(earlier hits carry the odd point) so the share most likely to land before a ' +
+    'first-to-fall break is the larger one. At one hit it is the IDENTITY, so every ' +
+    'single-hit card in the book is byte-identical. GEM-APPENDED damage actions JOIN ' +
+    'the split (the count is taken from the EFFECTIVE effect list), which is what ' +
+    'makes the user-reported case behave as printed: soul_rend_echo ("+16 damage") ' +
+    'used to deliver +36 at ATK 20 and +66 at ATK 50, and now delivers exactly +16 on ' +
+    'every host at every stat line. [SUPERSEDED IN PART, SAME DAY — NO REGENERATION: ' +
+    'gem-appended hits were REMOVED from the split\'s divisor and made unbuffable ' +
+    '(see `GemAppended` in src/engine/types.ts). Joining the divisor made a "+damage" ' +
+    'gem net-NEGATIVE against armor (-4 on sword_slash at DEF 8, -9 at DEF 16) because ' +
+    'it took a share from the base hit AND paid mitigation a second time. A gem hit is ' +
+    'now self-contained: outside the divisor, no stat share, no mods.damageFlat, no ' +
+    'comboBonus — so it still delivers exactly +16, and the host card is untouched. ' +
+    'The fixture below is UNCHANGED and was NOT recaptured: the sweep ' +
+    '(tests/engine/helpers/sweepConfigs.ts) sockets NO gems at all and no card uses the ' +
+    'new `statStrike` action, so a read-only recompute moved 0/200 logs in BOTH sweeps. ' +
+    'Rules are pinned in tests/engine/gemStrike.test.ts.] DELIBERATELY UNCHANGED (user-locked the same ' +
+    'day): `mods.damageFlat` — card-scope stat gems and board auras — and a ' +
+    'triggered `comboBonus` still apply IN FULL to EVERY hit, so a +4 card-scope gem ' +
+    'is still worth +8 on a 2-hit card. Blast radius verified BEFORE regenerating, ' +
+    'over both 200-fight sweeps: 94/200 logs moved in EACH (89 of them decided before ' +
+    'ATTRITION_START_TURN), with 1 winner flip (#8, the same log in both sweeps) and ' +
+    '18 turn changes — the expected consequence of multi-hit casts hitting for less. ' +
+    'CONTAINMENT PROVEN BY EXHAUSTION, BOTH DIRECTIONS: the moved set is EXACTLY the ' +
+    'set of logs that CAST twin_slash, rapid_volley or barrage (the book\'s only ' +
+    'multi-damage-action cards) — 0 logs moved without casting one, and 0 logs that ' +
+    'cast one stayed put. 124/200 configs carry one on a board; the 30 that carry one ' +
+    'yet did not move are precisely those where it never fired, proven by their bytes ' +
+    'standing still. NOT REPRICED HERE (deliberate, out of this agent\'s scope): ' +
+    'PRICE.extraHitPremium still charges 30 deci for what is now a strictly WEAKER ' +
+    'effect (multi-hit still eats mitigation once per hit, so it is now worse than a ' +
+    'single-hit card of the same budget against armor), and the user\'s tier/slot ' +
+    'gate for multi-hit cards is a balance-designer pass on top of this one. See ' +
+    'src/engine/combat/interpreter.ts (`HitSplit`, `statShare`, `countDamageActions`, ' +
+    'the `damage` case and `applyCast`) and tests/engine/multiHit.test.ts. ' +
+    'It supersedes the prior regen: ' +
     'Regression lock recaptured (2026-08-06) for the HEAL DERIVATION BLOCK ' +
     '(`heal.calculation`): an ADDITIVE, PRESENTATION-ONLY EVENT FIELD — NOT a rule ' +
     'change. The sim reads nothing from it and every number it reports was already ' +

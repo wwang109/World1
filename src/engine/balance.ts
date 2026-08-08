@@ -270,14 +270,28 @@ export const PRICE = {
   auraWeightDelta: 20,
 
   /**
-   * Multi-hit premium: each damage action BEYOND the first on one card pays
-   * this flat surcharge (30 deci = 3 PL). Every hit re-delivers the caster's
-   * full stat add unpriced (the flat rate only prices the card's own points),
-   * so a second hit ships roughly ATK − DEF extra damage for free; 30 deci
-   * (≈ 6 flat points at 5/pt) prices that delivery at typical low-level
-   * spreads. Each extra hit also eats mitigation again, which is the built-in
-   * counterweight vs armor stacks. First-pass rate — re-derive with sim data
-   * once more multi-hit cards exist.
+   * Multi-hit premium: each damage INSTANCE beyond the first on one card pays
+   * this flat surcharge (30 deci = 3 PL). See `HIT_KINDS` for what counts.
+   *
+   * RATIONALE CORRECTED 2026-08-07 — the number is unchanged, the reason it
+   * exists is not. It USED to read "every hit re-delivers the caster's full
+   * stat add unpriced, so a second hit ships roughly ATK − DEF extra damage for
+   * free". That is no longer true: the MULTI-HIT STAT SPLIT (same day) makes a
+   * cast's stat contribution hit-count-invariant, so a second hit ships NO
+   * extra stat at all. What it does ship is a second INSTANCE, and instances
+   * are a resource:
+   *  • `negate` cancels ONE hit per charge — a 2-instance cast burns two
+   *    charges, or burns one and lands the second, where a 1-instance cast of
+   *    the same total damage is simply blanked;
+   *  • per-instance defenses added later (dodge/evade) inherit that exactly;
+   *  • flat `mods.damageFlat` (board auras, card-scope stat gems) applies PER
+   *    HIT, so a multi-hit card is the best host for one — conditional upside,
+   *    not a strict downside.
+   * Against the counterweight — each instance eats mitigation again, so a
+   * split cast loses `(hits − 1) × DEF` versus one big hit — multi-hit is now
+   * CONDITIONAL rather than weak: worse into armor stacks, better into
+   * negate/charge defenses and flat-damage buffs. 30 deci prices that
+   * conditionality. Re-derive with sim data once more multi-hit cards exist.
    */
   extraHitPremium: 30,
 
@@ -361,16 +375,29 @@ export function sizeGrantDeci(size: number, tier: SkillTier): number {
  */
 export function actionsPriceDeci(actions: readonly Action[], property: Property): number {
   let deci = 0;
-  // Multi-hit premium: damage actions beyond the first pay a flat surcharge
-  // for re-delivering the unpriced caster stat add (see PRICE.extraHitPremium).
-  const damageActions = actions.filter((a) => a.kind === 'damage').length;
-  if (damageActions > 1) deci += (damageActions - 1) * PRICE.extraHitPremium;
+  // Multi-hit premium: damage INSTANCES beyond the first pay a flat surcharge
+  // for being separately-blocked hits (see PRICE.extraHitPremium).
+  const hits = actions.filter((a) => HIT_KINDS.has(a.kind)).length;
+  if (hits > 1) deci += (hits - 1) * PRICE.extraHitPremium;
   for (const action of actions) {
     switch (action.kind) {
       case 'damage':
         // Flat base damage (the caster's stat is added at cast time, unpriced).
         // TRUE damage pays a scaling per-point premium for bypassing defenses.
         deci += action.power * (PRICE.flatPowerPerPoint + (property === 'true' ? PRICE.truePremiumPerPoint : 0));
+        break;
+      case 'statStrike':
+        // A CAPPED stat strike can never deliver more than `cap` damage at any
+        // hero level, so it prices exactly like a flat damage action of that
+        // size — a conservative ceiling price (it delivers less than the cap
+        // until the caster's stat reaches `cap * shareOf`).
+        //
+        // An UNCAPPED one prices at ZERO ON PURPOSE. Its value is unbounded in
+        // the caster's stat, so no fixed deci rate is honest; 0 makes it miss
+        // every rarity band (`isGemOnBudget`) and every tier budget
+        // (`isOnBudget`), which fails the audit loudly instead of shipping free
+        // power. The fix is to CAP the effect, never to invent a rate here.
+        deci += (action.cap ?? 0) * (PRICE.flatPowerPerPoint + (property === 'true' ? PRICE.truePremiumPerPoint : 0));
         break;
       case 'heal':
       case 'shield':
@@ -482,7 +509,7 @@ export function powerLevelBreakdown(skill: SkillDef): PlBreakdownPart[] {
   }
   // Multi-hit premium is count-based, so single-action pricing above misses
   // it — surface it as its own labeled part (keeps parts summing exactly).
-  const extraHits = skill.effects.filter((a) => a.kind === 'damage').length - 1;
+  const extraHits = skill.effects.filter((a) => HIT_KINDS.has(a.kind)).length - 1;
   if (extraHits > 0) push('multi-hit', extraHits * PRICE.extraHitPremium);
 
   if (skill.aura) {
@@ -564,6 +591,16 @@ export const MAX_CARD_SIZE = 3;
  */
 const TIER_SCALED_FAMILIES: ReadonlySet<keyof typeof EFFECT_CAPS_DECI> = new Set();
 
+/**
+ * DAMAGE INSTANCES — the kinds that produce a separately-resolved hit. Instance
+ * COUNT is a resource in its own right, not a damage footnote: each instance is
+ * mitigated, shielded and NEGATED on its own, so a 2-instance cast burns two
+ * `negate` charges (or burns one and lands the second) where a 1-instance cast
+ * is simply blanked. That is what `PRICE.extraHitPremium` charges for; any
+ * future per-instance defense (dodge/evade) inherits the same interaction.
+ */
+export const HIT_KINDS: ReadonlySet<Action['kind']> = new Set(['damage', 'statStrike']);
+
 export const CONTROL_KINDS: ReadonlySet<Action['kind']> = new Set(['stun', 'slow', 'disrupt', 'debuffStat', 'expose', 'shieldBreak']);
 export const DOT_KINDS: ReadonlySet<Action['kind']> = new Set(['poison', 'burn', 'bleed']);
 export const EMPOWER_KINDS: ReadonlySet<Action['kind']> = new Set(['buffStat', 'guard', 'negate', 'cleanse', 'lifesteal', 'comboBonus']);
@@ -593,7 +630,7 @@ export function capViolations(skill: SkillDef): string[] {
   check('control', CONTROL_KINDS);
   check('dot', DOT_KINDS);
   check('empower', EMPOWER_KINDS);
-  check('damage', new Set(['damage']));
+  check('damage', HIT_KINDS);
   check('shield', new Set(['shield']));
   check('heal', new Set(['heal']));
   const stunTurns = skill.effects.reduce((sum, a) => sum + (a.kind === 'stun' ? a.turns : 0), 0);

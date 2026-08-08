@@ -13,6 +13,7 @@ import {
   DOT_KINDS,
   effectCapDeci,
   EMPOWER_KINDS,
+  HIT_KINDS,
   PRICE,
   SCALABLE_KINDS,
   sizeGrantDeci,
@@ -81,8 +82,13 @@ export function autoScaleTier(def: SkillDef, targetTier: SkillTier): SkillDef {
   // --- FROZEN deci (Bronze values; only the size grant refund moves with tier) ---
   const controlCost = actionsPriceDeci(effects.filter((a) => CONTROL_KINDS.has(a.kind)), property);
   const empowerCost = actionsPriceDeci(effects.filter((a) => EMPOWER_KINDS.has(a.kind)), property);
-  const damageActions = effects.filter((a) => a.kind === 'damage').length;
-  const extraHit = damageActions > 1 ? (damageActions - 1) * PRICE.extraHitPremium : 0;
+  // `statStrike` is FROZEN like control/empower: it carries no `power` for the
+  // sink solver to move, and its magnitude is a fraction of the caster's stat,
+  // which no tier bump should widen. Its capped price is charged here so the
+  // remaining budget the sink solves for stays exact.
+  const strikeCost = actionsPriceDeci(effects.filter((a) => a.kind === 'statStrike'), property);
+  const hitInstances = effects.filter((a) => HIT_KINDS.has(a.kind)).length;
+  const extraHit = hitInstances > 1 ? (hitInstances - 1) * PRICE.extraHitPremium : 0;
   let auraCost = 0;
   if (def.aura) {
     const reach = def.aura.affects === 'allBoard' ? 2 : 1;
@@ -98,7 +104,7 @@ export function autoScaleTier(def: SkillDef, targetTier: SkillTier): SkillDef {
   const cooldown = def.cooldownTurns ?? BASELINE_COOLDOWN;
   const cooldownCost = (BASELINE_COOLDOWN - cooldown) * PRICE.cooldownPerTurn;
   const sizeGrant = sizeGrantDeci(def.size, targetTier);
-  const frozenDeci = controlCost + empowerCost + auraCost + extraHit + weightCost + cooldownCost - sizeGrant;
+  const frozenDeci = controlCost + empowerCost + strikeCost + auraCost + extraHit + weightCost + cooldownCost - sizeGrant;
 
   // --- DoT: grow toward min(cap, remaining budget). Content carries one DoT
   //     action per DoT card, so the chosen N is the whole DoT line. ---
@@ -186,6 +192,14 @@ export function applyTier(def: SkillDef, targetTier: SkillTier): SkillDef {
  * that many turns (floored at 0). Any other case (no gem / stat gem / an
  * effect gem with neither actions nor a cooldown reduction) returns the
  * original def unchanged (same reference).
+ *
+ * THE PROVENANCE SEAM (user-locked 2026-08-07): every appended action is
+ * stamped `fromGem: true` HERE — not inferred later. That single mark is what
+ * lets the core loop treat a gem's hit as its own self-contained hit (outside
+ * the multi-hit stat-split divisor, and taking no attacker-side bonus) without
+ * the loop ever learning what a gem is; see `GemAppended` in types.ts for the
+ * exact rules and `interpreter.ts` for where they are read. Adding a gem
+ * capability = extend this stamp + the data, never a branch in `applyCast`.
  */
 export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece): SkillDef {
   // Rank/tier-up first (scales the base card), THEN fold the gem on top — a
@@ -196,7 +210,9 @@ export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece): SkillDe
   const cooldownReduction = gem.cooldownReduction ?? 0;
   if (gem.actions.length === 0 && cooldownReduction === 0) return tiered;
 
-  const effects = gem.actions.length > 0 ? [...tiered.effects, ...gem.actions] : tiered.effects;
+  const effects = gem.actions.length > 0
+    ? [...tiered.effects, ...gem.actions.map(markFromGem)]
+    : tiered.effects;
   if (cooldownReduction === 0) return { ...tiered, effects };
 
   const baseCooldown = tiered.cooldownTurns ?? BASELINE_COOLDOWN;
@@ -253,6 +269,15 @@ export function resolveDisplaySkill(def: SkillDef, piece: BoardPiece): SkillDef 
   return { ...effective, effects: after, text: retextScaledNumbers(effective.text, before, after) };
 }
 
+/**
+ * Stamp one gem action with its origin (see `GemAppended`). Copies rather than
+ * mutating: the gem in `src/data` is shared content and must stay pristine, and
+ * a fresh object per resolve keeps the effective skill free of aliasing.
+ */
+function markFromGem(action: Action): Action {
+  return { ...action, fromGem: true };
+}
+
 /** A card-scope stat gem's card mods as an AuraMods-shaped bundle; `{}` otherwise. */
 export function gemCardMods(gem: Gem | null | undefined): Partial<AuraMods> {
   if (!gem || gem.kind !== 'stat' || gem.scope !== 'card' || !gem.mods.card) return {};
@@ -289,4 +314,24 @@ export function applyHeroGems(stats: CombatantStats, heroAdds: Partial<Combatant
     out[key] = out[key] + v;
   }
   return out;
+}
+
+/**
+ * DISPLAY-ONLY hero-stat fold — `src/game`'s counterpart to
+ * `resolveDisplaySkill`, for the OTHER axis of gem display (hero-scope stat
+ * gems rather than a card's own face). Wraps `applyHeroGems(stats,
+ * gemHeroStats(pieces))`, the EXACT fold `initCombatant` (combat/state.ts)
+ * applies at cast time, so a hero-scope stat gem's bonus shows up BOTH on the
+ * hero's own stat readout and on every card's live-stat term (the "+ATK"/
+ * "+MDEF" folded into a HEAL/DMG number) — without re-simulating combat.
+ * `pieces` must be the hero's FULL board (every socketed piece contributes
+ * its OWN hero-scope gem, not just whichever card's face is being drawn).
+ *
+ * NEVER feed the result back into a `CombatantSetup` handed to `simulate()` —
+ * the engine folds the SAME gems from `setup.pieces` itself at cast time, so
+ * doing it here too would double the bonus. Display-only, exactly like
+ * `resolveDisplaySkill`; never touches `powerLevelDeci`/`instancePowerLevelDeci`.
+ */
+export function resolveDisplayHeroStats(stats: CombatantStats, pieces: BoardPiece[]): CombatantStats {
+  return applyHeroGems(stats, gemHeroStats(pieces));
 }

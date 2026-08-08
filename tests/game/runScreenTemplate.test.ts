@@ -315,6 +315,72 @@ describe('runScreenTemplate', () => {
     });
   }
 
+  // The resolved-outcome screen's OWN `outcome` sub-shape (task #41 density
+  // pass, 2026-08-08) — ADDITIVE alongside `icon`/`headline`/`detail`/
+  // `feature` above, which stay exactly as they were (the bonus-draft/
+  // upgrade-card PICKERS still read those, untouched by this pass). See
+  // `runScreenTemplate.ts`'s `reward.outcome` doc comment for what each part
+  // is for and why desktop/mobile deliberately differ here.
+  const OUTCOME_KEYS = ['identity', 'text', 'feature'] as const;
+
+  for (const platform of PLATFORMS) {
+    it(`${platform}: every outcome sub-rect sits wholly inside the panel`, () => {
+      const t = runScreenTemplate(platform);
+      const { panel, outcome } = t.contentSlots.reward;
+      for (const key of OUTCOME_KEYS) {
+        const r = outcome[key];
+        expect(within(r, panel)).toBe(true);
+        expect(r.width).toBeGreaterThan(0);
+        expect(r.height).toBeGreaterThan(0);
+      }
+    });
+
+    it(`${platform}: outcome sub-rects never overlap each other`, () => {
+      const t = runScreenTemplate(platform);
+      const { outcome } = t.contentSlots.reward;
+      for (let i = 0; i < OUTCOME_KEYS.length; i++) {
+        for (let j = i + 1; j < OUTCOME_KEYS.length; j++) {
+          expect(overlaps(outcome[OUTCOME_KEYS[i]!], outcome[OUTCOME_KEYS[j]!])).toBe(false);
+        }
+      }
+    });
+
+    it(`${platform}: identity sits above the text/feature body`, () => {
+      const t = runScreenTemplate(platform);
+      const { identity, text, feature } = t.contentSlots.reward.outcome;
+      expect(identity.y + identity.height).toBeLessThanOrEqual(text.y);
+      expect(identity.y + identity.height).toBeLessThanOrEqual(feature.y);
+    });
+
+    it(`${platform}: outcome sub-rects are deterministic (no run/content dependency)`, () => {
+      const a = runScreenTemplate(platform).contentSlots.reward.outcome;
+      const b = runScreenTemplate(platform).contentSlots.reward.outcome;
+      expect(a).toEqual(b);
+    });
+  }
+
+  it("desktop: text and feature sit SIDE BY SIDE (the 'wide band' answer) — same top, same height, feature to text's right", () => {
+    const { text, feature } = runScreenTemplate('desktop').contentSlots.reward.outcome;
+    expect(text.y).toBe(feature.y);
+    expect(text.height).toBe(feature.height);
+    expect(feature.x).toBeGreaterThanOrEqual(text.x + text.width);
+  });
+
+  it("mobile: text and feature are STACKED (the 'narrow column' answer) — feature starts below text, both full width", () => {
+    const { identity, text, feature } = runScreenTemplate('mobile').contentSlots.reward.outcome;
+    expect(text.y + text.height).toBeLessThanOrEqual(feature.y);
+    expect(text.width).toBe(identity.width);
+    expect(feature.width).toBe(identity.width);
+  });
+
+  it('mobile: feature gets the LARGE remaining height below the fixed text band, not a modest fixed size', () => {
+    // Pins the actual density-pass motivation: before this pass, everything
+    // below the headline/detail on mobile's already content-filling panel
+    // sat empty. `feature` must now claim that room.
+    const { feature } = runScreenTemplate('mobile').contentSlots.reward.outcome;
+    expect(feature.height).toBeGreaterThan(300);
+  });
+
   // 2026-08-06 redesign: a reward panel that filled its ENTIRE region read as
   // "a token lost in a stadium" on a wide desktop window (Phaser.Scale.EXPAND
   // lets `content.width` exceed 1900px there) — these pin the fix, driving

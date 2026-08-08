@@ -116,6 +116,18 @@ describe('buildRunRewardViewModel', () => {
     expect(model.feature).toEqual({ kind: 'icon' });
   });
 
+  it('upgradeCardPick: headline invites a pick, feature is the icon fallback (the picker itself owns the card grid) — unreachable in practice, scenes render this via renderRunUpgradeCardPicker instead', () => {
+    const outcome: EventOutcome = {
+      kind: 'upgradeCardPick',
+      options: [{ instanceId: 'p_1', skillId: SKILL_ID, from: 'bronze', to: 'silver' }],
+    };
+    const model = buildRunRewardViewModel(outcome);
+    expect(model.iconKey).toBe(choiceArtKey('upgradeCardPick'));
+    expect(model.headline).toBe('Choose a card to upgrade');
+    expect(model.detail).toBeUndefined();
+    expect(model.feature).toEqual({ kind: 'icon' });
+  });
+
   it('nothing: headline is the plain no-op, feature is the icon fallback', () => {
     const outcome: EventOutcome = { kind: 'nothing' };
     const model = buildRunRewardViewModel(outcome);

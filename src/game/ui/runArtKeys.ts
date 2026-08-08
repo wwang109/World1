@@ -65,6 +65,7 @@ export function choiceArtKey(kind: string): string {
     case 'grantCard':
     case 'bonusDraft':
     case 'upgradeCard':
+    case 'upgradeCardPick':
       return RUN_ART_KEYS.icon.choiceCard;
     case 'grantGem':
       return RUN_ART_KEYS.icon.choiceGem;

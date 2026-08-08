@@ -4,6 +4,7 @@ import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
 import {
   applyBonusDraftPick,
+  applyUpgradeCardPick,
   isEventChoiceAffordable,
   resolveEventChoice,
   rollEventForNode,
@@ -508,7 +509,7 @@ describe('run/events: resolveEventChoice', () => {
 });
 
 describe('run/events: upgradeCard', () => {
-  it('upgrades the lowest-tier BOARD piece, tie-broken by ascending slot (board preferred over bag)', () => {
+  it('offers every eligible owned card as options — board first (ascending slot), then bag (array order) — and pays cost without mutating anything yet', () => {
     const { state } = stateAtFirstEvent(4);
     const rigged: RunState = {
       ...state,
@@ -521,16 +522,45 @@ describe('run/events: upgradeCard', () => {
       bagSlots: [{ instanceId: 'b_bronze', skillId: 'sword_slash', tier: 'bronze' }],
     };
     const { state: next, outcome } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
-    expect(outcome).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from: 'bronze', to: 'silver', gambled: false });
-    // The EARLIER-slot bronze board piece upgraded, not the later one, and not the bag.
+    expect(outcome).toEqual({
+      kind: 'upgradeCardPick',
+      gambled: false,
+      options: [
+        { instanceId: 'p_silver', skillId: 'sword_slash', from: 'silver', to: 'gold' },
+        { instanceId: 'p_bronze_early', skillId: 'sword_slash', from: 'bronze', to: 'silver' },
+        { instanceId: 'p_bronze_late', skillId: 'sword_slash', from: 'bronze', to: 'silver' },
+        { instanceId: 'b_bronze', skillId: 'sword_slash', from: 'bronze', to: 'silver' },
+      ],
+    });
+    // Cost is paid up front, but nothing is upgraded yet — the pick is deferred.
+    expect(next.gold).toBe(5); // 10 - the 5-gold cost, no fallback gold added
+    expect(next.pieces).toEqual(rigged.pieces);
+    expect(next.bagSlots).toEqual(rigged.bagSlots);
+  });
+
+  it('applyUpgradeCardPick bumps exactly the tapped BOARD instance, leaving every other owned card untouched', () => {
+    const { state } = stateAtFirstEvent(4);
+    const rigged: RunState = {
+      ...state,
+      gold: 10,
+      pieces: [
+        { instanceId: 'p_silver', skillId: 'sword_slash', tier: 'silver', slot: 0 },
+        { instanceId: 'p_bronze_late', skillId: 'sword_slash', tier: 'bronze', slot: 3 },
+        { instanceId: 'p_bronze_early', skillId: 'sword_slash', tier: 'bronze', slot: 1 },
+      ],
+      bagSlots: [{ instanceId: 'b_bronze', skillId: 'sword_slash', tier: 'bronze' }],
+    };
+    const { state: afterChoice } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
+    const { state: next, outcome } = applyUpgradeCardPick(afterChoice, 'p_bronze_early');
+    expect(outcome).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from: 'bronze', to: 'silver' });
+    // The TAPPED bronze board piece upgraded, not the other bronze copies.
     expect(next.pieces.find((p) => p.instanceId === 'p_bronze_early')!.tier).toBe('silver');
     expect(next.pieces.find((p) => p.instanceId === 'p_bronze_late')!.tier).toBe('bronze');
     expect(next.pieces.find((p) => p.instanceId === 'p_silver')!.tier).toBe('silver');
     expect(next.bagSlots[0]!.tier).toBe('bronze');
-    expect(next.gold).toBe(5); // 10 - the 5-gold cost, no fallback gold added
   });
 
-  it('falls back to the BAG when no board piece sits at the lowest eligible tier', () => {
+  it('applyUpgradeCardPick bumps exactly the tapped BAG instance when that is what the player chose', () => {
     const { state } = stateAtFirstEvent(4);
     const rigged: RunState = {
       ...state,
@@ -541,8 +571,19 @@ describe('run/events: upgradeCard', () => {
         { instanceId: 'b_bronze', skillId: 'sword_slash', tier: 'bronze' },
       ],
     };
-    const { state: next, outcome } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
-    expect(outcome).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from: 'bronze', to: 'silver', gambled: false });
+    const { state: afterChoice, outcome: pick } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
+    // Board options precede bag options; within the bag, array order is preserved.
+    expect(pick).toEqual({
+      kind: 'upgradeCardPick',
+      gambled: false,
+      options: [
+        { instanceId: 'p_gold', skillId: 'sword_slash', from: 'gold', to: 'diamond' },
+        { instanceId: 'b_gold', skillId: 'sword_slash', from: 'gold', to: 'diamond' },
+        { instanceId: 'b_bronze', skillId: 'sword_slash', from: 'bronze', to: 'silver' },
+      ],
+    });
+    const { state: next, outcome } = applyUpgradeCardPick(afterChoice, 'b_bronze');
+    expect(outcome).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from: 'bronze', to: 'silver' });
     expect(next.bagSlots[1]!.tier).toBe('silver');
     expect(next.bagSlots[0]!.tier).toBe('gold');
     expect(next.pieces[0]!.tier).toBe('gold');
@@ -561,9 +602,25 @@ describe('run/events: upgradeCard', () => {
         pieces: [{ instanceId: 'p', skillId: 'sword_slash', tier: from, slot: 0 }],
         bagSlots: [],
       };
-      const { outcome } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
-      expect(outcome).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from, to, gambled: false });
+      const { state: afterChoice, outcome: pick } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
+      expect(pick).toEqual({ kind: 'upgradeCardPick', gambled: false, options: [{ instanceId: 'p', skillId: 'sword_slash', from, to }] });
+      const { outcome } = applyUpgradeCardPick(afterChoice, 'p');
+      expect(outcome).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from, to });
     }
+  });
+
+  it('applyUpgradeCardPick falls back gracefully (fellBack:true, CARD_FALLBACK_GOLD credited) if the picked instanceId no longer resolves to an eligible owned card', () => {
+    const { state } = stateAtFirstEvent(4);
+    const rigged: RunState = {
+      ...state,
+      gold: 5,
+      pieces: [{ instanceId: 'p', skillId: 'sword_slash', tier: 'bronze', slot: 0 }],
+      bagSlots: [],
+    };
+    const { state: next, outcome } = applyUpgradeCardPick(rigged, 'no_such_instance');
+    expect(outcome).toEqual({ kind: 'upgradeCard', fellBack: true });
+    expect(next.gold).toBe(5 + 2); // fallback gold credited, the untouched bronze piece is left alone
+    expect(next.pieces[0]!.tier).toBe('bronze');
   });
 
   it('diamond-guard: falls back gracefully (fellBack:true, CARD_FALLBACK_GOLD credited) when every owned card is already diamond', () => {
@@ -603,7 +660,7 @@ describe('run/events: upgradeCard', () => {
     expect(b.state.pieces).toEqual(a.state.pieces);
   });
 
-  it("ember_pit's free gamble can resolve to upgradeCard (sweeping eventSeed for a hit)", () => {
+  it("ember_pit's free gamble can resolve to an upgradeCard pick (sweeping eventSeed for a hit)", () => {
     const { state } = stateAtFirstEvent(4);
     let saw = false;
     for (let i = 0; i < 50 && !saw; i++) {
@@ -615,10 +672,16 @@ describe('run/events: upgradeCard', () => {
         pieces: [{ instanceId: 'p', skillId: 'sword_slash', tier: 'bronze', slot: 0 }],
         bagSlots: [],
       };
-      const { outcome } = resolveEventChoice(rigged, 'ember_pit', 'reach_in');
-      if (outcome.kind === 'upgradeCard' && !outcome.fellBack) {
+      const { state: afterChoice, outcome } = resolveEventChoice(rigged, 'ember_pit', 'reach_in');
+      if (outcome.kind === 'upgradeCardPick') {
         saw = true;
-        expect(outcome).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from: 'bronze', to: 'silver', gambled: true });
+        expect(outcome).toEqual({
+          kind: 'upgradeCardPick',
+          gambled: true,
+          options: [{ instanceId: 'p', skillId: 'sword_slash', from: 'bronze', to: 'silver' }],
+        });
+        const { outcome: picked } = applyUpgradeCardPick(afterChoice, 'p');
+        expect(picked).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from: 'bronze', to: 'silver' });
       }
     }
     expect(saw).toBe(true);

@@ -24,7 +24,7 @@ import {
 import type { MergeTarget } from '../../run/shop';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { MOBILE_PROFILE } from '../layoutProfile';
-import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
+import { FONT, GEM_RARITY_COLOR, SCREEN, TIER_COLOR, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
@@ -470,9 +470,15 @@ export class MobileShopScene extends Phaser.Scene {
         }
         const base = skillBook[offer.skillId]!;
         const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
-        const tok = new CardToken(this, 10 + (this.W - 20) / 2, y + cardH / 2, skill, { width: this.W - 20, height: cardH, side: 'left' });
+        const tok = new CardToken(this, 10 + (this.W - 20) / 2, y + cardH / 2, skill, { width: this.W - 20, height: cardH, side: 'left', tier: offer.tier });
         A(tok);
         this.draggables.push({ bounds: new Phaser.Geom.Rectangle(10, y, this.W - 20, cardH), src: { kind: 'shelfCard', index: i }, obj: tok });
+        // MERGE affordance — same lookup the BUY confirm dialog already uses;
+        // see `renderMergeBadge`'s doc comment (design rationale identical to
+        // the desktop scene's twin) for why this is a corner tag in its OWN
+        // color channel rather than a treatment on the card's tier frame.
+        const shelfMergeTarget = runShop ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
+        if (shelfMergeTarget) A(this.renderMergeBadge(14, y + 4, shelfMergeTarget, F.tiny, i));
         const affordable = this.activeGold() >= offer.price;
         A(this.add.text(this.W - 16, y + 6, `${offer.price} G`, { fontSize: `${F.small}px`, color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setBackgroundColor('#0b1420').setPadding(4, 2, 4, 2));
         y += cardH + rowGap;
@@ -522,6 +528,42 @@ export class MobileShopScene extends Phaser.Scene {
     // viewport doesn't fall through to anything behind it.
     this.add.rectangle(this.shelfViewport.x, this.shelfViewport.y, this.shelfViewport.width, this.shelfViewport.height, 0xffffff, 0.001).setOrigin(0, 0);
     this.renderShelfScrollAffordance();
+  }
+
+  /**
+   * MERGE affordance overlay — mobile twin of `DesktopShopScene.renderMergeBadge`
+   * (both-platforms rule). Same corner-tag treatment, same colors, same slow
+   * ambient breathe; see that method's doc comment for the full design
+   * rationale (why a corner tag and not a border treatment, why the tag's
+   * text names the RESULTANT tier, why the tween needs no bespoke cleanup
+   * under `rebuildScene()`'s `tweens.killAll()`).
+   *
+   * Mobile's shelf rows are already close to full-width (see the `cardH`/
+   * `this.W - 20` row this is overlaid on), so the SAME corner-tag geometry
+   * (not a shrunken variant) fits without crowding — the only per-platform
+   * difference is the caller's chosen font size (`F.tiny`, already smaller on
+   * mobile) and anchor point.
+   */
+  private renderMergeBadge(x: number, y: number, target: MergeTarget, fontPx: number, staggerIndex: number): Phaser.GameObjects.Container {
+    const goodHex = `#${UI.good.toString(16).padStart(6, '0')}`;
+    const tierHex = `#${TIER_COLOR[target.toTier].toString(16).padStart(6, '0')}`;
+    const padX = 6;
+    const padY = 3;
+    const prefix = this.add.text(padX, padY, '▲ MERGE ', {
+      fontSize: `${fontPx}px`, color: goodHex, fontFamily: FONT.body, fontStyle: 'bold',
+    }).setOrigin(0, 0);
+    const suffix = this.add.text(padX + prefix.width, padY, `→ ${target.toTier.toUpperCase()}`, {
+      fontSize: `${fontPx}px`, color: tierHex, fontFamily: FONT.body, fontStyle: 'bold',
+    }).setOrigin(0, 0);
+    const w = padX * 2 + prefix.width + suffix.width;
+    const h = padY * 2 + Math.max(prefix.height, suffix.height);
+    const plate = this.add.rectangle(0, 0, w, h, 0x0b1420, 0.85).setOrigin(0, 0).setStrokeStyle(1, UI.good, 0.9);
+    const badge = this.add.container(x, y, [plate, prefix, suffix]);
+    this.tweens.add({
+      targets: badge, alpha: 0.7, duration: 1600, delay: (staggerIndex % 4) * 240,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    });
+    return badge;
   }
 
   /**
@@ -610,7 +652,7 @@ export class MobileShopScene extends Phaser.Scene {
       // Tier + socketed-gem fold (resolver seam, display-only) so BOARD's
       // face numbers match what the card actually casts — see `resolveDisplaySkill`.
       const skill = resolveDisplaySkill(base, p);
-      boardPieces.push({ skill, slot: p.slot });
+      boardPieces.push({ skill, slot: p.slot, tier: p.tier });
       boardSkills.push(skill);
     }
     const boardCol = new BoardColumn(this, {
@@ -637,7 +679,7 @@ export class MobileShopScene extends Phaser.Scene {
       if (!card) return;
       const skill = skillBook[card.skillId];
       if (!skill) return;
-      bagPieces.push({ skill, slot: index });
+      bagPieces.push({ skill, slot: index, tier: card.tier });
       bagSkills.push(skill);
     });
     const bagCol = new BoardColumn(this, {

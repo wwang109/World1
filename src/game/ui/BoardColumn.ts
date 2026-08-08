@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { SkillDef } from '../../engine/types';
+import type { SkillDef, SkillTier } from '../../engine/types';
 import { CardToken } from './CardToken';
 import type { ScalingStats, SkillFaceMode } from './skillPresentation';
 
@@ -8,6 +8,10 @@ export interface ColumnPiece {
   skill: SkillDef;
   slot: number;
   state?: 'none' | 'cursor' | 'drag';
+  /** This instance's tier — see `CardTokenOptions.tier`. Optional: callers
+   * with no per-instance tier handy (battle/prep/deck-build's plain
+   * `SkillDef` pieces) omit it and get today's generic-colored frame. */
+  tier?: SkillTier;
 }
 
 export interface BoardColumnOptions {
@@ -70,6 +74,7 @@ export class BoardColumn {
         const currentRow = row;
         this.tokens.push(new CardToken(scene, cx, cy, piece.skill, {
           width: opts.width, height: h, side, slotLabel: label, deck: opts.deck, state: piece.state, stats: opts.stats, faceMode: opts.faceMode,
+          tier: piece.tier,
           onInspect: opts.onInspectSlot ? () => opts.onInspectSlot!(currentRow) : undefined,
         }));
         row += span;

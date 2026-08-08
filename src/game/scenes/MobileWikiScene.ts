@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { setDeckBuildContext } from '../deckBuildContext';
-import { gemPowerLevel, instancePowerLevelDeci, powerLevelDeci } from '../../engine/balance';
+import { instancePowerLevelDeci, powerLevelDeci } from '../../engine/balance';
 import { applyTier } from '../../engine/cards';
 import type { SkillDef, SkillTier } from '../../engine/types';
 import { skillBook } from '../../data/skills';
@@ -575,19 +575,14 @@ export class MobileWikiScene extends Phaser.Scene {
     objs.push(meta);
     y += meta.height + 16;
 
-    // The gem's bonus is the headline; PL is a dim footnote below.
+    // Effect text is the whole story here — rarity is the rank, no PL shown
+    // (PL still gates pricing via gemAudit.test.ts; this is display-only).
     const body = this.add.text(centerX, y, stripCardTextMarkup(gem.text), {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.lead}px`, color: UI.textBright,
       align: 'center', wordWrap: { width: paneWidth }, lineSpacing: 4,
     }).setOrigin(0.5, 0).setDepth(3002);
     objs.push(body);
     y += body.height + 12;
-
-    const plNote = this.add.text(centerX, y, `adds +${gemPowerLevel(gem)} PL to the host card's total`, {
-      fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted,
-    }).setOrigin(0.5, 0).setDepth(3002);
-    objs.push(plNote);
-    y += plNote.height + 12;
 
     const owned = demoState.gemInventory.filter((id) => id === gem.id).length;
     const ownedText = this.add.text(centerX, y, `IN POUCH: ${owned}`, {

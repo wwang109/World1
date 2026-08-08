@@ -1,4 +1,4 @@
-import type { BuffableStat } from '../../engine/types';
+import type { BuffableStat, CombatantStats } from '../../engine/types';
 
 /**
  * THE single source of truth for every player-facing stat label in
@@ -46,3 +46,18 @@ export const STAT_LONG_NAME: Record<StatKey, string> = {
   magicResist: 'Magic Resist',
   speed: 'Speed',
 };
+
+/**
+ * `" (+N)"` attribution for a hero-scope stat gem's contribution to
+ * `statKey`, or `''` when no socketed gem bumps that stat — appended right
+ * after a stat's TOTAL number wherever a hero statline prints one, so a
+ * gem-boosted number reads differently from a naturally-high (level-bought)
+ * one (the bug this exists to fix: gem stats were folded into combat but
+ * never surfaced on any hero stat readout). `gemAdds` is the caller's own
+ * `gemHeroStats(pieces)` call (`src/engine/cards.ts`) — this module stays
+ * presentation-only and never computes the fold itself.
+ */
+export function gemStatSuffix(statKey: StatKey, gemAdds: Partial<CombatantStats>): string {
+  const add = gemAdds[statKey];
+  return add ? ` (+${add})` : '';
+}

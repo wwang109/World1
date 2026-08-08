@@ -588,4 +588,98 @@ describe('game/battleTimeline', () => {
       expect(readyLine!.text).toBe(`${model.heroName} 12 · SPD +12   ·   ${model.foeName} 9 · SPD +9`);
     });
   });
+
+  // ---- Task #43 gap-closing pass: five events buildBattleTimeline's switch
+  // silently dropped, though the engine always emitted them (renderer-only —
+  // no engine/event-shape change involved).
+  describe('negated, taunt (aggroChanged), statusExpired volume, and stalemate-breaker PHASE banners', () => {
+    it('a fully-negated hit gets a BUFF row naming the property it stopped, not silence', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'negated', side: 'player', unit: 0, property: 'physical' },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const lines = [...model.linesByTurn.values()].flat();
+      const line = lines.find((l) => l.text.includes('P.NEGATE'));
+      expect(line).toBeDefined();
+      expect(line!.tag).toBe('BUFF');
+      expect(line!.text).toContain(`${model.heroName} · P.NEGATE blocked the hit`);
+    });
+
+    it('a taunt logs the new aggro total so a targeting switch is never arbitrary', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'aggroChanged', side: 'enemy', unit: 0, aggro: 40 },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const lines = [...model.linesByTurn.values()].flat();
+      const line = lines.find((l) => l.text.includes('Taunt'));
+      expect(line).toBeDefined();
+      expect(line!.tag).toBe('BUFF');
+      expect(line!.text).toBe(`${model.foeName} · Taunt → 40 aggro`);
+    });
+
+    it('guard/buff/debuff/expose wearing off each get a terse "wore off" row', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusExpired', side: 'player', unit: 0, status: 'guard' },
+        { turn: 1, kind: 'statusExpired', side: 'player', unit: 0, status: 'buff' },
+        { turn: 1, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'debuff' },
+        { turn: 1, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'expose' },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const lines = [...model.linesByTurn.values()].flat();
+      expect(lines.find((l) => l.text === `${model.heroName} · Guard wore off`)?.tag).toBe('BUFF');
+      expect(lines.find((l) => l.text === `${model.heroName} · Buff wore off`)?.tag).toBe('BUFF');
+      expect(lines.find((l) => l.text === `${model.foeName} · Debuff wore off`)?.tag).toBe('DEBUFF');
+      expect(lines.find((l) => l.text === `${model.foeName} · Expose wore off`)?.tag).toBe('DEBUFF');
+    });
+
+    it('poison/burn/bleed/stun expiring stay silent — their own tick/skip rows already told the story', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'poison' },
+        { turn: 1, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'burn' },
+        { turn: 1, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'bleed' },
+        { turn: 1, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'stun' },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const lines = [...model.linesByTurn.values()].flat();
+      expect(lines.some((l) => /wore off/.test(l.text))).toBe(false);
+    });
+
+    it('suddenDeathStart/fatigueStart/attritionStart each become a terse PHASE bookend row', () => {
+      const events: CombatEvent[] = [
+        { turn: 5, kind: 'suddenDeathStart' },
+        { turn: 5, kind: 'fatigueStart' },
+        { turn: 5, kind: 'attritionStart', amount: 5 },
+        { turn: 6, kind: 'combatEnd', result: 'win', turns: 6 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 6 });
+      const lines = [...model.linesByTurn.values()].flat();
+      const phaseLines = lines.filter((l) => l.tag === 'PHASE');
+      expect(phaseLines).toHaveLength(3);
+      expect(phaseLines.map((l) => l.text)).toEqual([
+        'SUDDEN DEATH · damage ramps every turn',
+        'FATIGUE · flat damage begins every turn',
+        'ATTRITION · 5 to everyone, rising',
+      ]);
+    });
+
+    it('the attritionStart banner names the same amount the following EFFECT ticks deal, so they are attributable to it', () => {
+      const events: CombatEvent[] = [
+        { turn: 15, kind: 'attritionStart', amount: 5 },
+        { turn: 15, kind: 'damage', side: 'player', unit: 0, amount: 5, property: 'true', blocked: 0, hpAfter: 95, source: 'attrition' },
+        { turn: 15, kind: 'damage', side: 'enemy', unit: 0, amount: 5, property: 'true', blocked: 0, hpAfter: 95, source: 'attrition' },
+        { turn: 16, kind: 'combatEnd', result: 'win', turns: 16 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 16 });
+      const lines = [...model.linesByTurn.values()].flat();
+      const banner = lines.find((l) => l.tag === 'PHASE')!;
+      expect(banner.text).toContain('5 to everyone');
+      const ticks = lines.filter((l) => l.tag === 'EFFECT' && l.text.startsWith('Attrition'));
+      expect(ticks).toHaveLength(2);
+      for (const tick of ticks) expect(tick.text).toContain('−5');
+    });
+  });
 });

@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
+import { gemHeroStats } from '../../engine/cards';
 import { LEVEL_STAT_COST, totalLevelPL, type Allocation, type LevelStat } from '../../run/leveling';
-import { commitHeroAllocation, currentBankedPL, currentHeroAllocation, currentHeroLevel, heroAllocationScratchCost } from '../runStore';
+import { commitHeroAllocation, currentBankedPL, currentHeroAllocation, currentHeroLevel, currentRunPieces, heroAllocationScratchCost } from '../runStore';
 import { FONT, SCREEN, UI } from '../theme';
 import { addHoverTipZone } from './hoverTip';
 import { statHoverEntry } from './statGlossary';
@@ -103,6 +104,11 @@ export function renderRunStatPanel(
   scene.add.rectangle(innerX, cursor, innerW, 1, UI.border, 0.5).setOrigin(0, 0).setDepth(5002);
   cursor += 14;
 
+  // Hero-scope stat gems (e.g. +4 SPD) never showed up here at all — this
+  // grid only ever displayed the level-BUY gain. Sum them once so each row
+  // can show its own "◆+N" beside the buy figure (user report: gem stats
+  // "dont show on hero stats as + amount").
+  const gemAdds = gemHeroStats(currentRunPieces());
   const cellW = (innerW - gap * (cols - 1)) / cols;
   rows.forEach(([stat, label], i) => {
     const col = i % cols;
@@ -114,6 +120,7 @@ export function renderRunStatPanel(
     const canBuy = banked >= cost.pl;
     const canSell = buys > 0;
     const gained = buys * cost.gain;
+    const gemAdd = gemAdds[stat] ?? 0;
 
     const labelW = cellW - (btn * 2 + 8);
     scene.add.rectangle(cx + btn + 4, cy, labelW, cellH, UI.panelMuted, 0.7).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4).setDepth(5002);
@@ -122,12 +129,26 @@ export function renderRunStatPanel(
     }).setDepth(5002);
     // 5003: above the modal panel/scrim, else the pointer never reaches it.
     addHoverTipZone(scene, { x: cx + btn + 4, y: cy, w: labelW, h: cellH }, [statHoverEntry(label)], 5003);
-    scene.add.text(cx + btn + 14, cy + cellH / 2 + 6, gained > 0 ? `+${gained}` : '·', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: gained > 0 ? UI.textAccent : UI.textSoft,
-    }).setDepth(5002);
-    scene.add.text(cx + btn + 4 + labelW - 6, cy + cellH / 2, `${cost.pl}PL`, {
+    // Buy gain bottom-right, gem bonus (if any) further right of it — moved
+    // the "NPL" cost tag up beside the label to free this row's right side.
+    const buyStr = gained > 0 ? `+${gained}` : '·';
+    const buyColor = gained > 0 ? UI.textAccent : UI.textSoft;
+    const rightEdge = cx + btn + 4 + labelW - 6;
+    if (gemAdd > 0) {
+      const gemText = scene.add.text(rightEdge, cy + cellH / 2 + 6, `◆+${gemAdd}`, {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: UI.textGem,
+      }).setOrigin(1, 0).setDepth(5002);
+      scene.add.text(rightEdge - gemText.width - 4, cy + cellH / 2 + 6, buyStr, {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: buyColor,
+      }).setOrigin(1, 0).setDepth(5002);
+    } else {
+      scene.add.text(rightEdge, cy + cellH / 2 + 6, buyStr, {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: buyColor,
+      }).setOrigin(1, 0).setDepth(5002);
+    }
+    scene.add.text(rightEdge, cy + cellH / 2 - 8, `${cost.pl}PL`, {
       fontFamily: FONT.body, fontSize: `${smallSize - 1}px`, color: UI.textSoft,
-    }).setOrigin(1, 0.5).setDepth(5002);
+    }).setOrigin(1, 0).setDepth(5002);
 
     // MINUS (left)
     const minusFill = canSell ? UI.panelAlt : UI.panelMuted;

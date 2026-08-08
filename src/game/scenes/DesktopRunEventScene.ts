@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { EventChoiceDef, EventDef } from '../../data/events';
 import type { DraftCard } from '../../run/draft';
-import type { EventOutcome } from '../../run/events';
+import type { EventOutcome, UpgradeCardOption } from '../../run/events';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
@@ -10,13 +10,14 @@ import { choiceOutcomeHint } from '../ui/eventOutcomeText';
 import { eventThemeArea } from '../ui/eventThemeBlurb';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
-import { renderRunBonusDraftPicker, renderRunRewardPanel } from '../ui/RunRewardPanel';
+import { renderRunBonusDraftPicker, renderRunRewardPanel, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
 import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { rebuildScene } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   applyCurrentBonusDraftPick,
+  applyCurrentUpgradeCardPick,
   currentEventDef,
   getActiveRun,
   leaveCurrentEvent,
@@ -44,19 +45,21 @@ interface StoryLayout { px: number; pw: number; innerX: number; innerW: number; 
  * choice rows. Once a choice resolves, the screen switches to the ONE reward
  * template every outcome kind shares (`RunRewardPanel.ts`'s
  * `renderRunRewardPanel`, driven by `buildRunRewardViewModel`) or, for a
- * `bonusDraft` outcome, that same module's `renderRunBonusDraftPicker` — the
- * SAME shared renderer `MobileRunEventScene` calls, not a per-scene copy.
- * Both read `TEMPLATE.contentSlots.reward`'s declared rects (`panel` a hard
- * ceiling, `headline`/`feature` sub-rects, `buttons` a fixed bottom-anchored
- * row reserved BEFORE the panel gets space) instead of the story column, so a
- * card, a gem, or a 5-card draft grid always fits by construction — see
- * `runScreenTemplate.ts`'s doc comment on `reward`. Reachable at
+ * `bonusDraft`/`upgradeCardPick` outcome, that same module's
+ * `renderRunBonusDraftPicker`/`renderRunUpgradeCardPicker` — the SAME shared
+ * renderers `MobileRunEventScene` calls, not per-scene copies. All three read
+ * `TEMPLATE.contentSlots.reward`'s declared rects (`panel` a hard ceiling,
+ * `headline`/`feature` sub-rects, `buttons` a fixed bottom-anchored row
+ * reserved BEFORE the panel gets space) instead of the story column, so a
+ * card, a gem, or a 5-card draft/upgrade grid always fits by construction —
+ * see `runScreenTemplate.ts`'s doc comment on `reward`. Reachable at
  * ?scene=desktop-runevent.
  */
 export class DesktopRunEventScene extends Phaser.Scene {
-  private phase: 'choosing' | 'bonusDraftPick' | 'outcome' = 'choosing';
+  private phase: 'choosing' | 'bonusDraftPick' | 'upgradeCardPick' | 'outcome' = 'choosing';
   private outcome: EventOutcome | null = null;
   private bonusDraftCards: DraftCard[] = [];
+  private upgradeCardOptions: UpgradeCardOption[] = [];
   private retireConfirmOpen = false;
 
   constructor() { super('DesktopRunEvent'); }
@@ -65,6 +68,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
     this.phase = 'choosing';
     this.outcome = null;
     this.bonusDraftCards = [];
+    this.upgradeCardOptions = [];
     this.retireConfirmOpen = false;
   }
 
@@ -88,13 +92,27 @@ export class DesktopRunEventScene extends Phaser.Scene {
     if (this.phase === 'outcome' && this.outcome) {
       renderRunRewardPanel(this, TEMPLATE, buildRunRewardViewModel(this.outcome), {
         font: F,
+        eventTitle: event.title,
         onContinue: () => this.continueToMap(),
       });
     } else if (this.phase === 'bonusDraftPick') {
       renderRunBonusDraftPicker(this, TEMPLATE, this.bonusDraftCards, {
         font: F,
+        eventTitle: event.title,
         onPick: (card) => {
           const outcome = applyCurrentBonusDraftPick(card);
+          if (!outcome) return;
+          this.phase = 'outcome';
+          this.outcome = outcome;
+          this.rerender();
+        },
+      });
+    } else if (this.phase === 'upgradeCardPick') {
+      renderRunUpgradeCardPicker(this, TEMPLATE, this.upgradeCardOptions, {
+        font: F,
+        eventTitle: event.title,
+        onPick: (option) => {
+          const outcome = applyCurrentUpgradeCardPick(option.instanceId);
           if (!outcome) return;
           this.phase = 'outcome';
           this.outcome = outcome;
@@ -234,6 +252,9 @@ export class DesktopRunEventScene extends Phaser.Scene {
           if (outcome.kind === 'bonusDraft') {
             this.phase = 'bonusDraftPick';
             this.bonusDraftCards = [...outcome.cards];
+          } else if (outcome.kind === 'upgradeCardPick') {
+            this.phase = 'upgradeCardPick';
+            this.upgradeCardOptions = [...outcome.options];
           } else {
             this.phase = 'outcome';
             this.outcome = outcome;

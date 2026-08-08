@@ -2,7 +2,7 @@ import { enemies } from '../data/enemies';
 import type { EventDef } from '../data/events';
 import type { DraftCard, DraftSetKey } from '../run/draft';
 import type { EncounterPack } from '../run/encounter';
-import { applyBonusDraftPick, resolveEventChoice, rollEventForNode, type EventOutcome } from '../run/events';
+import { applyBonusDraftPick, applyUpgradeCardPick, resolveEventChoice, rollEventForNode, type EventOutcome } from '../run/events';
 import { bankedPL, type Allocation } from '../run/leveling';
 import { battleStatsFromEvents } from '../run/logAnalysis';
 import { battleGoldReward, type BattleFoeSummary } from '../run/shop';
@@ -397,6 +397,15 @@ export function resolveCurrentEventChoice(eventId: string, choiceId: string): Ev
 export function applyCurrentBonusDraftPick(pick: DraftCard): EventOutcome | undefined {
   if (!activeRun) return undefined;
   const { state, outcome } = applyBonusDraftPick(activeRun, pick);
+  activeRun = state;
+  return outcome;
+}
+
+/** Finalizes an `upgradeCard` outcome's deferred pick (the picker overlay) —
+ * bumps the tapped `instanceId` +1 tier. */
+export function applyCurrentUpgradeCardPick(instanceId: string): EventOutcome | undefined {
+  if (!activeRun) return undefined;
+  const { state, outcome } = applyUpgradeCardPick(activeRun, instanceId);
   activeRun = state;
   return outcome;
 }

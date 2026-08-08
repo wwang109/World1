@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
-import { gemPowerLevel, instancePowerLevelDeci, powerLevelDeci } from '../../engine/balance';
-import { resolveDisplaySkill } from '../../engine/cards';
+import { instancePowerLevelDeci, powerLevelDeci } from '../../engine/balance';
+import { gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill } from '../../engine/cards';
 import { boardTypeIdentity, cardType } from '../../engine/combat/typeIdentity';
 import type { Gem, SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
@@ -20,7 +20,7 @@ import { powerLevelEntry } from '../ui/cardGlossary';
 import { renderCardInfoBox } from '../ui/cardInfoBox';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import type { ScalingStats } from '../ui/skillPresentation';
-import { STAT_TOKEN } from '../ui/statLabels';
+import { gemStatSuffix, STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
@@ -105,7 +105,9 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     this.draggables = [];
     this.runContext = getDeckBuildContext() === 'run';
     const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
-    this.heroStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower, armor: hero.stats.armor, magicResist: hero.stats.magicResist };
+    // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
+    const heroStats = resolveDisplayHeroStats(hero.stats, hero.pieces);
+    this.heroStats = { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist };
     this.cameras.main.setBackgroundColor(0x0b1420);
     if (this.runContext) this.renderHud(); else this.renderTabs();
     this.renderHeader();
@@ -315,8 +317,10 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     for (const p of this.pieces) { const s = skillBook[p.skillId]; if (s) plDeci += instancePowerLevelDeci(s, { gem: p.gem ?? null }); }
     const gems = this.pieces.filter((p) => p.gem).length;
     const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
-    const s = hero.stats;
-    const meta = `LV ${this.heroLevel} · ${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower} · ${STAT_TOKEN.speed} ${s.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
+    // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
+    const s = resolveDisplayHeroStats(hero.stats, hero.pieces);
+    const gemAdds = gemHeroStats(hero.pieces);
+    const meta = `LV ${this.heroLevel} · ${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.attack} ${s.attack}${gemStatSuffix('attack', gemAdds)} · ${STAT_TOKEN.magicPower} ${s.magicPower}${gemStatSuffix('magicPower', gemAdds)} · ${STAT_TOKEN.speed} ${s.speed}${gemStatSuffix('speed', gemAdds)}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
     this.add.text(12, 50 + this.headerOffset, meta, { fontSize: `${F.small}px`, color: UI.textFootnote, fontFamily: FONT.body });
   }
 
@@ -771,7 +775,9 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       const bonusT = this.add.text(px + 42, curY + 20, bonus, { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, wordWrap: { width: pw - 175 } });
       let s = bonus;
       while (s.length > 1 && bonusT.height > 12) { s = s.slice(0, -1); bonusT.setText(`${s}…`); }
-      const plLine = this.add.text(px + 42, curY + 34, `POWER ${totalPl} · card ${basePl} + gem ${gemPowerLevel(gem)}`, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body });
+      // Rank only for the gem — no PL arithmetic breakdown (PL still gates
+      // pricing via gemAudit.test.ts; this is display-only).
+      const plLine = this.add.text(px + 42, curY + 34, gemDef ? `POWER ${totalPl} · ${gemDef.rarity.toUpperCase()} gem` : `POWER ${totalPl}`, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body });
       addHoverTipZone(this, { x: plLine.x, y: plLine.y, w: plLine.width, h: plLine.height }, [powerLevelEntry()]);
       if (gemDef) addHoverTipZone(this, { x: px + 14, y: curY, w: pw - 28, h: 32 }, [gemHoverEntry(gemDef)]);
       const un = this.add.rectangle(px + pw - 88, curY + 8, 74, 32, 0x352019).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
@@ -812,7 +818,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       const bg = this.add.rectangle(0, 0, pw - 28, rowH, 0x101a2a, 0.9).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
       const diamond = this.add.rectangle(16, rowH / 2, 11, 11, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
       const name = this.add.text(30, 8, `${gem.name} · ${gem.rarity.toUpperCase()}`, { fontSize: `${F.small}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' });
-      // The bonus itself is the headline info (PL is bookkeeping — see WIKI).
+      // Rarity is the rank; the bonus text is the headline info. No PL shown.
       const desc = this.add.text(30, 24, stripCardTextMarkup(gem.text), { fontSize: `${F.tiny}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold', wordWrap: { width: pw - 28 - 100 } });
       let s = stripCardTextMarkup(gem.text);
       while (s.length > 1 && desc.height > 24) { s = s.slice(0, -1); desc.setText(`${s}…`); }

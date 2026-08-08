@@ -454,6 +454,16 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const speed: SpeedSnap = { player: '', enemy: '', enemyUnits: foes.map(() => '') };
   const dotsPlayer = new Map<string, number>();
   const dotsEnemies = foes.map(() => new Map<string, number>());
+  // Shadow-tracks the engine's own `nextWeightPenalty` (combat/state.ts) so a
+  // `slow` rider's pending bonus weight can be named on the WAIT/PLAY row of
+  // the very card it will hit, not just the DEBUFF row announcing it landed.
+  // Mirrors the engine's own rule exactly (Math.max per re-application,
+  // cleared the instant that side/unit next plays ANY card — see
+  // `castSelect.ts`/`simulate.ts` `c.nextWeightPenalty = 0`) — reconstructed
+  // bookkeeping over already-emitted events, same idiom as the `dotsPlayer`/
+  // `dotsEnemies` pile-delta tracking above, not a combat decision.
+  const pendingSlowByUnit = new Map<string, number>();
+  const slowKey = (side: 'player' | 'enemy', unit: number): string => `${side}:${unit}`;
   const snapHp = (): HpSnap => ({
     player: curPlayer, enemy: curEnemies[0]!, playerMax, enemyMax: enemyMaxes[0]!,
     enemies: [...curEnemies], enemyMaxes: [...enemyMaxes],
@@ -603,7 +613,17 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // so the deduction the READY row's next banked number reflects is
         // visible at the moment it's paid, not just implied.
         const progress = e.slotCount > 1 ? ` · ${e.slotIndex}/${e.slotCount}` : '';
-        push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress} · WEIGHT ${e.weight}`);
+        // A pending `slow`/nextWeightPenalty bonus is baked into `e.weight`
+        // already (castSelect.ts folds it in before the engine ever emits this
+        // event) — name it here so the inflated number is traceable to the
+        // rider that caused it, then clear the shadow tracker: the engine
+        // resets `nextWeightPenalty` to 0 the instant this side/unit performs
+        // ANY cast, regardless of which piece.
+        const sk = slowKey(e.side, unitOf(e));
+        const slowedBy = pendingSlowByUnit.get(sk);
+        pendingSlowByUnit.delete(sk);
+        const slowNote = slowedBy ? ` (includes +${slowedBy} SLOWED)` : '';
+        push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress} · WEIGHT ${e.weight}${slowNote}`);
         const slots = playSlotByTurn.get(e.turn) ?? {};
         if (e.side === 'player') slots.player = e.slot;
         else {
@@ -759,6 +779,64 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         push(e.turn, 'DEBUFF', `${label(e)} · shield −${e.amount}`);
         break;
       }
+      // Magical Negate fully nullifying a hit: `dealDamage` (interpreter.ts)
+      // returns BEFORE emitting any `damage` event, so without this the
+      // attacker's own PLAY line was followed by nothing — a silent no-op that
+      // read as a bug. Same shape as `slowed`/`disrupted` below: a defensive
+      // event on the VICTIM's side, so it's a BUFF row (matching the `buff`
+      // bucket `statusApplied` already puts guard/negate/buff in) naming the
+      // property it stopped via the same `negateToken` the application row uses.
+      case 'negated': {
+        push(e.turn, 'BUFF', `${label(e)} · ${negateToken(e.property)} blocked the hit`);
+        break;
+      }
+      // `taunt` — self-targeted, fight-long threat gain. Silently redirects
+      // targeting under the default `aggro` policy; without a row here, a
+      // multi-foe fight's target suddenly switching reads as arbitrary.
+      case 'aggroChanged': {
+        push(e.turn, 'BUFF', `${label(e)} · Taunt → ${e.aggro} aggro`);
+        break;
+      }
+      // `slow` rider — a debuff done TO the victim (their NEXT card gets this
+      // much heavier), so it reads as a DEBUFF row exactly like poison/burn/
+      // bleed/stat-debuff, not folded into the caster's own BUFF line. Also
+      // seeds the shadow tracker above so the card it actually lands on can
+      // name it (see the `play` case).
+      case 'slowed': {
+        const sk = slowKey(e.side, unitOf(e));
+        pendingSlowByUnit.set(sk, Math.max(pendingSlowByUnit.get(sk) ?? 0, e.weight));
+        push(e.turn, 'DEBUFF', `${label(e)} · Slow +${e.weight} weight`);
+        break;
+      }
+      // `disrupt` rider — the sibling of `slow`: drains banked readiness right
+      // now instead of taxing the next card's weight, so (unlike slow) there is
+      // nothing pending to attach to a later PLAY row — the effect is already
+      // fully described the moment it fires.
+      case 'disrupted': {
+        push(e.turn, 'DEBUFF', `${label(e)} · Disrupt −${e.amount} readiness → ${e.readinessAfter}`);
+        break;
+      }
+      // The `wait` event kind already existed for two reasons that read very
+      // differently to a player — WEIGHT-gated (affordable next turn once more
+      // readiness banks) vs COOLDOWN-gated (locked out for N more turns) — plus
+      // the no-cards/stunned corner cases. None of the four were wired up: a
+      // combatant sitting out a turn produced no row at all, which is exactly
+      // what left "shouldn't the higher-readiness unit go first?" unanswerable
+      // from the log alone.
+      case 'wait': {
+        if (e.reason === 'cantAfford') {
+          const pending = pendingSlowByUnit.get(slowKey(e.side, unitOf(e)));
+          const slowNote = pending ? ` (includes +${pending} SLOWED)` : '';
+          push(e.turn, 'WAIT', `${label(e)} · ${skillName(e.skillId)} needs WEIGHT ${e.weight}${slowNote}, has ${e.readiness}`);
+        } else if (e.reason === 'cooling') {
+          push(e.turn, 'WAIT', `${label(e)} · ${skillName(e.skillId)} cooling down, ${e.turnsLeft} turn${e.turnsLeft === 1 ? '' : 's'} left`);
+        } else if (e.reason === 'stunned') {
+          push(e.turn, 'WAIT', `${label(e)} · stunned, skipping this turn`);
+        } else {
+          push(e.turn, 'WAIT', `${label(e)} · no card ready to play`);
+        }
+        break;
+      }
       case 'statusApplied': {
         const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'negate';
         // Guard and negate each cover ONE property (their own, not the card's),
@@ -807,6 +885,28 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       case 'statusExpired': {
         const bucket = e.side === 'player' ? dotsPlayer : dotsEnemies[unitOf(e)]!;
         bucket.delete(e.status);
+        // A row is worth printing only for the statuses that are otherwise
+        // INVISIBLE while wearing off: guard/buff/debuff/expose silently
+        // modify every hit/turn they cover, with no per-turn tick line of
+        // their own, so their end is the only moment they'd ever say
+        // anything again. Left OUT on purpose:
+        // - poison/burn/bleed: the pile's own last tick already showed it
+        //   hit its final stack (EFFECT row), and the ailment badge on the
+        //   HP bar clears the same turn — a "wore off" row would repeat
+        //   what the transcript already said.
+        // - stun: the unit's very next PLAY row already proves it ended;
+        //   there is no silent lingering effect to announce.
+        // - negate: the engine never actually emits `statusExpired` for it
+        //   (spent charges just drop the status — see interpreter.ts) so
+        //   this case is unreachable for it regardless.
+        // No `property`/`stat` on this event (unlike `statusApplied`), so
+        // the row stays generic on purpose rather than reconstructing one —
+        // a terse "it's gone" is the whole point of this row.
+        if (e.status === 'buff' || e.status === 'debuff' || e.status === 'guard' || e.status === 'expose') {
+          const buff = e.status === 'buff' || e.status === 'guard';
+          const cap = e.status.charAt(0).toUpperCase() + e.status.slice(1);
+          push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap} wore off`);
+        }
         break;
       }
       // A size-N card busies its caster N−1 further turns; each one gets a
@@ -824,6 +924,27 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         playSlotByTurn.set(e.turn, slots);
         break;
       }
+      // The stalemate breakers (sudden death / fatigue / attrition) were
+      // entirely absent from the log — a long fight started taking damage
+      // "from nowhere" with zero announcement, indistinguishable from a bug.
+      // Each is a ONE-SHOT boundary in the FIGHT ITSELF (every future turn now
+      // behaves differently), not an action any card/unit took, so it must
+      // read like one of the log's two existing BOOKENDS (START/RESULT) —
+      // not like another combat row. New 'PHASE' tag reuses the exact
+      // START/RESULT gold so the player's eye already knows "this color means
+      // fight-structure milestone" the first time they see it.
+      // Kept terse on purpose (an announcement, not an explanation — the
+      // mechanic's rules live in the docs/tooltips, not the transcript) and
+      // NEVER invents a number the triggering event doesn't carry:
+      // `attritionStart` reports its own `amount` (the very number every
+      // following `EFFECT · Attrition · …` row will deal, so the banner and
+      // the ticks it's attributing stay linked), but `suddenDeathStart` /
+      // `fatigueStart` carry no number at all (the ramp %, and the fatigue
+      // base amount, are combat constants — not per-event data) so those two
+      // name only the phase, nothing more.
+      case 'suddenDeathStart': push(e.turn, 'PHASE', 'SUDDEN DEATH · damage ramps every turn'); break;
+      case 'fatigueStart': push(e.turn, 'PHASE', 'FATIGUE · flat damage begins every turn'); break;
+      case 'attritionStart': push(e.turn, 'PHASE', `ATTRITION · ${e.amount} to everyone, rising`); break;
       case 'died': push(e.turn, 'DOWN', `${label(e)} falls`); break;
       case 'combatEnd': {
         // combatEnd is the log's final event, so HP here is final state — a

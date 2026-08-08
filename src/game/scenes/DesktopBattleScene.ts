@@ -50,6 +50,10 @@ interface HpBarHandles {
 const TAG_COLOR: Record<string, string> = {
   START: '#e8b446', READY: '#5fa8d3', PLAY: '#4f9e57', HIT: '#d05c4e', BUFF: '#5fb56a',
   DEBUFF: '#d8578f', EFFECT: '#3fb6c4', WAIT: '#c9a15a', DOWN: '#d05c4e', RESULT: '#e8b446',
+  // A stalemate-breaker phase change (sudden death / fatigue / attrition) is a
+  // boundary in the FIGHT ITSELF, not an action — it reuses the START/RESULT
+  // gold so it reads as the log's third kind of bookend, never as a regular row.
+  PHASE: '#e8b446',
 };
 /** Ailment identity colors — used to tint the afflicted side's HP bar and its DoT tick numbers. */
 const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8' };

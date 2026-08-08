@@ -38,6 +38,18 @@ const TIER_UP: Record<Exclude<SkillTier, 'diamond'>, SkillTier> = {
 // Display-ready outcome record — what actually happened, for the UI to show.
 // ---------------------------------------------------------------------------
 
+/** One eligible upgrade target offered by an `upgradeCardPick` outcome —
+ * enough to both DISPLAY the card (`skillId`/`from`) and unambiguously
+ * re-identify it later (`instanceId` is globally unique across `pieces` AND
+ * `bagSlots`, see `tryInsertRunCard`'s counter), without the picker needing
+ * to know whether the card lives on the board or in the bag. */
+export interface UpgradeCardOption {
+  instanceId: string;
+  skillId: string;
+  from: SkillTier;
+  to: SkillTier;
+}
+
 export type EventOutcome =
   | { kind: 'grantCard'; skillId: string; tier: SkillTier; fellBack?: boolean; gambled?: boolean }
   | { kind: 'grantGem'; gemId: string; gambled?: boolean }
@@ -45,13 +57,21 @@ export type EventOutcome =
   | { kind: 'loseGold'; amount: number; gambled?: boolean }
   | { kind: 'grantLevel'; level: number; gambled?: boolean }
   | { kind: 'bonusDraft'; cards: readonly DraftCard[]; gambled?: boolean }
+  // Deferred pick (same "roll now, pick later" shape as `bonusDraft` above) —
+  // `upgradeCardOutcome` returns this instead of resolving immediately
+  // whenever at least one owned card is eligible; `applyUpgradeCardPick`
+  // resolves the player's tap into the FINAL `upgradeCard` outcome below.
+  | { kind: 'upgradeCardPick'; options: readonly UpgradeCardOption[]; gambled?: boolean }
   // `skillId`/`from`/`to` are omitted (not merely falsy) exactly when
   // `fellBack` is true — this DELIBERATELY differs from `grantCard`'s
   // fallback idiom (which swaps the whole outcome to `grantGold`): a
   // `grantGold`-shaped fallback would render "Bag was full" for what is
   // really "nothing owned is eligible to upgrade", a wrong reason. Staying
   // `upgradeCard` with `fellBack: true` lets the UI show the correct reason
-  // while still crediting `CARD_FALLBACK_GOLD` (see `upgradeCardOutcome`).
+  // while still crediting `CARD_FALLBACK_GOLD` (see `upgradeCardOutcome`/
+  // `applyUpgradeCardPick`). This is the FINAL, resolved outcome shown by the
+  // reward screen — either the immediate no-choice-available fallback, or
+  // what `applyUpgradeCardPick` produced from a picked `UpgradeCardOption`.
   | ({ kind: 'upgradeCard'; gambled?: boolean } & (
       | { fellBack: true; skillId?: undefined; from?: undefined; to?: undefined }
       | { fellBack?: false; skillId: string; from: SkillTier; to: SkillTier }
@@ -282,64 +302,72 @@ function grantGemOutcome(
   };
 }
 
+/** The immediate, credits-gold-and-reports-`fellBack` no-eligible-cards
+ * outcome shared by `upgradeCardOutcome` (nothing was ever eligible) and
+ * `applyUpgradeCardPick` (defensive: the picked `instanceId` no longer
+ * resolves — see that function's doc comment). Not exported; both call sites
+ * live in this module. */
+function upgradeCardFallback(state: RunState): { state: RunState; outcome: EventOutcome } {
+  return {
+    state: {
+      ...state,
+      gold: state.gold + CARD_FALLBACK_GOLD,
+      stats: { ...state.stats, goldEarned: state.stats.goldEarned + CARD_FALLBACK_GOLD },
+    },
+    outcome: { kind: 'upgradeCard', fellBack: true },
+  };
+}
+
+/** Every owned card eligible for `upgradeCard` (not already `diamond` — the
+ * ladder's top rung) — board `pieces` first (ascending `slot`), then bag
+ * `bagSlots` (array order), mirroring the shop/DeckBuild convention of
+ * treating board+bag as one owned pool. Pure read, no state change. */
+function upgradeCardOptions(state: RunState): UpgradeCardOption[] {
+  const options: UpgradeCardOption[] = [];
+  for (const piece of [...state.pieces].sort((a, b) => a.slot - b.slot)) {
+    if (piece.tier === 'diamond') continue;
+    options.push({
+      instanceId: piece.instanceId,
+      skillId: piece.skillId,
+      from: piece.tier,
+      to: TIER_UP[piece.tier as Exclude<SkillTier, 'diamond'>],
+    });
+  }
+  for (const card of state.bagSlots) {
+    if (!card || card.tier === 'diamond') continue;
+    options.push({
+      instanceId: card.instanceId,
+      skillId: card.skillId,
+      from: card.tier,
+      to: TIER_UP[card.tier as Exclude<SkillTier, 'diamond'>],
+    });
+  }
+  return options;
+}
+
 /**
- * `upgradeCard` — bumps ONE already-owned card +1 tier (see the doc comment
- * on `EventOutcomeSpec`'s `upgradeCard` member in `data/events.ts` for the
- * full targeting rule). Deterministic, no `Rng` draw at all: the target is a
- * pure function of `state.pieces`/`state.bagSlots`.
+ * `upgradeCard` — lets the player pick ONE already-owned card to bump +1 tier
+ * (see the doc comment on `EventOutcomeSpec`'s `upgradeCard` member in
+ * `data/events.ts` for the full picker shape). No `Rng` draw: the ELIGIBLE
+ * SET is a pure function of `state.pieces`/`state.bagSlots`, same board-then-
+ * bag ordering `upgradeCardOptions` documents.
  *
- * Targeting: among every owned card that ISN'T already `diamond` (diamond has
- * no further tier to climb to), find the lowest tier present. Board `pieces`
- * are checked before the bag — if the lowest tier appears on the board, the
- * FIRST such piece by ascending `slot` wins; only if no board piece sits at
- * that lowest tier does the bag get considered, taking the first eligible
- * bag slot in array order. If nothing is eligible (no owned cards, or every
- * owned card is already diamond), STILL credits `CARD_FALLBACK_GOLD` (so the
- * choice's cost was never paid for literally nothing) but reports
+ * If at least one card is eligible, defers to the player: returns
+ * `{kind: 'upgradeCardPick', options}` WITHOUT mutating state (the actual
+ * tier bump happens in `applyUpgradeCardPick`, once the UI reports which
+ * option was tapped — same two-step shape as `bonusDraftOutcome`/
+ * `applyBonusDraftPick`). If nothing is eligible (no owned cards, or every
+ * owned card is already diamond), resolves immediately via
+ * `upgradeCardFallback` — still credits `CARD_FALLBACK_GOLD` (so the choice's
+ * cost was never paid for literally nothing) but reports
  * `{kind: 'upgradeCard', fellBack: true}` rather than switching to a
  * `grantGold`-shaped outcome — see the `EventOutcome` union's `upgradeCard`
  * comment for why this diverges from `grantCard`'s fallback idiom.
  */
 function upgradeCardOutcome(state: RunState): { state: RunState; outcome: EventOutcome } {
-  let lowestRank = Infinity;
-  for (const piece of state.pieces) {
-    if (piece.tier === 'diamond') continue;
-    lowestRank = Math.min(lowestRank, TIER_LADDER.indexOf(piece.tier));
-  }
-  for (const card of state.bagSlots) {
-    if (!card || card.tier === 'diamond') continue;
-    lowestRank = Math.min(lowestRank, TIER_LADDER.indexOf(card.tier));
-  }
-
-  if (!Number.isFinite(lowestRank)) {
-    return {
-      state: {
-        ...state,
-        gold: state.gold + CARD_FALLBACK_GOLD,
-        stats: { ...state.stats, goldEarned: state.stats.goldEarned + CARD_FALLBACK_GOLD },
-      },
-      outcome: { kind: 'upgradeCard', fellBack: true },
-    };
-  }
-  const targetTier = TIER_LADDER[lowestRank]!;
-  const nextTier = TIER_UP[targetTier as Exclude<SkillTier, 'diamond'>];
-
-  const boardTarget = [...state.pieces].sort((a, b) => a.slot - b.slot).find((p) => p.tier === targetTier);
-  if (boardTarget) {
-    const pieces = state.pieces.map((p) => (p.instanceId === boardTarget.instanceId ? { ...p, tier: nextTier } : p));
-    return {
-      state: { ...state, pieces },
-      outcome: { kind: 'upgradeCard', skillId: boardTarget.skillId, from: targetTier, to: nextTier },
-    };
-  }
-
-  const bagIndex = state.bagSlots.findIndex((c) => c && c.tier === targetTier);
-  const bagTarget = state.bagSlots[bagIndex]!;
-  const bagSlots = state.bagSlots.map((c, i) => (i === bagIndex ? { ...c!, tier: nextTier } : c));
-  return {
-    state: { ...state, bagSlots },
-    outcome: { kind: 'upgradeCard', skillId: bagTarget.skillId, from: targetTier, to: nextTier },
-  };
+  const options = upgradeCardOptions(state);
+  if (options.length === 0) return upgradeCardFallback(state);
+  return { state, outcome: { kind: 'upgradeCardPick', options } };
 }
 
 function bonusDraftOutcome(
@@ -479,4 +507,35 @@ export function applyBonusDraftPick(state: RunState, pick: DraftCard): { state: 
     };
   }
   return { state: inserted.state, outcome: { kind: 'grantCard', skillId: pick.skillId, tier: pick.tier } };
+}
+
+/**
+ * Finalizes an `upgradeCard` outcome's deferred pick (the UI shows the
+ * eligible cards between `resolveEventChoice` returning
+ * `{kind:'upgradeCardPick', options}` and calling this) — bumps the picked
+ * `instanceId` +1 tier. Board is checked before bag (mirroring
+ * `upgradeCardOptions`'s ordering, though `instanceId` is globally unique —
+ * see `tryInsertRunCard`'s counter — so at most one of the two lookups below
+ * can ever match). Falls back to `upgradeCardFallback` (credits
+ * `CARD_FALLBACK_GOLD`, reports `{fellBack: true}`) if `instanceId` no longer
+ * resolves to an eligible owned card — defensive only, since the picker only
+ * ever passes back one of the exact options `upgradeCardOutcome` just showed
+ * it and nothing else can touch `state` in between.
+ */
+export function applyUpgradeCardPick(state: RunState, instanceId: string): { state: RunState; outcome: EventOutcome } {
+  const boardIndex = state.pieces.findIndex((p) => p.instanceId === instanceId && p.tier !== 'diamond');
+  if (boardIndex >= 0) {
+    const target = state.pieces[boardIndex]!;
+    const to = TIER_UP[target.tier as Exclude<SkillTier, 'diamond'>];
+    const pieces = state.pieces.map((p, i) => (i === boardIndex ? { ...p, tier: to } : p));
+    return { state: { ...state, pieces }, outcome: { kind: 'upgradeCard', skillId: target.skillId, from: target.tier, to } };
+  }
+  const bagIndex = state.bagSlots.findIndex((c) => c && c.instanceId === instanceId && c.tier !== 'diamond');
+  if (bagIndex >= 0) {
+    const target = state.bagSlots[bagIndex]!;
+    const to = TIER_UP[target.tier as Exclude<SkillTier, 'diamond'>];
+    const bagSlots = state.bagSlots.map((c, i) => (i === bagIndex ? { ...c!, tier: to } : c));
+    return { state: { ...state, bagSlots }, outcome: { kind: 'upgradeCard', skillId: target.skillId, from: target.tier, to } };
+  }
+  return upgradeCardFallback(state);
 }

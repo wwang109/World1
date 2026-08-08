@@ -85,15 +85,86 @@ export type BuffableStat = 'attack' | 'magicPower' | 'armor' | 'magicResist' | '
 export type TargetPolicy = 'aggro' | 'first' | 'lowestHp' | 'highestThreat';
 
 /**
+ * PROVENANCE MARK (resolver seam, user-locked 2026-08-07). Set ONLY by
+ * `resolveEffectiveSkill` (src/engine/cards.ts) on the actions a socketed
+ * EFFECT GEM appends to a host card. Never authored in `src/data` — content
+ * writes the bare action and the resolver stamps the origin, which is what
+ * keeps the core loop feature-agnostic (CLAUDE.md, "Additive features — the
+ * resolver seam").
+ *
+ * A gem-appended hit is a SEPARATE, SELF-CONTAINED hit rather than a bigger
+ * version of the host card's hit. Concretely, in `interpreter.ts`:
+ *  • it is NOT counted in the multi-hit stat-split DIVISOR, so the host card's
+ *    own hit keeps its FULL stat exactly as if the socket were empty; and
+ *  • it takes NO attacker-side ADD — no share of the caster's scaling stat, no
+ *    `mods.damageFlat` (board auras / card-scope stat gems) and no triggered
+ *    `comboBonus`. User's words: "so it cant be buffed".
+ * Defender-side and world-rule maths (armor/MR, guard, expose, typed shields,
+ * the weapon/element matchup, sudden death, the minimum-1 floor) still apply —
+ * those are properties of the victim and the world, not buffs on the attacker,
+ * and without them the hit would not be a hit.
+ *
+ * A gem's payload therefore lands EXACTLY what it prints. A flat `damage`
+ * action prints a flat number; a `statStrike` prints a share of your own stat.
+ */
+export interface GemAppended {
+  /** True only on actions appended by an effect gem (see `resolveEffectiveSkill`). */
+  fromGem?: true;
+}
+
+/**
  * Cast actions. Targets are implicit in 1v1: offensive actions hit the enemy,
  * supportive ones apply to the caster.
  *
- * `power` semantics follow the card's property: for physical/magical it is a
- * percentage of the scaling stat (Attack / Magic Power); for TRUE cards it is
- * a FLAT amount (no scaling, no reduction). Durations are GLOBAL turns.
+ * `power` is a FLAT base amount; the caster's scaling stat is added on top at
+ * cast time (TRUE cards: the flat base bypasses defenses, the stat add does
+ * not). Durations are GLOBAL turns.
+ *
+ * Every member also carries the optional `fromGem` provenance mark (see
+ * `GemAppended`), which the resolver — never content — sets.
  */
-export type Action =
+export type Action = ActionKinds & GemAppended;
+
+type ActionKinds =
   | { kind: 'damage'; power: number }
+  /**
+   * STAT STRIKE — an EXTRA, self-contained hit whose whole payload is ONE
+   * SHARE of a `shareOf`-way split of the caster's scaling stat (Attack /
+   * Magic Power / the higher of the two for TRUE). `shareOf: 2` is "half your
+   * Attack", `shareOf: 4` is a quarter, and so on. There is no `power`: the
+   * card/gem authors the FRACTION, never a flat base.
+   *
+   * WHY A SHARE AND NOT A PERCENTAGE (matters — read before extending). The
+   * engine deliberately left the `%-of-stat` damage model in 2026-07-14/15
+   * (docs/combat-model-spec.md §"FLAT model"): output proportional to the hero
+   * stat with a card-authored coefficient made damage grow multiplicatively
+   * against linear HP. A unit fraction `1/shareOf` is the restricted, bounded
+   * form of that idea:
+   *   • it reuses `statShare` — the SAME exact-integer split the multi-hit rule
+   *     runs on — so no float ever exists and the rounding rule is the one
+   *     already locked (front-loaded: `shareOf: 2` of Attack 21 is 11);
+   *   • it can never exceed 1× the stat, so no single strike can ever
+   *     re-deliver more than the ONE stat add a cast is entitled to.
+   * Be honest about what it is NOT: `1/2` of the stat is still arithmetically
+   * `stat × 0.5`, so an UNCAPPED strike's absolute value grows without bound
+   * with hero level and CANNOT be priced against a fixed PL band. That is what
+   * `cap` is for.
+   *
+   * `cap` (optional) is a hard integer ceiling on the payload, applied after
+   * the share. A CAPPED strike is worth at most `cap` damage at any hero level,
+   * so it prices EXACTLY like a flat `damage` action of that size
+   * (`actionsPriceDeci`) — it scales with the hero early and plateaus late.
+   * An UNCAPPED strike prices at 0 deci ON PURPOSE: its value is unbounded, so
+   * there is no honest number, and 0 makes it fail every rarity band in
+   * `isGemOnBudget` / every tier budget in `isOnBudget` rather than shipping
+   * free power. Do not "fix" that by inventing a rate — cap the effect.
+   *
+   * It is an offensive action and a separate damage INSTANCE: it is blocked,
+   * mitigated and negated on its own (one `negate` charge per instance), which
+   * is a real part of its value and the reason a second hit is a high-tier
+   * effect rather than a token add-on.
+   */
+  | { kind: 'statStrike'; shareOf: number; cap?: number }
   | { kind: 'heal'; power: number }
   | { kind: 'shield'; power: number }
   /**

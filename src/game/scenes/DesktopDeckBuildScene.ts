@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
-import { gemPowerLevel, instancePowerLevelDeci } from '../../engine/balance';
-import { resolveDisplaySkill } from '../../engine/cards';
+import { instancePowerLevelDeci } from '../../engine/balance';
+import { gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill } from '../../engine/cards';
 import { boardTypeIdentity, cardType } from '../../engine/combat/typeIdentity';
 import type { Gem, SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
@@ -22,7 +22,7 @@ import { cardHoverEntries } from '../ui/cardHoverEntries';
 import { powerLevelEntry } from '../ui/cardGlossary';
 import { renderCardInfoBox } from '../ui/cardInfoBox';
 import type { ScalingStats } from '../ui/skillPresentation';
-import { STAT_TOKEN } from '../ui/statLabels';
+import { gemStatSuffix, STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
@@ -119,10 +119,14 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
   create(): void {
     this.draggables = [];
     const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
-    this.heroStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower, armor: hero.stats.armor, magicResist: hero.stats.magicResist };
+    // Hero-scope stat gems (e.g. +4 SPD) fold in here too, the SAME math the
+    // engine applies at cast time — see `resolveDisplayHeroStats`. Without
+    // this, every card face's live-stat term understated the gem's bonus.
+    const heroStats = resolveDisplayHeroStats(hero.stats, hero.pieces);
+    this.heroStats = { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist };
     renderDesktopBackground(this);
     if (this.runContext) this.renderHud(); else renderDesktopHeader(this, 'DECK BUILD', 'deck');
-    this.renderMeta(hero.stats);
+    this.renderMeta(heroStats);
     this.renderHolding();
     this.renderColumns();
     this.renderTrash();
@@ -286,14 +290,19 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
 
   // ---------- render ----------
 
-  /** Header meta line: LV / HP / ATK / MATK / SPD  ·  slots / PL / gems. */
+  /** Header meta line: LV / HP / ATK / MATK / SPD  ·  slots / PL / gems.
+   *  `stats` is already the GEM-FOLDED hero stat sheet (see `create()`'s
+   *  `resolveDisplayHeroStats` call) — each stat a hero-scope gem bumps gets
+   *  its own `(+N)` attribution via `gemStatSuffix` so a gem-boosted number
+   *  reads differently from a naturally level-bought one. */
   private renderMeta(stats: { maxHp: number; attack: number; magicPower: number; speed: number }): void {
     const gx = DESKTOP_LAYOUT.gutter;
     const used = this.deckOccupied().filter(Boolean).length;
     let plDeci = 0;
     for (const p of this.pieces) { const s = skillBook[p.skillId]; if (s) plDeci += instancePowerLevelDeci(s, { gem: p.gem ?? null }); }
     const gems = this.pieces.filter((p) => p.gem).length;
-    const meta = `LV ${this.heroLevel} · ${STAT_TOKEN.maxHp} ${stats.maxHp} · ${STAT_TOKEN.attack} ${stats.attack} · ${STAT_TOKEN.magicPower} ${stats.magicPower} · ${STAT_TOKEN.speed} ${stats.speed}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
+    const gemAdds = gemHeroStats(this.pieces);
+    const meta = `LV ${this.heroLevel} · ${STAT_TOKEN.maxHp} ${stats.maxHp} · ${STAT_TOKEN.attack} ${stats.attack}${gemStatSuffix('attack', gemAdds)} · ${STAT_TOKEN.magicPower} ${stats.magicPower}${gemStatSuffix('magicPower', gemAdds)} · ${STAT_TOKEN.speed} ${stats.speed}${gemStatSuffix('speed', gemAdds)}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
     // Right-aligned; in run context this sits just under the HUD (which
     // already owns the tab row's old position) instead of on top of it.
     const y = this.runContext ? TEMPLATE.regions.content.y + 2 : 102 + DESKTOP_LAYOUT.tabH / 2;
@@ -632,7 +641,9 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       const bonus = gemDef ? stripCardTextMarkup(gemDef.text) : '';
       this.add.rectangle(px + 40, curY + rowH / 2, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
       this.add.text(px + 56, curY + 8, `${gemDef?.name ?? gem.id} — ${bonus}`, { fontSize: `${F.small}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' });
-      const plLine = this.add.text(px + 56, curY + 28, `POWER ${totalPl} · card ${basePl} + gem ${gemPowerLevel(gem)}`, { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body });
+      // Rank only for the gem — no PL arithmetic breakdown (PL still gates
+      // pricing via gemAudit.test.ts; this is display-only).
+      const plLine = this.add.text(px + 56, curY + 28, gemDef ? `POWER ${totalPl} · ${gemDef.rarity.toUpperCase()} gem` : `POWER ${totalPl}`, { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body });
       addHoverTipZone(this, { x: plLine.x, y: plLine.y, w: plLine.width, h: plLine.height }, [powerLevelEntry()]);
       if (gemDef) addHoverTipZone(this, { x: px + 20, y: curY, w: pw - 40, h: rowH / 2 }, [gemHoverEntry(gemDef)]);
       const un = this.add.rectangle(px + pw - 130, curY + 8, 96, rowH - 16, UI.badSoft).setOrigin(0, 0).setStrokeStyle(1, UI.bad, 0.8).setInteractive({ useHandCursor: true });
@@ -660,7 +671,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       this.add.rectangle(px + 20, rowY, pw - 40, rowH, UI.panel, 0.9).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
       this.add.rectangle(px + 40, rowY + rowH / 2, 12, 12, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
       this.add.text(px + 56, rowY + 8, `${gem.name} · ${gem.rarity.toUpperCase()}`, { fontSize: `${F.small}px`, color: UI.text, fontFamily: FONT.body, fontStyle: 'bold' });
-      // The bonus itself is the headline info (PL is bookkeeping — see WIKI).
+      // Rarity is the rank; the bonus text is the headline info. No PL shown.
       const desc = this.add.text(px + 56, rowY + 28, stripCardTextMarkup(gem.text), { fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold' });
       let s = stripCardTextMarkup(gem.text);
       while (s.length > 1 && desc.width > pw - 220) { s = s.slice(0, -1); desc.setText(`${s}…`); }

@@ -1,6 +1,6 @@
 ﻿import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
-import { applyTier, resolveDisplaySkill } from '../../engine/cards';
+import { applyTier, gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { enemies } from '../../data/enemies';
 import type { SkillDef } from '../../engine/types';
@@ -322,6 +322,11 @@ export class DesktopPrepScene extends Phaser.Scene {
     const cellW = (w - gap) / 2;
     const cellH = 32;
     const btn = 32;
+    // Hero-scope stat gems (e.g. +4 SPD) never showed up here at all — this
+    // grid only ever displayed the level-BUY gain. Sum them once so each row
+    // can show its own "◆+N" beside the buy figure (user report: gem stats
+    // "dont show on hero stats as + amount").
+    const gemAdds = gemHeroStats(demoState.pieces);
     rows.forEach(([stat, label], i) => {
       const col = i % 2;
       const row = Math.floor(i / 2);
@@ -335,7 +340,14 @@ export class DesktopPrepScene extends Phaser.Scene {
       this.add.rectangle(cx + btn + 4, cy, cellW - (btn + 4) * 2, cellH, UI.panelMuted, 0.7).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
       this.text(cx + btn + 14, cy + cellH / 2, label, F.small, UI.textDim, { bold: true, origin: [0, 0.5] });
       const gained = buys * cost.gain;
-      this.text(cx + cellW - btn - 14, cy + cellH / 2, gained > 0 ? `+${gained}` : '·', F.small, gained > 0 ? UI.textAccent : UI.textSoft, { bold: true, origin: [1, 0.5] });
+      const gemAdd = gemAdds[stat] ?? 0;
+      const rightEdge = cx + cellW - btn - 14;
+      if (gemAdd > 0) {
+        const gemText = this.text(rightEdge, cy + cellH / 2, `◆+${gemAdd}`, F.small, UI.textGem, { bold: true, origin: [1, 0.5] });
+        this.text(rightEdge - gemText.width - 6, cy + cellH / 2, gained > 0 ? `+${gained}` : '·', F.small, gained > 0 ? UI.textAccent : UI.textSoft, { bold: true, origin: [1, 0.5] });
+      } else {
+        this.text(rightEdge, cy + cellH / 2, gained > 0 ? `+${gained}` : '·', F.small, gained > 0 ? UI.textAccent : UI.textSoft, { bold: true, origin: [1, 0.5] });
+      }
       if (canSell) {
         this.button(cx, cy, btn, cellH, '−', UI.panelAlt, UI.text, () => {
           demoState.heroAllocation[stat] = buys - 1; this.rerender();
@@ -385,7 +397,11 @@ export class DesktopPrepScene extends Phaser.Scene {
       heroPieces.push({ skill, slot: p.slot });
       heroSkills.push(skill);
     }
-    const heroStats = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces.map((p) => ({ ...p })), demoState.heroAllocation).setup.stats;
+    const heroSetup = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces.map((p) => ({ ...p })), demoState.heroAllocation).setup;
+    // Hero-scope stat gems (e.g. +4 SPD) fold in here too, the SAME math the
+    // engine applies at cast time — see `resolveDisplayHeroStats`. Without
+    // this, YOUR DECK's card faces understated every card's live-stat term.
+    const heroStats = resolveDisplayHeroStats(heroSetup.stats, heroSetup.pieces);
     new BoardColumn(this, {
       x: leftColX, y: colTop, width: colW, height: colH, side: 'left',
       pieces: heroPieces, deck: heroSkills, stats: { attack: heroStats.attack, magicPower: heroStats.magicPower, armor: heroStats.armor, magicResist: heroStats.magicResist },

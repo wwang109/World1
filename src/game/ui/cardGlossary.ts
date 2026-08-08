@@ -10,12 +10,15 @@ function burnTickPreview(stacks: number): string {
 }
 
 /**
- * Plain-language explanations for the parts of a card that the printed text
+ * Short mid-decision explanations for the parts of a card the printed text
  * can't fit: property/element/weapon matchups, archetype meaning, weight,
  * board footprint, and the mechanical keywords used by the card's effects.
- * Pure text — the source of truth for the rules is the engine + CLAUDE.md
- * "Core mechanics (locked)"; keep wording in sync with
- * docs/card-text-style-guide.md §1.
+ * Every entry answers "what does this do to my fight" — the mechanic and its
+ * numbers only. Surprising edges a player could misread as a bug (poison
+ * bypassing shields, a guard only covering its own property, etc.) are kept
+ * in short form; general rationale and design justification are not. Pure
+ * text — the source of truth for the rules is the engine + CLAUDE.md "Core
+ * mechanics (locked)"; keep wording in sync with docs/card-text-style-guide.md §1.
  */
 
 export interface GlossaryEntry {
@@ -24,17 +27,17 @@ export interface GlossaryEntry {
 }
 
 const ARCHETYPE_EXPLANATION: Record<Archetype, string> = {
-  offense: 'Offense — attack cards. Synergies and auras that boost Offense apply to this card.',
-  defensive: 'Defense — shields, guards, and damage prevention.',
-  healing: 'Healing — restores HP.',
-  support: 'Support — buffs your stats or empowers other cards.',
-  debuff: 'Debuff — weakens the enemy with poisons, stat drains, or delays.',
+  offense: 'Attack cards.',
+  defensive: 'Shields, guards, damage prevention.',
+  healing: 'Restores HP.',
+  support: 'Buffs your stats or empowers other cards.',
+  debuff: 'Weakens the enemy — poison, stat drain, or delay.',
 };
 
 const PROPERTY_EXPLANATION: Record<Property, string> = {
-  physical: 'Physical — damage is reduced by the enemy’s Armor and scales with the caster’s Attack. Blocked only by Physical shields.',
-  magical: 'Magical — damage is reduced by the enemy’s Magic Resist and scales with the caster’s Magic Power. Blocked only by Magical shields.',
-  true: 'TRUE — the card’s flat amount ignores Armor and Magic Resist and is blocked only by TRUE shields. The caster’s higher power stat is added on top, but that part IS reduced by the enemy’s matching defense (Attack vs Armor, Magic Power vs Magic Resist). TRUE heals and shields are flat amounts.',
+  physical: 'Reduced by the enemy’s Armor, scales with your Attack. Only Physical shields block it.',
+  magical: 'Reduced by the enemy’s Magic Resist, scales with your Magic Power. Only Magical shields block it.',
+  true: 'TRUE ignores Armor and Magic Resist; only TRUE shields block it. Your added power stat is still reduced by matching defense. TRUE heals/shields are flat — no stat added.',
 };
 
 const ELEMENT_ORDER: readonly Element[] = ['fire', 'nature', 'lightning', 'frost'];
@@ -62,7 +65,7 @@ export function elementEntry(element: Element): GlossaryEntry {
     const opposite = element === 'holy' ? 'Dark' : 'Holy';
     return {
       title: `${capitalize(element)} element`,
-      body: `${capitalize(element)} opposes ${opposite}: +50% damage to enemies attuned to ${opposite}, −25% to enemies attuned to ${capitalize(element)}.`,
+      body: `Opposes ${opposite}: +50% vs ${opposite}-attuned enemies, −25% vs ${capitalize(element)}-attuned.`,
     };
   }
   const index = ELEMENT_ORDER.indexOf(element);
@@ -70,22 +73,22 @@ export function elementEntry(element: Element): GlossaryEntry {
   const beatenBy = ELEMENT_ORDER[(index + ELEMENT_ORDER.length - 1) % ELEMENT_ORDER.length]!;
   return {
     title: `${capitalize(element)} element`,
-    body: `${capitalize(element)} beats ${capitalize(beats)} (+50% vs ${capitalize(beats)}-attuned enemies) and loses to ${capitalize(beatenBy)} (−25% vs ${capitalize(beatenBy)}-attuned enemies).`,
+    body: `${capitalize(element)} beats ${capitalize(beats)} (+50%) and loses to ${capitalize(beatenBy)} (−25%) vs attuned enemies.`,
   };
 }
 
 export function weaponEntry(weapon: WeaponType): GlossaryEntry {
   if (weapon === 'bow') {
-    return { title: 'Bow weapon', body: 'Bow sits outside the weapon triangle: +50% damage against Beasts, no other matchup.' };
+    return { title: 'Bow weapon', body: 'Outside the weapon triangle: +50% vs Beasts, no other matchup.' };
   }
   if (weapon === 'beast') {
-    return { title: 'Beast weapon', body: 'Beast — natural weapons (fangs, claws). Outside the weapon triangle; Bows deal +50% against Beasts.' };
+    return { title: 'Beast weapon', body: 'Outside the weapon triangle. Bows deal +50% against Beasts.' };
   }
   const beats = WEAPON_TRIANGLE[weapon]!;
   const beatenBy = (Object.keys(WEAPON_TRIANGLE) as WeaponType[]).find((key) => WEAPON_TRIANGLE[key] === weapon)!;
   return {
     title: `${capitalize(weapon)} weapon`,
-    body: `${capitalize(weapon)} beats ${capitalize(beats)} (+50%) and loses to ${capitalize(beatenBy)} (−25%) in the weapon triangle.`,
+    body: `${capitalize(weapon)} beats ${capitalize(beats)} (+50%) and loses to ${capitalize(beatenBy)} (−25%).`,
   };
 }
 
@@ -99,7 +102,7 @@ const TIER_PL_BUDGET: Record<SkillTier, number> = {
 export function tierEntry(tier: SkillTier): GlossaryEntry {
   return {
     title: `${capitalize(tier)} tier`,
-    body: `Card tiers: Bronze → Silver → Gold → Diamond. A ${capitalize(tier)} card is built on a ${TIER_PL_BUDGET[tier]} Power Level budget — higher tiers pack more total power onto one card.`,
+    body: `${TIER_PL_BUDGET[tier]} Power Level budget (Bronze ${TIER_PL_BUDGET.bronze} · Silver ${TIER_PL_BUDGET.silver} · Gold ${TIER_PL_BUDGET.gold} · Diamond ${TIER_PL_BUDGET.diamond}).`,
   };
 }
 
@@ -107,7 +110,7 @@ export function weightEntry(skill: SkillDef): GlossaryEntry {
   const weight = weightOf(skill);
   return {
     title: `Weight ${weight}`,
-    body: `Playing this card costs ${weight} readiness. Everyone gains their Speed as readiness each turn; heavier cards take longer to afford, lighter cards come out sooner.`,
+    body: `Costs ${weight} readiness to play — lighter cards come out sooner.`,
   };
 }
 
@@ -118,7 +121,7 @@ export function weightEntry(skill: SkillDef): GlossaryEntry {
 export function powerLevelEntry(): GlossaryEntry {
   return {
     title: 'Power Level (PL)',
-    body: 'A card’s total strength budget — every modifier (damage, shields, riders, gems) is priced in PL, and the tier sets the budget: Bronze 10 · Silver 15 · Gold 20 · Diamond 25. A socketed gem adds its own PL on top of the card’s base.',
+    body: 'A card’s total power budget — damage, shields, riders, and gems all price into it. Tier caps it: Bronze 10 · Silver 15 · Gold 20 · Diamond 25.',
   };
 }
 
@@ -127,7 +130,7 @@ export function powerLevelEntry(): GlossaryEntry {
 export function statScalingSuffixEntry(): GlossaryEntry {
   return {
     title: '(+ATK) / (+MATK) suffix',
-    body: 'The flat number shown is added to your current Attack (physical cards, "+ATK") or Magic Power (magical cards, "+MATK") when the card resolves — e.g. "+20 (+ATK)" deals 20 plus your Attack stat.',
+    body: 'Adds your current Attack ("+ATK") or Magic Power ("+MATK") to the flat number on resolve.',
   };
 }
 
@@ -138,7 +141,7 @@ export function slotEntry(skill: SkillDef): GlossaryEntry {
   }
   return {
     title: `Board footprint: ${size} slots`,
-    body: `Takes ${size} of your 10 board slots, and casting spans ${size} turns — the caster is busy for ${size - 1} extra turn${size > 2 ? 's' : ''}.`,
+    body: `Takes ${size} of your 10 board slots. Casting spans ${size} turns — busy ${size - 1} extra turn${size > 2 ? 's' : ''} after.`,
   };
 }
 
@@ -147,70 +150,70 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
     case 'shield':
       return {
         title: 'Typed shields',
-        body: 'Shields stack, carry over between turns, and cap at max HP. A shield only blocks damage of its own property. TRUE shields block everything — TRUE damage point-for-point, but physical/magical damage drains them 2:1 (2 shield per point blocked).',
+        body: 'Shields stack, carry over between turns, and cap at max HP. Only blocks its own property — TRUE blocks everything, but is drained 2:1 by physical/magical hits.',
       };
     case 'poison':
       return {
         title: 'Poison',
-        body: `Applies ${action.stacks} poison. At the END of each turn the victim takes damage equal to their poison count, then one stack falls off (${action.stacks} → ${Math.max(0, action.stacks - 1)} → …, ${(action.stacks * (action.stacks + 1)) / 2} total). They always act before it lands, and it bypasses shields; new poison adds to the pile.`,
+        body: `Applies ${action.stacks} poison — ticks at END of turn (${action.stacks} → ${Math.max(0, action.stacks - 1)} → … = ${(action.stacks * (action.stacks + 1)) / 2} total) and bypasses shields.`,
       };
     case 'burn':
       return {
         title: 'Burn',
-        body: `Applies ${action.stacks} burn — fierce and brief. At the START of each turn the victim takes DOUBLE their burn count in damage, then the stacks halve (${burnTickPreview(action.stacks)} = ${burnTotalDamage(action.stacks)} total) — it can kill before they act. Unlike poison, burn is absorbed by shields; new burn adds to the pile.`,
+        body: `Applies ${action.stacks} burn. Ticks at START of turn — double the stack, then halves (${burnTickPreview(action.stacks)} = ${burnTotalDamage(action.stacks)} total). Unlike poison, shields block it.`,
       };
     case 'bleed':
       return {
         title: 'Bleed',
-        body: `Applies ${action.stacks} bleed — but NOT through shields: any active shield blocks the application. Once bleeding, the victim takes damage equal to their bleed count every time they PERFORM a cast, then one stack falls off (${(action.stacks * (action.stacks + 1)) / 2} total). Ticks bypass shields; fast multi-cast enemies bleed out faster, turtling stalls it.`,
+        body: `Applies ${action.stacks} bleed. A shield blocks the application, but ticks bypass shields once applied — one tick per PERFORM (not per turn), ${(action.stacks * (action.stacks + 1)) / 2} total.`,
       };
     case 'stun':
       return {
         title: 'Stun',
-        body: `Consumes the enemy’s next ${action.turns > 1 ? `${action.turns} performances` : 'performance'} — they skip acting but still bank Speed.`,
+        body: `Consumes the enemy’s next ${action.turns > 1 ? `${action.turns} performances` : 'performance'} — still banks Speed.`,
       };
     case 'buffStat':
     case 'debuffStat':
       return {
         title: action.kind === 'buffStat' ? 'Stat buff' : 'Stat debuff',
-        body: `Lasts ${action.turns} global turns — every performance by either side advances the counter, so it can expire mid-exchange.`,
+        body: `Lasts ${action.turns} global turns — both sides’ performances count, so it can expire mid-exchange.`,
       };
     case 'guard':
       return {
         title: 'Guard',
-        body: `Reduces incoming ${action.property === 'true' ? 'TRUE' : action.property} damage by ${action.pct}% for ${action.turns} global turns (capped at 60%). Only blocks damage of this matching property — a TRUE guard does not reduce physical/magical hits.`,
+        body: `-${action.pct}% incoming ${action.property === 'true' ? 'TRUE' : action.property} damage for ${action.turns} global turns (cap 60%). Only blocks its own property — a TRUE guard won’t reduce physical/magical hits.`,
       };
     case 'negate':
       return {
         title: 'Negate',
-        body: `Fully cancels the next ${action.charges > 1 ? `${action.charges} direct ${action.property === 'true' ? '' : `${action.property} `}hits` : `direct ${action.property === 'true' ? '' : `${action.property} `}hit`}. DoT ticks never spend a charge; max 3 charges per property.`,
+        body: `Cancels the next ${action.charges > 1 ? `${action.charges} direct ${action.property === 'true' ? '' : `${action.property} `}hits` : `direct ${action.property === 'true' ? '' : `${action.property} `}hit`}. DoT ticks don’t consume it (max 3 charges/property).`,
       };
     case 'expose':
       return {
         title: 'Expose',
-        body: `The enemy takes +${action.pct}% damage from all direct hits for ${action.turns} global turns (the mirror of Guard). DoT ticks are unaffected. Capped at 50%.`,
+        body: `Enemy takes +${action.pct}% damage from direct hits for ${action.turns} global turns (cap 50%). DoT ticks unaffected.`,
       };
     case 'cleanse':
       return {
         title: 'Cleanse',
-        body: `Removes up to ${action.charges} ailment stacks from you, soonest-to-expire first (ties by application order). Each charge strips one stack of a poison/burn/bleed pile, or removes a stun/stat debuff/expose whole.`,
+        body: `Removes up to ${action.charges} ailment${action.charges > 1 ? 's' : ''}, soonest-to-expire first. Each charge strips ONE stack of poison/burn/bleed, or clears a stun/debuff/expose whole.`,
       };
     case 'slow':
-      return { title: 'Slow', body: `The enemy’s next action becomes ${action.weight} weight heavier, so it comes out later.` };
+      return { title: 'Slow', body: `Enemy’s next action costs +${action.weight} weight (comes out later).` };
     case 'disrupt':
-      return { title: 'Stagger', body: `Drains ${action.amount} from the enemy’s banked readiness, delaying their next play.` };
+      return { title: 'Stagger', body: `Drains ${action.amount} banked readiness — delays their next play.` };
     case 'lifesteal':
-      return { title: 'Lifesteal', body: `Heals the caster for ${action.pct}% of the damage this cast dealt.` };
+      return { title: 'Lifesteal', body: `Heals ${action.pct}% of this cast’s damage dealt.` };
     case 'shieldBreak':
       return { title: 'Shield break', body: `Shatters up to ${action.amount} enemy shield before the hit lands.` };
     case 'comboBonus':
       return {
         title: 'Combo',
-        body: 'Bonus applies when the caster’s previous cast shared an archetype with this card.',
+        body: 'Bonus triggers if your previous cast shared this card’s archetype.',
       };
     case 'heal':
       return property === 'true'
-        ? { title: 'TRUE heal', body: 'TRUE heals are flat — no stat is added on top.' }
+        ? { title: 'TRUE heal', body: 'Flat — no stat added.' }
         : undefined;
     default:
       return undefined;

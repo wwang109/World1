@@ -117,10 +117,41 @@ export interface RunScreenTemplate {
      * edge. Giving the reward screen the whole panel (not "whatever's left
      * under the header") makes the fit arithmetically guaranteed instead of
      * probable.
+     *
+     * `outcome` (task #41, 2026-08-08 density pass) — the RESOLVED-outcome
+     * screen's OWN composition, ADDITIVE alongside `icon`/`headline`/
+     * `detail`/`feature` above (which stay exactly as they were and remain
+     * what the bonus-draft/upgrade-card PICKERS use — a multi-card grid
+     * needs the wide, short `feature` row those give it, so it is
+     * deliberately untouched). A single resolved outcome (one card/gem/icon)
+     * read as sparse in that same stacked shape — a tiny icon, a line of
+     * text, then one modest card with dead space around it. `outcome` fixes
+     * that WITHOUT touching `panel`'s own size (still `REWARD_PANEL_MAX_W`/
+     * `_H` on desktop, still content-filling on mobile — the panel was never
+     * the problem) and WITHOUT reviving the old free-flowing story cursor:
+     * every part below is still a fixed, declared rect that cannot overflow.
+     *
+     *   identity — a full-width band at the top: the outcome-kind icon next
+     *              to the EVENT's own title, one line — ties the reward back
+     *              to what just happened, in bounded space (never the
+     *              full body copy task #29 stopped re-rendering here).
+     *   text     — headline + detail. DESKTOP: a narrower LEFT column,
+     *              spanning the full body height, so the wide 850px panel
+     *              actually uses its width instead of centering one column
+     *              in it. MOBILE: a fixed-height band directly below
+     *              `identity` (the narrow-column answer — see module doc).
+     *   feature  — the reward's own visual, same visual role as `feature`
+     *              above but MUCH larger: DESKTOP gets the remaining RIGHT
+     *              column at the full body height (a card can now run
+     *              ~1.5x taller/wider than the picker's card size, since
+     *              it's the one thing on screen, not one of five); MOBILE
+     *              gets everything below the fixed `text` band, which was
+     *              previously just left empty.
      */
     reward: {
       panel: Rect; gap: number; buttons: Rect;
       icon: Rect; headline: Rect; detail: Rect; feature: Rect;
+      outcome: { identity: Rect; text: Rect; feature: Rect };
     };
   };
 }
@@ -209,6 +240,71 @@ const REWARD_PANEL_PAD: Record<RunTemplatePlatform, number> = { desktop: 24, mob
 const REWARD_PANEL_MAX_W: Partial<Record<RunTemplatePlatform, number>> = { desktop: 850 };
 const REWARD_PANEL_MAX_H: Partial<Record<RunTemplatePlatform, number>> = { desktop: 480 };
 
+/**
+ * `outcome` sub-shape geometry (task #41 density pass — see the `reward` doc
+ * comment's `outcome` entry for what each part is for). Kept as its OWN
+ * constant block, separate from `REWARD_ICON_H`/etc. above, because those
+ * remain the PICKER's geometry (untouched) while these are exclusively
+ * `renderRunRewardPanel`'s.
+ *
+ *   `REWARD_IDENTITY_H` — the icon+event-title band's height.
+ *   `REWARD_OUTCOME_GAP` — breathing room between `identity` and the
+ *     text/feature body below it (desktop also reuses it as the column gap
+ *     between `text` and `feature`; mobile also reuses it between its
+ *     stacked `text` and `feature`).
+ *   `REWARD_OUTCOME_TEXT_RATIO` — DESKTOP ONLY: `text`'s share of the inner
+ *     width in the two-column layout (the rest goes to `feature`). Mobile
+ *     has no ratio — its `text` is a fixed-height band at full width instead
+ *     (see `REWARD_OUTCOME_TEXT_H`), because a narrow column can't afford to
+ *     ALSO split horizontally without squeezing both `text` and `feature`
+ *     into slivers.
+ *   `REWARD_OUTCOME_TEXT_H` — MOBILE ONLY: `text`'s fixed height (desktop's
+ *     `text` instead spans the full body height, matching `feature`).
+ */
+const REWARD_IDENTITY_H: Record<RunTemplatePlatform, number> = { desktop: 40, mobile: 30 };
+const REWARD_OUTCOME_GAP: Record<RunTemplatePlatform, number> = { desktop: 20, mobile: 14 };
+const REWARD_OUTCOME_TEXT_RATIO: Partial<Record<RunTemplatePlatform, number>> = { desktop: 0.36 };
+const REWARD_OUTCOME_TEXT_H: Partial<Record<RunTemplatePlatform, number>> = { mobile: 112 };
+
+/**
+ * Builds the `outcome` sub-shape (see the `reward` doc comment) INSIDE the
+ * already-computed `panel`/`pad` — called once by `buildRewardSlot` below,
+ * split out only because `buildRewardSlot` was already doing a lot in one
+ * function. DESKTOP: `text` and `feature` sit SIDE BY SIDE, both spanning
+ * the full body height below `identity` — the two-column "wide band" answer.
+ * MOBILE: `text` is a fixed-height band directly below `identity`, and
+ * `feature` takes EVERYTHING left below that — the "narrow column, but
+ * denser" answer (mobile's panel already had far more spare height than
+ * a single feature used, see the module doc's `REWARD_PANEL_MAX_H` note).
+ */
+function buildRewardOutcomeSlot(panel: Rect, pad: number, platform: RunTemplatePlatform): RunScreenTemplate['contentSlots']['reward']['outcome'] {
+  const innerX = panel.x + pad;
+  const innerW = Math.max(0, panel.width - pad * 2);
+  const gap = REWARD_OUTCOME_GAP[platform];
+  const identity: Rect = { x: innerX, y: panel.y + pad, width: innerW, height: REWARD_IDENTITY_H[platform] };
+  const bodyTop = identity.y + identity.height + gap;
+  const bodyBottom = panel.y + panel.height - pad;
+
+  const textRatio = REWARD_OUTCOME_TEXT_RATIO[platform];
+  if (textRatio !== undefined) {
+    const textW = Math.round(innerW * textRatio);
+    const featureW = Math.max(0, innerW - textW - gap);
+    const bodyH = Math.max(0, bodyBottom - bodyTop);
+    return {
+      identity,
+      text: { x: innerX, y: bodyTop, width: textW, height: bodyH },
+      feature: { x: innerX + textW + gap, y: bodyTop, width: featureW, height: bodyH },
+    };
+  }
+  const textH = REWARD_OUTCOME_TEXT_H[platform] ?? 0;
+  const featureTop = bodyTop + textH + gap;
+  return {
+    identity,
+    text: { x: innerX, y: bodyTop, width: innerW, height: textH },
+    feature: { x: innerX, y: featureTop, width: innerW, height: Math.max(0, bodyBottom - featureTop) },
+  };
+}
+
 /** Splits `content` into the reward panel / gap / bottom-anchored button row,
  * then subdivides the panel itself into the icon/headline/detail/feature
  * stack (see the `reward` doc comment above). The BUTTONS are reserved
@@ -264,7 +360,8 @@ export function buildRewardSlot(content: Rect, platform: RunTemplatePlatform): R
   const featureTop = detail.y + detail.height + innerGap;
   const featureBottom = panel.y + panel.height - pad;
   const feature: Rect = { x: innerX, y: featureTop, width: innerW, height: Math.max(0, featureBottom - featureTop) };
-  return { panel, gap, buttons, icon, headline, detail, feature };
+  const outcome = buildRewardOutcomeSlot(panel, pad, platform);
+  return { panel, gap, buttons, icon, headline, detail, feature, outcome };
 }
 
 /** Splits `region` into `count` equal-width slots left to right, `gap` apart. */

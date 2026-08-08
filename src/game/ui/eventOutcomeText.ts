@@ -49,6 +49,12 @@ export function outcomeHeadline(outcome: EventOutcome): { headline: string; deta
       return { headline: `Hero levels up → LV ${outcome.level}`, detail: '' };
     case 'bonusDraft':
       return { headline: 'Pick a card to keep', detail: '' };
+    // Unreachable in practice — the scenes render `upgradeCardPick` through
+    // `renderRunUpgradeCardPicker` directly, never through this resolved-
+    // outcome headline (same as `bonusDraft` above, which also never reaches
+    // here). Kept only so the exhaustiveness guard below stays meaningful.
+    case 'upgradeCardPick':
+      return { headline: 'Choose a card to upgrade', detail: '' };
     case 'upgradeCard':
       return outcome.fellBack
         ? { headline: 'Nothing eligible to upgrade — took gold instead', detail: '' }

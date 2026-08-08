@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STAT_KEYS, STAT_LONG_NAME, STAT_TOKEN } from '../../src/game/ui/statLabels';
+import { gemStatSuffix, STAT_KEYS, STAT_LONG_NAME, STAT_TOKEN } from '../../src/game/ui/statLabels';
 import { STAT_LABELS, statHoverEntry } from '../../src/game/ui/statGlossary';
 
 describe('statLabels — the single canonical source of stat tokens', () => {
@@ -45,5 +45,21 @@ describe('statLabels — the single canonical source of stat tokens', () => {
       expect(statHoverEntry('atk').title).toBe(statHoverEntry('ATK').title);
       expect(statHoverEntry('WEIRD')).toEqual({ title: 'WEIRD', body: 'A combat stat.' });
     });
+  });
+});
+
+describe('gemStatSuffix — the hero-scope stat gem "(+N)" attribution (task 39 item 2)', () => {
+  it('renders " (+N)" for a stat a gem bumps', () => {
+    expect(gemStatSuffix('attack', { attack: 4 })).toBe(' (+4)');
+  });
+
+  it('is empty for a stat with no gem contribution (undefined or zero)', () => {
+    expect(gemStatSuffix('attack', {})).toBe('');
+    expect(gemStatSuffix('attack', { attack: 0 })).toBe('');
+    expect(gemStatSuffix('speed', { attack: 4 })).toBe('');
+  });
+
+  it('maxHp never gets a suffix — no gem can target it (BuffableStat excludes maxHp)', () => {
+    expect(gemStatSuffix('maxHp', { attack: 4 })).toBe('');
   });
 });

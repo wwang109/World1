@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
-import { applyTier, resolveDisplaySkill } from '../../engine/cards';
+import { applyTier, gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { enemies } from '../../data/enemies';
 import { setDeckBuildContext } from '../deckBuildContext';
@@ -311,6 +311,9 @@ export class MobilePrepScene extends Phaser.Scene {
     const cellW = (w - gap * (cols - 1)) / cols;
     const cellH = 40;
     const btn = 22;
+    // Hero-scope stat gems never showed up here (level-BUY gain only) — sum
+    // them once so each cell can show its own "◆+N" beside the buy figure.
+    const gemAdds = gemHeroStats(demoState.pieces);
     rows.forEach(([stat, label], i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
@@ -321,10 +324,16 @@ export class MobilePrepScene extends Phaser.Scene {
       const canBuy = banked >= cost.pl;
       const canSell = buys > 0;
       const gained = buys * cost.gain;
+      const gemAdd = gemAdds[stat] ?? 0;
 
       this.add.rectangle(this.x(cx), this.y(cy), cellW, cellH, 0x101a2a).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.5);
       this.text(cx + 5, cy + 3, label, F.tiny, UI.textFootnote, { bold: true });
-      this.text(cx + cellW - 5, cy + 3, gained > 0 ? `+${gained}` : '·', F.tiny, gained > 0 ? UI.textAccent : '#5a6a82', { bold: true, origin: [1, 0] });
+      if (gemAdd > 0) {
+        const gemText = this.text(cx + cellW - 5, cy + 3, `◆+${gemAdd}`, F.tiny, UI.textGem, { bold: true, origin: [1, 0] });
+        this.text(cx + cellW - 5 - gemText.width - 4, cy + 3, gained > 0 ? `+${gained}` : '·', F.tiny, gained > 0 ? UI.textAccent : '#5a6a82', { bold: true, origin: [1, 0] });
+      } else {
+        this.text(cx + cellW - 5, cy + 3, gained > 0 ? `+${gained}` : '·', F.tiny, gained > 0 ? UI.textAccent : '#5a6a82', { bold: true, origin: [1, 0] });
+      }
       if (canSell) {
         this.button(cx + 4, cy + cellH - btn - 4, btn, btn, '−', 0x16233a, UI.textBright, () => {
           demoState.heroAllocation[stat] = buys - 1; this.rerender();
@@ -358,7 +367,9 @@ export class MobilePrepScene extends Phaser.Scene {
       heroPieces.push({ skill, slot: p.slot });
       heroSkills.push(skill);
     }
-    const heroStats = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces.map((p) => ({ ...p })), demoState.heroAllocation).setup.stats;
+    const heroSetup = buildAutoHeroSetup(demoState.heroLevel, demoState.pieces.map((p) => ({ ...p })), demoState.heroAllocation).setup;
+    // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
+    const heroStats = resolveDisplayHeroStats(heroSetup.stats, heroSetup.pieces);
 
     const top = sheetBottom + 22;
     const colH = this.H - (top - this.oy) - 66;

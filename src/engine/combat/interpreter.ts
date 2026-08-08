@@ -22,6 +22,7 @@ export interface Ctx {
 function isOffensiveAction(action: Action): boolean {
   switch (action.kind) {
     case 'damage':
+    case 'statStrike':
     case 'poison':
     case 'burn':
     case 'bleed':
@@ -245,6 +246,85 @@ function scaleDefStat(c: CombatantState, property: Property): number {
     case 'true':
       return 0;
   }
+}
+
+/**
+ * MULTI-HIT STAT SPLIT (user-locked 2026-08-07) — WHICH damage action of a cast
+ * this is, and how many the cast carries in total. The caster's scaling stat is
+ * a PER-CAST resource, not a per-action one: a cast that hits N times delivers
+ * the SAME total stat as a cast that hits once, split across its hits.
+ *
+ * WHY: before this rule every `damage` action added the caster's FULL Attack /
+ * Magic Power, so a 2-hit card delivered 2× the stat of a 1-hit card and a
+ * 3-hit card 3×. That made multi-hit scale SUPERLINEARLY with hero stats while
+ * `powerLevelDeci` priced only the summed flat base plus a FLAT
+ * `PRICE.extraHitPremium` — a fixed price against an effect whose value grew
+ * without bound with hero level (at ATK 50 an extra hit shipped ~50 unpriced
+ * damage for a 3 PL charge). Splitting the stat makes the stat term
+ * HIT-COUNT-INVARIANT, so a flat premium can price the remaining (flat-base and
+ * per-hit-mitigation) differences honestly.
+ *
+ * `count` is the number of the CARD'S OWN `damage` actions. GEM-APPENDED hits
+ * are deliberately EXCLUDED from the divisor (user-locked 2026-08-07): a socket
+ * must never make the host card's own hit smaller. Were an appended hit counted,
+ * it would take a share of the stat away from the base hit AND eat a second
+ * round of armor mitigation with it — measured at −4 damage on `sword_slash` at
+ * DEF 8 and −9 at DEF 16, i.e. a "+damage" gem that made you deal LESS. A gem's
+ * hit is self-contained instead: its own payload, no share of the pool, no
+ * attacker-side bonus (see `GemAppended`). The core loop stays feature-agnostic
+ * — it reads one provenance flag the resolver stamped; it does not know what a
+ * gem is.
+ */
+export interface HitSplit {
+  /** 0-based ordinal among the cast's `damage` actions (effect-list order). */
+  index: number;
+  /** How many `damage` actions the cast carries (>= 1). */
+  count: number;
+}
+
+/** The only split a non-damage action (or a single-hit cast) ever needs. */
+const SINGLE_HIT: HitSplit = { index: 0, count: 1 };
+
+/**
+ * This hit's INTEGER share of a per-cast stat pool.
+ *
+ * Exact by construction: shares sum to EXACTLY `stat` for any `count >= 1` and
+ * any sign of `stat` — `base = floor(stat / count)` and
+ * `remainder = stat - base * count` always lands in `[0, count)`, so handing
+ * one extra point to the FIRST `remainder` hits distributes the whole pool and
+ * never one point more. No floats persist; nothing is re-floored downstream.
+ *
+ * ROUNDING (locked): the remainder is FRONT-LOADED — earlier hits are the
+ * bigger ones. Two reasons: (a) a cast can stop early when its target side is
+ * wiped (`applyCast`'s first-to-fall break), so the share most likely to
+ * actually land carries the odd point; (b) each hit is mitigated separately and
+ * floored at 1 damage, so a front-loaded remainder is the friendlier side of
+ * the rounding against armor.
+ *
+ * At `count === 1` this returns `stat` unchanged, so every single-hit card in
+ * the book — the overwhelming majority — is byte-identical to the pre-split
+ * engine. A tiny stat CAN leave a late hit with a 0 share (ATK 1 over 2 hits is
+ * 1 and 0; one point cannot be split in integers): the cast's TOTAL stat is
+ * still exactly 1, the card's flat base still applies, and `dealDamage`'s
+ * minimum-1 clamp still guarantees the hit lands for at least 1.
+ */
+export function statShare(stat: number, hit: HitSplit): number {
+  if (hit.count <= 1) return stat;
+  const base = Math.floor(stat / hit.count);
+  const remainder = stat - base * hit.count;
+  return base + (hit.index < remainder ? 1 : 0);
+}
+
+/**
+ * The split's denominator: how many `damage` actions the CARD ITSELF carries.
+ * Gem-appended hits are skipped (see `HitSplit`), so socketing a gem never
+ * shrinks the host card's own hit. `statStrike` never enters the divisor
+ * either — its payload is derived independently, not carved out of the pool.
+ */
+function countDamageActions(effects: readonly Action[]): number {
+  let n = 0;
+  for (const action of effects) if (action.kind === 'damage' && !action.fromGem) n += 1;
+  return n;
 }
 
 /**
@@ -525,6 +605,91 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
 }
 
 /**
+ * The ATTACKER-SIDE parts of one hit, before any defender-side or world-rule
+ * maths. Every damage-dealing action reduces to these four numbers and then
+ * runs the SAME pipeline (`applyStrike`), so the TRUE rule, the mitigation
+ * order, the floors and the reported `calculation` exist in exactly one place.
+ */
+interface StrikeParts {
+  /** The card's own FLAT base. 0 for a `statStrike`, which has no base. */
+  power: number;
+  /** This hit's stat term off the caster's RAW stat sheet (what the card promises). */
+  baseStat: number;
+  /** The same term off the caster's BUFFED stats (what actually lands). */
+  effectiveStat: number;
+  /** Flat attacker-side adds: aura / card-scope gem `damageFlat` + a triggered combo. */
+  flatBonus: number;
+}
+
+/**
+ * Resolve one hit from its attacker-side parts: apply the property's defense
+ * rule, the weapon/element matchup, the sudden-death ramp and the floors, then
+ * hand the result to `dealDamage` with the derivation the log prints.
+ *
+ * The reported parts telescope by construction —
+ * `baseDamage + statBonusDamage + effectBonusDamage = power + effectiveStat +
+ * flatBonus` — for any caller, which is what lets a `statStrike` (power 0) and
+ * an ordinary `damage` action share one renderer.
+ */
+function applyStrike(
+  ctx: Ctx,
+  caster: CombatantState,
+  skill: SkillDef,
+  cast: CastCtx,
+  enemy: CombatantState,
+  parts: StrikeParts,
+): void {
+  const property = skill.property;
+  const scalingStat = scalingStatName(caster, property);
+  const { power, baseStat, effectiveStat, flatBonus } = parts;
+  const baseDamage = power + baseStat;
+  const scaledDamage = power + effectiveStat;
+  // Scaled base + flat aura/gem/combo bonus. There is no percent same-type
+  // bonus: a board's type identity only grants a defensive affinity, which
+  // feeds the weapon/element triangle multiplier (advantage/disadvantage)
+  // applied below — not a flat damage add here.
+  const modifiedDamage = scaledDamage + flatBonus;
+  // TRUE damage (user-locked 2026-07-20): only the card's FLAT portion
+  // bypasses defenses. The stat add is checked against the enemy's
+  // matching defense (Attack vs Armor, Magic Power vs Magic Resist) —
+  // defense can eat up to the stat add, never the flat base or bonuses.
+  // Under the multi-hit split `effectiveStat` is THIS HIT's share, so the
+  // rule reads per hit and the defense a TRUE cast can ever absorb still
+  // totals at most the caster's whole stat — never `hits ×` it. A TRUE
+  // `statStrike` is therefore fully mitigable (it is ALL stat add), and a
+  // gem-appended TRUE flat hit fully bypasses (it is all flat base).
+  const defense = property === 'true'
+    ? Math.min(effectiveStat, effStat(enemy, scalingStat === 'attack' ? 'armor' : 'magicResist'))
+    : mitigation(enemy, property);
+  const afterDefenseWithoutFloor = Math.max(0, modifiedDamage - defense);
+  const afterDefense = Math.max(1, afterDefenseWithoutFloor);
+  const matchup = cardMatchup(skill, enemy);
+  const afterMatchup = Math.floor((afterDefense * matchupPct(matchup)) / 100);
+  const amountBeforeFinalFloor = caster.sdStacks > 0
+    ? Math.floor((afterMatchup * (100 + caster.sdStacks)) / 100)
+    : afterMatchup;
+  const amount = Math.max(1, amountBeforeFinalFloor);
+  const hpBefore = enemy.stats.hp;
+  dealDamage(ctx, enemy, amount, property, {
+    matchup,
+    calculation: {
+      scalingStat,
+      baseStat,
+      effectiveStat,
+      power,
+      baseDamage,
+      statBonusDamage: scaledDamage - baseDamage,
+      effectBonusDamage: modifiedDamage - scaledDamage,
+      defense: modifiedDamage - afterDefenseWithoutFloor,
+      minimumDamageBonus: (afterDefense - afterDefenseWithoutFloor) + (amount - amountBeforeFinalFloor),
+      matchupBonusDamage: afterMatchup - afterDefense,
+      suddenDeathBonusDamage: amountBeforeFinalFloor - afterMatchup,
+    },
+  });
+  cast.damageDealt += hpBefore - enemy.stats.hp;
+}
+
+/**
  * Apply one action to one already-resolved target, passed as `enemy` (the name
  * is historical). Offensive actions treat it as the victim. Ally-targeted
  * support (heal/cleanse/buffStat) treats it as the recipient ally chosen by
@@ -532,6 +697,12 @@ function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): vo
  * Self-only support (shield/guard/negate) and the self riders (taunt/lifesteal/
  * comboBonus) act on the caster directly. The interpreter fan-out (see
  * `applyCast`) calls this once per resolved target, in ascending index order.
+ *
+ * `hit` is this damage action's slice of the cast's per-cast stat pool (see
+ * `HitSplit` / `statShare`); it is the SAME object for every target of one
+ * action, so an AoE hit never advances the split. Everything that does NOT take
+ * a share — non-damage actions, `statStrike`, and any GEM-APPENDED hit — is
+ * handed `SINGLE_HIT` and never reads it.
  */
 function applyAction(
   ctx: Ctx,
@@ -541,6 +712,7 @@ function applyAction(
   mods: AuraMods,
   cast: CastCtx,
   enemy: CombatantState,
+  hit: HitSplit,
 ): void {
   const property = skill.property;
   switch (action.kind) {
@@ -549,50 +721,52 @@ function applyAction(
       // (Attack / Magic Power / higher for TRUE) plus any aura / combo bonus are
       // ADDED flat on top — never multiplied. Damage and HP both scale linearly.
       // Only matchup (±%) and sudden death remain multipliers.
-      const scalingStat = scalingStatName(caster, property);
-      const baseStat = caster.stats[scalingStat];
-      const effectiveStat = scaleStat(caster, property);
-      const baseDamage = action.power + baseStat;
-      const scaledDamage = action.power + effectiveStat;
-      const flatBonus = mods.damageFlat + cast.bonusFlat;
-      // Scaled base + flat aura/gem/combo bonus. There is no percent same-type
-      // bonus: a board's type identity only grants a defensive affinity, which
-      // feeds the weapon/element triangle multiplier (advantage/disadvantage)
-      // applied below — not a flat damage add here.
-      const modifiedDamage = scaledDamage + flatBonus;
-      // TRUE damage (user-locked 2026-07-20): only the card's FLAT portion
-      // bypasses defenses. The stat add is checked against the enemy's
-      // matching defense (Attack vs Armor, Magic Power vs Magic Resist) —
-      // defense can eat up to the stat add, never the flat base or bonuses.
-      const defense = property === 'true'
-        ? Math.min(effectiveStat, effStat(enemy, scalingStat === 'attack' ? 'armor' : 'magicResist'))
-        : mitigation(enemy, property);
-      const afterDefenseWithoutFloor = Math.max(0, modifiedDamage - defense);
-      const afterDefense = Math.max(1, afterDefenseWithoutFloor);
-      const matchup = cardMatchup(skill, enemy);
-      const afterMatchup = Math.floor((afterDefense * matchupPct(matchup)) / 100);
-      const amountBeforeFinalFloor = caster.sdStacks > 0
-        ? Math.floor((afterMatchup * (100 + caster.sdStacks)) / 100)
-        : afterMatchup;
-      const amount = Math.max(1, amountBeforeFinalFloor);
-      const hpBefore = enemy.stats.hp;
-      dealDamage(ctx, enemy, amount, property, {
-        matchup,
-        calculation: {
-          scalingStat,
-          baseStat,
-          effectiveStat,
-          power: action.power,
-          baseDamage,
-          statBonusDamage: scaledDamage - baseDamage,
-          effectBonusDamage: modifiedDamage - scaledDamage,
-          defense: modifiedDamage - afterDefenseWithoutFloor,
-          minimumDamageBonus: (afterDefense - afterDefenseWithoutFloor) + (amount - amountBeforeFinalFloor),
-          matchupBonusDamage: afterMatchup - afterDefense,
-          suddenDeathBonusDamage: amountBeforeFinalFloor - afterMatchup,
-        },
+      //
+      // MULTI-HIT STAT SPLIT (user-locked 2026-08-07): the stat term is this
+      // hit's SHARE of the cast's stat pool, not the whole stat — a cast's
+      // total stat contribution is the same whether it hits once or five times.
+      // Both the raw `baseStat` and the buffed `effectiveStat` are split by the
+      // identical rule so the reported parts still telescope
+      // (`baseDamage + statBonusDamage + effectBonusDamage = modifiedDamage`).
+      //
+      // GEM-APPENDED (user-locked 2026-08-07): a hit the socket added is
+      // self-contained — flat `power` and nothing else. No stat share (it was
+      // never in the divisor, so the card's own hit keeps the whole pool), no
+      // `mods.damageFlat`, no `comboBonus`. See `GemAppended` in types.ts.
+      const flat = action.fromGem === true;
+      applyStrike(ctx, caster, skill, cast, enemy, {
+        power: action.power,
+        baseStat: flat ? 0 : statShare(caster.stats[scalingStatName(caster, property)], hit),
+        effectiveStat: flat ? 0 : statShare(scaleStat(caster, property), hit),
+        flatBonus: flat ? 0 : mods.damageFlat + cast.bonusFlat,
       });
-      cast.damageDealt += hpBefore - enemy.stats.hp;
+      break;
+    }
+    case 'statStrike': {
+      // A separate hit for ONE SHARE of a `shareOf`-way split of the caster's
+      // scaling stat, optionally capped (see the `statStrike` docs in types.ts).
+      // It has NO flat base and takes NO attacker-side bonus — not
+      // `mods.damageFlat`, not a triggered `comboBonus` — and it never enters
+      // the multi-hit divisor, so it is strictly ADDITIVE to the host card's own
+      // hit rather than carved out of it.
+      //
+      // The share is `statShare` at index 0 of a `shareOf`-way split: exact
+      // integer arithmetic, front-loaded exactly as the multi-hit rule rounds
+      // (`shareOf: 2` of Attack 21 is 11, not 10). A `shareOf` below 1 would
+      // mean "more than the whole stat", which the effect is defined never to
+      // do, so it clamps to 1 = the whole stat.
+      const shareOf = Math.max(1, Math.floor(action.shareOf));
+      const cap = action.cap;
+      const share = (stat: number): number => {
+        const part = statShare(stat, { index: 0, count: shareOf });
+        return cap === undefined ? part : Math.min(part, cap);
+      };
+      applyStrike(ctx, caster, skill, cast, enemy, {
+        power: 0,
+        baseStat: share(caster.stats[scalingStatName(caster, property)]),
+        effectiveStat: share(scaleStat(caster, property)),
+        flatBonus: 0,
+      });
       break;
     }
     case 'heal': {
@@ -904,15 +1078,25 @@ export function applyCast(
     ...(auraSources.length > 0 ? { auras: auraSources } : {}),
   });
   const cast: CastCtx = { damageDealt: 0, bonusFlat: 0 };
+  // MULTI-HIT STAT SPLIT: the denominator is fixed for the whole cast and counts
+  // the CARD'S OWN damage actions only — a gem-appended hit neither joins the
+  // split nor advances the ordinal, so socketing a gem cannot shrink the hits
+  // the card already had. The ordinal advances once per damage ACTION, never per
+  // fan-out target, so an AoE hit and a single-target hit split identically. Both
+  // are plain index walks over an array: no Map/Set, no RNG, no float.
+  const hitCount = countDamageActions(skill.effects);
+  let hitIndex = 0;
   // Tag every effect this cast emits with its source card (for the per-card report).
   ctx.source = { side: caster.side, unit: caster.index, slot, skillId: skill.id };
   for (const action of skill.effects) {
+    const splits = action.kind === 'damage' && !action.fromGem;
+    const hit: HitSplit = splits ? { index: hitIndex++, count: hitCount } : SINGLE_HIT;
     // Fan out: offensive actions apply to EACH resolved target in ascending
     // index order; support actions resolve to `[caster]` and run once.
     // `cast.damageDealt`
     // accumulates across all victims so lifesteal sums the whole cast.
     for (const target of resolveTargets(ctx, caster, skill, action)) {
-      applyAction(ctx, caster, skill, action, mods, cast, target);
+      applyAction(ctx, caster, skill, action, mods, cast, target, hit);
     }
     // FIRST TO FALL LOSES (user-locked 2026-08-04): the fight ends at the exact
     // application that wipes a side, so a cast that lands the killing blow STOPS

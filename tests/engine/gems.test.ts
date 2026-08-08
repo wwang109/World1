@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { simulate } from '../../src/engine/combat/simulate';
 import { initCombatState, type CombatantState } from '../../src/engine/combat/state';
 import { aurasOn } from '../../src/engine/combat/auras';
-import { resolveDisplaySkill, resolveEffectiveSkill } from '../../src/engine/cards';
+import { resolveDisplayHeroStats, resolveDisplaySkill, resolveEffectiveSkill } from '../../src/engine/cards';
 import { skillBook } from '../../src/data/skills';
 import type { BoardPiece, Gem } from '../../src/engine/types';
 import { cfg, tc, NO_ENDGAME } from '../helpers';
@@ -48,11 +48,16 @@ describe('gems: effect gems (append-only riders)', () => {
     expect(events.some((e) => e.kind === 'statusApplied' && e.status === 'poison')).toBe(false);
   });
 
-  it('resolveEffectiveSkill appends in fixed order (base first, gem after)', () => {
+  it('resolveEffectiveSkill appends in fixed order (base first, gem after) and STAMPS the gem actions', () => {
     const def = skillBook['sword_slash']!;
     const eff = resolveEffectiveSkill(def, { skillId: 'sword_slash', slot: 0, gem: poisonGem });
-    expect(eff.effects).toEqual([...def.effects, ...poisonGem.actions]);
-    expect(eff.effects[eff.effects.length - 1]).toMatchObject({ kind: 'poison' });
+    // The resolver seam marks provenance so the core loop never has to infer it.
+    expect(eff.effects).toEqual([...def.effects, ...poisonGem.actions.map((a) => ({ ...a, fromGem: true }))]);
+    expect(eff.effects[eff.effects.length - 1]).toMatchObject({ kind: 'poison', fromGem: true });
+    // The card's OWN actions are never stamped...
+    expect(eff.effects[0]).not.toHaveProperty('fromGem');
+    // ...and the shared content object in src/data is never mutated.
+    expect(poisonGem.actions[0]).not.toHaveProperty('fromGem');
   });
 });
 
@@ -126,6 +131,46 @@ describe('gems: hero-scope stat gems fold into base stats', () => {
   });
 });
 
+describe('resolveDisplayHeroStats: hero stat-readout gem fold (display-only, task 39 item 2)', () => {
+  it('matches the EXACT stats initCombatState applies at cast time for a gemmed board', () => {
+    const heroGem: Gem = { kind: 'stat', id: 'g_might', rarity: 'epic', scope: 'hero', mods: { hero: { attack: 7, speed: 3 } } };
+    const pieces: BoardPiece[] = [{ skillId: 'sword_slash', slot: 0, gem: heroGem }];
+    const baseStats = { attack: 10, speed: 10 } as const;
+
+    const shown = resolveDisplayHeroStats({ maxHp: 100, hp: 100, attack: 10, magicPower: 5, armor: 2, magicResist: 2, speed: 10 }, pieces);
+    expect(shown.attack).toBe(17);
+    expect(shown.speed).toBe(13);
+
+    const state = initCombatState(cfg(tc('hero', [], baseStats, { boardSize: 10, pieces }), tc('foe', [])));
+    expect(shown.attack).toBe(state.player.stats.attack);
+    expect(shown.speed).toBe(state.player.stats.speed);
+  });
+
+  it('two hero gems on the board sum their contributions, same as the engine fold', () => {
+    const g1: Gem = { kind: 'stat', id: 'g1', rarity: 'common', scope: 'hero', mods: { hero: { attack: 4 } } };
+    const g2: Gem = { kind: 'stat', id: 'g2', rarity: 'common', scope: 'hero', mods: { hero: { attack: 6 } } };
+    const pieces: BoardPiece[] = [
+      { skillId: 'sword_slash', slot: 0, gem: g1 },
+      { skillId: 'sword_slash', slot: 1, gem: g2 },
+    ];
+    const shown = resolveDisplayHeroStats({ maxHp: 100, hp: 100, attack: 10, magicPower: 0, armor: 0, magicResist: 0, speed: 0 }, pieces);
+    expect(shown.attack).toBe(20);
+  });
+
+  it('a card-scope gem never bumps a hero stat (only hero-scope gems do)', () => {
+    const cardGem: Gem = { kind: 'stat', id: 'g_dmg', rarity: 'rare', scope: 'card', mods: { card: { damageFlat: 30 } } };
+    const pieces: BoardPiece[] = [{ skillId: 'sword_slash', slot: 0, gem: cardGem }];
+    const stats = { maxHp: 100, hp: 100, attack: 10, magicPower: 5, armor: 2, magicResist: 2, speed: 10 };
+    expect(resolveDisplayHeroStats(stats, pieces)).toEqual(stats);
+  });
+
+  it('no gems on the board is a no-op (same values, byte-identical)', () => {
+    const pieces: BoardPiece[] = [{ skillId: 'sword_slash', slot: 0 }];
+    const stats = { maxHp: 100, hp: 100, attack: 10, magicPower: 5, armor: 2, magicResist: 2, speed: 10 };
+    expect(resolveDisplayHeroStats(stats, pieces)).toEqual(stats);
+  });
+});
+
 describe('resolveDisplaySkill: card-FACE gem fold (display-only)', () => {
   it("a card-scope healFlat gem bumps a heal action's power AND retexts the flavor number (task 35: HEAL 20 + 8 gem -> HEAL 28)", () => {
     const def = skillBook['verdant_touch']!; // "Restore 20 (+MDEF) HP."
@@ -153,10 +198,10 @@ describe('resolveDisplaySkill: card-FACE gem fold (display-only)', () => {
     expect(shown.text).toBe(def.text);
   });
 
-  it('an effect gem\'s appended actions still show up (delegates to resolveEffectiveSkill unchanged)', () => {
+  it('an effect gem\'s appended actions still show up, provenance mark and all (delegates to resolveEffectiveSkill unchanged)', () => {
     const def = skillBook['sword_slash']!;
     const shown = resolveDisplaySkill(def, { skillId: 'sword_slash', slot: 0, gem: poisonGem });
-    expect(shown.effects).toEqual([...def.effects, ...poisonGem.actions]);
+    expect(shown.effects).toEqual([...def.effects, ...poisonGem.actions.map((a) => ({ ...a, fromGem: true }))]);
   });
 
   it('a hero-scope stat gem never folds into the card face (it boosts the combatant, not this card)', () => {
