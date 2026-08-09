@@ -296,6 +296,41 @@ export const PRICE = {
   extraHitPremium: 30,
 
   /**
+   * ECHO REPEAT — deci-PL for a FULL repeat of the host card's whole attack
+   * (`statStrike` + `echoHostPower`, `shareOf: 1`). An echo's payload is a unit
+   * fraction of that, so its rate is `echoRepeatDeci / shareOf`.
+   *
+   * DERIVED, NOT CHOSEN (gem ruleset v1 §6, 2026-08-09). 100 deci is not a new
+   * anchor: it is THE anchor this table already uses twice, both user-locked
+   * 2026-07-19, for "one whole cast's worth of output" —
+   *   • `negatePerCharge` 100: a charge CANCELS a full direct hit (~one Bronze
+   *     card's worth of prevented output);
+   *   • `stunPerTurn` 100: a stun DENIES a whole guaranteed performance.
+   * A full repeat is the exact mirror of what a negate charge denies — one more
+   * whole hit — so it takes the same number, and `shareOf` divides it because
+   * the payload is a literal `1/shareOf` of that hit. The resulting ladder
+   * (with `extraHitPremium` for the instance itself) is:
+   *   shareOf 1 → 100 + 30 = 130 (above every rarity band — unbuyable)
+   *   shareOf 2 →  50 + 30 =  80 = Legendary EXACTLY
+   *   shareOf 3 →  33 + 30 =  63 · shareOf 4 → 25 + 30 = 55 (no band)
+   * Exactly one echo strength is priceable, and it is Legendary.
+   *
+   * READ THIS BEFORE USING IT AS A NUMBER: this rate is a HOST-BLIND STAND-IN,
+   * and it is wrong in both directions on purpose. What an echo actually
+   * delivers is proportional to a host the rate cannot see — half of
+   * `sword_slash`'s base is 5 PL of damage, half of `crushing_blow`'s is 24 PL —
+   * so no fixed number is honest ACCOUNTING. It is honest CLASSIFICATION: it
+   * answers "is this a Legendary-shaped effect?" for `isGemOnBudget` and for a
+   * shop price, the two surfaces that have no host. Wherever the host IS visible
+   * (`instancePowerLevelDeci`) the stand-in is replaced by the measured
+   * host-proportional term — see `echoHostShareDeci`.
+   *
+   * A CAPPED echo never uses this rate: a cap bounds the payload absolutely, so
+   * `actionsPriceDeci` prices it exactly, like a flat damage action of that cap.
+   */
+  echoRepeatDeci: 100,
+
+  /**
    * Hero-scope gem stat mods: flat integer points folded into base
    * `CombatantStats` for the whole run (permanent, every card, every turn) —
    * see "Gem pricing" in docs/power-level-reference.md for the anchoring
@@ -390,13 +425,33 @@ export function actionsPriceDeci(actions: readonly Action[], property: Property)
         // A CAPPED stat strike can never deliver more than `cap` damage at any
         // hero level, so it prices exactly like a flat damage action of that
         // size — a conservative ceiling price (it delivers less than the cap
-        // until the caster's stat reaches `cap * shareOf`).
+        // until the caster's stat reaches `cap * shareOf`). The cap bounds the
+        // WHOLE payload, so the ECHO form (`echoHostPower`, which adds a share
+        // of the host card's own base) prices by the identical rule.
         //
-        // An UNCAPPED one prices at ZERO ON PURPOSE. Its value is unbounded in
-        // the caster's stat, so no fixed deci rate is honest; 0 makes it miss
-        // every rarity band (`isGemOnBudget`) and every tier budget
-        // (`isOnBudget`), which fails the audit loudly instead of shipping free
-        // power. The fix is to CAP the effect, never to invent a rate here.
+        // An UNCAPPED one prices at ZERO ON PURPOSE. Its value is unbounded —
+        // in the caster's stat, and for an echo in the HOST CARD too (18 damage
+        // socketed on `static_jolt`, 58 on `crushing_blow`, same hero) — so no
+        // fixed deci rate is honest; 0 makes it miss every rarity band
+        // (`isGemOnBudget`) and every tier budget (`isOnBudget`), which fails
+        // the audit loudly instead of shipping free power.
+        //
+        // For a stat strike the fix is to CAP the effect. For an ECHO that is
+        // not a fix: a cap low enough to fit a gem band binds on almost every
+        // host and flattens the effect back into the flat chip it was meant to
+        // replace.
+        //
+        // AN ECHO IS PRICED, JUST NOT HERE (gem ruleset v1 §6, 2026-08-09). This
+        // table is the CARD rate table — `powerLevelDeci`, `capViolations` and
+        // `autoScaleTier` all read it, and `boardPowerLevel` runs it over a
+        // gem-RESOLVED skill in combat. Charging a host-blind guess for a
+        // host-proportional effect here would put that guess into the card audit
+        // and into in-combat threat. So the echo's price lives one level up, in
+        // `gemPowerLevelDeci`, where the two callers that need it can be told
+        // apart: host-blind classification (`PRICE.echoRepeatDeci / shareOf`) for
+        // the rarity band and the shop, host-proportional accounting
+        // (`echoHostShareDeci`) for `instancePowerLevelDeci`. Zero here stays
+        // correct and stays load-bearing.
         deci += (action.cap ?? 0) * (PRICE.flatPowerPerPoint + (property === 'true' ? PRICE.truePremiumPerPoint : 0));
         break;
       case 'heal':
@@ -677,18 +732,117 @@ export const RARITY_PL_DECI: Record<Rarity, number> = {
 export const GEM_CANONICAL_PROPERTY: Property = 'physical';
 
 /**
- * Total deci-PL of a single gem, priced independent of the card it's
- * socketed into (see `GEM_CANONICAL_PROPERTY` for the effect-gem case).
- * This is NOT part of the base-card budget audit — it's the gem's own PL,
- * checked against its rarity band by `isGemOnBudget`.
+ * The deci-PL an ECHO (`statStrike` + `echoHostPower`) actually contributes on a
+ * KNOWN host — the honest, measured counterpart to the host-blind
+ * `PRICE.echoRepeatDeci` stand-in (gem ruleset v1 §6, 2026-08-09).
+ *
+ * An echo re-delivers `share(hostBase + stat)`. Its two terms are priced the way
+ * the rest of this table prices those same two things on any card:
+ *  • the echoed FLAT BASE is a share of the host's OWN `damage` power, so it is
+ *    charged at the host's own flat-damage rate — `flatPowerPerPoint`, plus
+ *    `truePremiumPerPoint` on a TRUE host, exactly as the host's own base is;
+ *  • the echoed STAT term is charged at NOTHING, for the same reason a card's
+ *    own stat add is unpriced everywhere in this file ("the caster's Attack /
+ *    Magic Power is added on top at cast time, universal and unpriced" —
+ *    `flatPowerPerPoint`). `PRICE.extraHitPremium`, charged separately by
+ *    `gemPowerLevelDeci`, is what pays for the extra INSTANCE that carries it.
+ * So the rule reads: an echo costs exactly the fraction of the host's damage
+ * line it repeats, at the book's own rate. `sword_slash` (base 20, physical) →
+ * 10 echoed points × 5 = 50 deci; `crushing_blow` (base 96) → 48 × 5 = 240;
+ * `annihilation_strike` (base 48, TRUE) → 24 × 10 = 240; a host with no damage
+ * action of its own → 0, because the echo degrades to a plain (unpriceable,
+ * 0-priced) stat strike there.
+ *
+ * `hostBase` mirrors `ownDamagePower` in combat/interpreter.ts EXACTLY — the
+ * host's own `damage` actions, `fromGem` ones excluded, so a socket can never
+ * price itself. The share mirrors `statShare(points, { index: 0, count })`,
+ * whose front-loaded remainder makes index 0 exactly `ceil(points / count)` for
+ * any non-negative integer. Both are re-derived here as three lines rather than
+ * imported: `balance.ts` is upstream of the combat loop (state.ts imports it),
+ * and importing the interpreter back would close an import cycle. A test asserts
+ * the two agree.
  */
-export function gemPowerLevelDeci(gem: Gem): number {
+export function echoHostShareDeci(host: SkillDef, shareOf: number): number {
+  const count = Math.max(1, Math.floor(shareOf));
+  let points = 0;
+  for (const action of host.effects) {
+    if (action.kind === 'damage' && !action.fromGem) points += action.power;
+  }
+  const echoed = Math.ceil(points / count);
+  return echoed * (PRICE.flatPowerPerPoint + (host.property === 'true' ? PRICE.truePremiumPerPoint : 0));
+}
+
+/** An uncapped ECHO action, i.e. one that must be priced by the echo rules. */
+function isUncappedEcho(action: Action): boolean {
+  return action.kind === 'statStrike' && action.echoHostPower === true && action.cap === undefined;
+}
+
+/**
+ * Total deci-PL of a single gem.
+ *
+ * HOST-BLIND by default (see `GEM_CANONICAL_PROPERTY` for the effect-gem case):
+ * this is the gem's OWN PL, the number `isGemOnBudget` checks against its rarity
+ * band and `src/run/shop.ts` turns into a gold price. It is NOT part of the
+ * base-card budget audit.
+ *
+ * `host` (optional) is the card the gem is socketed INTO. Passing it changes
+ * exactly one thing — an uncapped ECHO's proportional payload, which is
+ * unknowable without the host, swaps its host-blind stand-in
+ * (`PRICE.echoRepeatDeci / shareOf`) for the measured `echoHostShareDeci`. Every
+ * other price in here is host-invariant by construction, so passing a host to a
+ * gem without an echo returns the identical number. `instancePowerLevelDeci` is
+ * the caller that has a host; the band check and the shop, which have none by
+ * necessity, do not.
+ */
+export function gemPowerLevelDeci(gem: Gem, host?: SkillDef): number {
   if (gem.kind === 'effect') {
     // A cooldown-reduction rider prices at the SAME rate as a card's own
     // cooldownTurns deviation (PRICE.cooldownPerTurn per turn shaved) — a
     // gem that shortens the host's cooldown by N turns is worth exactly what
     // a card baked with that same N-turn-shorter cooldown would cost.
-    return actionsPriceDeci(gem.actions, GEM_CANONICAL_PROPERTY) + (gem.cooldownReduction ?? 0) * PRICE.cooldownPerTurn;
+    //
+    // `weightIncreasePct` (the tempo COST of a scaling payload) prices at 0 —
+    // no refund. `PRICE.weightPer` is per weight POINT, and a percentage of a
+    // host this function cannot see is not a number of points; charging the
+    // best case (the lightest legal card, `WEIGHT_MIN` 5) would refund almost
+    // nothing anyway. Zero can only ever OVER-price the gem, which is the safe
+    // direction. A percentage refund rate is balance-designer's to set. (It
+    // would be small either way: at +25% the refund is 0.5 PL on the lightest
+    // card in the book and 3.5 PL on the heaviest, against payloads of 8 and 29
+    // PL respectively — the tempo cost cannot bring a proportional gem onto a
+    // rarity band, it can only make it fair BETWEEN hosts.)
+    //
+    let deci = actionsPriceDeci(gem.actions, GEM_CANONICAL_PROPERTY) + (gem.cooldownReduction ?? 0) * PRICE.cooldownPerTurn;
+
+    // THE FIRST HIT'S PREMIUM (gem ruleset v1 §5, 2026-08-09 — closes the hole
+    // this comment used to merely describe). `actionsPriceDeci` charges
+    // `extraHitPremium` only from the SECOND hit in the list it is handed,
+    // because on a CARD the first hit is that card's one instance and pays
+    // nothing extra. A GEM's list is its own, so its first hit slipped through —
+    // yet socketed, EVERY hit a gem appends is an ADDITIONAL instance on the
+    // host: separately mitigated, separately negated, separately dodged by any
+    // future per-instance defense. Adding one premium here makes the total
+    // exactly `hits × extraHitPremium`, i.e. "once per hit action,
+    // unconditionally".
+    //
+    // Deliberately HOST-BLIND and therefore only ever OVER-priced (the safe
+    // direction): on a host that already hits twice the gem's hit is the third
+    // instance and worth no less, and on a host with no hit at all it is the
+    // first — but a gem is priced for the socket it could take, not the best one.
+    const hits = gem.actions.filter((a) => HIT_KINDS.has(a.kind)).length;
+    if (hits > 0) deci += PRICE.extraHitPremium;
+
+    // THE ECHO's PROPORTIONAL PAYLOAD (gem ruleset v1 §6). Uncapped, it prices
+    // at 0 through `actionsPriceDeci` — correctly, since that table has no host
+    // and no honest fixed rate. Here it gets one of the two: the measured
+    // host term when a host was supplied, else the `PRICE.echoRepeatDeci`
+    // stand-in that lets the rarity band classify it. See both doc comments.
+    for (const action of gem.actions) {
+      if (!isUncappedEcho(action) || action.kind !== 'statStrike') continue;
+      const shareOf = Math.max(1, Math.floor(action.shareOf));
+      deci += host ? echoHostShareDeci(host, shareOf) : Math.floor(PRICE.echoRepeatDeci / shareOf);
+    }
+    return deci;
   }
 
   // Stat gem.
@@ -733,7 +887,18 @@ export function isGemOnBudget(gem: Gem): boolean {
  * Display/run-power readout for a socketed piece: base card PL (audited,
  * tier-budgeted) plus the gem's own uncapped bonus PL. Never fed back into
  * `isOnBudget` — the base-tier audit must stay gem-blind.
+ *
+ * This is the one gem-PL surface that KNOWS the host, so it is the one that gets
+ * the honest number for a host-proportional payload: `def` is handed to
+ * `gemPowerLevelDeci`, which swaps an uncapped echo's host-blind stand-in for
+ * its measured contribution on THIS card (gem ruleset v1 §6, 2026-08-09). Every
+ * other gem shape is host-invariant, so nothing else moves.
+ *
+ * `def` is the card's AUTHORED definition, matching this function's existing
+ * contract — callers pass `skillBook[piece.skillId]`, not a tier-resolved or
+ * gem-resolved skill. A piece's `tier` therefore does not scale the echo term
+ * here, exactly as it does not scale `powerLevelDeci(def)` here.
  */
 export function instancePowerLevelDeci(def: SkillDef, piece: { gem?: Gem | null }): number {
-  return powerLevelDeci(def) + (piece.gem ? gemPowerLevelDeci(piece.gem) : 0);
+  return powerLevelDeci(def) + (piece.gem ? gemPowerLevelDeci(piece.gem, def) : 0);
 }

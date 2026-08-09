@@ -22,11 +22,15 @@ import { createOwnedCard, demoState, MAX_GOLD, type ShopShelfState } from './dem
 const SLOTS = 10;
 
 /** Returns this shop's persisted shelf, rolling a fresh one (seed = demoState.seed,
- * offset 0) the first time it's ever browsed this session. */
+ * offset 0) the first time it's ever browsed this session. `rarityGated:
+ * false` — the sandbox has no run/depth concept and is the balance/deck-idea
+ * playground (unlimited wallet, USER-LOCKED), so every gem rarity, including
+ * Legendary, must stay visible unconditionally (run-layer gem-rarity gate,
+ * 2026-08-09 — see `rollShopStock` in src/run/shop.ts). */
 export function ensureShelf(shopId: string): ShopShelfState {
   const existing = demoState.shopShelves[shopId];
   if (existing) return existing;
-  const rolled = rollShopStock(shopId, demoState.seed);
+  const rolled = rollShopStock(shopId, demoState.seed, 1, false);
   const shelf: ShopShelfState = { cards: [...rolled.cards], gems: [...rolled.gems], rerollCount: 0 };
   demoState.shopShelves[shopId] = shelf;
   return shelf;
@@ -37,10 +41,10 @@ export function ensureShelf(shopId: string): ShopShelfState {
 // Run Mode's real economy lives in src/run — untouched by this rule.
 
 /** REROLL: deals a brand-new shelf from the next seed offset. Free in the
- * sandbox (unlimited wallet). */
+ * sandbox (unlimited wallet). `rarityGated: false` — see `ensureShelf`. */
 export function rerollShelf(shopId: string): boolean {
   const nextCount = (demoState.shopShelves[shopId]?.rerollCount ?? 0) + 1;
-  const rolled = rollShopStock(shopId, demoState.seed + nextCount);
+  const rolled = rollShopStock(shopId, demoState.seed + nextCount, 1, false);
   demoState.shopShelves[shopId] = { cards: [...rolled.cards], gems: [...rolled.gems], rerollCount: nextCount };
   return true;
 }

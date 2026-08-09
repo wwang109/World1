@@ -5,7 +5,7 @@
 
 import { gemPowerLevelDeci } from '../engine/balance';
 import { hashSeed, Rng } from '../engine/rng';
-import type { Action, BuffableStat, SkillDef, SkillTier } from '../engine/types';
+import type { Action, BuffableStat, Rarity, SkillDef, SkillTier } from '../engine/types';
 import type { GemDef } from '../data/gems';
 import { gemBook } from '../data/gems';
 import { skillBook } from '../data/skills';
@@ -91,18 +91,27 @@ export function goldPriceOfCardForShop(tier: SkillTier, priceDelta = 0): number 
 }
 
 /**
- * Gem gold price, 1-3, derived from the gem's own PL (`gemPowerLevelDeci`) —
- * monotonic in PL. Thresholds are picked to spread the 46-gem catalog
- * sensibly across the three bands (rarity bands are Common 20 · Rare 40 ·
- * Epic 60 · Legendary 80 deci): Common -> 1, Rare/Epic -> 2, Legendary -> 3.
+ * Gem gold price, derived from the gem's own PL (`gemPowerLevelDeci`) —
+ * monotonic in PL. Thresholds key off the rarity bands (Common 20 · Rare 40
+ * · Epic 60 · Legendary 80 deci, `RARITY_PL_DECI` in balance.ts, zero-
+ * tolerance so every gem's OWN deci lands exactly on its band): Common -> 1,
+ * Rare/Epic -> 2 (a shared band — unchanged by this pass), Legendary -> 4
+ * (bumped from 3, 2026-08-09 gem ruleset v1 §9.6 + fork 5: the 46 -> 35
+ * migration left the catalog with a genuinely build-defining Legendary
+ * category — resonant_echo/the Echo among them — so the top of the price
+ * ladder should read as meaningfully pricier, not one gold above Rare/Epic.
+ * Cheap, monotonic-preserving change: `deci >= 80` was ALREADY exclusively
+ * Legendary gems (no other rarity's deci reaches 80), so moving its return
+ * value from 3 to 4 re-prices Legendary alone and leaves every other gem's
+ * price byte-identical.
  */
-export function goldPriceOfGem(gemId: string): 1 | 2 | 3 {
+export function goldPriceOfGem(gemId: string): 1 | 2 | 4 {
   const gem = gemBook[gemId];
   if (!gem) throw new Error(`goldPriceOfGem: unknown gem id "${gemId}"`);
   const deci = gemPowerLevelDeci(gem);
   if (deci < 40) return 1;
   if (deci < 80) return 2;
-  return 3;
+  return 4;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,9 +136,9 @@ export function sellPriceOfCard(tier: SkillTier): number {
 
 /** Sell-back price for a gem — half of its shop price (`goldPriceOfGem`,
  * itself derived from the gem's own PL/rarity), rounded down, floored at 1
- * gold. Given `goldPriceOfGem`'s 1-3 range this floors to 1 gold for every
- * gem today (1/2->1, 2/2->1, 3/2->1) — an emergent property of that existing
- * 3-band table, not a new distinction being introduced here. */
+ * gold. Common/Rare/Epic (buy 1 or 2) all floor to 1 gold (1/2->1, 2/2->1);
+ * Legendary (buy 4, since the 2026-08-09 price bump) sells for 2 — the first
+ * gem rarity whose sell-back is actually distinguishable from the rest. */
 export function sellPriceOfGem(gemId: string): number {
   return Math.max(1, Math.floor(goldPriceOfGem(gemId) / 2));
 }
@@ -169,6 +178,159 @@ function sampleDistinct<T>(rng: Rng, pool: readonly T[], count: number): T[] {
   return result;
 }
 
+// ---------------------------------------------------------------------------
+// Gem rarity distribution — run-layer scarcity, NOT pricing (gem ruleset v1
+// §9.6 + fork 5 default, 2026-08-09). PL stays the one balance currency
+// (src/engine/balance.ts); the numbers below tune how OFTEN a shelf shows a
+// rarity, never what it's worth in a fight.
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-rarity draw weight for a shop's gem shelf, replacing the old uniform
+ * `sampleDistinct` draw for gems (cards are untouched — still uniform). The
+ * weight is PER RARITY BAND, not per gem: every Common candidate in a pool
+ * shares this same weight, so a themed shelf's own rarity MIX still matters
+ * (a pool with 2 curated Legendaries offers roughly double the Legendary
+ * chance of a pool with 1) while the band itself reads as rare everywhere.
+ *
+ * CHOSEN SHAPE — 60 / 25 / 10 / 5 (sums to 100, so each number doubles as a
+ * "percent of a same-mix pool"), derived like this:
+ *   - Common carries the shelf (60): most of what a run buys is filler power,
+ *     by design — a shop that mostly sold Rares+ would trivialize its own
+ *     gold economy long before the Legendary problem this task is about.
+ *   - Rare at 25 keeps it a real, frequent upgrade (roughly 1 in 4 of a
+ *     same-mix pool's picks) without competing with Common for "default".
+ *   - Epic at 10 and Legendary at 5 are a 2x step down each rung — the same
+ *     halving cadence as the Rare->Common gap is more than double (25->60
+ *     is +140%), so the top of the ladder thins out FASTER than the bottom,
+ *     which is the "rare things should feel rare" shape a roguelite shop
+ *     wants, not a linear ramp.
+ *
+ * EXPECTED LEGENDARY SIGHTINGS PER RUN — measured (not guessed) against the
+ * ACTUAL 2026-08-09 catalog (14 Common/13 Rare/4 Epic/4 Legendary, 35 gems),
+ * by running this module's own `rollShopStock`/`generateRunMap` at scale
+ * (200k-shelf and 20k-run Monte Carlo sweeps; see the "weighted gem
+ * distribution" describe block in tests/run/shop.test.ts for the harness
+ * these numbers are cross-checked against, run at a smaller N there so CI
+ * stays fast):
+ *   - Gemcutter (the only whole-book shop, `gemFilter: [{ all: true }]`,
+ *     `shelf.gems: 6`, `minWave: 2` so it also clears the depth gate below by
+ *     construction): E[Legendaries per shelf] ~= 0.105 (~1 in 9.5 visits
+ *     shows exactly one — the one-per-shelf cap below means it's never two).
+ *   - A themed 5-6-gem curated pool with exactly one Legendary in it lands
+ *     in the 0.11-0.41 range depending on how many OTHER items its own pool
+ *     has to dilute against (Bulwark 0.20, Assassins' Den 0.22, Alchemist
+ *     0.26, Sanctum/Caravan 0.41) — averaging ~0.11 across every themed shop
+ *     EXCEPT the 3 flagged below, i.e. roughly 1 in 9 visits.
+ *   - THREE curated pools are pigeonhole-SATURATED regardless of any weight
+ *     choice and sit outside the shape above — though for Arcanum and Umbral
+ *     Stall the DEPTH GATE above still governs: below LEGENDARY_GATE_DEPTH
+ *     their Legendary is stripped from the eligible pool before the
+ *     "thin shop shows its full pool" rule runs, so "every visit" means
+ *     "every visit once depth >= LEGENDARY_GATE_DEPTH" for them (Relic
+ *     Vault's minWave: 3 floor guarantees it always clears the gate).
+ *     Arcanum (`gemFilter` pool == its own 5-gem shelf size, so the shelf
+ *     shows its WHOLE pool, including its one Legendary — the existing
+ *     "thin shop shows its full pool" rule, unrelated to this feature),
+ *     Umbral Stall (2-gem pool < 5-gem shelf, same full-pool rule, shows
+ *     its one Legendary), and Relic Vault (an 8-gem pool that happens to be 4
+ *     Legendary + 4 Epic with NO Common/Rare at all diluting it — its 5-gem
+ *     shelf exceeds the 4-item non-Legendary complement, so plain pigeonhole
+ *     forces >=1 Legendary onto every shelf regardless of weighting; the
+ *     one-per-shelf cap below turns that into an exact "always exactly 1").
+ *     Fixing these 3 requires touching `shopTypes.ts` pool curation or
+ *     shelf-size declarations (content, out of this task's scope) — flagged
+ *     for content-designer/balance-designer, not silently worked around here.
+ *   - RUN-LEVEL (20k simulated runs through wave 10, "visits every shop node
+ *     the map ever offers" as the upper-bound player policy — map-gen offers
+ *     ~5.0 shop opportunities by wave 10 at the existing ~0.5-shop/wave
+ *     rate): averaging over ALL 16 shop themes (including the 3 saturated
+ *     ones above) gives ~0.264 Legendary sightings per shop opportunity,
+ *     ~1.32 per 10-wave run, and a ~79% chance of seeing at least one
+ *     Legendary SOMEWHERE by wave 10. Restricted to the 13 non-saturated
+ *     themes alone (the number this weight table actually controls), that
+ *     drops to ~0.112 per shop opportunity — the "rare, not routine" feel
+ *     the weights were chosen for.
+ */
+const GEM_RARITY_WEIGHT: Record<Rarity, number> = {
+  common: 60,
+  rare: 25,
+  epic: 10,
+  legendary: 5,
+};
+
+/**
+ * DEPTH GATE — Legendary gems never appear before `LEGENDARY_GATE_DEPTH`.
+ * `depth` here is the SAME depth band `rollShopStock` already threads for
+ * the card bronze/silver/gold split (`shopStockDepthForWave` in
+ * runState.ts: wave 1 -> depth 2, waves 2-3 -> depth 5, wave 4+ -> depth 8)
+ * — this is a second consumer of a number that already flows through, not a
+ * new seam. Gating at `depth >= 5` therefore means exactly "wave 2 or
+ * later": a run's very first wave (depth 2) never offers a Legendary gem
+ * anywhere, no matter how the rarity dice land.
+ *
+ * Epic is left UNGATED (eligible from depth 2, i.e. a run's very first
+ * shop). The band resolution available at this seam is per-WAVE, not finer
+ * — there is no "mid-wave-1" depth value to gate against — and Epic's own
+ * PL (6, one band under Legendary's 8) doesn't carry the same "build-
+ * defining" risk that motivated this feature (resonant_echo and its 3
+ * Legendary siblings specifically). Gating Epic too would be belt-and-
+ * suspenders on top of its already-low draw weight (10, half of Rare's),
+ * not a meaningfully different economy.
+ */
+const LEGENDARY_GATE_DEPTH = 5;
+
+function gemRarityEligible(rarity: Rarity, depth: number): boolean {
+  if (rarity === 'legendary') return depth >= LEGENDARY_GATE_DEPTH;
+  return true;
+}
+
+/**
+ * Draw `count` DISTINCT gems from `pool`, weighted by `GEM_RARITY_WEIGHT`
+ * (Commons far more likely than Legendaries). One `rng.int(totalWeight)`
+ * call per pick — same fixed-one-draw-per-slot shape as `sampleDistinct`,
+ * just weighted instead of uniform, so the RNG call COUNT and ORDER downstream
+ * callers rely on is unchanged; only the value each call resolves to differs.
+ * Arrays only, iterated by index — never a Map/Set (determinism invariant).
+ *
+ * ONE-LEGENDARY-PER-SHELF CAP: once a Legendary has been picked, every OTHER
+ * remaining Legendary candidate is removed from the pool before the next
+ * slot draws (`.filter`, still array/index-based — no Map/Set). This is a
+ * measured addition, not a request in the original spec: `relic_vault`'s
+ * OWN curated pool is 4 Legendary + 4 Epic with zero Common/Rare, and its
+ * 5-gem shelf exceeds that pool's 4-item non-Legendary complement — plain
+ * pigeonhole forces at least 1 Legendary onto that shelf EVERY visit
+ * regardless of weight, and measurement (200k shelves, no cap) showed it
+ * landing 2 Legendaries about as often as 1 (mean ~1.99/shelf) — the exact
+ * "trivializes the economy" outcome this whole feature exists to prevent.
+ * The cap doesn't touch shopTypes.ts content (out of scope here); it's a
+ * pure run-layer rule and, on relic_vault specifically, becomes a hard
+ * "always exactly 1" (pigeonhole plus the cap now agree on the same slot).
+ */
+function sampleGemsWeighted(rng: Rng, pool: readonly GemDef[], count: number): GemDef[] {
+  let remaining = [...pool];
+  const result: GemDef[] = [];
+  const n = Math.min(count, remaining.length);
+  for (let i = 0; i < n; i++) {
+    let total = 0;
+    for (let j = 0; j < remaining.length; j++) total += GEM_RARITY_WEIGHT[remaining[j]!.rarity];
+    let roll = rng.int(total);
+    let idx = 0;
+    for (; idx < remaining.length - 1; idx++) {
+      const weight = GEM_RARITY_WEIGHT[remaining[idx]!.rarity];
+      if (roll < weight) break;
+      roll -= weight;
+    }
+    const picked = remaining[idx]!;
+    result.push(picked);
+    remaining.splice(idx, 1);
+    if (picked.rarity === 'legendary') {
+      remaining = remaining.filter((g) => g.rarity !== 'legendary');
+    }
+  }
+  return result;
+}
+
 /**
  * Bronze/silver/gold split by node depth (see docs/run-shops-design.md §1):
  * depths 1-3 -> 70/25/5 (today's byte-identical behavior, the sandbox
@@ -193,13 +355,23 @@ function rollOfferedTier(rng: Rng, depth: number, tierBias?: 'silver'): SkillTie
 
 /**
  * Seeded shelf roll for one shop: up to `shelf.cards` distinct card offers and
- * up to `shelf.gems` distinct gem offers. Same (shopId, seed, depth) ->
- * identical shelf, forever (no wall-clock or ambient randomness). RNG call
- * order is fixed: card picks, then each picked card's tier roll, then gem
- * picks. `depth` (1-indexed run depth) shifts the tier split — every non-run
- * caller omits it and gets today's 70/25/5 behavior byte-identical.
+ * up to `shelf.gems` distinct gem offers. Same (shopId, seed, depth,
+ * rarityGated) -> identical shelf, forever (no wall-clock or ambient
+ * randomness). RNG call order is fixed: card picks, then each picked card's
+ * tier roll, then gem picks (weighted — one `rng.int` draw per gem slot,
+ * same as before, see `sampleGemsWeighted`). `depth` (1-indexed run depth)
+ * shifts the card tier split AND (via `gemRarityEligible`) which gem
+ * rarities are even in the draw pool; every non-run caller omits it and gets
+ * today's 70/25/5 tier behavior + the depth-2 rarity gate byte-identical.
+ *
+ * `rarityGated` (default `true`) is the Sandbox escape hatch: the sandbox
+ * (`src/game/shopActions.ts`) has no run/depth concept at all and is the
+ * balance/deck-idea playground (USER-LOCKED: unlimited wallet) — it needs
+ * every rarity visible unconditionally, so it's the one caller that passes
+ * `false` explicitly. Every real run call (`src/run/runState.ts`) always
+ * passes an explicit `depth` and leaves `rarityGated` at its gated default.
  */
-export function rollShopStock(shopId: string, seed: number, depth = 1): ShopStock {
+export function rollShopStock(shopId: string, seed: number, depth = 1, rarityGated = true): ShopStock {
   const shop = shopCatalog[shopId];
   if (!shop) throw new Error(`rollShopStock: unknown shop id "${shopId}"`);
   const rng = new Rng(hashSeed('shop', shopId, seed));
@@ -211,8 +383,9 @@ export function rollShopStock(shopId: string, seed: number, depth = 1): ShopStoc
     return { skillId: skill.id, tier, price: goldPriceOfCardForShop(tier, shop.priceDelta) };
   });
 
-  const gemPool = gemPoolForShop(shopId);
-  const pickedGems = sampleDistinct(rng, gemPool, shop.shelf.gems);
+  const gemPoolFull = gemPoolForShop(shopId);
+  const gemPool = rarityGated ? gemPoolFull.filter((g) => gemRarityEligible(g.rarity, depth)) : gemPoolFull;
+  const pickedGems = sampleGemsWeighted(rng, gemPool, shop.shelf.gems);
   const gems: GemOffer[] = pickedGems.map((gem) => ({ gemId: gem.id, price: goldPriceOfGem(gem.id) }));
 
   return { shopId, seed, cards, gems };

@@ -6,6 +6,7 @@ import { applyTier } from '../../engine/cards';
 import type { SkillDef, SkillTier } from '../../engine/types';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
+import { gemCatalogOrder } from '../ui/gemGlossary';
 import { createOwnedCard, demoState } from '../demoState';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { MOBILE_PROFILE } from '../layoutProfile';
@@ -244,7 +245,7 @@ export class MobileWikiScene extends Phaser.Scene {
     maskShape.fillRect(0, top, this.W, height);
     const mask = maskShape.createGeometryMask();
 
-    const gems = Object.values(gemBook);
+    const gems = gemCatalogOrder(Object.values(gemBook));
     const rowStride = GEM_ROW_H + GEM_ROW_GAP;
     gems.forEach((gem, index) => {
       const baseY = index * rowStride;

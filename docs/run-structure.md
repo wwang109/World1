@@ -164,7 +164,10 @@ only balance currency (see the comment block in `src/run/shop.ts`).
   Sandbox's loss-still-pays-base behavior is unchanged.
 - **Prices**: cards by offered tier via `GOLD_PRICE_BY_TIER` (bronze 2 …
   diamond 5, shop `priceDelta` folded by `goldPriceOfCardForShop`, floored at
-  1); gems 1-3 gold via `goldPriceOfGem` (monotonic in the gem's own PL).
+  1); gems via `goldPriceOfGem` (monotonic in the gem's own PL) — Common/
+  Rare/Epic 1-2 gold, Legendary 4 (bumped from 3, 2026-08-09: the 46→35 gem
+  migration left Legendary as a genuinely build-defining band, resonant_echo/
+  the Echo among them).
 
 ## Shops (`src/run/shop.ts`, themes in `src/data/shopTypes.ts`)
 
@@ -173,11 +176,18 @@ only balance currency (see the comment block in `src/run/shop.ts`).
   decided at map generation and shown on the choice panel.
 - **Theme no-repeat**: draw-without-replacement bag per run, reshuffled when
   empty (shared `runMap.ts` logic).
-- **Stock**: `rollShopStock(shopId, seed, depth)` — deterministic;
-  REROLL costs 1 gold and re-rolls the same theme's shelf
+- **Stock**: `rollShopStock(shopId, seed, depth, rarityGated)` —
+  deterministic; REROLL costs 1 gold and re-rolls the same theme's shelf
   (`baseSeed + rerollCount`). Tier split shifts with depth (depths 1-3 →
   70/25/5 bronze/silver/gold · 4-6 → 45/45/10 · 7-9 → 25/55/20; Diamond never
   appears in shops). Sandbox callers omit depth and get 70/25/5 unchanged.
+- **Gem rarity distribution** (2026-08-09, gem ruleset v1 §9.6 + fork 5): a
+  shelf's gem offers are drawn WEIGHTED by rarity band (Common 60 · Rare 25 ·
+  Epic 10 · Legendary 5 — see the rationale comment above `GEM_RARITY_WEIGHT`
+  in `src/run/shop.ts`), capped at one Legendary per shelf, and Legendary is
+  additionally GATED below depth 5 (wave 2+; Epic is left ungated). Sandbox
+  callers pass `rarityGated: false` — the balance playground shows every
+  rarity unconditionally, gate or no gate.
 - **Shelf size** (2026-08-04, "shops sell more" pass): every shop targets ~6
   card offers + ~5 gem offers (`ShopTypeDef.shelf`), capped gracefully at
   whatever the theme's own pool actually holds — an element specialist stall

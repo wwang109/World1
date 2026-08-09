@@ -1,4 +1,5 @@
 import type { SkillBook, SkillDef } from '../engine/types';
+import { skillBookFromJson } from './skillsContent';
 
 // Demo card set, balanced with the Power Level system: every card's kit sums
 // to its tier budget (Bronze 10 · Silver 15 · Gold 20 · Diamond 25 PL) using
@@ -1689,4 +1690,32 @@ const defs: SkillDef[] = [
   },
 ];
 
-export const skillBook: SkillBook = Object.fromEntries(defs.map((s) => [s.id, s]));
+/**
+ * THE DEFS-BUILT BOOK — TEMPORARY, and the ONLY consumer is the migration proof.
+ *
+ * `skillBook` below no longer comes from these literals: it is loaded from
+ * `content/skills.v1.json`. This export exists purely so
+ * `tests/data/skillsJsonParity.test.ts` can prove the JSON book is byte-identical
+ * to the hand-written one. DELETE THIS FILE (and that test) once the JSON is
+ * accepted as the source of truth — see the migration notes on `skillsContent.ts`.
+ *
+ * Sorted by id for the same reason the loader sorts: `Object.values(skillBook)`
+ * feeds seeded-Rng pools in src/run, so file order must never be load-bearing.
+ * `tests/run/contentPoolOrder.test.ts` asserts it.
+ */
+export const skillBookFromDefs: SkillBook = Object.fromEntries(
+  [...defs]
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .map((s) => [s.id, s]),
+);
+
+/**
+ * THE skill book — now loaded from `content/skills.v1.json`.
+ *
+ * Re-exported from here so that the 60+ modules already importing `skillBook`
+ * from `src/data/skills` switch to the JSON source atomically, with zero import
+ * churn and therefore zero chance of half the app reading one book and half the
+ * other. When the literals above are deleted this file becomes a one-line
+ * re-export and can be collapsed into the loader.
+ */
+export const skillBook: SkillBook = skillBookFromJson;

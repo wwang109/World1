@@ -1,0 +1,3360 @@
+{
+ "schemaVersion": 1,
+ "notes": [
+  "Demo card set, balanced with the Power Level system: every card's kit sums",
+  "to its tier budget (Bronze 10 · Silver 15 · Gold 20 · Diamond 25 PL) using",
+  "the price table in src/engine/balance.ts — enforced by the balance audit",
+  "test. All demo cards ship at Bronze; tier-ups add player-chosen +5 PL paths.",
+  "power semantics: a FLAT base amount. At cast time the caster's scaling stat",
+  "(physical→Attack, magical→Magic Power, true damage→higher of the two) is",
+  "ADDED flat on top — damage/heal/shield scale linearly, never multiplicatively.",
+  "TRUE heals/shields are pure flat (no stat added).",
+  "Card-book expansion (2026-07-29, +36 bronze) — see docs/card-book-expansion.md.",
+  "Slices: wheel elements (fire/lightning/nature/frost), weapons (lance/bow),",
+  "archetypes (defensive/support/healing/true). Each element/weapon gets a",
+  "distinct play identity per the doc: fire=burn/DoT, lightning=speed/stagger,",
+  "nature=poison/regen, frost=slow/control, lance=reach/guard, bow=multi-hit/",
+  "precision. All authored at Bronze; tierUpgrades added only where the",
+  "auto-scaler can't express a sane curve (DoT-sink cards and pure-aura cards)."
+ ],
+ "cards": [
+  {
+   "id": "aegis_wall",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Aegis Wall",
+      "text": "Gain 44 (+DEF) physical shield. Lighter stance (weight 16).",
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 2,
+      "rarity": "rare",
+      "tier": "bronze",
+      "speedWeight": 16,
+      "effects": [
+       {
+        "kind": "shield",
+        "power": 44
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "annihilation_strike",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Annihilation Strike",
+      "text": "Deal 48 (+best stat) TRUE damage — ignores DEF/MDEF.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "true",
+      "element": "dark",
+      "size": 3,
+      "rarity": "epic",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 48
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "arcane_bolt",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Arcane Bolt",
+      "text": "Deal 18 (+MATK) Lightning damage.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "lightning",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "speedWeight": 8,
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 18
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "armor_break",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Armor Break",
+      "text": "-50% enemy DEF (2 turns).",
+      "notes": [
+       "Frozen debuff (already at the size-1 control cap, 100 deci); a physical",
+       "Axe chop sinks the rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100",
+       "= 200. Diamond 30 (150) + 100 = 250."
+      ],
+      "archetypes": [
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "debuffStat",
+        "stat": "armor",
+        "pct": 50,
+        "turns": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 10
+         }
+        ],
+        "text": "-50% enemy DEF (2 turns) · Deal 10 (+ATK) Axe damage."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 20
+         }
+        ],
+        "text": "-50% enemy DEF (2 turns) · Deal 20 (+ATK) Axe damage."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 30
+         }
+        ],
+        "text": "-50% enemy DEF (2 turns) · Deal 30 (+ATK) Axe damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "barrage",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Barrage",
+      "text": "Deal 24 (+ATK) Bow damage, twice. Heavier and slower (weight 26).",
+      "notes": [
+       "Each hit priced alone must be a whole PL (24*5=120 deci = 12 PL): 2 hits",
+       "(240) + extraHit premium (30) + weight26 heavier refund (-30) + size2",
+       "grant (-140) = 100."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 2,
+      "rarity": "rare",
+      "tier": "bronze",
+      "speedWeight": 26,
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 24
+       },
+       {
+        "kind": "damage",
+        "power": 24
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "bastion_stance",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Bastion Stance",
+      "text": "Gain 20 (+DEF) physical shield.",
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "shield",
+        "power": 20
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "battle_howl",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Battle Howl",
+      "text": "+50% ATK (2 turns).",
+      "notes": [
+       "NOTE (2026-07-23): 'lucky_charm' was removed here. Its sole effect was an",
+       "adjacent +Crit aura and crit was excised from the game, leaving it inert /",
+       "off-budget. Rather than silently rebudget it, the defunct card is dropped;",
+       "content-designer can ship a fresh, priced support aura in its place.",
+       "War-cry theme: the +50%/2t buff is frozen (already at the size-1 empower",
+       "cap, 100 deci); a Beast damage roar sinks the rest. Silver 10 (50) + 100",
+       "= 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250."
+      ],
+      "archetypes": [
+       "support"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "buffStat",
+        "stat": "attack",
+        "pct": 50,
+        "turns": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "attack",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 10
+         }
+        ],
+        "text": "+50% ATK (2 turns) · Deal 10 (+ATK) Beast damage."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "attack",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 20
+         }
+        ],
+        "text": "+50% ATK (2 turns) · Deal 20 (+ATK) Beast damage."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "attack",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 30
+         }
+        ],
+        "text": "+50% ATK (2 turns) · Deal 30 (+ATK) Beast damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "blooming_vine",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Blooming Vine",
+      "text": "Deal 14 (+MATK) Nature damage · {{Poison}} 4 (poison bypasses shields). Heavier and slower (weight 12).",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "speedWeight": 12,
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 14
+       },
+       {
+        "kind": "poison",
+        "stacks": 4
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 20
+         },
+         {
+          "kind": "poison",
+          "stacks": 6
+         }
+        ],
+        "text": "Deal 20 (+MATK) Nature damage · {{Poison}} 6 (poison bypasses shields). Heavier and slower (weight 12)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 28
+         },
+         {
+          "kind": "poison",
+          "stacks": 7
+         }
+        ],
+        "text": "Deal 28 (+MATK) Nature damage · {{Poison}} 7 (poison bypasses shields). Heavier and slower (weight 12)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 36
+         },
+         {
+          "kind": "poison",
+          "stacks": 8
+         }
+        ],
+        "text": "Deal 36 (+MATK) Nature damage · {{Poison}} 8 (poison bypasses shields). Heavier and slower (weight 12)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "braced_pike",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Braced Pike",
+      "text": "Deal 12 (+ATK) Lance damage · -20% incoming physical damage (2 turns).",
+      "archetypes": [
+       "offense",
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "guard",
+        "property": "physical",
+        "pct": 20,
+        "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 12
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "chain_spark",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Chain Spark",
+      "text": "Deal 16 (+MATK) Lightning damage · {{Slow}} the enemy's next action by +8 weight.",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "lightning",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 16
+       },
+       {
+        "kind": "slow",
+        "weight": 8
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "cinder_dart",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Cinder Dart",
+      "text": "Deal 12 (+MATK) Fire damage · {{Burn}} 3. Light and quick (weight 8).",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "fire",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "speedWeight": 8,
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 12
+       },
+       {
+        "kind": "burn",
+        "stacks": 3
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 18
+         },
+         {
+          "kind": "burn",
+          "stacks": 5
+         }
+        ],
+        "text": "Deal 18 (+MATK) Fire damage · {{Burn}} 5. Light and quick (weight 8)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 26
+         },
+         {
+          "kind": "burn",
+          "stacks": 6
+         }
+        ],
+        "text": "Deal 26 (+MATK) Fire damage · {{Burn}} 6. Light and quick (weight 8)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 34
+         },
+         {
+          "kind": "burn",
+          "stacks": 7
+         }
+        ],
+        "text": "Deal 34 (+MATK) Fire damage · {{Burn}} 7. Light and quick (weight 8)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "concussive_shot",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Concussive Shot",
+      "text": "Deal 12 (+ATK) Bow damage · {{Disrupt}} 6 banked readiness.",
+      "notes": [
+       "disrupt re-priced to an ESCALATING bracket schedule (user-locked",
+       "2026-07-25 — see PRICE.disruptBrackets): disrupt 6 costs 5*5 + 1*15 =",
+       "40 deci (the first 5 points at 5/pt, the 6th at the 6-10 bracket's",
+       "15/pt). damage 12 (60) + disrupt 6 (40) = 100 = Bronze exactly (was",
+       "disrupt 16 at the old flat 1-per-4 rate; 16 is now unaffordable at any",
+       "tier — 310 deci = 31 PL)."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 12
+       },
+       {
+        "kind": "disrupt",
+        "amount": 6
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "crippling_strike",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Crippling Strike",
+      "text": "Deal 38 (+ATK) Lance damage · -25% enemy ATK (2 turns).",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 2,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 38
+       },
+       {
+        "kind": "debuffStat",
+        "stat": "attack",
+        "pct": 25,
+        "turns": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "crushing_blow",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Crushing Blow",
+      "text": "Deal 96 (+ATK) Axe damage.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 3,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 96
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "deep_freeze",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Deep Freeze",
+      "text": "Deal 24 (+MATK) Frost damage · -40% enemy SPD (3 turns).",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 2,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 24
+       },
+       {
+        "kind": "debuffStat",
+        "stat": "speed",
+        "pct": 40,
+        "turns": 3
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "ember_lash",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Ember Lash",
+      "text": "Deal 10 (+MATK) Fire damage · {{Burn}} 5.",
+      "notes": [
+       "Moderate burn growth, rest into damage (same house style as fireball)."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "fire",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 10
+       },
+       {
+        "kind": "burn",
+        "stacks": 5
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 16
+         },
+         {
+          "kind": "burn",
+          "stacks": 7
+         }
+        ],
+        "text": "Deal 16 (+MATK) Fire damage · {{Burn}} 7."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 24
+         },
+         {
+          "kind": "burn",
+          "stacks": 8
+         }
+        ],
+        "text": "Deal 24 (+MATK) Fire damage · {{Burn}} 8."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 32
+         },
+         {
+          "kind": "burn",
+          "stacks": 9
+         }
+        ],
+        "text": "Deal 32 (+MATK) Fire damage · {{Burn}} 9."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "fireball",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Fireball",
+      "text": "Deal 38 (+MATK) Fire damage · {{Burn}} 5.",
+      "notes": [
+       "burn priced LINEARLY per stack (2026-07-23): 5 stacks × 10 deci = 50",
+       "deci = 5 PL. Tick gameplay unchanged (halves each turn: 10,4,2 = 16",
+       "total). damage 38 (190) + burn (50) − size2 grant (140) = 100 = Bronze.",
+       "Hand-tuned curve (user-locked 2026-07-24): MODERATE burn growth, rest",
+       "into damage. Size-2 grants (170/210/240 deci) fold into each tier's",
+       "effective budget. Silver: burn 7 (70) + damage 50 (250) = 320 = 150 +",
+       "grant 170. Gold: burn 8 (80) + damage 66 (330) = 410 = 200 + grant 210.",
+       "Diamond: burn 10 (100) + damage 78 (390) = 490 = 250 + grant 240."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "fire",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 38
+       },
+       {
+        "kind": "burn",
+        "stacks": 5
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 50
+         },
+         {
+          "kind": "burn",
+          "stacks": 7
+         }
+        ],
+        "text": "Deal 50 (+MATK) Fire damage · {{Burn}} 7."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 66
+         },
+         {
+          "kind": "burn",
+          "stacks": 8
+         }
+        ],
+        "text": "Deal 66 (+MATK) Fire damage · {{Burn}} 8."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 78
+         },
+         {
+          "kind": "burn",
+          "stacks": 10
+         }
+        ],
+        "text": "Deal 78 (+MATK) Fire damage · {{Burn}} 10."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "follow_through",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Follow-Through",
+      "text": "Deal 10 (+ATK) Sword damage · +20 if previous cast was Offense.",
+      "notes": [
+       "comboPerPoint discount (2.5/pt, user-locked 2026-07-23): damage 10 (50)",
+       "+ comboBonus 20 (floor(20*5/2)=50) = 100 = Bronze exactly. Un-comboed",
+       "10 is half a Sword Slash's 20; comboed 30 (10+20) beats it by 50%."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "comboBonus",
+        "amount": 20
+       },
+       {
+        "kind": "damage",
+        "power": 10
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "fortress_bastion",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Fortress Bastion",
+      "text": "Gain 96 (+DEF) physical shield.",
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 3,
+      "rarity": "epic",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "shield",
+        "power": 96
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "frost_shackle",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Frost Shackle",
+      "text": "Deal 14 (+MATK) Frost damage · {{Slow}} the enemy's next action by +12 weight.",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 14
+       },
+       {
+        "kind": "slow",
+        "weight": 12
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "frost_ward",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Frost Ward",
+      "text": "-50% incoming magical damage (2 turns).",
+      "notes": [
+       "guard re-priced to statPctTurn parity (1x): 50*2*1 = 100 = Bronze exactly",
+       "(was 40% at the old 1.25x premium). Apply-time clamp is 60%, so 50 is legal.",
+       "Guard is frozen (already at the size-1 empower cap, 100 deci, and near",
+       "the 60%-apply-time clamp); a magical shield sinks the rest. Silver",
+       "10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100",
+       "= 250."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "guard",
+        "property": "magical",
+        "pct": 50,
+        "turns": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "magical",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 10
+         }
+        ],
+        "text": "-50% incoming magical damage (2 turns) · Gain 10 (+MDEF) magical shield."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "magical",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 20
+         }
+        ],
+        "text": "-50% incoming magical damage (2 turns) · Gain 20 (+MDEF) magical shield."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "magical",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 30
+         }
+        ],
+        "text": "-50% incoming magical damage (2 turns) · Gain 30 (+MDEF) magical shield."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "glacial_spike",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Glacial Spike",
+      "text": "Deal 12 (+MATK) Frost damage · -20% enemy SPD (2 turns).",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 12
+       },
+       {
+        "kind": "debuffStat",
+        "stat": "speed",
+        "pct": 20,
+        "turns": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "hamstring",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Hamstring",
+      "text": "Deal 12 (+ATK) Lance damage · {{Slow}} the enemy's next action by +16 weight.",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 12
+       },
+       {
+        "kind": "slow",
+        "weight": 16
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "hex_of_frailty",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Hex of Frailty",
+      "text": "-50% enemy MDEF (2 turns).",
+      "notes": [
+       "Refit for the size-1 control cap (10 PL): 50%×2t = 100 deci exactly",
+       "(was 40%×3t = 12 PL funded by extra weight).",
+       "Curse theme: the debuff is frozen (already at the size-1 control cap,",
+       "100 deci); a Dark damage tick sinks the rest. Silver 10 (50) + 100 = 150.",
+       "Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250."
+      ],
+      "archetypes": [
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "dark",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "debuffStat",
+        "stat": "magicResist",
+        "pct": 50,
+        "turns": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "magicResist",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 10
+         }
+        ],
+        "text": "-50% enemy MDEF (2 turns) · Deal 10 (+MATK) Dark damage."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "magicResist",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 20
+         }
+        ],
+        "text": "-50% enemy MDEF (2 turns) · Deal 20 (+MATK) Dark damage."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "magicResist",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 30
+         }
+        ],
+        "text": "-50% enemy MDEF (2 turns) · Deal 30 (+MATK) Dark damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "hunter_shot",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Hunter's Shot",
+      "text": "Deal 20 (+ATK) Bow damage. Strong vs Beasts.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 20
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "impaling_charge",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Impaling Charge",
+      "text": "Deal 36 (+ATK) Lance damage · -30% incoming physical damage (2 turns).",
+      "archetypes": [
+       "offense",
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 2,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "guard",
+        "property": "physical",
+        "pct": 30,
+        "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 36
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "inferno_eruption",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Inferno Eruption",
+      "text": "Deal 56 (+MATK) Fire damage · {{Burn}} 20.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "fire",
+      "size": 3,
+      "rarity": "epic",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 56
+       },
+       {
+        "kind": "burn",
+        "stacks": 20
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 74
+         },
+         {
+          "kind": "burn",
+          "stacks": 25
+         }
+        ],
+        "text": "Deal 74 (+MATK) Fire damage · {{Burn}} 25."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 98
+         },
+         {
+          "kind": "burn",
+          "stacks": 28
+         }
+        ],
+        "text": "Deal 98 (+MATK) Fire damage · {{Burn}} 28."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 118
+         },
+         {
+          "kind": "burn",
+          "stacks": 32
+         }
+        ],
+        "text": "Deal 118 (+MATK) Fire damage · {{Burn}} 32."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "iron_bulwark",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Iron Bulwark",
+      "text": "Gain 48 (+DEF) physical shield.",
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "shield",
+        "power": 48
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "judgment_light",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Judgment Light",
+      "text": "Deal 12 (+MATK) Holy damage · -20% enemy MDEF (2 turns).",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 12
+       },
+       {
+        "kind": "debuffStat",
+        "stat": "magicResist",
+        "pct": 20,
+        "turns": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "lance_thrust",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Lance Thrust",
+      "text": "Deal 20 (+ATK) Lance damage.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 20
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "leeching_fang",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Leeching Fang",
+      "text": "Deal 16 (+ATK) Beast damage · heal 45% of damage dealt.",
+      "archetypes": [
+       "offense",
+       "healing"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "speedWeight": 12,
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 16
+       },
+       {
+        "kind": "lifesteal",
+        "pct": 45
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "mana_ward",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Mana Ward",
+      "text": "Gain 20 (+MDEF) magical shield.",
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "shield",
+        "power": 20
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "marksman_shot",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Marksman Shot",
+      "text": "Deal 48 (+ATK) Bow damage.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 48
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "mending_aura",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Mending Aura",
+      "text": "Passive: adjacent Healing cards heal +10.",
+      "notes": [
+       "Pure aura (no scalable sink) — grows exactly like war_banner's damageFlat curve."
+      ],
+      "archetypes": [
+       "support"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [],
+      "aura": {
+       "affects": "adjacent",
+       "archetypeFilter": "healing",
+       "mods": {
+        "healFlat": 10
+       }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "aura": {
+         "affects": "adjacent",
+         "archetypeFilter": "healing",
+         "mods": {
+          "healFlat": 15
+         }
+        },
+        "text": "Passive: adjacent Healing cards heal +15."
+       },
+       "gold": {
+        "aura": {
+         "affects": "adjacent",
+         "archetypeFilter": "healing",
+         "mods": {
+          "healFlat": 20
+         }
+        },
+        "text": "Passive: adjacent Healing cards heal +20."
+       },
+       "diamond": {
+        "aura": {
+         "affects": "adjacent",
+         "archetypeFilter": "healing",
+         "mods": {
+          "healFlat": 25
+         }
+        },
+        "text": "Passive: adjacent Healing cards heal +25."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "mending_light",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Mending Light",
+      "text": "Restore 48 (+MDEF) HP.",
+      "archetypes": [
+       "healing"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "heal",
+        "power": 48
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "overcharge",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Overcharge",
+      "text": "Deal 16 (+MATK) Lightning damage · {{Disrupt}} 4 banked readiness.",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "lightning",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 16
+       },
+       {
+        "kind": "disrupt",
+        "amount": 4
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "overgrowth",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Overgrowth",
+      "text": "Restore 30 (+MDEF) HP · Gain 18 (+MDEF) magical shield — a thorned bark ward.",
+      "archetypes": [
+       "healing",
+       "defensive"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 2,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "heal",
+        "power": 30
+       },
+       {
+        "kind": "shield",
+        "power": 18
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "piercing_arrow",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Piercing Arrow",
+      "text": "Deal 8 (+ATK) Bow damage · {{Expose}} the enemy — +30% damage from all direct hits (2 turns).",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 8
+       },
+       {
+        "kind": "expose",
+        "pct": 30,
+        "turns": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "piercing_reach",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Piercing Reach",
+      "text": "{{Shatter}} 16 enemy shield, then deal 16 (+ATK) Lance damage.",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "shieldBreak",
+        "amount": 16
+       },
+       {
+        "kind": "damage",
+        "power": 16
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "prism_barrier",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Prism Barrier",
+      "text": "Gain 92 TRUE shield — blocks TRUE damage fully; physical/magical drain it 2:1.",
+      "notes": [
+       "TRUE shield at 5 deci/pt (typed parity — the premium is the 2:1 drain",
+       "vs typed damage, not the price): 92 × 5 = 460 =",
+       "100 budget + 380 size-3 grant − 20 for weight 26 (4 under baseline)."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "true",
+      "element": "holy",
+      "size": 3,
+      "rarity": "epic",
+      "tier": "bronze",
+      "speedWeight": 26,
+      "effects": [
+       {
+        "kind": "shield",
+        "power": 92
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "purging_strike",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Purging Strike",
+      "text": "Deal 9 (+best stat) TRUE damage — ignores DEF/MDEF. Light and quick (weight 8).",
+      "notes": [
+       "TRUE damage at 10 deci/pt (half-effect rule): 9 × 10 = 90 =",
+       "100 budget − 10 for weight 8 (2 under baseline)."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "true",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "speedWeight": 8,
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 9
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "purify",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Purify",
+      "text": "Remove up to 4 of your ailments.",
+      "notes": [
+       "cleanse re-priced per charge (25 deci): 4 charges = 100 = Bronze exactly.",
+       "Cleanse is frozen (already at the size-1 empower cap, 100 deci) at every",
+       "tier; a TRUE heal (re-priced 2 -> 4 deci/pt, 2026-08-01) plus a weight",
+       "dial sinks the rest. Silver: 10×4=40 + 100 cleanse + 10 (weight 8, 2",
+       "under baseline) = 150. Gold returns to baseline weight: 25×4=100 + 100 =",
+       "200. Diamond: 35×4=140 + 100 + 10 (weight 8) = 250."
+      ],
+      "archetypes": [
+       "healing",
+       "support"
+      ],
+      "property": "true",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "cleanse",
+        "charges": 4
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "cleanse",
+          "charges": 4
+         },
+         {
+          "kind": "heal",
+          "power": 10
+         }
+        ],
+        "speedWeight": 8,
+        "text": "Remove up to 4 of your ailments. Restore 10 TRUE HP. Light and quick (weight 8)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "cleanse",
+          "charges": 4
+         },
+         {
+          "kind": "heal",
+          "power": 25
+         }
+        ],
+        "text": "Remove up to 4 of your ailments. Restore 25 TRUE HP."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "cleanse",
+          "charges": 4
+         },
+         {
+          "kind": "heal",
+          "power": 35
+         }
+        ],
+        "speedWeight": 8,
+        "text": "Remove up to 4 of your ailments. Restore 35 TRUE HP. Light and quick (weight 8)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "rapid_volley",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Rapid Volley",
+      "text": "Deal 10 (+ATK) Bow damage, twice. Heavier and slower (weight 16).",
+      "notes": [
+       "Each hit priced alone must be a whole PL (10*5=50 deci = 5 PL): 2 hits",
+       "(100) + extraHit premium (30) + weight16 heavier refund (-30) = 100."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "speedWeight": 16,
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 10
+       },
+       {
+        "kind": "damage",
+        "power": 10
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "rending_claws",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Rending Claws",
+      "text": "Deal 96 (+ATK) Beast damage.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 3,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 96
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "renewing_wave",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Renewing Wave",
+      "text": "Restore 30 TRUE HP. Heavier cast (weight 14).",
+      "notes": [
+       "TRUE heal re-priced 2 -> 4 deci/pt (2026-08-01): 30 × 4 = 120 − 20",
+       "(weight 14, 4 under baseline 10) = 100 = Bronze.",
+       "Silver/Diamond sink extra weight: 45×4=180 − 30 (weight 16) = 150.",
+       "Gold returns to the bronze weight (14): 55×4=220 − 20 = 200.",
+       "Diamond: 70×4=280 − 30 (weight 16) = 250."
+      ],
+      "archetypes": [
+       "healing"
+      ],
+      "property": "true",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "speedWeight": 14,
+      "effects": [
+       {
+        "kind": "heal",
+        "power": 30
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 45
+         }
+        ],
+        "speedWeight": 16,
+        "text": "Restore 45 TRUE HP. Heavier cast (weight 16)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 55
+         }
+        ],
+        "speedWeight": 14,
+        "text": "Restore 55 TRUE HP. Heavier cast (weight 14)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 70
+         }
+        ],
+        "speedWeight": 16,
+        "text": "Restore 70 TRUE HP. Heavier cast (weight 16)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "ruinous_hex",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Ruinous Hex",
+      "text": "{{Expose}} the enemy — +50% damage from all direct hits (2 turns).",
+      "notes": [
+       "expose 50%×2 (50*2*1 = 100) = Bronze exactly. pct clamped to <=50 at apply.",
+       "Expose is frozen (already at the size-1 control cap, 100 deci, and the",
+       "50%-apply-time clamp); a Dark damage tick sinks the rest. Silver 10",
+       "(50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100",
+       "= 250."
+      ],
+      "archetypes": [
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "dark",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "expose",
+        "pct": 50,
+        "turns": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "expose",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 10
+         }
+        ],
+        "text": "{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal 10 (+MATK) Dark damage."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "expose",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 20
+         }
+        ],
+        "text": "{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal 20 (+MATK) Dark damage."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "expose",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 30
+         }
+        ],
+        "text": "{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal 30 (+MATK) Dark damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "rupturing_strike",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Rupturing Strike",
+      "text": "Deal 10 (+ATK) Axe damage · {{Bleed}} 5 — ticks when the enemy performs; blocked by shields.",
+      "notes": [
+       "bleed priced LINEARLY per stack (2026-07-23): 5 stacks × 10 deci = 50",
+       "deci = 5 PL. Tick gameplay unchanged (decays 5,4,3,2,1 = 15 total).",
+       "damage 10 (50) + bleed (50) = 100 = Bronze.",
+       "Hand-tuned curve (user-locked 2026-07-24): MODERATE bleed growth, rest",
+       "into damage. Silver: bleed 7 (70) + damage 16 (80) = 150. Gold: bleed 8",
+       "(80) + damage 24 (120) = 200. Diamond: bleed 9 (90) + damage 32 (160)",
+       "= 250."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 10
+       },
+       {
+        "kind": "bleed",
+        "stacks": 5
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 16
+         },
+         {
+          "kind": "bleed",
+          "stacks": 7
+         }
+        ],
+        "text": "Deal 16 (+ATK) Axe damage · {{Bleed}} 7 — ticks when the enemy performs; blocked by shields."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 24
+         },
+         {
+          "kind": "bleed",
+          "stacks": 8
+         }
+        ],
+        "text": "Deal 24 (+ATK) Axe damage · {{Bleed}} 8 — ticks when the enemy performs; blocked by shields."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 32
+         },
+         {
+          "kind": "bleed",
+          "stacks": 9
+         }
+        ],
+        "text": "Deal 32 (+ATK) Axe damage · {{Bleed}} 9 — ticks when the enemy performs; blocked by shields."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "sanctified_bulwark",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Sanctified Bulwark",
+      "text": "Gain 12 (+MDEF) magical shield · -20% incoming magical damage (2 turns).",
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "guard",
+        "property": "magical",
+        "pct": 20,
+        "turns": 2
+       },
+       {
+        "kind": "shield",
+        "power": 12
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "savage_bite",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Savage Bite",
+      "text": "Deal 20 (+ATK) Beast damage.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 20
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "scorching_brand",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Scorching Brand",
+      "text": "Deal 8 (+MATK) Fire damage · {{Burn}} 3 · -15% enemy DEF (2 turns).",
+      "notes": [
+       "The armor debuff is frozen (control); burn grows moderately, damage sinks the rest."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "fire",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 8
+       },
+       {
+        "kind": "burn",
+        "stacks": 3
+       },
+       {
+        "kind": "debuffStat",
+        "stat": "armor",
+        "pct": 15,
+        "turns": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 14
+         },
+         {
+          "kind": "burn",
+          "stacks": 5
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 15,
+          "turns": 2
+         }
+        ],
+        "text": "Deal 14 (+MATK) Fire damage · {{Burn}} 5 · -15% enemy DEF (2 turns)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 22
+         },
+         {
+          "kind": "burn",
+          "stacks": 6
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 15,
+          "turns": 2
+         }
+        ],
+        "text": "Deal 22 (+MATK) Fire damage · {{Burn}} 6 · -15% enemy DEF (2 turns)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 30
+         },
+         {
+          "kind": "burn",
+          "stacks": 7
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 15,
+          "turns": 2
+         }
+        ],
+        "text": "Deal 30 (+MATK) Fire damage · {{Burn}} 7 · -15% enemy DEF (2 turns)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "second_wind",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Second Wind",
+      "text": "Restore 25 HP.",
+      "notes": [
+       "TRUE heal re-priced 2 -> 4 deci/pt (2026-08-01): 25 × 4 = 100 = Bronze.",
+       "Silver/Diamond sink the rest into weight (lighter costs, so speedWeight",
+       "rises to buy back budget): silver 40×4=160 − 10 (weight 12) = 150.",
+       "Gold returns to baseline weight: 50×4=200 = Gold exactly.",
+       "Diamond: 65×4=260 − 10 (weight 12) = 250."
+      ],
+      "archetypes": [
+       "healing"
+      ],
+      "property": "true",
+      "element": "nature",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "heal",
+        "power": 25
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 40
+         }
+        ],
+        "speedWeight": 12,
+        "text": "Restore 40 HP."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 50
+         }
+        ],
+        "text": "Restore 50 HP."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 65
+         }
+        ],
+        "speedWeight": 12,
+        "text": "Restore 65 HP."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "shadow_bolt",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Shadow Bolt",
+      "text": "Deal 20 (+MATK) Dark damage.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "dark",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 20
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "shield_splitter",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Shield Splitter",
+      "text": "{{Shatter}} 24 enemy shield, then deal 42 (+ATK) Axe damage.",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 2,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "shieldBreak",
+        "amount": 24
+       },
+       {
+        "kind": "damage",
+        "power": 42
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "slow_hex",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Slowing Hex",
+      "text": "Deal 8 (+MATK) Frost damage · -30% enemy SPD (2 turns).",
+      "archetypes": [
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 8
+       },
+       {
+        "kind": "debuffStat",
+        "stat": "speed",
+        "pct": 30,
+        "turns": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "soul_rend",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Soul Rend",
+      "text": "Deal 27 (+best stat) TRUE damage — ignores DEF/MDEF.",
+      "notes": [
+       "TRUE damage at 10 deci/pt (half-effect rule): 27 × 10 = 270 =",
+       "100 budget + 140 size-2 grant + 30 weight-26 refund."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "true",
+      "element": "dark",
+      "size": 2,
+      "rarity": "epic",
+      "tier": "bronze",
+      "speedWeight": 26,
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 27
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "static_jolt",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Static Jolt",
+      "text": "Deal 16 (+MATK) Lightning damage. Very quick (weight 6).",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "lightning",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "speedWeight": 6,
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 16
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "storm_surge",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Storm Surge",
+      "text": "Deal 36 (+MATK) Lightning damage · +30% SPD (2 turns).",
+      "archetypes": [
+       "offense",
+       "support"
+      ],
+      "property": "magical",
+      "element": "lightning",
+      "size": 2,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "buffStat",
+        "stat": "speed",
+        "pct": 30,
+        "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 36
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "stunning_smash",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Stunning Smash",
+      "text": "{{Stun}} — the enemy's next performance is consumed.",
+      "notes": [
+       "Pure control: at the re-priced stunPerTurn (100 deci) a single stun turn",
+       "IS the whole Bronze budget, so the card is stun-only. Size 1 / default",
+       "weight keeps the total at exactly 100 (stun 100 + weight 0 + size 0).",
+       "Stun cannot grow (hard-capped at 1 performance/card, and already the",
+       "full size-1 control cap at 100 deci); a physical Axe smash sinks the",
+       "rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30",
+       "(150) + 100 = 250."
+      ],
+      "archetypes": [
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "epic",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "stun",
+        "turns": 1
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "stun",
+          "turns": 1
+         },
+         {
+          "kind": "damage",
+          "power": 10
+         }
+        ],
+        "text": "{{Stun}} — the enemy's next performance is consumed. Deal 10 (+ATK) Axe damage."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "stun",
+          "turns": 1
+         },
+         {
+          "kind": "damage",
+          "power": 20
+         }
+        ],
+        "text": "{{Stun}} — the enemy's next performance is consumed. Deal 20 (+ATK) Axe damage."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "stun",
+          "turns": 1
+         },
+         {
+          "kind": "damage",
+          "power": 30
+         }
+        ],
+        "text": "{{Stun}} — the enemy's next performance is consumed. Deal 30 (+ATK) Axe damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "swift_march",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Swift March",
+      "text": "Passive: adjacent cards -5 weight (cast sooner).",
+      "notes": [
+       "Pure aura — weightDelta deepens and a self Speed buff sinks the rest",
+       "(same shape as time_crystal, but untargeted and quicker-firing)."
+      ],
+      "archetypes": [
+       "support"
+      ],
+      "property": "magical",
+      "element": "dark",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [],
+      "aura": {
+       "affects": "adjacent",
+       "mods": {
+        "weightDelta": -5
+       }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "aura": {
+         "affects": "adjacent",
+         "mods": {
+          "weightDelta": -6
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "speed",
+          "pct": 15,
+          "turns": 2
+         }
+        ],
+        "text": "Passive: adjacent cards -6 weight (cast sooner). Self: +15% SPD (2 turns)."
+       },
+       "gold": {
+        "aura": {
+         "affects": "adjacent",
+         "mods": {
+          "weightDelta": -8
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "speed",
+          "pct": 20,
+          "turns": 2
+         }
+        ],
+        "text": "Passive: adjacent cards -8 weight (cast sooner). Self: +20% SPD (2 turns)."
+       },
+       "diamond": {
+        "aura": {
+         "affects": "adjacent",
+         "mods": {
+          "weightDelta": -10
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "speed",
+          "pct": 25,
+          "turns": 2
+         }
+        ],
+        "text": "Passive: adjacent cards -10 weight (cast sooner). Self: +25% SPD (2 turns)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "sword_slash",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Sword Slash",
+      "text": "Deal 20 (+ATK) Sword damage.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 20
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "thorn_bite",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Thorn Bite",
+      "text": "Deal 10 (+MATK) Nature damage · {{Poison}} 5 (poison bypasses shields).",
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 10
+       },
+       {
+        "kind": "poison",
+        "stacks": 5
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 16
+         },
+         {
+          "kind": "poison",
+          "stacks": 7
+         }
+        ],
+        "text": "Deal 16 (+MATK) Nature damage · {{Poison}} 7 (poison bypasses shields)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 24
+         },
+         {
+          "kind": "poison",
+          "stacks": 8
+         }
+        ],
+        "text": "Deal 24 (+MATK) Nature damage · {{Poison}} 8 (poison bypasses shields)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 32
+         },
+         {
+          "kind": "poison",
+          "stacks": 9
+         }
+        ],
+        "text": "Deal 32 (+MATK) Nature damage · {{Poison}} 9 (poison bypasses shields)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "thunder_step",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Thunder Step",
+      "text": "Deal 12 (+MATK) Lightning damage · +20% SPD (2 turns).",
+      "archetypes": [
+       "offense",
+       "support"
+      ],
+      "property": "magical",
+      "element": "lightning",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "buffStat",
+        "stat": "speed",
+        "pct": 20,
+        "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 12
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "time_crystal",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Time Crystal",
+      "text": "Passive: adjacent Magical cards -5 weight (cast sooner).",
+      "notes": [
+       "Time theme: the aura's own weight-shave deepens, and a self Speed buff",
+       "(empower, well under the size-1 100-deci cap) rounds each tier out exact.",
+       "Silver: |6|*20=120 + 15*2*1=30 = 150. Gold: |8|*20=160 + 20*2*1=40 = 200.",
+       "Diamond: |10|*20=200 + 25*2*1=50 = 250."
+      ],
+      "archetypes": [
+       "support"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [],
+      "aura": {
+       "affects": "adjacent",
+       "propertyFilter": "magical",
+       "mods": {
+        "weightDelta": -5
+       }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "aura": {
+         "affects": "adjacent",
+         "propertyFilter": "magical",
+         "mods": {
+          "weightDelta": -6
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "speed",
+          "pct": 15,
+          "turns": 2
+         }
+        ],
+        "text": "Passive: adjacent Magical cards -6 weight (cast sooner). Self: +15% SPD (2 turns)."
+       },
+       "gold": {
+        "aura": {
+         "affects": "adjacent",
+         "propertyFilter": "magical",
+         "mods": {
+          "weightDelta": -8
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "speed",
+          "pct": 20,
+          "turns": 2
+         }
+        ],
+        "text": "Passive: adjacent Magical cards -8 weight (cast sooner). Self: +20% SPD (2 turns)."
+       },
+       "diamond": {
+        "aura": {
+         "affects": "adjacent",
+         "propertyFilter": "magical",
+         "mods": {
+          "weightDelta": -10
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "speed",
+          "pct": 25,
+          "turns": 2
+         }
+        ],
+        "text": "Passive: adjacent Magical cards -10 weight (cast sooner). Self: +25% SPD (2 turns)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "twin_slash",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Twin Slash",
+      "text": "Deal 6 (+ATK) Sword damage, twice.",
+      "notes": [
+       "Twin-hit showcase: 2 × 6 base (60 deci) + 1 extra-hit premium (30 deci)",
+       "+ weight 8 (light, +10 deci) = exactly Bronze. Each hit adds full",
+       "Attack; armor mitigates each hit separately."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "speedWeight": 8,
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 6
+       },
+       {
+        "kind": "damage",
+        "power": 6
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "venom_fang",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Venom Fang",
+      "text": "Deal 12 (+ATK) Beast damage · {{Poison}} 5 (poison bypasses shields).",
+      "notes": [
+       "poison priced LINEARLY per stack (2026-07-23): 5 stacks × 10 deci = 50",
+       "deci = 5 PL. Tick gameplay unchanged (decays 5,4,3,2,1 = 15 total).",
+       "damage 12 (60) + poison (50) + weight +2 refund (−10) = 100 = Bronze.",
+       "Hand-tuned curve (user-locked 2026-07-24): MODERATE stack growth, rest",
+       "into damage; weight stays 12 (−10 deci refund) at every tier.",
+       "Silver: poison 7 (70) + damage 18 (90) + weight (−10) = 150.",
+       "Gold:   poison 8 (80) + damage 26 (130) + weight (−10) = 200.",
+       "Diamond: poison 9 (90) + damage 34 (170) + weight (−10) = 250."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "speedWeight": 12,
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 12
+       },
+       {
+        "kind": "poison",
+        "stacks": 5
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 18
+         },
+         {
+          "kind": "poison",
+          "stacks": 7
+         }
+        ],
+        "text": "Deal 18 (+ATK) Beast damage · {{Poison}} 7 (poison bypasses shields)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 26
+         },
+         {
+          "kind": "poison",
+          "stacks": 8
+         }
+        ],
+        "text": "Deal 26 (+ATK) Beast damage · {{Poison}} 8 (poison bypasses shields)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 34
+         },
+         {
+          "kind": "poison",
+          "stacks": 9
+         }
+        ],
+        "text": "Deal 34 (+ATK) Beast damage · {{Poison}} 9 (poison bypasses shields)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "verdant_touch",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Verdant Touch",
+      "text": "Restore 20 (+MDEF) HP.",
+      "archetypes": [
+       "healing"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "heal",
+        "power": 20
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "vital_surge",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Vital Surge",
+      "text": "Restore 48 (+DEF) HP.",
+      "archetypes": [
+       "healing"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 2,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "heal",
+        "power": 48
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "void_pierce",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Void Pierce",
+      "text": "Deal 10 (+best stat) TRUE damage — ignores DEF/MDEF.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "true",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "epic",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 10
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "war_banner",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "War Banner",
+      "text": "Passive: adjacent Offense cards deal +10 damage.",
+      "notes": [
+       "Pure aura (no scalable sink) — the aura itself grows: 15/20/25 damageFlat",
+       "× auraDamageFlat 10 (adjacent reach ×1) = 150/200/250 exactly."
+      ],
+      "archetypes": [
+       "support"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [],
+      "aura": {
+       "affects": "adjacent",
+       "archetypeFilter": "offense",
+       "mods": {
+        "damageFlat": 10
+       }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "aura": {
+         "affects": "adjacent",
+         "archetypeFilter": "offense",
+         "mods": {
+          "damageFlat": 15
+         }
+        },
+        "text": "Passive: adjacent Offense cards deal +15 damage."
+       },
+       "gold": {
+        "aura": {
+         "affects": "adjacent",
+         "archetypeFilter": "offense",
+         "mods": {
+          "damageFlat": 20
+         }
+        },
+        "text": "Passive: adjacent Offense cards deal +20 damage."
+       },
+       "diamond": {
+        "aura": {
+         "affects": "adjacent",
+         "archetypeFilter": "offense",
+         "mods": {
+          "damageFlat": 25
+         }
+        },
+        "text": "Passive: adjacent Offense cards deal +25 damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "ward_of_silence",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Ward of Silence",
+      "text": "{{Negate}} the next magical attack.",
+      "notes": [
+       "negate re-priced to 100 deci/charge: 1 charge = Bronze exactly (was 2).",
+       "Negate can't grow to 2 charges (200 deci would blow the size-1 empower",
+       "cap of 100 alone) — frozen at 1 charge; a magical shield sinks the",
+       "rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond",
+       "30 (150) + 100 = 250."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "negate",
+        "property": "magical",
+        "charges": 1
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "negate",
+          "property": "magical",
+          "charges": 1
+         },
+         {
+          "kind": "shield",
+          "power": 10
+         }
+        ],
+        "text": "{{Negate}} the next magical attack · Gain 10 (+MDEF) magical shield."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "negate",
+          "property": "magical",
+          "charges": 1
+         },
+         {
+          "kind": "shield",
+          "power": 20
+         }
+        ],
+        "text": "{{Negate}} the next magical attack · Gain 20 (+MDEF) magical shield."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "negate",
+          "property": "magical",
+          "charges": 1
+         },
+         {
+          "kind": "shield",
+          "power": 30
+         }
+        ],
+        "text": "{{Negate}} the next magical attack · Gain 30 (+MDEF) magical shield."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "warlord_banner",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Warlord's Banner",
+      "text": "Passive: ALL board cards deal +5 damage.",
+      "notes": [
+       "Pure aura at allBoard reach (2x cost); damageFlat grows and a self",
+       "Attack buff sinks the rest."
+      ],
+      "archetypes": [
+       "support"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [],
+      "aura": {
+       "affects": "allBoard",
+       "mods": {
+        "damageFlat": 5
+       }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "damageFlat": 6
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "attack",
+          "pct": 15,
+          "turns": 2
+         }
+        ],
+        "text": "Passive: ALL board cards deal +6 damage. Self: +15% ATK (2 turns)."
+       },
+       "gold": {
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "damageFlat": 8
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "attack",
+          "pct": 20,
+          "turns": 2
+         }
+        ],
+        "text": "Passive: ALL board cards deal +8 damage. Self: +20% ATK (2 turns)."
+       },
+       "diamond": {
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "damageFlat": 10
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "attack",
+          "pct": 25,
+          "turns": 2
+         }
+        ],
+        "text": "Passive: ALL board cards deal +10 damage. Self: +25% ATK (2 turns)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "wildfire_surge",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Wildfire Surge",
+      "text": "Deal 24 (+MATK) Fire damage · {{Burn}} 12.",
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "fire",
+      "size": 2,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 24
+       },
+       {
+        "kind": "burn",
+        "stacks": 12
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 36
+         },
+         {
+          "kind": "burn",
+          "stacks": 14
+         }
+        ],
+        "text": "Deal 36 (+MATK) Fire damage · {{Burn}} 14."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 52
+         },
+         {
+          "kind": "burn",
+          "stacks": 15
+         }
+        ],
+        "text": "Deal 52 (+MATK) Fire damage · {{Burn}} 15."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 64
+         },
+         {
+          "kind": "burn",
+          "stacks": 17
+         }
+        ],
+        "text": "Deal 64 (+MATK) Fire damage · {{Burn}} 17."
+       }
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

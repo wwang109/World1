@@ -6,14 +6,16 @@
   "description": "Turn-based semi-auto roguelite party battler",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run content:validate && tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "node scripts/check-boundaries.mjs && tsc --noEmit && vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "api": "tsx server/battleApi.ts",
     "fight": "tsx scripts/fight.ts",
-    "sim": "tsx scripts/balance.ts"
+    "sim": "tsx scripts/balance.ts",
+    "content:export": "tsx scripts/exportContent.ts && tsx scripts/exportGems.ts",
+    "content:validate": "tsx scripts/validateContent.ts"
   },
   "dependencies": {
     "phaser": "^3.90.0"

@@ -6,8 +6,14 @@
 import { Rng } from '../../../src/engine/rng';
 import { skillBook } from '../../../src/data/skills';
 import type { BoardPiece, CombatConfig, CombatantSetup } from '../../../src/engine/types';
+import { FROZEN_SWEEP_SKILL_IDS } from '../fixtures/frozenSweepSkillIds';
 
-const SKILL_IDS = Object.keys(skillBook).sort();
+// FROZEN, not `Object.keys(skillBook).sort()` — see frozenSweepSkillIds.ts for why.
+// Adding a card to skillBook must NOT change this pool or a single new card would
+// turn every outcomeBaseline.json hash red. Editing/removing a card already-in-pool
+// still moves the baseline exactly as before (frozenSweepSkillIds.test.ts guards
+// the "removed" case).
+const SKILL_IDS: readonly string[] = FROZEN_SWEEP_SKILL_IDS;
 
 export function sweepUnit(rng: Rng, name: string): CombatantSetup {
   const boardSize = 10;

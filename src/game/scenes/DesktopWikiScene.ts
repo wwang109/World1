@@ -5,6 +5,7 @@ import { applyTier } from '../../engine/cards';
 import type { SkillDef, SkillTier } from '../../engine/types';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
+import { gemCatalogOrder } from '../ui/gemGlossary';
 import { createOwnedCard, demoState } from '../demoState';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { DESKTOP_PROFILE } from '../layoutProfile';
@@ -539,7 +540,7 @@ export class DesktopWikiScene extends Phaser.Scene {
     this.clearObjects(this.gemObjects);
     const { left, width } = this.gridBounds();
     const top = DESKTOP_LAYOUT.contentTop + 40;
-    const gems = Object.values(gemBook);
+    const gems = gemCatalogOrder(Object.values(gemBook));
     const columns = 3;
     const gapX = DESKTOP_LAYOUT.gap;
     const cellW = (width - (columns - 1) * gapX) / columns;

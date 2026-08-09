@@ -87,7 +87,19 @@ export function auraCovers(
       return reachesLeft;
     case 'right':
       return reachesRight;
+    default:
+      // COMPILE-TIME EXHAUSTIVENESS, not a runtime branch: `affects` is `never`
+      // here, so adding a direction to `AuraDef['affects']` in types.ts fails tsc
+      // RIGHT HERE instead of silently falling through to `undefined` (which
+      // reads as "reaches nothing" and would quietly disable an aura). Content is
+      // authored as data now, so an unhandled direction is reachable from a JSON
+      // edit rather than only from a code change.
+      return assertNeverAffects(affects);
   }
+}
+
+function assertNeverAffects(value: never): never {
+  throw new Error(`unhandled aura affects: ${JSON.stringify(value)}`);
 }
 
 function covers(

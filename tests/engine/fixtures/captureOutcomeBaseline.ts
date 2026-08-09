@@ -46,8 +46,47 @@ const next = {
     'fixture regeneration. Everything the engine consumes — the full event log, all combatant ' +
     'state (incl. each combatant `name`), and every behavioural SkillDef field (effects, property, ' +
     'size, speedWeight, cooldownTurns, tier, rarity, element, weapon, scope, aura, special, ' +
-    'tierUpgrades) — is still hashed byte-for-byte.',
+    'tierUpgrades) — is still hashed byte-for-byte. OBJECT KEYS ARE SORTED before ' +
+    'stringify (2026-08-09), so the hash is a function of VALUES ONLY and no ' +
+    'rebuild-in-a-different-field-order can churn it. ARRAY order is untouched and ' +
+    'still fully load-bearing.',
   note:
+    'Regression lock recaptured (2026-08-09) for CANONICAL KEY ORDER in the hash ' +
+    'normalizer — a REPRESENTATION-ONLY change that moves EVERY hash and NO ' +
+    'behaviour. `outcomeHash` ends in JSON.stringify, which serialises object keys ' +
+    'in INSERTION order, so until now the physical FIELD ORDER of every hashed ' +
+    'object fed the lock. That is not a behaviour: nothing in the engine iterates ' +
+    'Object.keys of a SkillDef to decide anything, and the card literals in ' +
+    'src/data/skills.ts already order their fields inconsistently (some put `weapon` ' +
+    'before `size`, some after). normalizeForHash now sorts keys at every depth; ' +
+    'ARRAY order is deliberately left alone, because array order IS behaviour here ' +
+    '(effects fire in order, the event log is a sequence). ' +
+    'WHY NOW: this is a PREREQUISITE for the content-format migration. A loader that ' +
+    'builds SkillDef objects from a data file necessarily picks its own key order, ' +
+    'and would otherwise have re-hashed all 400 cases for a provably ' +
+    'behaviour-neutral change — a regeneration whose churn could hide a real ' +
+    'regression, which is precisely what this fixture exists to prevent. Paying it ' +
+    'ONCE here, in isolation, buys permanent immunity: from now on only VALUES can ' +
+    'move a hash. ' +
+    'CONTAINMENT PROVEN, and in the strongest available form — the sim output was ' +
+    'shown to be UNCHANGED rather than merely similar. Read-only probe over both ' +
+    '200-fight sweeps, BEFORE regenerating: (a) the CURRENT engine reproduced ' +
+    '400/400 of the OLD fixture hashes under the OLD normalizer, so the simulation ' +
+    'is byte-identical and every delta below is attributable to the normalizer ' +
+    'alone; (b) result moved 0/400 and turns moved 0/400; (c) re-hashing THAT SAME ' +
+    'unchanged sim output under the sorted normalizer moved 400/400 hashes (0/400 ' +
+    'were already in canonical order — consistent with `id` leading every SkillDef ' +
+    'literal while sorting demands `archetypes` first). A pure key-order delta is ' +
+    'therefore the only thing in this regeneration. ' +
+    'INCIDENTALLY PROVEN, and worth recording: (a) held the whole time an unrelated ' +
+    'in-flight engine change (the echo-gem statStrike `echoHostPower` / gem ' +
+    '`weightIncreasePct` work) was present in the tree — reproducing 400/400 old ' +
+    'hashes is a direct proof that work is sweep-neutral, as its own byte-identity ' +
+    'claim predicted; and (b) the same 400/400 reproduction re-confirms that ' +
+    'FREEZING the sweep id pool (tests/engine/fixtures/frozenSweepSkillIds.ts, ' +
+    '2026-08-08) cost zero regeneration. ' +
+    'See tests/engine/helpers/outcomeHash.ts and the key-order guards in ' +
+    'tests/engine/outcomeHash.test.ts. It supersedes the prior regen: ' +
     'Regression lock recaptured (2026-08-07) for the MULTI-HIT STAT SPLIT ' +
     '(user-locked 2026-08-07): a REAL, REVIEWED RULE CHANGE that moves real damage ' +
     'numbers. The caster\'s scaling stat (Attack / Magic Power / higher for TRUE) is ' +

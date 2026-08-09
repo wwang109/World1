@@ -185,7 +185,8 @@ it shows a plain-language explanation the printed text can't fit.
 
 ## 5c. Keyword markup in card text (`{{verb}}`)
 
-Card `text` in `src/data/skills.ts` may wrap a mechanical verb in double
+Card `text` in `src/data/content/skills.v1.json` (see its README) may wrap a
+mechanical verb in double
 braces: `'Deal Fire damage +42 (+Magic Power) · {{Burn}} 5 (3 turns).'`
 
 - **Authoring**: the braces carry no engine meaning; the display keeps the

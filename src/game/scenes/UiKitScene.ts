@@ -3,6 +3,7 @@ import { playSfx } from '../audio/sfxSynth';
 import { gemPowerLevel, powerLevel } from '../../engine/balance';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
+import { gemCatalogOrder } from '../ui/gemGlossary';
 import {
   ARCHETYPE_COLOR,
   FONT,
@@ -278,7 +279,7 @@ export class UiKitScene extends Phaser.Scene {
   // ---------- gem picker mockups (static, real gem data) ----------
 
   private gems(): GemDef[] {
-    return Object.values(gemBook);
+    return gemCatalogOrder(Object.values(gemBook));
   }
 
   private gemRowCore(x: number, y: number, gem: GemDef, w: number): void {

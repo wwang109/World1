@@ -328,6 +328,27 @@ function countDamageActions(effects: readonly Action[]): number {
 }
 
 /**
+ * The CARD'S OWN flat damage base: the summed `power` of exactly the actions
+ * `countDamageActions` counts — its `damage` actions, GEM-APPENDED ones excluded.
+ * The two are deliberate siblings: the divisor asks HOW MANY own hits the card
+ * has, this asks HOW BIG they are, and both must read the same set or a socket
+ * could see itself (an `echoHostPower` strike echoing its own echo).
+ *
+ * SUMMED, not per-hit, so it is HIT-COUNT-INVARIANT: Twin Slash's 6 + 6 is one
+ * base of 12, exactly as its stat term is one pool split two ways. A card with no
+ * `damage` action of its own returns 0, so an echo socketed on a heal or a shield
+ * card degrades gracefully to a plain stat strike rather than misbehaving.
+ *
+ * Derived from the RESOLVED effect list at cast time, like the divisor beside it
+ * — no state, no RNG, integer-only.
+ */
+export function ownDamagePower(effects: readonly Action[]): number {
+  let total = 0;
+  for (const action of effects) if (action.kind === 'damage' && !action.fromGem) total += action.power;
+  return total;
+}
+
+/**
  * Apply a decaying DoT (user-locked 2026-07-20): one pile per kind per
  * victim — a new application MERGES its stacks into the existing pile
  * (keeping the pile's tick schedule and re-attributing to the newest
@@ -745,26 +766,57 @@ function applyAction(
     case 'statStrike': {
       // A separate hit for ONE SHARE of a `shareOf`-way split of the caster's
       // scaling stat, optionally capped (see the `statStrike` docs in types.ts).
-      // It has NO flat base and takes NO attacker-side bonus — not
-      // `mods.damageFlat`, not a triggered `comboBonus` — and it never enters
-      // the multi-hit divisor, so it is strictly ADDITIVE to the host card's own
-      // hit rather than carved out of it.
+      // It takes NO attacker-side bonus — not `mods.damageFlat`, not a triggered
+      // `comboBonus` — and it never enters the multi-hit divisor, so it is
+      // strictly ADDITIVE to the host card's own hit rather than carved out of it.
       //
       // The share is `statShare` at index 0 of a `shareOf`-way split: exact
       // integer arithmetic, front-loaded exactly as the multi-hit rule rounds
       // (`shareOf: 2` of Attack 21 is 11, not 10). A `shareOf` below 1 would
       // mean "more than the whole stat", which the effect is defined never to
       // do, so it clamps to 1 = the whole stat.
+      //
+      // ECHO FORM (`echoHostPower`, user intent 2026-08-08: "echo is suppose to
+      // perform a secondary atk at 50% less"). The payload becomes one share of
+      // the WHOLE attack — the host card's own flat base PLUS the caster's stat —
+      // instead of a share of the stat alone. On Sword Slash (base 20) at Attack
+      // 20 the card's own hit is 40 and a `shareOf: 2` echo is 20; on Crushing
+      // Blow (base 96) the same socket echoes 58. It repeats whatever it is
+      // attached to, which is the entire point of an echo.
+      //
+      // ONE share of the SUM, then split back into a base term and a stat term —
+      // NOT a share of each term taken separately. Sharing each separately would
+      // round both up and hand the echo a free point whenever base and stat are
+      // both odd (base 9 at Attack 21: 5 + 11 = 16 for a 30-damage attack). The
+      // sum is shared once, so the echo is EXACTLY `share(base + stat)`, always.
+      //
+      // The split is still reported as two terms because `applyStrike`'s TRUE
+      // rule mitigates only the stat one: the base half of an echo bypasses
+      // defense exactly as the host card's own flat base does, and the stat half
+      // is checked against defense exactly as the host's stat add is.
       const shareOf = Math.max(1, Math.floor(action.shareOf));
       const cap = action.cap;
-      const share = (stat: number): number => {
-        const part = statShare(stat, { index: 0, count: shareOf });
-        return cap === undefined ? part : Math.min(part, cap);
+      const share = (n: number): number => statShare(n, { index: 0, count: shareOf });
+      const echoBase = action.echoHostPower === true ? ownDamagePower(skill.effects) : 0;
+      // `cap` bounds the payload as a WHOLE: the echoed base takes the room first
+      // and the STAT term gets what is left, because the stat is the term that
+      // grows without bound with hero level while the echoed base is fixed by the
+      // host card. With NO echo (`echoBase` 0 → base term 0, room `cap`) every
+      // line below reduces to the pre-echo `Math.min(share(stat), cap)`, so every
+      // existing `statStrike` is byte-identical.
+      const basePart = share(echoBase);
+      const power = cap === undefined ? basePart : Math.min(basePart, cap);
+      const statTerm = (stat: number): number => {
+        const part = share(echoBase + stat) - basePart;
+        return cap === undefined ? part : Math.min(part, cap - power);
       };
       applyStrike(ctx, caster, skill, cast, enemy, {
-        power: 0,
-        baseStat: share(caster.stats[scalingStatName(caster, property)]),
-        effectiveStat: share(scaleStat(caster, property)),
+        // The echoed base is stat-INDEPENDENT, so it rides `power` — the same
+        // slot the host card's own flat base uses, which is what makes the TRUE
+        // rule and the reported `calculation` telescope with no special case.
+        power,
+        baseStat: statTerm(caster.stats[scalingStatName(caster, property)]),
+        effectiveStat: statTerm(scaleStat(caster, property)),
         flatBonus: 0,
       });
       break;
@@ -778,6 +830,19 @@ function applyAction(
       // Non-TRUE heals are the card's flat base + the caster's DEFENSIVE scaling
       // stat (Armor for physical, Magic Resist for magical — healing is
       // defensive output, see `scaleDefStat`) + any FLAT aura/gem heal bonus.
+      //
+      // GEM-APPENDED (gem ruleset v1 §0.B / §7.6 / §9.4, 2026-08-09): the same
+      // rule the `damage` case above has always obeyed — a gem's printed payload
+      // is its WHOLE payload. A gem heal delivers exactly its `power`: NO
+      // `scaleDefStat` term and NO `mods.healFlat`. Before this, a Common
+      // "+4 HP" gem healed 34 on a DEF-30 hero (4x a Legendary Core's +8) and a
+      // gem's value became a function of the host it sat on, which is precisely
+      // what the host-independence rule behind `GEM_CANONICAL_PROPERTY` forbids.
+      // The ANTI-HEAL WORLD RULE still applies: a gem heal is still a REGULAR
+      // heal, and afflictions on the receiver are a property of the RECEIVER and
+      // the world, not an attacker-side buff (same line the gem-hit rule draws —
+      // see `GemAppended` in types.ts).
+      const fromGem = action.fromGem === true;
       let amount: number;
       let flat = false;
       let antiHeal: AntiHealReduction | undefined;
@@ -792,8 +857,8 @@ function applyAction(
         amount = action.power;
         flat = true;
       } else {
-        statBonus = scaleDefStat(caster, property);
-        healFlat = mods.healFlat;
+        statBonus = fromGem ? 0 : scaleDefStat(caster, property);
+        healFlat = fromGem ? 0 : mods.healFlat;
         // ANTI-HEAL WORLD RULE: a regular heal is taxed −20% per affliction
         // category active on the RECEIVER (cap −60%). TRUE heals skip this
         // branch entirely — irreducible by identity.
@@ -819,7 +884,14 @@ function applyAction(
       // stat (Armor for physical, Magic Resist for magical — plating is defensive
       // output, see `scaleDefStat`). TRUE shields are flat by design: no stat
       // contribution at all, which `scaleDefStat` reports as 0.
-      const statBonus = scaleDefStat(caster, property);
+      //
+      // GEM-APPENDED (gem ruleset v1 §0.B / §7.6 / §9.4, 2026-08-09): a gem
+      // shield delivers exactly its printed `power` — no stat term — the twin of
+      // the `heal` case above and of the `damage` case's long-standing rule. The
+      // shield case never read `mods` for ANY property, so there is no aura term
+      // to strip here. The maxHp room cap is a property of the RECEIVER and still
+      // applies, exactly as mitigation still applies to a gem hit.
+      const statBonus = action.fromGem === true ? 0 : scaleDefStat(caster, property);
       const request = action.power + statBonus;
       const room = Math.max(0, caster.stats.maxHp - totalShield(caster));
       const gain = Math.min(request, room);

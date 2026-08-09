@@ -150,9 +150,11 @@ type ActionKinds =
    * with hero level and CANNOT be priced against a fixed PL band. That is what
    * `cap` is for.
    *
-   * `cap` (optional) is a hard integer ceiling on the payload, applied after
-   * the share. A CAPPED strike is worth at most `cap` damage at any hero level,
-   * so it prices EXACTLY like a flat `damage` action of that size
+   * `cap` (optional) is a hard integer ceiling on the WHOLE payload, applied
+   * after the share (with `echoHostPower` the payload has two terms and the cap
+   * bounds their SUM — the stat term, the one that grows without bound with hero
+   * level, is the one trimmed). A CAPPED strike is worth at most `cap` damage at
+   * any hero level, so it prices EXACTLY like a flat `damage` action of that size
    * (`actionsPriceDeci`) — it scales with the hero early and plateaus late.
    * An UNCAPPED strike prices at 0 deci ON PURPOSE: its value is unbounded, so
    * there is no honest number, and 0 makes it fail every rarity band in
@@ -163,8 +165,70 @@ type ActionKinds =
    * mitigated and negated on its own (one `negate` charge per instance), which
    * is a real part of its value and the reason a second hit is a high-tier
    * effect rather than a token add-on.
+   *
+   * ---------------------------------------------------------------------------
+   * `echoHostPower` — THE ECHO FORM (user intent 2026-08-08: "echo is suppose to
+   * perform a secondary atk at 50% less"). With this flag the payload is one
+   * share of the WHOLE ATTACK — the host card's own flat base PLUS the caster's
+   * stat — instead of a share of the stat alone:
+   *
+   *     echo = statShare(hostBase + stat, 1 of `shareOf`)
+   *
+   * On Sword Slash (base 20) at Attack 20 the card's own hit is 40 and a
+   * `shareOf: 2` echo is 20; on Crushing Blow (base 96) the same socket echoes
+   * 58. That proportionality is the whole point — it echoes whatever it is
+   * attached to, which is also why it cannot be priced host-blind (see PRICE).
+   *
+   * ONE share of the SUM, not a share of each term (this is the rounding rule,
+   * and it is load-bearing): the terms are shared together and only then split
+   * back into a base part and a stat part, so the echo is EXACTLY
+   * `share(base + stat)`. Sharing each separately would round BOTH up under the
+   * front-loaded rule and hand the echo a free point whenever base and stat are
+   * both odd — `purging_strike` (base 9) at Attack 21 would echo 5 + 11 = 16 for
+   * a 30-damage attack instead of 15.
+   *
+   * The two parts still exist because `applyStrike`'s TRUE rule mitigates only
+   * the stat one: the base half of an echo bypasses defense exactly as the host
+   * card's own flat base does. The base part takes the front-loaded rounding
+   * (`share(hostBase)`) and the stat part is the remainder.
+   *
+   * `hostBase` is the sum of the `power` of the host card's OWN `damage` actions
+   * (`fromGem` ones excluded, exactly like the multi-hit divisor — a socket must
+   * never read itself), so it is hit-count-invariant: Twin Slash's 6 + 6 echoes
+   * as a share of 12, once. The stat term is likewise the whole per-cast stat,
+   * NOT a per-hit share. A host with no `damage` action of its own echoes 0 base
+   * and degrades gracefully to a plain stat strike.
+   *
+   * TARGETING comes free and follows the host: `scope` is a CARD-level field, so
+   * on an AoE host (`scope: 'all'`) the echo fans out to every living foe exactly
+   * as the card's own hit does, and on a single-target host it hits the one foe
+   * the card's policy picked. Worth knowing before pricing: on a 5-foe board an
+   * echo of an AoE card is five hits, not one.
+   *
+   * It is authored ONLY as a gem payload today, and the resolver stamps it
+   * `fromGem` like any other appended action — so it is still a self-contained
+   * hit that takes no aura `damageFlat` and no `comboBonus`. It echoes what the
+   * card PRINTS plus the caster's stat, never what a board buff added on top.
+   *
+   * PRICE (gem ruleset v1 §5/§6, 2026-08-09 — this replaces the old "prices at 0,
+   * no honest rate exists" note). An echo's value is proportional to a host the
+   * ACTION table cannot see (18 damage on a light card, 58 on the heaviest at the
+   * same hero stats), so `actionsPriceDeci` still charges an uncapped one 0 — a
+   * flat rate there would put a host-blind guess into the card audit. The price
+   * lives one level up, in `gemPowerLevelDeci`, SPLIT by what each surface can
+   * know:
+   *  • host-BLIND (`isGemOnBudget`, the shop): `PRICE.echoRepeatDeci / shareOf`
+   *    plus `PRICE.extraHitPremium` — a classification stand-in that lands
+   *    `shareOf: 2` on Legendary exactly and every other strength on no band;
+   *  • host-KNOWN (`instancePowerLevelDeci`): `echoHostShareDeci` — the share of
+   *    the host's OWN damage line the echo repeats, at the host's own rate, so
+   *    per-piece PL accounting is right on every card instead of uniformly wrong.
+   * A `cap` opts out of both: it bounds the payload absolutely, so the action
+   * prices exactly like a flat damage action of that cap — but a cap low enough
+   * to fit a gem band also flattens the proportionality that makes it an echo,
+   * which is why the ruleset bans capped echoes as CONTENT.
    */
-  | { kind: 'statStrike'; shareOf: number; cap?: number }
+  | { kind: 'statStrike'; shareOf: number; cap?: number; echoHostPower?: true }
   | { kind: 'heal'; power: number }
   | { kind: 'shield'; power: number }
   /**
@@ -385,6 +449,63 @@ export type Gem =
        * skill by `resolveEffectiveSkill` in `cards.ts`.
        */
       cooldownReduction?: number;
+      /**
+       * TEMPO COST — percent ADDED to the host card's initiative weight, so the
+       * socket makes the card hit harder AND come out later (user intent
+       * 2026-08-08, for the echo gem: "maybe make it increase wt of skill too").
+       * Folded into the effective skill's `speedWeight` by
+       * `resolveEffectiveSkill`, so the core loop reads it through the ordinary
+       * `weightOf(piece.skill)` path in `castSelect.ts` and needs no branch.
+       *
+       * PROPORTIONAL, not flat, and that is the design — measured, not assumed
+       * (flat-vs-proportional sweep, 2026-08-09: 7 hosts spanning weight 6..30,
+       * mean throughput ratio over hero Speed 5..30 × DEF 0/8, cooldowns on, a
+       * 3-card board). A gem whose BENEFIT scales with its host must have a COST
+       * that scales the same way, or one host-blind price cannot be honest:
+       *
+       *   a 50% echo, no weight cost  → +15.0%..+32.7% throughput, SPREAD 0.177
+       *   the same echo, FLAT +5      → +10.2%..+25.6%, spread 0.154
+       *   the same echo, FLAT +12     → + 3.5%..+16.2%, spread 0.127
+       *   the same echo, PCT +25%     → +13.1%..+22.3%, spread 0.092
+       *   the same echo, PCT +50%     → + 9.8%..+13.6%, spread 0.053
+       *
+       * Read the SPREAD column, not the level: a flat add is a near-uniform
+       * multiplier on the gem's value (a power knob) and barely narrows the gap
+       * between the best and worst host even when it is brutal, while a
+       * proportional add takes value away IN PROPORTION to how much the host
+       * gained (a fairness knob) and halves the spread. The mechanism: a card's
+       * flat base — which is what an echo repeats — tracks its weight across the
+       * book, so indexing the cost to weight indexes it to the benefit. In the
+       * frictionless model the identity is exact: damage-per-weight moves by
+       * `(1 + echo%) / (1 + weight%)` on EVERY host, host-independent by
+       * construction. The residual spread above is armor (the echo is a separate
+       * instance and pays mitigation again, which hurts small echoes most) and
+       * the cooldown window — both deliberate, neither a weight-form problem.
+       *
+       * ROUNDING: `floor(baseWeight × pct / 100)`, integer, computed once at
+       * resolve time — but never 0 for a positive `pct` (a weight increase that
+       * increases nothing would be a lie on the card face); the min-1 clamp only
+       * bites below pct 20 on the lightest cards (`WEIGHT_MIN` is 5).
+       * NOT clamped to `WEIGHT_MAX_BY_SIZE`: that is an AUTHORING bound on
+       * cards, and effective weight already exceeds it via `slow`.
+       *
+       * IT IS A SOFT COST, and that is worth knowing before pricing it: weight
+       * is only paid out of banked readiness, so a host whose weight already sits
+       * under the caster's per-turn Speed gain has slack and pays nothing at all
+       * (at Speed 25 the entire sweep above collapses to the no-cost row). The
+       * cost is real at low Speed and on heavy hosts, and fades as the hero
+       * levels Speed — a scaling gem with a cost that scales the OTHER way.
+       *
+       * PRICED AT 0 deci today (see `gemPowerLevelDeci`) — deliberately
+       * conservative: charging no refund can only ever OVER-price the gem.
+       * A refund rate is balance-designer's to set. It stays 0 after the echo
+       * pricing landed (gem ruleset v1 §6, 2026-08-09): §6.2 keeps
+       * `weightIncreasePct` as the Echo's one PL-FREE tuning dial precisely so
+       * the band arithmetic (`echoRepeatDeci / shareOf + extraHitPremium` = 80 at
+       * `shareOf: 2`) can be tuned for fairness between hosts without moving the
+       * rarity it lands on.
+       */
+      weightIncreasePct?: number;
     }
   | { kind: 'stat'; id: string; rarity: Rarity; scope: 'card' | 'hero'; mods: StatGemMods };
 

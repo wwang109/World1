@@ -21,7 +21,7 @@ import { shopCatalog, shopTypeIds } from '../../src/data/shopTypes';
 import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
 import { gemPowerLevelDeci } from '../../src/engine/balance';
-import type { SkillTier } from '../../src/engine/types';
+import type { Rarity, SkillTier } from '../../src/engine/types';
 import { generateRunMap, totalColumns } from '../../src/run/runMap';
 
 describe('run/shop: pool sanity', () => {
@@ -146,7 +146,7 @@ describe('run/shop: price audit', () => {
     expect(tiers.map((t) => goldPriceOfCard(t))).toEqual([2, 3, 4, 5]);
   });
 
-  it('gem prices are in 1..3 and monotonic in gemPowerLevelDeci', () => {
+  it('gem prices are in 1..4 (Legendary bumped to 4, 2026-08-09) and monotonic in gemPowerLevelDeci', () => {
     const priced = Object.values(gemBook).map((g) => ({
       id: g.id,
       deci: gemPowerLevelDeci(g),
@@ -154,11 +154,22 @@ describe('run/shop: price audit', () => {
     }));
     for (const { price } of priced) {
       expect(price).toBeGreaterThanOrEqual(1);
-      expect(price).toBeLessThanOrEqual(3);
+      expect(price).toBeLessThanOrEqual(4);
     }
     const sorted = [...priced].sort((a, b) => a.deci - b.deci);
     for (let i = 1; i < sorted.length; i++) {
       expect(sorted[i]!.price).toBeGreaterThanOrEqual(sorted[i - 1]!.price);
+    }
+  });
+
+  it('ONLY Legendary gems (rarity band 80 deci) price at 4 gold; every other rarity stays at 1 or 2', () => {
+    for (const gem of Object.values(gemBook)) {
+      const price = goldPriceOfGem(gem.id);
+      if (gem.rarity === 'legendary') {
+        expect(price).toBe(4);
+      } else {
+        expect(price).toBeLessThanOrEqual(2);
+      }
     }
   });
 });
@@ -194,6 +205,111 @@ describe('run/shop: depth-shifted tier split', () => {
   });
 });
 
+describe('run/shop: gem rarity weighting + depth gate (2026-08-09, gem ruleset v1 §9.6 + fork 5)', () => {
+  const LEGENDARY_IDS = new Set(Object.values(gemBook).filter((g) => g.rarity === 'legendary').map((g) => g.id));
+  const hasLegendary = (stock: ReturnType<typeof rollShopStock>): boolean =>
+    stock.gems.some((g) => LEGENDARY_IDS.has(g.gemId));
+
+  it('same (shopId, seed, depth, rarityGated) -> identical WEIGHTED shelf, every time', () => {
+    for (const [id, depth] of [['gemcutter', 8], ['relic_vault', 5], ['arcanum', 5]] as const) {
+      const a = rollShopStock(id, 999, depth);
+      const b = rollShopStock(id, 999, depth);
+      expect(a).toEqual(b);
+    }
+  });
+
+  it('DEPTH GATE: a wave-1 shop (depth 2) never offers a Legendary gem, across every shop that curates one', () => {
+    const shopsWithLegendary = shopTypeIds.filter((id) => gemPoolForShop(id).some((g) => g.rarity === 'legendary'));
+    expect(shopsWithLegendary.length).toBeGreaterThan(0); // sanity: the fixture below isn't vacuous
+    for (const id of shopsWithLegendary) {
+      for (let seed = 1; seed <= 100; seed++) {
+        expect(hasLegendary(rollShopStock(id, seed, 2))).toBe(false);
+      }
+    }
+  });
+
+  it('DEPTH GATE: Legendary becomes reachable from depth 5 (wave 2+) onward, for a shop whose pool has one', () => {
+    let sawLegendaryAt5 = false;
+    let sawLegendaryAt8 = false;
+    for (let seed = 1; seed <= 200; seed++) {
+      if (hasLegendary(rollShopStock('gemcutter', seed, 5))) sawLegendaryAt5 = true;
+      if (hasLegendary(rollShopStock('gemcutter', seed, 8))) sawLegendaryAt8 = true;
+    }
+    expect(sawLegendaryAt5).toBe(true);
+    expect(sawLegendaryAt8).toBe(true);
+  });
+
+  it('DEPTH GATE: Epic is left ungated — reachable even at depth 2 (wave 1)', () => {
+    let sawEpic = false;
+    for (let seed = 1; seed <= 100; seed++) {
+      const stock = rollShopStock('gemcutter', seed, 2);
+      if (stock.gems.some((g) => gemBook[g.gemId]!.rarity === 'epic')) sawEpic = true;
+    }
+    expect(sawEpic).toBe(true);
+  });
+
+  it('SANDBOX UNGATED: rarityGated=false shows Legendary gems even at depth 1 (the sandbox default)', () => {
+    let sawLegendary = false;
+    for (let seed = 1; seed <= 200; seed++) {
+      if (hasLegendary(rollShopStock('gemcutter', seed, 1, false))) sawLegendary = true;
+    }
+    expect(sawLegendary).toBe(true);
+  });
+
+  it('GATED (the default) shows no Legendary at depth 1, contrasting directly with the ungated case above', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      expect(hasLegendary(rollShopStock('gemcutter', seed, 1))).toBe(false);
+      expect(hasLegendary(rollShopStock('gemcutter', seed, 1, true))).toBe(false);
+    }
+  });
+
+  it('ONE-LEGENDARY-PER-SHELF CAP: no shelf, gated or not, ever offers more than one Legendary gem', () => {
+    for (const id of shopTypeIds) {
+      for (const [depth, rarityGated] of [[8, true], [1, false]] as const) {
+        for (let seed = 1; seed <= 60; seed++) {
+          const stock = rollShopStock(id, seed, depth, rarityGated);
+          const legendaryCount = stock.gems.filter((g) => LEGENDARY_IDS.has(g.gemId)).length;
+          expect(legendaryCount).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+  });
+
+  it('WEIGHT DISTRIBUTION SANITY: Common >> Rare >> Epic/Legendary over many Gemcutter shelves (statistical bounds, not exact counts)', () => {
+    const counts: Record<Rarity, number> = { common: 0, rare: 0, epic: 0, legendary: 0 };
+    let totalOffers = 0;
+    const N = 1000;
+    for (let seed = 1; seed <= N; seed++) {
+      // depth 8 (wave 4+, fully unlocked) — the full 35-gem book is in play.
+      const stock = rollShopStock('gemcutter', seed, 8);
+      for (const offer of stock.gems) {
+        counts[gemBook[offer.gemId]!.rarity] += 1;
+        totalOffers += 1;
+      }
+    }
+    const frac = (r: Rarity): number => counts[r] / totalOffers;
+    // Loose bounds around the measured ~67/28/3.5/1.5% split — wide enough to
+    // absorb a future weight retune without becoming a change-detector test,
+    // tight enough to catch a broken/inverted weighting outright.
+    expect(frac('common')).toBeGreaterThan(0.5);
+    expect(frac('rare')).toBeGreaterThan(0.15);
+    expect(frac('rare')).toBeLessThan(0.45);
+    expect(frac('epic')).toBeLessThan(0.1);
+    expect(frac('legendary')).toBeLessThan(0.05);
+    expect(counts.legendary).toBeGreaterThan(0); // reachable, not just rare
+    // The ordering the weight table (60/25/10/5) was chosen to produce.
+    expect(counts.common).toBeGreaterThan(counts.rare);
+    expect(counts.rare).toBeGreaterThan(counts.epic);
+    expect(counts.epic).toBeGreaterThanOrEqual(counts.legendary);
+  });
+
+  it('GOLD PRICE: Legendary gems cost 4 gold; every other rarity is unaffected by the bump', () => {
+    for (const gem of Object.values(gemBook)) {
+      if (gem.rarity === 'legendary') expect(goldPriceOfGem(gem.id)).toBe(4);
+    }
+  });
+});
+
 describe('run/shop: shopPoolInfo (thin-pool arithmetic, docs/run-shops-design.md §2b)', () => {
   it('every theme reports slot-count arithmetic consistent with its pool/shelf (thin themes allowed)', () => {
     for (const id of shopTypeIds) {
@@ -225,10 +341,10 @@ describe('run/shop: shopPoolInfo (thin-pool arithmetic, docs/run-shops-design.md
     expect(info.fullStock).toBe(false);
   });
 
-  it('cardSlots/gemSlots exactly match what rollShopStock actually offers', () => {
+  it('cardSlots/gemSlots exactly match what rollShopStock actually offers (rarityGated: false — shopPoolInfo describes the FULL pool, not a depth-gated slice)', () => {
     for (const id of shopTypeIds) {
       const info = shopPoolInfo(id);
-      const stock = rollShopStock(id, 777);
+      const stock = rollShopStock(id, 777, 1, false);
       expect(stock.cards.length).toBe(info.cardSlots);
       expect(stock.gems.length).toBe(info.gemSlots);
     }
@@ -319,10 +435,10 @@ describe('run/shop: bigger shelves (2026-08-04 "shops sell more" pass)', () => {
     expect(shop.shelf).toEqual({ cards: 0, gems: 6 });
   });
 
-  it('a thin element stall whose pool is smaller than the shelf still caps gracefully (no throw, no dead slots beyond the pool)', () => {
+  it('a thin element stall whose pool is smaller than the shelf still caps gracefully (no throw, no dead slots beyond the pool) — rarityGated: false, this is pool arithmetic, not the rarity-gate feature', () => {
     for (const id of ['emberworks', 'frosthold', 'stormspire', 'grovekeep', 'reliquary', 'umbral_stall']) {
       const info = shopPoolInfo(id);
-      const stock = rollShopStock(id, 42);
+      const stock = rollShopStock(id, 42, 1, false);
       expect(stock.cards.length).toBe(info.cardSlots);
       expect(stock.gems.length).toBe(info.gemSlots);
       expect(info.cardSlots).toBeLessThanOrEqual(cardPoolForShop(id).length);
@@ -337,9 +453,9 @@ describe('run/shop: bigger shelves (2026-08-04 "shops sell more" pass)', () => {
     }
   });
 
-  it('every gem-selling shop with a large enough pool now actually fills 5 gem slots', () => {
+  it('every gem-selling shop with a large enough pool now actually fills 5 gem slots (rarityGated: false — pool-fill arithmetic, independent of the rarity gate)', () => {
     for (const id of ['armory', 'wildworks', 'bulwark', 'assassins_den', 'caravan', 'relic_vault']) {
-      const stock = rollShopStock(id, 7);
+      const stock = rollShopStock(id, 7, 1, false);
       expect(stock.gems.length).toBe(5);
     }
   });
@@ -359,7 +475,7 @@ describe('run/shop: sell-back pricing (2026-08-04)', () => {
     }
   });
 
-  it('gem sell price is half of goldPriceOfGem, floored, min 1 (every gem sells for 1 given the 1-3 buy range)', () => {
+  it('gem sell price is half of goldPriceOfGem, floored, min 1 (Common/Rare/Epic sell for 1; Legendary sells for 2 since the 2026-08-09 4-gold bump)', () => {
     for (const gem of Object.values(gemBook)) {
       const buy = goldPriceOfGem(gem.id);
       const sell = sellPriceOfGem(gem.id);

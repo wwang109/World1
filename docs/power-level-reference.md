@@ -152,7 +152,8 @@ A gem's OWN PL (not the card's) must land exactly on its rarity's band —
 Legendary 8 PL, checked by `isGemOnBudget(gem)` with the same **exact**
 (zero) tolerance as the card audit. The audit that iterates the real gem
 catalog against these bands is **built**: `tests/engine/gemAudit.test.ts`
-covers every gem in `src/data/gems.ts` (46 gems as of 2026-08-03).
+covers every gem in `src/data/gems.ts` (35 gems as of 2026-08-09, after the
+gem ruleset v1 §10 migration — was 46).
 
 ### `actionsPriceDeci`: the pricing switch, decoupled from `SkillDef`
 
@@ -231,7 +232,7 @@ given deck runs.
 Even a deliberately narrow/mixed deck clears the "at least 1 other qualifying
 card" bar that makes hero-scope strictly better than card-scope at equal
 price; a deck built around a single scaling property is very achievable from
-the full catalog (`skillBook` in `src/data/skills.ts` — 72 skills as of
+the full catalog (`skillBook`, loaded from `src/data/content/skills.v1.json` — 72 skills as of
 2026-08-03) and pushes the reach multiplier far higher.
 
 **The fix**: `attack`/`magicPower` raised to aura-rate parity — a

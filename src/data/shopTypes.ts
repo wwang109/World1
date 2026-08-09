@@ -84,14 +84,14 @@ const defs: ShopTypeDef[] = [
     cardFilter: [{ weapons: ['sword', 'axe', 'lance'] }],
     gemFilter: [
       {
+        // RETIRE (gem ruleset v1 §10, 2026-08-09): sword_slash_echo,
+        // crushing_blow_echo removed (flat-damage duplicates).
         ids: [
           'brawlers_core',
           'bulwark_core',
           'iron_bulwark_echo',
           'armor_break_echo',
           'enfeebling_shard',
-          'sword_slash_echo',
-          'crushing_blow_echo',
           'war_banner_echo',
         ],
       },
@@ -105,15 +105,17 @@ const defs: ShopTypeDef[] = [
     cardFilter: [{ weapons: ['bow', 'beast'] }],
     gemFilter: [
       {
+        // RETIRE: quickening_core, savage_bite_echo, hunter_shot_echo,
+        // rending_claws_echo removed (flat-damage/slow duplicates). Backfilled
+        // with stunning_shard/crippling_strike_echo (predator control/debuff
+        // fits "fast, feral") to keep the pool at the standard fill target.
         ids: [
           'swift_charm',
           'quickening_sliver',
-          'quickening_core',
-          'savage_bite_echo',
-          'hunter_shot_echo',
           'venom_fang_echo',
           'leeching_fang_echo',
-          'rending_claws_echo',
+          'stunning_shard',
+          'crippling_strike_echo',
         ],
       },
     ],
@@ -126,9 +128,9 @@ const defs: ShopTypeDef[] = [
     cardFilter: [{ properties: ['magical'], elements: ['fire', 'frost', 'lightning', 'nature'] }],
     gemFilter: [
       {
+        // RETIRE: arcane_bolt_echo removed (flat-damage duplicate).
         ids: [
           'archmages_core',
-          'arcane_bolt_echo',
           'fireball_echo',
           'mana_ward_echo',
           'frost_ward_echo',
@@ -164,14 +166,13 @@ const defs: ShopTypeDef[] = [
     cardFilter: [{ archetypes: ['debuff'] }],
     gemFilter: [
       {
+        // RETIRE: stunning_smash_echo, hamstring_echo removed (slow duplicates).
         ids: [
           'venom_sliver',
           'venom_fang_echo',
           'stunning_shard',
-          'stunning_smash_echo',
           'concussive_shot_echo',
           'concussive_shard',
-          'hamstring_echo',
           'slow_hex_echo',
         ],
       },
@@ -188,8 +189,9 @@ const defs: ShopTypeDef[] = [
     gemFilter: [{ all: true }],
     // Kept at 6 (not the standard 5-gem target, 2026-08-04) on purpose —
     // Gemcutter's whole identity is "the biggest gem shelf in the game" (it
-    // rolls off the FULL 46-gem book via the `all` clause), and 6 is exactly
-    // the desktop/mobile gem grid's row capacity.
+    // rolls off the FULL 35-gem book via the `all` clause — 46 -> 35, gem
+    // ruleset v1 §10 migration, 2026-08-09), and 6 is exactly the
+    // desktop/mobile gem grid's row capacity.
     shelf: { cards: 0, gems: 6 },
     minWave: 2,
   },
@@ -246,16 +248,19 @@ const defs: ShopTypeDef[] = [
     cardFilter: [{ archetypes: ['offense'], weapons: ['bow', 'beast'] }, { properties: ['true'] }],
     gemFilter: [
       {
+        // RETIRE: quickening_core, hunter_shot_echo, savage_bite_echo,
+        // rending_claws_echo, purging_strike_echo removed (flat-damage/slow
+        // duplicates). soul_rend_echo -> resonant_echo (REPLACE, gem ruleset
+        // v1 §10: it became THE Echo, new id). Backfilled with
+        // shield_splitter_echo/follow_through_echo (ambush/chain-attack fits
+        // "fast, quiet, lethal") to keep the pool at the standard fill target.
         ids: [
           'swift_charm',
           'quickening_sliver',
-          'quickening_core',
           'leeching_fang_echo',
-          'hunter_shot_echo',
-          'savage_bite_echo',
-          'rending_claws_echo',
-          'purging_strike_echo',
-          'soul_rend_echo',
+          'resonant_echo',
+          'shield_splitter_echo',
+          'follow_through_echo',
         ],
       },
     ],
@@ -272,10 +277,11 @@ const defs: ShopTypeDef[] = [
     cardFilter: [{}],
     gemFilter: [
       {
+        // soul_rend_echo -> resonant_echo (REPLACE, gem ruleset v1 §10).
         ids: [
           'archmages_core',
           'concussive_shard',
-          'soul_rend_echo',
+          'resonant_echo',
           'restorative_core',
           'bulwark_core',
           'empowering_core',
@@ -322,7 +328,11 @@ const defs: ShopTypeDef[] = [
     name: 'Stormspire',
     tagline: 'Thunder, sold by the bolt.',
     cardFilter: [{ elements: ['lightning'] }],
-    gemFilter: [{ ids: ['arcane_bolt_echo'] }],
+    // RETIRE: arcane_bolt_echo removed (flat-damage duplicate), leaving this
+    // stall's one curated gem empty. Backfilled with battle_howl_echo (a
+    // charged-up ATK surge reads as "thunder", and the stall keeps its
+    // one-gem thin-by-design identity per docs/history/run-shops-design.md §2b).
+    gemFilter: [{ ids: ['battle_howl_echo'] }],
     shelf: { cards: 6, gems: 5 },
   },
   {
@@ -348,7 +358,9 @@ const defs: ShopTypeDef[] = [
     name: 'Umbral Stall',
     tagline: 'Ask no questions.',
     cardFilter: [{ elements: ['dark'] }],
-    gemFilter: [{ ids: ['shadow_bolt_echo', 'hex_of_frailty_echo', 'soul_rend_echo'] }],
+    // RETIRE: shadow_bolt_echo removed (flat-damage duplicate).
+    // soul_rend_echo -> resonant_echo (REPLACE, gem ruleset v1 §10).
+    gemFilter: [{ ids: ['hex_of_frailty_echo', 'resonant_echo'] }],
     shelf: { cards: 6, gems: 5 },
   },
 ];

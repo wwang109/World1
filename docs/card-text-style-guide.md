@@ -1,7 +1,8 @@
 # Card Text Style Guide
 
 Canonical vocabulary and phrasing for every card's `text` field in
-`src/data/skills.ts`. This is a **reference document, not a rewrite** — no
+`src/data/content/skills.v1.json` (authoring guide:
+`src/data/content/README.md`). This is a **reference document, not a rewrite** — no
 card text is changed by this guide. Future cards (and future edits to
 existing cards) should look up their wording here instead of improvising.
 
@@ -184,46 +185,90 @@ Two consequences worth stating, because both look like mistakes and are not:
 | `shieldBreak` | `Shatter up to {amount} enemy shield, then` — leads the sentence, main verb follows in lowercase. |
 | `comboBonus` | `+{pct}% if your previous cast was also a(n) {Archetype} card.` (joined to the main clause with `;`, *trailing* — see below) |
 
-### Gem rider phrasing (`src/data/gems.ts`)
+### Gem text categories (`src/data/gems.ts`)
 
-Gems append a `damage`/`heal`/`shield` action onto whichever card they're
-socketed into, so a gem's own text can't name a specific stat — it inherits
-the HOST CARD's scaling stat at cast time, resolved by the same ROLE rule as
-main-card text: a `damage` gem reads ATK/MATK (higher of the two for TRUE),
-while a `heal`/`shield` gem reads DEF/MDEF. The old `"(+stat)"` placeholder
-read like a raw variable name; the fix keeps the same number-first shape as
-main-card text but spells out both stats the gem could possibly scale with:
+Every gem belongs to exactly one of FOUR categories (gem ruleset v1 §1,
+2026-08-09 — the 46 -> 35 catalog migration that landed this table). Both a
+gem's display `name` (it ends in the category's suffix) and the opening word
+of its `text` are checked against the category its `Gem` payload actually is
+— drift between payload shape and name/opener is a bug, not a style nit.
 
-| Gem action | Template |
-|---|---|
-| `damage` | `+{power} damage (+ATK/MATK).` |
-| `heal` | `+{power} HP (+DEF/MDEF).` |
-| `shield` | `+{power} shield (+DEF/MDEF).` |
+| # | Category | Payload shape | Name suffix | Text opens with |
+|---|---|---|---|---|
+| 1 | **Sliver** (rider) | `kind: 'effect'`, no `damage`/`statStrike` action | `… Sliver` | the effect's own keyword/verb |
+| 2 | **Echo** | `kind: 'effect'`, `statStrike` + `echoHostPower` | `… Echo` | `Echo:` |
+| 3 | **Core** (amp) | `kind: 'stat'`, `scope: 'card'` | `… Core` | `This card:` |
+| 4 | **Charm** (hero amp) | `kind: 'stat'`, `scope: 'hero'` | `… Charm` | `Hero:` |
 
-**No leading "Also" (2026-08-06 fix).** Gem text never gets concatenated
-after a host card's text — every render site (shop shelf, wiki gem list,
-event reward panel, deck-build socket row) shows a gem's `text` completely
-standalone, in its own box, never appended to another card's sentence. An
-opener that means "in addition to [the preceding clause]" when there is no
-preceding clause is a dangling fragment, not a style choice — this was
-raised more than once and is now the locked rule: **gem text never starts
-with "Also".** Every gem line must read as a complete, self-contained
-phrase:
+**Sliver.** A rider APPENDS a new effect to the host card; per R1.2 it never
+carries a flat `damage` action (that claim moved to Core, below), so its
+text follows the same rider templates as a main-card rider (§2 above), just
+standalone: `{{Poison}} 2 (poison bypasses shields).`, `-10% enemy DEF (2
+turns).`, `+4 shield.` — "opens with the effect's own keyword/verb" means
+exactly the leading-symbol/`{{Keyword}}`/capitalized-verb shapes the old
+"No leading Also" rule below already produces; a Sliver's text is just that
+shape with no host card to append to.
+
+**Echo.** The ONE gem in the catalog that repeats the host card's own
+attack, at a fraction of its strength, as a separate hit
+(`resonant_echo` — see `src/engine/types.ts`'s `statStrike`/`echoHostPower`
+docs and `PRICE.echoRepeatDeci` in `src/engine/balance.ts` for why only one
+strength is priceable). Text always opens `Echo:` and must say plainly that
+it (a) repeats the HOST's own attack, at what fraction, as a separate hit,
+and (b) that the socketed card becomes heavier (the `weightIncreasePct`
+tempo cost): `"Echo: this card's attack repeats at half strength as a
+separate hit, and the card is 25% heavier."` Never print a magnitude for the
+repeated hit itself — it is proportional to a host card the gem's own text
+cannot see, so no fixed number would be honest.
+
+**Core.** A passive AMPLIFIER of numbers the host card already has
+(card-scope `StatGemMods`). Text opens `This card:` and states the bonus
+plainly: `This card: -1 weight (casts sooner).`, `This card: +8 HP.` A Core
+`damageFlat` bonus MUST say **"each hit"** (R1.3) — `damageFlat` is added
+PER damage instance, so a 2-hit host doubles it: `This card: each hit +4
+damage.`, never the bare `"+4 damage"` that reads like a one-time total.
+
+**Charm.** A passive AMPLIFIER of the HERO (hero-scope `StatGemMods`),
+applying to every card on the board for the whole fight. Text opens `Hero:`
+and names the stat with the same short abbreviations as main-card text
+(§1): `Hero: +4 ATK.`, `Hero: +6 DEF.`, `Hero: +8 MATK.`, `Hero: +4 SPD.`
+
+**No leading "Also" (2026-08-06 fix, unchanged by the category pass above).**
+Gem text never gets concatenated after a host card's text — every render
+site (shop shelf, wiki gem list, event reward panel, deck-build socket row)
+shows a gem's `text` completely standalone, in its own box, never appended
+to another card's sentence. An opener that means "in addition to [the
+preceding clause]" when there is no preceding clause is a dangling fragment,
+not a style choice — this was raised more than once and is now the locked
+rule: **gem text never starts with "Also".** Every gem line must read as a
+complete, self-contained phrase:
 
 - **Effects whose template already opens on a symbol or a `{{Keyword}}`
   token** (a leading `+`/`-` number, or a capitalized keyword like `{{Slow}}`,
   `{{Lifesteal}}`, `{{Shatter}}`, `{{Disrupt}}`, `{{Combo}}`) — just drop
   "Also "; the result is already a well-formed fragment, no other edit
-  needed. Covers `damage`/`heal`/`shield` (above), `slow`, `lifesteal`,
+  needed. Covers `heal`/`shield` (Sliver), `slow`, `lifesteal`,
   `shieldBreak`, `disrupt`, `comboBonus`, `buffStat`, `debuffStat`, and
   `guard`, e.g. `{{Slow}} the enemy's next action by +8 weight.`,
-  `-10% enemy DEF (2 turns).`, `-20% incoming TRUE damage (1 turn).`
+  `-10% enemy DEF (2 turns).`, `-20% incoming magical damage (1 turn).`
 - **Effects whose template opens on a bare lowercase verb** (`poison`,
   `burn` use `apply {{Keyword}} ...`) — drop "Also " AND capitalize the
   verb, since it is now the sentence-initial word: `apply {{Poison}} 2
   (poison bypasses shields).` → `Apply {{Poison}} 2 (poison bypasses
   shields).` Dropping "Also" alone here would leave a lowercase orphaned
   verb, which is not a complete phrase.
+
+**No stat-add claim on a flat gem heal/shield (2026-08-09 fix — supersedes
+the old dual-stat-token `"(+DEF/MDEF)"` gem template, which was correct for
+the engine as it stood through 2026-08-06 but is not any more).** A gem's
+printed payload is its WHOLE payload (`GemAppended` in
+`src/engine/types.ts`, gem ruleset v1 §0.B/§7.6/§9.4): a gem's `heal`/
+`shield` action delivers EXACTLY its `power`, with no caster stat added on
+top — unlike the same action on a card. A heal/shield Sliver's text
+therefore never carries a `(+DEF/MDEF)` token: `"+4 shield."`, not `"+4
+shield (+DEF/MDEF)."` A Sliver never carries a flat `damage` action at all
+(R1.2 — that claim lives on Core's `damageFlat` only, phrased "each hit"
+above), so there is no ATK/MATK-token case to write a rule for either.
 
 Every gem's `text` must still stand alone as a complete phrase with no
 lead-in — this is the same requirement as any other card text, just without

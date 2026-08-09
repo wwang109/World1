@@ -186,12 +186,23 @@ export function applyTier(def: SkillDef, targetTier: SkillTier): SkillDef {
 }
 
 /**
+ * The host card's effective weight after a gem's `weightIncreasePct` tempo cost:
+ * `base + floor(base × pct / 100)`, never adding 0 for a positive pct (see
+ * `Gem.weightIncreasePct`). Integer-only; no percentage survives the call.
+ */
+function weightWithGemIncrease(base: number, pct: number): number {
+  if (pct <= 0) return base;
+  return base + Math.max(1, Math.floor((base * pct) / 100));
+}
+
+/**
  * The skill actually cast from this piece. An effect gem appends its actions
  * AFTER the base effects (fixed order: base first, gem after), and — if it
- * carries `cooldownReduction` — shortens the card's effective cooldown by
- * that many turns (floored at 0). Any other case (no gem / stat gem / an
- * effect gem with neither actions nor a cooldown reduction) returns the
- * original def unchanged (same reference).
+ * carries `cooldownReduction` / `weightIncreasePct` — shortens the card's
+ * effective cooldown by that many turns (floored at 0) / raises its effective
+ * initiative weight by that percentage. Any other case (no gem / stat gem / an
+ * effect gem with none of the three) returns the original def unchanged (same
+ * reference).
  *
  * THE PROVENANCE SEAM (user-locked 2026-08-07): every appended action is
  * stamped `fromGem: true` HERE — not inferred later. That single mark is what
@@ -208,15 +219,34 @@ export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece): SkillDe
   const gem = piece.gem;
   if (!gem || gem.kind !== 'effect') return tiered;
   const cooldownReduction = gem.cooldownReduction ?? 0;
-  if (gem.actions.length === 0 && cooldownReduction === 0) return tiered;
+  const weightIncreasePct = gem.weightIncreasePct ?? 0;
+  if (gem.actions.length === 0 && cooldownReduction === 0 && weightIncreasePct <= 0) return tiered;
 
   const effects = gem.actions.length > 0
     ? [...tiered.effects, ...gem.actions.map(markFromGem)]
     : tiered.effects;
-  if (cooldownReduction === 0) return { ...tiered, effects };
+  if (cooldownReduction === 0 && weightIncreasePct <= 0) return { ...tiered, effects };
 
   const baseCooldown = tiered.cooldownTurns ?? BASELINE_COOLDOWN;
-  return { ...tiered, effects, cooldownTurns: Math.max(0, baseCooldown - cooldownReduction) };
+  return {
+    ...tiered,
+    effects,
+    ...(cooldownReduction !== 0 ? { cooldownTurns: Math.max(0, baseCooldown - cooldownReduction) } : {}),
+    // The tempo cost of a scaling payload (see `Gem.weightIncreasePct`). Written
+    // as an explicit `speedWeight` so `weightOf` — and therefore `scanCast`, the
+    // card face and the PL readout — all see ONE number with no branch.
+    //
+    // KNOWN, ACCEPTED CONSEQUENCE: `powerLevelDeci` charges weight deviation, so
+    // a heavier effective card prices LOWER, and `boardPowerLevel` (the
+    // `highestThreat` targeting policy, the only in-combat reader) therefore sees
+    // a gemmed piece as slightly less threatening — 30 → 45 weight on
+    // `crushing_blow` reads as −7.5 PL. That is the same seam `cooldownReduction`
+    // already goes through in the other direction, it is deterministic, and it is
+    // arguably correct (a slower card IS less of a threat). Suppressing it would
+    // mean teaching the loop to tell authored weight from gem weight — a branch
+    // the resolver seam exists to avoid.
+    ...(weightIncreasePct > 0 ? { speedWeight: weightWithGemIncrease(weightOf(tiered), weightIncreasePct) } : {}),
+  };
 }
 
 /**

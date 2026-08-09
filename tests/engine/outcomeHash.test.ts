@@ -71,8 +71,26 @@ describe('outcomeHash normalization', () => {
     expect(normalized.nested).toEqual({ keep: 1 });
   });
 
-  it('preserves arrays, nulls and key order of everything it keeps', () => {
-    const input = { a: 1, list: [1, { text: 'x', b: 2 }], z: null };
-    expect(JSON.stringify(normalizeForHash(input))).toBe(JSON.stringify({ a: 1, list: [1, { b: 2 }], z: null }));
+  it('preserves arrays and nulls, and emits object keys in CANONICAL (sorted) order', () => {
+    // Input keys are deliberately UNSORTED: z, list, a — and the nested object
+    // is b-before-a. The serialisation must come back sorted at every depth.
+    const input = { z: null, list: [1, { text: 'x', b: 2, a: 3 }], a: 1 };
+    expect(JSON.stringify(normalizeForHash(input))).toBe(JSON.stringify({ a: 1, list: [1, { a: 3, b: 2 }], z: null }));
+  });
+
+  it('hashes the same for two objects that differ ONLY in key order (the loader-churn guard)', () => {
+    // This is the property the content-format migration depends on: a loader
+    // that builds a SkillDef with its own field order must not move the lock.
+    const a = { id: 'x', property: 'physical', size: 1, effects: [{ kind: 'damage', power: 3 }] };
+    const b = { effects: [{ power: 3, kind: 'damage' }], size: 1, property: 'physical', id: 'x' };
+    expect(outcomeHash(a)).toBe(outcomeHash(b));
+  });
+
+  it('still separates two objects whose VALUES differ (sorting removes order, not signal)', () => {
+    expect(outcomeHash({ a: 1, b: 2 })).not.toBe(outcomeHash({ a: 2, b: 1 }));
+  });
+
+  it('ARRAY order is still load-bearing (effects fire in order; the log is a sequence)', () => {
+    expect(outcomeHash([1, 2])).not.toBe(outcomeHash([2, 1]));
   });
 });

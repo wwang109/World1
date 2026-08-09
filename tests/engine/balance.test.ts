@@ -44,6 +44,11 @@ import type { Gem, SkillDef } from '../../src/engine/types';
 // empirically dominant over MATK-scaling heals far too early; doubling the
 // rate pulls the heal-type crossover point down from ~MATK 30-40 to ~MATK
 // 5-10. See balance.ts for the full rationale.
+//
+// 2026-08-09: echoRepeatDeci 100 ADDED (gem ruleset v1 §6) — the host-blind
+// rate for a FULL repeat of the host's attack, divided by `shareOf`. Not a new
+// anchor: it is the same "one whole cast's worth of output" 100 that
+// negatePerCharge and stunPerTurn already use. NO existing rate moved.
 describe('PRICE structure lock', () => {
   it('every PRICE rate matches its locked value', () => {
     expect(PRICE).toEqual({
@@ -82,6 +87,7 @@ describe('PRICE structure lock', () => {
       auraHealFlat: 10,
       auraWeightDelta: 20,
       extraHitPremium: 30,
+      echoRepeatDeci: 100,
       heroStatPerPoint: { attack: 10, magicPower: 10, armor: 10, magicResist: 10, speed: 5 },
     });
   });
