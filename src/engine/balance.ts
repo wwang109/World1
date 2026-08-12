@@ -12,7 +12,7 @@
 // hand-copy numbers elsewhere — read PRICE.
 
 import { BASELINE_COOLDOWN, weightOf, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
-import { buildKeywordPricing, priceActionDeci, type CapFamily } from './keywords/pricing';
+import { buildKeywordPricing, priceActionDeci, walkBrackets, type CapFamily } from './keywords/pricing';
 
 export const TIER_BUDGET_DECI: Record<SkillTier, number> = {
   bronze: 100,
@@ -400,15 +400,7 @@ function kindsInFamily(family: CapFamily): ReadonlySet<Action['kind']> {
 }
 
 export function disruptCostDeci(amount: number): number {
-  let deci = 0;
-  let priced = 0;
-  for (const bracket of PRICE.disruptBrackets) {
-    if (amount <= priced) break;
-    const upTo = Math.min(amount, bracket.upTo);
-    deci += (upTo - priced) * bracket.rateDeci;
-    priced = upTo;
-  }
-  return deci;
+  return walkBrackets(amount, PRICE.disruptBrackets);
 }
 
 export function sizeGrantDeci(size: number, tier: SkillTier): number {

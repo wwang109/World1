@@ -20,22 +20,37 @@ import type { Action, Property } from '../types';
  * `tests/engine/balance.test.ts`.
  */
 
-export type PriceTerm =
-  | { form: 'perUnit'; field: string; num: number; den: number }
-  | { form: 'perUnitByProperty'; field: string; num: Record<Property, number>; den: number }
-  | { form: 'product'; fields: readonly [string, string]; num: number; den: number }
-  | { form: 'bracketed'; field: string; brackets: readonly { upTo: number; rateDeci: number }[] };
+/**
+ * The NUMERIC field names of one Action variant. Non-numeric members
+ * (`kind`, `property`, `stat`, `fromGem`, `echoHostPower`) are excluded, so a
+ * term can only ever point at something priceable.
+ */
+type NumericKeys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends number ? K : never }[keyof T];
+export type FieldOf<K extends Action['kind']> = NumericKeys<Extract<Action, { kind: K }>> & string;
+
+/**
+ * A price term is parameterised by the keyword it belongs to, so `field` is
+ * checked against that Action variant's own numeric keys at COMPILE time.
+ * Without this a typo (`'trns'` for `'turns'`) compiles clean and silently
+ * prices the keyword at 0 — the exact silent-zero failure this table exists to
+ * make impossible.
+ */
+export type PriceTerm<K extends Action['kind'] = Action['kind']> =
+  | { form: 'perUnit'; field: FieldOf<K>; num: number; den: number }
+  | { form: 'perUnitByProperty'; field: FieldOf<K>; num: Record<Property, number>; den: number }
+  | { form: 'product'; fields: readonly [FieldOf<K>, FieldOf<K>]; num: number; den: number }
+  | { form: 'bracketed'; field: FieldOf<K>; brackets: readonly { upTo: number; rateDeci: number }[] };
 
 /** Cap family a keyword's spend counts against (`EFFECT_CAPS_DECI`). */
 export type CapFamily = 'control' | 'dot' | 'empower' | 'damage' | 'shield' | 'heal';
 
-export interface KeywordPricing {
+export interface KeywordPricing<K extends Action['kind'] = Action['kind']> {
   /** Counts as a damage INSTANCE for the multi-hit premium. */
   isHit: boolean;
   /** Grows via `autoScaleTier`'s exact-sink solve. */
   scalable: boolean;
   family: CapFamily | null;
-  price: readonly PriceTerm[];
+  price: readonly PriceTerm<K>[];
   /** Required when `price` is empty — why this keyword is deliberately unpriced. */
   unpricedReason?: string;
 }
@@ -66,7 +81,10 @@ export interface PriceRates {
   disruptBrackets: readonly { upTo: number; rateDeci: number }[];
 }
 
-export function buildKeywordPricing(P: PriceRates): Record<Action['kind'], KeywordPricing> {
+/** Per-keyword entries, each field-checked against its own Action variant. */
+export type KeywordPricingTable = { [K in Action['kind']]: KeywordPricing<K> };
+
+export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
   /** damage & a capped statStrike: flat rate, doubled for TRUE (bypasses defenses). */
   const strikeRate: Record<Property, number> = {
     physical: P.flatPowerPerPoint,
@@ -85,9 +103,6 @@ export function buildKeywordPricing(P: PriceRates): Record<Action['kind'], Keywo
     magical: P.flatPowerPerPoint,
     true: P.flatTrueShieldPerPoint,
   };
-  const pctTurns = (num: number, den: number): PriceTerm =>
-    ({ form: 'product', fields: ['pct', 'turns'], num, den });
-
   return {
     damage: { isHit: true, scalable: true, family: 'damage', price: [{ form: 'perUnitByProperty', field: 'power', num: strikeRate, den: 1 }] },
     // An UNCAPPED statStrike prices at 0 through the `cap` field being absent —
@@ -104,10 +119,10 @@ export function buildKeywordPricing(P: PriceRates): Record<Action['kind'], Keywo
     bleed: { isHit: false, scalable: false, family: 'dot', price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
 
     stun: { isHit: false, scalable: false, family: 'control', price: [{ form: 'perUnit', field: 'turns', num: P.stunPerTurn, den: 1 }] },
-    buffStat: { isHit: false, scalable: false, family: 'empower', price: [pctTurns(P.statPctTurn, 1)] },
-    debuffStat: { isHit: false, scalable: false, family: 'control', price: [pctTurns(P.statPctTurn, 1)] },
-    expose: { isHit: false, scalable: false, family: 'control', price: [pctTurns(P.exposePerPctTurnNum, P.exposePerPctTurnDen)] },
-    guard: { isHit: false, scalable: false, family: 'empower', price: [pctTurns(P.guardPerPctTurnNum, P.guardPerPctTurnDen)] },
+    buffStat: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
+    debuffStat: { isHit: false, scalable: false, family: 'control', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
+    expose: { isHit: false, scalable: false, family: 'control', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.exposePerPctTurnNum, den: P.exposePerPctTurnDen }] },
+    guard: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.guardPerPctTurnNum, den: P.guardPerPctTurnDen }] },
     negate: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'charges', num: P.negatePerCharge, den: 1 }] },
     cleanse: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'charges', num: P.cleansePerCharge, den: 1 }] },
 
@@ -128,11 +143,28 @@ export function buildKeywordPricing(P: PriceRates): Record<Action['kind'], Keywo
   };
 }
 
+/**
+ * Walk marginal brackets. THE single implementation — `disruptCostDeci` in
+ * `balance.ts` delegates here so the card-action path and the gem path can
+ * never drift apart on a boundary-condition fix.
+ */
+export function walkBrackets(amount: number, brackets: readonly { upTo: number; rateDeci: number }[]): number {
+  let deci = 0;
+  let priced = 0;
+  for (const bracket of brackets) {
+    if (amount <= priced) break;
+    const upTo = Math.min(amount, bracket.upTo);
+    deci += (upTo - priced) * bracket.rateDeci;
+    priced = upTo;
+  }
+  return deci;
+}
+
 /** Price ONE action's terms. Each term floors independently, matching the engine. */
 export function priceActionDeci(
   action: Action,
   property: Property,
-  table: Record<Action['kind'], KeywordPricing>,
+  table: KeywordPricingTable,
 ): number {
   const fields = action as unknown as Record<string, number | undefined>;
   let deci = 0;
@@ -147,17 +179,9 @@ export function priceActionDeci(
       case 'product':
         deci += Math.floor((((fields[term.fields[0]] ?? 0) * (fields[term.fields[1]] ?? 0)) * term.num) / term.den);
         break;
-      case 'bracketed': {
-        const amount = fields[term.field] ?? 0;
-        let priced = 0;
-        for (const bracket of term.brackets) {
-          if (amount <= priced) break;
-          const upTo = Math.min(amount, bracket.upTo);
-          deci += (upTo - priced) * bracket.rateDeci;
-          priced = upTo;
-        }
+      case 'bracketed':
+        deci += walkBrackets(fields[term.field] ?? 0, term.brackets);
         break;
-      }
     }
   }
   return deci;
