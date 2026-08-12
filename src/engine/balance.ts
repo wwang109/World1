@@ -12,6 +12,7 @@
 // hand-copy numbers elsewhere — read PRICE.
 
 import { BASELINE_COOLDOWN, weightOf, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
+import { buildKeywordPricing, priceActionDeci, type CapFamily } from './keywords/pricing';
 
 export const TIER_BUDGET_DECI: Record<SkillTier, number> = {
   bronze: 100,
@@ -383,6 +384,21 @@ export function burnTotalDamage(stacks: number): number {
  * that bracket's rate, matching the style of a progressive tax bracket.
  * Integer-only (amount is always a whole readiness point).
  */
+/**
+ * The keyword pricing table, built once from `PRICE`. Every rate still lives in
+ * `PRICE` (pinned by the drift-lock test); this is the per-keyword SHAPE of how
+ * those rates apply.
+ */
+export const KEYWORD_PRICING = buildKeywordPricing(PRICE);
+
+/** Kinds whose family membership is derived from the table, never hand-listed. */
+function kindsWhere(pred: (k: Action['kind']) => boolean): ReadonlySet<Action['kind']> {
+  return new Set((Object.keys(KEYWORD_PRICING) as Action['kind'][]).filter(pred));
+}
+function kindsInFamily(family: CapFamily): ReadonlySet<Action['kind']> {
+  return kindsWhere((k) => KEYWORD_PRICING[k].family === family);
+}
+
 export function disruptCostDeci(amount: number): number {
   let deci = 0;
   let priced = 0;
@@ -414,103 +430,9 @@ export function actionsPriceDeci(actions: readonly Action[], property: Property)
   // for being separately-blocked hits (see PRICE.extraHitPremium).
   const hits = actions.filter((a) => HIT_KINDS.has(a.kind)).length;
   if (hits > 1) deci += (hits - 1) * PRICE.extraHitPremium;
-  for (const action of actions) {
-    switch (action.kind) {
-      case 'damage':
-        // Flat base damage (the caster's stat is added at cast time, unpriced).
-        // TRUE damage pays a scaling per-point premium for bypassing defenses.
-        deci += action.power * (PRICE.flatPowerPerPoint + (property === 'true' ? PRICE.truePremiumPerPoint : 0));
-        break;
-      case 'statStrike':
-        // A CAPPED stat strike can never deliver more than `cap` damage at any
-        // hero level, so it prices exactly like a flat damage action of that
-        // size — a conservative ceiling price (it delivers less than the cap
-        // until the caster's stat reaches `cap * shareOf`). The cap bounds the
-        // WHOLE payload, so the ECHO form (`echoHostPower`, which adds a share
-        // of the host card's own base) prices by the identical rule.
-        //
-        // An UNCAPPED one prices at ZERO ON PURPOSE. Its value is unbounded —
-        // in the caster's stat, and for an echo in the HOST CARD too (18 damage
-        // socketed on `static_jolt`, 58 on `crushing_blow`, same hero) — so no
-        // fixed deci rate is honest; 0 makes it miss every rarity band
-        // (`isGemOnBudget`) and every tier budget (`isOnBudget`), which fails
-        // the audit loudly instead of shipping free power.
-        //
-        // For a stat strike the fix is to CAP the effect. For an ECHO that is
-        // not a fix: a cap low enough to fit a gem band binds on almost every
-        // host and flattens the effect back into the flat chip it was meant to
-        // replace.
-        //
-        // AN ECHO IS PRICED, JUST NOT HERE (gem ruleset v1 §6, 2026-08-09). This
-        // table is the CARD rate table — `powerLevelDeci`, `capViolations` and
-        // `autoScaleTier` all read it, and `boardPowerLevel` runs it over a
-        // gem-RESOLVED skill in combat. Charging a host-blind guess for a
-        // host-proportional effect here would put that guess into the card audit
-        // and into in-combat threat. So the echo's price lives one level up, in
-        // `gemPowerLevelDeci`, where the two callers that need it can be told
-        // apart: host-blind classification (`PRICE.echoRepeatDeci / shareOf`) for
-        // the rarity band and the shop, host-proportional accounting
-        // (`echoHostShareDeci`) for `instancePowerLevelDeci`. Zero here stays
-        // correct and stays load-bearing.
-        deci += (action.cap ?? 0) * (PRICE.flatPowerPerPoint + (property === 'true' ? PRICE.truePremiumPerPoint : 0));
-        break;
-      case 'heal':
-      case 'shield':
-        // TRUE heals/shields are pure flat (no stat add) at their own rates
-        // (shields pay double the heal rate — they wall, heals recover);
-        // non-TRUE add the caster's stat, priced at the flat-power rate.
-        deci +=
-          property === 'true'
-            ? action.power * (action.kind === 'shield' ? PRICE.flatTrueShieldPerPoint : PRICE.flatTrueHealPerPoint)
-            : action.power * PRICE.flatPowerPerPoint;
-        break;
-      case 'poison':
-      case 'bleed':
-      case 'burn':
-        // LINEAR PER-STACK (user-locked 2026-07-23): priced directly on the
-        // authored stack count, not the tick model's total damage — every
-        // stack count is legal at a whole-PL price. Tick gameplay (decaying
-        // for poison/bleed, halving for burn) is unchanged; see PRICE.dotPerStack.
-        deci += action.stacks * PRICE.dotPerStack;
-        break;
-      case 'stun':
-        deci += action.turns * PRICE.stunPerTurn;
-        break;
-      case 'buffStat':
-      case 'debuffStat':
-        deci += action.pct * action.turns * PRICE.statPctTurn;
-        break;
-      case 'expose':
-        deci += Math.floor((action.pct * action.turns * PRICE.exposePerPctTurnNum) / PRICE.exposePerPctTurnDen);
-        break;
-      case 'cleanse':
-        deci += action.charges * PRICE.cleansePerCharge;
-        break;
-      // Special ability riders — every magnitude properly weighted per unit.
-      case 'slow':
-        deci += Math.floor((action.weight * PRICE.slowPerWeightNum) / PRICE.slowPerWeightDen);
-        break;
-      case 'disrupt':
-        deci += disruptCostDeci(action.amount);
-        break;
-      case 'lifesteal':
-        deci += Math.floor((action.pct * PRICE.lifestealPerPctNum) / PRICE.lifestealPerPctDen);
-        break;
-      case 'shieldBreak':
-        deci += Math.floor((action.amount * PRICE.shieldBreakPerPointNum) / PRICE.shieldBreakPerPointDen);
-        break;
-      case 'comboBonus':
-        deci += Math.floor((action.amount * PRICE.comboPerPointNum) / PRICE.comboPerPointDen);
-        break;
-      // ---- Property-generic defensive keywords ----
-      case 'guard':
-        deci += Math.floor((action.pct * action.turns * PRICE.guardPerPctTurnNum) / PRICE.guardPerPctTurnDen);
-        break;
-      case 'negate':
-        deci += action.charges * PRICE.negatePerCharge;
-        break;
-    }
-  }
+  // DATA-DRIVEN: every per-keyword rate lives in `keywords/pricing.ts`, so a
+  // new keyword is a row there rather than a `case` here.
+  for (const action of actions) deci += priceActionDeci(action, property, KEYWORD_PRICING);
   return deci;
 }
 
@@ -654,13 +576,13 @@ const TIER_SCALED_FAMILIES: ReadonlySet<keyof typeof EFFECT_CAPS_DECI> = new Set
  * is simply blanked. That is what `PRICE.extraHitPremium` charges for; any
  * future per-instance defense (dodge/evade) inherits the same interaction.
  */
-export const HIT_KINDS: ReadonlySet<Action['kind']> = new Set(['damage', 'statStrike']);
+export const HIT_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_PRICING[k].isHit);
 
-export const CONTROL_KINDS: ReadonlySet<Action['kind']> = new Set(['stun', 'slow', 'disrupt', 'debuffStat', 'expose', 'shieldBreak']);
-export const DOT_KINDS: ReadonlySet<Action['kind']> = new Set(['poison', 'burn', 'bleed']);
-export const EMPOWER_KINDS: ReadonlySet<Action['kind']> = new Set(['buffStat', 'guard', 'negate', 'cleanse', 'lifesteal', 'comboBonus']);
+export const CONTROL_KINDS: ReadonlySet<Action['kind']> = kindsInFamily('control');
+export const DOT_KINDS: ReadonlySet<Action['kind']> = kindsInFamily('dot');
+export const EMPOWER_KINDS: ReadonlySet<Action['kind']> = kindsInFamily('empower');
 /** damage/heal/shield — the EXACT sink solved to hit budget by the tier scaler. */
-export const SCALABLE_KINDS: ReadonlySet<Action['kind']> = new Set(['damage', 'heal', 'shield']);
+export const SCALABLE_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_PRICING[k].scalable);
 
 /**
  * A family's per-size cap (sizes outside 1-3 clamp to the nearest row).
