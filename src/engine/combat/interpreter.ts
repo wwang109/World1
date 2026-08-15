@@ -727,7 +727,13 @@ function reflectThorns(ctx: Ctx, victim: CombatantState, attacker: CombatantStat
   for (const status of victim.statuses) {
     if (status.kind !== 'thorns' || (status.stacks ?? 0) <= 0) continue;
     const sting = status.stacks ?? 0;
+    // Attribute the sting to the card that GRANTED the thorns, not to whatever
+    // the attacker happens to be casting — same idiom as the DoT ticks. Restore
+    // the attacker's source afterwards: we are mid-cast in their attribution.
+    const prevSource = ctx.source;
+    ctx.source = status.source;
     dealDamage(ctx, attacker, sting, 'true', { source: 'thorns' });
+    ctx.source = prevSource;
     status.stacks = sting - 1;
     status.turnsLeft = status.stacks;
     if (status.stacks <= 0) {
@@ -1096,10 +1102,21 @@ function applyAction(
       }
       break;
     case 'thorns': {
-      // Self buff: thorn stacks on the caster. Consumed by the reflect hook in
-      // applyStrike, one stack per direct hit taken; no turn expiry.
+      // Self buff: thorn stacks on the caster, consumed by the reflect hook in
+      // applyStrike (one stack per direct hit taken; no turn expiry).
+      // ONE PILE PER HOLDER, like the DoTs (applyDot): a recast MERGES its
+      // stacks into the existing pile and re-attributes to the newest source —
+      // never a second concurrent pile.
       if (!caster.alive) break;
-      addStatus(ctx, caster, { kind: 'thorns', stacks: action.stacks, turnsLeft: action.stacks, fresh: true });
+      const pile = caster.statuses.find((st) => st.kind === 'thorns');
+      if (pile) {
+        pile.stacks = (pile.stacks ?? 0) + action.stacks;
+        pile.turnsLeft = pile.stacks;
+        pile.source = ctx.source;
+        ctx.events.push({ turn: ctx.state.turn, kind: 'statusApplied', side: caster.side, unit: caster.index, status: 'thorns', stacks: pile.stacks, turns: pile.turnsLeft });
+      } else {
+        addStatus(ctx, caster, { kind: 'thorns', stacks: action.stacks, turnsLeft: action.stacks, fresh: true, source: ctx.source });
+      }
       break;
     }
     case 'guard': {
@@ -1204,16 +1221,19 @@ export function applyCast(
     // accumulates across all victims so lifesteal sums the whole cast.
     for (const target of resolveTargets(ctx, caster, skill, action)) {
       applyAction(ctx, caster, skill, action, mods, cast, target, hit);
+      // FIRST TO FALL LOSES binds INSIDE one action's fan-out too. This check
+      // used to be unnecessary ("every action is a no-op on a dead target"),
+      // but that argument only covered dead TARGETS — thorns reflect is the
+      // first mechanism that can kill the CASTER mid-fan-out, and a dead
+      // caster must not land its remaining AoE hits. Nothing later in the
+      // same step ever runs. Consumes no RNG.
+      if (anySideWiped(ctx.state)) break;
     }
     // FIRST TO FALL LOSES (user-locked 2026-08-04): the fight ends at the exact
     // application that wipes a side, so a cast that lands the killing blow STOPS
     // right there — its remaining effects are "later in the same step" and never
     // apply. Concretely: NO LIFESTEAL-BACK off the killing blow, and no self
-    // shield/buff/taunt tacked on after the last foe falls. The action loop is the
-    // finest order the DSL defines; the remaining FAN-OUT targets of the action
-    // that did the wiping need no check because every action is already a no-op on
-    // a dead target (see `dealDamage`, `applyDot`, `addStatus`). Consumes no RNG
-    // (nothing in the loop does), so the Rng call order is untouched.
+    // shield/buff/taunt tacked on after the last foe falls.
     if (anySideWiped(ctx.state)) break;
   }
   if (skill.special !== undefined && !anySideWiped(ctx.state)) {
