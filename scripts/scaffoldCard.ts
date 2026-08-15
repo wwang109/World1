@@ -22,6 +22,11 @@
  * docs/card-text-style-guide.md, so the card-text drift guard passes without
  * hand-editing.
  *
+ * KNOWN-INFEASIBLE SOLO KITS: `cleanse` alone can only total 25/75/125/... deci
+ * (odd multiples of its 25-deci charge price) and never lands on a 100/150/200/
+ * 250 budget; `lifesteal` alone caps at 60% = 40 deci, under every budget. Both
+ * refuse cleanly — pair them with a scalable sink.
+ *
  * KNOWN TODAY-COST: until the legacy literals in src/data/skills.ts are
  * deleted, a new card must be added BOTH to skills.v1.json and to skills.ts —
  * tests/data/skillsJsonParity.test.ts asserts the two agree. This script
@@ -47,11 +52,15 @@ function arg(name: string, fallback?: string): string {
   console.error(`missing --${name}`);
   process.exit(1);
 }
+const TIERS: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
 const id = arg('id');
 const name = arg('name');
 const tier = arg('tier', 'bronze') as SkillTier;
+if (!TIERS.includes(tier)) { console.error(`unknown tier '${tier}' — expected ${TIERS.join('|')}`); process.exit(1); }
 const size = Number(arg('size', '1')) as SkillDef['size'];
+if (![1, 2, 3].includes(size)) { console.error(`invalid size '${arg('size', '1')}' — expected 1|2|3`); process.exit(1); }
 const property = arg('property') as Property;
+if (!['physical', 'magical', 'true'].includes(property)) { console.error(`unknown property '${property}' — expected physical|magical|true`); process.exit(1); }
 const element = process.argv.includes('--element') ? (arg('element') as Element) : undefined;
 const weapon = process.argv.includes('--weapon') ? (arg('weapon') as WeaponType) : undefined;
 const archetypes = arg('archetypes').split(',') as Archetype[];
@@ -223,12 +232,14 @@ if (!solved) {
 solved.text = textOf(solved);
 
 console.log('=== AUDIT (via src/engine/balance.ts — the real gates) ===');
-for (const t of ['bronze', 'silver', 'gold', 'diamond'] as SkillTier[]) {
-  if (['bronze', 'silver', 'gold', 'diamond'].indexOf(t) < ['bronze', 'silver', 'gold', 'diamond'].indexOf(tier)) continue;
+const auditFailures: string[] = [];
+for (const t of TIERS) {
+  if (TIERS.indexOf(t) < TIERS.indexOf(tier)) continue;
   const at = t === tier ? solved : applyTier(solved, t);
   const pl = powerLevelDeci(at);
   const caps = capViolations(at);
   const ok = pl === TIER_BUDGET_DECI[t] && caps.length === 0;
+  if (!ok) auditFailures.push(`${t}: PL ${(pl / 10).toFixed(1)} vs budget ${TIER_BUDGET_DECI[t] / 10}${caps.length ? '; ' + caps.join('; ') : ''}`);
   console.log(`  ${t.padEnd(8)} PL ${(pl / 10).toFixed(1).padStart(5)} / ${TIER_BUDGET_DECI[t] / 10}  caps ${caps.length === 0 ? 'clean' : caps.join('; ')}  ${ok ? 'OK' : '** FAIL **'}`);
 }
 console.log(`  isOnBudget: ${isOnBudget(solved)}`);
@@ -239,6 +250,21 @@ const doc = {
 };
 const problems = validateSkillDocument({ schemaVersion: 1, notes: [], cards: [doc] });
 console.log(`  content validator: ${problems.length === 0 ? 'clean' : problems.map((p) => `${p.where}: ${p.message}`).join(' | ')}`);
+
+// THE AUDIT IS A GATE, NOT AN ANNOTATION. Shipping a card that fails its own
+// printed audit is the silent-zero failure mode in tool form: an author who
+// pastes the block ships a card the suite will reject (or worse, one the
+// tierUpgrades test exempts into a dead tier path). Refuse instead.
+if (auditFailures.length > 0 || problems.length > 0) {
+  console.error('\nREFUSED — the card does not pass its own gates:');
+  for (const f of auditFailures) console.error(`  tier audit: ${f}`);
+  for (const pr of problems) console.error(`  validator: ${pr.where}: ${pr.message}`);
+  if (auditFailures.length > 0) {
+    console.error('  hint: kits with no scalable sink (damage/heal/shield) cannot grow to');
+    console.error('  higher tiers — add one to the --keywords list, or author tierUpgrades by hand.');
+  }
+  process.exit(1);
+}
 
 console.log('\n=== PASTE INTO src/data/content/skills.v1.json (cards[]) ===');
 console.log(JSON.stringify(doc, null, 2));
