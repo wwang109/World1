@@ -165,6 +165,7 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: Sk
       case 'burn': extras.push(`BRN ${action.stacks}`); break;
       case 'bleed': extras.push(`BLD ${action.stacks}`); break;
       case 'stun': extras.push(`STUN ${action.turns}`); break;
+      case 'thorns': extras.push(`THORN ${action.stacks}`); break;
       case 'buffStat': extras.push(`+${action.pct}% ${STAT_TOKEN[action.stat]}`); break;
       case 'debuffStat': extras.push(`-${action.pct}% ${STAT_TOKEN[action.stat]}`); break;
       case 'expose': extras.push(`EXPOSE ${action.pct}%`); break;

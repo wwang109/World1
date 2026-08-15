@@ -192,7 +192,7 @@ braces: `'Deal Fire damage +42 (+Magic Power) · {{Burn}} 5 (3 turns).'`
 - **Authoring**: the braces carry no engine meaning; the display keeps the
   author's casing, the keyword id is the lowercased content. Only mark real
   mechanical verbs (poison, burn, stun, guard, negate, cleanse, shield,
-  lifesteal, stagger, slow, combo, shatter, true).
+  lifesteal, stagger, slow, combo, shatter, thorns, true).
 - **Clause-aware wrapping**: the body is laid out word-by-word with clause
   grouping — text between ` · ` separators is one clause, and a clause that
   would straddle a line break moves to the next line whole (it only splits

@@ -708,6 +708,13 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         } else if (e.source === 'skill' && activeCard?.side === 'enemy' && e.side === 'player') {
           enemyDamage += dealt;
         }
+        // Thorns reflect: credited to the side that OWNS the thorns — the
+        // opposite of the side taking the sting. The active cast belongs to
+        // the ATTACKER, so activeCard must not be used for this attribution.
+        if (e.source === 'thorns') {
+          if (e.side === 'enemy') playerDamage += dealt;
+          else enemyDamage += dealt;
+        }
         // Mirror the engine's own stack-decay rule (tickTurnDot / tickBleed,
         // combat/simulate.ts) onto the running pile total tracked below (the
         // same `dotsPlayer`/`dotsEnemies` map the ailment-badge keys use) — a
@@ -838,7 +845,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         break;
       }
       case 'statusApplied': {
-        const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'negate';
+        const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'negate' || e.status === 'thorns';
         // Guard and negate each cover ONE property (their own, not the card's),
         // so both are named by a property-qualified token exactly like the
         // shield pools are — a bare "Guard"/"Negate" left the player no way to
@@ -873,7 +880,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // plain-language explanation as the row's expandable detail — tap/click
         // to expand, same affordance as a HIT's D: math strip, no hover.
         push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap}${stacksText}`, explainStatus(e));
-        if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') {
+        if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed' || e.status === 'thorns') {
           const dotCard = activeCardByTurn.get(e.turn);
           if (dotCard) dotCard.dots += e.stacks ?? 1;
         }
@@ -902,8 +909,12 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // No `property`/`stat` on this event (unlike `statusApplied`), so
         // the row stays generic on purpose rather than reconstructing one —
         // a terse "it's gone" is the whole point of this row.
-        if (e.status === 'buff' || e.status === 'debuff' || e.status === 'guard' || e.status === 'expose') {
-          const buff = e.status === 'buff' || e.status === 'guard';
+        // - thorns: IN on purpose — unlike the DoTs there is no ailment badge
+        //   clearing on the HP bar, and the final sting row prints the damage
+        //   without saying the pile emptied, so the wear-off would otherwise
+        //   be invisible.
+        if (e.status === 'buff' || e.status === 'debuff' || e.status === 'guard' || e.status === 'expose' || e.status === 'thorns') {
+          const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'thorns';
           const cap = e.status.charAt(0).toUpperCase() + e.status.slice(1);
           push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap} wore off`);
         }
