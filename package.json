@@ -15,7 +15,8 @@
     "fight": "tsx scripts/fight.ts",
     "sim": "tsx scripts/balance.ts",
     "content:export": "tsx scripts/exportContent.ts && tsx scripts/exportGems.ts",
-    "content:validate": "tsx scripts/validateContent.ts"
+    "content:validate": "tsx scripts/validateContent.ts",
+    "scaffold:card": "tsx scripts/scaffoldCard.ts"
   },
   "dependencies": {
     "phaser": "^3.90.0"
