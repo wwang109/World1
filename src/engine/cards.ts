@@ -14,11 +14,13 @@ import {
   effectCapDeci,
   EMPOWER_KINDS,
   HIT_KINDS,
+  KEYWORD_PRICING,
   PRICE,
   SCALABLE_KINDS,
   sizeGrantDeci,
   TIER_BUDGET_DECI,
 } from './balance';
+import { scalableRateDeci as tableScalableRateDeci } from './keywords/pricing';
 import {
   BASELINE_COOLDOWN,
   weightOf,
@@ -40,15 +42,9 @@ const TIER_ORDER: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond']
 
 type ScalableKind = 'damage' | 'heal' | 'shield';
 
-/**
- * Deci-PL rate per point for a scalable (damage/heal/shield) sink action, given
- * the card's property. 5/pt for physical/magical damage·heal·shield and TRUE
- * shield; 10/pt for TRUE damage (half-effect premium); 2/pt for TRUE heal.
- */
+/** Rate per point for a sink action — read from the keyword table, never copied. */
 function scalableRateDeci(kind: ScalableKind, property: Property): number {
-  if (kind === 'damage') return PRICE.flatPowerPerPoint + (property === 'true' ? PRICE.truePremiumPerPoint : 0);
-  if (kind === 'heal') return property === 'true' ? PRICE.flatTrueHealPerPoint : PRICE.flatPowerPerPoint;
-  return property === 'true' ? PRICE.flatTrueShieldPerPoint : PRICE.flatPowerPerPoint;
+  return tableScalableRateDeci(kind, property, KEYWORD_PRICING);
 }
 
 /**

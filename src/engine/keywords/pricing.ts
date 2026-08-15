@@ -44,16 +44,22 @@ export type PriceTerm<K extends Action['kind'] = Action['kind']> =
 /** Cap family a keyword's spend counts against (`EFFECT_CAPS_DECI`). */
 export type CapFamily = 'control' | 'dot' | 'empower' | 'damage' | 'shield' | 'heal';
 
-export interface KeywordPricing<K extends Action['kind'] = Action['kind']> {
+interface KeywordPricingBase {
   /** Counts as a damage INSTANCE for the multi-hit premium. */
   isHit: boolean;
   /** Grows via `autoScaleTier`'s exact-sink solve. */
   scalable: boolean;
   family: CapFamily | null;
-  price: readonly PriceTerm<K>[];
-  /** Required when `price` is empty — why this keyword is deliberately unpriced. */
-  unpricedReason?: string;
 }
+
+/**
+ * A keyword is either PRICED (at least one term) or EXPLICITLY unpriced with a
+ * stated reason. The union makes the third state — empty price, no reason, a
+ * silent zero — unrepresentable rather than merely discouraged.
+ */
+export type KeywordPricing<K extends Action['kind'] = Action['kind']> =
+  | (KeywordPricingBase & { price: readonly [PriceTerm<K>, ...PriceTerm<K>[]]; unpricedReason?: never })
+  | (KeywordPricingBase & { price: readonly []; unpricedReason: string });
 
 /** The rate constants this table needs. Structurally satisfied by `PRICE`. */
 export interface PriceRates {
@@ -141,6 +147,23 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
       unpricedReason: 'no rate set; permanent self-aggro has no duration term to price against',
     },
   };
+}
+
+/**
+ * Deci-PL per point of a scalable sink action (`damage`/`heal`/`shield`) at a
+ * given property — READ FROM THE TABLE's own perUnitByProperty term, so the
+ * scaler in `cards.ts` and the pricer can never quote different rates.
+ */
+export function scalableRateDeci(
+  kind: 'damage' | 'heal' | 'shield',
+  property: Property,
+  table: KeywordPricingTable,
+): number {
+  const term = table[kind].price[0];
+  if (term === undefined || term.form !== 'perUnitByProperty') {
+    throw new Error(`${kind} is expected to price perUnitByProperty`);
+  }
+  return Math.floor(term.num[property] / term.den);
 }
 
 /**
