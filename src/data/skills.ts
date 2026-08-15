@@ -1688,6 +1688,30 @@ const defs: SkillDef[] = [
     effects: [{ kind: 'damage', power: 48 }],
     text: 'Deal 48 (+best stat) TRUE damage — ignores DEF/MDEF.',
   },
+  {
+    id: 'bramble_ward',
+    name: 'Bramble Ward',
+    archetypes: ["defensive"],
+    property: 'physical',
+    size: 1,
+    rarity: 'common',
+    tier: 'bronze',
+    weapon: 'sword',
+    effects: [{ kind: 'thorns', stacks: 5 }, { kind: 'shield', power: 10 }],
+    text: '{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Gain 10 (+DEF) physical shield.',
+  },
+  {
+    id: 'nettle_lash',
+    name: 'Nettle Lash',
+    archetypes: ["offense", "defensive"],
+    property: 'physical',
+    size: 1,
+    rarity: 'common',
+    tier: 'bronze',
+    weapon: 'beast',
+    effects: [{ kind: 'damage', power: 10 }, { kind: 'thorns', stacks: 5 }],
+    text: 'Deal 10 (+ATK) Beast damage \u00b7 {{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit.',
+  },
 ];
 
 /**

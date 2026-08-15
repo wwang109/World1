@@ -70,6 +70,7 @@ export const KEYWORD_TEXT_COLOR: Record<string, string> = {
   slow: '#d8c078',
   combo: '#e8c060',
   shatter: '#d88f6a',
+  thorns: '#9fb86a',
   true: '#e8d5a0',
 };
 

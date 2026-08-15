@@ -108,6 +108,7 @@ const ACTION_FIELDS: Record<string, readonly string[]> = {
   heal: ['power'],
   shield: ['power'],
   poison: ['stacks'],
+  thorns: ['stacks'],
   burn: ['stacks'],
   bleed: ['stacks'],
   stun: ['turns'],
@@ -155,6 +156,7 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     case 'heal': num('power'); break;
     case 'shield': num('power'); break;
     case 'poison': stacks('stacks'); break;
+    case 'thorns': stacks('stacks'); break;
     case 'burn': stacks('stacks'); break;
     case 'bleed': stacks('stacks'); break;
     case 'stun': turns('turns'); break;

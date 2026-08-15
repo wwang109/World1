@@ -61,7 +61,7 @@ const keywords = arg('keywords').split(',') as Action['kind'][];
 function seedAction(kind: Action['kind']): Action {
   switch (kind) {
     case 'damage': case 'heal': case 'shield': return { kind, power: 0 };
-    case 'poison': case 'burn': case 'bleed': return { kind, stacks: 0 };
+    case 'poison': case 'burn': case 'bleed': case 'thorns': return { kind, stacks: 0 };
     case 'stun': return { kind, turns: 1 }; // LOCKED at 1 (MAX_STUN_PER_CARD)
     case 'buffStat': return { kind, stat: 'attack', pct: 0, turns: 2 };
     case 'debuffStat': return { kind, stat: 'armor', pct: 0, turns: 2 };
@@ -83,7 +83,7 @@ function seedAction(kind: Action['kind']): Action {
 /** The field the solver grows per keyword — mirrors the growth facet. */
 const GROW_FIELD: Partial<Record<Action['kind'], string>> = {
   damage: 'power', heal: 'power', shield: 'power',
-  poison: 'stacks', burn: 'stacks', bleed: 'stacks',
+  poison: 'stacks', burn: 'stacks', bleed: 'stacks', thorns: 'stacks',
   buffStat: 'pct', debuffStat: 'pct', expose: 'pct', guard: 'pct',
   slow: 'weight', disrupt: 'amount', lifesteal: 'pct',
   shieldBreak: 'amount', comboBonus: 'amount',
@@ -190,6 +190,7 @@ function phrase(a: Action): string {
     case 'poison': return `{{Poison}} ${a.stacks}`;
     case 'burn': return `{{Burn}} ${a.stacks}`;
     case 'bleed': return `{{Bleed}} ${a.stacks}`;
+    case 'thorns': return `{{Thorns}} ${a.stacks} — attackers take the stack count as TRUE damage per hit`;
     case 'stun': return `{{Stun}} the enemy's next performance`;
     case 'buffStat': return `+${a.pct}% ${STAT_TOKEN[a.stat]} (${a.turns} turns)`;
     case 'debuffStat': return `-${a.pct}% enemy ${STAT_TOKEN[a.stat]} (${a.turns} turns)`;

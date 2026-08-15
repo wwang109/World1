@@ -5,7 +5,7 @@ import { powerLevelDeci } from '../balance';
 import { boardTypeIdentity, type BoardIdentity } from './typeIdentity';
 
 export interface StatusInstance {
-  kind: 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose';
+  kind: 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns';
   /** DoT mitigation/synergy typing (inherited from the card); guard/negate match property. */
   property?: Property;
   stat?: BuffableStat;

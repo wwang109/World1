@@ -125,6 +125,10 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     bleed: { isHit: false, scalable: false, family: 'dot', price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
 
     stun: { isHit: false, scalable: false, family: 'control', price: [{ form: 'perUnit', field: 'turns', num: P.stunPerTurn, den: 1 }] },
+    // Conditional-on-being-hit reflect pile: same linear per-stack rate as the
+    // DoTs (max total reflected = N(N+1)/2, realised only if the holder keeps
+    // getting hit — an upper bound, like bleed). Self buff => empower family.
+    thorns: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
     buffStat: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
     debuffStat: { isHit: false, scalable: false, family: 'control', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
     expose: { isHit: false, scalable: false, family: 'control', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.exposePerPctTurnNum, den: P.exposePerPctTurnDen }] },

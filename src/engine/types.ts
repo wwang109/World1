@@ -273,6 +273,16 @@ type ActionKinds =
    */
   | { kind: 'cleanse'; charges: number }
   /**
+   * THORNS (self buff): grants `stacks` thorn stacks on the CASTER. Whenever a
+   * DIRECT skill hit lands on the holder, the ATTACKER takes the current stack
+   * count as TRUE reflect damage and the pile loses one stack (expires at 0).
+   * DoT ticks, fatigue and attrition never trigger it, and reflect damage can
+   * never trigger the attacker's own thorns (depth-1, non-reentrant) — a
+   * reflect loop is the cheapest way to hang the sim. Stacks persist until
+   * consumed (no turn expiry) and are NOT cleansable (a buff, not an ailment).
+   */
+  | { kind: 'thorns'; stacks: number }
+  /**
    * Raise the CASTER's own `aggro` by `amount` for the rest of the fight
    * (permanent, not turn-decremented). Under the default `aggro` target policy
    * this makes a tank the main target and shields squishier allies.

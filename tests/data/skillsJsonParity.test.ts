@@ -21,14 +21,21 @@ import { MIGRATED_SKILL_IDS } from './migratedSkillIds';
 describe('data: skills.v1.json is behaviour-identical to the TS book', () => {
   it('still contains every card that existed before the migration', () => {
     // Scoped to the frozen pre-migration set on purpose — see migratedSkillIds.ts.
-    // A card VANISHING is a real regression; a card being ADDED is not.
+    // A card VANISHING is a real regression; a card being ADDED is not — so the
+    // frozen list is a SUBSET check, and the id SETS of the two books must agree
+    // (a card added to only one book is exactly the drift this file exists to
+    // catch). The old assertion pinned the whole book to the frozen list, which
+    // contradicted this comment by failing on any legitimately added card.
     for (const id of MIGRATED_SKILL_IDS) expect(skillBookFromJson[id], id).toBeDefined();
-    expect(Object.keys(skillBook)).toEqual([...MIGRATED_SKILL_IDS]);
+    for (const id of MIGRATED_SKILL_IDS) expect(skillBook[id], id).toBeDefined();
+    expect(Object.keys(skillBookFromJson).sort()).toEqual(Object.keys(skillBook).sort());
   });
 
-  it('deep-equals the TS book across every migrated card (the migration proof)', () => {
-    const migrated = Object.fromEntries(MIGRATED_SKILL_IDS.map((id) => [id, skillBookFromJson[id]]));
-    expect(migrated).toStrictEqual(skillBook);
+  it('deep-equals the TS book across every card (the migration proof)', () => {
+    // WHOLE-BOOK equality — strictly stronger than the old frozen-subset check:
+    // cards added after the migration are parity-proven too, so every guarantee
+    // stated against the TS book transfers to them as well.
+    expect(skillBookFromJson).toStrictEqual(skillBook);
   });
 
   it('every card round-trips field-for-field, including optional fields', () => {

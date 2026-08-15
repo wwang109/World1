@@ -5,7 +5,7 @@ import type { ShieldPools } from './state';
 export type { AuraSource } from './auras';
 
 
-export type StatusName = 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose';
+export type StatusName = 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns';
 
 /** Exact integer stages used to produce one direct skill hit. */
 export interface DamageCalculation {
@@ -270,7 +270,7 @@ export type CombatEvent =
        * unblockable true damage on EVERY living combatant, owned by no card, so
        * it never carries `sourceCard` and never feeds riders/lifesteal/combo.
        */
-      source: 'skill' | 'poison' | 'burn' | 'bleed' | 'fatigue' | 'attrition';
+      source: 'skill' | 'poison' | 'burn' | 'bleed' | 'thorns' | 'fatigue' | 'attrition';
       /** The board card that produced this hit (cast card, or the card that applied the DoT). */
       sourceCard?: EffectSourceRef;
       /** Present for direct skill hits; DoT/fatigue/attrition damage has no cast formula. */

@@ -2,14 +2,14 @@
  "schemaVersion": 1,
  "notes": [
   "Demo card set, balanced with the Power Level system: every card's kit sums",
-  "to its tier budget (Bronze 10 · Silver 15 · Gold 20 · Diamond 25 PL) using",
-  "the price table in src/engine/balance.ts — enforced by the balance audit",
+  "to its tier budget (Bronze 10 \u00b7 Silver 15 \u00b7 Gold 20 \u00b7 Diamond 25 PL) using",
+  "the price table in src/engine/balance.ts \u2014 enforced by the balance audit",
   "test. All demo cards ship at Bronze; tier-ups add player-chosen +5 PL paths.",
   "power semantics: a FLAT base amount. At cast time the caster's scaling stat",
-  "(physical→Attack, magical→Magic Power, true damage→higher of the two) is",
-  "ADDED flat on top — damage/heal/shield scale linearly, never multiplicatively.",
+  "(physical\u2192Attack, magical\u2192Magic Power, true damage\u2192higher of the two) is",
+  "ADDED flat on top \u2014 damage/heal/shield scale linearly, never multiplicatively.",
   "TRUE heals/shields are pure flat (no stat added).",
-  "Card-book expansion (2026-07-29, +36 bronze) — see docs/card-book-expansion.md.",
+  "Card-book expansion (2026-07-29, +36 bronze) \u2014 see docs/card-book-expansion.md.",
   "Slices: wheel elements (fire/lightning/nature/frost), weapons (lance/bow),",
   "archetypes (defensive/support/healing/true). Each element/weapon gets a",
   "distinct play identity per the doc: fire=burn/DoT, lightning=speed/stagger,",
@@ -52,7 +52,7 @@
      "version": 1,
      "def": {
       "name": "Annihilation Strike",
-      "text": "Deal 48 (+best stat) TRUE damage — ignores DEF/MDEF.",
+      "text": "Deal 48 (+best stat) TRUE damage \u2014 ignores DEF/MDEF.",
       "archetypes": [
        "offense"
       ],
@@ -141,7 +141,7 @@
           "power": 10
          }
         ],
-        "text": "-50% enemy DEF (2 turns) · Deal 10 (+ATK) Axe damage."
+        "text": "-50% enemy DEF (2 turns) \u00b7 Deal 10 (+ATK) Axe damage."
        },
        "gold": {
         "effects": [
@@ -156,7 +156,7 @@
           "power": 20
          }
         ],
-        "text": "-50% enemy DEF (2 turns) · Deal 20 (+ATK) Axe damage."
+        "text": "-50% enemy DEF (2 turns) \u00b7 Deal 20 (+ATK) Axe damage."
        },
        "diamond": {
         "effects": [
@@ -171,7 +171,7 @@
           "power": 30
          }
         ],
-        "text": "-50% enemy DEF (2 turns) · Deal 30 (+ATK) Axe damage."
+        "text": "-50% enemy DEF (2 turns) \u00b7 Deal 30 (+ATK) Axe damage."
        }
       }
      }
@@ -287,7 +287,7 @@
           "power": 10
          }
         ],
-        "text": "+50% ATK (2 turns) · Deal 10 (+ATK) Beast damage."
+        "text": "+50% ATK (2 turns) \u00b7 Deal 10 (+ATK) Beast damage."
        },
        "gold": {
         "effects": [
@@ -302,7 +302,7 @@
           "power": 20
          }
         ],
-        "text": "+50% ATK (2 turns) · Deal 20 (+ATK) Beast damage."
+        "text": "+50% ATK (2 turns) \u00b7 Deal 20 (+ATK) Beast damage."
        },
        "diamond": {
         "effects": [
@@ -317,7 +317,7 @@
           "power": 30
          }
         ],
-        "text": "+50% ATK (2 turns) · Deal 30 (+ATK) Beast damage."
+        "text": "+50% ATK (2 turns) \u00b7 Deal 30 (+ATK) Beast damage."
        }
       }
      }
@@ -331,7 +331,7 @@
      "version": 1,
      "def": {
       "name": "Blooming Vine",
-      "text": "Deal 14 (+MATK) Nature damage · {{Poison}} 4 (poison bypasses shields). Heavier and slower (weight 12).",
+      "text": "Deal 14 (+MATK) Nature damage \u00b7 {{Poison}} 4 (poison bypasses shields). Heavier and slower (weight 12).",
       "archetypes": [
        "offense",
        "debuff"
@@ -364,7 +364,7 @@
           "stacks": 6
          }
         ],
-        "text": "Deal 20 (+MATK) Nature damage · {{Poison}} 6 (poison bypasses shields). Heavier and slower (weight 12)."
+        "text": "Deal 20 (+MATK) Nature damage \u00b7 {{Poison}} 6 (poison bypasses shields). Heavier and slower (weight 12)."
        },
        "gold": {
         "effects": [
@@ -377,7 +377,7 @@
           "stacks": 7
          }
         ],
-        "text": "Deal 28 (+MATK) Nature damage · {{Poison}} 7 (poison bypasses shields). Heavier and slower (weight 12)."
+        "text": "Deal 28 (+MATK) Nature damage \u00b7 {{Poison}} 7 (poison bypasses shields). Heavier and slower (weight 12)."
        },
        "diamond": {
         "effects": [
@@ -390,7 +390,7 @@
           "stacks": 8
          }
         ],
-        "text": "Deal 36 (+MATK) Nature damage · {{Poison}} 8 (poison bypasses shields). Heavier and slower (weight 12)."
+        "text": "Deal 36 (+MATK) Nature damage \u00b7 {{Poison}} 8 (poison bypasses shields). Heavier and slower (weight 12)."
        }
       }
      }
@@ -404,7 +404,7 @@
      "version": 1,
      "def": {
       "name": "Braced Pike",
-      "text": "Deal 12 (+ATK) Lance damage · -20% incoming physical damage (2 turns).",
+      "text": "Deal 12 (+ATK) Lance damage \u00b7 -20% incoming physical damage (2 turns).",
       "archetypes": [
        "offense",
        "defensive"
@@ -437,7 +437,7 @@
      "version": 1,
      "def": {
       "name": "Chain Spark",
-      "text": "Deal 16 (+MATK) Lightning damage · {{Slow}} the enemy's next action by +8 weight.",
+      "text": "Deal 16 (+MATK) Lightning damage \u00b7 {{Slow}} the enemy's next action by +8 weight.",
       "archetypes": [
        "offense",
        "debuff"
@@ -468,7 +468,7 @@
      "version": 1,
      "def": {
       "name": "Cinder Dart",
-      "text": "Deal 12 (+MATK) Fire damage · {{Burn}} 3. Light and quick (weight 8).",
+      "text": "Deal 12 (+MATK) Fire damage \u00b7 {{Burn}} 3. Light and quick (weight 8).",
       "archetypes": [
        "offense"
       ],
@@ -500,7 +500,7 @@
           "stacks": 5
          }
         ],
-        "text": "Deal 18 (+MATK) Fire damage · {{Burn}} 5. Light and quick (weight 8)."
+        "text": "Deal 18 (+MATK) Fire damage \u00b7 {{Burn}} 5. Light and quick (weight 8)."
        },
        "gold": {
         "effects": [
@@ -513,7 +513,7 @@
           "stacks": 6
          }
         ],
-        "text": "Deal 26 (+MATK) Fire damage · {{Burn}} 6. Light and quick (weight 8)."
+        "text": "Deal 26 (+MATK) Fire damage \u00b7 {{Burn}} 6. Light and quick (weight 8)."
        },
        "diamond": {
         "effects": [
@@ -526,7 +526,7 @@
           "stacks": 7
          }
         ],
-        "text": "Deal 34 (+MATK) Fire damage · {{Burn}} 7. Light and quick (weight 8)."
+        "text": "Deal 34 (+MATK) Fire damage \u00b7 {{Burn}} 7. Light and quick (weight 8)."
        }
       }
      }
@@ -540,14 +540,14 @@
      "version": 1,
      "def": {
       "name": "Concussive Shot",
-      "text": "Deal 12 (+ATK) Bow damage · {{Disrupt}} 6 banked readiness.",
+      "text": "Deal 12 (+ATK) Bow damage \u00b7 {{Disrupt}} 6 banked readiness.",
       "notes": [
        "disrupt re-priced to an ESCALATING bracket schedule (user-locked",
-       "2026-07-25 — see PRICE.disruptBrackets): disrupt 6 costs 5*5 + 1*15 =",
+       "2026-07-25 \u2014 see PRICE.disruptBrackets): disrupt 6 costs 5*5 + 1*15 =",
        "40 deci (the first 5 points at 5/pt, the 6th at the 6-10 bracket's",
        "15/pt). damage 12 (60) + disrupt 6 (40) = 100 = Bronze exactly (was",
        "disrupt 16 at the old flat 1-per-4 rate; 16 is now unaffordable at any",
-       "tier — 310 deci = 31 PL)."
+       "tier \u2014 310 deci = 31 PL)."
       ],
       "archetypes": [
        "offense",
@@ -579,7 +579,7 @@
      "version": 1,
      "def": {
       "name": "Crippling Strike",
-      "text": "Deal 38 (+ATK) Lance damage · -25% enemy ATK (2 turns).",
+      "text": "Deal 38 (+ATK) Lance damage \u00b7 -25% enemy ATK (2 turns).",
       "archetypes": [
        "offense",
        "debuff"
@@ -638,7 +638,7 @@
      "version": 1,
      "def": {
       "name": "Deep Freeze",
-      "text": "Deal 24 (+MATK) Frost damage · -40% enemy SPD (3 turns).",
+      "text": "Deal 24 (+MATK) Frost damage \u00b7 -40% enemy SPD (3 turns).",
       "archetypes": [
        "offense",
        "debuff"
@@ -671,7 +671,7 @@
      "version": 1,
      "def": {
       "name": "Ember Lash",
-      "text": "Deal 10 (+MATK) Fire damage · {{Burn}} 5.",
+      "text": "Deal 10 (+MATK) Fire damage \u00b7 {{Burn}} 5.",
       "notes": [
        "Moderate burn growth, rest into damage (same house style as fireball)."
       ],
@@ -705,7 +705,7 @@
           "stacks": 7
          }
         ],
-        "text": "Deal 16 (+MATK) Fire damage · {{Burn}} 7."
+        "text": "Deal 16 (+MATK) Fire damage \u00b7 {{Burn}} 7."
        },
        "gold": {
         "effects": [
@@ -718,7 +718,7 @@
           "stacks": 8
          }
         ],
-        "text": "Deal 24 (+MATK) Fire damage · {{Burn}} 8."
+        "text": "Deal 24 (+MATK) Fire damage \u00b7 {{Burn}} 8."
        },
        "diamond": {
         "effects": [
@@ -731,7 +731,7 @@
           "stacks": 9
          }
         ],
-        "text": "Deal 32 (+MATK) Fire damage · {{Burn}} 9."
+        "text": "Deal 32 (+MATK) Fire damage \u00b7 {{Burn}} 9."
        }
       }
      }
@@ -745,11 +745,11 @@
      "version": 1,
      "def": {
       "name": "Fireball",
-      "text": "Deal 38 (+MATK) Fire damage · {{Burn}} 5.",
+      "text": "Deal 38 (+MATK) Fire damage \u00b7 {{Burn}} 5.",
       "notes": [
-       "burn priced LINEARLY per stack (2026-07-23): 5 stacks × 10 deci = 50",
+       "burn priced LINEARLY per stack (2026-07-23): 5 stacks \u00d7 10 deci = 50",
        "deci = 5 PL. Tick gameplay unchanged (halves each turn: 10,4,2 = 16",
-       "total). damage 38 (190) + burn (50) − size2 grant (140) = 100 = Bronze.",
+       "total). damage 38 (190) + burn (50) \u2212 size2 grant (140) = 100 = Bronze.",
        "Hand-tuned curve (user-locked 2026-07-24): MODERATE burn growth, rest",
        "into damage. Size-2 grants (170/210/240 deci) fold into each tier's",
        "effective budget. Silver: burn 7 (70) + damage 50 (250) = 320 = 150 +",
@@ -786,7 +786,7 @@
           "stacks": 7
          }
         ],
-        "text": "Deal 50 (+MATK) Fire damage · {{Burn}} 7."
+        "text": "Deal 50 (+MATK) Fire damage \u00b7 {{Burn}} 7."
        },
        "gold": {
         "effects": [
@@ -799,7 +799,7 @@
           "stacks": 8
          }
         ],
-        "text": "Deal 66 (+MATK) Fire damage · {{Burn}} 8."
+        "text": "Deal 66 (+MATK) Fire damage \u00b7 {{Burn}} 8."
        },
        "diamond": {
         "effects": [
@@ -812,7 +812,7 @@
           "stacks": 10
          }
         ],
-        "text": "Deal 78 (+MATK) Fire damage · {{Burn}} 10."
+        "text": "Deal 78 (+MATK) Fire damage \u00b7 {{Burn}} 10."
        }
       }
      }
@@ -826,7 +826,7 @@
      "version": 1,
      "def": {
       "name": "Follow-Through",
-      "text": "Deal 10 (+ATK) Sword damage · +20 if previous cast was Offense.",
+      "text": "Deal 10 (+ATK) Sword damage \u00b7 +20 if previous cast was Offense.",
       "notes": [
        "comboPerPoint discount (2.5/pt, user-locked 2026-07-23): damage 10 (50)",
        "+ comboBonus 20 (floor(20*5/2)=50) = 100 = Bronze exactly. Un-comboed",
@@ -887,7 +887,7 @@
      "version": 1,
      "def": {
       "name": "Frost Shackle",
-      "text": "Deal 14 (+MATK) Frost damage · {{Slow}} the enemy's next action by +12 weight.",
+      "text": "Deal 14 (+MATK) Frost damage \u00b7 {{Slow}} the enemy's next action by +12 weight.",
       "archetypes": [
        "offense",
        "debuff"
@@ -957,7 +957,7 @@
           "power": 10
          }
         ],
-        "text": "-50% incoming magical damage (2 turns) · Gain 10 (+MDEF) magical shield."
+        "text": "-50% incoming magical damage (2 turns) \u00b7 Gain 10 (+MDEF) magical shield."
        },
        "gold": {
         "effects": [
@@ -972,7 +972,7 @@
           "power": 20
          }
         ],
-        "text": "-50% incoming magical damage (2 turns) · Gain 20 (+MDEF) magical shield."
+        "text": "-50% incoming magical damage (2 turns) \u00b7 Gain 20 (+MDEF) magical shield."
        },
        "diamond": {
         "effects": [
@@ -987,7 +987,7 @@
           "power": 30
          }
         ],
-        "text": "-50% incoming magical damage (2 turns) · Gain 30 (+MDEF) magical shield."
+        "text": "-50% incoming magical damage (2 turns) \u00b7 Gain 30 (+MDEF) magical shield."
        }
       }
      }
@@ -1001,7 +1001,7 @@
      "version": 1,
      "def": {
       "name": "Glacial Spike",
-      "text": "Deal 12 (+MATK) Frost damage · -20% enemy SPD (2 turns).",
+      "text": "Deal 12 (+MATK) Frost damage \u00b7 -20% enemy SPD (2 turns).",
       "archetypes": [
        "offense",
        "debuff"
@@ -1034,7 +1034,7 @@
      "version": 1,
      "def": {
       "name": "Hamstring",
-      "text": "Deal 12 (+ATK) Lance damage · {{Slow}} the enemy's next action by +16 weight.",
+      "text": "Deal 12 (+ATK) Lance damage \u00b7 {{Slow}} the enemy's next action by +16 weight.",
       "archetypes": [
        "offense",
        "debuff"
@@ -1067,8 +1067,8 @@
       "name": "Hex of Frailty",
       "text": "-50% enemy MDEF (2 turns).",
       "notes": [
-       "Refit for the size-1 control cap (10 PL): 50%×2t = 100 deci exactly",
-       "(was 40%×3t = 12 PL funded by extra weight).",
+       "Refit for the size-1 control cap (10 PL): 50%\u00d72t = 100 deci exactly",
+       "(was 40%\u00d73t = 12 PL funded by extra weight).",
        "Curse theme: the debuff is frozen (already at the size-1 control cap,",
        "100 deci); a Dark damage tick sinks the rest. Silver 10 (50) + 100 = 150.",
        "Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250."
@@ -1103,7 +1103,7 @@
           "power": 10
          }
         ],
-        "text": "-50% enemy MDEF (2 turns) · Deal 10 (+MATK) Dark damage."
+        "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
        },
        "gold": {
         "effects": [
@@ -1118,7 +1118,7 @@
           "power": 20
          }
         ],
-        "text": "-50% enemy MDEF (2 turns) · Deal 20 (+MATK) Dark damage."
+        "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
        },
        "diamond": {
         "effects": [
@@ -1133,7 +1133,7 @@
           "power": 30
          }
         ],
-        "text": "-50% enemy MDEF (2 turns) · Deal 30 (+MATK) Dark damage."
+        "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
        }
       }
      }
@@ -1173,7 +1173,7 @@
      "version": 1,
      "def": {
       "name": "Impaling Charge",
-      "text": "Deal 36 (+ATK) Lance damage · -30% incoming physical damage (2 turns).",
+      "text": "Deal 36 (+ATK) Lance damage \u00b7 -30% incoming physical damage (2 turns).",
       "archetypes": [
        "offense",
        "defensive"
@@ -1206,7 +1206,7 @@
      "version": 1,
      "def": {
       "name": "Inferno Eruption",
-      "text": "Deal 56 (+MATK) Fire damage · {{Burn}} 20.",
+      "text": "Deal 56 (+MATK) Fire damage \u00b7 {{Burn}} 20.",
       "archetypes": [
        "offense"
       ],
@@ -1237,7 +1237,7 @@
           "stacks": 25
          }
         ],
-        "text": "Deal 74 (+MATK) Fire damage · {{Burn}} 25."
+        "text": "Deal 74 (+MATK) Fire damage \u00b7 {{Burn}} 25."
        },
        "gold": {
         "effects": [
@@ -1250,7 +1250,7 @@
           "stacks": 28
          }
         ],
-        "text": "Deal 98 (+MATK) Fire damage · {{Burn}} 28."
+        "text": "Deal 98 (+MATK) Fire damage \u00b7 {{Burn}} 28."
        },
        "diamond": {
         "effects": [
@@ -1263,7 +1263,7 @@
           "stacks": 32
          }
         ],
-        "text": "Deal 118 (+MATK) Fire damage · {{Burn}} 32."
+        "text": "Deal 118 (+MATK) Fire damage \u00b7 {{Burn}} 32."
        }
       }
      }
@@ -1303,7 +1303,7 @@
      "version": 1,
      "def": {
       "name": "Judgment Light",
-      "text": "Deal 12 (+MATK) Holy damage · -20% enemy MDEF (2 turns).",
+      "text": "Deal 12 (+MATK) Holy damage \u00b7 -20% enemy MDEF (2 turns).",
       "archetypes": [
        "offense",
        "debuff"
@@ -1362,7 +1362,7 @@
      "version": 1,
      "def": {
       "name": "Leeching Fang",
-      "text": "Deal 16 (+ATK) Beast damage · heal 45% of damage dealt.",
+      "text": "Deal 16 (+ATK) Beast damage \u00b7 heal 45% of damage dealt.",
       "archetypes": [
        "offense",
        "healing"
@@ -1448,7 +1448,7 @@
       "name": "Mending Aura",
       "text": "Passive: adjacent Healing cards heal +10.",
       "notes": [
-       "Pure aura (no scalable sink) — grows exactly like war_banner's damageFlat curve."
+       "Pure aura (no scalable sink) \u2014 grows exactly like war_banner's damageFlat curve."
       ],
       "archetypes": [
        "support"
@@ -1535,7 +1535,7 @@
      "version": 1,
      "def": {
       "name": "Overcharge",
-      "text": "Deal 16 (+MATK) Lightning damage · {{Disrupt}} 4 banked readiness.",
+      "text": "Deal 16 (+MATK) Lightning damage \u00b7 {{Disrupt}} 4 banked readiness.",
       "archetypes": [
        "offense",
        "debuff"
@@ -1566,7 +1566,7 @@
      "version": 1,
      "def": {
       "name": "Overgrowth",
-      "text": "Restore 30 (+MDEF) HP · Gain 18 (+MDEF) magical shield — a thorned bark ward.",
+      "text": "Restore 30 (+MDEF) HP \u00b7 Gain 18 (+MDEF) magical shield \u2014 a thorned bark ward.",
       "archetypes": [
        "healing",
        "defensive"
@@ -1597,7 +1597,7 @@
      "version": 1,
      "def": {
       "name": "Piercing Arrow",
-      "text": "Deal 8 (+ATK) Bow damage · {{Expose}} the enemy — +30% damage from all direct hits (2 turns).",
+      "text": "Deal 8 (+ATK) Bow damage \u00b7 {{Expose}} the enemy \u2014 +30% damage from all direct hits (2 turns).",
       "archetypes": [
        "offense",
        "debuff"
@@ -1660,11 +1660,11 @@
      "version": 1,
      "def": {
       "name": "Prism Barrier",
-      "text": "Gain 92 TRUE shield — blocks TRUE damage fully; physical/magical drain it 2:1.",
+      "text": "Gain 92 TRUE shield \u2014 blocks TRUE damage fully; physical/magical drain it 2:1.",
       "notes": [
-       "TRUE shield at 5 deci/pt (typed parity — the premium is the 2:1 drain",
-       "vs typed damage, not the price): 92 × 5 = 460 =",
-       "100 budget + 380 size-3 grant − 20 for weight 26 (4 under baseline)."
+       "TRUE shield at 5 deci/pt (typed parity \u2014 the premium is the 2:1 drain",
+       "vs typed damage, not the price): 92 \u00d7 5 = 460 =",
+       "100 budget + 380 size-3 grant \u2212 20 for weight 26 (4 under baseline)."
       ],
       "archetypes": [
        "defensive"
@@ -1692,10 +1692,10 @@
      "version": 1,
      "def": {
       "name": "Purging Strike",
-      "text": "Deal 9 (+best stat) TRUE damage — ignores DEF/MDEF. Light and quick (weight 8).",
+      "text": "Deal 9 (+best stat) TRUE damage \u2014 ignores DEF/MDEF. Light and quick (weight 8).",
       "notes": [
-       "TRUE damage at 10 deci/pt (half-effect rule): 9 × 10 = 90 =",
-       "100 budget − 10 for weight 8 (2 under baseline)."
+       "TRUE damage at 10 deci/pt (half-effect rule): 9 \u00d7 10 = 90 =",
+       "100 budget \u2212 10 for weight 8 (2 under baseline)."
       ],
       "archetypes": [
        "offense"
@@ -1728,9 +1728,9 @@
        "cleanse re-priced per charge (25 deci): 4 charges = 100 = Bronze exactly.",
        "Cleanse is frozen (already at the size-1 empower cap, 100 deci) at every",
        "tier; a TRUE heal (re-priced 2 -> 4 deci/pt, 2026-08-01) plus a weight",
-       "dial sinks the rest. Silver: 10×4=40 + 100 cleanse + 10 (weight 8, 2",
-       "under baseline) = 150. Gold returns to baseline weight: 25×4=100 + 100 =",
-       "200. Diamond: 35×4=140 + 100 + 10 (weight 8) = 250."
+       "dial sinks the rest. Silver: 10\u00d74=40 + 100 cleanse + 10 (weight 8, 2",
+       "under baseline) = 150. Gold returns to baseline weight: 25\u00d74=100 + 100 =",
+       "200. Diamond: 35\u00d74=140 + 100 + 10 (weight 8) = 250."
       ],
       "archetypes": [
        "healing",
@@ -1864,11 +1864,11 @@
       "name": "Renewing Wave",
       "text": "Restore 30 TRUE HP. Heavier cast (weight 14).",
       "notes": [
-       "TRUE heal re-priced 2 -> 4 deci/pt (2026-08-01): 30 × 4 = 120 − 20",
+       "TRUE heal re-priced 2 -> 4 deci/pt (2026-08-01): 30 \u00d7 4 = 120 \u2212 20",
        "(weight 14, 4 under baseline 10) = 100 = Bronze.",
-       "Silver/Diamond sink extra weight: 45×4=180 − 30 (weight 16) = 150.",
-       "Gold returns to the bronze weight (14): 55×4=220 − 20 = 200.",
-       "Diamond: 70×4=280 − 30 (weight 16) = 250."
+       "Silver/Diamond sink extra weight: 45\u00d74=180 \u2212 30 (weight 16) = 150.",
+       "Gold returns to the bronze weight (14): 55\u00d74=220 \u2212 20 = 200.",
+       "Diamond: 70\u00d74=280 \u2212 30 (weight 16) = 250."
       ],
       "archetypes": [
        "healing"
@@ -1928,9 +1928,9 @@
      "version": 1,
      "def": {
       "name": "Ruinous Hex",
-      "text": "{{Expose}} the enemy — +50% damage from all direct hits (2 turns).",
+      "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns).",
       "notes": [
-       "expose 50%×2 (50*2*1 = 100) = Bronze exactly. pct clamped to <=50 at apply.",
+       "expose 50%\u00d72 (50*2*1 = 100) = Bronze exactly. pct clamped to <=50 at apply.",
        "Expose is frozen (already at the size-1 control cap, 100 deci, and the",
        "50%-apply-time clamp); a Dark damage tick sinks the rest. Silver 10",
        "(50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100",
@@ -1964,7 +1964,7 @@
           "power": 10
          }
         ],
-        "text": "{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal 10 (+MATK) Dark damage."
+        "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
        },
        "gold": {
         "effects": [
@@ -1978,7 +1978,7 @@
           "power": 20
          }
         ],
-        "text": "{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal 20 (+MATK) Dark damage."
+        "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
        },
        "diamond": {
         "effects": [
@@ -1992,7 +1992,7 @@
           "power": 30
          }
         ],
-        "text": "{{Expose}} the enemy — +50% damage from all direct hits (2 turns) · Deal 30 (+MATK) Dark damage."
+        "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
        }
       }
      }
@@ -2006,9 +2006,9 @@
      "version": 1,
      "def": {
       "name": "Rupturing Strike",
-      "text": "Deal 10 (+ATK) Axe damage · {{Bleed}} 5 — ticks when the enemy performs; blocked by shields.",
+      "text": "Deal 10 (+ATK) Axe damage \u00b7 {{Bleed}} 5 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
-       "bleed priced LINEARLY per stack (2026-07-23): 5 stacks × 10 deci = 50",
+       "bleed priced LINEARLY per stack (2026-07-23): 5 stacks \u00d7 10 deci = 50",
        "deci = 5 PL. Tick gameplay unchanged (decays 5,4,3,2,1 = 15 total).",
        "damage 10 (50) + bleed (50) = 100 = Bronze.",
        "Hand-tuned curve (user-locked 2026-07-24): MODERATE bleed growth, rest",
@@ -2047,7 +2047,7 @@
           "stacks": 7
          }
         ],
-        "text": "Deal 16 (+ATK) Axe damage · {{Bleed}} 7 — ticks when the enemy performs; blocked by shields."
+        "text": "Deal 16 (+ATK) Axe damage \u00b7 {{Bleed}} 7 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "gold": {
         "effects": [
@@ -2060,7 +2060,7 @@
           "stacks": 8
          }
         ],
-        "text": "Deal 24 (+ATK) Axe damage · {{Bleed}} 8 — ticks when the enemy performs; blocked by shields."
+        "text": "Deal 24 (+ATK) Axe damage \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "diamond": {
         "effects": [
@@ -2073,7 +2073,7 @@
           "stacks": 9
          }
         ],
-        "text": "Deal 32 (+ATK) Axe damage · {{Bleed}} 9 — ticks when the enemy performs; blocked by shields."
+        "text": "Deal 32 (+ATK) Axe damage \u00b7 {{Bleed}} 9 \u2014 ticks when the enemy performs; blocked by shields."
        }
       }
      }
@@ -2087,7 +2087,7 @@
      "version": 1,
      "def": {
       "name": "Sanctified Bulwark",
-      "text": "Gain 12 (+MDEF) magical shield · -20% incoming magical damage (2 turns).",
+      "text": "Gain 12 (+MDEF) magical shield \u00b7 -20% incoming magical damage (2 turns).",
       "archetypes": [
        "defensive"
       ],
@@ -2145,7 +2145,7 @@
      "version": 1,
      "def": {
       "name": "Scorching Brand",
-      "text": "Deal 8 (+MATK) Fire damage · {{Burn}} 3 · -15% enemy DEF (2 turns).",
+      "text": "Deal 8 (+MATK) Fire damage \u00b7 {{Burn}} 3 \u00b7 -15% enemy DEF (2 turns).",
       "notes": [
        "The armor debuff is frozen (control); burn grows moderately, damage sinks the rest."
       ],
@@ -2192,7 +2192,7 @@
           "turns": 2
          }
         ],
-        "text": "Deal 14 (+MATK) Fire damage · {{Burn}} 5 · -15% enemy DEF (2 turns)."
+        "text": "Deal 14 (+MATK) Fire damage \u00b7 {{Burn}} 5 \u00b7 -15% enemy DEF (2 turns)."
        },
        "gold": {
         "effects": [
@@ -2211,7 +2211,7 @@
           "turns": 2
          }
         ],
-        "text": "Deal 22 (+MATK) Fire damage · {{Burn}} 6 · -15% enemy DEF (2 turns)."
+        "text": "Deal 22 (+MATK) Fire damage \u00b7 {{Burn}} 6 \u00b7 -15% enemy DEF (2 turns)."
        },
        "diamond": {
         "effects": [
@@ -2230,7 +2230,7 @@
           "turns": 2
          }
         ],
-        "text": "Deal 30 (+MATK) Fire damage · {{Burn}} 7 · -15% enemy DEF (2 turns)."
+        "text": "Deal 30 (+MATK) Fire damage \u00b7 {{Burn}} 7 \u00b7 -15% enemy DEF (2 turns)."
        }
       }
      }
@@ -2246,11 +2246,11 @@
       "name": "Second Wind",
       "text": "Restore 25 HP.",
       "notes": [
-       "TRUE heal re-priced 2 -> 4 deci/pt (2026-08-01): 25 × 4 = 100 = Bronze.",
+       "TRUE heal re-priced 2 -> 4 deci/pt (2026-08-01): 25 \u00d7 4 = 100 = Bronze.",
        "Silver/Diamond sink the rest into weight (lighter costs, so speedWeight",
-       "rises to buy back budget): silver 40×4=160 − 10 (weight 12) = 150.",
-       "Gold returns to baseline weight: 50×4=200 = Gold exactly.",
-       "Diamond: 65×4=260 − 10 (weight 12) = 250."
+       "rises to buy back budget): silver 40\u00d74=160 \u2212 10 (weight 12) = 150.",
+       "Gold returns to baseline weight: 50\u00d74=200 = Gold exactly.",
+       "Diamond: 65\u00d74=260 \u2212 10 (weight 12) = 250."
       ],
       "archetypes": [
        "healing"
@@ -2365,7 +2365,7 @@
      "version": 1,
      "def": {
       "name": "Slowing Hex",
-      "text": "Deal 8 (+MATK) Frost damage · -30% enemy SPD (2 turns).",
+      "text": "Deal 8 (+MATK) Frost damage \u00b7 -30% enemy SPD (2 turns).",
       "archetypes": [
        "debuff"
       ],
@@ -2397,9 +2397,9 @@
      "version": 1,
      "def": {
       "name": "Soul Rend",
-      "text": "Deal 27 (+best stat) TRUE damage — ignores DEF/MDEF.",
+      "text": "Deal 27 (+best stat) TRUE damage \u2014 ignores DEF/MDEF.",
       "notes": [
-       "TRUE damage at 10 deci/pt (half-effect rule): 27 × 10 = 270 =",
+       "TRUE damage at 10 deci/pt (half-effect rule): 27 \u00d7 10 = 270 =",
        "100 budget + 140 size-2 grant + 30 weight-26 refund."
       ],
       "archetypes": [
@@ -2455,7 +2455,7 @@
      "version": 1,
      "def": {
       "name": "Storm Surge",
-      "text": "Deal 36 (+MATK) Lightning damage · +30% SPD (2 turns).",
+      "text": "Deal 36 (+MATK) Lightning damage \u00b7 +30% SPD (2 turns).",
       "archetypes": [
        "offense",
        "support"
@@ -2488,7 +2488,7 @@
      "version": 1,
      "def": {
       "name": "Stunning Smash",
-      "text": "{{Stun}} — the enemy's next performance is consumed.",
+      "text": "{{Stun}} \u2014 the enemy's next performance is consumed.",
       "notes": [
        "Pure control: at the re-priced stunPerTurn (100 deci) a single stun turn",
        "IS the whole Bronze budget, so the card is stun-only. Size 1 / default",
@@ -2524,7 +2524,7 @@
           "power": 10
          }
         ],
-        "text": "{{Stun}} — the enemy's next performance is consumed. Deal 10 (+ATK) Axe damage."
+        "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 10 (+ATK) Axe damage."
        },
        "gold": {
         "effects": [
@@ -2537,7 +2537,7 @@
           "power": 20
          }
         ],
-        "text": "{{Stun}} — the enemy's next performance is consumed. Deal 20 (+ATK) Axe damage."
+        "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 20 (+ATK) Axe damage."
        },
        "diamond": {
         "effects": [
@@ -2550,7 +2550,7 @@
           "power": 30
          }
         ],
-        "text": "{{Stun}} — the enemy's next performance is consumed. Deal 30 (+ATK) Axe damage."
+        "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 30 (+ATK) Axe damage."
        }
       }
      }
@@ -2566,7 +2566,7 @@
       "name": "Swift March",
       "text": "Passive: adjacent cards -5 weight (cast sooner).",
       "notes": [
-       "Pure aura — weightDelta deepens and a self Speed buff sinks the rest",
+       "Pure aura \u2014 weightDelta deepens and a self Speed buff sinks the rest",
        "(same shape as time_crystal, but untargeted and quicker-firing)."
       ],
       "archetypes": [
@@ -2674,7 +2674,7 @@
      "version": 1,
      "def": {
       "name": "Thorn Bite",
-      "text": "Deal 10 (+MATK) Nature damage · {{Poison}} 5 (poison bypasses shields).",
+      "text": "Deal 10 (+MATK) Nature damage \u00b7 {{Poison}} 5 (poison bypasses shields).",
       "archetypes": [
        "offense",
        "debuff"
@@ -2706,7 +2706,7 @@
           "stacks": 7
          }
         ],
-        "text": "Deal 16 (+MATK) Nature damage · {{Poison}} 7 (poison bypasses shields)."
+        "text": "Deal 16 (+MATK) Nature damage \u00b7 {{Poison}} 7 (poison bypasses shields)."
        },
        "gold": {
         "effects": [
@@ -2719,7 +2719,7 @@
           "stacks": 8
          }
         ],
-        "text": "Deal 24 (+MATK) Nature damage · {{Poison}} 8 (poison bypasses shields)."
+        "text": "Deal 24 (+MATK) Nature damage \u00b7 {{Poison}} 8 (poison bypasses shields)."
        },
        "diamond": {
         "effects": [
@@ -2732,7 +2732,7 @@
           "stacks": 9
          }
         ],
-        "text": "Deal 32 (+MATK) Nature damage · {{Poison}} 9 (poison bypasses shields)."
+        "text": "Deal 32 (+MATK) Nature damage \u00b7 {{Poison}} 9 (poison bypasses shields)."
        }
       }
      }
@@ -2746,7 +2746,7 @@
      "version": 1,
      "def": {
       "name": "Thunder Step",
-      "text": "Deal 12 (+MATK) Lightning damage · +20% SPD (2 turns).",
+      "text": "Deal 12 (+MATK) Lightning damage \u00b7 +20% SPD (2 turns).",
       "archetypes": [
        "offense",
        "support"
@@ -2871,7 +2871,7 @@
       "name": "Twin Slash",
       "text": "Deal 6 (+ATK) Sword damage, twice.",
       "notes": [
-       "Twin-hit showcase: 2 × 6 base (60 deci) + 1 extra-hit premium (30 deci)",
+       "Twin-hit showcase: 2 \u00d7 6 base (60 deci) + 1 extra-hit premium (30 deci)",
        "+ weight 8 (light, +10 deci) = exactly Bronze. Each hit adds full",
        "Attack; armor mitigates each hit separately."
       ],
@@ -2905,16 +2905,16 @@
      "version": 1,
      "def": {
       "name": "Venom Fang",
-      "text": "Deal 12 (+ATK) Beast damage · {{Poison}} 5 (poison bypasses shields).",
+      "text": "Deal 12 (+ATK) Beast damage \u00b7 {{Poison}} 5 (poison bypasses shields).",
       "notes": [
-       "poison priced LINEARLY per stack (2026-07-23): 5 stacks × 10 deci = 50",
+       "poison priced LINEARLY per stack (2026-07-23): 5 stacks \u00d7 10 deci = 50",
        "deci = 5 PL. Tick gameplay unchanged (decays 5,4,3,2,1 = 15 total).",
-       "damage 12 (60) + poison (50) + weight +2 refund (−10) = 100 = Bronze.",
+       "damage 12 (60) + poison (50) + weight +2 refund (\u221210) = 100 = Bronze.",
        "Hand-tuned curve (user-locked 2026-07-24): MODERATE stack growth, rest",
-       "into damage; weight stays 12 (−10 deci refund) at every tier.",
-       "Silver: poison 7 (70) + damage 18 (90) + weight (−10) = 150.",
-       "Gold:   poison 8 (80) + damage 26 (130) + weight (−10) = 200.",
-       "Diamond: poison 9 (90) + damage 34 (170) + weight (−10) = 250."
+       "into damage; weight stays 12 (\u221210 deci refund) at every tier.",
+       "Silver: poison 7 (70) + damage 18 (90) + weight (\u221210) = 150.",
+       "Gold:   poison 8 (80) + damage 26 (130) + weight (\u221210) = 200.",
+       "Diamond: poison 9 (90) + damage 34 (170) + weight (\u221210) = 250."
       ],
       "archetypes": [
        "offense",
@@ -2948,7 +2948,7 @@
           "stacks": 7
          }
         ],
-        "text": "Deal 18 (+ATK) Beast damage · {{Poison}} 7 (poison bypasses shields)."
+        "text": "Deal 18 (+ATK) Beast damage \u00b7 {{Poison}} 7 (poison bypasses shields)."
        },
        "gold": {
         "effects": [
@@ -2961,7 +2961,7 @@
           "stacks": 8
          }
         ],
-        "text": "Deal 26 (+ATK) Beast damage · {{Poison}} 8 (poison bypasses shields)."
+        "text": "Deal 26 (+ATK) Beast damage \u00b7 {{Poison}} 8 (poison bypasses shields)."
        },
        "diamond": {
         "effects": [
@@ -2974,7 +2974,7 @@
           "stacks": 9
          }
         ],
-        "text": "Deal 34 (+ATK) Beast damage · {{Poison}} 9 (poison bypasses shields)."
+        "text": "Deal 34 (+ATK) Beast damage \u00b7 {{Poison}} 9 (poison bypasses shields)."
        }
       }
      }
@@ -3040,7 +3040,7 @@
      "version": 1,
      "def": {
       "name": "Void Pierce",
-      "text": "Deal 10 (+best stat) TRUE damage — ignores DEF/MDEF.",
+      "text": "Deal 10 (+best stat) TRUE damage \u2014 ignores DEF/MDEF.",
       "archetypes": [
        "offense"
       ],
@@ -3068,8 +3068,8 @@
       "name": "War Banner",
       "text": "Passive: adjacent Offense cards deal +10 damage.",
       "notes": [
-       "Pure aura (no scalable sink) — the aura itself grows: 15/20/25 damageFlat",
-       "× auraDamageFlat 10 (adjacent reach ×1) = 150/200/250 exactly."
+       "Pure aura (no scalable sink) \u2014 the aura itself grows: 15/20/25 damageFlat",
+       "\u00d7 auraDamageFlat 10 (adjacent reach \u00d71) = 150/200/250 exactly."
       ],
       "archetypes": [
        "support"
@@ -3134,7 +3134,7 @@
       "notes": [
        "negate re-priced to 100 deci/charge: 1 charge = Bronze exactly (was 2).",
        "Negate can't grow to 2 charges (200 deci would blow the size-1 empower",
-       "cap of 100 alone) — frozen at 1 charge; a magical shield sinks the",
+       "cap of 100 alone) \u2014 frozen at 1 charge; a magical shield sinks the",
        "rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond",
        "30 (150) + 100 = 250."
       ],
@@ -3166,7 +3166,7 @@
           "power": 10
          }
         ],
-        "text": "{{Negate}} the next magical attack · Gain 10 (+MDEF) magical shield."
+        "text": "{{Negate}} the next magical attack \u00b7 Gain 10 (+MDEF) magical shield."
        },
        "gold": {
         "effects": [
@@ -3180,7 +3180,7 @@
           "power": 20
          }
         ],
-        "text": "{{Negate}} the next magical attack · Gain 20 (+MDEF) magical shield."
+        "text": "{{Negate}} the next magical attack \u00b7 Gain 20 (+MDEF) magical shield."
        },
        "diamond": {
         "effects": [
@@ -3194,7 +3194,7 @@
           "power": 30
          }
         ],
-        "text": "{{Negate}} the next magical attack · Gain 30 (+MDEF) magical shield."
+        "text": "{{Negate}} the next magical attack \u00b7 Gain 30 (+MDEF) magical shield."
        }
       }
      }
@@ -3292,7 +3292,7 @@
      "version": 1,
      "def": {
       "name": "Wildfire Surge",
-      "text": "Deal 24 (+MATK) Fire damage · {{Burn}} 12.",
+      "text": "Deal 24 (+MATK) Fire damage \u00b7 {{Burn}} 12.",
       "archetypes": [
        "offense"
       ],
@@ -3323,7 +3323,7 @@
           "stacks": 14
          }
         ],
-        "text": "Deal 36 (+MATK) Fire damage · {{Burn}} 14."
+        "text": "Deal 36 (+MATK) Fire damage \u00b7 {{Burn}} 14."
        },
        "gold": {
         "effects": [
@@ -3336,7 +3336,7 @@
           "stacks": 15
          }
         ],
-        "text": "Deal 52 (+MATK) Fire damage · {{Burn}} 15."
+        "text": "Deal 52 (+MATK) Fire damage \u00b7 {{Burn}} 15."
        },
        "diamond": {
         "effects": [
@@ -3349,9 +3349,70 @@
           "stacks": 17
          }
         ],
-        "text": "Deal 64 (+MATK) Fire damage · {{Burn}} 17."
+        "text": "Deal 64 (+MATK) Fire damage \u00b7 {{Burn}} 17."
        }
       }
+     }
+    }
+   ]
+  },
+  {
+   "id": "bramble_ward",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Bramble Ward",
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "weapon": "sword",
+      "effects": [
+       {
+        "kind": "thorns",
+        "stacks": 5
+       },
+       {
+        "kind": "shield",
+        "power": 10
+       }
+      ],
+      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Gain 10 (+DEF) physical shield."
+     }
+    }
+   ]
+  },
+  {
+   "id": "nettle_lash",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Nettle Lash",
+      "archetypes": [
+       "offense",
+       "defensive"
+      ],
+      "property": "physical",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "weapon": "beast",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 10
+       },
+       {
+        "kind": "thorns",
+        "stacks": 5
+       }
+      ],
+      "text": "Deal 10 (+ATK) Beast damage \u00b7 {{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit."
      }
     }
    ]

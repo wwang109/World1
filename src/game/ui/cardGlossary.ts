@@ -152,6 +152,11 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
         title: 'Typed shields',
         body: 'Shields stack, carry over between turns, and cap at max HP. Only blocks its own property — TRUE blocks everything, but is drained 2:1 by physical/magical hits.',
       };
+    case 'thorns':
+      return {
+        title: 'Thorns',
+        body: `Grants ${action.stacks} thorn stacks. Each direct hit you take stings the attacker for the current stack count as TRUE damage, then the pile shrinks by 1. DoT ticks don't trigger it.`,
+      };
     case 'poison':
       return {
         title: 'Poison',

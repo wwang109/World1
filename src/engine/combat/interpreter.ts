@@ -511,7 +511,7 @@ export function dealDamage(
   opts: {
     bypassShields?: boolean;
     matchup?: Matchup;
-    source?: 'skill' | 'poison' | 'burn' | 'bleed' | 'fatigue' | 'attrition';
+    source?: 'skill' | 'poison' | 'burn' | 'bleed' | 'thorns' | 'fatigue' | 'attrition';
     calculation?: Omit<DamageCalculation, 'guardReduction' | 'exposeBonus' | 'shieldBlocked' | 'hpDamage'>;
   } = {},
 ): void {
@@ -708,6 +708,34 @@ function applyStrike(
     },
   });
   cast.damageDealt += hpBefore - enemy.stats.hp;
+  reflectThorns(ctx, enemy, caster);
+}
+
+/**
+ * THORNS REFLECT — fires after a DIRECT skill hit resolves on a thorned victim.
+ * The attacker takes the pile's CURRENT stack count as TRUE damage, then the
+ * pile loses one stack (statusExpired at 0). Non-reentrant by construction:
+ * every damage path that can trigger this is a card strike (`applyStrike`),
+ * and the reflect itself goes straight to `dealDamage` with source 'thorns' —
+ * so a reflect can never trigger the attacker's own thorns, and DoT ticks /
+ * fatigue / attrition (which never pass through applyStrike) never trigger it.
+ * Fires per HIT, so a multi-hit card eats one reflect per instance — thorns
+ * are deliberately strong into multi-hit.
+ */
+function reflectThorns(ctx: Ctx, victim: CombatantState, attacker: CombatantState): void {
+  if (!victim.alive) return; // a killing blow is not reflected: first to fall loses
+  for (const status of victim.statuses) {
+    if (status.kind !== 'thorns' || (status.stacks ?? 0) <= 0) continue;
+    const sting = status.stacks ?? 0;
+    dealDamage(ctx, attacker, sting, 'true', { source: 'thorns' });
+    status.stacks = sting - 1;
+    status.turnsLeft = status.stacks;
+    if (status.stacks <= 0) {
+      victim.statuses = victim.statuses.filter((st) => st !== status);
+      ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: victim.side, unit: victim.index, status: 'thorns' });
+    }
+    return; // one pile stings per hit
+  }
 }
 
 /**
@@ -1067,6 +1095,13 @@ function applyAction(
         cast.bonusFlat += action.amount;
       }
       break;
+    case 'thorns': {
+      // Self buff: thorn stacks on the caster. Consumed by the reflect hook in
+      // applyStrike, one stack per direct hit taken; no turn expiry.
+      if (!caster.alive) break;
+      addStatus(ctx, caster, { kind: 'thorns', stacks: action.stacks, turnsLeft: action.stacks, fresh: true });
+      break;
+    }
     case 'guard': {
       // Defensive: applies to the caster. Single-instance pct clamped to <=60.
       if (!caster.alive) break;
