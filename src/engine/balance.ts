@@ -344,6 +344,64 @@ export const PRICE = {
   extraHitPremium: 30,
 
   /**
+   * AoE REACH — `scope: 'all'` fans every OFFENSIVE effect on a card out over
+   * EVERY living foe (`combat/interpreter.ts`'s `resolveTargets`: "AoE: all
+   * living foes, ascending index"), so it must be priced against how many foes
+   * a fight actually has — CLOSES A VERIFIED SILENT ZERO (2026-08-17):
+   * `powerLevelDeci` never read `skill.scope` before this, so an AoE card
+   * priced identically to a single-target one while delivering up to
+   * `MAX_FOES` (5, `src/game/demoState.ts`) times the value.
+   *
+   * NOT priced at 5x (`MAX_FOES`) — that's a sandbox ceiling nothing in real
+   * play produces every fight — and not at 1x (the silent zero this closes).
+   * Priced as ONE flat, HOST-BLIND multiplier on the OFFENSIVE portion of a
+   * kit, same precedent as `GEM_CANONICAL_PROPERTY`: a card can only have one
+   * PL, so the rate cannot depend on whether it ends up on the hero's board
+   * (facing the enemy pack distribution below) or an enemy's (facing the
+   * hero, always exactly 1 — packs are an enemy-side-only mechanic, see
+   * `src/run/encounter.ts`); it must be the SAME assumption either way.
+   *
+   * DERIVED FROM THE GAME'S OWN PACK-FREQUENCY CONSTANTS
+   * (`src/run/encounter.ts`, `src/run/runState.ts`), not a guess. Every
+   * 5-fight cadence block is 2 normal + 2 elite + 1 boss (`BOSS_EVERY` = 5,
+   * `fightSpecFor`); boss nodes never roll a pack (`rollEncounter`'s
+   * `gateOpen` — always exactly 1 foe). Of the remaining 4-in-5 (non-boss)
+   * fights, `PACK_VARIANT_WEIGHTS` rolls solo/pair/trio at 70/20/10. The
+   * STEADY-STATE (asymptotic — see the caveat below) expected foe count:
+   *
+   *   boss:      1/5 * 1                          = 0.20
+   *   non-boss:  4/5 * (0.70*1 + 0.20*2 + 0.10*3)  = 4/5 * 1.4 = 1.12
+   *   total                                          = 1.32  =  33/25
+   *
+   * 1.32 is a CEILING on the honest number, not the number itself, so pricing
+   * exactly here errs on the side of NOT under-pricing (never the direction
+   * that re-opens the silent zero this closes): a pack roll that can't afford
+   * even level 1 of its taxed budget (`resolvePackMemberLevel`) silently
+   * falls back to solo, and that floor is a LEVEL GATE most of a run sits
+   * below, not a rare edge case — measured directly against the shipped
+   * curve, a pair only becomes affordable at monster level 9 (elite) / 17
+   * (normal), and a trio not until level 31 (elite) / 39 (normal); `level`
+   * tracks fight number 1:1 (`fightSpecFor`), so real play skews meaningfully
+   * more solo than 1.32 implies. Quantifying exactly how much more would mean
+   * assuming a typical run's length — precisely the winrate-shaped tuning
+   * input CLAUDE.md's "PL is the balance unit, not winrate" rule forbids — so
+   * 1.32 stands as the honest, reproducible anchor built only from the game's
+   * own already-declared dials, deliberately on the safe side of the true
+   * average.
+   *
+   * Applies to the OFFENSIVE portion of a kit only (`OFFENSIVE_KINDS` below —
+   * damage/DoT/control, the kinds `resolveTargets` fans out; support riders
+   * stay self-targeted regardless of scope and are unaffected) — see
+   * `actionsPriceDeci`. Because `capViolations` prices its per-family spend
+   * through that SAME function, the multiplier grows a card's CAP-FAMILY
+   * spend in lockstep with its budget spend — an AoE buff or DoT cannot use
+   * `scope: 'all'` to sneak more effective PL past its family cap than a
+   * single-target card of the same authored magnitude would.
+   */
+  aoeTargetsNum: 33,
+  aoeTargetsDen: 25,
+
+  /**
    * ECHO REPEAT — deci-PL for a FULL repeat of the host card's whole attack
    * (`statStrike` + `echoHostPower`, `shareOf: 1`). An echo's payload is a unit
    * fraction of that, so its rate is `echoRepeatDeci / shareOf`.
@@ -461,23 +519,50 @@ export function sizeGrantDeci(size: number, tier: SkillTier): number {
  * Pure pricing switch over a bare Action[] against a given `property`. This
  * is the per-unit rate table applied without any card-level context (size,
  * weight, aura, TRUE premium) — `powerLevelDeci` layers those on top for a
- * full `SkillDef`; `gemPowerLevelDeci` uses this directly for effect gems.
+ * full `SkillDef`; `gemPowerLevelDeci` uses this directly for effect gems
+ * (always at the default `scope: 'one'` — a gem is priced host-blind, and
+ * whether its appended action ends up on an AoE host is exactly the kind of
+ * host-dependent fact `GEM_CANONICAL_PROPERTY`'s precedent says a gem's own
+ * PL must not read; see that constant's doc comment).
+ *
+ * `scope` (default `'one'`) applies `PRICE.aoeTargetsNum/Den` to the OFFENSIVE
+ * share of the total when `'all'` — see that constant for the full derivation.
+ * Only kinds marked `offensive` in `keywords/pricing.ts` (`OFFENSIVE_KINDS`)
+ * pay it: those are exactly the kinds `combat/interpreter.ts`'s
+ * `resolveTargets` fans out over every living foe under `scope: 'all'`;
+ * support kinds (heal/shield/buffStat/cleanse/taunt/lifesteal/comboBonus/
+ * thorns/guard/negate/ward) always resolve once, on the caster, and are
+ * charged at their ordinary rate regardless of `scope`. The multi-hit premium
+ * (`PRICE.extraHitPremium`) is itself an offensive cost — an extra damage
+ * INSTANCE delivered to every foe an AoE reaches, not just one — so it pays
+ * the same multiplier. The whole offensive share is summed FIRST and floored
+ * ONCE (matching the aura `reach` pattern, `powerLevelDeci` below): flooring
+ * each action's share independently could total a different number than this
+ * single floor, which would break `powerLevelBreakdown`'s "parts sum exactly"
+ * invariant — see its own `aoe reach` part for how it stays exact.
  */
-export function actionsPriceDeci(actions: readonly Action[], property: Property): number {
-  let deci = 0;
+export function actionsPriceDeci(actions: readonly Action[], property: Property, scope: 'one' | 'all' = 'one'): number {
+  let selfDeci = 0;
+  let foeDeci = 0;
   // Multi-hit premium: damage INSTANCES beyond the first pay a flat surcharge
-  // for being separately-blocked hits (see PRICE.extraHitPremium).
+  // for being separately-blocked hits (see PRICE.extraHitPremium) — offensive,
+  // see the doc comment above.
   const hits = actions.filter((a) => HIT_KINDS.has(a.kind)).length;
-  if (hits > 1) deci += (hits - 1) * PRICE.extraHitPremium;
+  if (hits > 1) foeDeci += (hits - 1) * PRICE.extraHitPremium;
   // DATA-DRIVEN: every per-keyword rate lives in `keywords/pricing.ts`, so a
   // new keyword is a row there rather than a `case` here.
-  for (const action of actions) deci += priceActionDeci(action, property, KEYWORD_PRICING);
-  return deci;
+  for (const action of actions) {
+    const price = priceActionDeci(action, property, KEYWORD_PRICING);
+    if (OFFENSIVE_KINDS.has(action.kind)) foeDeci += price;
+    else selfDeci += price;
+  }
+  if (scope === 'all') foeDeci = Math.floor((foeDeci * PRICE.aoeTargetsNum) / PRICE.aoeTargetsDen);
+  return selfDeci + foeDeci;
 }
 
 /** Total deci-PL of a card's kit. */
 export function powerLevelDeci(skill: SkillDef): number {
-  let deci = actionsPriceDeci(skill.effects, skill.property);
+  let deci = actionsPriceDeci(skill.effects, skill.property, skill.scope);
 
   if (skill.aura) {
     const reach = skill.aura.affects === 'allBoard' ? 2 : 1;
@@ -527,6 +612,18 @@ export function powerLevelBreakdown(skill: SkillDef): PlBreakdownPart[] {
   // it — surface it as its own labeled part (keeps parts summing exactly).
   const extraHits = skill.effects.filter((a) => HIT_KINDS.has(a.kind)).length - 1;
   if (extraHits > 0) push('multi-hit', extraHits * PRICE.extraHitPremium);
+
+  // AoE REACH delta (see PRICE.aoeTargetsNum/Den and `actionsPriceDeci`'s doc
+  // comment): that function floors the multiplier ONCE across the whole
+  // offensive total, so flooring each action's/multi-hit's share separately
+  // above could sum to a different number — reported here as the exact
+  // DELTA the multiplier adds, the same telescoping trick `multi-hit` above
+  // already uses (raw parts + this delta = the scoped total, exactly).
+  if (skill.scope === 'all') {
+    const raw = actionsPriceDeci(skill.effects, skill.property, 'one');
+    const scoped = actionsPriceDeci(skill.effects, skill.property, 'all');
+    push('aoe reach', scoped - raw);
+  }
 
   if (skill.aura) {
     const reach = skill.aura.affects === 'allBoard' ? 2 : 1;
@@ -647,6 +744,17 @@ const TIER_SCALED_FAMILIES: ReadonlySet<keyof typeof EFFECT_CAPS_DECI> = new Set
  */
 export const HIT_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_PRICING[k].isHit);
 
+/**
+ * Kinds that resolve against FOES rather than the caster — the kinds
+ * `combat/interpreter.ts`'s `resolveTargets` fans out over every living foe
+ * under `scope: 'all'` (mirrors `isOffensiveAction` there exactly; see the
+ * `offensive` field's doc comment in `keywords/pricing.ts` for why this is
+ * duplicated data rather than an import). Only these pay the AoE reach
+ * multiplier in `actionsPriceDeci` (`PRICE.aoeTargetsNum/Den`) — support kinds
+ * always resolve once, on the caster, regardless of scope.
+ */
+export const OFFENSIVE_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_PRICING[k].offensive);
+
 export const CONTROL_KINDS: ReadonlySet<Action['kind']> = kindsInFamily('control');
 export const DOT_KINDS: ReadonlySet<Action['kind']> = kindsInFamily('dot');
 export const EMPOWER_KINDS: ReadonlySet<Action['kind']> = kindsInFamily('empower');
@@ -670,7 +778,7 @@ export function effectCapDeci(family: keyof typeof EFFECT_CAPS_DECI, size: numbe
 export function capViolations(skill: SkillDef): string[] {
   const violations: string[] = [];
   const spent = (kinds: ReadonlySet<Action['kind']>): number =>
-    actionsPriceDeci(skill.effects.filter((a) => kinds.has(a.kind)), skill.property);
+    actionsPriceDeci(skill.effects.filter((a) => kinds.has(a.kind)), skill.property, skill.scope);
   const check = (family: keyof typeof EFFECT_CAPS_DECI, kinds: ReadonlySet<Action['kind']>): void => {
     const deci = spent(kinds);
     const cap = effectCapDeci(family, skill.size, skill.tier);

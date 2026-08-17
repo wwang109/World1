@@ -57,6 +57,21 @@ interface KeywordPricingBase {
    */
   scalable: boolean;
   family: CapFamily | null;
+  /**
+   * Whether this keyword resolves against FOES rather than the caster —
+   * MIRRORS `isOffensiveAction` in `combat/interpreter.ts` EXACTLY (duplicated
+   * here as DATA rather than imported: `balance.ts` sits upstream of the
+   * combat loop — `combat/state.ts` imports it — so importing the interpreter
+   * back would close a layering cycle; same tradeoff `echoHostShareDeci`
+   * already accepts for `ownDamagePower`, with the same fix — a regression
+   * test pins the two lists together). Only `true` keywords fan out over
+   * EVERY living foe under `scope: 'all'` (`resolveTargets`), so only they pay
+   * the AoE reach multiplier (`PRICE.aoeTargetsNum/Den`, applied in
+   * `actionsPriceDeci`) — support keywords (heal/shield/buffStat/cleanse/
+   * taunt/lifesteal/comboBonus/thorns/guard/negate/ward) always resolve once,
+   * on the caster, regardless of scope, and are unaffected by it.
+   */
+  offensive: boolean;
 }
 
 /**
@@ -118,54 +133,54 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     true: P.flatTrueShieldPerPoint,
   };
   return {
-    damage: { isHit: true, scalable: true, family: 'damage', price: [{ form: 'perUnitByProperty', field: 'power', num: strikeRate, den: 1 }] },
+    damage: { isHit: true, scalable: true, family: 'damage', offensive: true, price: [{ form: 'perUnitByProperty', field: 'power', num: strikeRate, den: 1 }] },
     // An UNCAPPED statStrike prices at 0 through the `cap` field being absent —
     // deliberate, so it misses every band loudly. The echo's host-proportional
     // price lives in `gemPowerLevelDeci`, not in this card-rate table.
-    statStrike: { isHit: true, scalable: false, family: 'damage', price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: 1 }] },
-    heal: { isHit: false, scalable: true, family: 'heal', price: [{ form: 'perUnitByProperty', field: 'power', num: healRate, den: 1 }] },
-    shield: { isHit: false, scalable: true, family: 'shield', price: [{ form: 'perUnitByProperty', field: 'power', num: shieldRate, den: 1 }] },
+    statStrike: { isHit: true, scalable: false, family: 'damage', offensive: true, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: 1 }] },
+    heal: { isHit: false, scalable: true, family: 'heal', offensive: false, price: [{ form: 'perUnitByProperty', field: 'power', num: healRate, den: 1 }] },
+    shield: { isHit: false, scalable: true, family: 'shield', offensive: false, price: [{ form: 'perUnitByProperty', field: 'power', num: shieldRate, den: 1 }] },
 
     // LINEAR PER-STACK (user-locked 2026-07-23): priced on the authored stack
     // count, not the tick model's total. All three DoTs share the rate today.
-    poison: { isHit: false, scalable: false, family: 'dot', price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
-    burn: { isHit: false, scalable: false, family: 'dot', price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
-    bleed: { isHit: false, scalable: false, family: 'dot', price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
+    poison: { isHit: false, scalable: false, family: 'dot', offensive: true, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
+    burn: { isHit: false, scalable: false, family: 'dot', offensive: true, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
+    bleed: { isHit: false, scalable: false, family: 'dot', offensive: true, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
 
-    stun: { isHit: false, scalable: false, family: 'control', price: [{ form: 'perUnit', field: 'turns', num: P.stunPerTurn, den: 1 }] },
+    stun: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'turns', num: P.stunPerTurn, den: 1 }] },
     // Conditional-on-being-hit reflect pile: same linear per-stack rate as the
     // DoTs (max total reflected = N(N+1)/2, realised only if the holder keeps
     // getting hit — an upper bound, like bleed). Self buff => empower family.
-    thorns: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
-    buffStat: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
-    debuffStat: { isHit: false, scalable: false, family: 'control', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
-    expose: { isHit: false, scalable: false, family: 'control', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.exposePerPctTurnNum, den: P.exposePerPctTurnDen }] },
-    guard: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.guardPerPctTurnNum, den: P.guardPerPctTurnDen }] },
-    negate: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'charges', num: P.negatePerCharge, den: 1 }] },
+    thorns: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
+    buffStat: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
+    debuffStat: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
+    expose: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.exposePerPctTurnNum, den: P.exposePerPctTurnDen }] },
+    guard: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.guardPerPctTurnNum, den: P.guardPerPctTurnDen }] },
+    negate: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'charges', num: P.negatePerCharge, den: 1 }] },
     // The affliction mirror of negate, at half its rate: a charge denies ONE
     // EFFECT of a card (afflictions are riders) rather than a card's whole damage
     // line. Sits between the two removal keywords by construction —
     // cleanse 25 < ward 50 < negate 100 — and 50 deci makes the whole-PL step
     // exactly one charge. Self buff => empower family; prevents, never hits.
-    ward: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'charges', num: P.wardPerCharge, den: 1 }] },
+    ward: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'charges', num: P.wardPerCharge, den: 1 }] },
     // SCALABLE (user-locked 2026-08-17) and its OWN cap family ('cleanse', not
     // 'empower') — the one keyword the tier-scaler is allowed to grow, because
     // cleanse is self-repair, the mirror of a heal, and heals already scale
     // freely with tier. Every other empower/control member stays frozen.
-    cleanse: { isHit: false, scalable: true, family: 'cleanse', price: [{ form: 'perUnit', field: 'charges', num: P.cleansePerCharge, den: 1 }] },
+    cleanse: { isHit: false, scalable: true, family: 'cleanse', offensive: false, price: [{ form: 'perUnit', field: 'charges', num: P.cleansePerCharge, den: 1 }] },
 
-    slow: { isHit: false, scalable: false, family: 'control', price: [{ form: 'perUnit', field: 'weight', num: P.slowPerWeightNum, den: P.slowPerWeightDen }] },
-    disrupt: { isHit: false, scalable: false, family: 'control', price: [{ form: 'bracketed', field: 'amount', brackets: P.disruptBrackets }] },
-    lifesteal: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'pct', num: P.lifestealPerPctNum, den: P.lifestealPerPctDen }] },
-    shieldBreak: { isHit: false, scalable: false, family: 'control', price: [{ form: 'perUnit', field: 'amount', num: P.shieldBreakPerPointNum, den: P.shieldBreakPerPointDen }] },
-    comboBonus: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'amount', num: P.comboPerPointNum, den: P.comboPerPointDen }] },
+    slow: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'weight', num: P.slowPerWeightNum, den: P.slowPerWeightDen }] },
+    disrupt: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'bracketed', field: 'amount', brackets: P.disruptBrackets }] },
+    lifesteal: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'pct', num: P.lifestealPerPctNum, den: P.lifestealPerPctDen }] },
+    shieldBreak: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'amount', num: P.shieldBreakPerPointNum, den: P.shieldBreakPerPointDen }] },
+    comboBonus: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'amount', num: P.comboPerPointNum, den: P.comboPerPointDen }] },
 
     // KNOWN SILENT ZERO, now explicit rather than a missing switch arm. `taunt`
     // has an interpreter implementation and no rate; no card ships it. Giving it
     // a rate is a balance decision, not a refactor — until then the omission is
     // visible here instead of invisible in a switch.
     taunt: {
-      isHit: false, scalable: false, family: null, price: [],
+      isHit: false, scalable: false, family: null, offensive: false, price: [],
       unpricedReason: 'no rate set; permanent self-aggro has no duration term to price against',
     },
   };

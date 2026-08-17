@@ -5,8 +5,11 @@ import { tc, NO_ENDGAME } from '../helpers';
 
 /**
  * Inline test book. A single-target strike and an explicit `scope: 'all'` AoE.
- * These are TEST cards only — no real AoE content is authored or priced here
- * (balance prices `scope: 'all'` when a real AoE card ships).
+ * These are TEST cards only, priced off-budget on purpose — engine BEHAVIOR is
+ * this file's subject, not PL. `scope: 'all'` IS priced (`PRICE.aoeTargetsNum/
+ * Den` in `src/engine/balance.ts`, see `tests/engine/balance.test.ts` for the
+ * pricing coverage); no real AoE content ships yet, so the balance audit never
+ * exercises it against real cards.
  */
 const BOOK: SkillBook = {
   strike: {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  actionsPriceDeci,
   BUDGET_TOLERANCE_DECI,
   capViolations,
   disruptCostDeci,
@@ -9,6 +10,7 @@ import {
   isGemOnBudget,
   isOnBudget,
   MAX_STUN_PER_CARD,
+  OFFENSIVE_KINDS,
   PRICE,
   powerLevel,
   powerLevelBreakdown,
@@ -18,6 +20,8 @@ import {
 } from '../../src/engine/balance';
 import { skillBook } from '../../src/data/skills';
 import type { Gem, SkillDef } from '../../src/engine/types';
+import { BOSS_EVERY } from '../../src/run/runMap';
+import { PACK_VARIANT_WEIGHTS } from '../../src/run/encounter';
 
 // USER-LOCKED 2026-07-23 — no drift. The entire price table is frozen here:
 // changing any rate in balance.ts MUST also edit this literal, so every pricing
@@ -56,6 +60,12 @@ import type { Gem, SkillDef } from '../../src/engine/types';
 // rate for a FULL repeat of the host's attack, divided by `shareOf`. Not a new
 // anchor: it is the same "one whole cast's worth of output" 100 that
 // negatePerCharge and stunPerTurn already use. NO existing rate moved.
+//
+// 2026-08-17: aoeTargetsNum/Den (33/25 = 1.32x) ADDED — closes the verified
+// silent zero where `scope: 'all'` priced identically to a single-target card
+// despite hitting every living foe. Derived from the game's own pack-frequency
+// constants (`BOSS_EVERY`, `PACK_VARIANT_WEIGHTS` — see balance.ts for the full
+// arithmetic), not `MAX_FOES`. NO existing rate moved.
 describe('PRICE structure lock', () => {
   it('every PRICE rate matches its locked value', () => {
     expect(PRICE).toEqual({
@@ -95,6 +105,8 @@ describe('PRICE structure lock', () => {
       auraHealFlat: 10,
       auraWeightDelta: 20,
       extraHitPremium: 30,
+      aoeTargetsNum: 33,
+      aoeTargetsDen: 25,
       echoRepeatDeci: 100,
       heroStatPerPoint: { attack: 10, magicPower: 10, armor: 10, magicResist: 10, speed: 5 },
     });
@@ -384,6 +396,150 @@ describe('Power Level budgets', () => {
     // affliction has left after it already ticked.
     expect(PRICE.cleansePerCharge).toBeLessThan(PRICE.wardPerCharge);
     expect(PRICE.wardPerCharge).toBeLessThan(PRICE.negatePerCharge);
+  });
+});
+
+// `scope: 'all'` (AoE reach) — CLOSES A VERIFIED SILENT ZERO (2026-08-17):
+// `powerLevelDeci` never read `skill.scope` before this pass, so an AoE card
+// priced identically to a single-target one despite hitting every living foe
+// (`combat/interpreter.ts`'s `resolveTargets`). See `PRICE.aoeTargetsNum/Den`
+// in balance.ts for the full derivation.
+describe('AoE reach pricing (scope: all)', () => {
+  const mkDamage = (power: number, scope?: 'one' | 'all'): SkillDef => ({
+    id: 'x',
+    name: 'x',
+    archetypes: ['offense'],
+    property: 'physical',
+    weapon: 'sword',
+    size: 1,
+    rarity: 'common',
+    tier: 'bronze',
+    ...(scope === undefined ? {} : { scope }),
+    effects: [{ kind: 'damage', power }],
+    text: '',
+  });
+
+  it('aoeTargetsNum/Den (1.32x) is EXACTLY the steady-state expected-foe-count derived from the game\'s own pack constants, not MAX_FOES', () => {
+    // Every BOSS_EVERY-fight cadence block is 1 boss (always solo) + the rest
+    // non-boss, and PACK_VARIANT_WEIGHTS rolls solo/pair/trio on those — see
+    // `src/run/runMap.ts#BOSS_EVERY` and `src/run/encounter.ts#PACK_VARIANT_WEIGHTS`.
+    // This re-derives PRICE.aoeTargetsNum/Den from THOSE constants directly, so
+    // it fails loudly if the pack-frequency dials move without a matching
+    // pricing pass, instead of silently going stale.
+    const weightTotal = PACK_VARIANT_WEIGHTS.solo + PACK_VARIANT_WEIGHTS.pair + PACK_VARIANT_WEIGHTS.trio;
+    expect(weightTotal).toBe(100);
+    const nonBossFights = BOSS_EVERY - 1;
+    const mixNumerator = PACK_VARIANT_WEIGHTS.solo * 1 + PACK_VARIANT_WEIGHTS.pair * 2 + PACK_VARIANT_WEIGHTS.trio * 3;
+    // E = [1 boss * 1 foe * weightTotal + nonBossFights * mixNumerator] / (BOSS_EVERY * weightTotal)
+    const num = weightTotal + nonBossFights * mixNumerator;
+    const den = BOSS_EVERY * weightTotal;
+    const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+    const g = gcd(num, den);
+    expect(num / g).toBe(PRICE.aoeTargetsNum);
+    expect(den / g).toBe(PRICE.aoeTargetsDen);
+    expect(PRICE.aoeTargetsNum / PRICE.aoeTargetsDen).toBeCloseTo(1.32, 10);
+    // Sanity: MAX_FOES (5) is a sandbox ceiling, not the derived rate.
+    expect(PRICE.aoeTargetsNum / PRICE.aoeTargetsDen).toBeLessThan(5);
+  });
+
+  it('an AoE card prices ABOVE the identical single-target kit — the silent zero is closed', () => {
+    const single = mkDamage(40, 'one');
+    const aoe = mkDamage(40, 'all');
+    expect(powerLevelDeci(aoe)).toBeGreaterThan(powerLevelDeci(single));
+    // 40 power * flatPowerPerPoint(5) = 200 deci offensive share; scoped:
+    // floor(200 * 33/25) = 264 deci. Then − size1 grant (0) and weight (0
+    // deviation from baseline) leave both terms unchanged relative to a
+    // no-scope card of the same kit.
+    expect(powerLevelDeci(single)).toBe(200);
+    expect(powerLevelDeci(aoe)).toBe(264);
+  });
+
+  it('omitted scope (undefined) is byte-identical to explicit scope: "one" — un-flagged cards stay unaffected', () => {
+    const omitted = mkDamage(40);
+    const explicit = mkDamage(40, 'one');
+    expect(powerLevelDeci(omitted)).toBe(powerLevelDeci(explicit));
+    expect(actionsPriceDeci([{ kind: 'damage', power: 40 }], 'physical')).toBe(powerLevelDeci(omitted));
+  });
+
+  it('AoE reach applies ONLY to the OFFENSIVE share of a kit — a self-targeted rider on the same card is untouched', () => {
+    const mixed: SkillDef = {
+      id: 'x', name: 'x', archetypes: ['offense'], property: 'physical', weapon: 'sword',
+      size: 1, rarity: 'common', tier: 'bronze', scope: 'all',
+      effects: [
+        { kind: 'damage', power: 40 }, // offensive: pays the multiplier
+        { kind: 'buffStat', stat: 'attack', pct: 10, turns: 2 }, // self: does not
+      ],
+      text: '',
+    };
+    const offensiveShare = 40 * PRICE.flatPowerPerPoint; // 200
+    const selfShare = 10 * 2 * PRICE.statPctTurn; // 20
+    expect(powerLevelDeci(mixed)).toBe(Math.floor((offensiveShare * PRICE.aoeTargetsNum) / PRICE.aoeTargetsDen) + selfShare);
+    expect(powerLevelDeci(mixed)).toBe(264 + 20);
+  });
+
+  it('AoE reach also grows the multi-hit premium (an offensive cost), and floors ONCE over the whole offensive share — NOT once per action', () => {
+    // Deliberately small per-action values (power 1 -> 5 deci each) so a
+    // per-action floor would round away MORE than a single floor over the
+    // combined total does, making this test actually discriminate the two
+    // (at power 10 both approaches coincidentally agree — see history).
+    const effects: SkillDef['effects'] = [
+      { kind: 'damage', power: 1 },
+      { kind: 'damage', power: 1 },
+    ];
+    // Raw offensive share (scope 'one'): 2*(1*5) + 1*extraHitPremium(30) = 40.
+    const raw = actionsPriceDeci(effects, 'physical', 'one');
+    expect(raw).toBe(40);
+    const scoped = actionsPriceDeci(effects, 'physical', 'all');
+    // ONE floor over the combined 40: floor(40*33/25) = floor(52.8) = 52.
+    expect(scoped).toBe(Math.floor((raw * PRICE.aoeTargetsNum) / PRICE.aoeTargetsDen));
+    expect(scoped).toBe(52);
+    // A per-action floor (5+5+30 flooring each SEPARATELY: 6+6+39=51) would be
+    // a DIFFERENT, lower number — proving the implementation floors once, not
+    // per line item.
+    const perActionFloored =
+      Math.floor((5 * PRICE.aoeTargetsNum) / PRICE.aoeTargetsDen) * 2 +
+      Math.floor((30 * PRICE.aoeTargetsNum) / PRICE.aoeTargetsDen);
+    expect(scoped).not.toBe(perActionFloored);
+  });
+
+  it('the cap-family audit (capViolations) grows in lockstep — an AoE cannot use scope to sneak effective PL past its family cap', () => {
+    // A size-1 bronze `control` cap is 100 deci (EFFECT_CAPS_DECI.control[1]).
+    // debuffStat 50% for 2 turns = 50*2*statPctTurn(1) = 100 deci at scope 'one'
+    // — sits EXACTLY on the cap, no violation.
+    const mk = (scope: 'one' | 'all'): SkillDef => ({
+      id: 'x', name: 'x', archetypes: ['debuff'], property: 'physical', weapon: 'axe',
+      size: 1, rarity: 'common', tier: 'bronze', scope,
+      effects: [{ kind: 'debuffStat', stat: 'attack', pct: 50, turns: 2 }],
+      text: '',
+    });
+    expect(capViolations(mk('one'))).toEqual([]);
+    // At scope 'all' the SAME authored magnitude now spends floor(100*33/25) =
+    // 132 deci against the identical 100-deci cap — a real violation, so an
+    // AoE debuff can no longer buy more effective control than a single-target
+    // one of the same authored numbers.
+    expect(capViolations(mk('all'))).toEqual(['control 13.2 PL exceeds the size-1 bronze cap (10 PL)']);
+  });
+
+  it('powerLevelBreakdown reports the AoE delta as its own exact part, and parts still sum exactly', () => {
+    const aoe = mkDamage(40, 'all');
+    const parts = powerLevelBreakdown(aoe);
+    const aoePart = parts.find((p) => p.label === 'aoe reach');
+    expect(aoePart).toBeDefined();
+    // raw damage part (200) + aoe-reach delta (264-200=64) + weight(0) + size(0) = 264.
+    expect(aoePart!.deci).toBe(64);
+    expect(parts.reduce((sum, p) => sum + p.deci, 0)).toBe(powerLevelDeci(aoe));
+  });
+
+  it('OFFENSIVE_KINDS is pinned exactly — mirrors isOffensiveAction in combat/interpreter.ts', () => {
+    // If `combat/interpreter.ts`'s `isOffensiveAction` switch ever changes,
+    // this must be updated in lockstep (see the `offensive` field's doc
+    // comment in `src/engine/keywords/pricing.ts`) — this test is the
+    // regression guard for that drift, since balance.ts cannot import the
+    // interpreter's private classification directly (layering cycle).
+    expect(OFFENSIVE_KINDS).toEqual(new Set([
+      'damage', 'statStrike', 'poison', 'burn', 'bleed', 'stun',
+      'debuffStat', 'expose', 'slow', 'disrupt', 'shieldBreak',
+    ]));
   });
 });
 

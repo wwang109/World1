@@ -48,6 +48,7 @@ immediately):
 | `negate` (charges) | `charges * negatePerCharge` | `PRICE.negatePerCharge` — flat per-charge; see rationale below |
 | `ward` (charges) | `charges * wardPerCharge` | `PRICE.wardPerCharge` — half a negate charge: a charge denies one whole affliction APPLICATION (poison / burn / bleed / debuffStat / expose — not stun) rather than a card's whole damage line, and 50 deci is the median price of an application of a covered kind across the shipped book |
 | multi-hit premium | `(damageActions − 1) * extraHitPremium` | `PRICE.extraHitPremium` — every hit beyond the first re-delivers the caster's full (unpriced) stat add, so each extra hit pays a flat surcharge; each extra hit also eats mitigation again, the built-in counterweight vs armor stacks. First-pass rate, re-derive with sim data |
+| AoE reach (`scope: 'all'`) | `offensiveShare * aoeTargetsNum/Den`, floored once over the whole offensive share | `PRICE.aoeTargetsNum/Den` — flat multiplier on the OFFENSIVE portion of a kit (damage/DoT/control; see `OFFENSIVE_KINDS`), derived from the game's own pack-frequency constants, not `MAX_FOES`; see rationale below |
 | aura `damageFlat` / `healFlat` / `weightDelta` | `mod * rate * reach` (reach = 2 for `allBoard`, else 1) | `PRICE.auraDamageFlat` / `auraHealFlat` / `auraWeightDelta` — flat auras cost 2× a card's own one-shot flat damage: empirically the break-even where the best adjacent placement (2 casting neighbors) is PL-fair (2026-07-23 audit) |
 | weight | `(baseline − weight) * weightPer`, baseline = `size * 10` | `PRICE.weightPer` — lighter costs, heavier refunds |
 | size grant | `−sizeGrantDeci(size, tier)` | `PRICE.sizeGrant2Bronze/3Bronze` — grows at HALF the tier-budget growth (user-locked 2026-07-19); big cards get extra kit budget for board space + turn span |
@@ -123,6 +124,49 @@ Bronze card's output, so it's priced as a **flat deci-PL per charge**
 (`negatePerCharge`, user-locked 2026-07-19: one charge = one Bronze budget
 exactly; apply-time clamp caps total charges of a property at 3).
 
+## `scope: 'all'` (AoE reach) pricing rationale
+
+CLOSED A VERIFIED SILENT ZERO (2026-08-17): `powerLevelDeci` never read
+`skill.scope` before this — an AoE card priced identically to a single-target
+one while `combat/interpreter.ts`'s `resolveTargets` hits every living foe.
+
+Priced as ONE flat, HOST-BLIND multiplier (`PRICE.aoeTargetsNum/Den` = 33/25 =
+1.32×) on the OFFENSIVE portion of a kit only (`OFFENSIVE_KINDS` —
+damage/DoT/control; support riders stay self-targeted regardless of scope).
+Host-blind by necessity, the same precedent as `GEM_CANONICAL_PROPERTY`: a
+card has one PL, so the rate can't depend on whether it ends up on the hero's
+board (facing the enemy pack distribution) or an enemy's (facing the hero,
+always exactly 1 — packs are enemy-side only).
+
+**Not `MAX_FOES` (5)** — a sandbox ceiling nothing in real play produces every
+fight — **derived instead from the game's own pack-frequency constants**
+(`src/run/encounter.ts`, `src/run/runState.ts`): every 5-fight cadence block
+is 2 normal + 2 elite + 1 boss, boss nodes never roll a pack, and
+`PACK_VARIANT_WEIGHTS` rolls the remaining 4-in-5 at solo/pair/trio 70/20/10.
+The steady-state expected foe count: `1/5*1 + 4/5*(0.7*1+0.2*2+0.1*3) = 1.32`.
+This is a ceiling on the honest number, not the number itself — pack rolls
+fall back to solo below a level threshold (measured: pair unaffordable below
+level 9 elite / 17 normal, trio below 31 elite / 39 normal), so real play
+skews more solo than 1.32 implies; quantifying exactly how much more would
+require assuming a typical run length, which is the winrate-shaped tuning
+input this project's "PL, not winrate" rule (CLAUDE.md) forbids. Full
+arithmetic and citations: `PRICE.aoeTargetsNum` in `src/engine/balance.ts`.
+
+Applying the multiplier inside `actionsPriceDeci` (rather than only in
+`powerLevelDeci`) means `capViolations`'s per-family checks — which call the
+same function — grow in lockstep: an AoE buff or DoT cannot use `scope: 'all'`
+to invest more effective PL past its family cap than a single-target card of
+the same authored magnitude would.
+
+**Known adjacent gap (not fixed here, out of Task 1's scope):** a gem-appended
+offensive action inherits its HOST's `scope` for targeting (an echo of an AoE
+host fans out too — see `echoHostPower` in `src/engine/types.ts`), but
+`gemPowerLevelDeci` stays host-blind to AoE reach (it never sees the host's
+`scope`, matching how it never sees the host's `property` either). No shipped
+card sets `scope: 'all'` today, so no gem's action can combine with an AoE
+host in the current catalog — this is a latent gap for a future gem, not a
+live mispricing.
+
 ## `cooldown` pricing rationale
 
 Cooldown (`SkillDef.cooldownTurns`, `BASELINE_COOLDOWN` global turns — see
@@ -177,11 +221,14 @@ gem ruleset v1 §10 migration — was 46).
 ### `actionsPriceDeci`: the pricing switch, decoupled from `SkillDef`
 
 `powerLevelDeci` sums a card's kit by calling `actionsPriceDeci(skill.effects,
-skill.property)` and then layering on card-level things `actionsPriceDeci`
-deliberately does NOT know about: aura mods, weight, size grant, and cooldown
-deviation. `gemPowerLevelDeci` reuses the same `actionsPriceDeci` for effect
-gems, so a single per-unit rate table prices both authored card effects and
-gem effects — no duplicated switch.
+skill.property, skill.scope)` and then layering on card-level things
+`actionsPriceDeci` deliberately does NOT know about: aura mods, weight, size
+grant, and cooldown deviation. `scope` (third, optional — default `'one'`)
+applies the AoE reach multiplier to the OFFENSIVE share of the total when
+`'all'` (see the rationale section above); `gemPowerLevelDeci` reuses the same
+function at the default `'one'` for effect gems (host-blind on purpose — see
+that section's known-gap note), so a single per-unit rate table prices both
+authored card effects and gem effects — no duplicated switch.
 
 ### Effect gems
 
