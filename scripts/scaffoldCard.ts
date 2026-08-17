@@ -22,10 +22,20 @@
  * docs/card-text-style-guide.md, so the card-text drift guard passes without
  * hand-editing.
  *
- * KNOWN-INFEASIBLE SOLO KITS: `cleanse` alone can only total 25/75/125/... deci
- * (odd multiples of its 25-deci charge price) and never lands on a 100/150/200/
- * 250 budget; `lifesteal` alone caps at 60% = 40 deci, under every budget. Both
- * refuse cleanly — pair them with a scalable sink.
+ * KNOWN-INFEASIBLE SOLO KITS: `lifesteal` alone caps at 60% = 40 deci, under
+ * every budget, so it refuses cleanly — pair it with a scalable sink.
+ *
+ * WHAT ACTUALLY BOUNDS A CHARGE KEYWORD is its cap family, not its rate.
+ * `cleanse` is perfectly linear (25 deci/charge, whole-PL step of 2 charges), so
+ * every budget is reachable by rate alone: 4/6/8/10 charges = 100/150/200/250.
+ * `EFFECT_CAPS_DECI.empower` is what closes all but one of those doors — it
+ * allows only 100/150/200 deci at size 1/2/3, while the SIZE GRANT means a
+ * larger card must spend far MORE than its budget on effects (size 2 grants
+ * ~170 deci, size 3 ~550), so the cap tightens exactly as the requirement grows.
+ * The two curves touch at a single point: size 1 bronze, where cap = budget =
+ * 4 charges. That is why shipped `purify` is size-1 bronze cleanse-4 and why its
+ * silver/gold/diamond blocks must bolt on a TRUE heal rather than buy more
+ * charges. A capped solo kit is reported as a tier FAIL here, never shipped.
  *
  * KNOWN TODAY-COST: until the legacy literals in src/data/skills.ts are
  * deleted, a new card must be added BOTH to skills.v1.json and to skills.ts —
@@ -77,7 +87,11 @@ function seedAction(kind: Action['kind']): Action {
     case 'expose': return { kind, pct: 0, turns: 2 };
     case 'guard': return { kind, property: property === 'physical' ? 'physical' : 'magical', pct: 0, turns: 2 };
     case 'negate': return { kind, property: property === 'physical' ? 'physical' : 'magical', charges: 1 };
-    case 'cleanse': return { kind, charges: 1 };
+    // Seeded at ZERO like every other growable field: seeding cleanse at 1 made
+    // only ODD charge counts reachable (its whole-PL step is 2 charges), so
+    // 25/75/125/175 deci were the only totals and no budget was hit. From 0 the
+    // solver reaches 4/6/8 charges = 100/150/200 deci exactly.
+    case 'cleanse': return { kind, charges: 0 };
     case 'slow': return { kind, weight: 0 };
     case 'disrupt': return { kind, amount: 0 };
     case 'lifesteal': return { kind, pct: 0 };
