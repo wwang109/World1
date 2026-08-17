@@ -106,7 +106,6 @@ describe('run/runState: RunStats — shape + initial value', () => {
       cardsBought: 0,
       gemsBought: 0,
       eventsResolved: 0,
-      deepestDepth: 0,
       deepestWave: 0,
       livesLost: 0,
     });
@@ -117,27 +116,23 @@ describe('run/runState: RunStats — shape + initial value', () => {
   });
 });
 
-describe('run/runState: RunStats — chooseNode (deepestDepth/deepestWave/goldEarned)', () => {
-  it('tracks deepest depth/wave and daily-income goldEarned across several node commits', () => {
+describe('run/runState: RunStats — chooseNode (deepestWave/goldEarned)', () => {
+  it('tracks deepest wave and daily-income goldEarned across several node commits', () => {
     const state = walkNodes(11, 4);
-    expect(state.stats.deepestDepth).toBe(state.depth);
     expect(state.stats.deepestWave).toBeGreaterThanOrEqual(1);
     // 4 node commits -> at least 4 * DAILY_INCOME earned (fight wins add more on top).
     expect(state.stats.goldEarned).toBeGreaterThanOrEqual(4 * DAILY_INCOME);
   });
 
-  it('never regresses deepestDepth/deepestWave (monotonic, matches state.depth)', () => {
+  it('never regresses deepestWave (monotonic)', () => {
     let state = startedRun(3);
-    let prevDepth = 0;
     let prevWave = 0;
     for (let i = 0; i < 6; i++) {
       const choices = availableChoices(state);
       if (choices.length === 0) break;
       const node = choices[0]!;
       state = chooseNode(state, node.id);
-      expect(state.stats.deepestDepth).toBeGreaterThanOrEqual(prevDepth);
       expect(state.stats.deepestWave).toBeGreaterThanOrEqual(prevWave);
-      prevDepth = state.stats.deepestDepth;
       prevWave = state.stats.deepestWave;
       if (node.kind === 'shop') state = leaveShop(state);
       else if (node.kind === 'event') state = leaveEvent(state);

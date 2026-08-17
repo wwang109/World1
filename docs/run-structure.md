@@ -275,7 +275,7 @@ Two layers, both pure/integer, no UI yet (a stats screen is separate):
   `damageTaken` / `healingDone` (folded from a fight's `BattleLog` via
   `battleStatsFromEvents` in `logAnalysis.ts` — NO re-simulation), `goldEarned`
   / `goldSpent`, `cardsBought` / `gemsBought`, `eventsResolved`,
-  `deepestDepth` / `deepestWave` (from `chooseNode`), and `livesLost`. Updated
+  `deepestWave` (from `chooseNode`), and `livesLost`. Updated
   at the SAME transitions that already touch the counterpart field
   (`chooseNode`, `recordBattleResult`, `buyRunCard`/`buyRunGem`/
   `buyRunCardTo`/`sellRunCard`/`sellRunGem`/`rerollRunShop`,

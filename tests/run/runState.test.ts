@@ -37,6 +37,7 @@ import { BOSS_EVERY, ensureWavesThrough, type RunNode } from '../../src/run/runM
 import { bankedPL, LEVEL_STAT_COST } from '../../src/run/leveling';
 import { buildEnemyEncounter, TITLE_PRESETS } from '../../src/run/encounter';
 import { gemBook } from '../../src/data/gems';
+import { skillBook } from '../../src/data/skills';
 import type { SkillTier } from '../../src/engine/types';
 
 function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
@@ -46,6 +47,37 @@ function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
     picks[key] = draft[key][0]!.skillId;
   }
   return picks;
+}
+
+/** Same shape as `draftPicksFor`, but picks the LARGEST-size candidate in
+ * each of the 4 sets rather than always `[0]` — the policy that actually
+ * exercises the overflow path (offense(3) + defense(3) + support(2) +
+ * wildcard(3) = 11 > `RUN_BOARD_SLOTS` for several seeds), since a player is
+ * free to click any of the 5 offered cards per set (`DesktopDraftScene`). */
+function largestDraftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
+  const draft = rollStartDraft(seed);
+  const picks: Partial<Record<DraftSetKey, string>> = {};
+  for (const key of DRAFT_SET_KEYS) {
+    const set = draft[key];
+    let best = set[0]!;
+    for (const card of set) {
+      const bestSize = skillBook[best.skillId]?.size ?? 1;
+      const cardSize = skillBook[card.skillId]?.size ?? 1;
+      if (cardSize > bestSize) best = card;
+    }
+    picks[key] = best.skillId;
+  }
+  return picks;
+}
+
+/** Every owned skillId across both the board and the bag, for an
+ * `applyDraftResult` output — the invariant helper: this must always equal
+ * the set of picks the player actually made. */
+function ownedSkillIds(state: RunState): string[] {
+  return [
+    ...state.pieces.map((p) => p.skillId),
+    ...state.bagSlots.filter((c): c is NonNullable<RunBagSlot> => c != null).map((c) => c.skillId),
+  ];
 }
 
 function startedRun(seed: number): RunState {
@@ -166,6 +198,54 @@ describe('run/runState: draft + choices', () => {
   it('applyDraftResult throws once already active', () => {
     const state = startedRun(7);
     expect(() => applyDraftResult(state, draftPicksFor(7))).toThrow();
+  });
+
+  it('a pick that overflows the board (largest-card policy) lands in the bag instead of being dropped', () => {
+    // Seed 25 reproduces the historical bug: offense(3) + defense(3) +
+    // support(2) + wildcard(3) = 11 > RUN_BOARD_SLOTS(10), and the wildcard
+    // pick (annihilation_strike) used to be silently dropped.
+    for (const seed of [25, 45, 158, 187, 247]) {
+      const picks = largestDraftPicksFor(seed);
+      const pickedIds = DRAFT_SET_KEYS.map((key) => picks[key]).filter((id): id is string => id != null);
+      const totalSize = pickedIds.reduce((sum, id) => sum + (skillBook[id]?.size ?? 1), 0);
+      expect(totalSize).toBeGreaterThan(10); // confirms this seed actually overflows
+
+      const state = applyDraftResult(createRun(seed), picks);
+      expect(state.status).toBe('active');
+      // Every picked card is owned somewhere — board or bag — none dropped.
+      expect(ownedSkillIds(state).sort()).toEqual([...pickedIds].sort());
+      // The overflowing card specifically landed in the bag, not nowhere.
+      expect(state.bagSlots.some((c) => c != null)).toBe(true);
+      // Nothing on the board overlaps a bag slot, and vice versa: every
+      // board piece's slots stay within bounds (canPlace's own invariant).
+      for (const piece of state.pieces) {
+        const size = skillBook[piece.skillId]?.size ?? 1;
+        expect(piece.slot + size).toBeLessThanOrEqual(10);
+      }
+    }
+  });
+
+  it('the small-pick path (draftPicksFor: always candidate [0]) is unchanged — all 4 land on the board, none in the bag', () => {
+    for (const seed of [1, 2, 3, 7, 42, 999]) {
+      const picks = draftPicksFor(seed);
+      const state = applyDraftResult(createRun(seed), picks);
+      expect(state.pieces).toHaveLength(4);
+      expect(state.bagSlots.every((c) => c == null)).toBe(true);
+      const pickedIds = DRAFT_SET_KEYS.map((key) => picks[key]).filter((id): id is string => id != null);
+      expect(ownedSkillIds(state).sort()).toEqual([...pickedIds].sort());
+    }
+  });
+
+  it('invariant: owned-card count after applyDraftResult always equals picks made, across many seeds and both pick policies (largest never drops, and never throws)', () => {
+    for (let seed = 0; seed < 300; seed++) {
+      for (const picksFor of [draftPicksFor, largestDraftPicksFor]) {
+        const picks = picksFor(seed);
+        const pickedIds = DRAFT_SET_KEYS.map((key) => picks[key]).filter((id): id is string => id != null);
+        const state = applyDraftResult(createRun(seed), picks);
+        expect(ownedSkillIds(state)).toHaveLength(pickedIds.length);
+        expect(ownedSkillIds(state).sort()).toEqual([...pickedIds].sort());
+      }
+    }
   });
 
   it('availableChoices surfaces the depth-1 column (2-3 nodes) right after draft', () => {

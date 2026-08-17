@@ -541,8 +541,10 @@ export interface BattleGoldReward {
 }
 
 /**
- * Gold reward for a fight: `base` always pays out (win or lose); `winBonus`
- * only pays on a win. `winBonus` is derived from a `difficulty` score, summed
+ * Gold reward for a fight: `base` and `winBonus` both only pay out on a win —
+ * a loss credits NO gold (the caller, `resolveRunBattleResult` in
+ * `src/game/runStore.ts`, pays `0` on a loss; see `recordBattleResult` in
+ * `runState.ts`). `winBonus` is derived from a `difficulty` score, summed
  * per foe (integer math throughout):
  *   - `TITLE_WEIGHT[title]` (0-3): mob/normal/elite/boss, mirrors TITLE_PRESETS.
  *   - `max(0, foe.level - heroLevel)`: how far above the hero's level the foe is.

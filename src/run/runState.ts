@@ -107,8 +107,6 @@ export interface RunStats {
   gemsBought: number;
   /** Event choices resolved (`resolveEventChoice` calls), one per event visited. */
   eventsResolved: number;
-  /** Deepest map column (`RunNode.depth`) the run has committed to via `chooseNode`. */
-  deepestDepth: number;
   /** Highest wave number (`RunNode.wave`) the run has committed to via `chooseNode`. */
   deepestWave: number;
   /** Lives lost to fight/boss losses (mirrors `LIVES_PER_RUN - lives`, tracked directly so it survives even if `lives` regains a future refill mechanic). */
@@ -126,7 +124,6 @@ export function emptyRunStats(): RunStats {
     cardsBought: 0,
     gemsBought: 0,
     eventsResolved: 0,
-    deepestDepth: 0,
     deepestWave: 0,
     livesLost: 0,
   };
@@ -444,32 +441,51 @@ export function createRun(seed: number): RunState {
  * starting board, packed left-to-right in `DRAFT_SET_KEYS` order (same
  * placement idiom as `src/game/draftActions.ts#applyDraftPicks`, kept
  * independently here so `src/run` never imports from `src/game`). Only valid
- * while `status === 'drafting'`; transitions to `'active'` on success. A pick
- * that would overflow the board is silently dropped (shouldn't happen with
- * four bronze cards on a 10-slot board).
+ * while `status === 'drafting'`; transitions to `'active'` on success.
+ *
+ * The board is only guaranteed to fit the SMALLEST four picks — the catalog
+ * has size-3 bronze skills in offense/defense/wildcard, so a pick set can sum
+ * past `RUN_BOARD_SLOTS` (e.g. 3+3+2+3 = 11 > 10) and no packing order fits
+ * all four on the board. The player never loses a picked card for that: a
+ * pick that would overflow the board is instead placed in the bag (nearest
+ * fit from slot 0, the same idiom `tryInsertRunCard` uses for shop buys/event
+ * grants) — still owned, just not pre-equipped. Board packing for picks that
+ * DO fit is unchanged (left-to-right, `DRAFT_SET_KEYS` order), so any draft
+ * that already fit today produces a byte-identical board.
  */
 export function applyDraftResult(state: RunState, picks: Partial<Record<DraftSetKey, string>>): RunState {
   if (state.status !== 'drafting') {
     throw new Error(`applyDraftResult: run is not drafting (status "${state.status}")`);
   }
   const pieces: RunBoardPiece[] = [];
+  const bagSlots: RunBagSlot[] = [];
   let cursor = 0;
   let nextId = state.nextCardInstanceId;
   for (const key of DRAFT_SET_KEYS) {
     const skillId = picks[key];
     if (!skillId) continue;
     const size = Math.max(1, skillBook[skillId]?.size ?? 1);
-    if (cursor + size > RUN_BOARD_SLOTS) continue;
     const instanceId = `card_${String(nextId).padStart(3, '0')}`;
     nextId += 1;
-    pieces.push({ instanceId, skillId, tier: 'bronze', slot: cursor });
-    cursor += size;
+    if (cursor + size <= RUN_BOARD_SLOTS) {
+      pieces.push({ instanceId, skillId, tier: 'bronze', slot: cursor });
+      cursor += size;
+      continue;
+    }
+    const fit = runNearestFit(bagOccupiedFrom(bagSlots), size, 0);
+    if (fit < 0) {
+      // Unreachable for the current catalog (4 picks, largest bronze size 3,
+      // bag width == board width == RUN_BOARD_SLOTS, bag starts empty), but
+      // guarded rather than silently dropping the pick.
+      throw new Error(`applyDraftResult: no room on board or in bag for drafted pick "${skillId}"`);
+    }
+    bagSlots[fit] = { instanceId, skillId, tier: 'bronze' };
   }
   return {
     ...state,
     status: 'active',
     pieces,
-    bagSlots: [],
+    bagSlots,
     gold: 0,
     nextCardInstanceId: nextId,
   };
@@ -520,7 +536,6 @@ export function chooseNode(state: RunState, nodeId: string): RunState {
     stats: {
       ...state.stats,
       goldEarned: state.stats.goldEarned + DAILY_INCOME,
-      deepestDepth: Math.max(state.stats.deepestDepth, node.depth),
       deepestWave: Math.max(state.stats.deepestWave, node.wave),
     },
   };
@@ -782,14 +797,18 @@ export function rerollRunShop(state: RunState, nodeId: string): RunState {
   };
 }
 
-function runBagOccupied(state: RunState): boolean[] {
+function bagOccupiedFrom(bagSlots: readonly RunBagSlot[]): boolean[] {
   const occ = Array<boolean>(RUN_BOARD_SLOTS).fill(false);
-  state.bagSlots.forEach((card, index) => {
+  bagSlots.forEach((card, index) => {
     if (!card) return;
     const size = Math.max(1, skillBook[card.skillId]?.size ?? 1);
     for (let i = index; i < index + size && i < RUN_BOARD_SLOTS; i++) occ[i] = true;
   });
   return occ;
+}
+
+function runBagOccupied(state: RunState): boolean[] {
+  return bagOccupiedFrom(state.bagSlots);
 }
 
 function runNearestFit(occ: boolean[], size: number, prefer: number): number {
