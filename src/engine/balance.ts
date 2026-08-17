@@ -169,6 +169,15 @@ export const PRICE = {
    * rate NO gem rarity budget (2-8 PL) can afford even −1 turn, so nothing
    * in the current content deviates from the fixed baseline 3; the rate
    * exists to price any future exception honestly.
+   *
+   * THE LONG SIDE IS CLAMPED (2026-08-17, fail-open close): this rate is
+   * only honest for a deviation that actually removes/adds a cast. Read
+   * unclamped, `(BASELINE_COOLDOWN − cooldownTurns)` grows without bound as
+   * `cooldownTurns` grows, so an absurd cooldown (16, 99, ...) bought
+   * hundreds of deci of budget for refunding casts a card never had to begin
+   * with. See `MAX_COOLDOWN_TURNS` / `cooldownDeviationDeci` below — the ONE
+   * place this term is now computed, shared by `powerLevelDeci` here and
+   * `autoScaleTier` in cards.ts.
    */
   cooldownPerTurn: 100,
 
@@ -303,8 +312,19 @@ export const PRICE = {
    */
   wardPerCharge: 50,
 
-  /** aura (per point, on the projecting card): damageFlat * auraDamageFlat,
-   * healFlat * auraHealFlat, |weightDelta| * auraWeightDelta.
+  /** aura (per point, on the projecting card): |damageFlat| * auraDamageFlat,
+   * |healFlat| * auraHealFlat, |weightDelta| * auraWeightDelta — ALL THREE
+   * priced by MAGNITUDE (2026-08-17: closes a fail-open hole — damageFlat/
+   * healFlat used to price SIGNED while weightDelta alone was `Math.abs`'d in
+   * the same expression). An aura never affects its own host
+   * (`resolveAuras`'s `if (source === piece) continue`, combat/auras.ts) —
+   * only OTHER board cards — so a negative mod authored on a card is NEVER a
+   * cost that card's own kit pays; pricing it signed let a card buy down its
+   * own budget with a "downside" its own numbers never realize. Both
+   * directions of changing a neighbour (buff or debuff) are an equally real
+   * board effect, so both cost the same per point — the policy
+   * `auraWeightDelta` already used alone. See `auraModsDeci`, the one shared
+   * function every aura/card-scope-gem price now reads.
    * allBoard reach doubles the total.
    * FLAT damage/heal auras cost 2× a card's own one-shot flat damage (5/pt):
    * empirically (2026-07-23 audit, 500 seeds × all enemies) an adjacent aura's
@@ -516,6 +536,92 @@ export function sizeGrantDeci(size: number, tier: SkillTier): number {
 }
 
 /**
+ * Ceiling on `cooldownTurns`, for BOTH pricing (`cooldownDeviationDeci`
+ * below) and authoring (`capViolations`) — mirrors how `WEIGHT_MAX_BY_SIZE`
+ * bounds `speedWeight` in both places. Closes a fail-open hole (2026-08-17):
+ * `(BASELINE_COOLDOWN − cooldownTurns) * PRICE.cooldownPerTurn` is UNBOUNDED
+ * on the long side, so an absurd cooldown (16, 99, ...) refunded hundreds of
+ * deci for casts a card was never going to get anyway.
+ *
+ * DERIVED, not felt. `cooldownRemaining` (combat/castSelect.ts) states the
+ * cadence explicitly: "cast on turn T → eligible at T+cooldown+1", i.e. the
+ * minimum gap between two casts of the same card is `cooldownTurns + 1`
+ * turns. The MEDIAN fight length across the frozen 200-fight regression
+ * sweep (`tests/engine/fixtures/outcomeBaseline.json`, attrition ON — the
+ * mode real play always runs under; generator in
+ * `tests/engine/helpers/sweepConfigs.ts`) is 7 turns (mean ≈7.6; p75 10, p95
+ * 15, p99 17, max 19 — see the balance-designer's verification notes for the
+ * full percentile table). A card cast at the earliest possible turn (1) —
+ * the BEST case for a second cast — only lands a second cast within a
+ * TYPICAL (median-length) fight if `cooldownTurns + 1 <= 6`, i.e.
+ * `cooldownTurns <= 5`: at `cooldownTurns = 6` the earliest possible second
+ * cast (turn 1+7 = 8) already falls outside a 7-turn fight. Every piece
+ * always gets its FIRST cast regardless of cooldown
+ * (`cooldownRemaining` returns 0 for a never-cast piece), so a typical
+ * fight's realized cast count is already at its floor of exactly 1 once
+ * `cooldownTurns` reaches 6 — lengthening the cooldown further cannot remove
+ * a cast that was never going to happen in a typical fight anyway, so
+ * pricing more refund for it is fictitious.
+ *
+ * (`ATTRITION_START_TURN` = 15 is the OUTER design ceiling on fight length —
+ * the point the game's own stalemate-breaker starts ramping true damage —
+ * and is comfortably above this clamp, so the clamp binds well before that
+ * backstop would ever need to; it is the corroborating fact, not the anchor,
+ * because it bounds the tail of the distribution, not the typical case this
+ * rate has to be honest for.)
+ */
+export const MAX_COOLDOWN_TURNS = 6;
+
+/**
+ * THE ONE PLACE cooldown-deviation deci-PL is computed. Shared by
+ * `powerLevelDeci`/`powerLevelBreakdown` below and `autoScaleTier` in
+ * cards.ts — closes the THIRD MIRROR of this bug: `autoScaleTier` used to
+ * hand-roll `(BASELINE_COOLDOWN − cooldown) * PRICE.cooldownPerTurn` a
+ * second time, unclamped, so clamping only `powerLevelDeci` would have left
+ * the auto-scaler still spending the unbounded refund. A single function
+ * both callers read means a future clamp change (or a future caller) can
+ * never drift from this one again.
+ *
+ * Deviation is measured from `BASELINE_COOLDOWN`, clamped at
+ * `MAX_COOLDOWN_TURNS` on the long (refund) side — see its doc comment for
+ * the full derivation. The short side (a shorter-than-baseline cooldown,
+ * which COSTS PL) is left unclamped: it is self-limiting (no gem rarity
+ * budget, and no card tier budget, can afford even −1 turn at this rate), so
+ * there is no fictitious value to bound there.
+ */
+export function cooldownDeviationDeci(cooldownTurns: number | undefined): number {
+  const cooldown = Math.min(cooldownTurns ?? BASELINE_COOLDOWN, MAX_COOLDOWN_TURNS);
+  return (BASELINE_COOLDOWN - cooldown) * PRICE.cooldownPerTurn;
+}
+
+/**
+ * The three aura / card-scope-gem stat mods, priced by MAGNITUDE — `Math.abs`
+ * on every term, not just `weightDelta` (closes a fail-open hole, 2026-08-17:
+ * this expression used to price `damageFlat`/`healFlat` SIGNED while wrapping
+ * only `weightDelta` in `Math.abs`). An aura never affects its own host
+ * (`resolveAuras`'s `if (source === piece) continue`, combat/auras.ts) — it
+ * only ever lands on OTHER board cards — so a negative mod authored on a card
+ * is never a real cost that card's own kit pays; pricing it signed let a card
+ * buy down its own budget with a "downside" its own numbers never realize.
+ * Both directions of changing a neighbour (buff or debuff) are an equally
+ * real, board-shaping effect, so both cost the same per point — the policy
+ * `auraWeightDelta` already used alone; this makes all three consistent.
+ *
+ * ONE SHARED FUNCTION — used by a card's own `aura` block (`powerLevelDeci`/
+ * `powerLevelBreakdown` below), a card-scope stat gem (`gemPowerLevelDeci`),
+ * and `autoScaleTier`'s `auraCost` in cards.ts, which used to hand-roll this
+ * exact expression a THIRD time. `reach` (aura-only; a stat gem has none) is
+ * left to the caller, matching how each caller already applies it.
+ */
+export function auraModsDeci(mods: { damageFlat?: number; healFlat?: number; weightDelta?: number }): number {
+  return (
+    Math.abs(mods.damageFlat ?? 0) * PRICE.auraDamageFlat +
+    Math.abs(mods.healFlat ?? 0) * PRICE.auraHealFlat +
+    Math.abs(mods.weightDelta ?? 0) * PRICE.auraWeightDelta
+  );
+}
+
+/**
  * Pure pricing switch over a bare Action[] against a given `property`. This
  * is the per-unit rate table applied without any card-level context (size,
  * weight, aura, TRUE premium) — `powerLevelDeci` layers those on top for a
@@ -566,12 +672,7 @@ export function powerLevelDeci(skill: SkillDef): number {
 
   if (skill.aura) {
     const reach = skill.aura.affects === 'allBoard' ? 2 : 1;
-    const mods = skill.aura.mods;
-    deci +=
-      ((mods.damageFlat ?? 0) * PRICE.auraDamageFlat +
-        (mods.healFlat ?? 0) * PRICE.auraHealFlat +
-        Math.abs(mods.weightDelta ?? 0) * PRICE.auraWeightDelta) *
-      reach;
+    deci += auraModsDeci(skill.aura.mods) * reach;
   }
 
   // Weight: lighter than baseline costs, heavier refunds (slower attacks).
@@ -581,10 +682,10 @@ export function powerLevelDeci(skill: SkillDef): number {
   // Size grant (scales with the card's own tier budget).
   deci -= sizeGrantDeci(skill.size, skill.tier);
 
-  // Cooldown: shorter than baseline costs, longer than baseline refunds.
-  // Baseline cards (cooldownTurns omitted) price at exactly +0.
-  const cooldown = skill.cooldownTurns ?? BASELINE_COOLDOWN;
-  deci += (BASELINE_COOLDOWN - cooldown) * PRICE.cooldownPerTurn;
+  // Cooldown: shorter than baseline costs, longer than baseline refunds,
+  // CLAMPED past MAX_COOLDOWN_TURNS (see `cooldownDeviationDeci`). Baseline
+  // cards (cooldownTurns omitted) price at exactly +0.
+  deci += cooldownDeviationDeci(skill.cooldownTurns);
 
   return deci;
 }
@@ -627,19 +728,13 @@ export function powerLevelBreakdown(skill: SkillDef): PlBreakdownPart[] {
 
   if (skill.aura) {
     const reach = skill.aura.affects === 'allBoard' ? 2 : 1;
-    const mods = skill.aura.mods;
-    push('aura',
-      ((mods.damageFlat ?? 0) * PRICE.auraDamageFlat +
-        (mods.healFlat ?? 0) * PRICE.auraHealFlat +
-        Math.abs(mods.weightDelta ?? 0) * PRICE.auraWeightDelta) *
-      reach);
+    push('aura', auraModsDeci(skill.aura.mods) * reach);
   }
 
   const baseline = skill.size * 10;
   push('weight', (baseline - weightOf(skill)) * PRICE.weightPer);
   push('size', -sizeGrantDeci(skill.size, skill.tier));
-  const cooldown = skill.cooldownTurns ?? BASELINE_COOLDOWN;
-  push('cooldown', (BASELINE_COOLDOWN - cooldown) * PRICE.cooldownPerTurn);
+  push('cooldown', cooldownDeviationDeci(skill.cooldownTurns));
 
   return parts;
 }
@@ -712,6 +807,21 @@ export const WEIGHT_MIN = 5;
 export const WEIGHT_MAX_BY_SIZE: Record<number, number> = { 1: 20, 2: 30, 3: 40 };
 /** A card can occupy at most this many board slots. */
 export const MAX_CARD_SIZE = 3;
+
+/**
+ * Apply-time clamp ceilings for `expose`/`guard` — the SINGLE source of truth
+ * `validateSkillContent.ts` imports, so a shipped card can never be priced for
+ * amplification the engine will never deliver (closes the same shape of hole
+ * `MAX_WARD_CHARGES`/`MAX_NEGATE_CHARGES` already close for charge counts).
+ * MIRRORS combat/interpreter.ts's own clamps exactly — `Math.min(50,
+ * action.pct)` in the `expose` arm, `Math.min(60, action.pct)` in the `guard`
+ * arm — duplicated here as DATA rather than imported, the same layering
+ * tradeoff `OFFENSIVE_KINDS` already accepts (balance.ts sits upstream of the
+ * combat loop; importing the interpreter back would close a cycle). If either
+ * clamp in interpreter.ts ever moves, this constant must move with it.
+ */
+export const MAX_EXPOSE_PCT = 50;
+export const MAX_GUARD_PCT = 60;
 
 /**
  * Every family's cap was FROZEN across tiers (user-locked 2026-07-23): a
@@ -803,6 +913,13 @@ export function capViolations(skill: SkillDef): string[] {
   const wtMax = WEIGHT_MAX_BY_SIZE[Math.min(MAX_CARD_SIZE, skill.size)]!;
   if (wt < WEIGHT_MIN) violations.push(`weight ${wt} is below the minimum ${WEIGHT_MIN}`);
   if (wt > wtMax) violations.push(`weight ${wt} exceeds the size-${skill.size} max ${wtMax}`);
+  // Cooldown bound (native turns, not PL) — named at authoring time rather
+  // than showing up only as a mysterious budget/pricing miss. See
+  // `MAX_COOLDOWN_TURNS`'s doc comment for the derivation.
+  const cooldown = skill.cooldownTurns ?? BASELINE_COOLDOWN;
+  if (cooldown > MAX_COOLDOWN_TURNS) {
+    violations.push(`cooldownTurns ${cooldown} exceeds the max of ${MAX_COOLDOWN_TURNS}`);
+  }
   return violations;
 }
 
@@ -952,11 +1069,7 @@ export function gemPowerLevelDeci(gem: Gem, host?: SkillDef): number {
   if (gem.scope === 'card') {
     const card = gem.mods.card;
     if (!card) return 0;
-    return (
-      (card.damageFlat ?? 0) * PRICE.auraDamageFlat +
-      (card.healFlat ?? 0) * PRICE.auraHealFlat +
-      Math.abs(card.weightDelta ?? 0) * PRICE.auraWeightDelta
-    );
+    return auraModsDeci(card);
   }
 
   // Hero scope.

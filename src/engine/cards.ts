@@ -9,6 +9,8 @@
 import type { AuraMods } from './combat/auras';
 import {
   actionsPriceDeci,
+  auraModsDeci,
+  cooldownDeviationDeci,
   CONTROL_KINDS,
   DOT_KINDS,
   effectCapDeci,
@@ -101,17 +103,15 @@ export function autoScaleTier(def: SkillDef, targetTier: SkillTier): SkillDef {
   let auraCost = 0;
   if (def.aura) {
     const reach = def.aura.affects === 'allBoard' ? 2 : 1;
-    const m = def.aura.mods;
-    auraCost =
-      ((m.damageFlat ?? 0) * PRICE.auraDamageFlat +
-        (m.healFlat ?? 0) * PRICE.auraHealFlat +
-        Math.abs(m.weightDelta ?? 0) * PRICE.auraWeightDelta) *
-      reach;
+    auraCost = auraModsDeci(def.aura.mods) * reach;
   }
   const baseline = def.size * 10;
   const weightCost = (baseline - weightOf(def)) * PRICE.weightPer;
-  const cooldown = def.cooldownTurns ?? BASELINE_COOLDOWN;
-  const cooldownCost = (BASELINE_COOLDOWN - cooldown) * PRICE.cooldownPerTurn;
+  // THE THIRD MIRROR, closed (2026-08-17): this used to hand-roll
+  // `(BASELINE_COOLDOWN - cooldown) * PRICE.cooldownPerTurn` again, unclamped
+  // — the same fail-open hole `powerLevelDeci` had, spent a second time. Both
+  // callers now read the ONE shared, clamped function.
+  const cooldownCost = cooldownDeviationDeci(def.cooldownTurns);
   const sizeGrant = sizeGrantDeci(def.size, targetTier);
   const frozenDeci = controlCost + empowerCost + strikeCost + auraCost + extraHit + weightCost + cooldownCost - sizeGrant;
 

@@ -1,3 +1,4 @@
+import { MAX_EXPOSE_PCT, MAX_GUARD_PCT } from '../engine/balance';
 import { MAX_NEGATE_CHARGES, MAX_WARD_CHARGES, type Action, type SkillDef } from '../engine/types';
 
 /**
@@ -159,6 +160,53 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
    */
   const charges = (hi: number) => req(raw, 'charges', inRange(0, hi), 'an integer 0..' + String(hi) + ' (the engine clamps charges at apply time; authoring past the clamp pays PL for a charge that can never be granted, and a negative count would REFUND budget)', at, problems);
 
+  /**
+   * `pct` FOR `expose`/`guard`, RANGE-CHECKED AGAINST THE ENGINE'S OWN
+   * APPLY-TIME CLAMP — the exact same two silent-failure shapes `charges`
+   * closes above, applied to a `product` (pct*turns) rider instead of a
+   * `perUnit` charge count:
+   *
+   * OVER the clamp = PAYING PL FOR AMPLIFICATION THAT NEVER LANDS.
+   * `interpreter.ts`'s `expose`/`guard` arms clamp the authored `pct` to
+   * `MAX_EXPOSE_PCT`/`MAX_GUARD_PCT` before applying it, but `powerLevelDeci`
+   * charges the authored number — so `expose pct: 100` prices for 100% while
+   * the engine only ever delivers 50%.
+   *
+   * UNDER zero = BUYING BUDGET. `pct * turns` prices negatively with no
+   * floor, and the engine reads the clamped `pct` straight into `addStatus` —
+   * nothing floors a negative pile at apply time the way `charges`'
+   * `Math.max(0, ...)` does, so a negative `pct` is a REAL (inverted) effect
+   * on the two riders that have no clamp of their own (see `lifestealPct`/
+   * `slowWeight` below for the two shapes that ARE genuine apply-time
+   * no-ops) — but `expose`/`guard` are still floored at 0 here because
+   * neither keyword has any documented use for an authored negative
+   * amplification, and leaving it open only adds a second way to buy budget
+   * for the same rider this helper already bounds on the high side.
+   */
+  const clampedPct = (hi: number) => req(raw, 'pct', inRange(0, hi), 'an integer 0..' + String(hi) + ' (the engine clamps pct at apply time; authoring past ' + String(hi) + ' pays PL for amplification it will never deliver, and a negative pct would REFUND budget)', at, problems);
+
+  /**
+   * `lifesteal`'s `pct` FLOORED AT 0. No engine ceiling to mirror here (unlike
+   * `clampedPct`'s pair) — lifesteal scales off whatever damage THIS cast
+   * actually deals (`PRICE.lifestealPerPctNum/Den`), so there is no fixed
+   * apply-time cap to bound against. The floor closes the same silent-zero
+   * shape as `charges`: `interpreter.ts`'s `lifesteal` arm computes
+   * `stolen = floor(damageDealt * pct / 100)` and then `if (stolen <= 0)
+   * break` — a negative `pct` prices as a refund for a rider the engine turns
+   * into a no-op before any heal is even attempted.
+   */
+  const lifestealPct = () => req(raw, 'pct', inRange(0, 1000), 'an integer 0..1000 (a negative pct prices as a refund for a rider the engine turns into a no-op — stolen <= 0 breaks before any heal is applied)', at, problems);
+
+  /**
+   * `slow`'s `weight` FLOORED AT 0. `interpreter.ts`'s `slow` arm applies
+   * `enemy.nextWeightPenalty = Math.max(enemy.nextWeightPenalty, action.weight)`
+   * — a MAX, never a sum — so a negative `weight` can only ever match or lose
+   * to whatever penalty is already pending; it can never lower it. The same
+   * silent-zero shape as `charges`' under-zero case, on a `perUnit` rider
+   * instead of a charge count.
+   */
+  const slowWeight = () => req(raw, 'weight', inRange(0, 999), 'an integer 0..999 (a negative weight prices as a refund for a rider the engine turns into a no-op — Math.max(pending, weight) never lowers the pending penalty)', at, problems);
+
   // UNKNOWN KEYS on the action itself (fix: `capp` typo used to pass clean).
   const known = ACTION_FIELDS[kind];
   if (known) {
@@ -182,10 +230,10 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     case 'burn': stacks('stacks'); break;
     case 'bleed': stacks('stacks'); break;
     case 'stun': turns('turns'); break;
-    case 'slow': num('weight'); break;
+    case 'slow': slowWeight(); break;
     case 'disrupt': num('amount'); break;
-    case 'expose': pct('pct'); turns('turns'); break;
-    case 'guard': property(); pct('pct'); turns('turns'); break;
+    case 'expose': clampedPct(MAX_EXPOSE_PCT); turns('turns'); break;
+    case 'guard': property(); clampedPct(MAX_GUARD_PCT); turns('turns'); break;
     case 'negate': property(); charges(MAX_NEGATE_CHARGES); break;
     case 'ward': charges(MAX_WARD_CHARGES); break;
     // cleanse has NO upper clamp in the engine — every charge is spent against
@@ -193,7 +241,7 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     // wasteful rather than unbuyable. It gets the same sane authoring ceiling as
     // `stacks` (catching a stray extra digit) and the same 0 floor as the rest.
     case 'cleanse': charges(999); break;
-    case 'lifesteal': pct('pct'); break;
+    case 'lifesteal': lifestealPct(); break;
     case 'shieldBreak': num('amount'); break;
     case 'comboBonus': num('amount'); break;
     case 'taunt': num('amount'); break;
@@ -207,6 +255,22 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
 const AURA_FIELDS = new Set(['affects', 'reach', 'archetypeFilter', 'propertyFilter', 'mods']);
 const AURA_AFFECTS = ['adjacent', 'left', 'right', 'allBoard'] as readonly string[];
 const AURA_MODS = ['damageFlat', 'healFlat', 'weightDelta'] as readonly string[];
+
+// NO SIGN RESTRICTION on `mods.damageFlat`/`healFlat`/`weightDelta` here, ON
+// PURPOSE (balance-designer decision, 2026-08-17, closing the fail-open hole
+// alongside `expose`/`guard`/`lifesteal`/`slow` above): a negative mod is a
+// REAL, working effect (a debuff aura — `negative weightDelta` already ships
+// as a genuine "cast sooner" haste buff, its mirror would be a genuine
+// slow), never an apply-time no-op the way an over-clamped `pct` or an
+// under-zero `charges`/`weight` is. The exploit here was a PRICING bug, not
+// an authoring-shape bug: `powerLevelDeci`'s aura term used to price
+// `damageFlat`/`healFlat` SIGNED while wrapping only `weightDelta` in
+// `Math.abs`, letting a card buy down its own budget with a "downside" its
+// own aura can never realize on itself (`resolveAuras`'s
+// `if (source === piece) continue`, combat/auras.ts — an aura never affects
+// its own host). Fixed at the SOURCE (`auraModsDeci` in balance.ts, now
+// `Math.abs` on all three terms, not just `weightDelta`) rather than by
+// rejecting the shape here, because the shape is legitimate content.
 
 /**
  * An aura is projected onto neighbouring board cards, and the engine reads

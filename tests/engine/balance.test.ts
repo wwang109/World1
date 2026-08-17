@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
   actionsPriceDeci,
+  auraModsDeci,
   BUDGET_TOLERANCE_DECI,
   capViolations,
+  cooldownDeviationDeci,
   disruptCostDeci,
   EFFECT_CAPS_DECI,
   effectCapDeci,
   gemPowerLevelDeci,
   isGemOnBudget,
   isOnBudget,
+  MAX_COOLDOWN_TURNS,
+  MAX_EXPOSE_PCT,
+  MAX_GUARD_PCT,
   MAX_STUN_PER_CARD,
   OFFENSIVE_KINDS,
   PRICE,
@@ -19,7 +24,7 @@ import {
   TIER_BUDGET_DECI,
 } from '../../src/engine/balance';
 import { skillBook } from '../../src/data/skills';
-import type { Gem, SkillDef } from '../../src/engine/types';
+import { BASELINE_COOLDOWN, type Gem, type SkillDef } from '../../src/engine/types';
 import { BOSS_EVERY } from '../../src/run/runMap';
 import { PACK_VARIANT_WEIGHTS } from '../../src/run/encounter';
 
@@ -396,6 +401,118 @@ describe('Power Level budgets', () => {
     // affliction has left after it already ticked.
     expect(PRICE.cleansePerCharge).toBeLessThan(PRICE.wardPerCharge);
     expect(PRICE.wardPerCharge).toBeLessThan(PRICE.negatePerCharge);
+  });
+});
+
+// FAIL-OPEN CLOSE (2026-08-17): `(BASELINE_COOLDOWN - cooldownTurns) *
+// cooldownPerTurn` used to grow WITHOUT BOUND as cooldownTurns grew, so an
+// absurd cooldown bought a refund with no honest ceiling — verified directly
+// on sword_slash before this fix: cd 8 -> PL -400, cd 16 -> PL -1200, cd 99
+// -> PL -9500, all with capViolations() === []. See MAX_COOLDOWN_TURNS's doc
+// comment in balance.ts for the fight-length arithmetic the clamp is derived
+// from.
+describe('cooldown deviation is CLAMPED (fail-open close)', () => {
+  const mk = (cooldownTurns: number): SkillDef => ({
+    id: 'x', name: 'x', archetypes: ['offense'], property: 'physical', weapon: 'sword',
+    size: 1, rarity: 'common', tier: 'bronze', cooldownTurns,
+    effects: [{ kind: 'damage', power: 20 }],
+    text: '',
+  });
+
+  it('MAX_COOLDOWN_TURNS is 6 turns beyond baseline (BASELINE_COOLDOWN 3)', () => {
+    expect(BASELINE_COOLDOWN).toBe(3);
+    expect(MAX_COOLDOWN_TURNS).toBe(6);
+  });
+
+  it('cooldownDeviationDeci stops growing past MAX_COOLDOWN_TURNS — every value beyond it prices IDENTICALLY', () => {
+    const atCap = cooldownDeviationDeci(MAX_COOLDOWN_TURNS);
+    expect(atCap).toBe((BASELINE_COOLDOWN - MAX_COOLDOWN_TURNS) * PRICE.cooldownPerTurn);
+    expect(atCap).toBe(-300); // (3 - 6) * 100
+    for (const cd of [7, 8, 16, 50, 99]) {
+      expect(cooldownDeviationDeci(cd)).toBe(atCap);
+    }
+    // Below the cap, every turn still moves the price (unclamped side is
+    // honest — the refund only stops growing once it would be fictitious).
+    expect(cooldownDeviationDeci(5)).toBeLessThan(cooldownDeviationDeci(4));
+    expect(cooldownDeviationDeci(4)).toBeLessThan(cooldownDeviationDeci(3));
+  });
+
+  it('an omitted cooldownTurns prices at exactly +0 (baseline is free, unaffected by the clamp)', () => {
+    expect(cooldownDeviationDeci(undefined)).toBe(0);
+  });
+
+  it('powerLevelDeci on sword_slash: the refund is now bounded — cd 8/16/99 all price IDENTICALLY, not −400/−1200/−9500', () => {
+    const sword = skillBook.sword_slash!;
+    const at = (cd: number): number => powerLevelDeci({ ...sword, cooldownTurns: cd });
+    const baseline = at(BASELINE_COOLDOWN);
+    expect(at(0)).toBe(baseline + 300); // (3-0)*100, unaffected: short side is unclamped
+    expect(at(4)).toBe(baseline - 100);
+    const clamped = at(MAX_COOLDOWN_TURNS);
+    expect(at(8)).toBe(clamped);
+    expect(at(16)).toBe(clamped);
+    expect(at(99)).toBe(clamped);
+    expect(at(8)).not.toBe(baseline - 500); // the old unclamped figure
+    expect(at(16)).not.toBe(baseline - 1300);
+    expect(at(99)).not.toBe(baseline - 9600);
+  });
+
+  it('capViolations NAMES a cooldownTurns past the max, at authoring time (mirrors WEIGHT_MAX_BY_SIZE)', () => {
+    expect(capViolations(mk(6))).toEqual([]);
+    expect(capViolations(mk(7))).toEqual([`cooldownTurns 7 exceeds the max of ${MAX_COOLDOWN_TURNS}`]);
+    expect(capViolations(mk(99))).toEqual([`cooldownTurns 99 exceeds the max of ${MAX_COOLDOWN_TURNS}`]);
+  });
+});
+
+// FAIL-OPEN CLOSE (2026-08-17): the aura/card-scope-gem stat-mod expression
+// used to price `damageFlat`/`healFlat` SIGNED while wrapping only
+// `weightDelta` in `Math.abs`, in the same expression. An aura never affects
+// its own host (`resolveAuras`'s `if (source === piece) continue`), so a
+// negative mod on a card's OWN aura is never a cost that card's own kit pays
+// — pricing it signed let a card buy down its own budget with a "downside"
+// its own numbers never realize.
+describe('aura mods are priced by MAGNITUDE, not sign (fail-open close)', () => {
+  it('auraModsDeci prices a negative mod IDENTICALLY to its positive magnitude, for all three mods', () => {
+    expect(auraModsDeci({ damageFlat: -20 })).toBe(auraModsDeci({ damageFlat: 20 }));
+    expect(auraModsDeci({ healFlat: -15 })).toBe(auraModsDeci({ healFlat: 15 }));
+    expect(auraModsDeci({ weightDelta: -6 })).toBe(auraModsDeci({ weightDelta: 6 }));
+    expect(auraModsDeci({ damageFlat: -20 })).toBe(20 * PRICE.auraDamageFlat);
+  });
+
+  it('a card can no longer buy down its own budget with a self-hosted negative aura (verified exploit, now closed)', () => {
+    const withNegativeAura: SkillDef = {
+      id: 'x', name: 'x', archetypes: ['offense'], property: 'physical', weapon: 'sword',
+      size: 1, rarity: 'common', tier: 'bronze',
+      effects: [{ kind: 'damage', power: 60 }],
+      aura: { affects: 'adjacent', reach: 0, mods: { damageFlat: -20 } },
+      text: '',
+    };
+    const noAura: SkillDef = { ...withNegativeAura, aura: undefined };
+    // Before this fix: powerLevelDeci(withNegativeAura) was 100 (onBudget at
+    // Bronze) — a 300-deci hit "discounted" by an aura that can never touch
+    // its own host. Now the aura only ever ADDS cost, never subtracts it.
+    expect(powerLevelDeci(noAura)).toBe(300);
+    expect(powerLevelDeci(withNegativeAura)).toBe(500); // 300 + abs(-20)*10
+    expect(powerLevelDeci(withNegativeAura)).toBeGreaterThan(powerLevelDeci(noAura));
+    expect(isOnBudget(withNegativeAura)).toBe(false);
+  });
+
+  it('card-scope stat gem: a negative mod prices the same as its positive magnitude', () => {
+    const negative: Gem = { kind: 'stat', id: 'g', rarity: 'rare', scope: 'card', mods: { card: { damageFlat: -4 } } };
+    const positive: Gem = { kind: 'stat', id: 'g', rarity: 'rare', scope: 'card', mods: { card: { damageFlat: 4 } } };
+    expect(gemPowerLevelDeci(negative)).toBe(gemPowerLevelDeci(positive));
+    expect(gemPowerLevelDeci(negative)).toBe(4 * PRICE.auraDamageFlat);
+  });
+});
+
+// Ceilings the CONTENT SCHEMA (`validateSkillContent.ts`) imports rather than
+// hardcoding — see that file's `clampedPct` for the exploit this closes
+// (expose/guard pricing past what the engine's own apply-time clamp ever
+// delivers). Pinned here so a drift between the two clamps and these
+// constants is a red test, not a silent mismatch.
+describe('MAX_EXPOSE_PCT / MAX_GUARD_PCT mirror interpreter.ts\'s apply-time clamps', () => {
+  it('50 / 60 — matches Math.min(50, ...) / Math.min(60, ...) in combat/interpreter.ts', () => {
+    expect(MAX_EXPOSE_PCT).toBe(50);
+    expect(MAX_GUARD_PCT).toBe(60);
   });
 });
 

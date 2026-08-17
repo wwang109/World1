@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { applyTier, autoScaleTier } from '../../src/engine/cards';
-import { capViolations, powerLevelDeci, TIER_BUDGET_DECI } from '../../src/engine/balance';
+import {
+  auraModsDeci,
+  capViolations,
+  cooldownDeviationDeci,
+  MAX_COOLDOWN_TURNS,
+  powerLevelBreakdown,
+  powerLevelDeci,
+  TIER_BUDGET_DECI,
+} from '../../src/engine/balance';
 import { skillBook } from '../../src/data/skills';
-import type { SkillTier } from '../../src/engine/types';
+import type { SkillDef, SkillTier } from '../../src/engine/types';
 
 /**
  * Cards the budget-honest auto-scaler CANNOT lift to a higher tier's budget:
@@ -177,5 +185,71 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
         expect(capViolations(scaled)).toEqual([]);
       }
     }
+  });
+
+  /**
+   * THE THIRD MIRROR (fail-open close, 2026-08-17). `autoScaleTier` used to
+   * hand-roll BOTH the cooldown-deviation term AND the aura-mods term a
+   * second time, each unclamped/signed independently of `powerLevelDeci`'s
+   * own (now-fixed) copies — so clamping `balance.ts` alone would have left
+   * this file still spending the unbounded/signed value. NO shipped card
+   * (0/74) overrides `cooldownTurns`, so this scenario never exercised the
+   * scaler before — these are the fixtures that finally do.
+   */
+  describe('THE THIRD MIRROR: autoScaleTier reads the SAME shared, clamped functions as powerLevelDeci', () => {
+    it('cooldownTurns: 8 (past MAX_COOLDOWN_TURNS) — the base card fails the cooldown-bound audit AND the scaled card derives the SAME sink value the balance.ts breakdown would', () => {
+      const base: SkillDef = {
+        id: 'test_cooldown_third_mirror', name: 'Test Cooldown Third Mirror',
+        archetypes: ['offense'], property: 'physical', weapon: 'sword',
+        size: 1, rarity: 'common', tier: 'bronze', cooldownTurns: 8,
+        effects: [{ kind: 'damage', power: 1 }],
+        text: 'Deal 1 physical damage.',
+      };
+      // The base (Bronze) card is invalid content on its own: cooldownTurns
+      // 8 exceeds MAX_COOLDOWN_TURNS (6) — named at authoring time.
+      expect(capViolations(base)).toEqual([`cooldownTurns 8 exceeds the max of ${MAX_COOLDOWN_TURNS}`]);
+      // Its own (pre-scale) price already reads the CLAMPED cooldown term —
+      // (BASELINE_COOLDOWN - 6) * 100 = -300, not the unclamped (3-8)*100 = -500.
+      expect(powerLevelDeci(base)).toBe(1 * 5 + cooldownDeviationDeci(8));
+      expect(cooldownDeviationDeci(8)).toBe(-300);
+
+      // Scaling to Silver: BEFORE this fix, autoScaleTier's own hand-rolled
+      // cooldownCost used the UNCLAMPED -500, freeing 650 deci of sink budget
+      // and deriving `damage: 130` (650/5) — a card that then ALSO blew the
+      // size-1 damage cap (650 deci = 65 PL against a 30 PL ceiling). AFTER
+      // this fix, autoScaleTier calls the exact same `cooldownDeviationDeci`
+      // powerLevelDeci uses, so it frees only 450 deci and derives `damage: 90`.
+      const scaled = autoScaleTier(base, 'silver');
+      const dmg = scaled.effects.find((a) => a.kind === 'damage') as { power: number };
+      expect(dmg.power).toBe(90); // NOT 130 — the pre-fix, drifted value
+      expect(powerLevelDeci(scaled)).toBe(TIER_BUDGET_DECI.silver);
+      // The 'cooldown' part of the scaled card's OWN balance.ts breakdown
+      // agrees EXACTLY with the clamped value autoScaleTier used internally
+      // — the two callers can no longer drift apart.
+      const cooldownPart = powerLevelBreakdown(scaled).find((p) => p.label === 'cooldown');
+      expect(cooldownPart?.deci).toBe(cooldownDeviationDeci(8));
+      // Still invalid content (cooldownTurns is FROZEN across tiers, by
+      // design) — the scaled card still names the same violation.
+      expect(capViolations(scaled)).toContain(`cooldownTurns 8 exceeds the max of ${MAX_COOLDOWN_TURNS}`);
+    });
+
+    it('a self-hosted negative aura mod: autoScaleTier\'s frozen auraCost matches the SAME auraModsDeci powerLevelDeci reads', () => {
+      const base: SkillDef = {
+        id: 'test_aura_third_mirror', name: 'Test Aura Third Mirror',
+        archetypes: ['offense'], property: 'physical', weapon: 'sword',
+        size: 1, rarity: 'common', tier: 'bronze',
+        effects: [{ kind: 'damage', power: 1 }],
+        aura: { affects: 'adjacent', reach: 0, mods: { damageFlat: -4 } },
+        text: 'Deal 1 physical damage. Passive: adjacent cards -4 damage.',
+      };
+      const scaled = autoScaleTier(base, 'silver');
+      const auraPart = powerLevelBreakdown(scaled).find((p) => p.label === 'aura');
+      // reach 1 (adjacent, not allBoard) * auraModsDeci(|{-4}|) — priced by
+      // magnitude, so this is POSITIVE cost, not a refund.
+      expect(auraPart?.deci).toBe(auraModsDeci(base.aura!.mods));
+      expect(auraPart?.deci).toBeGreaterThan(0);
+      expect(powerLevelDeci(scaled)).toBe(TIER_BUDGET_DECI.silver);
+      expect(capViolations(scaled)).toEqual([]);
+    });
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { actionsPriceDeci, capViolations, isOnBudget } from '../../src/engine/balance';
+import { actionsPriceDeci, capViolations, isOnBudget, MAX_EXPOSE_PCT, MAX_GUARD_PCT } from '../../src/engine/balance';
 import { MAX_WARD_CHARGES, type SkillDef } from '../../src/engine/types';
 import { validateSkillDocument } from '../../src/data/validateSkillContent';
 import { findDuplicateKeys } from '../../scripts/jsonDuplicateKeys';
@@ -214,6 +214,96 @@ describe('data: content schema contract', () => {
       for (let n = 0; n <= 3; n += 1) passes([{ kind: 'negate', property: 'magical', charges: n }]);
       // cleanse has no engine clamp — spare charges simply find nothing to strip.
       for (const n of [0, 1, 4, 999]) passes([{ kind: 'cleanse', charges: n }]);
+    });
+  });
+
+  /**
+   * `expose`/`guard` PCT IS BOUNDED BY THE ENGINE'S APPLY-TIME CLAMP — the
+   * SAME shape as the `ward`/`negate` charge-count story above, one section
+   * up, applied to a `product` (pct × turns) rider instead of a `perUnit`
+   * charge count:
+   *
+   *  - ABOVE the clamp, the card pays PL for amplification it will never
+   *    deliver: `interpreter.ts` clamps `expose` to <=50% and `guard` to
+   *    <=60% at apply time, but `powerLevelDeci` charges the authored pct.
+   *  - BELOW zero, the card BUYS budget for a rider with no apply-time floor
+   *    of its own — a negative `pct`/`turns` product prices negatively with
+   *    nothing on the engine side to stop it.
+   */
+  describe('expose/guard pct is bounded by the engine clamp (fail-open close, 2026-08-17)', () => {
+    const withEffects = (effects: Array<Record<string, unknown>>): Doc => {
+      const d = clone();
+      vers(d)[0]!.def.effects = effects;
+      return d;
+    };
+    const passes = (effects: Array<Record<string, unknown>>): void => {
+      expect(validateSkillDocument(withEffects(effects))).toEqual([]);
+    };
+
+    it('expose pct:100 turns:1 is rejected — the balance gates alone let it through', () => {
+      const overClamp: SkillDef = {
+        id: 'test_expose_over_clamp', name: 'Over-Exposed', archetypes: ['debuff'],
+        property: 'magical', element: 'dark', size: 1, rarity: 'common', tier: 'bronze',
+        effects: [{ kind: 'expose', pct: 100, turns: 1 }],
+        text: 'Expose 100% for 1 turn.',
+      };
+      // The engine only ever delivers 50% (Math.min(50, ...)); the balance
+      // gates see a card that prices exactly on budget and breaks no cap.
+      expect(isOnBudget(overClamp), 'prices exactly on the bronze budget').toBe(true);
+      expect(capViolations(overClamp), 'breaks no effect cap').toEqual([]);
+      failsWith(withEffects([{ kind: 'expose', pct: 100, turns: 1 }]), `pct must be an integer 0..${MAX_EXPOSE_PCT}`);
+    });
+
+    it('guard pct:100 turns:1 is rejected — the balance gates alone let it through', () => {
+      const overClamp: SkillDef = {
+        id: 'test_guard_over_clamp', name: 'Over-Guarded', archetypes: ['defensive'],
+        property: 'magical', element: 'holy', size: 1, rarity: 'common', tier: 'bronze',
+        effects: [{ kind: 'guard', property: 'magical', pct: 100, turns: 1 }],
+        text: 'Guard 100% for 1 turn.',
+      };
+      // The engine only ever delivers 60% (Math.min(60, ...)).
+      expect(isOnBudget(overClamp), 'prices exactly on the bronze budget').toBe(true);
+      expect(capViolations(overClamp), 'breaks no effect cap').toEqual([]);
+      failsWith(withEffects([{ kind: 'guard', property: 'magical', pct: 100, turns: 1 }]), `pct must be an integer 0..${MAX_GUARD_PCT}`);
+    });
+
+    it('every pct the engine can actually deliver still validates', () => {
+      for (const n of [0, 25, MAX_EXPOSE_PCT]) passes([{ kind: 'expose', pct: n, turns: 1 }]);
+      for (const n of [0, 30, MAX_GUARD_PCT]) passes([{ kind: 'guard', property: 'magical', pct: n, turns: 1 }]);
+    });
+  });
+
+  /**
+   * NEGATIVE MAGNITUDES REFUND BUDGET FOR A NO-OP — one more shape of the same
+   * fail-open hole, this time on riders the engine turns into a harmless
+   * no-op rather than clamping to a smaller positive value: `expose`/`guard`
+   * (negative pct), `lifesteal` (negative pct: `stolen <= 0` breaks before any
+   * heal) and `slow` (negative weight: `Math.max(pending, weight)` never
+   * LOWERS the pending penalty).
+   */
+  describe('negative magnitudes are rejected — they REFUND budget for a no-op (fail-open close, 2026-08-17)', () => {
+    const withEffects = (effects: Array<Record<string, unknown>>): Doc => {
+      const d = clone();
+      vers(d)[0]!.def.effects = effects;
+      return d;
+    };
+
+    it('negative pct is rejected for expose and guard', () => {
+      failsWith(withEffects([{ kind: 'expose', pct: -20, turns: 5 }]), `pct must be an integer 0..${MAX_EXPOSE_PCT}`);
+      failsWith(withEffects([{ kind: 'guard', property: 'magical', pct: -50, turns: 2 }]), `pct must be an integer 0..${MAX_GUARD_PCT}`);
+      // The refund is real, not theoretical — this is what the floor closes.
+      expect(actionsPriceDeci([{ kind: 'expose', pct: -20, turns: 5 }], 'magical')).toBe(-100);
+      expect(actionsPriceDeci([{ kind: 'guard', property: 'magical', pct: -50, turns: 2 }], 'magical')).toBe(-100);
+    });
+
+    it('negative pct is rejected for lifesteal', () => {
+      failsWith(withEffects([{ kind: 'lifesteal', pct: -150 }]), 'pct must be an integer 0..1000');
+      expect(actionsPriceDeci([{ kind: 'lifesteal', pct: -150 }], 'magical')).toBe(-100);
+    });
+
+    it('negative weight is rejected for slow', () => {
+      failsWith(withEffects([{ kind: 'slow', weight: -8 }]), 'weight must be an integer 0..999');
+      expect(actionsPriceDeci([{ kind: 'slow', weight: -8 }], 'physical')).toBe(-20);
     });
   });
 });
