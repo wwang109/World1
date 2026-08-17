@@ -38,7 +38,7 @@ immediately):
 | `stun` | `turns * stunPerTurn` | `PRICE.stunPerTurn` — a consumed performance ≈ a whole Bronze card; sim re-tune deferred |
 | `buffStat` / `debuffStat` | `pct * turns * statPctTurn` | `PRICE.statPctTurn` |
 | `expose` (%amp) | `pct * turns * exposePerPctTurnNum/Den` | `PRICE.exposePerPctTurnNum/Den` — guard parity |
-| `cleanse` | `charges * cleansePerCharge` | `PRICE.cleansePerCharge` — priced per effect removed (user-locked 2026-07-19) |
+| `cleanse` | `charges * cleansePerCharge` | `PRICE.cleansePerCharge` — priced per effect removed (user-locked 2026-07-19); the one `SCALABLE` keyword outside damage/heal/shield (user-locked 2026-08-17) — see the effect-cap section below |
 | `slow` | `weight * slowPerWeightNum/Den` | `PRICE.slowPerWeightNum/Den` |
 | `disrupt` | escalating brackets, marginal per point | `PRICE.disruptBrackets` via `disruptCostDeci` — user-locked 2026-07-25; hard tempo denial must cost disproportionately more at large magnitudes |
 | `lifesteal` | `pct * lifestealPerPctNum/Den` | `PRICE.lifestealPerPctNum/Den` |
@@ -63,18 +63,34 @@ run `npm test` — the audit names any cap it breaks.**
 
 - Families: `control` (stun, slow, disrupt, stat-down, expose, shieldBreak) ·
   `dot` (poison + burn + bleed combined) · `empower` (stat-up, guard, negate,
-  ward, cleanse, lifesteal, combo, thorns) · `damage` · `shield` · `heal`.
-  Membership sets:
-  `CONTROL_KINDS` / `DOT_KINDS` / `EMPOWER_KINDS`.
-- **Every family's cap is FROZEN across tiers** (user-locked 2026-07-23,
-  `TIER_SCALED_FAMILIES` is empty): ranking a card up buys NEW EFFECTS, not
-  bigger numbers in a capped family. The flat families' (damage/shield/heal)
-  caps are a Diamond-size ceiling — a loose guardrail, not a diversify-forcer.
+  ward, lifesteal, combo, thorns) · `cleanse` (its own family, see below) ·
+  `damage` · `shield` · `heal`. Membership sets:
+  `CONTROL_KINDS` / `DOT_KINDS` / `EMPOWER_KINDS` / `CLEANSE_KINDS`.
+- **Every family's cap is FROZEN across tiers** (user-locked 2026-07-23),
+  with ONE NAMED EXCEPTION added 2026-08-17 — ranking a card up buys NEW
+  EFFECTS, not bigger numbers in a capped family. The flat families'
+  (damage/shield/heal) caps are a Diamond-size ceiling — a loose guardrail,
+  not a diversify-forcer.
+- **`cleanse` TIER-SCALES (user-locked 2026-08-17)**: "PL is calculated and
+  the tiers are just based on size and amount of PL a card has" / "if the PL
+  amount is increased then you can add more" — a bigger tier budget spent on
+  more cleanse charges must be legal, exactly as it already is for a heal.
+  `cleanse` was split OUT of `empower` into its own cap family
+  (`EFFECT_CAPS_DECI.cleanse`, `TIER_SCALED_FAMILIES = {'cleanse'}`) rather
+  than tier-scaling `empower` wholesale, so `negate`/`ward`/`buffStat`/
+  `guard`/`lifesteal`/`comboBonus`/`thorns` — and every `control` keyword,
+  `stun`'s 1-turn lock included — stay exactly as frozen as before. At size 1
+  the cap and the rate-solved value coincide at every tier: 4/6/8/10 charges =
+  100/150/200/250 deci (`PRICE.cleansePerCharge` unchanged at 25). `autoScaleTier`
+  (`src/engine/cards.ts`) now treats `cleanse` as a sink kind alongside
+  damage/heal/shield, growing its `charges` field the same way DoTs grow
+  `stacks` and sinks grow `power`.
 - Extra rules: **stun ≤ `MAX_STUN_PER_CARD` per card**; auras are exempt
   (passive board identity, priced per reach); weight is bounded in native
   units (`WEIGHT_MIN`, `WEIGHT_MAX_BY_SIZE`); size ≤ `MAX_CARD_SIZE`.
-- `applyTier` never scales control/empower magnitudes, so rank-ups can't
-  break a compliant base card.
+- `applyTier` never scales control/empower magnitudes (`cleanse` excepted,
+  per its own cap family above), so rank-ups can't break a compliant base
+  card.
 
 **Scope (user-locked 2026-07-20): these caps are DECK-BUILDING rules only.**
 They bind what a single authored card may invest. Runtime stacking on top is

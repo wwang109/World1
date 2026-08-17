@@ -126,6 +126,7 @@ describe('Power Level budgets', () => {
       control: { 1: 100, 2: 150, 3: 200 },
       dot: { 1: 200, 2: 300, 3: 400 },
       empower: { 1: 100, 2: 150, 3: 200 },
+      cleanse: { 1: 100, 2: 150, 3: 200 },
       damage: { 1: 300, 2: 700, 3: 1250 },
       shield: { 1: 300, 2: 700, 3: 1250 },
       heal: { 1: 300, 2: 700, 3: 1250 },
@@ -135,6 +136,14 @@ describe('Power Level budgets', () => {
     expect(effectCapDeci('damage', 1, 'diamond')).toBe(300);
     expect(effectCapDeci('damage', 1, 'bronze')).toBe(300);
     expect(effectCapDeci('control', 1, 'diamond')).toBe(100);
+    // USER-LOCKED 2026-08-17: `cleanse` is the one family that DOES tier-scale
+    // (split out of `empower` so negate/ward/etc. stay frozen) — its cap
+    // matches the tier budget ladder exactly: 100/150/200/250.
+    expect(effectCapDeci('cleanse', 1, 'bronze')).toBe(100);
+    expect(effectCapDeci('cleanse', 1, 'silver')).toBe(150);
+    expect(effectCapDeci('cleanse', 1, 'gold')).toBe(200);
+    expect(effectCapDeci('cleanse', 1, 'diamond')).toBe(250);
+    expect(effectCapDeci('empower', 1, 'diamond')).toBe(100); // empower itself stays FROZEN
     const offenders: string[] = [];
     for (const skill of Object.values(skillBook)) {
       for (const violation of capViolations(skill)) offenders.push(`${skill.id}: ${violation}`);

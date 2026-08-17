@@ -41,13 +41,20 @@ export type PriceTerm<K extends Action['kind'] = Action['kind']> =
   | { form: 'product'; fields: readonly [FieldOf<K>, FieldOf<K>]; num: number; den: number }
   | { form: 'bracketed'; field: FieldOf<K>; brackets: readonly { upTo: number; rateDeci: number }[] };
 
-/** Cap family a keyword's spend counts against (`EFFECT_CAPS_DECI`). */
-export type CapFamily = 'control' | 'dot' | 'empower' | 'damage' | 'shield' | 'heal';
+/** Cap family a keyword's spend counts against (`EFFECT_CAPS_DECI`). `cleanse`
+ * is its own family (user-locked 2026-08-17), split out of `empower` so it
+ * alone can tier-scale — see `TIER_SCALED_FAMILIES` in balance.ts. */
+export type CapFamily = 'control' | 'dot' | 'empower' | 'cleanse' | 'damage' | 'shield' | 'heal';
 
 interface KeywordPricingBase {
   /** Counts as a damage INSTANCE for the multi-hit premium. */
   isHit: boolean;
-  /** Grows via `autoScaleTier`'s exact-sink solve. */
+  /**
+   * Grows via `autoScaleTier`'s exact-sink solve. Historically only
+   * damage/heal/shield (the `perUnitByProperty` sinks); `cleanse` joined
+   * (user-locked 2026-08-17) as the one `perUnit` keyword that also scales —
+   * see `scalableRateDeci` for how the sink solver reads its rate.
+   */
   scalable: boolean;
   family: CapFamily | null;
 }
@@ -141,7 +148,11 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // cleanse 25 < ward 50 < negate 100 — and 50 deci makes the whole-PL step
     // exactly one charge. Self buff => empower family; prevents, never hits.
     ward: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'charges', num: P.wardPerCharge, den: 1 }] },
-    cleanse: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'charges', num: P.cleansePerCharge, den: 1 }] },
+    // SCALABLE (user-locked 2026-08-17) and its OWN cap family ('cleanse', not
+    // 'empower') — the one keyword the tier-scaler is allowed to grow, because
+    // cleanse is self-repair, the mirror of a heal, and heals already scale
+    // freely with tier. Every other empower/control member stays frozen.
+    cleanse: { isHit: false, scalable: true, family: 'cleanse', price: [{ form: 'perUnit', field: 'charges', num: P.cleansePerCharge, den: 1 }] },
 
     slow: { isHit: false, scalable: false, family: 'control', price: [{ form: 'perUnit', field: 'weight', num: P.slowPerWeightNum, den: P.slowPerWeightDen }] },
     disrupt: { isHit: false, scalable: false, family: 'control', price: [{ form: 'bracketed', field: 'amount', brackets: P.disruptBrackets }] },
@@ -161,20 +172,23 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
 }
 
 /**
- * Deci-PL per point of a scalable sink action (`damage`/`heal`/`shield`) at a
- * given property — READ FROM THE TABLE's own perUnitByProperty term, so the
- * scaler in `cards.ts` and the pricer can never quote different rates.
+ * Deci-PL per point of a scalable sink action at a given property — READ FROM
+ * THE TABLE's own price term, so the scaler in `cards.ts` and the pricer can
+ * never quote different rates. `damage`/`heal`/`shield` price `perUnitByProperty`
+ * (the rate depends on physical/magical/true); `cleanse` (user-locked
+ * 2026-08-17) prices flat `perUnit` — same charge rate at every property, so
+ * `property` is accepted but unused for it.
  */
 export function scalableRateDeci(
-  kind: 'damage' | 'heal' | 'shield',
+  kind: 'damage' | 'heal' | 'shield' | 'cleanse',
   property: Property,
   table: KeywordPricingTable,
 ): number {
   const term = table[kind].price[0];
-  if (term === undefined || term.form !== 'perUnitByProperty') {
-    throw new Error(`${kind} is expected to price perUnitByProperty`);
-  }
-  return Math.floor(term.num[property] / term.den);
+  if (term === undefined) throw new Error(`${kind} has no price term`);
+  if (term.form === 'perUnitByProperty') return Math.floor(term.num[property] / term.den);
+  if (term.form === 'perUnit') return Math.floor(term.num / term.den);
+  throw new Error(`${kind} is expected to price perUnitByProperty or perUnit`);
 }
 
 /**

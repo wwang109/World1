@@ -1,4 +1,4 @@
-import { MAX_WARD_CHARGES, type Action, type SkillDef } from '../engine/types';
+import { MAX_NEGATE_CHARGES, MAX_WARD_CHARGES, type Action, type SkillDef } from '../engine/types';
 
 /**
  * RUNTIME SCHEMA VALIDATION for the JSON content documents.
@@ -57,16 +57,6 @@ const TIERS = ['bronze', 'silver', 'gold', 'diamond'] as readonly string[];
 const ELEMENTS = ['fire', 'frost', 'lightning', 'nature', 'holy', 'dark'] as readonly string[];
 const WEAPONS = ['sword', 'axe', 'lance', 'bow', 'beast'] as readonly string[];
 const BUFFABLE = ['attack', 'magicPower', 'armor', 'magicResist', 'speed'] as readonly string[];
-
-/**
- * `negate`'s apply-time per-property charge clamp, mirrored from the engine
- * (`applyAction`'s negate arm in src/engine/combat/interpreter.ts). Unlike ward
- * — whose clamp is the exported `MAX_WARD_CHARGES` and is imported above — the
- * negate clamp is still a bare literal at its call site, so this is a MIRROR and
- * has to move if that literal does. Promoting it to an exported constant in
- * engine/types.ts alongside MAX_WARD_CHARGES would remove the duplication.
- */
-const NEGATE_CHARGE_CLAMP = 3;
 
 /** Fields allowed inside a document's `def` payload. `id`/`version` are the KEY
  * and live on the envelope, so finding either in here is a mistake worth naming. */
@@ -196,7 +186,7 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     case 'disrupt': num('amount'); break;
     case 'expose': pct('pct'); turns('turns'); break;
     case 'guard': property(); pct('pct'); turns('turns'); break;
-    case 'negate': property(); charges(NEGATE_CHARGE_CLAMP); break;
+    case 'negate': property(); charges(MAX_NEGATE_CHARGES); break;
     case 'ward': charges(MAX_WARD_CHARGES); break;
     // cleanse has NO upper clamp in the engine — every charge is spent against
     // whatever afflictions are actually present, so a high count is merely

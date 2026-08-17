@@ -40,7 +40,16 @@ const HERO_STATS: readonly BuffableStat[] = ['attack', 'magicPower', 'armor', 'm
 /** Low → high tier order (index = tier-steps above bronze). */
 const TIER_ORDER: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
 
-type ScalableKind = 'damage' | 'heal' | 'shield';
+// `cleanse` joined the sink kinds (user-locked 2026-08-17): it is the one
+// `perUnit` (not `perUnitByProperty`) scalable, growing its own `charges`
+// field rather than `power` — see `sinkField` and `scalableRateDeci` below.
+type ScalableKind = 'damage' | 'heal' | 'shield' | 'cleanse';
+
+/** The field a sink kind's magnitude lives on — `power` for damage/heal/shield,
+ * `charges` for cleanse. Read once here rather than special-cased per call site. */
+function sinkField(kind: ScalableKind): 'power' | 'charges' {
+  return kind === 'cleanse' ? 'charges' : 'power';
+}
 
 /** Rate per point for a sink action — read from the keyword table, never copied. */
 function scalableRateDeci(kind: ScalableKind, property: Property): number {
@@ -54,15 +63,19 @@ function scalableRateDeci(kind: ScalableKind, property: Property): number {
  *
  *  • FROZEN — held at the card's Bronze deci value at every tier: control
  *    (stun/slow/disrupt/debuffStat/expose/shieldBreak), empower (buffStat/
- *    guard/negate/cleanse/lifesteal/comboBonus), the aura block, the multi-hit
- *    premium, weight deviation and cooldown deviation. Only the size grant
- *    (a refund) moves with the tier. Weight and size never change, so the
- *    audited weight/size bounds carry over unchanged.
+ *    guard/negate/ward/lifesteal/comboBonus/thorns), the aura block, the
+ *    multi-hit premium, weight deviation and cooldown deviation. Only the size
+ *    grant (a refund) moves with the tier. Weight and size never change, so
+ *    the audited weight/size bounds carry over unchanged.
  *  • DoT (poison/burn/bleed) — GROWS toward its cap: pick the largest stack
  *    count N with N × dotPerStack ≤ min(dot cap, remaining budget). Linear
  *    per-stack pricing means every N is a whole PL.
- *  • EXACT SINK (damage/heal/shield) — solved to consume whatever budget the
- *    frozen + DoT buckets leave, split evenly across same-kind actions.
+ *  • EXACT SINK (damage/heal/shield/cleanse) — solved to consume whatever
+ *    budget the frozen + DoT buckets leave, split evenly across same-kind
+ *    actions. `cleanse` joined this bucket (user-locked 2026-08-17, its own
+ *    `charges` field via `sinkField`) rather than staying frozen — see
+ *    `TIER_SCALED_FAMILIES` in balance.ts for why it alone is exempted from
+ *    the "control/empower never grows" rule.
  *
  * A card with NO sink and NO DoT to absorb the budget (pure control/empower/
  * aura — the CAP-HIT cases) is returned with only its `tier` bumped; the audit
@@ -119,7 +132,9 @@ export function autoScaleTier(def: SkillDef, targetTier: SkillTier): SkillDef {
   const applyEffects = (perActionPower: number | null): Action[] =>
     effects.map((a, i) => {
       if (dotIndices.includes(i)) return { ...a, stacks: chosenN };
-      if (perActionPower !== null && sinkIndices.includes(i)) return { ...a, power: perActionPower };
+      if (perActionPower !== null && sinkIndices.includes(i)) {
+        return { ...a, [sinkField(a.kind as ScalableKind)]: perActionPower };
+      }
       return a;
     });
   const withEffects = (next: Action[]): SkillDef =>
@@ -146,10 +161,10 @@ export function autoScaleTier(def: SkillDef, targetTier: SkillTier): SkillDef {
 /**
  * Keep the display `text` honest when auto-scaling changes effect numbers
  * (authored `tierUpgrades` carry their own text; this covers the generic
- * path). For each effect whose `power`/`stacks` changed, rewrite the FIRST
- * standalone occurrence of the old number in the text (not part of a longer
- * number and not a percentage). Effects are display-only — the engine never
- * reads `text` — so a rare miss degrades display, never simulation.
+ * path). For each effect whose `power`/`stacks`/`charges` changed, rewrite the
+ * FIRST standalone occurrence of the old number in the text (not part of a
+ * longer number and not a percentage). Effects are display-only — the engine
+ * never reads `text` — so a rare miss degrades display, never simulation.
  */
 function retextScaledNumbers(text: string, before: readonly Action[], after: readonly Action[]): string {
   let out = text;
@@ -159,6 +174,9 @@ function retextScaledNumbers(text: string, before: readonly Action[], after: rea
     const numericPairs: Array<[number | undefined, number | undefined]> = [
       [(oldAction as { power?: number }).power, (newAction as { power?: number }).power],
       [(oldAction as { stacks?: number }).stacks, (newAction as { stacks?: number }).stacks],
+      // `cleanse` (user-locked 2026-08-17) is the one scalable keyword whose
+      // magnitude lives on `charges`, not `power`/`stacks` — see `sinkField`.
+      [(oldAction as { charges?: number }).charges, (newAction as { charges?: number }).charges],
     ];
     for (const [oldValue, newValue] of numericPairs) {
       if (oldValue === undefined || newValue === undefined || oldValue === newValue) continue;

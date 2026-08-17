@@ -356,8 +356,19 @@ type ActionKinds =
   | { kind: 'ward'; charges: number };
 
 /**
+ * Apply-time ceiling on the TOTAL negate charges of one property a unit may
+ * hold — enforced in the `negate` arm of `applyAction`
+ * (src/engine/combat/interpreter.ts). Promoted to a named export (was a bare
+ * literal at the interpreter call site, MIRRORED by a separately-declared
+ * `NEGATE_CHARGE_CLAMP` in `src/data/validateSkillContent.ts`) so the engine
+ * and the content validator read ONE constant instead of two copies that can
+ * drift — which is exactly what happened before this promotion.
+ */
+export const MAX_NEGATE_CHARGES = 3;
+
+/**
  * Apply-time ceiling on the TOTAL ward charges one unit may hold — the sibling
- * of `negate`'s 3-charge clamp (`applyAction`'s `negate` arm). A charge denies a
+ * of `MAX_NEGATE_CHARGES` (`applyAction`'s `negate` arm). A charge denies a
  * whole affliction application, so an unbounded pile would make a unit
  * permanently immune to control; 3 is the same "enough to matter, not enough to
  * lock out" number negate settled on. Enforced in the `ward` arm of

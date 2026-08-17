@@ -110,6 +110,28 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
     expect(powerLevelDeci(applyTier(skillBook.prism_barrier!, 'diamond'))).toBe(TIER_BUDGET_DECI.diamond);
   });
 
+  it('cleanse SCALES with tier (user-locked 2026-08-17) — a bigger PL budget buys more charges, unlike every other empower/control keyword', () => {
+    // `purify` ships with an AUTHORED tierUpgrades block (a TRUE heal bolted on,
+    // predating this ruling), so it is probed via `autoScaleTier` directly here —
+    // bypassing that override — to show what the generic scaler now derives on
+    // its own. (`applyTier(purify, ...)` still returns the authored heal-bolt-on
+    // form; the mechanism itself is proven here and by a from-scratch probe card
+    // in the balance-designer's verification notes.)
+    const chargesAt = (tier: SkillTier): number => {
+      const scaled = autoScaleTier(skillBook.purify!, tier);
+      const cleanse = scaled.effects.find((a) => a.kind === 'cleanse') as { charges: number };
+      return cleanse.charges;
+    };
+    expect(chargesAt('silver')).toBe(6);
+    expect(chargesAt('gold')).toBe(8);
+    expect(chargesAt('diamond')).toBe(10);
+    for (const tier of ['silver', 'gold', 'diamond'] as const) {
+      const scaled = autoScaleTier(skillBook.purify!, tier);
+      expect(powerLevelDeci(scaled)).toBe(TIER_BUDGET_DECI[tier]);
+      expect(capViolations(scaled)).toEqual([]);
+    }
+  });
+
   it('hand-tuned DoT curves (venom_fang / fireball / rupturing_strike) are locked via authored tierUpgrades', () => {
     const at = (id: string, tier: SkillTier, kind: string): number => {
       const scaled = applyTier(skillBook[id]!, tier);

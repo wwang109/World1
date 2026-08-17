@@ -28,14 +28,15 @@
  * WHAT ACTUALLY BOUNDS A CHARGE KEYWORD is its cap family, not its rate.
  * `cleanse` is perfectly linear (25 deci/charge, whole-PL step of 2 charges), so
  * every budget is reachable by rate alone: 4/6/8/10 charges = 100/150/200/250.
- * `EFFECT_CAPS_DECI.empower` is what closes all but one of those doors — it
- * allows only 100/150/200 deci at size 1/2/3, while the SIZE GRANT means a
- * larger card must spend far MORE than its budget on effects (size 2 grants
- * ~170 deci, size 3 ~550), so the cap tightens exactly as the requirement grows.
- * The two curves touch at a single point: size 1 bronze, where cap = budget =
- * 4 charges. That is why shipped `purify` is size-1 bronze cleanse-4 and why its
- * silver/gold/diamond blocks must bolt on a TRUE heal rather than buy more
- * charges. A capped solo kit is reported as a tier FAIL here, never shipped.
+ * `cleanse` has its OWN cap family (`EFFECT_CAPS_DECI.cleanse`, split out of
+ * `empower` 2026-08-17) that TIER-SCALES exactly like a tier budget — cap =
+ * base × TIER_BUDGET_DECI[tier] / 100 — so its cap and its rate-solved value
+ * coincide at 100/150/200/250 at every size-1 tier, not just Bronze. That is
+ * why a solo size-1 cleanse kit now solves cleanly all the way to Diamond
+ * (10 charges) with no bolt-on filler needed. Every OTHER `empower` member
+ * (negate/ward/buffStat/guard/lifesteal/comboBonus/thorns) is still FROZEN at
+ * its size-1/2/3 cap regardless of tier — a capped solo kit of one of those is
+ * reported as a tier FAIL here, never shipped.
  *
  * KNOWN TODAY-COST: until the legacy literals in src/data/skills.ts are
  * deleted, a new card must be added BOTH to skills.v1.json and to skills.ts —

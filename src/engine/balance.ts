@@ -131,7 +131,10 @@ export const PRICE = {
    * cleanse: charges * cleansePerCharge — 2.5 PL per negative effect removed
    * (user-locked 2026-07-19: priced per unit of removal, "x per PL spent",
    * replacing the old flat 100). At this rate `purify` (4 charges) = 100 =
-   * Bronze exactly.
+   * Bronze exactly. RATE UNCHANGED by the 2026-08-17 tier-scaling ruling —
+   * cleanse is now the one `scalable: true` empower-adjacent keyword (its own
+   * `cleanse` cap family, `TIER_SCALED_FAMILIES`), so the SAME 25-deci step
+   * also lands 6/8/10 charges exactly on Silver/Gold/Diamond (150/200/250).
    */
   cleansePerCharge: 25,
 
@@ -562,20 +565,39 @@ export function isOnBudget(skill: SkillDef): boolean {
  * per-size ceiling on the PL a single card may invest in it (deci, by card
  * size 1/2/3). Control/buffs grow +5 PL per extra slot; DoTs double that.
  * Independent of TIER — tiers scale raw power (damage/shield/heal points and
- * DoT stacks via the price ladder), never lockdown. Extra rules: stun is
- * hard-capped at 1 performance per card; auras are exempt (passive board
- * identity, priced per reach). `applyTier` never scales control/empower
- * magnitudes, so rank-ups can't break a compliant base card. Every card in
- * the book is tested against `capViolations` — when designing a card, run
- * `npm test` and the audit names any rule it breaks.
+ * DoT stacks via the price ladder), never lockdown — WITH ONE NAMED EXCEPTION:
+ * `cleanse` (user-locked 2026-08-17, see `TIER_SCALED_FAMILIES` below) is
+ * self-repair, the mirror of a heal, and heals already scale freely with
+ * tier; it gets its own `cleanse` family below rather than living inside
+ * `empower` so the "lockdown never scales" rule stays intact for every other
+ * empower member (negate/ward/buffStat/guard/lifesteal/comboBonus/thorns).
+ * Extra rules: stun is hard-capped at 1 performance per card; auras are
+ * exempt (passive board identity, priced per reach). `applyTier` never scales
+ * control/empower magnitudes, so rank-ups can't break a compliant base card.
+ * Every card in the book is tested against `capViolations` — when designing
+ * a card, run `npm test` and the audit names any rule it breaks.
  */
 export const EFFECT_CAPS_DECI = {
   /** stun, slow, disrupt, stat-down, expose, shieldBreak — one whole discrete effect */
   control: { 1: 100, 2: 150, 3: 200 } as Record<number, number>,
   /** poison + burn + bleed combined (deci = stacks × 10 at 1 PL/stack) */
   dot: { 1: 200, 2: 300, 3: 400 } as Record<number, number>,
-  /** stat-up, guard, negate, ward, cleanse, lifesteal, combo — one whole discrete effect */
+  /** stat-up, guard, negate, ward, lifesteal, combo, thorns — one whole discrete
+   * effect. NOT cleanse (user-locked 2026-08-17) — see the `cleanse` family. */
   empower: { 1: 100, 2: 150, 3: 200 } as Record<number, number>,
+  /**
+   * SPLIT OUT of `empower` (user-locked 2026-08-17): "PL is calculated and the
+   * tiers are just based on size and amount of PL a card has" / "if the PL
+   * amount is increased then you can add more" — a bigger tier budget spent
+   * on more cleanse charges must be legal, the same way it already is for a
+   * heal. Bronze anchor is identical to empower's own (100/150/200 by size);
+   * the tier scaling itself lives in `TIER_SCALED_FAMILIES`. Splitting the
+   * family (rather than tier-scaling `empower` wholesale) is what keeps
+   * negate/ward/buffStat/guard/lifesteal/comboBonus/thorns FROZEN, per the
+   * user's explicit carve-out (stun's 1-turn lock, named alongside this
+   * ruling, is untouched).
+   */
+  cleanse: { 1: 100, 2: 150, 3: 200 } as Record<number, number>,
   /** flat damage (incl. TRUE) — DIAMOND-tier ceiling (30/70/125 PL), one flat cap
    * for every tier (user-locked 2026-07-23): a card just can't exceed what a
    * Diamond card of its size could carry. Loose guardrail, not a diversify-forcer. */
@@ -595,14 +617,25 @@ export const WEIGHT_MAX_BY_SIZE: Record<number, number> = { 1: 20, 2: 30, 3: 40 
 export const MAX_CARD_SIZE = 3;
 
 /**
- * EVERY family's cap is now FROZEN across tiers (user-locked 2026-07-23): a
+ * Every family's cap was FROZEN across tiers (user-locked 2026-07-23): a
  * single stat can never exceed its fixed per-size cap no matter the tier, so
  * ranking a card up buys NEW EFFECTS, not bigger numbers. (Was: damage/shield/
  * heal scaled ×1.5/2/2.5 — removed.) A card that can't absorb its tier budget
  * within the caps diversifies into other lines — the documented authoring
  * pattern, and what the tier scaler enforces.
+ *
+ * ONE FAMILY NOW SCALES (user-locked 2026-08-17): `cleanse`. The user's
+ * ruling — tier is a PL budget, and spending a bigger budget on more of the
+ * same self-repair ability must be legal, exactly as it already is for a
+ * heal — is a deliberate, named carve-out, not a reversal of the 2026-07-23
+ * rule for anything else. Every OTHER cap family (control, dot, empower,
+ * damage, shield, heal) stays frozen; `negate`/`ward`/`stun`/etc. do not move.
+ * `effectCapDeci` grows a member of this set with `TIER_BUDGET_DECI[tier]`
+ * exactly like a tier budget itself (base × budget / 100), so cleanse's cap
+ * lands on 100/150/200/250 deci at Bronze/Silver/Gold/Diamond — the same
+ * ladder the tier budgets themselves use.
  */
-const TIER_SCALED_FAMILIES: ReadonlySet<keyof typeof EFFECT_CAPS_DECI> = new Set();
+const TIER_SCALED_FAMILIES: ReadonlySet<keyof typeof EFFECT_CAPS_DECI> = new Set(['cleanse']);
 
 /**
  * DAMAGE INSTANCES — the kinds that produce a separately-resolved hit. Instance
@@ -617,6 +650,9 @@ export const HIT_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_
 export const CONTROL_KINDS: ReadonlySet<Action['kind']> = kindsInFamily('control');
 export const DOT_KINDS: ReadonlySet<Action['kind']> = kindsInFamily('dot');
 export const EMPOWER_KINDS: ReadonlySet<Action['kind']> = kindsInFamily('empower');
+/** Its own cap family (user-locked 2026-08-17) — split out of `empower` so cleanse
+ * alone can tier-scale without dragging negate/ward/etc. along. See `TIER_SCALED_FAMILIES`. */
+export const CLEANSE_KINDS: ReadonlySet<Action['kind']> = kindsInFamily('cleanse');
 /** damage/heal/shield — the EXACT sink solved to hit budget by the tier scaler. */
 export const SCALABLE_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_PRICING[k].scalable);
 
@@ -643,6 +679,7 @@ export function capViolations(skill: SkillDef): string[] {
   check('control', CONTROL_KINDS);
   check('dot', DOT_KINDS);
   check('empower', EMPOWER_KINDS);
+  check('cleanse', CLEANSE_KINDS);
   check('damage', HIT_KINDS);
   check('shield', new Set(['shield']));
   check('heal', new Set(['heal']));

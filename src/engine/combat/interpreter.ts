@@ -1,6 +1,6 @@
 import type { Rng } from '../rng';
 import type { Action, EffectSourceRef, Property, SkillDef } from '../types';
-import { MAX_WARD_CHARGES } from '../types';
+import { MAX_NEGATE_CHARGES, MAX_WARD_CHARGES } from '../types';
 import type { AntiHealCategory, AntiHealReduction, CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
@@ -1224,12 +1224,13 @@ function applyAction(
       break;
     }
     case 'negate': {
-      // Defensive: applies to the caster. Total charges of a property clamped to <=3.
+      // Defensive: applies to the caster. Total charges of a property clamped
+      // to <= MAX_NEGATE_CHARGES.
       if (!caster.alive) break;
       const existing = caster.statuses
         .filter((s) => s.kind === 'negate' && s.property === action.property)
         .reduce((sum, s) => sum + (s.charges ?? 0), 0);
-      const charges = Math.max(0, Math.min(action.charges, 3 - existing));
+      const charges = Math.max(0, Math.min(action.charges, MAX_NEGATE_CHARGES - existing));
       if (charges <= 0) break;
       addStatus(ctx, caster, { kind: 'negate', property: action.property, charges, turnsLeft: 0, fresh: true });
       break;
