@@ -13,6 +13,7 @@
  * those comments are fresh and are the reasoning behind every band placement.
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { gemBookFromDefs } from '../src/data/gems';
 
 const SRC = new URL('../src/data/gems.ts', import.meta.url);
@@ -100,9 +101,37 @@ const attached = new Set<string>();
 for (const notes of notesById.values()) for (const n of notes) attached.add(n);
 const docNotes = rescueDocNotes(attached);
 
-mkdirSync(OUT_DIR, { recursive: true });
-writeFileSync(OUT, `${JSON.stringify({ schemaVersion: 1, notes: docNotes, gems }, null, 1)}\n`);
+/** The document object, before serialization — exposed so tests can inspect it directly. */
+export const gemsDocument = { schemaVersion: 1, notes: docNotes, gems };
+
+/**
+ * The EXACT bytes `npm run content:export` writes to gems.v1.json, computed
+ * in memory with no filesystem write. This is what
+ * tests/data/exportIdempotency.test.ts diffs against the committed file to
+ * prove the exporter is idempotent — importing this module must not itself
+ * write anything, so the write step below is gated to direct invocation only.
+ *
+ * NOT routed through scripts/asciiSafeJson.ts's escaping (contrast
+ * exportContent.ts): the committed gems.v1.json already carries its rescued
+ * comments' non-ASCII characters (`·`/em dash) as raw UTF-8, not
+ * ASCII-escaped, so plain JSON.stringify is what reproduces it byte-for-byte
+ * today. Escaping here would rewrite every one of those sites and break
+ * idempotency the other way. If gems.v1.json is ever migrated to the
+ * ASCII-safe form skills.v1.json uses, swap this for asciiSafeStringify AND
+ * regenerate the committed file in that same change.
+ */
+export const gemsDocumentText = `${JSON.stringify(gemsDocument, null, 1)}\n`;
 
 const perGem = [...notesById.values()].reduce((n, v) => n + v.length, 0);
-console.log(`wrote ${gems.length} gems -> ${OUT.pathname}`);
-console.log(`notes rescued: ${perGem} lines across ${notesById.size}/${gems.length} gems, + ${docNotes.length} document-level = ${perGem + docNotes.length} total`);
+
+function main(): void {
+  mkdirSync(OUT_DIR, { recursive: true });
+  writeFileSync(OUT, gemsDocumentText);
+  console.log(`wrote ${gems.length} gems -> ${OUT.pathname}`);
+  console.log(`notes rescued: ${perGem} lines across ${notesById.size}/${gems.length} gems, + ${docNotes.length} document-level = ${perGem + docNotes.length} total`);
+}
+
+// Only run the write (and its console output) when this file is the process
+// entry point (`tsx scripts/exportGems.ts`) — NOT when a test imports it for
+// `gemsDocumentText`, which must be a pure, side-effect-free read.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

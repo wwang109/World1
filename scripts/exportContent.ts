@@ -14,7 +14,9 @@
  * the balance work depends on.
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { skillBookFromDefs } from '../src/data/skills';
+import { asciiSafeStringify } from './asciiSafeJson';
 
 const SRC = new URL('../src/data/skills.ts', import.meta.url);
 const OUT_DIR = new URL('../src/data/content/', import.meta.url);
@@ -116,9 +118,33 @@ const attached = new Set<string>();
 for (const notes of notesById.values()) for (const n of notes) attached.add(n);
 const docNotes = rescueDocNotes(attached);
 
-mkdirSync(OUT_DIR, { recursive: true });
-writeFileSync(OUT, `${JSON.stringify({ schemaVersion: 1, notes: docNotes, cards }, null, 1)}\n`);
+/** The document object, before serialization — exposed so tests can inspect it directly. */
+export const skillsDocument = { schemaVersion: 1, notes: docNotes, cards };
+
+/**
+ * The EXACT bytes `npm run content:export` writes to skills.v1.json, computed
+ * in memory with no filesystem write. This is what
+ * tests/data/exportIdempotency.test.ts diffs against the committed file to
+ * prove the exporter is idempotent — importing this module must not itself
+ * write anything, so the write step below is gated to direct invocation only.
+ *
+ * ASCII-safe on write (see scripts/asciiSafeJson.ts) — the committed document
+ * escapes non-ASCII characters (rescued comments use "—" for em dash,
+ * "·" for middle dot, etc.) rather than carrying raw UTF-8, so this must
+ * match or every export rewrites those sites for zero content change.
+ */
+export const skillsDocumentText = `${asciiSafeStringify(skillsDocument, 1)}\n`;
 
 const perCard = [...notesById.values()].reduce((n, v) => n + v.length, 0);
-console.log(`wrote ${cards.length} cards -> ${OUT.pathname}`);
-console.log(`notes rescued: ${perCard} lines across ${notesById.size}/${cards.length} cards, + ${docNotes.length} document-level = ${perCard + docNotes.length} total`);
+
+function main(): void {
+  mkdirSync(OUT_DIR, { recursive: true });
+  writeFileSync(OUT, skillsDocumentText);
+  console.log(`wrote ${cards.length} cards -> ${OUT.pathname}`);
+  console.log(`notes rescued: ${perCard} lines across ${notesById.size}/${cards.length} cards, + ${docNotes.length} document-level = ${perCard + docNotes.length} total`);
+}
+
+// Only run the write (and its console output) when this file is the process
+// entry point (`tsx scripts/exportContent.ts`) — NOT when a test imports it
+// for `skillsDocumentText`, which must be a pure, side-effect-free read.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

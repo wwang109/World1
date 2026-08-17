@@ -431,6 +431,36 @@
    ]
   },
   {
+   "id": "bramble_ward",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Bramble Ward",
+      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Gain 10 (+DEF) physical shield.",
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "thorns",
+        "stacks": 5
+       },
+       {
+        "kind": "shield",
+        "power": 10
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
    "id": "chain_spark",
    "versions": [
     {
@@ -1529,6 +1559,37 @@
    ]
   },
   {
+   "id": "nettle_lash",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Nettle Lash",
+      "text": "Deal 10 (+ATK) Beast damage \u00b7 {{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit.",
+      "archetypes": [
+       "offense",
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 10
+       },
+       {
+        "kind": "thorns",
+        "stacks": 5
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
    "id": "overcharge",
    "versions": [
     {
@@ -1728,9 +1789,9 @@
        "cleanse re-priced per charge (25 deci): 4 charges = 100 = Bronze exactly.",
        "cleanse SCALES with tier (user-locked 2026-08-17): no authored",
        "`tierUpgrades` needed any more. `autoScaleTier` derives the ladder on",
-       "its own - cleanse joined the sink kinds, so each tier's full budget",
+       "its own \u2014 cleanse joined the sink kinds, so each tier's full budget",
        "buys more charges instead of a bolted-on TRUE heal: Silver 6 charges",
-       "(150 = 15 PL), Gold 8 (200 = 20 PL), Diamond 10 (250 = 25 PL) - each",
+       "(150 = 15 PL), Gold 8 (200 = 20 PL), Diamond 10 (250 = 25 PL) \u2014 each",
        "exact and cap-compliant (tests/engine/tierUpgrades.test.ts)."
       ],
       "archetypes": [
@@ -3310,67 +3371,6 @@
         "text": "Deal 64 (+MATK) Fire damage \u00b7 {{Burn}} 17."
        }
       }
-     }
-    }
-   ]
-  },
-  {
-   "id": "bramble_ward",
-   "versions": [
-    {
-     "version": 1,
-     "def": {
-      "name": "Bramble Ward",
-      "archetypes": [
-       "defensive"
-      ],
-      "property": "physical",
-      "size": 1,
-      "rarity": "common",
-      "tier": "bronze",
-      "weapon": "sword",
-      "effects": [
-       {
-        "kind": "thorns",
-        "stacks": 5
-       },
-       {
-        "kind": "shield",
-        "power": 10
-       }
-      ],
-      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Gain 10 (+DEF) physical shield."
-     }
-    }
-   ]
-  },
-  {
-   "id": "nettle_lash",
-   "versions": [
-    {
-     "version": 1,
-     "def": {
-      "name": "Nettle Lash",
-      "archetypes": [
-       "offense",
-       "defensive"
-      ],
-      "property": "physical",
-      "size": 1,
-      "rarity": "common",
-      "tier": "bronze",
-      "weapon": "beast",
-      "effects": [
-       {
-        "kind": "damage",
-        "power": 10
-       },
-       {
-        "kind": "thorns",
-        "stacks": 5
-       }
-      ],
-      "text": "Deal 10 (+ATK) Beast damage \u00b7 {{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit."
      }
     }
    ]
