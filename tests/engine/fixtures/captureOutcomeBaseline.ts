@@ -52,6 +52,56 @@ const next = {
     'rebuild-in-a-different-field-order can churn it. ARRAY order is untouched and ' +
     'still fully load-bearing.',
   note:
+    'Regression lock recaptured (2026-08-17) for the EXPOSE DURATION FIX — a REAL, REVIEWED RULE ' +
+    'CHANGE, and a defect fix rather than a design pass. `expose` was the ONLY turn-durationed ' +
+    'status missing from `expireStatuses`\'s decrement set (stun decrements on consumption, DoTs in ' +
+    'tickTurnDot/tickBleed, negate/ward are charge-based, thorns is stack-based), so its ' +
+    '`turnsLeft` was NEVER decremented: a card priced `pct x turns` (`exposePerPctTurnNum`, ' +
+    'balance.ts) delivered `pct x infinity`. Compounded by `applyAction`\'s expose arm calling ' +
+    '`addStatus` with no merge, so every recast opened ANOTHER pile and `dealDamage` multiplied ' +
+    'them: a card printing "expose 50% for 1 turn", recast on its rotation, measured 30 -> 45 -> ' +
+    '67 -> 100 -> 181 -> 316 -> 546 -> 913 -> 1531 damage on a fixed 20-power hit, with ZERO ' +
+    '`statusExpired` events. FIX, both halves: (a) the decrement set is now the named, exhaustive ' +
+    '`TURN_DURATIONED_STATUS_KINDS` (buff/debuff/guard/expose) in combat/state.ts, which also ' +
+    'documents the mechanism expiring every OTHER kind, so a kind belonging to none is a red test ' +
+    'rather than a silent infinity; (b) expose is ONE PILE PER VICTIM, REFRESHED — a ' +
+    're-application takes the STRONGER pct and the LONGER remaining duration and becomes `fresh` ' +
+    'again. REFRESH rather than a second pile (the `guard` precedent) or a stack merge (the ' +
+    'DoT/thorns precedent) because `dealDamage` compounds piles MULTIPLICATIVELY and the two ' +
+    'mirrors compound in OPPOSITE directions: guard\'s second pile is worth less than its first ' +
+    '(50% then 50% leaves 25%, diminishing), expose\'s is worth MORE (+50% then +50% is x2.25, ' +
+    'accelerating) — so guard-parity pricing only survives if the offensive mirror does not stack. ' +
+    'Merging `pct` would have breached the documented <=50 apply-time clamp on the first recast. ' +
+    'The engine already draws this line for the other offensive non-additive debuff (`slow` takes ' +
+    'the strongest pending value). Ward still taxes a refresh exactly as it taxes a DoT merge. ' +
+    'BLAST RADIUS verified BEFORE regenerating, from a read-only RAW dump (full event log + turns ' +
+    '+ result + finalState, NOT normalized, NOT hashed) of both 200-fight sweeps taken immediately ' +
+    'before and immediately after the change: 59/200 logs moved in EACH sweep (141/200 ' +
+    'byte-identical), with 4 turn changes + 1 winner flip in attritionOn (#35 6->7, #84 11->12, ' +
+    '#106 10->11, #177 6->8, #93 win->loss) and 5 turn changes + 1 winner flip in attritionOff ' +
+    '(the same five cases, #93 additionally 17->18). Fights get LONGER and the player loses more ' +
+    'of them — exactly what removing an unbounded damage amplifier must do. CONTAINMENT PROVEN BY ' +
+    'EXHAUSTION, BOTH DIRECTIONS: 0/400 logs moved without APPLYING an expose, and the moved set ' +
+    'is a subset of the 97/200 configs carrying `ruinous_hex` (50%/2t) or `piercing_arrow` ' +
+    '(30%/2t) — the frozen sweep pool\'s only expose carriers. Of the 11 logs that DID apply an ' +
+    'expose yet did not move: 9 ended within the pile\'s own window (endTurn <= applyTurn + 2, so ' +
+    'neither engine ever reached a decrement that mattered) and 2 (#44, #89) had the pile CLEANSED ' +
+    'before the first divergence — enumerated individually, not inferred. THREE OTHER DEFECT FIXES ' +
+    'RODE IN THE SAME CHANGE AND MOVED 0/400 LOGS, which is itself the evidence they are contained: ' +
+    '(1) a caster killed mid-cast (only thorns reflect can do it) now stops casting via ' +
+    '`castCutShort` = `!caster.alive || anySideWiped` in `applyCast`, replacing a bare ' +
+    '`anySideWiped` that was accidentally correct at 1v1 and wrong in every pack fight; (2) a hit ' +
+    'fully nullified by `negate` no longer spends a thorn stack (`dealDamage` now REPORTS whether ' +
+    'it took effect and `applyStrike` reflects only then); (3) a negative heal request is CLAMPED ' +
+    'TO ZERO at the new shared `restoreHp` seam instead of driving HP below zero with `alive` ' +
+    'still true and emitting nothing. None can reach this sweep: NEITHER thorns card ' +
+    '(`bramble_ward`, `nettle_lash`) is in the frozen sweep pool, and every authored `healFlat` in ' +
+    'the book and gem set is positive. See src/engine/combat/simulate.ts (`expireStatuses`), ' +
+    'src/engine/combat/state.ts (`TURN_DURATIONED_STATUS_KINDS`), src/engine/combat/interpreter.ts ' +
+    '(the `expose` arm, `castCutShort`, `dealDamage`\'s return, `restoreHp`) and ' +
+    'tests/engine/statusExpiry.test.ts, tests/engine/casterDeathMidCast.test.ts, ' +
+    'tests/engine/healSafety.test.ts, tests/engine/thorns.test.ts. ' +
+    'It supersedes the prior regen: ' +
     'Regression lock recaptured (2026-08-17) for STRIPPING `tierUpgrades` from the hash — a ' +
     'REPRESENTATION-ONLY change that moves EVERY hash and NO behaviour. `tierUpgrades` is ' +
     '*input* consumed only by `applyTier`/`autoScaleTier` (src/engine/cards.ts) at resolve time; ' +

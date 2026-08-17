@@ -532,6 +532,45 @@ function applyAntiHeal(target: CombatantState, request: number): { amount: numbe
   return { amount: request - reduced, antiHeal: { categories, pct, reduced } };
 }
 
+/**
+ * THE ONE PLACE HP IS RESTORED — every healing path (`heal`, `lifesteal`, and
+ * any future one) goes through it, exactly as every damage path goes through
+ * `dealDamage`. That is the point: the safety rules live at the seam, not in
+ * each arm.
+ *
+ * A HEAL IS NEVER A DAMAGE SOURCE. A request that resolves NEGATIVE is CLAMPED
+ * TO ZERO and nothing is applied. Negative requests are reachable without anyone
+ * authoring a negative `power`: the heal arm computes `power + statBonus +
+ * healFlat`, and `healFlat` is an aura modifier that may be negative, while
+ * `applyAntiHeal` passes any request <= 0 straight through untouched. Before the
+ * clamp that arithmetic ran unfloored into `hp + amount`, which drove HP below
+ * ZERO with `alive` still true and emitted NOTHING (the event is gated on
+ * `amount > 0`) — breaking the `alive <=> hp > 0` invariant that `stepEntryOf`
+ * and `pickSupportTarget` both rely on, and hiding it from the log the UI
+ * replays.
+ *
+ * WHY CLAMP RATHER THAN DEAL THE DIFFERENCE AS DAMAGE: making a heal able to
+ * hurt would be a NEW MECHANIC — a damage source with no property, no
+ * mitigation, no matchup, no shield interaction, no negate/thorns/expose hook and
+ * no price in `PRICE`. "Anti-heal" already exists as a priced, typed concept
+ * (`applyAntiHeal`, capped at −60% and never able to zero a positive heal). A
+ * clamp is the conservative reading of the same intent: a heal that has been
+ * reduced past nothing simply heals nothing.
+ *
+ * With the clamp, HP can never DECREASE here, so no death check is needed on
+ * this path — the invariant holds by construction, mirroring `dealDamage`'s
+ * `Math.max(0, ...)` floor on the way down. Integer-only, no RNG.
+ *
+ * Returns `applied` (the clamped request, i.e. what the card attempted) and
+ * `healed` (the HP that actually moved); `applied - healed` is the overheal.
+ */
+function restoreHp(target: CombatantState, request: number): { applied: number; healed: number } {
+  const applied = Math.max(0, request);
+  const before = target.stats.hp;
+  target.stats.hp = Math.min(target.stats.maxHp, before + applied);
+  return { applied, healed: target.stats.hp - before };
+}
+
 /** Per-cast scratch state for rider actions (combo bonus, lifesteal). */
 interface CastCtx {
   damageDealt: number;
@@ -539,7 +578,21 @@ interface CastCtx {
   bonusFlat: number;
 }
 
-/** Apply damage through typed shields; emits events, marks death. */
+/**
+ * Apply damage through typed shields; emits events, marks death.
+ *
+ * RETURNS WHETHER THE HIT TOOK EFFECT — `true` when a `damage` event was
+ * emitted, `false` when the application was skipped (dead victim, non-positive
+ * amount) or FULLY NULLIFIED by a `negate` charge. Callers that must not run a
+ * consequence of a hit that never landed read this instead of assuming control
+ * returning means damage happened; `reflectThorns` is the first such caller (a
+ * negated hit used to still spend one of the victim's thorn stacks, contradicting
+ * both docstrings: thorns fires when a hit LANDS, negate FULLY nullifies).
+ *
+ * A hit fully absorbed by SHIELDS still returns `true` — deliberately. It landed
+ * on the unit and spent its plating; only negate makes a hit not happen at all.
+ * Every existing caller that ignores the return value is unaffected.
+ */
 export function dealDamage(
   ctx: Ctx,
   victim: CombatantState,
@@ -551,8 +604,8 @@ export function dealDamage(
     source?: 'skill' | 'poison' | 'burn' | 'bleed' | 'thorns' | 'fatigue' | 'attrition';
     calculation?: Omit<DamageCalculation, 'guardReduction' | 'exposeBonus' | 'shieldBlocked' | 'hpDamage'>;
   } = {},
-): void {
-  if (!victim.alive || amount <= 0) return;
+): boolean {
+  if (!victim.alive || amount <= 0) return false;
   const source = opts.source ?? 'skill';
 
   // Magical Negate: a direct skill hit whose property matches an available
@@ -565,7 +618,7 @@ export function dealDamage(
       neg.charges = (neg.charges ?? 0) - 1;
       if ((neg.charges ?? 0) <= 0) victim.statuses = victim.statuses.filter((s) => s !== neg);
       ctx.events.push({ turn: ctx.state.turn, kind: 'negated', side: victim.side, unit: victim.index, property });
-      return;
+      return false; // the hit did not happen: no HP math, and no thorns reflect
     }
   }
 
@@ -634,6 +687,7 @@ export function dealDamage(
     victim.alive = false;
     ctx.events.push({ turn: ctx.state.turn, kind: 'died', side: victim.side, unit: victim.index });
   }
+  return true;
 }
 
 /** Element wheel (magical) / weapon triangle (physical) result for a card vs a defender. */
@@ -788,7 +842,7 @@ function applyStrike(
     : afterMatchup;
   const amount = Math.max(1, amountBeforeFinalFloor);
   const hpBefore = enemy.stats.hp;
-  dealDamage(ctx, enemy, amount, property, {
+  const landed = dealDamage(ctx, enemy, amount, property, {
     matchup,
     calculation: {
       scalingStat,
@@ -805,7 +859,12 @@ function applyStrike(
     },
   });
   cast.damageDealt += hpBefore - enemy.stats.hp;
-  reflectThorns(ctx, enemy, caster);
+  // A HIT THAT DID NOT TAKE EFFECT DOES NOT REFLECT. `negate` "fully nullifies"
+  // a direct hit (types.ts), so there is no hit for the victim's thorns to sting
+  // back at — and spending a thorn stack on it would make negate cost its own
+  // holder a defensive resource. `reflectThorns` already models this idea for the
+  // killing blow; `landed` closes the negate case at the same seam.
+  if (landed) reflectThorns(ctx, enemy, caster);
 }
 
 /**
@@ -997,14 +1056,16 @@ function applyAction(
         amount = taxed.amount;
         antiHeal = taxed.antiHeal;
       }
-      const before = target.stats.hp;
-      target.stats.hp = Math.min(target.stats.maxHp, target.stats.hp + amount);
-      const healed = target.stats.hp - before;
+      // Clamped at the shared seam (see `restoreHp`): a request that resolved
+      // negative restores nothing rather than draining HP below zero.
+      const { applied, healed } = restoreHp(target, amount);
       // Emit whenever the card ATTEMPTED a heal (even if fully overhealed) so the
       // per-card report credits its full output; `amount` is the effective HP
       // restored, `overheal` the wasted remainder (attempted = amount + overheal).
-      if (amount > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: amount - healed, flat, hpAfter: target.stats.hp, ...(antiHeal ? { antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}), calculation: { power: action.power, statBonus, healFlat, property } });
+      // A clamped-away (<= 0) request attempted nothing and stays silent, exactly
+      // as a 0 heal always has.
+      if (applied > 0) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: applied - healed, flat, hpAfter: target.stats.hp, ...(antiHeal ? { antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}), calculation: { power: action.power, statBonus, healFlat, property } });
       }
       break;
     }
@@ -1079,8 +1140,58 @@ function applyAction(
       break;
     case 'expose': {
       // Offensive debuff: applied to the enemy. pct clamped to <=50 at apply time.
+      //
+      // ONE PILE PER VICTIM, REFRESHED — never a second concurrent pile.
+      // A re-application takes the STRONGER pct and the LONGER remaining
+      // duration, and becomes `fresh` again so the refreshed window is worth
+      // exactly what a first application would be worth: strictly monotone (a
+      // recast can never shorten or weaken a standing expose) and strictly
+      // bounded (the amplification a victim can carry is one clamped pct, ever).
+      //
+      // WHY REFRESH RATHER THAN A SECOND PILE, given `guard` — expose's stated
+      // mirror — opens one: `dealDamage` compounds piles MULTIPLICATIVELY, and
+      // the two mirrors compound in opposite directions. Guard's second pile is
+      // worth LESS than its first (50% then 50% leaves 25% — diminishing toward
+      // zero), while expose's second pile is worth MORE than its first (+50%
+      // then +50% is ×2.25, not ×2 — accelerating without bound). PRICE follows
+      // that asymmetry: expose is priced at PARITY with guard, `pct × turns`
+      // (`exposePerPctTurnNum` in balance.ts, "amplifying incoming damage and
+      // reducing it are worth the same per pct*turn"). Parity only holds while
+      // the marginal application is worth the same as the first, which is true
+      // of guard's stacking and false of expose's — so the offensive mirror is
+      // the one that must not stack. The engine already draws this exact line
+      // for the other offensive non-additive debuff: `slow` takes the strongest
+      // pending value rather than summing, "that would permanently lock out slow
+      // enemies".
+      //
+      // MERGE (the DoT / thorns rule) was rejected outright: those merge STACK
+      // COUNTS, a linear resource each tick spends, whereas summing expose `pct`
+      // would breach the <=50 apply-time clamp the type documents on the very
+      // first recast.
+      //
+      // WARD still taxes the refresh, exactly as it taxes a DoT merge in
+      // `applyDot` — one charge cancels one whole application whether or not the
+      // victim already carries a pile (see `consumeWard`). Prevention, not
+      // removal: a warded refresh leaves the standing pile exactly as it was.
       if (!enemy.alive) break;
       const pct = Math.max(0, Math.min(50, action.pct));
+      const pile = enemy.statuses.find((st) => st.kind === 'expose');
+      if (pile) {
+        if (consumeWard(ctx, enemy, 'expose')) break;
+        pile.pct = Math.max(pile.pct ?? 0, pct);
+        pile.turnsLeft = Math.max(pile.turnsLeft, action.turns);
+        pile.fresh = true;
+        ctx.events.push({
+          turn: ctx.state.turn,
+          kind: 'statusApplied',
+          side: enemy.side,
+          unit: enemy.index,
+          status: 'expose',
+          pct: pile.pct,
+          turns: pile.turnsLeft,
+        });
+        break;
+      }
       addStatus(ctx, enemy, { kind: 'expose', pct, turnsLeft: action.turns, fresh: true });
       break;
     }
@@ -1162,9 +1273,11 @@ function applyAction(
       // afflictions on its RECEIVER (the caster), same formula as `heal`.
       const taxed = applyAntiHeal(caster, stolen);
       const amount = taxed.amount;
-      const before = caster.stats.hp;
-      caster.stats.hp = Math.min(caster.stats.maxHp, caster.stats.hp + amount);
-      const healed = caster.stats.hp - before;
+      // Same shared seam as the `heal` arm (`restoreHp`): lifesteal cannot reach
+      // a negative request today (`stolen > 0` is checked above and anti-heal
+      // never zeroes a positive request), and routing it here is what keeps that
+      // true if either of those facts ever changes.
+      const { healed } = restoreHp(caster, amount);
       if (healed > 0) {
         // NO `calculation` BLOCK (deliberate): a lifesteal request is
         // `floor(damageDealt * pct / 100)` — there is no card base, no stat term
@@ -1321,6 +1434,32 @@ export function applyCast(
     // entirely otherwise so un-aura'd casts stay byte-identical.
     ...(auraSources.length > 0 ? { auras: auraSources } : {}),
   });
+  /**
+   * HAS THIS CAST BEEN CUT SHORT? The ONE stop condition of the effect loop, so
+   * a future `Action` kind cannot miss it by forgetting its own guard.
+   *
+   * Two independent reasons, both "nothing later in this step ever runs":
+   *
+   *  1. `!caster.alive` — A DEAD CASTER STOPS CASTING. Thorns reflect can kill
+   *     the caster in the middle of its own cast, and a corpse must not land the
+   *     rest of its card: no remaining AoE hits, no poison rider, no stun, no
+   *     self-shield. This used to be spelled `anySideWiped`, which is only true
+   *     when EVERY unit of a side is dead — accidentally correct at 1v1 (a side
+   *     of one IS wiped when its unit dies) and wrong in every pack fight, where
+   *     a dying enemy caster leaves its side standing and the loop carried on
+   *     applying its remaining effects from beyond the grave. It is checked HERE,
+   *     once, rather than in each arm: only `shield`/`guard`/`negate`/`ward`/
+   *     `taunt`/`lifesteal` ever checked `caster.alive`, so every damage, DoT and
+   *     control arm was — and any new arm would be — unguarded.
+   *  2. `anySideWiped` — FIRST TO FALL LOSES (user-locked 2026-08-04): the fight
+   *     ends at the exact application that wipes a side, so a cast that lands the
+   *     killing blow stops right there (no lifesteal-back off the killing blow,
+   *     no self-buff after the last foe falls).
+   *
+   * Read-only, integer-free, consumes no RNG. At 1v1 it is exactly equivalent to
+   * the old `anySideWiped` call, so every 1v1 log stays byte-identical.
+   */
+  const castCutShort = (): boolean => !caster.alive || anySideWiped(ctx.state);
   const cast: CastCtx = { damageDealt: 0, bonusFlat: 0 };
   // MULTI-HIT STAT SPLIT: the denominator is fixed for the whole cast and counts
   // the CARD'S OWN damage actions only — a gem-appended hit neither joins the
@@ -1341,22 +1480,17 @@ export function applyCast(
     // accumulates across all victims so lifesteal sums the whole cast.
     for (const target of resolveTargets(ctx, caster, skill, action)) {
       applyAction(ctx, caster, skill, action, mods, cast, target, hit);
-      // FIRST TO FALL LOSES binds INSIDE one action's fan-out too. This check
-      // used to be unnecessary ("every action is a no-op on a dead target"),
-      // but that argument only covered dead TARGETS — thorns reflect is the
-      // first mechanism that can kill the CASTER mid-fan-out, and a dead
-      // caster must not land its remaining AoE hits. Nothing later in the
-      // same step ever runs. Consumes no RNG.
-      if (anySideWiped(ctx.state)) break;
+      // The stop condition binds INSIDE one action's fan-out too: a caster killed
+      // by the FIRST victim's thorns must not land the remaining AoE hits.
+      if (castCutShort()) break;
     }
-    // FIRST TO FALL LOSES (user-locked 2026-08-04): the fight ends at the exact
-    // application that wipes a side, so a cast that lands the killing blow STOPS
-    // right there — its remaining effects are "later in the same step" and never
-    // apply. Concretely: NO LIFESTEAL-BACK off the killing blow, and no self
-    // shield/buff/taunt tacked on after the last foe falls.
-    if (anySideWiped(ctx.state)) break;
+    // ...and between actions, so a killing blow (or a killed caster) drops every
+    // remaining effect of the card. See `castCutShort`.
+    if (castCutShort()) break;
   }
-  if (skill.special !== undefined && !anySideWiped(ctx.state)) {
+  // A special is the card's last effect by another name, so it obeys the same
+  // stop condition — a dead caster runs no special either.
+  if (skill.special !== undefined && !castCutShort()) {
     getSpecial(skill.special)(ctx, caster, skill, slot, mods);
   }
   ctx.source = undefined;

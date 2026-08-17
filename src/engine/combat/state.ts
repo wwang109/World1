@@ -39,6 +39,52 @@ export interface StatusInstance {
   source?: EffectSourceRef;
 }
 
+/**
+ * WHICH STATUS KINDS ARE TURN-DURATIONED — the single, exhaustive answer, kept
+ * here beside `StatusInstance` rather than as an inline `!==` chain at the one
+ * call site (`expireStatuses` in simulate.ts).
+ *
+ * WHY IT IS A NAMED SET: every kind in the union must expire by EXACTLY ONE
+ * mechanism, and the four mechanisms live in four different files. Spelling the
+ * turn-durationed ones out as a list makes the partition reviewable — and makes
+ * a gap testable — instead of relying on a reader noticing which kinds a negated
+ * condition happens to exclude. `expose` fell through exactly that crack: it was
+ * the only kind the union documents as lasting "for `turns` global turns" that
+ * the `!==` chain did not name, so its `turnsLeft` was never decremented and it
+ * lasted the whole fight (priced `pct × turns`, delivered `pct × ∞`).
+ *
+ * THE FULL PARTITION (every `StatusInstance['kind']`, exactly once):
+ *  - GLOBAL-TURN DURATION  — this list: `buff`, `debuff`, `guard`, `expose`.
+ *    `turnsLeft` decrements once per global turn in `expireStatuses`; the pile is
+ *    dropped (with `statusExpired`) at 0.
+ *  - STACK-DECAYED         — `poison`, `burn` (`tickTurnDot`), `bleed`
+ *    (`tickBleed`), `thorns` (`reflectThorns`): each tick/reflect removes stacks
+ *    and the pile expires at 0 stacks. `turnsLeft` merely mirrors `stacks`.
+ *  - PERFORMANCE-COUNTED   — `stun`: decremented when a performance is consumed
+ *    (the perform loop in simulate.ts), never by a global turn.
+ *  - CHARGE-SPENT          — `negate` (`dealDamage`), `ward` (`consumeWard`):
+ *    permanent until their charges are spent.
+ *
+ * Adding a kind to the union means placing it in exactly one of those four
+ * groups; `tests/engine/statusExpiry.test.ts` fails if a kind is in none.
+ */
+export const TURN_DURATIONED_STATUS_KINDS: readonly StatusInstance['kind'][] = [
+  'buff',
+  'debuff',
+  'guard',
+  'expose',
+];
+
+/** Does this kind's `turnsLeft` count GLOBAL TURNS (see the list above)? */
+export function isTurnDurationed(kind: StatusInstance['kind']): boolean {
+  // Indexed scan over a frozen-order array — never a Set — so iteration order
+  // (and therefore determinism) is fixed by the source literal.
+  for (let i = 0; i < TURN_DURATIONED_STATUS_KINDS.length; i += 1) {
+    if (TURN_DURATIONED_STATUS_KINDS[i] === kind) return true;
+  }
+  return false;
+}
+
 /** Typed shield pools. A pool only blocks its own property; true blocks all. */
 export interface ShieldPools {
   physical: number;

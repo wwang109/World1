@@ -46,6 +46,18 @@ const book: SkillBook = {
     rarity: 'common', tier: 'bronze', element: 'nature',
     effects: [{ kind: 'poison', stacks: 3 }], text: '{{Poison}} 3.',
   },
+  // Self negate, ONE physical charge — cancels exactly the first `jab`.
+  silence: {
+    id: 'silence', name: 'Silence', archetypes: ['defensive'], property: 'physical', size: 1,
+    rarity: 'common', tier: 'bronze', weapon: 'sword', cooldownTurns: 99,
+    effects: [{ kind: 'negate', property: 'physical', charges: 1 }], text: '{{Negate}} 1 physical.',
+  },
+  // Self shield big enough to fully absorb a jab — the contrast case for negate.
+  plate: {
+    id: 'plate', name: 'Plate', archetypes: ['defensive'], property: 'true', size: 1,
+    rarity: 'common', tier: 'bronze', cooldownTurns: 99,
+    effects: [{ kind: 'shield', power: 50 }], text: 'Gain 50 TRUE shield.',
+  },
 } satisfies Record<string, SkillDef>;
 
 function unit(name: string, pieces: string[], opts: Partial<CombatantSetup> = {}): CombatantSetup {
@@ -142,6 +154,61 @@ describe('thorns', () => {
     expect(diedAt, 'the sweeper must die to the reflect').toBeGreaterThan(-1);
     const lateHits = events.slice(diedAt + 1).filter((e) => e.kind === 'damage' && e.source === 'skill');
     expect(lateHits, 'a dead caster must not land its remaining AoE hits').toEqual([]);
+  });
+
+  /**
+   * A HIT THAT DID NOT TAKE EFFECT DOES NOT REFLECT.
+   *
+   * REGRESSION: `applyStrike` called `dealDamage(...)` and then
+   * `reflectThorns(...)` unconditionally. `dealDamage`'s negate arm returns EARLY
+   * after emitting `negated`, so zero damage landed — but control returned and
+   * the reflect fired anyway, spending one of the holder's thorn stacks on a hit
+   * that never happened. Both docstrings said otherwise: thorns fires when a hit
+   * LANDS (types.ts), negate FULLY nullifies one (types.ts). `dealDamage` now
+   * reports whether the application took effect and `applyStrike` reflects only
+   * then — the same idea `reflectThorns` already applied to the killing blow.
+   */
+  it('a NEGATED hit spends no thorn stack: the pile is untouched and stings the NEXT, real hit at full value', () => {
+    // Speed 30 so the holder gets BOTH defensive cards up on turn 1, before the
+    // attacker's first jab resolves.
+    const holder = unit('holder', ['bramble', 'silence'], { stats: { maxHp: 400, hp: 400, attack: 0, magicPower: 0, armor: 0, magicResist: 0, speed: 30 } });
+    const events = run(holder, unit('attacker', ['jab']));
+    const negated = events.filter((e) => e.kind === 'negated');
+    expect(negated, 'the scenario must actually negate a hit').toHaveLength(1);
+    const negatedTurn = negated[0]!.turn;
+    const stings = thornDamage(events).filter((e) => e.side === 'enemy');
+    // THE DISCRIMINATOR: nothing reflected on the negated hit's own turn. (Under
+    // the defect a sting of 3 fired right after the `negated` event, so the
+    // ladder still READ 3-2-1 — it was just one hit early and one stack poorer.)
+    expect(
+      stings.filter((e) => e.turn === negatedTurn),
+      'REGRESSION: a fully-negated hit still paid the victim\'s thorns',
+    ).toEqual([]);
+    // The holder took no damage on that turn either — the hit truly did not happen.
+    const hitsOnHolder = events.filter(
+      (e) => e.kind === 'damage' && e.source === 'skill' && e.side === 'player' && e.turn === negatedTurn,
+    );
+    expect(hitsOnHolder).toEqual([]);
+    // The pile is intact for the NEXT, real jab: the full 3, 2, 1 ladder, all of
+    // it strictly after the negated turn.
+    expect(stings.map((e) => e.amount)).toEqual([3, 2, 1]);
+    for (const s of stings) expect(s.turn).toBeGreaterThan(negatedTurn);
+  });
+
+  it('a SHIELD-absorbed hit still reflects — only negate makes a hit not happen at all', () => {
+    // The contrast that keeps the rule narrow: a hit soaked by plating LANDED on
+    // the unit and spent its shield, so the thorns still sting. `dealDamage`
+    // reports it as taken effect; only a negate charge cancels the hit itself.
+    const holder = unit('holder', ['bramble', 'plate'], { stats: { maxHp: 400, hp: 400, attack: 0, magicPower: 0, armor: 0, magicResist: 0, speed: 30 } });
+    const events = run(holder, unit('attacker', ['jab']));
+    const firstJab = events.find(
+      (e): e is Extract<CombatEvent, { kind: 'damage' }> =>
+        e.kind === 'damage' && e.source === 'skill' && e.side === 'player',
+    )!;
+    expect(firstJab.blocked, 'the jab must be fully absorbed by the plating').toBe(firstJab.amount);
+    expect(firstJab.hpAfter).toBe(400);
+    // The full 3-2-1 ladder still runs: absorption is not nullification.
+    expect(thornDamage(events).filter((e) => e.side === 'enemy').map((e) => e.amount)).toEqual([3, 2, 1]);
   });
 
   it('a killing blow is not reflected — first to fall loses', () => {

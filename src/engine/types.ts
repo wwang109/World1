@@ -262,7 +262,19 @@ type ActionKinds =
    * The mirror of `guard`: while active, the victim takes +`pct`% damage from
    * ALL direct hits (source `skill`) for `turns` global turns. DoT ticks are
    * unaffected (like guard). Applied on the enemy (offensive). `pct` clamped to
-   * <=50 at apply time; amplification is floored.
+   * <=50 at apply time; amplification is floored. The duration is a real
+   * GLOBAL-TURN duration, decremented in `expireStatuses` — see
+   * `TURN_DURATIONED_STATUS_KINDS` (combat/state.ts) for the full expiry
+   * partition.
+   *
+   * ONE PILE PER VICTIM, REFRESHED (unlike `guard`, which opens a pile per
+   * cast): a re-application keeps the STRONGER `pct` and the LONGER remaining
+   * duration and restarts the window, so the amplification a victim can ever
+   * carry is one clamped `pct`. Guard may stack because piles compound
+   * multiplicatively DOWNWARD (diminishing: 50% then 50% leaves 25%); expose
+   * compounds UPWARD (accelerating: +50% then +50% is ×2.25), so stacking it
+   * would break the guard-parity `pct × turns` price it is sold at. The same
+   * line the other offensive non-additive debuff draws — see `slow`.
    */
   | { kind: 'expose'; pct: number; turns: number }
   /**
@@ -280,6 +292,11 @@ type ActionKinds =
    * never trigger the attacker's own thorns (depth-1, non-reentrant) — a
    * reflect loop is the cheapest way to hang the sim. Stacks persist until
    * consumed (no turn expiry) and are NOT cleansable (a buff, not an ailment).
+   *
+   * A HIT THAT DID NOT TAKE EFFECT DOES NOT REFLECT: a killing blow is not
+   * reflected (first to fall loses), and a hit fully cancelled by a `negate`
+   * charge is not either — there is no hit to sting back at. A hit merely
+   * ABSORBED by a shield does reflect: it landed and spent plating.
    */
   | { kind: 'thorns'; stacks: number }
   /**
@@ -313,6 +330,9 @@ type ActionKinds =
    * fully nullify the next direct skill hits of the matching `property`. DoT
    * ticks and fatigue never spend a charge. Persists until charges run out (no
    * turn expiry). Total charges of a property are clamped to <=3 at apply time.
+   *
+   * FULLY means fully: a negated hit runs no HP math, no guard, no expose, no
+   * shield drain — and pays no `thorns` reflect, because the hit did not happen.
    */
   | { kind: 'negate'; property: Property; charges: number }
   /**

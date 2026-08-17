@@ -1,7 +1,7 @@
 import { Rng } from '../rng';
 import type { CombatConfig, CombatantSetup, CombatOutcome, Side } from '../types';
 import type { CombatEvent } from './events';
-import { effStat, initCombatState, teamOf, type CombatState, type CombatantState } from './state';
+import { effStat, initCombatState, isTurnDurationed, teamOf, type CombatState, type CombatantState } from './state';
 import { scanCast, type CastChoice } from './castSelect';
 import { applyCast, dealDamage, targetInfoForCast, type Ctx } from './interpreter';
 
@@ -278,7 +278,16 @@ function tickBleed(ctx: Ctx, c: CombatantState): void {
   c.statuses = remaining;
 }
 
-/** Decrement buff/debuff durations at global turn end; clear freshness. */
+/**
+ * Decrement every GLOBAL-TURN duration at turn end; clear freshness.
+ *
+ * The set of kinds this owns is `TURN_DURATIONED_STATUS_KINDS` (state.ts), which
+ * also documents the mechanism that expires each of the OTHER kinds — DoTs and
+ * thorns decay by stacks, stun by performances, negate/ward by charges. It is a
+ * named list rather than an inline `!==` chain because a kind silently belonging
+ * to no mechanism is invisible in a chain: `expose` sat in that gap and never
+ * expired at all.
+ */
 function expireStatuses(ctx: Ctx, c: CombatantState): void {
   const remaining: typeof c.statuses = [];
   for (const status of c.statuses) {
@@ -287,9 +296,7 @@ function expireStatuses(ctx: Ctx, c: CombatantState): void {
       remaining.push(status);
       continue;
     }
-    if (status.kind !== 'buff' && status.kind !== 'debuff' && status.kind !== 'guard') {
-      // poison/burn decrement in tickDots; stun decrements when consumed;
-      // negate persists until its charges are spent.
+    if (!isTurnDurationed(status.kind)) {
       remaining.push(status);
       continue;
     }

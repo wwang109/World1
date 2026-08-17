@@ -1,6 +1,6 @@
 {
  "normalization": "Hashes are taken through tests/engine/helpers/outcomeHash.ts (shared with outcomeRule.test.ts), which strips PRESENTATION/AUTHORING-ONLY card fields before hashing: `text` anywhere, `name` on SkillDef-shaped objects, and (2026-08-17) `tierUpgrades` on SkillDef-shaped objects. The sim reads none of them at resolved-skill time, so a content copy-edit or a tier-authoring change no longer forces a fixture regeneration. Everything the engine consumes — the full event log, all combatant state (incl. each combatant `name`), and every behavioural SkillDef field (effects, property, size, speedWeight, cooldownTurns, tier, rarity, element, weapon, scope, aura, special) — is still hashed byte-for-byte. OBJECT KEYS ARE SORTED before stringify (2026-08-09), so the hash is a function of VALUES ONLY and no rebuild-in-a-different-field-order can churn it. ARRAY order is untouched and still fully load-bearing.",
- "note": "Regression lock recaptured (2026-08-17) for STRIPPING `tierUpgrades` from the hash — a REPRESENTATION-ONLY change that moves EVERY hash and NO behaviour. `tierUpgrades` is *input* consumed only by `applyTier`/`autoScaleTier` (src/engine/cards.ts) at resolve time; the combat loop never reads it. `resolveEffectiveSkill` returns an UNTIERED piece's base `SkillDef` BY REFERENCE (`piece.tier ? applyTier(def, piece.tier) : def`), so its `tierUpgrades` rode along into the hash unread — editing an unused tier block used to move the lock for zero behaviour change. For a TIERED piece the field was never the sole carrier of a difference either: `applyTier` folds any authored override or the auto-scaler's derived numbers into `effects`/`tier` on the SAME resolved object the hash sees, so a real tier-block change still moves the hash through those fields with `tierUpgrades` itself excluded. WHY NOW: unblocks deleting purify's three hand-authored `tierUpgrades` blocks (silver/gold/diamond) — filler TRUE heals bolted on before cleanse could scale with tier — now that `autoScaleTier` derives the same budget-honest cleanse-charge ladder (6/8/10) on its own (see tests/engine/tierUpgrades.test.ts, cleanse tier-scaling user-locked 2026-08-17). CONTAINMENT PROVEN, in the strongest available form: a read-only raw `simulate` dump (full event log, `turns`, `result`, `finalState` — NOT normalized, NOT hashed) over both 200-fight sweeps, taken immediately before and immediately after the normalizer edit, was byte-identical in all 400 cases (SHA-256 of the two dumps matched exactly) — proving `simulate()` itself was untouched and only the hash DOMAIN moved. Blast radius on the hash itself: 200/200 attritionOn and 200/200 attritionOff logs changed (188/200 of each decided before ATTRITION_START_TURN), because 25 of the book's 72 skills carry an authored `tierUpgrades` block and all 25 are in the frozen sweep pool (tests/engine/fixtures/frozenSweepSkillIds.ts) — with boards drawing several pieces each, nearly every fight includes at least one. `result` and `turns` moved in 0/400 cases (confirmed against `prev` below): every diff is attributable to bytes leaving the hash input, not to any change in what was simulated. ACCEPTANCE TEST, run immediately after this regeneration: deleting purify's three `tierUpgrades` blocks moved 0/400 of THIS baseline (vs 200/200 before this normalizer change) — direct proof the narrowing does what it claims. See tests/engine/helpers/outcomeHash.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-09) for CANONICAL KEY ORDER in the hash normalizer — a REPRESENTATION-ONLY change that moves EVERY hash and NO behaviour. `outcomeHash` ends in JSON.stringify, which serialises object keys in INSERTION order, so until now the physical FIELD ORDER of every hashed object fed the lock. That is not a behaviour: nothing in the engine iterates Object.keys of a SkillDef to decide anything, and the card literals in src/data/skills.ts already order their fields inconsistently (some put `weapon` before `size`, some after). normalizeForHash now sorts keys at every depth; ARRAY order is deliberately left alone, because array order IS behaviour here (effects fire in order, the event log is a sequence). WHY NOW: this is a PREREQUISITE for the content-format migration. A loader that builds SkillDef objects from a data file necessarily picks its own key order, and would otherwise have re-hashed all 400 cases for a provably behaviour-neutral change — a regeneration whose churn could hide a real regression, which is precisely what this fixture exists to prevent. Paying it ONCE here, in isolation, buys permanent immunity: from now on only VALUES can move a hash. CONTAINMENT PROVEN, and in the strongest available form — the sim output was shown to be UNCHANGED rather than merely similar. Read-only probe over both 200-fight sweeps, BEFORE regenerating: (a) the CURRENT engine reproduced 400/400 of the OLD fixture hashes under the OLD normalizer, so the simulation is byte-identical and every delta below is attributable to the normalizer alone; (b) result moved 0/400 and turns moved 0/400; (c) re-hashing THAT SAME unchanged sim output under the sorted normalizer moved 400/400 hashes (0/400 were already in canonical order — consistent with `id` leading every SkillDef literal while sorting demands `archetypes` first). A pure key-order delta is therefore the only thing in this regeneration. INCIDENTALLY PROVEN, and worth recording: (a) held the whole time an unrelated in-flight engine change (the echo-gem statStrike `echoHostPower` / gem `weightIncreasePct` work) was present in the tree — reproducing 400/400 old hashes is a direct proof that work is sweep-neutral, as its own byte-identity claim predicted; and (b) the same 400/400 reproduction re-confirms that FREEZING the sweep id pool (tests/engine/fixtures/frozenSweepSkillIds.ts, 2026-08-08) cost zero regeneration. See tests/engine/helpers/outcomeHash.ts and the key-order guards in tests/engine/outcomeHash.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-07) for the MULTI-HIT STAT SPLIT (user-locked 2026-08-07): a REAL, REVIEWED RULE CHANGE that moves real damage numbers. The caster's scaling stat (Attack / Magic Power / higher for TRUE) is now a PER-CAST resource split across a cast's `damage` actions, not a full add RE-DELIVERED by each one. Twin Slash at ATK 20 was 2x(6+20) = 52 and is now 2x(6+10) = 32; a cast's total stat contribution is finally HIT-COUNT-INVARIANT. WHY: multi-hit previously scaled SUPERLINEARLY with hero stats (a 3-hit card delivered 3x the stat) while powerLevelDeci priced only the summed flat base plus a FLAT PRICE.extraHitPremium — a fixed 3 PL against an effect worth (hits-1)x(ATK-DEF), i.e. ~1 PL at ATK 10 but ~21 PL at ATK 50 and ~40 PL at the level-30 ceiling. Splitting the stat is what makes an honest flat price possible at all. The split is exact integer arithmetic (`statShare`): shares sum to EXACTLY the stat for any hit count and any sign, with the remainder FRONT-LOADED (earlier hits carry the odd point) so the share most likely to land before a first-to-fall break is the larger one. At one hit it is the IDENTITY, so every single-hit card in the book is byte-identical. GEM-APPENDED damage actions JOIN the split (the count is taken from the EFFECTIVE effect list), which is what makes the user-reported case behave as printed: soul_rend_echo (\"+16 damage\") used to deliver +36 at ATK 20 and +66 at ATK 50, and now delivers exactly +16 on every host at every stat line. [SUPERSEDED IN PART, SAME DAY — NO REGENERATION: gem-appended hits were REMOVED from the split's divisor and made unbuffable (see `GemAppended` in src/engine/types.ts). Joining the divisor made a \"+damage\" gem net-NEGATIVE against armor (-4 on sword_slash at DEF 8, -9 at DEF 16) because it took a share from the base hit AND paid mitigation a second time. A gem hit is now self-contained: outside the divisor, no stat share, no mods.damageFlat, no comboBonus — so it still delivers exactly +16, and the host card is untouched. The fixture below is UNCHANGED and was NOT recaptured: the sweep (tests/engine/helpers/sweepConfigs.ts) sockets NO gems at all and no card uses the new `statStrike` action, so a read-only recompute moved 0/200 logs in BOTH sweeps. Rules are pinned in tests/engine/gemStrike.test.ts.] DELIBERATELY UNCHANGED (user-locked the same day): `mods.damageFlat` — card-scope stat gems and board auras — and a triggered `comboBonus` still apply IN FULL to EVERY hit, so a +4 card-scope gem is still worth +8 on a 2-hit card. Blast radius verified BEFORE regenerating, over both 200-fight sweeps: 94/200 logs moved in EACH (89 of them decided before ATTRITION_START_TURN), with 1 winner flip (#8, the same log in both sweeps) and 18 turn changes — the expected consequence of multi-hit casts hitting for less. CONTAINMENT PROVEN BY EXHAUSTION, BOTH DIRECTIONS: the moved set is EXACTLY the set of logs that CAST twin_slash, rapid_volley or barrage (the book's only multi-damage-action cards) — 0 logs moved without casting one, and 0 logs that cast one stayed put. 124/200 configs carry one on a board; the 30 that carry one yet did not move are precisely those where it never fired, proven by their bytes standing still. NOT REPRICED HERE (deliberate, out of this agent's scope): PRICE.extraHitPremium still charges 30 deci for what is now a strictly WEAKER effect (multi-hit still eats mitigation once per hit, so it is now worse than a single-hit card of the same budget against armor), and the user's tier/slot gate for multi-hit cards is a balance-designer pass on top of this one. See src/engine/combat/interpreter.ts (`HitSplit`, `statShare`, `countDamageActions`, the `damage` case and `applyCast`) and tests/engine/multiHit.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-06) for the HEAL DERIVATION BLOCK (`heal.calculation`): an ADDITIVE, PRESENTATION-ONLY EVENT FIELD — NOT a rule change. The sim reads nothing from it and every number it reports was already being applied. The heal event now carries { power, statBonus, healFlat, property }, the sibling of shieldGain.calculation, so the battle log can print \"H: base 48 + (1 MDEF) - (9 ANTI-HEAL) = 40\" instead of a request that appears from nowhere; the alternative — re-deriving the split in the renderer — would re-run gem/aura/stat resolution outside the engine and could silently disagree with it. TRUE heals report a ZERO stat term (flat by identity, exactly as TRUE shields do), and the OTHER emitter of this event, the LIFESTEAL rider, OMITS the block entirely: its request is a percentage of damage dealt, with no card base and no stat term to split (same contract as damage.calculation, which DoT/fatigue/attrition damage omits). Blast radius verified BEFORE regenerating, over both 200-fight sweeps and IDENTICAL in each: 137/200 logs moved (128 of them decided before ATTRITION_START_TURN), with ZERO winner flips and ZERO turn changes — the signature of a field the sim never consumes. CONTAINMENT PROVEN BY EXHAUSTION, both directions: the moved set is EXACTLY the set of logs containing a heal-ACTION heal (0 logs moved without one; 0 logs carrying one stayed put). 142 logs contain a heal event at all, and the 5 that did NOT move (#4, #14, #92, #142, #192) are precisely the logs whose ONLY heal is a `leeching_fang` LIFESTEAL — the deliberate omission above, proven by their bytes standing still. 45 of the moved logs carry only zero-term (TRUE/flat) heal calculations: they move because the BLOCK itself is new, unlike the 2026-08-05 stat-scaling regen where zero-term heals stayed put. ON THE NORMALIZER (see `normalization` above): stripping `calculation` there instead — which would have cost no fixture churn at all — was evaluated FIRST and REJECTED. It is engine-derived ARITHMETIC, not authored copy: two heals with the same landed amount but a different (power, statBonus, healFlat) split are a real difference in the sim's math, and this lock is what would catch it. A blanket strip would also drop the ALREADY-HASHED damage.calculation and shieldGain.calculation and re-hash nearly every one of the 200 logs — a BIGGER regeneration buying permanently LESS coverage. See src/engine/combat/interpreter.ts (the `heal` and `lifesteal` cases), src/engine/combat/events.ts (heal.calculation docs), src/game/battleTimeline.ts (formatHeal) and tests/engine/effects.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-05) for DEFENSIVE-STAT SCALING of shields and heals (user-approved 2026-08-04): a REAL, REVIEWED RULE CHANGE. A card's `property` still picks WHICH stat scales its output, but the ROLE of the action now picks WHICH SIDE of the stat sheet that lookup reads — defensive output (shield / heal) scales off Armor (physical) and Magic Resist (magical) via the new `scaleDefStat`, where it previously read Attack / Magic Power via `scaleStat`. TRUE stays flat by identity (0 stat term), exactly as before. PL-NEUTRAL: attack/magicPower/armor/magicResist all cost 1 PL per +1 and all start at 1 (LEVEL_STAT_COST, BASE_HERO_STATS in src/run/leveling.ts), so no price in src/engine/balance.ts moves — only WHICH stat buys the output. Blast radius verified BEFORE regenerating, over both 200-fight sweeps: 153/200 logs moved in EACH sweep (142 of them decided before ATTRITION_START_TURN), with 2 winner flips (#9 and #138, the same two in both sweeps) and 13 turn changes — the expected consequence of every shield pool and heal resizing. CONTAINMENT PROVEN BY EXHAUSTION: 0 logs moved WITHOUT containing a shieldGain or heal event, so nothing outside the changed mechanic drifted. The 15 logs that DO contain one and did NOT move are each explained: 12 carry only a zero stat term (TRUE shields/heals, flat by identity under both rules) and 3 (#4, #65, #142) carry only a `leeching_fang` LIFESTEAL heal, which is a percentage of damage dealt and never had a stat-scaling term under either rule. See src/engine/combat/interpreter.ts (`scaleDefStat` and its `scaleStat` sibling), src/engine/combat/events.ts (shieldGain.calculation.statBonus docs) and tests/engine/effects.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-04) for the FIRST-TO-FALL OUTCOME RULE (user-directed 2026-08-04): a REAL, REVIEWED RULE CHANGE. Combat now ends at the exact APPLICATION that wipes a side, so nothing later in the same step runs — no DoT/attrition/fatigue tick after the killing blow, no bleed tick on a performer whose cast just won, and no lifesteal-back off a killing blow. Mutual wipes therefore cannot occur and the 2026-07-30/31 tempo tiebreak is unreachable (kept in decideOutcome as a documented defensive fallback). Blast radius verified BEFORE regenerating, by diffing this engine against a byte copy of the pre-change simulate.ts + interpreter.ts over all 740 fights the engine suite sweeps: attritionOff 2/200 and attritionOn 3/200 logs moved (#10 and #83 in both, plus #15 with attrition on). For EVERY moved log the diff proved: (a) the events up to AND INCLUDING the death that wiped a side are byte-identical, (b) the new log is a strict SUBSEQUENCE of the old one — nothing was invented, (c) every removed event is a post-wipe application (#10: one lifesteal heal on a killing blow; #83: one bleed tick after a killing cast; #15: two attrition ticks after a side was already wiped), and (d) `turns` did not move. ZERO winner flips in either sweep, and 0 of the 740 fights was a former mutual wipe in the baseline families (1 was in the wider 0x5117e5 sweep, and it kept its result). See src/engine/combat/simulate.ts (`sweep`, `decideOutcome`), src/engine/combat/interpreter.ts (`applyCast`) and tests/engine/outcomeRule.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-03) for the ANTI-HEAL WORLD RULE (game-director approved 2026-08-01, built 2026-08-03): a REAL, REVIEWED RULE CHANGE. Regular heals and lifesteal are taxed -20% per affliction category active on the RECEIVER (DoT family / stat debuff / expose, cap -60%); TRUE heals are immune. Blast radius verified BEFORE regenerating: exactly 75/200 logs moved in each sweep, and those 75 are EXACTLY the logs that contain a heal event carrying the new `antiHeal` annotation (0 logs moved without one, 0 annotated logs left unmoved). 7 of them end on a different turn and 1 (attritionOn #172) flips its winner — the expected consequence of less healing, not a scope leak. See src/engine/combat/interpreter.ts (applyAntiHeal / antiHealCategories) and tests/engine/antiHeal.test.ts. It supersedes the prior regen (2026-08-01) for the TRUE-heal re-price (PRICE.flatTrueHealPerPoint 2 -> 4, balance-designer pass): a REAL BEHAVIOR CHANGE, unlike the prior representation-only regens noted below. second_wind/renewing_wave/purify heal for smaller flat amounts at every tier (e.g. second_wind Bronze 50 -> 25), which changes sim outcomes for any sweep config that casts one of those three cards. Both supersede two earlier non-rule regenerations that the presentation-field normalizer (see `normalization` above) made unnecessary: (a) the card-text canonical-token sweep (ATK/MATK/DEF/MDEF/SPD), which moved every hash without touching a single mechanic — exactly the churn `text` stripping kills, and (b) the additive shield event metadata (shieldGain.calculation, shieldGain.poolsAfter, damage.shieldDrain), which re-hashed the 140/200 logs containing a shield event and left every other byte identical. Guards the ATTRITION THRESHOLD BOUNDARY in outcomeRule.test.ts: fights decided before ATTRITION_START_TURN must stay byte-identical across RULE changes. Regenerate with tests/engine/fixtures/captureOutcomeBaseline.ts, and only for a deliberate, reviewed change.",
+ "note": "Regression lock recaptured (2026-08-17) for the EXPOSE DURATION FIX — a REAL, REVIEWED RULE CHANGE, and a defect fix rather than a design pass. `expose` was the ONLY turn-durationed status missing from `expireStatuses`'s decrement set (stun decrements on consumption, DoTs in tickTurnDot/tickBleed, negate/ward are charge-based, thorns is stack-based), so its `turnsLeft` was NEVER decremented: a card priced `pct x turns` (`exposePerPctTurnNum`, balance.ts) delivered `pct x infinity`. Compounded by `applyAction`'s expose arm calling `addStatus` with no merge, so every recast opened ANOTHER pile and `dealDamage` multiplied them: a card printing \"expose 50% for 1 turn\", recast on its rotation, measured 30 -> 45 -> 67 -> 100 -> 181 -> 316 -> 546 -> 913 -> 1531 damage on a fixed 20-power hit, with ZERO `statusExpired` events. FIX, both halves: (a) the decrement set is now the named, exhaustive `TURN_DURATIONED_STATUS_KINDS` (buff/debuff/guard/expose) in combat/state.ts, which also documents the mechanism expiring every OTHER kind, so a kind belonging to none is a red test rather than a silent infinity; (b) expose is ONE PILE PER VICTIM, REFRESHED — a re-application takes the STRONGER pct and the LONGER remaining duration and becomes `fresh` again. REFRESH rather than a second pile (the `guard` precedent) or a stack merge (the DoT/thorns precedent) because `dealDamage` compounds piles MULTIPLICATIVELY and the two mirrors compound in OPPOSITE directions: guard's second pile is worth less than its first (50% then 50% leaves 25%, diminishing), expose's is worth MORE (+50% then +50% is x2.25, accelerating) — so guard-parity pricing only survives if the offensive mirror does not stack. Merging `pct` would have breached the documented <=50 apply-time clamp on the first recast. The engine already draws this line for the other offensive non-additive debuff (`slow` takes the strongest pending value). Ward still taxes a refresh exactly as it taxes a DoT merge. BLAST RADIUS verified BEFORE regenerating, from a read-only RAW dump (full event log + turns + result + finalState, NOT normalized, NOT hashed) of both 200-fight sweeps taken immediately before and immediately after the change: 59/200 logs moved in EACH sweep (141/200 byte-identical), with 4 turn changes + 1 winner flip in attritionOn (#35 6->7, #84 11->12, #106 10->11, #177 6->8, #93 win->loss) and 5 turn changes + 1 winner flip in attritionOff (the same five cases, #93 additionally 17->18). Fights get LONGER and the player loses more of them — exactly what removing an unbounded damage amplifier must do. CONTAINMENT PROVEN BY EXHAUSTION, BOTH DIRECTIONS: 0/400 logs moved without APPLYING an expose, and the moved set is a subset of the 97/200 configs carrying `ruinous_hex` (50%/2t) or `piercing_arrow` (30%/2t) — the frozen sweep pool's only expose carriers. Of the 11 logs that DID apply an expose yet did not move: 9 ended within the pile's own window (endTurn <= applyTurn + 2, so neither engine ever reached a decrement that mattered) and 2 (#44, #89) had the pile CLEANSED before the first divergence — enumerated individually, not inferred. THREE OTHER DEFECT FIXES RODE IN THE SAME CHANGE AND MOVED 0/400 LOGS, which is itself the evidence they are contained: (1) a caster killed mid-cast (only thorns reflect can do it) now stops casting via `castCutShort` = `!caster.alive || anySideWiped` in `applyCast`, replacing a bare `anySideWiped` that was accidentally correct at 1v1 and wrong in every pack fight; (2) a hit fully nullified by `negate` no longer spends a thorn stack (`dealDamage` now REPORTS whether it took effect and `applyStrike` reflects only then); (3) a negative heal request is CLAMPED TO ZERO at the new shared `restoreHp` seam instead of driving HP below zero with `alive` still true and emitting nothing. None can reach this sweep: NEITHER thorns card (`bramble_ward`, `nettle_lash`) is in the frozen sweep pool, and every authored `healFlat` in the book and gem set is positive. See src/engine/combat/simulate.ts (`expireStatuses`), src/engine/combat/state.ts (`TURN_DURATIONED_STATUS_KINDS`), src/engine/combat/interpreter.ts (the `expose` arm, `castCutShort`, `dealDamage`'s return, `restoreHp`) and tests/engine/statusExpiry.test.ts, tests/engine/casterDeathMidCast.test.ts, tests/engine/healSafety.test.ts, tests/engine/thorns.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-17) for STRIPPING `tierUpgrades` from the hash — a REPRESENTATION-ONLY change that moves EVERY hash and NO behaviour. `tierUpgrades` is *input* consumed only by `applyTier`/`autoScaleTier` (src/engine/cards.ts) at resolve time; the combat loop never reads it. `resolveEffectiveSkill` returns an UNTIERED piece's base `SkillDef` BY REFERENCE (`piece.tier ? applyTier(def, piece.tier) : def`), so its `tierUpgrades` rode along into the hash unread — editing an unused tier block used to move the lock for zero behaviour change. For a TIERED piece the field was never the sole carrier of a difference either: `applyTier` folds any authored override or the auto-scaler's derived numbers into `effects`/`tier` on the SAME resolved object the hash sees, so a real tier-block change still moves the hash through those fields with `tierUpgrades` itself excluded. WHY NOW: unblocks deleting purify's three hand-authored `tierUpgrades` blocks (silver/gold/diamond) — filler TRUE heals bolted on before cleanse could scale with tier — now that `autoScaleTier` derives the same budget-honest cleanse-charge ladder (6/8/10) on its own (see tests/engine/tierUpgrades.test.ts, cleanse tier-scaling user-locked 2026-08-17). CONTAINMENT PROVEN, in the strongest available form: a read-only raw `simulate` dump (full event log, `turns`, `result`, `finalState` — NOT normalized, NOT hashed) over both 200-fight sweeps, taken immediately before and immediately after the normalizer edit, was byte-identical in all 400 cases (SHA-256 of the two dumps matched exactly) — proving `simulate()` itself was untouched and only the hash DOMAIN moved. Blast radius on the hash itself: 200/200 attritionOn and 200/200 attritionOff logs changed (188/200 of each decided before ATTRITION_START_TURN), because 25 of the book's 72 skills carry an authored `tierUpgrades` block and all 25 are in the frozen sweep pool (tests/engine/fixtures/frozenSweepSkillIds.ts) — with boards drawing several pieces each, nearly every fight includes at least one. `result` and `turns` moved in 0/400 cases (confirmed against `prev` below): every diff is attributable to bytes leaving the hash input, not to any change in what was simulated. ACCEPTANCE TEST, run immediately after this regeneration: deleting purify's three `tierUpgrades` blocks moved 0/400 of THIS baseline (vs 200/200 before this normalizer change) — direct proof the narrowing does what it claims. See tests/engine/helpers/outcomeHash.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-09) for CANONICAL KEY ORDER in the hash normalizer — a REPRESENTATION-ONLY change that moves EVERY hash and NO behaviour. `outcomeHash` ends in JSON.stringify, which serialises object keys in INSERTION order, so until now the physical FIELD ORDER of every hashed object fed the lock. That is not a behaviour: nothing in the engine iterates Object.keys of a SkillDef to decide anything, and the card literals in src/data/skills.ts already order their fields inconsistently (some put `weapon` before `size`, some after). normalizeForHash now sorts keys at every depth; ARRAY order is deliberately left alone, because array order IS behaviour here (effects fire in order, the event log is a sequence). WHY NOW: this is a PREREQUISITE for the content-format migration. A loader that builds SkillDef objects from a data file necessarily picks its own key order, and would otherwise have re-hashed all 400 cases for a provably behaviour-neutral change — a regeneration whose churn could hide a real regression, which is precisely what this fixture exists to prevent. Paying it ONCE here, in isolation, buys permanent immunity: from now on only VALUES can move a hash. CONTAINMENT PROVEN, and in the strongest available form — the sim output was shown to be UNCHANGED rather than merely similar. Read-only probe over both 200-fight sweeps, BEFORE regenerating: (a) the CURRENT engine reproduced 400/400 of the OLD fixture hashes under the OLD normalizer, so the simulation is byte-identical and every delta below is attributable to the normalizer alone; (b) result moved 0/400 and turns moved 0/400; (c) re-hashing THAT SAME unchanged sim output under the sorted normalizer moved 400/400 hashes (0/400 were already in canonical order — consistent with `id` leading every SkillDef literal while sorting demands `archetypes` first). A pure key-order delta is therefore the only thing in this regeneration. INCIDENTALLY PROVEN, and worth recording: (a) held the whole time an unrelated in-flight engine change (the echo-gem statStrike `echoHostPower` / gem `weightIncreasePct` work) was present in the tree — reproducing 400/400 old hashes is a direct proof that work is sweep-neutral, as its own byte-identity claim predicted; and (b) the same 400/400 reproduction re-confirms that FREEZING the sweep id pool (tests/engine/fixtures/frozenSweepSkillIds.ts, 2026-08-08) cost zero regeneration. See tests/engine/helpers/outcomeHash.ts and the key-order guards in tests/engine/outcomeHash.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-07) for the MULTI-HIT STAT SPLIT (user-locked 2026-08-07): a REAL, REVIEWED RULE CHANGE that moves real damage numbers. The caster's scaling stat (Attack / Magic Power / higher for TRUE) is now a PER-CAST resource split across a cast's `damage` actions, not a full add RE-DELIVERED by each one. Twin Slash at ATK 20 was 2x(6+20) = 52 and is now 2x(6+10) = 32; a cast's total stat contribution is finally HIT-COUNT-INVARIANT. WHY: multi-hit previously scaled SUPERLINEARLY with hero stats (a 3-hit card delivered 3x the stat) while powerLevelDeci priced only the summed flat base plus a FLAT PRICE.extraHitPremium — a fixed 3 PL against an effect worth (hits-1)x(ATK-DEF), i.e. ~1 PL at ATK 10 but ~21 PL at ATK 50 and ~40 PL at the level-30 ceiling. Splitting the stat is what makes an honest flat price possible at all. The split is exact integer arithmetic (`statShare`): shares sum to EXACTLY the stat for any hit count and any sign, with the remainder FRONT-LOADED (earlier hits carry the odd point) so the share most likely to land before a first-to-fall break is the larger one. At one hit it is the IDENTITY, so every single-hit card in the book is byte-identical. GEM-APPENDED damage actions JOIN the split (the count is taken from the EFFECTIVE effect list), which is what makes the user-reported case behave as printed: soul_rend_echo (\"+16 damage\") used to deliver +36 at ATK 20 and +66 at ATK 50, and now delivers exactly +16 on every host at every stat line. [SUPERSEDED IN PART, SAME DAY — NO REGENERATION: gem-appended hits were REMOVED from the split's divisor and made unbuffable (see `GemAppended` in src/engine/types.ts). Joining the divisor made a \"+damage\" gem net-NEGATIVE against armor (-4 on sword_slash at DEF 8, -9 at DEF 16) because it took a share from the base hit AND paid mitigation a second time. A gem hit is now self-contained: outside the divisor, no stat share, no mods.damageFlat, no comboBonus — so it still delivers exactly +16, and the host card is untouched. The fixture below is UNCHANGED and was NOT recaptured: the sweep (tests/engine/helpers/sweepConfigs.ts) sockets NO gems at all and no card uses the new `statStrike` action, so a read-only recompute moved 0/200 logs in BOTH sweeps. Rules are pinned in tests/engine/gemStrike.test.ts.] DELIBERATELY UNCHANGED (user-locked the same day): `mods.damageFlat` — card-scope stat gems and board auras — and a triggered `comboBonus` still apply IN FULL to EVERY hit, so a +4 card-scope gem is still worth +8 on a 2-hit card. Blast radius verified BEFORE regenerating, over both 200-fight sweeps: 94/200 logs moved in EACH (89 of them decided before ATTRITION_START_TURN), with 1 winner flip (#8, the same log in both sweeps) and 18 turn changes — the expected consequence of multi-hit casts hitting for less. CONTAINMENT PROVEN BY EXHAUSTION, BOTH DIRECTIONS: the moved set is EXACTLY the set of logs that CAST twin_slash, rapid_volley or barrage (the book's only multi-damage-action cards) — 0 logs moved without casting one, and 0 logs that cast one stayed put. 124/200 configs carry one on a board; the 30 that carry one yet did not move are precisely those where it never fired, proven by their bytes standing still. NOT REPRICED HERE (deliberate, out of this agent's scope): PRICE.extraHitPremium still charges 30 deci for what is now a strictly WEAKER effect (multi-hit still eats mitigation once per hit, so it is now worse than a single-hit card of the same budget against armor), and the user's tier/slot gate for multi-hit cards is a balance-designer pass on top of this one. See src/engine/combat/interpreter.ts (`HitSplit`, `statShare`, `countDamageActions`, the `damage` case and `applyCast`) and tests/engine/multiHit.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-06) for the HEAL DERIVATION BLOCK (`heal.calculation`): an ADDITIVE, PRESENTATION-ONLY EVENT FIELD — NOT a rule change. The sim reads nothing from it and every number it reports was already being applied. The heal event now carries { power, statBonus, healFlat, property }, the sibling of shieldGain.calculation, so the battle log can print \"H: base 48 + (1 MDEF) - (9 ANTI-HEAL) = 40\" instead of a request that appears from nowhere; the alternative — re-deriving the split in the renderer — would re-run gem/aura/stat resolution outside the engine and could silently disagree with it. TRUE heals report a ZERO stat term (flat by identity, exactly as TRUE shields do), and the OTHER emitter of this event, the LIFESTEAL rider, OMITS the block entirely: its request is a percentage of damage dealt, with no card base and no stat term to split (same contract as damage.calculation, which DoT/fatigue/attrition damage omits). Blast radius verified BEFORE regenerating, over both 200-fight sweeps and IDENTICAL in each: 137/200 logs moved (128 of them decided before ATTRITION_START_TURN), with ZERO winner flips and ZERO turn changes — the signature of a field the sim never consumes. CONTAINMENT PROVEN BY EXHAUSTION, both directions: the moved set is EXACTLY the set of logs containing a heal-ACTION heal (0 logs moved without one; 0 logs carrying one stayed put). 142 logs contain a heal event at all, and the 5 that did NOT move (#4, #14, #92, #142, #192) are precisely the logs whose ONLY heal is a `leeching_fang` LIFESTEAL — the deliberate omission above, proven by their bytes standing still. 45 of the moved logs carry only zero-term (TRUE/flat) heal calculations: they move because the BLOCK itself is new, unlike the 2026-08-05 stat-scaling regen where zero-term heals stayed put. ON THE NORMALIZER (see `normalization` above): stripping `calculation` there instead — which would have cost no fixture churn at all — was evaluated FIRST and REJECTED. It is engine-derived ARITHMETIC, not authored copy: two heals with the same landed amount but a different (power, statBonus, healFlat) split are a real difference in the sim's math, and this lock is what would catch it. A blanket strip would also drop the ALREADY-HASHED damage.calculation and shieldGain.calculation and re-hash nearly every one of the 200 logs — a BIGGER regeneration buying permanently LESS coverage. See src/engine/combat/interpreter.ts (the `heal` and `lifesteal` cases), src/engine/combat/events.ts (heal.calculation docs), src/game/battleTimeline.ts (formatHeal) and tests/engine/effects.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-05) for DEFENSIVE-STAT SCALING of shields and heals (user-approved 2026-08-04): a REAL, REVIEWED RULE CHANGE. A card's `property` still picks WHICH stat scales its output, but the ROLE of the action now picks WHICH SIDE of the stat sheet that lookup reads — defensive output (shield / heal) scales off Armor (physical) and Magic Resist (magical) via the new `scaleDefStat`, where it previously read Attack / Magic Power via `scaleStat`. TRUE stays flat by identity (0 stat term), exactly as before. PL-NEUTRAL: attack/magicPower/armor/magicResist all cost 1 PL per +1 and all start at 1 (LEVEL_STAT_COST, BASE_HERO_STATS in src/run/leveling.ts), so no price in src/engine/balance.ts moves — only WHICH stat buys the output. Blast radius verified BEFORE regenerating, over both 200-fight sweeps: 153/200 logs moved in EACH sweep (142 of them decided before ATTRITION_START_TURN), with 2 winner flips (#9 and #138, the same two in both sweeps) and 13 turn changes — the expected consequence of every shield pool and heal resizing. CONTAINMENT PROVEN BY EXHAUSTION: 0 logs moved WITHOUT containing a shieldGain or heal event, so nothing outside the changed mechanic drifted. The 15 logs that DO contain one and did NOT move are each explained: 12 carry only a zero stat term (TRUE shields/heals, flat by identity under both rules) and 3 (#4, #65, #142) carry only a `leeching_fang` LIFESTEAL heal, which is a percentage of damage dealt and never had a stat-scaling term under either rule. See src/engine/combat/interpreter.ts (`scaleDefStat` and its `scaleStat` sibling), src/engine/combat/events.ts (shieldGain.calculation.statBonus docs) and tests/engine/effects.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-04) for the FIRST-TO-FALL OUTCOME RULE (user-directed 2026-08-04): a REAL, REVIEWED RULE CHANGE. Combat now ends at the exact APPLICATION that wipes a side, so nothing later in the same step runs — no DoT/attrition/fatigue tick after the killing blow, no bleed tick on a performer whose cast just won, and no lifesteal-back off a killing blow. Mutual wipes therefore cannot occur and the 2026-07-30/31 tempo tiebreak is unreachable (kept in decideOutcome as a documented defensive fallback). Blast radius verified BEFORE regenerating, by diffing this engine against a byte copy of the pre-change simulate.ts + interpreter.ts over all 740 fights the engine suite sweeps: attritionOff 2/200 and attritionOn 3/200 logs moved (#10 and #83 in both, plus #15 with attrition on). For EVERY moved log the diff proved: (a) the events up to AND INCLUDING the death that wiped a side are byte-identical, (b) the new log is a strict SUBSEQUENCE of the old one — nothing was invented, (c) every removed event is a post-wipe application (#10: one lifesteal heal on a killing blow; #83: one bleed tick after a killing cast; #15: two attrition ticks after a side was already wiped), and (d) `turns` did not move. ZERO winner flips in either sweep, and 0 of the 740 fights was a former mutual wipe in the baseline families (1 was in the wider 0x5117e5 sweep, and it kept its result). See src/engine/combat/simulate.ts (`sweep`, `decideOutcome`), src/engine/combat/interpreter.ts (`applyCast`) and tests/engine/outcomeRule.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-03) for the ANTI-HEAL WORLD RULE (game-director approved 2026-08-01, built 2026-08-03): a REAL, REVIEWED RULE CHANGE. Regular heals and lifesteal are taxed -20% per affliction category active on the RECEIVER (DoT family / stat debuff / expose, cap -60%); TRUE heals are immune. Blast radius verified BEFORE regenerating: exactly 75/200 logs moved in each sweep, and those 75 are EXACTLY the logs that contain a heal event carrying the new `antiHeal` annotation (0 logs moved without one, 0 annotated logs left unmoved). 7 of them end on a different turn and 1 (attritionOn #172) flips its winner — the expected consequence of less healing, not a scope leak. See src/engine/combat/interpreter.ts (applyAntiHeal / antiHealCategories) and tests/engine/antiHeal.test.ts. It supersedes the prior regen (2026-08-01) for the TRUE-heal re-price (PRICE.flatTrueHealPerPoint 2 -> 4, balance-designer pass): a REAL BEHAVIOR CHANGE, unlike the prior representation-only regens noted below. second_wind/renewing_wave/purify heal for smaller flat amounts at every tier (e.g. second_wind Bronze 50 -> 25), which changes sim outcomes for any sweep config that casts one of those three cards. Both supersede two earlier non-rule regenerations that the presentation-field normalizer (see `normalization` above) made unnecessary: (a) the card-text canonical-token sweep (ATK/MATK/DEF/MDEF/SPD), which moved every hash without touching a single mechanic — exactly the churn `text` stripping kills, and (b) the additive shield event metadata (shieldGain.calculation, shieldGain.poolsAfter, damage.shieldDrain), which re-hashed the 140/200 logs containing a shield event and left every other byte identical. Guards the ATTRITION THRESHOLD BOUNDARY in outcomeRule.test.ts: fights decided before ATTRITION_START_TURN must stay byte-identical across RULE changes. Regenerate with tests/engine/fixtures/captureOutcomeBaseline.ts, and only for a deliberate, reviewed change.",
  "attritionOff": [
   {
    "result": "win",
@@ -30,7 +30,7 @@
   {
    "result": "win",
    "turns": 6,
-   "hash": "b7d3477ef4cec86595e8634723b2904d"
+   "hash": "8a7856be8ff0070b03239136225d33f7"
   },
   {
    "result": "loss",
@@ -40,7 +40,7 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "1a62687c797142e9bf49e20c48736774"
+   "hash": "fcb6a01bae78dc7a8f63c65979f92d3d"
   },
   {
    "result": "win",
@@ -55,7 +55,7 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "8a5e56d0f15d896c520ac3f6d9131905"
+   "hash": "618c25a3c3256c69ca7c24b45ad9d6c9"
   },
   {
    "result": "win",
@@ -65,7 +65,7 @@
   {
    "result": "win",
    "turns": 6,
-   "hash": "87db0b36057ee9193c6d1c3c8b98a043"
+   "hash": "62afd39e6204a6d589c9ef9311d36de4"
   },
   {
    "result": "loss",
@@ -90,7 +90,7 @@
   {
    "result": "win",
    "turns": 12,
-   "hash": "9ba2582a70a2f068d25cb12e05f732e8"
+   "hash": "fb03fcac99194b4f413caf4b92c75c99"
   },
   {
    "result": "win",
@@ -105,12 +105,12 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "65d442833d025a4dfc765531c411ceb2"
+   "hash": "2b68c45ba452885a4d20fa1909269473"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "d9cd52f211cac14122e01fc6138b01ce"
+   "hash": "5ece81511ff9a224b22782a9a7f5f9d2"
   },
   {
    "result": "win",
@@ -130,7 +130,7 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "e553f01740679ec9a19a018fa55aee8c"
+   "hash": "34382748540845a090bfe4de75dc975c"
   },
   {
    "result": "win",
@@ -140,7 +140,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "6b38510b45b96cee8d2e5ec3889fd2db"
+   "hash": "3a33163960cd212c3f9df032a4c89768"
   },
   {
    "result": "loss",
@@ -170,7 +170,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "6fd59c7e31a5531b048a5d2bfa295169"
+   "hash": "4ba14347184bc4f260497fead6cff830"
   },
   {
    "result": "win",
@@ -179,13 +179,13 @@
   },
   {
    "result": "loss",
-   "turns": 6,
-   "hash": "59a341bf9b7a15a78757fd10d47af33b"
+   "turns": 7,
+   "hash": "f9fc60b66d5004af2eaac7a5c14d3b7f"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "f86e66d691fd955b9de7a7e7b0640e08"
+   "hash": "d527d8973dc910a4c02dec016e666331"
   },
   {
    "result": "loss",
@@ -200,7 +200,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "98561fbff94ca2905cf107e2b279b702"
+   "hash": "327c777c7ccdf1e1304e085bf58b4a60"
   },
   {
    "result": "loss",
@@ -210,12 +210,12 @@
   {
    "result": "loss",
    "turns": 11,
-   "hash": "fc9213544281ed6f58376a3e7c5af89f"
+   "hash": "249189951000d05241dcb308c2712eb5"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "fd26d736b7a250223750e2191dd65695"
+   "hash": "c94f847da89590f1ab451a8f4c7e5186"
   },
   {
    "result": "loss",
@@ -230,7 +230,7 @@
   {
    "result": "loss",
    "turns": 11,
-   "hash": "039d8a62243102af93ef865c99fdf194"
+   "hash": "92dc430f1c29a047ebf03c1c616a671b"
   },
   {
    "result": "win",
@@ -240,7 +240,7 @@
   {
    "result": "win",
    "turns": 8,
-   "hash": "640317fe0978c8924d4ca18c9b1f78b0"
+   "hash": "c1469ec4a1727f8d517eb015e614a808"
   },
   {
    "result": "loss",
@@ -250,12 +250,12 @@
   {
    "result": "loss",
    "turns": 3,
-   "hash": "bcb671e43656c7b527ed881ea8794a74"
+   "hash": "a4008c97c7134c59de5bd23d46e67b79"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "5dec3d6986c7198018050b0cf11d0d8e"
+   "hash": "4a9eb832d4cc4dc74cd6fbb9d276577c"
   },
   {
    "result": "loss",
@@ -280,7 +280,7 @@
   {
    "result": "loss",
    "turns": 15,
-   "hash": "a2398f87598b30ed937437211bc2168e"
+   "hash": "1f98d7aa326f5475ad59722034d2c8d3"
   },
   {
    "result": "loss",
@@ -290,7 +290,7 @@
   {
    "result": "win",
    "turns": 5,
-   "hash": "d8af2bd9e11ed171f00c6e68b9925a5c"
+   "hash": "d3b090767755475ada7e95db6d167916"
   },
   {
    "result": "win",
@@ -305,7 +305,7 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "bcc6b909fa83ca9ea85ee8b91ddf0ac4"
+   "hash": "20fb2ee1041ffa6b685edc21c99dba99"
   },
   {
    "result": "loss",
@@ -320,7 +320,7 @@
   {
    "result": "loss",
    "turns": 12,
-   "hash": "8cbbd2c5fae4b2cb0ee62ed1c040a894"
+   "hash": "0f8eae79413060b3a43af0aa201f0327"
   },
   {
    "result": "loss",
@@ -360,7 +360,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "9556ab88a1acceba184a419e90a95962"
+   "hash": "06087d4c7727ff925e2b10893fa83d7e"
   },
   {
    "result": "loss",
@@ -375,7 +375,7 @@
   {
    "result": "win",
    "turns": 7,
-   "hash": "de0767a1916dbf14d33c3bd86f01b2b4"
+   "hash": "e2aef45d2e1c0de82850631d0da6eae6"
   },
   {
    "result": "loss",
@@ -390,17 +390,17 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "be0023d6a25cb7e4cd2b5f9155e08270"
+   "hash": "d607a82b59b1cfa99f8dcb2709dba378"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "488d36dda350d6aa8b6b0cc5f38cbfe2"
+   "hash": "1a9601174b6a4ba69aae2342ea8b1f6b"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "ebd613fa15d15cbd41cd7fd67ef461e1"
+   "hash": "c9cbe8f25b8ad72c03773509cdbed824"
   },
   {
    "result": "win",
@@ -415,7 +415,7 @@
   {
    "result": "loss",
    "turns": 17,
-   "hash": "c208fef8e32ba3bf5f396ad75c3af3a3"
+   "hash": "c3f18928a5d878fe60b255fe487f40aa"
   },
   {
    "result": "loss",
@@ -424,18 +424,18 @@
   },
   {
    "result": "loss",
-   "turns": 11,
-   "hash": "96f8554d0d6e792e960f1d8498228f46"
+   "turns": 12,
+   "hash": "4cd57ae2217a62865170811ef74517dd"
   },
   {
    "result": "loss",
    "turns": 12,
-   "hash": "6a296d473b6c7e5764ae2940ed041132"
+   "hash": "6fb60e2f7ae4f1243ba2ca5d23a57fca"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "5870ae3a1bd450a9d23ec93f60756174"
+   "hash": "75b14cb32f888f555ec728886eff37ce"
   },
   {
    "result": "win",
@@ -465,12 +465,12 @@
   {
    "result": "win",
    "turns": 14,
-   "hash": "36595d9e3ac49575043bf2fb3fbba759"
+   "hash": "1ee60705b2d41f574e1c26141fb4fca7"
   },
   {
-   "result": "win",
-   "turns": 17,
-   "hash": "abda3349aec10508fce2d9c529ebb6fb"
+   "result": "loss",
+   "turns": 18,
+   "hash": "e722e50c8202d2c2314caf8311f9bddc"
   },
   {
    "result": "loss",
@@ -495,7 +495,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "ca4bc123ec5fe916ece7ce81d876b19d"
+   "hash": "b8350eebaf057afc364674e25e3d6030"
   },
   {
    "result": "win",
@@ -515,7 +515,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "2dbe5d89c7ed97cda90cd6bdffd553ba"
+   "hash": "edd932a59ee616e7969e841407469f20"
   },
   {
    "result": "loss",
@@ -534,8 +534,8 @@
   },
   {
    "result": "loss",
-   "turns": 10,
-   "hash": "d87dfb0d5ad8bcacba21e3e1f89ec522"
+   "turns": 11,
+   "hash": "8d1247a51fb0d1f936b8e2ae066adb68"
   },
   {
    "result": "loss",
@@ -550,12 +550,12 @@
   {
    "result": "win",
    "turns": 6,
-   "hash": "fc0fa749173f9c5ceb42f656a27c58b5"
+   "hash": "2e989d01027776a6d71dc29ae9717b2a"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "f3b2f3b0d3b9a0cc52c703e44e993665"
+   "hash": "7d0eecfc4e0bf11108d23d11f4cc1066"
   },
   {
    "result": "loss",
@@ -585,7 +585,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "7d086c917977299337f6239dda81b137"
+   "hash": "f7b1199d1f2ba3271bcf7deeeb3ba01c"
   },
   {
    "result": "win",
@@ -610,7 +610,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "55cbda45160ecb9391ec1c704385851e"
+   "hash": "ebfcafb09dc3e16a6091415c994adb39"
   },
   {
    "result": "win",
@@ -620,7 +620,7 @@
   {
    "result": "win",
    "turns": 9,
-   "hash": "1b6c6c0519adc7f66e1f7ee160fc8a0b"
+   "hash": "a71cee5ff606fa68a1f0a534437187f3"
   },
   {
    "result": "win",
@@ -630,7 +630,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "927dcf39cd626b45e082649d617b30a3"
+   "hash": "94eb3a18158a7af0b4d2f39e1a32c8b5"
   },
   {
    "result": "loss",
@@ -700,12 +700,12 @@
   {
    "result": "win",
    "turns": 9,
-   "hash": "e899e2b552930968d3daa543a14cba1e"
+   "hash": "f5b728d350995edde88ccd03c885d446"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "9b32ee957ead2cf919a8b3f6d9022e8d"
+   "hash": "6907df5cb2f17d03112572d91615a7ff"
   },
   {
    "result": "loss",
@@ -720,7 +720,7 @@
   {
    "result": "win",
    "turns": 6,
-   "hash": "c9816079ec5d32d8b0a0a8acde669da3"
+   "hash": "ee7a76c1bc41af71ad76eb3529d29968"
   },
   {
    "result": "win",
@@ -730,7 +730,7 @@
   {
    "result": "win",
    "turns": 8,
-   "hash": "4e983491d0f329f00a0ef67805278444"
+   "hash": "b6033dea3f4ceee81f1c303890d796ec"
   },
   {
    "result": "win",
@@ -740,12 +740,12 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "99bd4026c9cdd6796d8d6c690e32e5c6"
+   "hash": "1b4604d687a5312f375f3579c166a0f9"
   },
   {
    "result": "win",
    "turns": 10,
-   "hash": "b121d8b6d5ec953a21e15808b2ac6e51"
+   "hash": "1f616a646ac68ac0da1716acf766a9c7"
   },
   {
    "result": "loss",
@@ -830,7 +830,7 @@
   {
    "result": "win",
    "turns": 9,
-   "hash": "e8fc68de6e505b895867de55a949c91e"
+   "hash": "624233c562682ca126b27215ee12118c"
   },
   {
    "result": "loss",
@@ -840,7 +840,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "472c3b1486df4e5fcf0e2191bdd8d9f4"
+   "hash": "4e4116a341f62990e753547cd4e0e8f6"
   },
   {
    "result": "win",
@@ -855,7 +855,7 @@
   {
    "result": "loss",
    "turns": 5,
-   "hash": "f49209a86d8c91f99450711a1cfbe6af"
+   "hash": "eaa7ee86686ac875e4639379675e304e"
   },
   {
    "result": "win",
@@ -875,7 +875,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "ecc17ae6321ea179d5cb22daa8adfb7f"
+   "hash": "97a9668e84a3be6ca32e0caef03a0c44"
   },
   {
    "result": "win",
@@ -889,8 +889,8 @@
   },
   {
    "result": "loss",
-   "turns": 6,
-   "hash": "2eae1971c06e35c2013492cd9a235a63"
+   "turns": 8,
+   "hash": "9a511488be1b3b20b10dc80819746e71"
   },
   {
    "result": "loss",
@@ -915,7 +915,7 @@
   {
    "result": "loss",
    "turns": 10,
-   "hash": "2ed3909ca2249178f05e0477232457df"
+   "hash": "f72998c04971a89c517fc99241e69afd"
   },
   {
    "result": "win",
@@ -930,7 +930,7 @@
   {
    "result": "loss",
    "turns": 10,
-   "hash": "84b7442d4f1df0054fb4dc0b987b724d"
+   "hash": "bd5b2e4e41b4241e485c0f7a70ec2d7a"
   },
   {
    "result": "loss",
@@ -945,7 +945,7 @@
   {
    "result": "win",
    "turns": 7,
-   "hash": "ff6042e912e91a5a631387115c6627a5"
+   "hash": "1d85e33e2aa840c551813f20d075fd7b"
   },
   {
    "result": "win",
@@ -955,7 +955,7 @@
   {
    "result": "win",
    "turns": 9,
-   "hash": "5d4093eb30428efa823cb5531acfad3a"
+   "hash": "0dbdf55e3a3813dca0ba32db7a12d3e5"
   },
   {
    "result": "loss",
@@ -970,7 +970,7 @@
   {
    "result": "loss",
    "turns": 10,
-   "hash": "2910e9fac7c92dd99e1987db25b1f534"
+   "hash": "82ded42ffbbff562c7ebc45c493380e5"
   },
   {
    "result": "loss",
@@ -1032,7 +1032,7 @@
   {
    "result": "win",
    "turns": 6,
-   "hash": "b7d3477ef4cec86595e8634723b2904d"
+   "hash": "8a7856be8ff0070b03239136225d33f7"
   },
   {
    "result": "loss",
@@ -1042,7 +1042,7 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "1a62687c797142e9bf49e20c48736774"
+   "hash": "fcb6a01bae78dc7a8f63c65979f92d3d"
   },
   {
    "result": "win",
@@ -1057,7 +1057,7 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "8a5e56d0f15d896c520ac3f6d9131905"
+   "hash": "618c25a3c3256c69ca7c24b45ad9d6c9"
   },
   {
    "result": "win",
@@ -1067,7 +1067,7 @@
   {
    "result": "win",
    "turns": 6,
-   "hash": "87db0b36057ee9193c6d1c3c8b98a043"
+   "hash": "62afd39e6204a6d589c9ef9311d36de4"
   },
   {
    "result": "loss",
@@ -1092,7 +1092,7 @@
   {
    "result": "win",
    "turns": 12,
-   "hash": "9ba2582a70a2f068d25cb12e05f732e8"
+   "hash": "fb03fcac99194b4f413caf4b92c75c99"
   },
   {
    "result": "win",
@@ -1107,12 +1107,12 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "65d442833d025a4dfc765531c411ceb2"
+   "hash": "2b68c45ba452885a4d20fa1909269473"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "d9cd52f211cac14122e01fc6138b01ce"
+   "hash": "5ece81511ff9a224b22782a9a7f5f9d2"
   },
   {
    "result": "win",
@@ -1132,7 +1132,7 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "e553f01740679ec9a19a018fa55aee8c"
+   "hash": "34382748540845a090bfe4de75dc975c"
   },
   {
    "result": "win",
@@ -1142,7 +1142,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "6b38510b45b96cee8d2e5ec3889fd2db"
+   "hash": "3a33163960cd212c3f9df032a4c89768"
   },
   {
    "result": "loss",
@@ -1172,7 +1172,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "6fd59c7e31a5531b048a5d2bfa295169"
+   "hash": "4ba14347184bc4f260497fead6cff830"
   },
   {
    "result": "win",
@@ -1181,13 +1181,13 @@
   },
   {
    "result": "loss",
-   "turns": 6,
-   "hash": "59a341bf9b7a15a78757fd10d47af33b"
+   "turns": 7,
+   "hash": "f9fc60b66d5004af2eaac7a5c14d3b7f"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "f86e66d691fd955b9de7a7e7b0640e08"
+   "hash": "d527d8973dc910a4c02dec016e666331"
   },
   {
    "result": "loss",
@@ -1202,7 +1202,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "98561fbff94ca2905cf107e2b279b702"
+   "hash": "327c777c7ccdf1e1304e085bf58b4a60"
   },
   {
    "result": "loss",
@@ -1212,12 +1212,12 @@
   {
    "result": "loss",
    "turns": 11,
-   "hash": "fc9213544281ed6f58376a3e7c5af89f"
+   "hash": "249189951000d05241dcb308c2712eb5"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "fd26d736b7a250223750e2191dd65695"
+   "hash": "c94f847da89590f1ab451a8f4c7e5186"
   },
   {
    "result": "loss",
@@ -1232,7 +1232,7 @@
   {
    "result": "loss",
    "turns": 11,
-   "hash": "039d8a62243102af93ef865c99fdf194"
+   "hash": "92dc430f1c29a047ebf03c1c616a671b"
   },
   {
    "result": "win",
@@ -1242,7 +1242,7 @@
   {
    "result": "win",
    "turns": 8,
-   "hash": "640317fe0978c8924d4ca18c9b1f78b0"
+   "hash": "c1469ec4a1727f8d517eb015e614a808"
   },
   {
    "result": "loss",
@@ -1252,12 +1252,12 @@
   {
    "result": "loss",
    "turns": 3,
-   "hash": "bcb671e43656c7b527ed881ea8794a74"
+   "hash": "a4008c97c7134c59de5bd23d46e67b79"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "5dec3d6986c7198018050b0cf11d0d8e"
+   "hash": "4a9eb832d4cc4dc74cd6fbb9d276577c"
   },
   {
    "result": "loss",
@@ -1282,7 +1282,7 @@
   {
    "result": "loss",
    "turns": 15,
-   "hash": "a2398f87598b30ed937437211bc2168e"
+   "hash": "1f98d7aa326f5475ad59722034d2c8d3"
   },
   {
    "result": "loss",
@@ -1292,7 +1292,7 @@
   {
    "result": "win",
    "turns": 5,
-   "hash": "d8af2bd9e11ed171f00c6e68b9925a5c"
+   "hash": "d3b090767755475ada7e95db6d167916"
   },
   {
    "result": "win",
@@ -1307,7 +1307,7 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "bcc6b909fa83ca9ea85ee8b91ddf0ac4"
+   "hash": "20fb2ee1041ffa6b685edc21c99dba99"
   },
   {
    "result": "loss",
@@ -1322,7 +1322,7 @@
   {
    "result": "loss",
    "turns": 12,
-   "hash": "8cbbd2c5fae4b2cb0ee62ed1c040a894"
+   "hash": "0f8eae79413060b3a43af0aa201f0327"
   },
   {
    "result": "loss",
@@ -1362,7 +1362,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "9556ab88a1acceba184a419e90a95962"
+   "hash": "06087d4c7727ff925e2b10893fa83d7e"
   },
   {
    "result": "loss",
@@ -1377,7 +1377,7 @@
   {
    "result": "win",
    "turns": 7,
-   "hash": "de0767a1916dbf14d33c3bd86f01b2b4"
+   "hash": "e2aef45d2e1c0de82850631d0da6eae6"
   },
   {
    "result": "loss",
@@ -1392,17 +1392,17 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "be0023d6a25cb7e4cd2b5f9155e08270"
+   "hash": "d607a82b59b1cfa99f8dcb2709dba378"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "488d36dda350d6aa8b6b0cc5f38cbfe2"
+   "hash": "1a9601174b6a4ba69aae2342ea8b1f6b"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "ebd613fa15d15cbd41cd7fd67ef461e1"
+   "hash": "c9cbe8f25b8ad72c03773509cdbed824"
   },
   {
    "result": "win",
@@ -1417,7 +1417,7 @@
   {
    "result": "loss",
    "turns": 17,
-   "hash": "4b5ecb97f345f7cb25cc08dddddb3d27"
+   "hash": "06db6470b35326928fe10cbc592106ba"
   },
   {
    "result": "loss",
@@ -1426,18 +1426,18 @@
   },
   {
    "result": "loss",
-   "turns": 11,
-   "hash": "96f8554d0d6e792e960f1d8498228f46"
+   "turns": 12,
+   "hash": "4cd57ae2217a62865170811ef74517dd"
   },
   {
    "result": "loss",
    "turns": 12,
-   "hash": "6a296d473b6c7e5764ae2940ed041132"
+   "hash": "6fb60e2f7ae4f1243ba2ca5d23a57fca"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "5870ae3a1bd450a9d23ec93f60756174"
+   "hash": "75b14cb32f888f555ec728886eff37ce"
   },
   {
    "result": "win",
@@ -1467,12 +1467,12 @@
   {
    "result": "win",
    "turns": 14,
-   "hash": "36595d9e3ac49575043bf2fb3fbba759"
+   "hash": "1ee60705b2d41f574e1c26141fb4fca7"
   },
   {
-   "result": "win",
+   "result": "loss",
    "turns": 17,
-   "hash": "004ab84df0f81b608840461b6d484859"
+   "hash": "b94007db77a058260ca356bbfbd57536"
   },
   {
    "result": "loss",
@@ -1497,7 +1497,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "ca4bc123ec5fe916ece7ce81d876b19d"
+   "hash": "b8350eebaf057afc364674e25e3d6030"
   },
   {
    "result": "win",
@@ -1517,7 +1517,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "2dbe5d89c7ed97cda90cd6bdffd553ba"
+   "hash": "edd932a59ee616e7969e841407469f20"
   },
   {
    "result": "loss",
@@ -1536,8 +1536,8 @@
   },
   {
    "result": "loss",
-   "turns": 10,
-   "hash": "d87dfb0d5ad8bcacba21e3e1f89ec522"
+   "turns": 11,
+   "hash": "8d1247a51fb0d1f936b8e2ae066adb68"
   },
   {
    "result": "loss",
@@ -1552,12 +1552,12 @@
   {
    "result": "win",
    "turns": 6,
-   "hash": "fc0fa749173f9c5ceb42f656a27c58b5"
+   "hash": "2e989d01027776a6d71dc29ae9717b2a"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "f3b2f3b0d3b9a0cc52c703e44e993665"
+   "hash": "7d0eecfc4e0bf11108d23d11f4cc1066"
   },
   {
    "result": "loss",
@@ -1587,7 +1587,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "7d086c917977299337f6239dda81b137"
+   "hash": "f7b1199d1f2ba3271bcf7deeeb3ba01c"
   },
   {
    "result": "win",
@@ -1612,7 +1612,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "55cbda45160ecb9391ec1c704385851e"
+   "hash": "ebfcafb09dc3e16a6091415c994adb39"
   },
   {
    "result": "win",
@@ -1622,7 +1622,7 @@
   {
    "result": "win",
    "turns": 9,
-   "hash": "1b6c6c0519adc7f66e1f7ee160fc8a0b"
+   "hash": "a71cee5ff606fa68a1f0a534437187f3"
   },
   {
    "result": "win",
@@ -1632,7 +1632,7 @@
   {
    "result": "loss",
    "turns": 6,
-   "hash": "927dcf39cd626b45e082649d617b30a3"
+   "hash": "94eb3a18158a7af0b4d2f39e1a32c8b5"
   },
   {
    "result": "loss",
@@ -1702,12 +1702,12 @@
   {
    "result": "win",
    "turns": 9,
-   "hash": "e899e2b552930968d3daa543a14cba1e"
+   "hash": "f5b728d350995edde88ccd03c885d446"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "9b32ee957ead2cf919a8b3f6d9022e8d"
+   "hash": "6907df5cb2f17d03112572d91615a7ff"
   },
   {
    "result": "loss",
@@ -1722,7 +1722,7 @@
   {
    "result": "win",
    "turns": 6,
-   "hash": "c9816079ec5d32d8b0a0a8acde669da3"
+   "hash": "ee7a76c1bc41af71ad76eb3529d29968"
   },
   {
    "result": "win",
@@ -1732,7 +1732,7 @@
   {
    "result": "win",
    "turns": 8,
-   "hash": "4e983491d0f329f00a0ef67805278444"
+   "hash": "b6033dea3f4ceee81f1c303890d796ec"
   },
   {
    "result": "win",
@@ -1742,12 +1742,12 @@
   {
    "result": "loss",
    "turns": 8,
-   "hash": "99bd4026c9cdd6796d8d6c690e32e5c6"
+   "hash": "1b4604d687a5312f375f3579c166a0f9"
   },
   {
    "result": "win",
    "turns": 10,
-   "hash": "b121d8b6d5ec953a21e15808b2ac6e51"
+   "hash": "1f616a646ac68ac0da1716acf766a9c7"
   },
   {
    "result": "loss",
@@ -1832,7 +1832,7 @@
   {
    "result": "win",
    "turns": 9,
-   "hash": "e8fc68de6e505b895867de55a949c91e"
+   "hash": "624233c562682ca126b27215ee12118c"
   },
   {
    "result": "loss",
@@ -1842,7 +1842,7 @@
   {
    "result": "loss",
    "turns": 9,
-   "hash": "472c3b1486df4e5fcf0e2191bdd8d9f4"
+   "hash": "4e4116a341f62990e753547cd4e0e8f6"
   },
   {
    "result": "win",
@@ -1857,7 +1857,7 @@
   {
    "result": "loss",
    "turns": 5,
-   "hash": "f49209a86d8c91f99450711a1cfbe6af"
+   "hash": "eaa7ee86686ac875e4639379675e304e"
   },
   {
    "result": "win",
@@ -1877,7 +1877,7 @@
   {
    "result": "loss",
    "turns": 7,
-   "hash": "ecc17ae6321ea179d5cb22daa8adfb7f"
+   "hash": "97a9668e84a3be6ca32e0caef03a0c44"
   },
   {
    "result": "win",
@@ -1891,8 +1891,8 @@
   },
   {
    "result": "loss",
-   "turns": 6,
-   "hash": "2eae1971c06e35c2013492cd9a235a63"
+   "turns": 8,
+   "hash": "9a511488be1b3b20b10dc80819746e71"
   },
   {
    "result": "loss",
@@ -1917,7 +1917,7 @@
   {
    "result": "loss",
    "turns": 10,
-   "hash": "2ed3909ca2249178f05e0477232457df"
+   "hash": "f72998c04971a89c517fc99241e69afd"
   },
   {
    "result": "win",
@@ -1932,7 +1932,7 @@
   {
    "result": "loss",
    "turns": 10,
-   "hash": "84b7442d4f1df0054fb4dc0b987b724d"
+   "hash": "bd5b2e4e41b4241e485c0f7a70ec2d7a"
   },
   {
    "result": "loss",
@@ -1947,7 +1947,7 @@
   {
    "result": "win",
    "turns": 7,
-   "hash": "ff6042e912e91a5a631387115c6627a5"
+   "hash": "1d85e33e2aa840c551813f20d075fd7b"
   },
   {
    "result": "win",
@@ -1957,7 +1957,7 @@
   {
    "result": "win",
    "turns": 9,
-   "hash": "5d4093eb30428efa823cb5531acfad3a"
+   "hash": "0dbdf55e3a3813dca0ba32db7a12d3e5"
   },
   {
    "result": "loss",
@@ -1972,7 +1972,7 @@
   {
    "result": "loss",
    "turns": 10,
-   "hash": "2910e9fac7c92dd99e1987db25b1f534"
+   "hash": "82ded42ffbbff562c7ebc45c493380e5"
   },
   {
    "result": "loss",

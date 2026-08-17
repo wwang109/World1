@@ -184,15 +184,23 @@ describe('expose', () => {
     expect(hit).toMatchObject({ amount: 45, exposed: 15 });
   });
 
-  it('stacks multiplicatively per expose, in statuses order', () => {
+  // ONE PILE PER VICTIM. This test used to assert the opposite — two exposes
+  // compounding to 67 damage — which was the shipped defect, not the rule: with
+  // `expose` also missing from the turn-decrement set, a repeating card opened a
+  // new pile every cast and the multiplier ran away (30 -> 45 -> 67 -> 100 ->
+  // 181 -> ... measured, with zero `statusExpired` events). See
+  // tests/engine/statusExpiry.test.ts for the duration half and the reasoning.
+  it('a second expose REFRESHES the one pile instead of opening a second (no compounding)', () => {
     const c = cfg(
       tc('hero', ['expose_double', 'hit_sword'], { attack: 10, speed: 20, maxHp: 500 }, { skillBook: B }),
       tc('foe', [], { armor: 0, speed: 1, maxHp: 1000 }, { skillBook: B }),
       { ...OPT, maxTurns: 1 },
     );
-    const hit = enemyDamage(simulate(c, 1).events).find((e) => e.source === 'skill')!;
-    // 30 -> +floor(30*.5)=15 -> 45 -> +floor(45*.5)=22 -> 67; exposed 15+22=37.
-    expect(hit).toMatchObject({ amount: 67, exposed: 37 });
+    const { events, finalState } = simulate(c, 1);
+    const hit = enemyDamage(events).find((e) => e.source === 'skill')!;
+    // Identical to a SINGLE expose: 30 -> +floor(30*.5)=15 -> 45.
+    expect(hit).toMatchObject({ amount: 45, exposed: 15 });
+    expect(finalState.enemy.statuses.filter((s) => s.kind === 'expose')).toHaveLength(1);
   });
 
   it('applies AFTER the matchup multiplier (matchup baked first, then amplified)', () => {
