@@ -539,6 +539,49 @@ describe('game/battleTimeline', () => {
       expect(playLine!.text).toContain('· WEIGHT 6');
     });
 
+    // 2026-08-17: the PLAY row showed what a card COST (WEIGHT n) but not what
+    // the caster had LEFT after paying it — the READY row above shows the
+    // gain, so the after-figure was the missing half of the picture. Read
+    // straight off the engine's own `cost` event (`readinessAfter`) rather
+    // than re-derived, so the two can never drift apart.
+    it('the PLAY row appends "· BANKED n" equal to the matching cost event\'s readinessAfter', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'gain', side: 'player', unit: 0, baseSpeed: 10, speedModifier: 0, speed: 10, readinessBefore: 0, readinessAfter: 10 },
+        { turn: 1, kind: 'gain', side: 'enemy', unit: 0, baseSpeed: 8, speedModifier: 0, speed: 8, readinessBefore: 0, readinessAfter: 8 },
+        { turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 1, kind: 'cost', side: 'player', unit: 0, readinessBefore: 10, readinessAfter: 4, paid: 6 },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const playLine = model.linesByTurn.get(1)!.find((l) => l.tag === 'PLAY');
+      const cost = events.find((e): e is Extract<CombatEvent, { kind: 'cost' }> => e.kind === 'cost')!;
+      expect(playLine).toBeDefined();
+      expect(playLine!.text).toContain(`· BANKED ${cost.readinessAfter}`);
+    });
+
+    // Two combatants can each have a play/cost pair in the SAME turn (the
+    // readiness model's multi-cast) — the `pendingPlayLine` bookkeeping must
+    // key its match by (side, unit), not just "the last play seen", or one
+    // side's BANKED figure could land on the other's PLAY row.
+    it('matches each side\'s own cost to its own PLAY row when both act the same turn', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'gain', side: 'player', unit: 0, baseSpeed: 10, speedModifier: 0, speed: 10, readinessBefore: 0, readinessAfter: 10 },
+        { turn: 1, kind: 'gain', side: 'enemy', unit: 0, baseSpeed: 8, speedModifier: 0, speed: 8, readinessBefore: 0, readinessAfter: 8 },
+        { turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 1, kind: 'cost', side: 'player', unit: 0, readinessBefore: 10, readinessAfter: 4, paid: 6 },
+        { turn: 1, kind: 'play', side: 'enemy', unit: 0, slot: 0, skillId: 'sword_slash', weight: 5, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 1, kind: 'cost', side: 'enemy', unit: 0, readinessBefore: 8, readinessAfter: 3, paid: 5 },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const playLines = model.linesByTurn.get(1)!.filter((l) => l.tag === 'PLAY');
+      expect(playLines).toHaveLength(2);
+      expect(playLines[0]!.text).toContain(`${model.heroName}`);
+      expect(playLines[0]!.text).toContain('· BANKED 4');
+      expect(playLines[1]!.text).toContain(`${model.foeName}`);
+      expect(playLines[1]!.text).toContain('· BANKED 3');
+    });
+
     it("reconciles readiness turn over turn: leftover after paying weight + this turn's SPD gain = next turn's READY value", () => {
       const events: CombatEvent[] = [
         // Turn 1: both sides gain; the hero acts and pays 6 of its 10

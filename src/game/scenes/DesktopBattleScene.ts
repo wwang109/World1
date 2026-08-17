@@ -55,16 +55,25 @@ const TAG_COLOR: Record<string, string> = {
   // gold so it reads as the log's third kind of bookend, never as a regular row.
   PHASE: '#e8b446',
 };
-/** Ailment identity colors — used to tint the afflicted side's HP bar and its DoT tick numbers. */
-const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8', thorns: '#9fb86a' };
+/**
+ * Ailment identity colors — used to tint the afflicted side's HP bar and its
+ * DoT tick numbers. `thorns` was RE-PICKED (2026-08-17): its original
+ * `#9fb86a` sat one of the original five thorns bugs right back into the
+ * palette — an olive so close to `poison`'s `#8fbe5a` the two were
+ * indistinguishable — and because `battleTimeline.ts` never fed thorns into
+ * the badge bucket until this same pass, that collision had never actually
+ * rendered on screen to be caught. Teal has no other relative here (every
+ * other entry is green/orange/red/tan/purple/blue).
+ */
+const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8', thorns: '#3f9e7a' };
 // `ward` gets its OWN key here, same precedent `thorns` set: this map is
 // keyed by `statusByTurn`'s ailment names, and a held-charges buff is exactly
 // as invisible on the HP badge as an affliction pile once its own status row
 // has scrolled off — thorns proved a BUFF status still needs a badge entry.
 // Picked a blue with no relative in this palette (every other entry is
-// green/orange/red/tan/purple) so it can never be mistaken for another
+// green/orange/red/teal/tan/purple) so it can never be mistaken for another
 // ailment's tint, which was one of the thorns review's five defects.
-const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xa678d8, thorns: 0x9fb86a, ward: 0x4fa8d8 };
+const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xa678d8, thorns: 0x3f9e7a, ward: 0x4fa8d8 };
 
 /** Shared landscape geometry — computed once from the desktop canvas so the
  * board/log/footer regions never overlap and nothing draws past y=876. */

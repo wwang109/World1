@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { FONT, UI } from '../theme';
+import { auditControlLabel } from './controlLayoutAudit';
 
 /** One button in the shared bottom action bar. `flex` sets its share of the
  * width (default 1); `primary` paints it gold. */
@@ -49,9 +50,16 @@ export function renderActionBar(
     const r = scene.add.rectangle(cx, y, w, FOOTER_HEIGHT, fill)
       .setOrigin(0, 0).setStrokeStyle(b.highlight ? 2 : 1, b.highlight ? 0xffe2a0 : UI.border, b.highlight ? 1 : 0.7).setInteractive({ useHandCursor: true });
     r.on('pointerdown', b.onPress);
-    scene.add.text(cx + w / 2, y + FOOTER_HEIGHT / 2, b.label, {
+    const label = scene.add.text(cx + w / 2, y + FOOTER_HEIGHT / 2, b.label, {
       fontSize: '13px', color, fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(0.5);
+    // Shrink-then-ellipsize (shared layout-audit policy — same helper/options
+    // shape RunProgressStrip's own footer-style buttons already use) so a
+    // narrow button never bleeds its label into its neighbor. Before this the
+    // label was drawn at a fixed 13px regardless of `w`, so a long label (e.g.
+    // "BACK TO PREP ›") on a battle scene's 5-button row overflowed its own
+    // rect and overlapped/clipped the button beside it (2026-08-17 report).
+    auditControlLabel(r, label, { name: `footer:${b.label}`, horizontalPadding: 6, verticalPadding: 4, minFontSize: 7 });
     cx += w + GAP;
   }
 }

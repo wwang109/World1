@@ -72,13 +72,24 @@ const TAG_COLOR: Record<string, string> = {
   // gold so it reads as the log's third kind of bookend, never as a regular row.
   PHASE: '#e8b446',
 };
-/** Ailment identity colors — used to tint the afflicted side's HP bar and its DoT tick numbers. */
-const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8', thorns: '#9fb86a' };
+/**
+ * Ailment identity colors — used to tint the afflicted side's HP bar and its
+ * DoT tick numbers. `thorns` was RE-PICKED (2026-08-17): its original
+ * `#9fb86a` sat one of the original five thorns bugs right back into the
+ * palette — an olive so close to `poison`'s `#8fbe5a` the two were
+ * indistinguishable — and because `battleTimeline.ts` never fed thorns into
+ * the badge bucket until this same pass, that collision had never actually
+ * rendered on screen to be caught. Teal has no other relative here (every
+ * other entry is green/orange/red/tan/purple/blue). Kept byte-identical to
+ * Desktop's map — a new tag must be added to BOTH or it renders untinted on
+ * whichever scene is missed.
+ */
+const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8', thorns: '#3f9e7a' };
 // `ward` gets its own key here, mirroring Desktop's map byte-for-byte (see
 // the comment there for why: thorns already set the precedent that a BUFF
 // status still needs a badge tint, and blue has no relative in this palette
 // so it can never collide with another ailment's color).
-const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xa678d8, thorns: 0x9fb86a, ward: 0x4fa8d8 };
+const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xa678d8, thorns: 0x3f9e7a, ward: 0x4fa8d8 };
 
 /**
  * Mobile Battle — vertical: LOG dock (top, tap a HIT to expand its D: math) ·
@@ -230,8 +241,15 @@ export class MobileBattleScene extends Phaser.Scene {
    * currently showing. */
   private footerButtons(summaryVisible: boolean): ActionButton[] {
     const replay: ActionButton = { label: 'REPLAY', onPress: () => { this.stopPlayback(); this.idx = 0; this.outcomeSoundStep = -1; this.render(); this.startPlayback(); } };
+    // The speed toggle's label is always 2 glyphs ("×1"/"×2"/"×½") — give it
+    // the smallest share of the row so the longer labels either side of it
+    // (SUMMARY, BACK TO PREP ›) get the room they actually need. Combined
+    // with ActionBar's own shrink-then-ellipsize pass (ui/ActionBar.ts), this
+    // is what keeps the 5-button Sandbox row from overlapping at mobile's
+    // 412px design width (2026-08-17 report) without ever dropping a button.
     const speed: ActionButton = {
       label: this.speedMult === 1 ? '×1' : this.speedMult === 2 ? '×2' : '×½',
+      flex: 0.6,
       onPress: () => {
         // Cycle ×1 → ×2 → ×½ → ×1. Takes effect on the next scheduled step.
         this.speedMult = this.speedMult === 1 ? 2 : this.speedMult === 2 ? 0.5 : 1;
@@ -242,8 +260,13 @@ export class MobileBattleScene extends Phaser.Scene {
       label: 'SUMMARY', highlight: summaryVisible,
       onPress: () => { this.summaryOverride = !summaryVisible; this.render(); },
     };
+    // The trailing primary slot carries the row's longest label
+    // ("BACK TO PREP ›", "CONTINUE ›") — weighted up so it gets more of the
+    // row than the single-word buttons beside it, same `flex` idiom already
+    // used for the primary CTA on MobileDraftScene/MobilePrepScene.
+    const primaryFlex = 1.6;
     if (getBattleContext() === 'run') {
-      return [replay, speed, summary, { label: 'CONTINUE ›', primary: true, onPress: () => this.scene.start('MobileRunMap') }];
+      return [replay, speed, summary, { label: 'CONTINUE ›', primary: true, flex: primaryFlex, onPress: () => this.scene.start('MobileRunMap') }];
     }
     // The primary slot is stage-aware: END fast-forwards playback, then
     // becomes the way OUT once the outcome is on screen.
@@ -254,8 +277,8 @@ export class MobileBattleScene extends Phaser.Scene {
       speed,
       summary,
       atEnd
-        ? { label: 'BACK TO PREP ›', primary: true, onPress: () => this.scene.start('MobilePrep') }
-        : { label: 'END', primary: true, onPress: () => { this.stopPlayback(); this.idx = this.steps.length - 1; this.render(); } },
+        ? { label: 'BACK TO PREP ›', primary: true, flex: primaryFlex, onPress: () => this.scene.start('MobilePrep') }
+        : { label: 'END', primary: true, flex: primaryFlex, onPress: () => { this.stopPlayback(); this.idx = this.steps.length - 1; this.render(); } },
     ];
   }
 

@@ -547,9 +547,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // `push()` creates (almost always this same cast's own HIT/BUFF/DEBUFF
   // line, moments later in event order) picks it up and clears the queue.
   let pendingCastFx: TurnFx[] = [];
-  const push = (turn: number, tag: string, text: string, detail?: string): void => {
+  const push = (turn: number, tag: string, text: string, detail?: string): LogLine => {
     const arr = linesByTurn.get(turn) ?? [];
-    arr.push({ tag, text, detail });
+    const line: LogLine = { tag, text, detail };
+    arr.push(line);
     linesByTurn.set(turn, arr);
     if (tag !== 'PLAY') {
       // `summary` here is a placeholder — the running totals for a `damage`/
@@ -561,7 +562,20 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       pendingCastFx = [];
       stepRecords.push({ turn, lineIndex: arr.length - 1, hp: snapHp(), shield: snapShield(), fx, focus: curFocus, summary: lastSummarySnapshot });
     }
+    return line;
   };
+  // A cast's `play` line is written before its matching `cost` event arrives
+  // (see the `play` comment above — the engine emits `play`, then every
+  // effect the cast triggers, and ONLY THEN `cost`), so the post-payment bank
+  // it reports isn't known yet at push() time. Hold a reference to the just-
+  // written PLAY line's LogLine object (mutable — see `LogLine`) here and fill
+  // in its `· BANKED n` suffix the moment the matching `cost` event arrives
+  // (the `cost` case below). One combatant performs at a time — its play,
+  // every effect that cast triggers, and its own cost are always emitted back
+  // to back with no OTHER combatant's `play` interleaved — so a single slot
+  // (not a map) is enough; keyed by (side, unit) anyway as a self-check that
+  // the `cost` actually matches the play it claims to.
+  let pendingPlayLine: { side: 'player' | 'enemy'; unit: number; line: LogLine } | undefined;
   /** Identity fields threaded onto a fx from its source skill — undefined when
    * there's no skill to attribute (e.g. a DoT tick), in which case callers
    * keep their existing ailment-color fallback keyed off `source` instead. */
@@ -627,7 +641,11 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const slowedBy = pendingSlowByUnit.get(sk);
         pendingSlowByUnit.delete(sk);
         const slowNote = slowedBy ? ` (includes +${slowedBy} SLOWED)` : '';
-        push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress} · WEIGHT ${e.weight}${slowNote}`);
+        const playLine = push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress} · WEIGHT ${e.weight}${slowNote}`);
+        // The matching `cost` event (readinessAfter = the bank left once this
+        // weight is paid) hasn't been emitted yet — see the `pendingPlayLine`
+        // comment above. Held here; filled in by the `cost` case below.
+        pendingPlayLine = { side: e.side, unit: unitOf(e), line: playLine };
         const slots = playSlotByTurn.get(e.turn) ?? {};
         if (e.side === 'player') slots.player = e.slot;
         else {
@@ -655,6 +673,21 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         if (castSkill) {
           pendingCastFx.push({ side: e.side, kind: 'cast', amount: 0, unit: unitOf(e), cardName: skillName(e.skillId), ...fxIdentity(castSkill) });
         }
+        break;
+      }
+      // The readiness this very cast left banked, once its weight is paid —
+      // read straight off the engine's own `readinessAfter` (never re-derived:
+      // the burn-halving duplication between simulate.ts and this file is an
+      // on-record defect this must not repeat). Appended onto the PLAY line
+      // `pendingPlayLine` is still holding a reference to; the READY row above
+      // already shows the GAIN, so this closes the loop by showing what
+      // survived the SPEND. No step/summary bookkeeping of its own — `cost` is
+      // bookkeeping on an already-logged line, not a new event a player reads.
+      case 'cost': {
+        if (pendingPlayLine && pendingPlayLine.side === e.side && pendingPlayLine.unit === unitOf(e)) {
+          pendingPlayLine.line.text += ` · BANKED ${e.readinessAfter}`;
+        }
+        pendingPlayLine = undefined;
         break;
       }
       case 'damage': {
@@ -912,13 +945,17 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') bucket.set(e.status, e.stacks ?? 0);
         else if (e.status === 'stun') bucket.set('stun', e.turns);
         else if (e.status === 'expose') bucket.set('expose', e.pct ?? 0);
-        // Ward feeds the same per-unit ailment bucket the HP badge reads —
-        // unlike `thorns` (which has an AILMENT_TINT entry but is never fed
-        // into this bucket, so its tint has stood unused since the thorns
-        // fix), a held ward pile is otherwise invisible for its whole
-        // lifetime: no DoT tick, no per-turn line of its own once applied.
-        // Without this, the persistent-indicator half of the ward fix would
-        // be a dead entry exactly like thorns' currently is.
+        // Thorns feeds the same per-unit ailment bucket the HP badge reads —
+        // it has had an `AILMENT_TINT` entry since the thorns fix, but this
+        // bucket never got fed, so the tint has been dead code (and thorns has
+        // never shown on the HP badge) the whole time: no DoT tick, no
+        // per-turn line of its own once a held pile just sits there between
+        // stings. Magnitude is `stacks` (the pile total), same field the
+        // dots-summary line above already reads for thorns.
+        else if (e.status === 'thorns') bucket.set('thorns', e.stacks ?? 1);
+        // Ward feeds the same bucket for the same reason — a held ward pile is
+        // otherwise invisible for its whole lifetime, exactly like thorns
+        // above.
         else if (e.status === 'ward') bucket.set('ward', e.charges ?? 1);
         break;
       }

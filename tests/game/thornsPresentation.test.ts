@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { buildBattleTimeline, type BattleTimeline, type BattleTimelineInput } from '../../src/game/battleTimeline';
 import { battleRequestOf } from '../../src/game/battleApi';
-import { resolveBattle } from '../../src/run/resolveBattle';
+import { resolveBattle, type BattleLog } from '../../src/run/resolveBattle';
 import { summarizeEffects } from '../../src/game/ui/skillPresentation';
 import { skillBook } from '../../src/data/skills';
+import type { CombatEvent } from '../../src/engine/combat/events';
 
 /**
  * THORNS in the PLAYBACK layer — regression lock for the review findings of
@@ -15,7 +16,12 @@ import { skillBook } from '../../src/data/skills';
  *     end is otherwise invisible);
  *  3. reflect damage is counted in the fight's side totals (it used to vanish);
  *  4. the card face shows a THORN token (summarizeEffects used to drop the
- *     action silently, leaving bramble_ward's face reading as shield-only).
+ *     action silently, leaving bramble_ward's face reading as shield-only);
+ *  5. (2026-08-17) a held thorns pile feeds the per-unit status bucket the HP
+ *     badge reads — `AILMENT_TINT.thorns` had existed in both battle scenes
+ *     since bug #1's fix, but `statusApplied` never fed the bucket, so the
+ *     tint was dead code and thorns had never actually appeared on the HP
+ *     badge. Mirrors the equivalent ward tests in `wardPresentation.test.ts`.
  */
 
 const BASE: BattleTimelineInput = {
@@ -87,5 +93,28 @@ describe('thorns presentation', () => {
   it('shows a THORN token on the card face', () => {
     expect(summarizeEffects(skillBook.bramble_ward!)).toContain('THORN 5');
     expect(summarizeEffects(skillBook.nettle_lash!)).toContain('THORN 5');
+  });
+
+  it('feeds a held thorns pile into the per-unit status bucket, so the HP badge can show it', () => {
+    const events: CombatEvent[] = [
+      { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'thorns', stacks: 5, turns: 3 },
+      { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+    ];
+    const log: BattleLog = { events, result: 'win', turns: 2 };
+    const model = buildBattleTimeline(BASE, log);
+    const status = model.statusByTurn.get(1);
+    expect(status?.player).toContain('thorns');
+  });
+
+  it('clears the thorns key from the status bucket once the pile expires', () => {
+    const events: CombatEvent[] = [
+      { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'thorns', stacks: 3, turns: 3 },
+      { turn: 2, kind: 'statusExpired', side: 'player', unit: 0, status: 'thorns' },
+      { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+    ];
+    const log: BattleLog = { events, result: 'win', turns: 3 };
+    const model = buildBattleTimeline(BASE, log);
+    expect(model.statusByTurn.get(1)?.player).toContain('thorns');
+    expect(model.statusByTurn.get(2)?.player ?? []).not.toContain('thorns');
   });
 });
