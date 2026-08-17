@@ -541,11 +541,20 @@ export interface BattleGoldReward {
 }
 
 /**
- * Gold reward for a fight: `base` and `winBonus` both only pay out on a win —
- * a loss credits NO gold (the caller, `resolveRunBattleResult` in
- * `src/game/runStore.ts`, pays `0` on a loss; see `recordBattleResult` in
- * `runState.ts`). `winBonus` is derived from a `difficulty` score, summed
- * per foe (integer math throughout):
+ * Gold reward for a fight — CALLER-AGNOSTIC: this function only computes the
+ * `{base, winBonus}` pair; it never decides what a loss pays, and its TWO
+ * callers deliberately differ on that:
+ *   - `resolveRunBattleResult` (`src/game/runStore.ts`) — RUN MODE: pays
+ *     `base + winBonus` on a win, `0` on a loss (feeds `recordBattleResult`
+ *     in `runState.ts`, which credits no gold for a loss).
+ *   - `creditBattleGold` (`src/game/battleGold.ts`) — SANDBOX: pays `base`
+ *     unconditionally and adds `winBonus` only on a win, so a loss still
+ *     credits `base`. This is DELIBERATE and USER-LOCKED — see
+ *     `docs/run-structure.md` and `docs/feature-inventory.md` ("the
+ *     Sandbox's loss-still-pays-base behavior is unchanged"). Do NOT
+ *     "fix" `battleGold.ts` to match the run-mode caller.
+ * `winBonus` is derived from a `difficulty` score, summed per foe (integer
+ * math throughout):
  *   - `TITLE_WEIGHT[title]` (0-3): mob/normal/elite/boss, mirrors TITLE_PRESETS.
  *   - `max(0, foe.level - heroLevel)`: how far above the hero's level the foe is.
  *   - `foe.modifiers.length`: rogue-like affixes stack difficulty 1-for-1.
