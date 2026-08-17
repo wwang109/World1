@@ -256,6 +256,33 @@ export const PRICE = {
    */
   negatePerCharge: 100,
 
+  /**
+   * ward: charges * wardPerCharge deci. DERIVED FROM `negatePerCharge`, not
+   * chosen. A ward charge cancels one whole affliction APPLICATION before it
+   * lands — the structural mirror of a negate charge, which cancels one whole
+   * direct hit ("~ one Bronze card's worth of prevented output", above).
+   *
+   * The difference is HOW MUCH OF A CARD each denies. A negate charge blanks a
+   * card's whole damage line; a ward charge denies ONE EFFECT of a card, because
+   * afflictions are overwhelmingly authored as RIDERS — cards routinely carry a
+   * hit plus a rider, so half a card = 50 deci.
+   *
+   * That lands ward exactly between the two existing removal keywords, which is
+   * the check that the number is honest:
+   *   cleanse 25 < ward 50 < negate 100
+   * strictly ABOVE cleanse (which strips an affliction only AFTER it has already
+   * ticked, so it recovers part of the damage — ward denies every tick), and
+   * strictly BELOW negate (a whole card vs one of its effects).
+   *
+   * GRANULARITY: 50 deci makes the whole-PL step exactly ONE charge (1/2/3
+   * charges = 50/100/150 deci), so every charge count is authorable and the
+   * scaffold solver can reach any budget — unlike `cleanse`, whose 25 deci/charge
+   * step of 2 charges made odd totals unreachable. The apply-time clamp
+   * (`MAX_WARD_CHARGES` = 3) caps a holder at 150 deci of ward, which the
+   * `empower` family cap (100/150/200 by size) bounds further on a card.
+   */
+  wardPerCharge: 50,
+
   /** aura (per point, on the projecting card): damageFlat * auraDamageFlat,
    * healFlat * auraHealFlat, |weightDelta| * auraWeightDelta.
    * allBoard reach doubles the total.
@@ -530,7 +557,7 @@ export const EFFECT_CAPS_DECI = {
   control: { 1: 100, 2: 150, 3: 200 } as Record<number, number>,
   /** poison + burn + bleed combined (deci = stacks × 10 at 1 PL/stack) */
   dot: { 1: 200, 2: 300, 3: 400 } as Record<number, number>,
-  /** stat-up, guard, negate, cleanse, lifesteal, combo — one whole discrete effect */
+  /** stat-up, guard, negate, ward, cleanse, lifesteal, combo — one whole discrete effect */
   empower: { 1: 100, 2: 150, 3: 200 } as Record<number, number>,
   /** flat damage (incl. TRUE) — DIAMOND-tier ceiling (30/70/125 PL), one flat cap
    * for every tier (user-locked 2026-07-23): a card just can't exceed what a

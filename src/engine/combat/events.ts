@@ -5,7 +5,7 @@ import type { ShieldPools } from './state';
 export type { AuraSource } from './auras';
 
 
-export type StatusName = 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns';
+export type StatusName = 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns' | 'ward';
 
 /** Exact integer stages used to produce one direct skill hit. */
 export interface DamageCalculation {
@@ -373,6 +373,22 @@ export type CombatEvent =
   | { turn: number; kind: 'shieldBroken'; side: Side; unit: number; amount: number; totalAfter: number }
   /** A Magical Negate charge nullified a direct skill hit on `side`. */
   | { turn: number; kind: 'negated'; side: Side; unit: number; property: Property }
+  /**
+   * A WARD charge prevented an affliction from ever landing on `side` — the
+   * affliction mirror of `negated`, and the reason no `statusApplied` for that
+   * status appears in the log.
+   *
+   * `status` NAMES THE PREVENTED AFFLICTION and is not optional: a bare "warded"
+   * with no subject is unrenderable ("blocked… what?") and unverifiable. It is
+   * the kind that was denied (poison / burn / bleed / stun / debuff / expose),
+   * never `'ward'` itself. `chargesLeft` is the holder's remaining ward charges
+   * AFTER this one was spent; at 0 a `statusExpired` for `'ward'` follows
+   * immediately, exactly as a spent DoT/thorns pile announces its own expiry.
+   *
+   * ONE CHARGE PER APPLICATION regardless of stack count, so this event carries
+   * no stack/turn magnitude — what was denied is the whole application.
+   */
+  | { turn: number; kind: 'warded'; side: Side; unit: number; status: StatusName; chargesLeft: number }
   | { turn: number; kind: 'suddenDeathStart' }
   | { turn: number; kind: 'fatigueStart' }
   /**

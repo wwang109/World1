@@ -1,5 +1,6 @@
 import type { Rng } from '../rng';
 import type { Action, EffectSourceRef, Property, SkillDef } from '../types';
+import { MAX_WARD_CHARGES } from '../types';
 import type { AntiHealCategory, AntiHealReduction, CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
@@ -34,7 +35,8 @@ function isOffensiveAction(action: Action): boolean {
     case 'shieldBreak':
       return true;
     default:
-      // heal, shield, buffStat, cleanse, taunt, lifesteal, comboBonus, guard, negate
+      // heal, shield, buffStat, cleanse, taunt, lifesteal, comboBonus, thorns,
+      // guard, negate, ward — none of these resolve against a foe.
       return false;
   }
 }
@@ -75,8 +77,12 @@ function pickByPolicy(caster: CombatantState, living: CombatantState[]): Combata
 /**
  * Support actions that auto-pick a recipient on the caster's OWN side (self
  * always a candidate). Everything else non-offensive stays on the caster:
- * shield/guard/negate self-protect, and taunt/lifesteal/comboBonus are self
+ * shield/guard/negate/ward self-protect, and taunt/lifesteal/comboBonus are self
  * riders. Ally-shield is a future option (see resolveTargets).
+ *
+ * `ward` is deliberately ABSENT (self-only, exactly like negate): a ward is a
+ * pre-emptive charge pile on its own holder, so handing it to an ally would make
+ * it a second, differently-targeted keyword rather than negate's mirror.
  */
 function isAllyTargetedSupport(action: Action): boolean {
   return action.kind === 'heal' || action.kind === 'cleanse' || action.kind === 'buffStat';
@@ -159,7 +165,7 @@ function pickSupportTarget(state: CombatState, caster: CombatantState, action: A
  *
  * Support actions: ally-targeted ones (heal/cleanse/buffStat) auto-pick the best
  * recipient on the CASTER'S side via `pickSupportTarget` (self is always a
- * candidate); shield/guard/negate and self riders stay on the caster.
+ * candidate); shield/guard/negate/ward and self riders stay on the caster.
  * Ally-shield is a deliberate future option — a unit self-protects for now.
  *
  * Offensive actions hit foes: `scope: 'all'` = every living foe (ascending
@@ -606,8 +612,61 @@ export function cardMatchup(skill: SkillDef, defender: CombatantState): Matchup 
   return 'neutral';
 }
 
+/**
+ * WARD CONSUMPTION — the affliction mirror of the `negate` check in `dealDamage`.
+ *
+ * Spend ONE ward charge to cancel one whole affliction APPLICATION, whatever its
+ * stack count: a poison-5 costs one charge, not five (see the `ward` docs in
+ * types.ts — that is the negate parallel, deliberately unlike `cleanse`, which
+ * pays per stack). Returns true when the application was prevented, in which case
+ * the caller must NOT push the status.
+ *
+ * Only `isCleansable` kinds are wardable, which is what makes ward unable to
+ * block buffs AND unable to consume ITSELF (ward is not cleansable) — no
+ * self-reference check is needed, the gate already excludes it.
+ *
+ * Deterministic: `statuses` is walked BY INDEX and the FIRST ward with charges
+ * wins, so co-existing wards are spent in a fixed, lowest-index-first order. No
+ * RNG, integer-only.
+ */
+function consumeWard(ctx: Ctx, target: CombatantState, status: StatusInstance): boolean {
+  if (!isCleansable(status.kind)) return false;
+  for (let i = 0; i < target.statuses.length; i += 1) {
+    const ward = target.statuses[i]!;
+    if (ward.kind !== 'ward' || (ward.charges ?? 0) <= 0) continue;
+    const left = (ward.charges ?? 0) - 1;
+    ward.charges = left;
+    ctx.events.push({
+      turn: ctx.state.turn,
+      kind: 'warded',
+      side: target.side,
+      unit: target.index,
+      status: status.kind,
+      chargesLeft: left,
+    });
+    if (left <= 0) {
+      target.statuses = target.statuses.filter((s) => s !== ward);
+      ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: target.side, unit: target.index, status: 'ward' });
+    }
+    return true;
+  }
+  return false;
+}
+
+/**
+ * The single application point for a status pile. Every affliction that lands on
+ * a unit passes through here, which is why the WARD hook lives here rather than
+ * in each offensive arm.
+ *
+ * KNOWN LIMIT worth stating: a DoT REAPPLICATION onto an existing pile merges in
+ * `applyDot` without reaching this function, so a ward does not tax a top-up of a
+ * pile the holder already carried before the ward existed. A ward that blocks the
+ * FIRST application never lets a pile exist in the first place, so this only bites
+ * when the affliction predates the ward.
+ */
 function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): void {
   if (!target.alive) return;
+  if (consumeWard(ctx, target, status)) return;
   target.statuses.push(status);
   ctx.events.push({
     turn: ctx.state.turn,
@@ -749,7 +808,7 @@ function reflectThorns(ctx: Ctx, victim: CombatantState, attacker: CombatantStat
  * is historical). Offensive actions treat it as the victim. Ally-targeted
  * support (heal/cleanse/buffStat) treats it as the recipient ally chosen by
  * `resolveTargets` — which is the caster in 1v1, so `enemy === caster` there.
- * Self-only support (shield/guard/negate) and the self riders (taunt/lifesteal/
+ * Self-only support (shield/guard/negate/ward) and the self riders (taunt/lifesteal/
  * comboBonus) act on the caster directly. The interpreter fan-out (see
  * `applyCast`) calls this once per resolved target, in ascending index order.
  *
@@ -1135,6 +1194,28 @@ function applyAction(
       const charges = Math.max(0, Math.min(action.charges, 3 - existing));
       if (charges <= 0) break;
       addStatus(ctx, caster, { kind: 'negate', property: action.property, charges, turnsLeft: 0, fresh: true });
+      break;
+    }
+    case 'ward': {
+      // Defensive: applies to the caster (self-only, exactly like negate — a
+      // ward is never handed to an ally). Total charges clamped to
+      // MAX_WARD_CHARGES at apply time, the same shape and the same site as
+      // negate's per-property clamp; ward has no property axis, so the pile is
+      // counted across ALL wards the holder carries.
+      //
+      // A recast opens a NEW pile (it does not merge), mirroring negate — the
+      // clamp, not a merge, is what bounds the total. `consumeWard` therefore
+      // walks the piles by index and spends the lowest-index one first.
+      //
+      // Note this addStatus call can NEVER be warded away by an existing ward:
+      // 'ward' is not `isCleansable`, so a ward cannot consume itself.
+      if (!caster.alive) break;
+      const existing = caster.statuses
+        .filter((s) => s.kind === 'ward')
+        .reduce((sum, s) => sum + (s.charges ?? 0), 0);
+      const charges = Math.max(0, Math.min(action.charges, MAX_WARD_CHARGES - existing));
+      if (charges <= 0) break;
+      addStatus(ctx, caster, { kind: 'ward', charges, turnsLeft: 0, fresh: true });
       break;
     }
   }

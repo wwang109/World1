@@ -72,6 +72,7 @@ export interface PriceRates {
   statPctTurn: number;
   cleansePerCharge: number;
   negatePerCharge: number;
+  wardPerCharge: number;
   slowPerWeightNum: number;
   slowPerWeightDen: number;
   lifestealPerPctNum: number;
@@ -134,6 +135,12 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     expose: { isHit: false, scalable: false, family: 'control', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.exposePerPctTurnNum, den: P.exposePerPctTurnDen }] },
     guard: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'product', fields: ['pct', 'turns'], num: P.guardPerPctTurnNum, den: P.guardPerPctTurnDen }] },
     negate: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'charges', num: P.negatePerCharge, den: 1 }] },
+    // The affliction mirror of negate, at half its rate: a charge denies ONE
+    // EFFECT of a card (afflictions are riders) rather than a card's whole damage
+    // line. Sits between the two removal keywords by construction —
+    // cleanse 25 < ward 50 < negate 100 — and 50 deci makes the whole-PL step
+    // exactly one charge. Self buff => empower family; prevents, never hits.
+    ward: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'charges', num: P.wardPerCharge, den: 1 }] },
     cleanse: { isHit: false, scalable: false, family: 'empower', price: [{ form: 'perUnit', field: 'charges', num: P.cleansePerCharge, den: 1 }] },
 
     slow: { isHit: false, scalable: false, family: 'control', price: [{ form: 'perUnit', field: 'weight', num: P.slowPerWeightNum, den: P.slowPerWeightDen }] },

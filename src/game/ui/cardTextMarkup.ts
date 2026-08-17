@@ -65,6 +65,9 @@ export const KEYWORD_TEXT_COLOR: Record<string, string> = {
   guard: '#7fc0e8',
   negate: '#9fd0e8',
   cleanse: '#8fdcA8',
+  // Ward is prevention, cleanse is removal — kept in the same cool-green family
+  // as cleanse (both are "the ailment is gone") but distinctly lighter.
+  ward: '#a8e8d0',
   lifesteal: '#e07a90',
   disrupt: '#e0b060',
   slow: '#d8c078',

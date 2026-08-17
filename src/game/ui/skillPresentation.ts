@@ -180,6 +180,9 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: Sk
       // the battle log's negateToken (battleTimeline.ts).
       case 'negate': extras.push(`${action.property === 'physical' ? 'P' : action.property === 'magical' ? 'M' : 'T'}.NEGATE ×${action.charges}`); break;
       case 'cleanse': extras.push(`CLEANSE ${action.charges}`); break;
+      // A ward has NO property axis (unlike guard/negate above) — afflictions
+      // carry no attacker property to match — so the face token is unqualified.
+      case 'ward': extras.push(`WARD ×${action.charges}`); break;
       case 'taunt': extras.push('TAUNT'); break;
       case 'lifesteal': extras.push(`LSTEAL ${action.pct}%`); break;
       case 'shieldBreak': extras.push(`SHATTER ${action.amount}`); break;

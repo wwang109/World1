@@ -1,5 +1,5 @@
 import type { Action, Archetype, Element, Property, SkillDef, SkillTier, WeaponType } from '../../engine/types';
-import { weightOf } from '../../engine/types';
+import { MAX_WARD_CHARGES, weightOf } from '../../engine/types';
 import { burnTotalDamage } from '../../engine/balance';
 
 /** "10 → 4 → 2" — the tick sequence of a halving burn pile. */
@@ -197,6 +197,11 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
       return {
         title: 'Expose',
         body: `Enemy takes +${action.pct}% damage from direct hits for ${action.turns} global turns (cap 50%). DoT ticks unaffected.`,
+      };
+    case 'ward':
+      return {
+        title: 'Ward',
+        body: `Prevents the next ${action.charges > 1 ? `${action.charges} ailments` : 'ailment'} outright — poison, burn, bleed, stun, stat debuffs and expose never land. One charge cancels a whole application, however many stacks it carried (max ${MAX_WARD_CHARGES} charges). Buffs are unaffected.`,
       };
     case 'cleanse':
       return {

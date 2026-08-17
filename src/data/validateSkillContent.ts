@@ -117,6 +117,10 @@ const ACTION_FIELDS: Record<string, readonly string[]> = {
   expose: ['pct', 'turns'],
   guard: ['property', 'pct', 'turns'],
   negate: ['property', 'charges'],
+  // NO 'property' on ward, on purpose (see the `ward` docs in engine/types.ts):
+  // afflictions carry no attacker property to match, so listing one here would
+  // let content author a field the engine silently ignores.
+  ward: ['charges'],
   cleanse: ['charges'],
   lifesteal: ['pct'],
   shieldBreak: ['amount'],
@@ -165,6 +169,7 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     case 'expose': pct('pct'); turns('turns'); break;
     case 'guard': property(); pct('pct'); turns('turns'); break;
     case 'negate': property(); num('charges'); break;
+    case 'ward': num('charges'); break;
     case 'cleanse': num('charges'); break;
     case 'lifesteal': pct('pct'); break;
     case 'shieldBreak': num('amount'); break;

@@ -45,6 +45,13 @@ import type { Gem, SkillDef } from '../../src/engine/types';
 // rate pulls the heal-type crossover point down from ~MATK 30-40 to ~MATK
 // 5-10. See balance.ts for the full rationale.
 //
+// 2026-08-17: wardPerCharge 50 ADDED — the affliction mirror of negate, at HALF
+// its rate: a negate charge cancels a whole direct hit (a card's damage line),
+// a ward charge cancels one whole affliction APPLICATION, and afflictions are
+// authored as riders (~half a card). Lands strictly between the two existing
+// removal keywords by construction: cleanse 25 < ward 50 < negate 100. NO
+// existing rate moved.
+//
 // 2026-08-09: echoRepeatDeci 100 ADDED (gem ruleset v1 §6) — the host-blind
 // rate for a FULL repeat of the host's attack, divided by `shareOf`. Not a new
 // anchor: it is the same "one whole cast's worth of output" 100 that
@@ -83,6 +90,7 @@ describe('PRICE structure lock', () => {
       exposePerPctTurnNum: 1,
       exposePerPctTurnDen: 1,
       negatePerCharge: 100,
+      wardPerCharge: 50,
       auraDamageFlat: 10,
       auraHealFlat: 10,
       auraWeightDelta: 20,
@@ -342,6 +350,31 @@ describe('Power Level budgets', () => {
     expect(PRICE.cleansePerCharge).toBe(25);
     expect(powerLevelDeci(mk(4))).toBe(TIER_BUDGET_DECI.bronze);
     expect(powerLevelDeci(mk(1))).toBe(25);
+  });
+
+  it('ward is priced per charge (50 deci) and sits between cleanse and negate', () => {
+    const mk = (charges: number): SkillDef => ({
+      id: 'x',
+      name: 'x',
+      archetypes: ['defensive'],
+      property: 'magical',
+      size: 1,
+      element: 'holy',
+      rarity: 'common',
+      tier: 'bronze',
+      effects: [{ kind: 'ward', charges }],
+      text: '',
+    });
+    expect(PRICE.wardPerCharge).toBe(50);
+    // Whole-PL step of EXACTLY one charge — every charge count is authorable.
+    expect(powerLevelDeci(mk(1))).toBe(50);
+    expect(powerLevelDeci(mk(2))).toBe(TIER_BUDGET_DECI.bronze);
+    expect(powerLevelDeci(mk(3))).toBe(150);
+    // The ladder that justifies the number: a ward charge denies one EFFECT of a
+    // card, a negate charge denies the whole hit, and cleanse only strips what an
+    // affliction has left after it already ticked.
+    expect(PRICE.cleansePerCharge).toBeLessThan(PRICE.wardPerCharge);
+    expect(PRICE.wardPerCharge).toBeLessThan(PRICE.negatePerCharge);
   });
 });
 

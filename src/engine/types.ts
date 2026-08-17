@@ -314,7 +314,45 @@ type ActionKinds =
    * ticks and fatigue never spend a charge. Persists until charges run out (no
    * turn expiry). Total charges of a property are clamped to <=3 at apply time.
    */
-  | { kind: 'negate'; property: Property; charges: number };
+  | { kind: 'negate'; property: Property; charges: number }
+  /**
+   * WARD (self buff) — the AFFLICTION mirror of `negate`. Grants `charges`
+   * ward charges on the caster (self) that PREVENT incoming afflictions before
+   * they land: the next `charges` applications of a cleansable status (poison /
+   * burn / bleed / stun / stat debuff / expose) are cancelled outright and never
+   * reach the holder's status list. "Debuff shield." Persists until the charges
+   * run out (no turn expiry); total charges are clamped to `MAX_WARD_CHARGES` at
+   * apply time.
+   *
+   * ONE CHARGE CANCELS THE WHOLE APPLICATION, regardless of stack count — a
+   * poison-5 costs one charge, not five. That is the `negate` parallel (one
+   * charge = one whole thing denied) and it is deliberately UNLIKE `cleanse`,
+   * which spends one charge per STACK on a stacking DoT. Ward denies every tick
+   * a DoT would ever have dealt; cleanse only strips what is left of one that
+   * already landed. Hence the price ladder cleanse 25 < ward 50 < negate 100
+   * (see `PRICE.wardPerCharge` in balance.ts).
+   *
+   * NO `property` FIELD, deliberately: afflictions carry no attacker property to
+   * match against (a poison's `property` is the applying CARD's, inherited for
+   * DoT mitigation typing, not a defensive axis), so a property dimension here
+   * would be a silent no-op. Ward is universal or it is nothing.
+   *
+   * It can never block a BUFF (the gate is `isCleansable`, which excludes
+   * guard / negate / thorns / buff), and therefore can never consume ITSELF:
+   * ward is not a cleansable affliction.
+   */
+  | { kind: 'ward'; charges: number };
+
+/**
+ * Apply-time ceiling on the TOTAL ward charges one unit may hold — the sibling
+ * of `negate`'s 3-charge clamp (`applyAction`'s `negate` arm). A charge denies a
+ * whole affliction application, so an unbounded pile would make a unit
+ * permanently immune to control; 3 is the same "enough to matter, not enough to
+ * lock out" number negate settled on. Enforced in the `ward` arm of
+ * `applyAction` (src/engine/combat/interpreter.ts) and respected as a scaffold
+ * ceiling by `scripts/scaffoldCard.ts`.
+ */
+export const MAX_WARD_CHARGES = 3;
 
 /** Positional modifiers a (usually Support/passive) card projects onto board neighbors. */
 export interface AuraDef {

@@ -51,7 +51,7 @@ import {
   WEIGHT_MIN,
 } from '../src/engine/balance';
 import { applyTier } from '../src/engine/cards';
-import { weightOf, type Action, type Archetype, type Element, type Property, type SkillDef, type SkillTier, type WeaponType } from '../src/engine/types';
+import { MAX_WARD_CHARGES, weightOf, type Action, type Archetype, type Element, type Property, type SkillDef, type SkillTier, type WeaponType } from '../src/engine/types';
 import { validateSkillDocument } from '../src/data/validateSkillContent';
 
 // ── args ────────────────────────────────────────────────────────────────────
@@ -92,6 +92,11 @@ function seedAction(kind: Action['kind']): Action {
     // 25/75/125/175 deci were the only totals and no budget was hit. From 0 the
     // solver reaches 4/6/8 charges = 100/150/200 deci exactly.
     case 'cleanse': return { kind, charges: 0 };
+    // Same zero-seed rule as cleanse. Ward's whole-PL step IS one charge
+    // (50 deci), so seeding at 1 would merely offset every solution by one
+    // charge rather than lock out half the ladder — seeded at 0 anyway, because
+    // "the solver grows it from nothing" is the rule, not a per-keyword judgement.
+    case 'ward': return { kind, charges: 0 };
     case 'slow': return { kind, weight: 0 };
     case 'disrupt': return { kind, amount: 0 };
     case 'lifesteal': return { kind, pct: 0 };
@@ -110,10 +115,10 @@ const GROW_FIELD: Partial<Record<Action['kind'], string>> = {
   buffStat: 'pct', debuffStat: 'pct', expose: 'pct', guard: 'pct',
   slow: 'weight', disrupt: 'amount', lifesteal: 'pct',
   shieldBreak: 'amount', comboBonus: 'amount',
-  negate: 'charges', cleanse: 'charges',
+  negate: 'charges', cleanse: 'charges', ward: 'charges',
 };
 /** Intrinsic ceilings (engine clamps); the solver must not author past them. */
-const CEILING: Partial<Record<Action['kind'], number>> = { guard: 60, expose: 50, lifesteal: 60, negate: 3 };
+const CEILING: Partial<Record<Action['kind'], number>> = { guard: 60, expose: 50, lifesteal: 60, negate: 3, ward: MAX_WARD_CHARGES };
 
 const base: SkillDef = {
   id, name, archetypes, property, size, rarity: 'common', tier,
@@ -221,6 +226,7 @@ function phrase(a: Action): string {
     case 'guard': return `-${a.pct}% incoming ${a.property} damage (${a.turns} turns)`;
     case 'negate': return `{{Negate}} the next ${a.charges > 1 ? `${a.charges} ${a.property} attacks` : `${a.property} attack`}`;
     case 'cleanse': return `{{Cleanse}} ${a.charges} ailment${a.charges > 1 ? 's' : ''}`;
+    case 'ward': return `{{Ward}} ${a.charges} — prevent the next ${a.charges > 1 ? `${a.charges} ailments` : 'ailment'} outright`;
     case 'slow': return `Enemy's next action is +${a.weight} heavier`;
     case 'disrupt': return `{{Disrupt}} ${a.amount} banked readiness`;
     case 'lifesteal': return `{{Lifesteal}} ${a.pct}% of damage dealt`;

@@ -5,7 +5,7 @@ import { powerLevelDeci } from '../balance';
 import { boardTypeIdentity, type BoardIdentity } from './typeIdentity';
 
 export interface StatusInstance {
-  kind: 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns';
+  kind: 'poison' | 'burn' | 'bleed' | 'stun' | 'buff' | 'debuff' | 'guard' | 'negate' | 'expose' | 'thorns' | 'ward';
   /** DoT mitigation/synergy typing (inherited from the card); guard/negate match property. */
   property?: Property;
   stat?: BuffableStat;
@@ -18,10 +18,17 @@ export interface StatusInstance {
    * stack per charge.
    */
   stacks?: number;
-  /** Remaining negate counter-charges (negate only; not turn-decremented). */
+  /**
+   * Remaining counter-charges; NOT turn-decremented. Two users, both
+   * charge-based and both permanent until spent:
+   *  - `negate`: charges that cancel a whole DIRECT HIT of a matching property;
+   *  - `ward`:   charges that cancel a whole AFFLICTION APPLICATION (any kind
+   *              `isCleansable` accepts — one charge per application, whatever
+   *              its stack count).
+   */
   charges?: number;
   /**
-   * Remaining GLOBAL turns (stun: remaining performances; negate: unused/0).
+   * Remaining GLOBAL turns (stun: remaining performances; negate/ward: unused/0).
    * For decaying DoTs this mirrors `stacks` (kept in sync) so duration sorts
    * and displays keep working.
    */
