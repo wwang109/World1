@@ -173,6 +173,9 @@ for (const e of events) {
     case 'shieldBroken':
       console.log(`${t} │  ${tag(e.side)} shield shattered −${e.amount} -> ${e.totalAfter}`);
       break;
+    case 'warded':
+      console.log(`${t} │  ${tag(e.side)} ward prevented ${e.status} -> ${e.chargesLeft} charge${e.chargesLeft === 1 ? '' : 's'} left`);
+      break;
     case 'suddenDeathStart':
       console.log(`${t} ⚡ SUDDEN DEATH — damage ramps each turn (+10% you, +30% foe)`);
       break;

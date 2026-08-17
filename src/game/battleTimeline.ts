@@ -257,6 +257,10 @@ function explainStatus(e: Extract<CombatEvent, { kind: 'statusApplied' }>): stri
       const charges = e.charges ?? 1;
       return `Fully blocks the next ${charges} ${propertyWord(e.property)} hit${charges === 1 ? '' : 's'}.`;
     }
+    case 'ward': {
+      const charges = e.charges ?? 1;
+      return `Prevents the next ${charges} incoming poison/burn/bleed/debuff/expose application${charges === 1 ? '' : 's'} before it lands — does not stop stuns or buffs.`;
+    }
     case 'expose':
       return `+${e.pct ?? 0}% damage taken from direct hits, ${turnWord(e.turns)}.`;
     case 'buff':
@@ -797,6 +801,20 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         push(e.turn, 'BUFF', `${label(e)} · ${negateToken(e.property)} blocked the hit`);
         break;
       }
+      // Ward spending a charge to prevent an incoming affliction: the affliction
+      // mirror of `negated` above, same reason it exists — the interpreter
+      // returns before ever emitting the `statusApplied` the affliction would
+      // otherwise have produced, so the attacker's own PLAY line was followed
+      // by nothing (byte-for-byte the same silent-no-op shape `negated` was
+      // given a case for). Same row shape, same BUFF tag (a defensive event on
+      // the WARD HOLDER's side), same level of detail: name what was denied
+      // (`e.status`, the prevented affliction kind — never `'ward'` itself,
+      // see the event's own doc comment) and how many charges remain.
+      case 'warded': {
+        const denied = e.status.charAt(0).toUpperCase() + e.status.slice(1);
+        push(e.turn, 'BUFF', `${label(e)} · Ward prevented ${denied} · ${e.chargesLeft} charge${e.chargesLeft === 1 ? '' : 's'} left`);
+        break;
+      }
       // `taunt` — self-targeted, fight-long threat gain. Silently redirects
       // targeting under the default `aggro` policy; without a row here, a
       // multi-foe fight's target suddenly switching reads as arbitrary.
@@ -845,7 +863,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         break;
       }
       case 'statusApplied': {
-        const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'negate' || e.status === 'thorns';
+        const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'negate' || e.status === 'thorns' || e.status === 'ward';
         // Guard and negate each cover ONE property (their own, not the card's),
         // so both are named by a property-qualified token exactly like the
         // shield pools are — a bare "Guard"/"Negate" left the player no way to
@@ -873,6 +891,13 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           const total = e.stacks ?? 0;
           const prior = bucket.get(e.status);
           stacksText = prior !== undefined ? ` +${total - prior} (${total} total)` : total ? ` ${total}` : '';
+        } else if (e.status === 'ward') {
+          // Ward's magnitude lives in `charges`, not `stacks` (unlike negate,
+          // which only surfaces its charge count in the expandable detail) —
+          // a bare "Ward" made a 1-charge and a 3-charge application
+          // indistinguishable at a glance, so this one gets it on the row itself.
+          const charges = e.charges ?? 1;
+          stacksText = ` ${charges} charge${charges === 1 ? '' : 's'}`;
         } else if (e.stacks) {
           stacksText = ` ${e.stacks}`;
         }
@@ -887,6 +912,14 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') bucket.set(e.status, e.stacks ?? 0);
         else if (e.status === 'stun') bucket.set('stun', e.turns);
         else if (e.status === 'expose') bucket.set('expose', e.pct ?? 0);
+        // Ward feeds the same per-unit ailment bucket the HP badge reads —
+        // unlike `thorns` (which has an AILMENT_TINT entry but is never fed
+        // into this bucket, so its tint has stood unused since the thorns
+        // fix), a held ward pile is otherwise invisible for its whole
+        // lifetime: no DoT tick, no per-turn line of its own once applied.
+        // Without this, the persistent-indicator half of the ward fix would
+        // be a dead entry exactly like thorns' currently is.
+        else if (e.status === 'ward') bucket.set('ward', e.charges ?? 1);
         break;
       }
       case 'statusExpired': {
@@ -913,8 +946,13 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         //   clearing on the HP bar, and the final sting row prints the damage
         //   without saying the pile emptied, so the wear-off would otherwise
         //   be invisible.
-        if (e.status === 'buff' || e.status === 'debuff' || e.status === 'guard' || e.status === 'expose' || e.status === 'thorns') {
-          const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'thorns';
+        // - ward: IN on purpose, same reasoning as thorns — the pile's last
+        //   spend is a `warded` row (see above) that names the denial but
+        //   never says the pile itself is now empty, and there is no DoT-style
+        //   tick or HP-bar clear of its own to imply it. Without this row the
+        //   pile's end is invisible exactly like thorns' would be.
+        if (e.status === 'buff' || e.status === 'debuff' || e.status === 'guard' || e.status === 'expose' || e.status === 'thorns' || e.status === 'ward') {
+          const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'thorns' || e.status === 'ward';
           const cap = e.status.charAt(0).toUpperCase() + e.status.slice(1);
           push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap} wore off`);
         }

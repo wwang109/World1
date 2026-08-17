@@ -74,7 +74,11 @@ const TAG_COLOR: Record<string, string> = {
 };
 /** Ailment identity colors — used to tint the afflicted side's HP bar and its DoT tick numbers. */
 const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8', thorns: '#9fb86a' };
-const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xa678d8, thorns: 0x9fb86a };
+// `ward` gets its own key here, mirroring Desktop's map byte-for-byte (see
+// the comment there for why: thorns already set the precedent that a BUFF
+// status still needs a badge tint, and blue has no relative in this palette
+// so it can never collide with another ailment's color).
+const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xa678d8, thorns: 0x9fb86a, ward: 0x4fa8d8 };
 
 /**
  * Mobile Battle — vertical: LOG dock (top, tap a HIT to expand its D: math) ·
