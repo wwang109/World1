@@ -189,6 +189,23 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: Sk
       case 'comboBonus': extras.push(`SKILL +${action.amount}`); break;
       case 'slow': extras.push(`SLOW +${action.weight}`); break;
       case 'disrupt': extras.push(`STAG ${action.amount}`); break;
+      // `statStrike` (the Resonant Echo gem's payload — see gems.ts) is an
+      // EXTRA, self-contained hit with no `power` of its own (engine/types.ts):
+      // it prints a SHARE of a stat instead of a flat number. This case was
+      // entirely missing, so a card carrying only a `statStrike` (e.g. a bare
+      // Echo socket) fell through every branch above and rendered as
+      // `'PASSIVE'` — the face advertised the gem's weight cost (folded into
+      // the printed WEIGHT already) but hid the second hit that weight paid
+      // for. `echoHostPower` repeats a share of the WHOLE attack (this card's
+      // own base + the caster's stat, see the action's own doc); a bare
+      // `statStrike` (no current card content uses this form) shares the
+      // caster's stat alone — both print the same terse `1/N` share the card
+      // text already uses ("repeats at half strength").
+      case 'statStrike': {
+        const capNote = action.cap ? ` (cap ${action.cap})` : '';
+        extras.push(`${action.echoHostPower ? 'ECHO' : 'STRIKE'} 1/${action.shareOf}${capNote}`);
+        break;
+      }
     }
   }
   const property = skill.property;

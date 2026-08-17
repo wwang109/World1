@@ -54,12 +54,28 @@ export function markedKeywords(text: string): string[] {
 /**
  * Semantic text color per keyword id. Aligned with the status/archetype
  * palette in theme.ts; extend here when a new mechanical verb gets markup.
+ *
+ * poison / thorns / expose (2026-08-17 fix): these three now match the battle
+ * scenes' own ailment palette EXACTLY (`AILMENT_COLOR`/`AILMENT_TINT` in
+ * MobileBattleScene.ts / DesktopBattleScene.ts, off-limits to this file —
+ * those are the source of truth). They used to be a DIFFERENT COLOR FAMILY
+ * entirely — card text highlighted "poison" in purple while the status it
+ * applies tints the HP bar green, same for thorns (olive vs teal) and expose
+ * (pink vs purple) — a genuine contradiction, not a shade difference, so a
+ * player learning a keyword's color here could not then recognize it in
+ * battle. `thorns`'s old value (`#9fb86a`) was, byte for byte, the olive the
+ * battle palette itself retired the same day for being indistinguishable from
+ * poison-green — this file was the last place it still lived.
+ * burn/bleed/stun keep their own distinct (if not byte-identical) shades —
+ * unlike the three above, they were never a contradicting color FAMILY vs the
+ * battle bar, just a slightly different tone of the same hue, so reconciling
+ * them was out of this pass's proven-defect scope.
  */
 export const KEYWORD_TEXT_COLOR: Record<string, string> = {
-  poison: '#c07ae0',
+  poison: '#8fbe5a',
   burn: '#f0824c',
   bleed: '#e05555',
-  expose: '#e8a2b8',
+  expose: '#a678d8',
   stun: '#f2d24c',
   shield: '#7fa8f0',
   guard: '#7fc0e8',
@@ -73,7 +89,7 @@ export const KEYWORD_TEXT_COLOR: Record<string, string> = {
   slow: '#d8c078',
   combo: '#e8c060',
   shatter: '#d88f6a',
-  thorns: '#9fb86a',
+  thorns: '#3f9e7a',
   true: '#e8d5a0',
 };
 

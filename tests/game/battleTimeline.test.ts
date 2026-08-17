@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildBattleTimeline, type BattleTimeline, type BattleTimelineInput } from '../../src/game/battleTimeline';
+import { buildBattleTimeline, formatDmg, type BattleTimeline, type BattleTimelineInput } from '../../src/game/battleTimeline';
 import { battleRequestOf } from '../../src/game/battleApi';
 import { resolveBattle, type BattleLog } from '../../src/run/resolveBattle';
 import type { CombatEvent } from '../../src/engine/combat/events';
+import type { DamageCalculation } from '../../src/engine/combat/events';
 
 const BASE: BattleTimelineInput = {
   pieces: [
@@ -723,6 +724,290 @@ describe('game/battleTimeline', () => {
       const ticks = lines.filter((l) => l.tag === 'EFFECT' && l.text.startsWith('Attrition'));
       expect(ticks).toHaveLength(2);
       for (const tick of ticks) expect(tick.text).toContain('−5');
+    });
+  });
+
+  // ---- `cleansed` — the switch had NO case at all (a Purify curing 3 poison
+  // stacks rendered nothing) and the HP-bar ailment badge never cleared
+  // (cleanse strips statuses without ever emitting `statusExpired`).
+  describe('cleansed (Purify etc.) — log line, badge clearing, and pile-delta integrity', () => {
+    it('renders a BUFF row naming the stacks removed, instead of nothing at all', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'poison', stacks: 3, turns: 3 },
+        { turn: 5, kind: 'cleansed', side: 'player', unit: 0, removed: 3 },
+        { turn: 6, kind: 'combatEnd', result: 'win', turns: 6 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 6 });
+      const lines = [...model.linesByTurn.values()].flat();
+      const line = lines.find((l) => l.text.includes('Cleansed'));
+      expect(line).toBeDefined();
+      expect(line!.tag).toBe('BUFF');
+      expect(line!.text).toBe(`${model.heroName} · Cleansed 3 stacks`);
+    });
+
+    it('singular "stack" (not "stacks") when exactly one is removed', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'stun', turns: 2 },
+        { turn: 1, kind: 'cleansed', side: 'enemy', unit: 0, removed: 1 },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const lines = [...model.linesByTurn.values()].flat();
+      expect(lines.find((l) => l.text.includes('Cleansed'))!.text).toBe(`${model.foeName} · Cleansed 1 stack`);
+    });
+
+    it('clears the HP-bar ailment badge when the cleansed unit had exactly ONE cleansable ailment', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', stacks: 3, turns: 3 },
+        { turn: 5, kind: 'cleansed', side: 'enemy', unit: 0, removed: 3 },
+        { turn: 6, kind: 'combatEnd', result: 'win', turns: 6 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 6 });
+      expect(model.statusByTurn.get(1)?.enemy).toContain('poison');
+      // Proven defect: without this fix the badge stays tinted poison-green
+      // for the rest of the fight even though the pile is gone.
+      expect(model.statusByTurn.get(5)?.enemy ?? []).not.toContain('poison');
+    });
+
+    it('PARTIALLY reduces (does not fully clear) the badge when charges < stacks', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', stacks: 5, turns: 5 },
+        { turn: 3, kind: 'cleansed', side: 'enemy', unit: 0, removed: 2 }, // 2 charges, 5 stacks: 3 left
+        // Re-applying now must diff against the TRUE remaining total (3), not
+        // the stale pre-cleanse total (5) — proves the internal tracker, not
+        // just the badge, was corrected.
+        { turn: 4, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', stacks: 7, turns: 7 },
+        { turn: 5, kind: 'combatEnd', result: 'win', turns: 5 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 5 });
+      expect(model.statusByTurn.get(3)?.enemy).toContain('poison'); // still active, not fully cleared
+      const lines = [...model.linesByTurn.values()].flat();
+      const reapplied = lines.find((l) => l.tag === 'DEBUFF' && l.text.includes('Poison') && l.text.includes('total'));
+      expect(reapplied!.text).toContain('Poison +4 (7 total)'); // 7 - 3, not 7 - 5
+    });
+
+    it('a full cleanse no longer corrupts the NEXT fresh application\'s delta (the literal "+-2" bug)', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', stacks: 5, turns: 5 },
+        { turn: 2, kind: 'cleansed', side: 'enemy', unit: 0, removed: 5 }, // fully drains the pile
+        // A genuinely FRESH pile (the old one is gone) — its whole amount
+        // should be printed as a plain number, never a stale-total delta.
+        { turn: 3, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', stacks: 3, turns: 3 },
+        { turn: 4, kind: 'combatEnd', result: 'win', turns: 4 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 4 });
+      const lines = [...model.linesByTurn.values()].flat();
+      const debuffPoison = lines.filter((l) => l.tag === 'DEBUFF' && l.text.includes('Poison'));
+      expect(debuffPoison).toHaveLength(2);
+      // Proven bug (pre-fix): this printed the literal string "Poison +-2 (3 total)".
+      expect(debuffPoison[1]!.text).not.toMatch(/\+-/);
+      expect(debuffPoison[1]!.text).toBe(`${model.foeName} · Poison 3`);
+    });
+
+    it('does NOT guess when two cleansable ailments are active at once — leaves both badges alone', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', stacks: 3, turns: 3 },
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'stun', turns: 2 },
+        { turn: 2, kind: 'cleansed', side: 'enemy', unit: 0, removed: 1 }, // ambiguous: could be either
+        { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 3 });
+      const status = model.statusByTurn.get(2)?.enemy ?? [];
+      expect(status).toContain('poison');
+      expect(status).toContain('stun');
+    });
+
+    it('does NOT guess when a badge-invisible active DEBUFF makes the target ambiguous too', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', stacks: 3, turns: 3 },
+        // `debuff` has no HP-bar badge at all, but IS `isCleansable` — a naive
+        // "only one BADGE is active" check would wrongly treat this as safe.
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'debuff', stat: 'armor', pct: 10, turns: 3 },
+        { turn: 2, kind: 'cleansed', side: 'enemy', unit: 0, removed: 1 },
+        { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 3 });
+      expect(model.statusByTurn.get(2)?.enemy ?? []).toContain('poison');
+    });
+  });
+
+  // ---- `formatDmg` (the HIT `D:` math strip) — `exposeBonus` and
+  // `minimumDamageBonus` were missing entirely, so the printed terms did not
+  // sum to the printed total, defeating the whole point of a strip a player
+  // opens to check the arithmetic.
+  describe('formatDmg — every printed term sums to the printed total', () => {
+    const BASE_CALC: DamageCalculation = {
+      scalingStat: 'attack', baseStat: 0, effectiveStat: 0, power: 0, baseDamage: 0,
+      statBonusDamage: 0, effectBonusDamage: 0, defense: 0, minimumDamageBonus: 0,
+      matchupBonusDamage: 0, suddenDeathBonusDamage: 0, guardReduction: 0, shieldBlocked: 0, hpDamage: 0,
+    };
+    /** Parses "D: base N + (v LABEL) − (v LABEL) … = total" back into a sum, so
+     * the invariant is checked against the STRING a player actually reads,
+     * not just the calculation object's fields. */
+    function parseFormatDmg(text: string): { sum: number; total: number } {
+      const m = text.match(/^D: (.+) = (-?\d+)$/);
+      expect(m, `unparseable formatDmg output: ${text}`).not.toBeNull();
+      const total = Number(m![2]);
+      const baseMatch = m![1]!.match(/^base (-?\d+)/);
+      expect(baseMatch, `no base term: ${text}`).not.toBeNull();
+      let sum = Number(baseMatch![1]);
+      for (const term of m![1]!.matchAll(/([+−])\s\((-?\d+)\s[^)]+\)/g)) {
+        sum += (term[1] === '+' ? 1 : -1) * Number(term[2]);
+      }
+      return { sum, total };
+    }
+
+    // Real fight, piercing_arrow vs stone_beetle (2026-08-17 proof): terms
+    // summed to 1 while the printed total was 44 — the missing exposeBonus (43).
+    it('adds a missing EXPOSE term so an expose-amplified hit\'s terms sum correctly', () => {
+      const calc: DamageCalculation = {
+        ...BASE_CALC, power: 20, baseStat: 1, defense: 1, suddenDeathBonusDamage: 4,
+        exposeBonus: 43, shieldBlocked: 23, hpDamage: 44,
+      };
+      const text = formatDmg(calc);
+      expect(text).toContain('EXPOSE');
+      const { sum, total } = parseFormatDmg(text);
+      expect(sum).toBe(total);
+      expect(total).toBe(44);
+    });
+
+    // Real-world commonest case: armor exceeding a small hit. Terms summed to
+    // 0 while the printed total was 1 — the missing minimumDamageBonus (1).
+    it('adds a missing MIN term so a floored (armor-exceeds-hit) result sums correctly', () => {
+      const calc: DamageCalculation = {
+        ...BASE_CALC, power: 10, baseStat: 1, defense: 11, minimumDamageBonus: 1, hpDamage: 1,
+      };
+      const text = formatDmg(calc);
+      expect(text).toContain('MIN');
+      const { sum, total } = parseFormatDmg(text);
+      expect(sum).toBe(total);
+      expect(total).toBe(1);
+    });
+
+    it('holds across a spread of hand-built calculations exercising every term at once', () => {
+      const calcs: DamageCalculation[] = [
+        { ...BASE_CALC, power: 30, baseStat: 5, statBonusDamage: 2, effectBonusDamage: 3, defense: 4, hpDamage: 36 },
+        { ...BASE_CALC, power: 15, baseStat: 2, defense: 20, minimumDamageBonus: 4, hpDamage: 1 },
+        { ...BASE_CALC, power: 40, baseStat: 8, defense: 10, matchupBonusDamage: 19, suddenDeathBonusDamage: 6, guardReduction: 12, hpDamage: 51 },
+        { ...BASE_CALC, power: 25, baseStat: 3, defense: 2, exposeBonus: 8, shieldBlocked: 6, hpDamage: 28 },
+        { ...BASE_CALC, power: 50, baseStat: 10, defense: 5, matchupBonusDamage: -14, hpDamage: 41 },
+      ];
+      for (const calc of calcs) {
+        const { sum, total } = parseFormatDmg(formatDmg(calc));
+        expect(sum, formatDmg(calc)).toBe(total);
+        expect(total).toBe(calc.hpDamage);
+      }
+    });
+
+    // Cross-check against the REAL engine pipeline, not just hand-built
+    // fixtures — every `calculation`-bearing damage event across a spread of
+    // real fights must satisfy the same invariant.
+    it('holds for every calculation-bearing damage event across a spread of real fights', () => {
+      let checked = 0;
+      for (const enemyId of ['bandit_duelist', 'giant_rat', 'stone_beetle']) {
+        for (const seed of [1, 2, 3, 4, 5]) {
+          const input: BattleTimelineInput = { ...BASE, enemyId, seed };
+          const log = resolveBattle(battleRequestOf(input));
+          for (const e of log.events) {
+            if (e.kind === 'damage' && e.calculation) {
+              const { sum, total } = parseFormatDmg(formatDmg(e.calculation));
+              expect(sum, formatDmg(e.calculation)).toBe(total);
+              expect(total).toBe(e.calculation.hpDamage);
+              checked += 1;
+            }
+          }
+        }
+      }
+      expect(checked, 'the sweep must have actually exercised real calculation events').toBeGreaterThan(0);
+    });
+  });
+
+  // ---- DoT tick damage missing from the battle ledger (task item 6) — the
+  // same defect thorns had (fixed for thorns only); poison/burn/bleed ticks
+  // carry `sourceCard` too and were still being dropped from both the side
+  // ledger and the per-card summary.
+  describe('DoT tick damage in the ledger and the per-card DOT column', () => {
+    const dotEvents: CombatEvent[] = [
+      { turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'venom_fang', weight: 12, size: 1, slotIndex: 1, slotCount: 1 },
+      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', stacks: 5, turns: 5 },
+      {
+        turn: 2, kind: 'damage', side: 'enemy', unit: 0, amount: 5, property: 'physical', blocked: 0, hpAfter: 95,
+        source: 'poison', sourceCard: { side: 'player', unit: 0, slot: 0, skillId: 'venom_fang' },
+      },
+      {
+        turn: 3, kind: 'damage', side: 'enemy', unit: 0, amount: 4, property: 'physical', blocked: 0, hpAfter: 91,
+        source: 'poison', sourceCard: { side: 'player', unit: 0, slot: 0, skillId: 'venom_fang' },
+      },
+      { turn: 4, kind: 'combatEnd', result: 'win', turns: 4 },
+    ];
+
+    it('credits poison tick damage to the owning side\'s ledger total via sourceCard', () => {
+      const model = buildBattleTimeline(BASE, { events: dotEvents, result: 'win', turns: 4 });
+      // A pure-poison card (no direct HIT here) used to report 0 — this fixture
+      // has no `source: 'skill'` damage at all, so the OLD code's total would be 0.
+      expect(model.combatSummary.playerDamage).toBe(9); // 5 + 4
+    });
+
+    it('the per-card DOT column shows cumulative TICK DAMAGE, not the raw stack count applied', () => {
+      const model = buildBattleTimeline(BASE, { events: dotEvents, result: 'win', turns: 4 });
+      const card = model.combatSummary.cards.find((c) => c.name === 'Venom Fang');
+      expect(card).toBeDefined();
+      // Applied stacks were 5 — the OLD behavior would read 5 here regardless
+      // of how much damage the pile actually dealt. The true dealt total (9)
+      // is what must show.
+      expect(card!.dots).toBe(9);
+      expect(card!.damage).toBe(0); // no direct HIT event in this fixture
+    });
+
+    it('a card that applied an ailment but has not ticked yet contributes nothing visible yet (honest, not a placeholder stack count)', () => {
+      const appliedOnly = dotEvents.slice(0, 2).concat([{ turn: 2, kind: 'combatEnd', result: 'win', turns: 2 }]);
+      const model = buildBattleTimeline(BASE, { events: appliedOnly, result: 'win', turns: 2 });
+      expect(model.combatSummary.cards.find((c) => c.name === 'Venom Fang')).toBeUndefined();
+    });
+
+    it('holds for a REAL fight: side ledger total equals skill hits plus every DoT tick, not skill hits alone', () => {
+      const input: BattleTimelineInput = {
+        ...BASE,
+        pieces: [{ instanceId: 'c1', skillId: 'venom_fang', tier: 'bronze', slot: 0 }],
+      };
+      const model = timeline(input);
+      const log = resolveBattle(battleRequestOf(input));
+      const dmgEvents = log.events.filter((e): e is Extract<typeof e, { kind: 'damage' }> => e.kind === 'damage');
+      const dotTicks = dmgEvents
+        .filter((e) => (e.source === 'poison' || e.source === 'burn' || e.source === 'bleed') && e.side === 'enemy')
+        .reduce((sum, e) => sum + Math.max(0, e.amount - e.blocked), 0);
+      const skillHits = dmgEvents
+        .filter((e) => e.source === 'skill' && e.side === 'enemy')
+        .reduce((sum, e) => sum + Math.max(0, e.amount - e.blocked), 0);
+      expect(dotTicks, 'the fight must actually tick poison').toBeGreaterThan(0);
+      const finalSummary = model.summaryByStep[model.summaryByStep.length - 1]!;
+      expect(finalSummary.playerDamage).toBe(skillHits + dotTicks);
+    });
+  });
+
+  // ---- Stun's duration was missing from its own log line (battleTimeline.ts
+  // `stacksText` handled poison/burn/bleed/ward but not stun, whose magnitude
+  // lives in `turns` rather than `stacks`).
+  describe('stun prints its own duration on the log line', () => {
+    it('a 2-turn stun reads "Stun 2 turns", not a bare "Stun"', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'stun', turns: 2 },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const lines = [...model.linesByTurn.values()].flat();
+      const line = lines.find((l) => l.text.includes('Stun'));
+      expect(line!.text).toBe(`${model.foeName} · Stun 2 turns`);
+    });
+
+    it('singular "turn" for a 1-turn stun', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'stun', turns: 1 },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const lines = [...model.linesByTurn.values()].flat();
+      expect(lines.find((l) => l.text.includes('Stun'))!.text).toBe(`${model.foeName} · Stun 1 turn`);
     });
   });
 });

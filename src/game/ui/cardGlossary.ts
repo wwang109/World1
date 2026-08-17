@@ -2,7 +2,22 @@ import type { Action, Archetype, Element, Property, SkillDef, SkillTier, WeaponT
 import { MAX_WARD_CHARGES, weightOf } from '../../engine/types';
 import { burnTotalDamage } from '../../engine/balance';
 
-/** "10 → 4 → 2" — the tick sequence of a halving burn pile. */
+/**
+ * "10 → 4 → 2" — the tick sequence of a halving burn pile.
+ *
+ * RE-DERIVATION NOTICE (src/game may not touch src/engine — CLAUDE.md layer
+ * rule — and no exported helper for the SEQUENCE exists there today, only the
+ * TOTAL via `burnTotalDamage`, imported below): this loop duplicates burn's
+ * halving rule from its one authoritative implementation, `tickTurnDot` in
+ * `src/engine/combat/simulate.ts` (`status.stacks = Math.floor(stacks / 2)`
+ * for burn). If that rule ever changes, this function and its two siblings —
+ * the poison/bleed triangular `stacks*(stacks+1)/2` re-derivations inlined in
+ * `keywordEntry`'s `'poison'` and `'bleed'` cases just below — are the other
+ * two places that must change with it. Left as three separate re-derivations
+ * on purpose rather than a new shared `src/game`-local helper (2026-08-17
+ * scope call): consolidating them was judged riskier than clearly marking
+ * all three so the next reader finds every copy.
+ */
 function burnTickPreview(stacks: number): string {
   const ticks: number[] = [];
   for (let s = Math.max(0, Math.floor(stacks)); s > 0; s = Math.floor(s / 2)) ticks.push(2 * s);
@@ -158,6 +173,10 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
         body: `Grants ${action.stacks} thorn stacks. Each direct hit you take stings the attacker for the current stack count as TRUE damage, then the pile shrinks by 1. DoT ticks don't trigger it.`,
       };
     case 'poison':
+      // Re-derives the poison decaying-total triangular sum (`N(N+1)/2` — the
+      // pile falls by exactly 1 stack per tick, see `tickTurnDot`,
+      // src/engine/combat/simulate.ts) — see `burnTickPreview`'s doc above for
+      // why this stays a marked re-derivation rather than a new shared helper.
       return {
         title: 'Poison',
         body: `Applies ${action.stacks} poison — ticks at END of turn (${action.stacks} → ${Math.max(0, action.stacks - 1)} → … = ${(action.stacks * (action.stacks + 1)) / 2} total) and bypasses shields.`,
@@ -168,14 +187,21 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
         body: `Applies ${action.stacks} burn. Ticks at START of turn — double the stack, then halves (${burnTickPreview(action.stacks)} = ${burnTotalDamage(action.stacks)} total). Unlike poison, shields block it.`,
       };
     case 'bleed':
+      // Same triangular-sum re-derivation as poison above (bleed also falls by
+      // 1 stack per tick — `tickBleed`, src/engine/combat/simulate.ts) — see
+      // `burnTickPreview`'s doc for the full three-copies note.
       return {
         title: 'Bleed',
         body: `Applies ${action.stacks} bleed. A shield blocks the application, but ticks bypass shields once applied — one tick per PERFORM (not per turn), ${(action.stacks * (action.stacks + 1)) / 2} total.`,
       };
     case 'stun':
+      // A stunned unit's readiness is wiped to 0, not carried (`simulate.ts`:
+      // `c.readiness = 0` on the stun branch) — this used to say "still banks
+      // Speed", the opposite of what happens: proven, a 20-point bank is
+      // erased, not preserved. Fixed 2026-08-17.
       return {
         title: 'Stun',
-        body: `Consumes the enemy’s next ${action.turns > 1 ? `${action.turns} performances` : 'performance'} — still banks Speed.`,
+        body: `Consumes the enemy’s next ${action.turns > 1 ? `${action.turns} performances` : 'performance'} and wipes their banked readiness to 0 — nothing carries over.`,
       };
     case 'buffStat':
     case 'debuffStat':
@@ -225,6 +251,19 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
       return property === 'true'
         ? { title: 'TRUE heal', body: 'Flat — no stat added.' }
         : undefined;
+    case 'statStrike':
+      // The Resonant Echo gem's payload (engine/types.ts) — an EXTRA,
+      // self-contained hit with no flat base of its own. `echoHostPower`
+      // repeats a share of the whole attack (this card's own base + your
+      // stat); a bare `statStrike` (no current card content uses this form)
+      // shares only your stat. Blocked/mitigated/negated as its own hit,
+      // separately from the card's own.
+      return {
+        title: action.echoHostPower ? 'Echo' : 'Stat strike',
+        body: action.echoHostPower
+          ? `A second, separate hit worth 1/${action.shareOf} of this card's own attack (base + your stat)${action.cap ? `, capped at ${action.cap}` : ''}. Its own hit — blocked/mitigated/negated independently of the first.`
+          : `A second, separate hit worth 1/${action.shareOf} of your scaling stat${action.cap ? `, capped at ${action.cap}` : ''}. Its own hit — blocked/mitigated/negated independently of the card's own.`,
+      };
     default:
       return undefined;
   }

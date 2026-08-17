@@ -141,6 +141,40 @@ describe('summarizeEffects — aura reach on the card face', () => {
   });
 });
 
+// The Resonant Echo gem (src/data/gems.ts: `{ kind: 'statStrike', shareOf: 2,
+// echoHostPower: true }`) had NO face token at all — a card whose only effect
+// was a `statStrike` fell through every case in `summarizeEffects`'s switch
+// and rendered as the literal string 'PASSIVE', hiding a real second hit that
+// the printed WEIGHT already charged the player for (proven: bare card face
+// "DMG 20 +ATK · weight 10", echoed face "DMG 20 +ATK · weight 12" — same
+// visible DMG line, heavier card, nothing showing why).
+describe('summarizeEffects — statStrike (Resonant Echo gem)', () => {
+  it('renders an echoHostPower statStrike as an ECHO share, alongside the host damage line', () => {
+    const skill = makeSkill({
+      property: 'physical',
+      weapon: 'sword',
+      effects: [{ kind: 'damage', power: 20 }, { kind: 'statStrike', shareOf: 2, echoHostPower: true }],
+    });
+    expect(summarizeEffects(skill, undefined, 'composition')).toBe('DMG 20 +ATK · ECHO 1/2');
+  });
+
+  it('a card whose ONLY effect is a statStrike is no longer PASSIVE', () => {
+    const skill = makeSkill({ effects: [{ kind: 'statStrike', shareOf: 2, echoHostPower: true }] });
+    expect(summarizeEffects(skill)).toBe('ECHO 1/2');
+    expect(summarizeEffects(skill)).not.toBe('PASSIVE');
+  });
+
+  it('a bare (non-echo) statStrike renders as a plain STRIKE share', () => {
+    const skill = makeSkill({ effects: [{ kind: 'statStrike', shareOf: 4 }] });
+    expect(summarizeEffects(skill)).toBe('STRIKE 1/4');
+  });
+
+  it('shows a capped statStrike\'s ceiling', () => {
+    const skill = makeSkill({ effects: [{ kind: 'statStrike', shareOf: 2, cap: 40 }] });
+    expect(summarizeEffects(skill)).toBe('STRIKE 1/2 (cap 40)');
+  });
+});
+
 describe('summarizeEffects — desktop composition mode', () => {
   it('shows the formula (base +ATK) for physical damage, regardless of live stats', () => {
     const skill = makeSkill({ property: 'physical', weapon: 'sword', effects: [{ kind: 'damage', power: 20 }] });

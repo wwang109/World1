@@ -33,4 +33,18 @@ describe('card text keyword markup', () => {
       }
     }
   });
+
+  // poison/thorns/expose used to be a DIFFERENT COLOR FAMILY than the battle
+  // scenes' own ailment palette (purple-vs-green, olive-vs-teal, pink-vs-
+  // purple) — a card highlighting "poison" in purple applies a status that
+  // tints the HP bar green. These three hex values are pinned to the battle
+  // scenes' `AILMENT_COLOR`/`AILMENT_TINT` (MobileBattleScene.ts /
+  // DesktopBattleScene.ts, off-limits to this file — copied here as literals,
+  // not imported, because those scenes import Phaser and this module must
+  // not) so the two palettes can never drift apart silently again.
+  it('matches the battle scenes\' ailment palette for poison/thorns/expose', () => {
+    expect(keywordTextColor('poison')).toBe('#8fbe5a');
+    expect(keywordTextColor('thorns')).toBe('#3f9e7a');
+    expect(keywordTextColor('expose')).toBe('#a678d8');
+  });
 });

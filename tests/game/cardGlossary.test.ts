@@ -62,4 +62,37 @@ describe('card glossary', () => {
       expect(archetypeEntry(archetype).body.length).toBeGreaterThan(10);
     }
   });
+
+  // Proven false: `simulate.ts`'s stun branch sets `c.readiness = 0` — a
+  // stunned unit's ENTIRE banked readiness is wiped, not carried, but this
+  // entry used to say "still banks Speed" (the opposite claim).
+  it('says a stun wipes banked readiness, not that it "still banks Speed"', () => {
+    const entries = skillKeywordEntries({ ...skillBook.fireball!, effects: [{ kind: 'stun', turns: 2 }] });
+    const stun = entries.find((entry) => entry.title === 'Stun')!;
+    expect(stun.body).toContain('wipes');
+    expect(stun.body).not.toContain('still banks Speed');
+  });
+
+  // The Resonant Echo gem's `statStrike` action had no glossary entry at all.
+  describe('statStrike (Resonant Echo gem)', () => {
+    it('explains an echoHostPower strike as a share of the whole attack', () => {
+      const entries = skillKeywordEntries({
+        ...skillBook.fireball!,
+        effects: [{ kind: 'statStrike', shareOf: 2, echoHostPower: true }],
+      });
+      const echo = entries.find((entry) => entry.title === 'Echo');
+      expect(echo).toBeDefined();
+      expect(echo!.body).toContain('1/2');
+    });
+
+    it('explains a bare statStrike as a share of the caster\'s stat', () => {
+      const entries = skillKeywordEntries({
+        ...skillBook.fireball!,
+        effects: [{ kind: 'statStrike', shareOf: 4 }],
+      });
+      const strike = entries.find((entry) => entry.title === 'Stat strike');
+      expect(strike).toBeDefined();
+      expect(strike!.body).toContain('1/4');
+    });
+  });
 });

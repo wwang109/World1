@@ -86,9 +86,22 @@ interface StepRecord { turn: number; lineIndex: number; hp: HpSnap; shield: Shie
 export interface CardSummaryRow {
   side: 'player' | 'enemy';
   name: string;
+  /** Direct skill-hit damage only (source === 'skill') — never DoT ticks or
+   * thorns reflects, which this card may ALSO deal; see `dots`. */
   damage: number;
   shield: number;
   healing: number;
+  /**
+   * Cumulative HP damage this card's poison/burn/bleed ticks or thorns
+   * reflects have actually dealt — NOT a stack/application count. (Used to be
+   * a raw stack count added the moment the ailment was applied, which read as
+   * a damage number next to `damage`'s `DMG n` in the battle scenes' summary
+   * row and was not one — fixed 2026-08-17 by reading it off the real tick/
+   * reflect `damage` events instead, credited via each one's `sourceCard`
+   * exactly like `playerDamage`/`enemyDamage` below.) A card that only just
+   * applied an ailment (no tick has fired yet) reads 0 here until its first
+   * tick actually lands — an accurate "nothing dealt yet", not a placeholder.
+   */
   dots: number;
 }
 export interface CombatSummary {
@@ -245,8 +258,11 @@ function propertyWord(p: Property | undefined): string {
  * timeline row's expandable `detail` (tap/click to expand; no hover anywhere
  * for statuses — the mechanic itself, unlike the HIT `D:` math strip, doesn't
  * need a second hover affordance). DoT statuses (poison/burn/bleed/stun)
- * already print their stacks/duration in the main log line, so they return
- * `undefined` here and stay a single-line entry.
+ * already print their stacks/duration in the main log line (the `stacksText`
+ * building above this function's call site — stun's own turn count included,
+ * 2026-08-17 fix: it used to be the one of the four left out, so a stun's
+ * main line read as a bare "Stun" with no way to tell a 1-turn lockdown from
+ * a 5-turn one), so they return `undefined` here and stay a single-line entry.
  */
 function explainStatus(e: Extract<CombatEvent, { kind: 'statusApplied' }>): string | undefined {
   const turnWord = (n: number): string => `${n} turn${n === 1 ? '' : 's'}`;
@@ -308,7 +324,22 @@ function defStatToken(property: Property): string {
   return property === 'physical' ? STAT_TOKEN.armor : STAT_TOKEN.magicResist;
 }
 
-/** The HIT `D:` math detail (locked grammar): base n + (n LABEL) … = total. */
+/**
+ * The HIT `D:` math detail (locked grammar): base n + (n LABEL) … = total.
+ *
+ * INVARIANT: every printed term must sum to the printed total (`hpDamage`) —
+ * that is the whole point of a math strip a player opens to check the
+ * arithmetic. Two terms were missing for a long time (`exposeBonus`,
+ * `minimumDamageBonus`, both on `DamageCalculation`, events.ts) and the strip
+ * silently violated its own invariant instead: a hit amplified by an active
+ * `expose` printed terms that summed to a fraction of the real total, and a
+ * hit that only survived because of the engine's minimum-1 floors printed
+ * terms that summed to zero. Order follows the engine's own pipeline
+ * (`applyStrike`/`dealDamage`, combat/interpreter.ts): the two floor stages
+ * `minimumDamageBonus` combines land right after DEF (the floor immediately
+ * following the defense subtraction); GUARD (a % reduction) and EXPOSE (a %
+ * amplification) both run inside `dealDamage`, guard first, in that order.
+ */
 export function formatDmg(c: NonNullable<Extract<CombatEvent, { kind: 'damage' }>['calculation']>): string {
   const stat = c.scalingStat === 'attack' ? STAT_TOKEN.attack : STAT_TOKEN.magicPower;
   const def = c.scalingStat === 'attack' ? STAT_TOKEN.armor : STAT_TOKEN.magicResist;
@@ -318,9 +349,11 @@ export function formatDmg(c: NonNullable<Extract<CombatEvent, { kind: 'damage' }
   add('BUFF', c.statBonusDamage);
   add('SKILL', c.effectBonusDamage);
   add(def, -c.defense);
+  add('MIN', c.minimumDamageBonus);
   add('AFFINITY', c.matchupBonusDamage);
   add('RAMP', c.suddenDeathBonusDamage);
   add('GUARD', -c.guardReduction);
+  add('EXPOSE', c.exposeBonus ?? 0);
   add('BLOCK', -c.shieldBlocked);
   return `D: ${terms.join(' ')} = ${c.hpDamage}`;
 }
@@ -458,6 +491,19 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const speed: SpeedSnap = { player: '', enemy: '', enemyUnits: foes.map(() => '') };
   const dotsPlayer = new Map<string, number>();
   const dotsEnemies = foes.map(() => new Map<string, number>());
+  // Shadow-count of ACTIVE stat-debuff instances per (side, unit) — fed by
+  // statusApplied/statusExpired for `status: 'debuff'` exactly like every
+  // other reconstruction in this section. `debuff` never touches an HP-bar
+  // badge (no `AILMENT_TINT` entry for it — MobileBattleScene.ts /
+  // DesktopBattleScene.ts), so nothing here renders it directly; it exists
+  // solely to disambiguate a `cleansed` event below. A `cleanse` action
+  // (interpreter.ts) drains whichever `isCleansable` kind expires soonest
+  // across poison/burn/bleed/stun/debuff/expose on the target — so a poison
+  // badge can only be safely cleared/reduced from a bare `removed` COUNT when
+  // NO OTHER cleansable kind, including an invisible debuff, is also active
+  // to have absorbed some of those charges.
+  const debuffCountByUnit = new Map<string, number>();
+  const debuffKey = (side: 'player' | 'enemy', unit: number): string => `${side}:${unit}`;
   // Shadow-tracks the engine's own `nextWeightPenalty` (combat/state.ts) so a
   // `slow` rider's pending bonus weight can be named on the WAIT/PLAY row of
   // the very card it will hit, not just the DEBUFF row announcing it landed.
@@ -745,12 +791,29 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         } else if (e.source === 'skill' && activeCard?.side === 'enemy' && e.side === 'player') {
           enemyDamage += dealt;
         }
-        // Thorns reflect: credited to the side that OWNS the thorns — the
-        // opposite of the side taking the sting. The active cast belongs to
-        // the ATTACKER, so activeCard must not be used for this attribution.
-        if (e.source === 'thorns') {
-          if (e.side === 'enemy') playerDamage += dealt;
+        // DoT ticks (poison/burn/bleed) and thorns reflects are damage from a
+        // STANDING effect, not this turn's active cast — `activeCard` names
+        // whatever THIS TURN's PLAY is (often a totally different card, or
+        // nobody at all), so crediting through it silently drops the damage
+        // from both the side ledger and the per-card row. This was thorns'
+        // exact defect until it was fixed by attributing via `sourceCard`
+        // instead (`reflectThorns`, combat/interpreter.ts, temporarily swaps
+        // `ctx.source` to the THORNS-GRANTING card before calling `dealDamage`
+        // for the sting, so the resulting event's `sourceCard` already names
+        // the holder's card, not whatever the attacker is casting) — and was
+        // still live for the whole poison/burn/bleed family (a DoT-heavy real
+        // fight under-reported its dealt damage by 42%, 2026-08-17). Credit
+        // both the side total AND that card's own row — `CardSummaryRow.dots`
+        // is the cumulative HP damage THIS card's DoT/thorns effect has
+        // actually dealt (not a stack count; see the `statusApplied` case's
+        // comment on why that used to be there and was removed).
+        if ((e.source === 'poison' || e.source === 'burn' || e.source === 'bleed' || e.source === 'thorns') && e.sourceCard) {
+          const owner = e.sourceCard;
+          if (owner.side === 'player') playerDamage += dealt;
           else enemyDamage += dealt;
+          const ownerKey = `${owner.side}:${owner.side === 'enemy' ? owner.unit : 0}:${owner.skillId}`;
+          const ownerCard = cardSummaries.get(ownerKey);
+          if (ownerCard) ownerCard.dots += dealt;
         }
         // Mirror the engine's own stack-decay rule (tickTurnDot / tickBleed,
         // combat/simulate.ts) onto the running pile total tracked below (the
@@ -848,6 +911,71 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         push(e.turn, 'BUFF', `${label(e)} · Ward prevented ${denied} · ${e.chargesLeft} charge${e.chargesLeft === 1 ? '' : 's'} left`);
         break;
       }
+      // `cleanse` (interpreter.ts) previously rendered NOTHING: the switch had
+      // no case for it at all, so a Purify curing 3 poison stacks left the
+      // transcript saying the card did nothing — the exact shape the `warded`/
+      // `negated` cases above were added to fix, just never done for this one.
+      case 'cleansed': {
+        push(e.turn, 'BUFF', `${label(e)} · Cleansed ${e.removed} stack${e.removed === 1 ? '' : 's'}`);
+        // THE HP-BAR AILMENT BADGE (`dotsPlayer`/`dotsEnemies`, read by both
+        // battle scenes' `statusByTurn`) is fed ONLY by `statusApplied` and
+        // cleared ONLY by `statusExpired` — but the engine's cleanse path
+        // (interpreter.ts `case 'cleanse'`) strips statuses out of the
+        // target's array directly and NEVER emits `statusExpired` for them.
+        // Proven: Purify curing poison left the bar poison-green with a pip
+        // for the rest of the fight.
+        //
+        // What this event actually tells us: the (side, unit) cleansed and a
+        // single TOTAL stack count — never WHICH `isCleansable` kind(s)
+        // absorbed those charges (interpreter.ts drains whichever of
+        // poison/burn/bleed/stun/debuff/expose expires soonest, across ALL of
+        // them at once, continuing into the next kind if charges remain).
+        // That is not enough information to always clear the right badge —
+        // guessing which of several active ailments a bare count came from
+        // would trade one bug (a stale badge) for a worse one (a confidently
+        // WRONG one). It IS enough when there is only ONE cleansable kind
+        // active on the unit: then every charge in `removed` can only have
+        // come from it, and the update is exact, not a guess — this is the
+        // overwhelmingly common real case (a support cleanse reacting to the
+        // one DoT/ailment currently on the target). `debuffCountByUnit`
+        // (declared above, fed by statusApplied/statusExpired) extends that
+        // check to `debuff`, the one cleansable kind with no badge of its own
+        // to observe directly.
+        //
+        // ENGINE ASK, if/when this gap is worth closing for the multi-ailment
+        // case too: have `cleansed` report a per-kind breakdown (e.g.
+        // `removedByKind: Partial<Record<StatusName, number>>`), the same
+        // shape `shieldGain`/`damage` already use (`poolsAfter`/`shieldDrain`)
+        // instead of one merged number. Until then, a unit cleansed while
+        // carrying two or more ailments at once keeps its stale badge(s) —
+        // a known, deliberate gap, not an oversight.
+        const bucket = e.side === 'player' ? dotsPlayer : dotsEnemies[unitOf(e)]!;
+        const badgeKeys = ['poison', 'burn', 'bleed', 'stun', 'expose'] as const;
+        const activeBadgeKeys = badgeKeys.filter((k) => bucket.has(k));
+        const otherCleansableActive = (debuffCountByUnit.get(debuffKey(e.side, unitOf(e))) ?? 0) > 0;
+        if (activeBadgeKeys.length === 1 && !otherCleansableActive) {
+          const key = activeBadgeKeys[0]!;
+          if (key === 'poison' || key === 'burn' || key === 'bleed') {
+            // A stacking DoT can be PARTIALLY cleansed (charges < stacks) — the
+            // engine takes `min(stacks, chargesLeft)`, so subtract rather than
+            // assume it hit zero. This also fixes the pile-delta corruption a
+            // stale post-cleanse total caused: a fresh application right after
+            // a full cleanse used to diff against the never-cleared old total
+            // and print a nonsense delta (proven: the literal string
+            // "Poison +-2 (3 total)").
+            const remaining = Math.max(0, (bucket.get(key) ?? 0) - e.removed);
+            if (remaining > 0) bucket.set(key, remaining);
+            else bucket.delete(key);
+          } else {
+            // stun/expose are removed WHOLE by one charge, never partially
+            // (interpreter.ts's cleanse loop only takes multiple stacks from
+            // the STACKING-DoT branch) — sole active + `removed > 0` means
+            // gone entirely.
+            bucket.delete(key);
+          }
+        }
+        break;
+      }
       // `taunt` — self-targeted, fight-long threat gain. Silently redirects
       // targeting under the default `aggro` policy; without a row here, a
       // multi-foe fight's target suddenly switching reads as arbitrary.
@@ -931,6 +1059,13 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           // indistinguishable at a glance, so this one gets it on the row itself.
           const charges = e.charges ?? 1;
           stacksText = ` ${charges} charge${charges === 1 ? '' : 's'}`;
+        } else if (e.status === 'stun') {
+          // Stun's magnitude lives in `turns`, not `stacks` (it never sets
+          // `stacks` at all) — a bare "Stun" made a 1-turn stun and a 5-turn
+          // stun read identically, the one gap `explainStatus`'s doc comment
+          // (just above `push`, below) wrongly claimed didn't exist.
+          const turns = e.turns;
+          stacksText = ` ${turns} turn${turns === 1 ? '' : 's'}`;
         } else if (e.stacks) {
           stacksText = ` ${e.stacks}`;
         }
@@ -938,10 +1073,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // plain-language explanation as the row's expandable detail — tap/click
         // to expand, same affordance as a HIT's D: math strip, no hover.
         push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap}${stacksText}`, explainStatus(e));
-        if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed' || e.status === 'thorns') {
-          const dotCard = activeCardByTurn.get(e.turn);
-          if (dotCard) dotCard.dots += e.stacks ?? 1;
-        }
+        // The per-card DOT column (`CardSummaryRow.dots`) is fed from actual
+        // TICK/REFLECT damage in the `damage` case below, not from here — see
+        // that case's comment. (Used to add a raw STACK count on application,
+        // which read as a damage number beside `DMG n` and was not one.)
         if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') bucket.set(e.status, e.stacks ?? 0);
         else if (e.status === 'stun') bucket.set('stun', e.turns);
         else if (e.status === 'expose') bucket.set('expose', e.pct ?? 0);
@@ -957,11 +1092,23 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // otherwise invisible for its whole lifetime, exactly like thorns
         // above.
         else if (e.status === 'ward') bucket.set('ward', e.charges ?? 1);
+        // Debuff feeds no badge (see `debuffCountByUnit`'s own doc above) — it
+        // is tracked purely to know whether a later `cleansed` event on this
+        // unit has more than one candidate kind to have drained.
+        else if (e.status === 'debuff') {
+          const dk = debuffKey(e.side, unitOf(e));
+          debuffCountByUnit.set(dk, (debuffCountByUnit.get(dk) ?? 0) + 1);
+        }
         break;
       }
       case 'statusExpired': {
         const bucket = e.side === 'player' ? dotsPlayer : dotsEnemies[unitOf(e)]!;
         bucket.delete(e.status);
+        if (e.status === 'debuff') {
+          const dk = debuffKey(e.side, unitOf(e));
+          const cur = debuffCountByUnit.get(dk) ?? 0;
+          if (cur > 0) debuffCountByUnit.set(dk, cur - 1);
+        }
         // A row is worth printing only for the statuses that are otherwise
         // INVISIBLE while wearing off: guard/buff/debuff/expose silently
         // modify every hit/turn they cover, with no per-turn tick line of
