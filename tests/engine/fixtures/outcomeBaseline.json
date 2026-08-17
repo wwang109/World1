@@ -1,2008 +1,2008 @@
 {
- "normalization": "Hashes are taken through tests/engine/helpers/outcomeHash.ts (shared with outcomeRule.test.ts), which strips PRESENTATION-ONLY card fields before hashing: `text` anywhere, and `name` on SkillDef-shaped objects. The sim reads neither, so a content copy-edit no longer forces a fixture regeneration. Everything the engine consumes — the full event log, all combatant state (incl. each combatant `name`), and every behavioural SkillDef field (effects, property, size, speedWeight, cooldownTurns, tier, rarity, element, weapon, scope, aura, special, tierUpgrades) — is still hashed byte-for-byte. OBJECT KEYS ARE SORTED before stringify (2026-08-09), so the hash is a function of VALUES ONLY and no rebuild-in-a-different-field-order can churn it. ARRAY order is untouched and still fully load-bearing.",
- "note": "Regression lock recaptured (2026-08-09) for CANONICAL KEY ORDER in the hash normalizer — a REPRESENTATION-ONLY change that moves EVERY hash and NO behaviour. `outcomeHash` ends in JSON.stringify, which serialises object keys in INSERTION order, so until now the physical FIELD ORDER of every hashed object fed the lock. That is not a behaviour: nothing in the engine iterates Object.keys of a SkillDef to decide anything, and the card literals in src/data/skills.ts already order their fields inconsistently (some put `weapon` before `size`, some after). normalizeForHash now sorts keys at every depth; ARRAY order is deliberately left alone, because array order IS behaviour here (effects fire in order, the event log is a sequence). WHY NOW: this is a PREREQUISITE for the content-format migration. A loader that builds SkillDef objects from a data file necessarily picks its own key order, and would otherwise have re-hashed all 400 cases for a provably behaviour-neutral change — a regeneration whose churn could hide a real regression, which is precisely what this fixture exists to prevent. Paying it ONCE here, in isolation, buys permanent immunity: from now on only VALUES can move a hash. CONTAINMENT PROVEN, and in the strongest available form — the sim output was shown to be UNCHANGED rather than merely similar. Read-only probe over both 200-fight sweeps, BEFORE regenerating: (a) the CURRENT engine reproduced 400/400 of the OLD fixture hashes under the OLD normalizer, so the simulation is byte-identical and every delta below is attributable to the normalizer alone; (b) result moved 0/400 and turns moved 0/400; (c) re-hashing THAT SAME unchanged sim output under the sorted normalizer moved 400/400 hashes (0/400 were already in canonical order — consistent with `id` leading every SkillDef literal while sorting demands `archetypes` first). A pure key-order delta is therefore the only thing in this regeneration. INCIDENTALLY PROVEN, and worth recording: (a) held the whole time an unrelated in-flight engine change (the echo-gem statStrike `echoHostPower` / gem `weightIncreasePct` work) was present in the tree — reproducing 400/400 old hashes is a direct proof that work is sweep-neutral, as its own byte-identity claim predicted; and (b) the same 400/400 reproduction re-confirms that FREEZING the sweep id pool (tests/engine/fixtures/frozenSweepSkillIds.ts, 2026-08-08) cost zero regeneration. See tests/engine/helpers/outcomeHash.ts and the key-order guards in tests/engine/outcomeHash.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-07) for the MULTI-HIT STAT SPLIT (user-locked 2026-08-07): a REAL, REVIEWED RULE CHANGE that moves real damage numbers. The caster's scaling stat (Attack / Magic Power / higher for TRUE) is now a PER-CAST resource split across a cast's `damage` actions, not a full add RE-DELIVERED by each one. Twin Slash at ATK 20 was 2x(6+20) = 52 and is now 2x(6+10) = 32; a cast's total stat contribution is finally HIT-COUNT-INVARIANT. WHY: multi-hit previously scaled SUPERLINEARLY with hero stats (a 3-hit card delivered 3x the stat) while powerLevelDeci priced only the summed flat base plus a FLAT PRICE.extraHitPremium — a fixed 3 PL against an effect worth (hits-1)x(ATK-DEF), i.e. ~1 PL at ATK 10 but ~21 PL at ATK 50 and ~40 PL at the level-30 ceiling. Splitting the stat is what makes an honest flat price possible at all. The split is exact integer arithmetic (`statShare`): shares sum to EXACTLY the stat for any hit count and any sign, with the remainder FRONT-LOADED (earlier hits carry the odd point) so the share most likely to land before a first-to-fall break is the larger one. At one hit it is the IDENTITY, so every single-hit card in the book is byte-identical. GEM-APPENDED damage actions JOIN the split (the count is taken from the EFFECTIVE effect list), which is what makes the user-reported case behave as printed: soul_rend_echo (\"+16 damage\") used to deliver +36 at ATK 20 and +66 at ATK 50, and now delivers exactly +16 on every host at every stat line. [SUPERSEDED IN PART, SAME DAY — NO REGENERATION: gem-appended hits were REMOVED from the split's divisor and made unbuffable (see `GemAppended` in src/engine/types.ts). Joining the divisor made a \"+damage\" gem net-NEGATIVE against armor (-4 on sword_slash at DEF 8, -9 at DEF 16) because it took a share from the base hit AND paid mitigation a second time. A gem hit is now self-contained: outside the divisor, no stat share, no mods.damageFlat, no comboBonus — so it still delivers exactly +16, and the host card is untouched. The fixture below is UNCHANGED and was NOT recaptured: the sweep (tests/engine/helpers/sweepConfigs.ts) sockets NO gems at all and no card uses the new `statStrike` action, so a read-only recompute moved 0/200 logs in BOTH sweeps. Rules are pinned in tests/engine/gemStrike.test.ts.] DELIBERATELY UNCHANGED (user-locked the same day): `mods.damageFlat` — card-scope stat gems and board auras — and a triggered `comboBonus` still apply IN FULL to EVERY hit, so a +4 card-scope gem is still worth +8 on a 2-hit card. Blast radius verified BEFORE regenerating, over both 200-fight sweeps: 94/200 logs moved in EACH (89 of them decided before ATTRITION_START_TURN), with 1 winner flip (#8, the same log in both sweeps) and 18 turn changes — the expected consequence of multi-hit casts hitting for less. CONTAINMENT PROVEN BY EXHAUSTION, BOTH DIRECTIONS: the moved set is EXACTLY the set of logs that CAST twin_slash, rapid_volley or barrage (the book's only multi-damage-action cards) — 0 logs moved without casting one, and 0 logs that cast one stayed put. 124/200 configs carry one on a board; the 30 that carry one yet did not move are precisely those where it never fired, proven by their bytes standing still. NOT REPRICED HERE (deliberate, out of this agent's scope): PRICE.extraHitPremium still charges 30 deci for what is now a strictly WEAKER effect (multi-hit still eats mitigation once per hit, so it is now worse than a single-hit card of the same budget against armor), and the user's tier/slot gate for multi-hit cards is a balance-designer pass on top of this one. See src/engine/combat/interpreter.ts (`HitSplit`, `statShare`, `countDamageActions`, the `damage` case and `applyCast`) and tests/engine/multiHit.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-06) for the HEAL DERIVATION BLOCK (`heal.calculation`): an ADDITIVE, PRESENTATION-ONLY EVENT FIELD — NOT a rule change. The sim reads nothing from it and every number it reports was already being applied. The heal event now carries { power, statBonus, healFlat, property }, the sibling of shieldGain.calculation, so the battle log can print \"H: base 48 + (1 MDEF) - (9 ANTI-HEAL) = 40\" instead of a request that appears from nowhere; the alternative — re-deriving the split in the renderer — would re-run gem/aura/stat resolution outside the engine and could silently disagree with it. TRUE heals report a ZERO stat term (flat by identity, exactly as TRUE shields do), and the OTHER emitter of this event, the LIFESTEAL rider, OMITS the block entirely: its request is a percentage of damage dealt, with no card base and no stat term to split (same contract as damage.calculation, which DoT/fatigue/attrition damage omits). Blast radius verified BEFORE regenerating, over both 200-fight sweeps and IDENTICAL in each: 137/200 logs moved (128 of them decided before ATTRITION_START_TURN), with ZERO winner flips and ZERO turn changes — the signature of a field the sim never consumes. CONTAINMENT PROVEN BY EXHAUSTION, both directions: the moved set is EXACTLY the set of logs containing a heal-ACTION heal (0 logs moved without one; 0 logs carrying one stayed put). 142 logs contain a heal event at all, and the 5 that did NOT move (#4, #14, #92, #142, #192) are precisely the logs whose ONLY heal is a `leeching_fang` LIFESTEAL — the deliberate omission above, proven by their bytes standing still. 45 of the moved logs carry only zero-term (TRUE/flat) heal calculations: they move because the BLOCK itself is new, unlike the 2026-08-05 stat-scaling regen where zero-term heals stayed put. ON THE NORMALIZER (see `normalization` above): stripping `calculation` there instead — which would have cost no fixture churn at all — was evaluated FIRST and REJECTED. It is engine-derived ARITHMETIC, not authored copy: two heals with the same landed amount but a different (power, statBonus, healFlat) split are a real difference in the sim's math, and this lock is what would catch it. A blanket strip would also drop the ALREADY-HASHED damage.calculation and shieldGain.calculation and re-hash nearly every one of the 200 logs — a BIGGER regeneration buying permanently LESS coverage. See src/engine/combat/interpreter.ts (the `heal` and `lifesteal` cases), src/engine/combat/events.ts (heal.calculation docs), src/game/battleTimeline.ts (formatHeal) and tests/engine/effects.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-05) for DEFENSIVE-STAT SCALING of shields and heals (user-approved 2026-08-04): a REAL, REVIEWED RULE CHANGE. A card's `property` still picks WHICH stat scales its output, but the ROLE of the action now picks WHICH SIDE of the stat sheet that lookup reads — defensive output (shield / heal) scales off Armor (physical) and Magic Resist (magical) via the new `scaleDefStat`, where it previously read Attack / Magic Power via `scaleStat`. TRUE stays flat by identity (0 stat term), exactly as before. PL-NEUTRAL: attack/magicPower/armor/magicResist all cost 1 PL per +1 and all start at 1 (LEVEL_STAT_COST, BASE_HERO_STATS in src/run/leveling.ts), so no price in src/engine/balance.ts moves — only WHICH stat buys the output. Blast radius verified BEFORE regenerating, over both 200-fight sweeps: 153/200 logs moved in EACH sweep (142 of them decided before ATTRITION_START_TURN), with 2 winner flips (#9 and #138, the same two in both sweeps) and 13 turn changes — the expected consequence of every shield pool and heal resizing. CONTAINMENT PROVEN BY EXHAUSTION: 0 logs moved WITHOUT containing a shieldGain or heal event, so nothing outside the changed mechanic drifted. The 15 logs that DO contain one and did NOT move are each explained: 12 carry only a zero stat term (TRUE shields/heals, flat by identity under both rules) and 3 (#4, #65, #142) carry only a `leeching_fang` LIFESTEAL heal, which is a percentage of damage dealt and never had a stat-scaling term under either rule. See src/engine/combat/interpreter.ts (`scaleDefStat` and its `scaleStat` sibling), src/engine/combat/events.ts (shieldGain.calculation.statBonus docs) and tests/engine/effects.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-04) for the FIRST-TO-FALL OUTCOME RULE (user-directed 2026-08-04): a REAL, REVIEWED RULE CHANGE. Combat now ends at the exact APPLICATION that wipes a side, so nothing later in the same step runs — no DoT/attrition/fatigue tick after the killing blow, no bleed tick on a performer whose cast just won, and no lifesteal-back off a killing blow. Mutual wipes therefore cannot occur and the 2026-07-30/31 tempo tiebreak is unreachable (kept in decideOutcome as a documented defensive fallback). Blast radius verified BEFORE regenerating, by diffing this engine against a byte copy of the pre-change simulate.ts + interpreter.ts over all 740 fights the engine suite sweeps: attritionOff 2/200 and attritionOn 3/200 logs moved (#10 and #83 in both, plus #15 with attrition on). For EVERY moved log the diff proved: (a) the events up to AND INCLUDING the death that wiped a side are byte-identical, (b) the new log is a strict SUBSEQUENCE of the old one — nothing was invented, (c) every removed event is a post-wipe application (#10: one lifesteal heal on a killing blow; #83: one bleed tick after a killing cast; #15: two attrition ticks after a side was already wiped), and (d) `turns` did not move. ZERO winner flips in either sweep, and 0 of the 740 fights was a former mutual wipe in the baseline families (1 was in the wider 0x5117e5 sweep, and it kept its result). See src/engine/combat/simulate.ts (`sweep`, `decideOutcome`), src/engine/combat/interpreter.ts (`applyCast`) and tests/engine/outcomeRule.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-03) for the ANTI-HEAL WORLD RULE (game-director approved 2026-08-01, built 2026-08-03): a REAL, REVIEWED RULE CHANGE. Regular heals and lifesteal are taxed -20% per affliction category active on the RECEIVER (DoT family / stat debuff / expose, cap -60%); TRUE heals are immune. Blast radius verified BEFORE regenerating: exactly 75/200 logs moved in each sweep, and those 75 are EXACTLY the logs that contain a heal event carrying the new `antiHeal` annotation (0 logs moved without one, 0 annotated logs left unmoved). 7 of them end on a different turn and 1 (attritionOn #172) flips its winner — the expected consequence of less healing, not a scope leak. See src/engine/combat/interpreter.ts (applyAntiHeal / antiHealCategories) and tests/engine/antiHeal.test.ts. It supersedes the prior regen (2026-08-01) for the TRUE-heal re-price (PRICE.flatTrueHealPerPoint 2 -> 4, balance-designer pass): a REAL BEHAVIOR CHANGE, unlike the prior representation-only regens noted below. second_wind/renewing_wave/purify heal for smaller flat amounts at every tier (e.g. second_wind Bronze 50 -> 25), which changes sim outcomes for any sweep config that casts one of those three cards. Both supersede two earlier non-rule regenerations that the presentation-field normalizer (see `normalization` above) made unnecessary: (a) the card-text canonical-token sweep (ATK/MATK/DEF/MDEF/SPD), which moved every hash without touching a single mechanic — exactly the churn `text` stripping kills, and (b) the additive shield event metadata (shieldGain.calculation, shieldGain.poolsAfter, damage.shieldDrain), which re-hashed the 140/200 logs containing a shield event and left every other byte identical. Guards the ATTRITION THRESHOLD BOUNDARY in outcomeRule.test.ts: fights decided before ATTRITION_START_TURN must stay byte-identical across RULE changes. Regenerate with tests/engine/fixtures/captureOutcomeBaseline.ts, and only for a deliberate, reviewed change.",
+ "normalization": "Hashes are taken through tests/engine/helpers/outcomeHash.ts (shared with outcomeRule.test.ts), which strips PRESENTATION/AUTHORING-ONLY card fields before hashing: `text` anywhere, `name` on SkillDef-shaped objects, and (2026-08-17) `tierUpgrades` on SkillDef-shaped objects. The sim reads none of them at resolved-skill time, so a content copy-edit or a tier-authoring change no longer forces a fixture regeneration. Everything the engine consumes — the full event log, all combatant state (incl. each combatant `name`), and every behavioural SkillDef field (effects, property, size, speedWeight, cooldownTurns, tier, rarity, element, weapon, scope, aura, special) — is still hashed byte-for-byte. OBJECT KEYS ARE SORTED before stringify (2026-08-09), so the hash is a function of VALUES ONLY and no rebuild-in-a-different-field-order can churn it. ARRAY order is untouched and still fully load-bearing.",
+ "note": "Regression lock recaptured (2026-08-17) for STRIPPING `tierUpgrades` from the hash — a REPRESENTATION-ONLY change that moves EVERY hash and NO behaviour. `tierUpgrades` is *input* consumed only by `applyTier`/`autoScaleTier` (src/engine/cards.ts) at resolve time; the combat loop never reads it. `resolveEffectiveSkill` returns an UNTIERED piece's base `SkillDef` BY REFERENCE (`piece.tier ? applyTier(def, piece.tier) : def`), so its `tierUpgrades` rode along into the hash unread — editing an unused tier block used to move the lock for zero behaviour change. For a TIERED piece the field was never the sole carrier of a difference either: `applyTier` folds any authored override or the auto-scaler's derived numbers into `effects`/`tier` on the SAME resolved object the hash sees, so a real tier-block change still moves the hash through those fields with `tierUpgrades` itself excluded. WHY NOW: unblocks deleting purify's three hand-authored `tierUpgrades` blocks (silver/gold/diamond) — filler TRUE heals bolted on before cleanse could scale with tier — now that `autoScaleTier` derives the same budget-honest cleanse-charge ladder (6/8/10) on its own (see tests/engine/tierUpgrades.test.ts, cleanse tier-scaling user-locked 2026-08-17). CONTAINMENT PROVEN, in the strongest available form: a read-only raw `simulate` dump (full event log, `turns`, `result`, `finalState` — NOT normalized, NOT hashed) over both 200-fight sweeps, taken immediately before and immediately after the normalizer edit, was byte-identical in all 400 cases (SHA-256 of the two dumps matched exactly) — proving `simulate()` itself was untouched and only the hash DOMAIN moved. Blast radius on the hash itself: 200/200 attritionOn and 200/200 attritionOff logs changed (188/200 of each decided before ATTRITION_START_TURN), because 25 of the book's 72 skills carry an authored `tierUpgrades` block and all 25 are in the frozen sweep pool (tests/engine/fixtures/frozenSweepSkillIds.ts) — with boards drawing several pieces each, nearly every fight includes at least one. `result` and `turns` moved in 0/400 cases (confirmed against `prev` below): every diff is attributable to bytes leaving the hash input, not to any change in what was simulated. ACCEPTANCE TEST, run immediately after this regeneration: deleting purify's three `tierUpgrades` blocks moved 0/400 of THIS baseline (vs 200/200 before this normalizer change) — direct proof the narrowing does what it claims. See tests/engine/helpers/outcomeHash.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-09) for CANONICAL KEY ORDER in the hash normalizer — a REPRESENTATION-ONLY change that moves EVERY hash and NO behaviour. `outcomeHash` ends in JSON.stringify, which serialises object keys in INSERTION order, so until now the physical FIELD ORDER of every hashed object fed the lock. That is not a behaviour: nothing in the engine iterates Object.keys of a SkillDef to decide anything, and the card literals in src/data/skills.ts already order their fields inconsistently (some put `weapon` before `size`, some after). normalizeForHash now sorts keys at every depth; ARRAY order is deliberately left alone, because array order IS behaviour here (effects fire in order, the event log is a sequence). WHY NOW: this is a PREREQUISITE for the content-format migration. A loader that builds SkillDef objects from a data file necessarily picks its own key order, and would otherwise have re-hashed all 400 cases for a provably behaviour-neutral change — a regeneration whose churn could hide a real regression, which is precisely what this fixture exists to prevent. Paying it ONCE here, in isolation, buys permanent immunity: from now on only VALUES can move a hash. CONTAINMENT PROVEN, and in the strongest available form — the sim output was shown to be UNCHANGED rather than merely similar. Read-only probe over both 200-fight sweeps, BEFORE regenerating: (a) the CURRENT engine reproduced 400/400 of the OLD fixture hashes under the OLD normalizer, so the simulation is byte-identical and every delta below is attributable to the normalizer alone; (b) result moved 0/400 and turns moved 0/400; (c) re-hashing THAT SAME unchanged sim output under the sorted normalizer moved 400/400 hashes (0/400 were already in canonical order — consistent with `id` leading every SkillDef literal while sorting demands `archetypes` first). A pure key-order delta is therefore the only thing in this regeneration. INCIDENTALLY PROVEN, and worth recording: (a) held the whole time an unrelated in-flight engine change (the echo-gem statStrike `echoHostPower` / gem `weightIncreasePct` work) was present in the tree — reproducing 400/400 old hashes is a direct proof that work is sweep-neutral, as its own byte-identity claim predicted; and (b) the same 400/400 reproduction re-confirms that FREEZING the sweep id pool (tests/engine/fixtures/frozenSweepSkillIds.ts, 2026-08-08) cost zero regeneration. See tests/engine/helpers/outcomeHash.ts and the key-order guards in tests/engine/outcomeHash.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-07) for the MULTI-HIT STAT SPLIT (user-locked 2026-08-07): a REAL, REVIEWED RULE CHANGE that moves real damage numbers. The caster's scaling stat (Attack / Magic Power / higher for TRUE) is now a PER-CAST resource split across a cast's `damage` actions, not a full add RE-DELIVERED by each one. Twin Slash at ATK 20 was 2x(6+20) = 52 and is now 2x(6+10) = 32; a cast's total stat contribution is finally HIT-COUNT-INVARIANT. WHY: multi-hit previously scaled SUPERLINEARLY with hero stats (a 3-hit card delivered 3x the stat) while powerLevelDeci priced only the summed flat base plus a FLAT PRICE.extraHitPremium — a fixed 3 PL against an effect worth (hits-1)x(ATK-DEF), i.e. ~1 PL at ATK 10 but ~21 PL at ATK 50 and ~40 PL at the level-30 ceiling. Splitting the stat is what makes an honest flat price possible at all. The split is exact integer arithmetic (`statShare`): shares sum to EXACTLY the stat for any hit count and any sign, with the remainder FRONT-LOADED (earlier hits carry the odd point) so the share most likely to land before a first-to-fall break is the larger one. At one hit it is the IDENTITY, so every single-hit card in the book is byte-identical. GEM-APPENDED damage actions JOIN the split (the count is taken from the EFFECTIVE effect list), which is what makes the user-reported case behave as printed: soul_rend_echo (\"+16 damage\") used to deliver +36 at ATK 20 and +66 at ATK 50, and now delivers exactly +16 on every host at every stat line. [SUPERSEDED IN PART, SAME DAY — NO REGENERATION: gem-appended hits were REMOVED from the split's divisor and made unbuffable (see `GemAppended` in src/engine/types.ts). Joining the divisor made a \"+damage\" gem net-NEGATIVE against armor (-4 on sword_slash at DEF 8, -9 at DEF 16) because it took a share from the base hit AND paid mitigation a second time. A gem hit is now self-contained: outside the divisor, no stat share, no mods.damageFlat, no comboBonus — so it still delivers exactly +16, and the host card is untouched. The fixture below is UNCHANGED and was NOT recaptured: the sweep (tests/engine/helpers/sweepConfigs.ts) sockets NO gems at all and no card uses the new `statStrike` action, so a read-only recompute moved 0/200 logs in BOTH sweeps. Rules are pinned in tests/engine/gemStrike.test.ts.] DELIBERATELY UNCHANGED (user-locked the same day): `mods.damageFlat` — card-scope stat gems and board auras — and a triggered `comboBonus` still apply IN FULL to EVERY hit, so a +4 card-scope gem is still worth +8 on a 2-hit card. Blast radius verified BEFORE regenerating, over both 200-fight sweeps: 94/200 logs moved in EACH (89 of them decided before ATTRITION_START_TURN), with 1 winner flip (#8, the same log in both sweeps) and 18 turn changes — the expected consequence of multi-hit casts hitting for less. CONTAINMENT PROVEN BY EXHAUSTION, BOTH DIRECTIONS: the moved set is EXACTLY the set of logs that CAST twin_slash, rapid_volley or barrage (the book's only multi-damage-action cards) — 0 logs moved without casting one, and 0 logs that cast one stayed put. 124/200 configs carry one on a board; the 30 that carry one yet did not move are precisely those where it never fired, proven by their bytes standing still. NOT REPRICED HERE (deliberate, out of this agent's scope): PRICE.extraHitPremium still charges 30 deci for what is now a strictly WEAKER effect (multi-hit still eats mitigation once per hit, so it is now worse than a single-hit card of the same budget against armor), and the user's tier/slot gate for multi-hit cards is a balance-designer pass on top of this one. See src/engine/combat/interpreter.ts (`HitSplit`, `statShare`, `countDamageActions`, the `damage` case and `applyCast`) and tests/engine/multiHit.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-06) for the HEAL DERIVATION BLOCK (`heal.calculation`): an ADDITIVE, PRESENTATION-ONLY EVENT FIELD — NOT a rule change. The sim reads nothing from it and every number it reports was already being applied. The heal event now carries { power, statBonus, healFlat, property }, the sibling of shieldGain.calculation, so the battle log can print \"H: base 48 + (1 MDEF) - (9 ANTI-HEAL) = 40\" instead of a request that appears from nowhere; the alternative — re-deriving the split in the renderer — would re-run gem/aura/stat resolution outside the engine and could silently disagree with it. TRUE heals report a ZERO stat term (flat by identity, exactly as TRUE shields do), and the OTHER emitter of this event, the LIFESTEAL rider, OMITS the block entirely: its request is a percentage of damage dealt, with no card base and no stat term to split (same contract as damage.calculation, which DoT/fatigue/attrition damage omits). Blast radius verified BEFORE regenerating, over both 200-fight sweeps and IDENTICAL in each: 137/200 logs moved (128 of them decided before ATTRITION_START_TURN), with ZERO winner flips and ZERO turn changes — the signature of a field the sim never consumes. CONTAINMENT PROVEN BY EXHAUSTION, both directions: the moved set is EXACTLY the set of logs containing a heal-ACTION heal (0 logs moved without one; 0 logs carrying one stayed put). 142 logs contain a heal event at all, and the 5 that did NOT move (#4, #14, #92, #142, #192) are precisely the logs whose ONLY heal is a `leeching_fang` LIFESTEAL — the deliberate omission above, proven by their bytes standing still. 45 of the moved logs carry only zero-term (TRUE/flat) heal calculations: they move because the BLOCK itself is new, unlike the 2026-08-05 stat-scaling regen where zero-term heals stayed put. ON THE NORMALIZER (see `normalization` above): stripping `calculation` there instead — which would have cost no fixture churn at all — was evaluated FIRST and REJECTED. It is engine-derived ARITHMETIC, not authored copy: two heals with the same landed amount but a different (power, statBonus, healFlat) split are a real difference in the sim's math, and this lock is what would catch it. A blanket strip would also drop the ALREADY-HASHED damage.calculation and shieldGain.calculation and re-hash nearly every one of the 200 logs — a BIGGER regeneration buying permanently LESS coverage. See src/engine/combat/interpreter.ts (the `heal` and `lifesteal` cases), src/engine/combat/events.ts (heal.calculation docs), src/game/battleTimeline.ts (formatHeal) and tests/engine/effects.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-05) for DEFENSIVE-STAT SCALING of shields and heals (user-approved 2026-08-04): a REAL, REVIEWED RULE CHANGE. A card's `property` still picks WHICH stat scales its output, but the ROLE of the action now picks WHICH SIDE of the stat sheet that lookup reads — defensive output (shield / heal) scales off Armor (physical) and Magic Resist (magical) via the new `scaleDefStat`, where it previously read Attack / Magic Power via `scaleStat`. TRUE stays flat by identity (0 stat term), exactly as before. PL-NEUTRAL: attack/magicPower/armor/magicResist all cost 1 PL per +1 and all start at 1 (LEVEL_STAT_COST, BASE_HERO_STATS in src/run/leveling.ts), so no price in src/engine/balance.ts moves — only WHICH stat buys the output. Blast radius verified BEFORE regenerating, over both 200-fight sweeps: 153/200 logs moved in EACH sweep (142 of them decided before ATTRITION_START_TURN), with 2 winner flips (#9 and #138, the same two in both sweeps) and 13 turn changes — the expected consequence of every shield pool and heal resizing. CONTAINMENT PROVEN BY EXHAUSTION: 0 logs moved WITHOUT containing a shieldGain or heal event, so nothing outside the changed mechanic drifted. The 15 logs that DO contain one and did NOT move are each explained: 12 carry only a zero stat term (TRUE shields/heals, flat by identity under both rules) and 3 (#4, #65, #142) carry only a `leeching_fang` LIFESTEAL heal, which is a percentage of damage dealt and never had a stat-scaling term under either rule. See src/engine/combat/interpreter.ts (`scaleDefStat` and its `scaleStat` sibling), src/engine/combat/events.ts (shieldGain.calculation.statBonus docs) and tests/engine/effects.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-04) for the FIRST-TO-FALL OUTCOME RULE (user-directed 2026-08-04): a REAL, REVIEWED RULE CHANGE. Combat now ends at the exact APPLICATION that wipes a side, so nothing later in the same step runs — no DoT/attrition/fatigue tick after the killing blow, no bleed tick on a performer whose cast just won, and no lifesteal-back off a killing blow. Mutual wipes therefore cannot occur and the 2026-07-30/31 tempo tiebreak is unreachable (kept in decideOutcome as a documented defensive fallback). Blast radius verified BEFORE regenerating, by diffing this engine against a byte copy of the pre-change simulate.ts + interpreter.ts over all 740 fights the engine suite sweeps: attritionOff 2/200 and attritionOn 3/200 logs moved (#10 and #83 in both, plus #15 with attrition on). For EVERY moved log the diff proved: (a) the events up to AND INCLUDING the death that wiped a side are byte-identical, (b) the new log is a strict SUBSEQUENCE of the old one — nothing was invented, (c) every removed event is a post-wipe application (#10: one lifesteal heal on a killing blow; #83: one bleed tick after a killing cast; #15: two attrition ticks after a side was already wiped), and (d) `turns` did not move. ZERO winner flips in either sweep, and 0 of the 740 fights was a former mutual wipe in the baseline families (1 was in the wider 0x5117e5 sweep, and it kept its result). See src/engine/combat/simulate.ts (`sweep`, `decideOutcome`), src/engine/combat/interpreter.ts (`applyCast`) and tests/engine/outcomeRule.test.ts. It supersedes the prior regen: Regression lock recaptured (2026-08-03) for the ANTI-HEAL WORLD RULE (game-director approved 2026-08-01, built 2026-08-03): a REAL, REVIEWED RULE CHANGE. Regular heals and lifesteal are taxed -20% per affliction category active on the RECEIVER (DoT family / stat debuff / expose, cap -60%); TRUE heals are immune. Blast radius verified BEFORE regenerating: exactly 75/200 logs moved in each sweep, and those 75 are EXACTLY the logs that contain a heal event carrying the new `antiHeal` annotation (0 logs moved without one, 0 annotated logs left unmoved). 7 of them end on a different turn and 1 (attritionOn #172) flips its winner — the expected consequence of less healing, not a scope leak. See src/engine/combat/interpreter.ts (applyAntiHeal / antiHealCategories) and tests/engine/antiHeal.test.ts. It supersedes the prior regen (2026-08-01) for the TRUE-heal re-price (PRICE.flatTrueHealPerPoint 2 -> 4, balance-designer pass): a REAL BEHAVIOR CHANGE, unlike the prior representation-only regens noted below. second_wind/renewing_wave/purify heal for smaller flat amounts at every tier (e.g. second_wind Bronze 50 -> 25), which changes sim outcomes for any sweep config that casts one of those three cards. Both supersede two earlier non-rule regenerations that the presentation-field normalizer (see `normalization` above) made unnecessary: (a) the card-text canonical-token sweep (ATK/MATK/DEF/MDEF/SPD), which moved every hash without touching a single mechanic — exactly the churn `text` stripping kills, and (b) the additive shield event metadata (shieldGain.calculation, shieldGain.poolsAfter, damage.shieldDrain), which re-hashed the 140/200 logs containing a shield event and left every other byte identical. Guards the ATTRITION THRESHOLD BOUNDARY in outcomeRule.test.ts: fights decided before ATTRITION_START_TURN must stay byte-identical across RULE changes. Regenerate with tests/engine/fixtures/captureOutcomeBaseline.ts, and only for a deliberate, reviewed change.",
  "attritionOff": [
   {
    "result": "win",
    "turns": 9,
-   "hash": "fa306f67877d2952f8530a3f06977143"
+   "hash": "afa668fb8cd25dc91006b2fef3d16673"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "f80438684ccc472a1fe86305d9c60e59"
+   "hash": "00c43ad69168df8f511bc0e5be8f724c"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "c3aa348a6832bbe7eeb584d1e1642087"
+   "hash": "4d1212f276a1e6e816e5d8b137449a73"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "056b77e3f879085ce50ffbb1af939844"
+   "hash": "76958dd096fe4e1d769814792e25c5e4"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "9572d74aded27b5ed81b94f4db46f94e"
+   "hash": "7bf6a49f7d39541b808b1be1622e5f16"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "66b0300d6e6e8ed423a8b4cbaebe13f9"
+   "hash": "b7d3477ef4cec86595e8634723b2904d"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "18411a61e5b79afb4a8f1967dd2623db"
+   "hash": "aa829aa2876a3b9b224bdde8c70a41d7"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "b0084a554f779d1eefab89e9d7b02f45"
+   "hash": "1a62687c797142e9bf49e20c48736774"
   },
   {
    "result": "win",
    "turns": 10,
-   "hash": "275f17503acf72f26db80709b1bba43f"
+   "hash": "f64b62e716b86038ef2516cabdd74976"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "3560c175f9defc5f903d941078026603"
+   "hash": "2cda0a736f8de5ff2d8cbdb2036561aa"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "2afe27d1cd025d440ee3e70f66a2b920"
+   "hash": "8a5e56d0f15d896c520ac3f6d9131905"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "a94d23610f730c2f8ab733d74147b011"
+   "hash": "eca879bd3d340627fa01c1341f1e9d5a"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "36e69de09aa1b1f64cb45b32c2f641ec"
+   "hash": "87db0b36057ee9193c6d1c3c8b98a043"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "05b37bd016056e1c24bc2238ccc855ec"
+   "hash": "48b2c91759bf2baee10108f109249c44"
   },
   {
    "result": "win",
    "turns": 7,
-   "hash": "25c4275f3f844c7593fec911175374d2"
+   "hash": "c1ee45075772b46a4d7d16a9eb422bc9"
   },
   {
    "result": "win",
    "turns": 42,
-   "hash": "a232f0f7fb37160c6d67339d63b750f4"
+   "hash": "3626ddddf917bf69ab4a67c334e25c4c"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "6b3c4abe59254177ec205a6b0e1fa7ce"
+   "hash": "a90777c00717afa263e1bd4cb6934916"
   },
   {
    "result": "win",
    "turns": 12,
-   "hash": "04865e3157cfb9546baff9960171bf73"
+   "hash": "9ba2582a70a2f068d25cb12e05f732e8"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "1c287ca658a79650cf2384333a2d550f"
+   "hash": "2e42c1165d53f5c23b26502d4dfceb1b"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "93d13f9b91d02fb9bbd7c68766f41c28"
+   "hash": "07baf492b08503d950710a4cbb97de90"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "3656b55bf9959d6288fc6d2acc100e81"
+   "hash": "65d442833d025a4dfc765531c411ceb2"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "0c9352d4d55c5f9467150c605fee9af7"
+   "hash": "d9cd52f211cac14122e01fc6138b01ce"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "80bd9d8c458cdc7231cba2918dcecbea"
+   "hash": "edcebeefc179650ffa8b0af2cec07204"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "74c0d5447e1345e48eb4d99932a0ed53"
+   "hash": "0c8177e5b83361868cd59a18669a6cbe"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "b08b24ca43acedea4169d830ec9c9e34"
+   "hash": "ec0265871c9a62c8ba2d778b5f915521"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "3e8c8413a98cf9e04bb15150d27a163e"
+   "hash": "e553f01740679ec9a19a018fa55aee8c"
   },
   {
    "result": "win",
    "turns": 4,
-   "hash": "a61df16f6022012ce11b451bdfb4c1f3"
+   "hash": "a6c49baa69f9414f53c90c32c1784330"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "58653f46846a7bc61a961c4fb1251626"
+   "hash": "6b38510b45b96cee8d2e5ec3889fd2db"
   },
   {
    "result": "loss",
    "turns": 2,
-   "hash": "31291388717b3d13bf39c2e16b3c4f86"
+   "hash": "309e60295b12b32f0f00126e7cf0f637"
   },
   {
    "result": "loss",
    "turns": 14,
-   "hash": "e99d69766b5856cffbb1dfed414ff70b"
+   "hash": "3a3cfd7434a4cd4591981d19f9ad0d06"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "bea3abc2e320c0db0cf2ae1a40422a70"
+   "hash": "51d157bfb0acda97e646ded62c3f3581"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "c4537e0431a219db044d50c528c18796"
+   "hash": "af12a7efe5670b12b58e4602a802b08f"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "99098c8d0528b582704afcfbb8b4cb0b"
+   "hash": "ebb2733e24708de5980829acb3a7c49b"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "68079afa196e6c09eefc38d7b0783a56"
+   "hash": "6fd59c7e31a5531b048a5d2bfa295169"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "81cac555118feb5992e8358bd4115d52"
+   "hash": "ddd32cf3a637ba04989480604025b1b4"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "aef4241241dfce1399a2744e89fa6a88"
+   "hash": "59a341bf9b7a15a78757fd10d47af33b"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "281be556b056ca1a8b42c69262a3cc77"
+   "hash": "f86e66d691fd955b9de7a7e7b0640e08"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "0be97d07cafaa9bdb365f0739ff12158"
+   "hash": "9dabdd0c4058468108a3b5e9d6a3b831"
   },
   {
    "result": "loss",
    "turns": 2,
-   "hash": "8fde8d2a4df9f2380df19ccf9260c782"
+   "hash": "778d4670508e0427642c888a99d17ea9"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "d1acaef91059ed36fbb3c43f7e75147c"
+   "hash": "98561fbff94ca2905cf107e2b279b702"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "285ed899b3b41fbf88dc935868f05f55"
+   "hash": "9f709540a3ff87a4e7dcb64c5612d263"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "e0b2ec56b22c9eed27a3793de577d615"
+   "hash": "fc9213544281ed6f58376a3e7c5af89f"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "5576b5e4dd61dbdb778c3852eea9866a"
+   "hash": "fd26d736b7a250223750e2191dd65695"
   },
   {
    "result": "loss",
    "turns": 14,
-   "hash": "51152bc63bb8e02731cecf0e1ea4cf98"
+   "hash": "b833930e7d466d648d8fa2a25c4cf54c"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "3337039bcde6257599ed6e7b9a3eb660"
+   "hash": "d0fd3aefcdeddc58fb6860236a17d2a2"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "9a3a7a77222771edfc6e2c9e4e42353f"
+   "hash": "039d8a62243102af93ef865c99fdf194"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "32c6ccdcaaff11e737f9c6121e614386"
+   "hash": "92e2e48b399fcb248418a3004130dde6"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "0331d347397bbc00495f7ce719a5d697"
+   "hash": "640317fe0978c8924d4ca18c9b1f78b0"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "86eb92d7c20825b82a3030b3e688dd7b"
+   "hash": "d78ff6349119bf81ee103750dc634bd9"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "e3c54850c20027232083a3d336c9623a"
+   "hash": "bcb671e43656c7b527ed881ea8794a74"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "78debd512217d45ace25c8c6f7a8e8e0"
+   "hash": "5dec3d6986c7198018050b0cf11d0d8e"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "f2bdef0d6083c332066809016c5f7005"
+   "hash": "f0251d8069dd6c04026c33669cdb570a"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "55115951b543d275a01bb341b006165e"
+   "hash": "dbef75efb3744587df9392fb7db3dc58"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "15207163cc4bda1e4b6ff02df63976ed"
+   "hash": "ee29d4ef8b06de718581b8eaee6227d7"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "c72b0d5ac4b089e968905d000d63562f"
+   "hash": "37c4d83f5e7b3939f1940db417dd5ea5"
   },
   {
    "result": "loss",
    "turns": 15,
-   "hash": "b6a9d4f5bdf7c78a3c34131b16a08a4c"
+   "hash": "a2398f87598b30ed937437211bc2168e"
   },
   {
    "result": "loss",
    "turns": 2,
-   "hash": "343dff9b22341f1a93167381fb631a5d"
+   "hash": "fb8632c380f23d0f0f1c6e36b587c4b3"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "3aa7532ab72b9eb19c84e52b580453f4"
+   "hash": "d8af2bd9e11ed171f00c6e68b9925a5c"
   },
   {
    "result": "win",
    "turns": 7,
-   "hash": "67aafd9049a2dd569e339afcbfd28895"
+   "hash": "c7d03f7bcd9cd373448a42d614a4bff9"
   },
   {
    "result": "win",
    "turns": 16,
-   "hash": "b86d6f89dd31977c4f427ab36913ca31"
+   "hash": "45bb35a508570cb7bd29dff5f6ab45f7"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "1942963a5b1b8bf92b34544ff230f33a"
+   "hash": "bcc6b909fa83ca9ea85ee8b91ddf0ac4"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "7081175542bc23368279743547b5d98f"
+   "hash": "cd2272dfe6400849977df4579d146ddf"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "e06c42bf89f95f98f5e26611e79a3a05"
+   "hash": "f9a080a6ae7196be63f6dc2da28cd2da"
   },
   {
    "result": "loss",
    "turns": 12,
-   "hash": "7449d82a7d60dfe87831108de70e8119"
+   "hash": "8cbbd2c5fae4b2cb0ee62ed1c040a894"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "9fe00487294fbd8837453d504fa0727a"
+   "hash": "272e3a3d15696481eec211f47ab0a6f4"
   },
   {
    "result": "win",
    "turns": 10,
-   "hash": "4f022fb41bd31a9794d55f83d060bde2"
+   "hash": "9d535ab3b89d4adb9fb57e531f2f55a3"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "7d2e6d73edaf06870f364a61b44b9da1"
+   "hash": "75084dafbb11a3407500e0e7853e3856"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "f5f27d32b7dfb113c9d192d6114f724c"
+   "hash": "863e36d000accfaf955c8802b4aec479"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "901f7858a8cb0ec5c02495d2dfaac16d"
+   "hash": "035b0914485506d7b8f18fccde98bbdc"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "96c9c52f0255de0cc2a20c40c6463175"
+   "hash": "4c00bb8f59611d7ba78fac04a2326ae1"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "dcbf6f9209d1fc8962381a51e18c4e40"
+   "hash": "e8eb8421f1ca66b21d702ff348db85ce"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "63459928e08ef982605b4371e7187811"
+   "hash": "9556ab88a1acceba184a419e90a95962"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "f0a3e27bd36cdc3555b54e07da6490c0"
+   "hash": "23d87c747d9a01b7d21cb53c741c504a"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "73129ebd71587deb16db388c22bf6551"
+   "hash": "4bf9347ceb9c9cf9948e54e722d11f2e"
   },
   {
    "result": "win",
    "turns": 7,
-   "hash": "460fd1b9bf52ee5e13e978c9ea6933cb"
+   "hash": "de0767a1916dbf14d33c3bd86f01b2b4"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "88130fade324afb9b62002ab73507d64"
+   "hash": "2ec5ecf325313864fc06584b6f599b08"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "c04d49688c06ac48ecc5b58119545734"
+   "hash": "dfc5407004819d2e6f68c6c9738c7c7c"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "3e050781e5007161520122507935a2f1"
+   "hash": "be0023d6a25cb7e4cd2b5f9155e08270"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "8a07dafd9ae571dd72341f93d70e3cc6"
+   "hash": "488d36dda350d6aa8b6b0cc5f38cbfe2"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "67ecae209bf8f7ca6caa8591d952d13e"
+   "hash": "ebd613fa15d15cbd41cd7fd67ef461e1"
   },
   {
    "result": "win",
    "turns": 3,
-   "hash": "139ac071fd20440384cb2e74da63469b"
+   "hash": "b70edc25cb5ac49c579ad28e31abe5c7"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "f014a8b8cc78bed0c3108b7e187334f5"
+   "hash": "e415a31baa4d3d5a1ef9a09908680d8c"
   },
   {
    "result": "loss",
    "turns": 17,
-   "hash": "daa0b91242857f6447bf14b7ead2d753"
+   "hash": "c208fef8e32ba3bf5f396ad75c3af3a3"
   },
   {
    "result": "loss",
    "turns": 13,
-   "hash": "ec15aac44bf1cbf035bc02e6ceeefb53"
+   "hash": "e3718c6df6d0ac4ddeb5393aae852cc4"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "eb7d7e93bc4f2cf4f45e6e898b82d440"
+   "hash": "96f8554d0d6e792e960f1d8498228f46"
   },
   {
    "result": "loss",
    "turns": 12,
-   "hash": "05c97f04de13110155bf8b8c41ea3268"
+   "hash": "6a296d473b6c7e5764ae2940ed041132"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "adf7652d816f060d9d02869a4f381f9a"
+   "hash": "5870ae3a1bd450a9d23ec93f60756174"
   },
   {
    "result": "win",
    "turns": 12,
-   "hash": "d454c7c71df0d6f09f6dbb37838f40b5"
+   "hash": "534b6e13d85647d4efe5592100409636"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "3e5d225e8d0d6fa2918d59ea4f8f3a57"
+   "hash": "0b03d24f268168ba7f0d1df14ea853bc"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "0e51303287ebb65e72dd06985ef07493"
+   "hash": "8acd548ee8772915fd91eb8d8ed076ed"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "3ab5df04e593399c46f206560cff9c8a"
+   "hash": "7e06375dbc146b13f36bc0baac527fb5"
   },
   {
    "result": "win",
    "turns": 12,
-   "hash": "7883024401d28ff898fbab79a2e24bb3"
+   "hash": "f323bde90f9e1c2519697abb993d54d5"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "f2709f97a1fa75ad9960ecf6d9092d4a"
+   "hash": "36595d9e3ac49575043bf2fb3fbba759"
   },
   {
    "result": "win",
    "turns": 17,
-   "hash": "7fb08a3316721321a64b43aa63ea0f11"
+   "hash": "abda3349aec10508fce2d9c529ebb6fb"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "51674434df2110a71b59501df009e4fd"
+   "hash": "e3f190642bff2bf2af024d88bdd89760"
   },
   {
    "result": "win",
    "turns": 3,
-   "hash": "e8cad255b840924c2ae79b0add9ae2c8"
+   "hash": "84ce094aede1af69ca31e725558dde04"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "ef1675323143d5ef90fa3080d82e733a"
+   "hash": "f83ee823de1d6f28ba0b3e0a392f1a92"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "b77b6b436d433a05023904a29e417f5b"
+   "hash": "f6ba814b2bafdef6c5fb0fa81b513a09"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "853cdddd137fd12a602e9fea17ad287b"
+   "hash": "ca4bc123ec5fe916ece7ce81d876b19d"
   },
   {
    "result": "win",
    "turns": 7,
-   "hash": "db9fbac5a4b14e55f8560eb9eefe1460"
+   "hash": "0d70e93953597873baa9b99be2aa5e81"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "27b97067c27925a6fc7cbef6c240b669"
+   "hash": "97d4633060759827a666168114798e1f"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "53343e20b619980eb0f42fc657b186f3"
+   "hash": "6e6fdd4485cfc9677ceefd2c128586ae"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "d4eb32d7b7106c8080891ddafb21b56c"
+   "hash": "2dbe5d89c7ed97cda90cd6bdffd553ba"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "6e7d9a80e9f505af123de1924bfaa54d"
+   "hash": "75689d309cc9d84a46057e60ba98a134"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "8611a1eb4b11eed60419c50222cc0f3e"
+   "hash": "df3c64fcd127bfc5094ee52a58c0339f"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "387334088678ca6da59769300d285c9f"
+   "hash": "e94d09a1853c542260e4e5361d0b93a0"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "0e06ab7fada40d5faf9fd8a020ee185d"
+   "hash": "d87dfb0d5ad8bcacba21e3e1f89ec522"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "a9e7b5be98c8b053138e3b3f81651031"
+   "hash": "500c00ba9eafadae65c87354c6d818be"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "ea2988cce4c19ff0821eb79e9d62f58b"
+   "hash": "f22eb13194788c8251d1a7a3f632457d"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "f82f3b7df37ad0d14433a947046cc33c"
+   "hash": "fc0fa749173f9c5ceb42f656a27c58b5"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "24eb90910621d08d85e8efb1bd110970"
+   "hash": "f3b2f3b0d3b9a0cc52c703e44e993665"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "e5539feb5c3b99b8fe06fd106458db71"
+   "hash": "0a3e6049e354dc677fb38007af0f8451"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "356052b9bda37b1296fa5f153e29f6a2"
+   "hash": "41230243486051834d2162990381aa10"
   },
   {
    "result": "loss",
    "turns": 18,
-   "hash": "b7b908aedc439401ba0bccd88a0bf028"
+   "hash": "e28751cb6f06d2a163d5be93c5b0cdf7"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "01238b68d39167b973cf7b67cefdfd0f"
+   "hash": "474962079a0cb9cc7002a136505d4602"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "7487372613d0999c76f637f6ef81ddae"
+   "hash": "f7878f90801030867a3023448483c3f1"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "0ff337311566dc13e809f3d6ad03fd10"
+   "hash": "7d086c917977299337f6239dda81b137"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "c80445efd2e7eee5ca5870fc5af937da"
+   "hash": "83fe045602e6cb14d53c8253cdb39d83"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "a191cb1f890b05b21b6b44598fceb1df"
+   "hash": "ceaa4305c38c5236c8050a5ce9896554"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "ff812ac05dc9bc14b6059745c21c6c64"
+   "hash": "772274a2a61a7b56775eb18b3b191043"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "bf00d226186932508cc5e8b5a8a7d41a"
+   "hash": "c461cf07b0c0d9aefc0a33691b633390"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "47222f30029f5ff0b84906e69df633a1"
+   "hash": "55cbda45160ecb9391ec1c704385851e"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "999e26320204c6693e158b129adc8444"
+   "hash": "36644801595c31109201cfd8fdacc698"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "54aeed35f39b795e490827e0731d5933"
+   "hash": "1b6c6c0519adc7f66e1f7ee160fc8a0b"
   },
   {
    "result": "win",
    "turns": 16,
-   "hash": "35747b7f9b33a318e6dd713aa836c14e"
+   "hash": "7caea7600da6608d78a41d525a241312"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "16decd5eb318ef44028ba5c86b337b9a"
+   "hash": "927dcf39cd626b45e082649d617b30a3"
   },
   {
    "result": "loss",
    "turns": 12,
-   "hash": "f5d7c00aa691b81d4287824de635198c"
+   "hash": "b30083df45316920521636f85846f0c6"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "ac1b00a0744b0db1a041a6aa15500cd8"
+   "hash": "ab78cfaaeb82d2ac6dfd80c65bee43c8"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "216d70655f745eb69cc853bd083e126d"
+   "hash": "51f39c270563af82bb22cc583b2586d9"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "7f8b34b295efedcf220be3e1469840fa"
+   "hash": "b2dee392671e579e35e40be35160e382"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "40f7cfd08ca49d21a302c8e6c4411695"
+   "hash": "04e8d5afb39699353a6e6402363e28ae"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "fc79cc1ad2286be394903d84f2027058"
+   "hash": "188cb60b9ed0a1043a074e38d5a5e529"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "f801a28693033d37b4ca4a061a7f6ab4"
+   "hash": "a972f344bd051a0b7611d16c1f25603e"
   },
   {
    "result": "loss",
    "turns": 2,
-   "hash": "ed0cbf7b2b36722103a50614d1e7419f"
+   "hash": "7f6f7b3fce18b43d429e1ae65544d959"
   },
   {
    "result": "loss",
    "turns": 14,
-   "hash": "f6ef2905d5fbf037b61d924b966c4be9"
+   "hash": "2ee1582c49c7b66ce8e983f59a8f31fa"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "b155688eca3f3068a93fe1e0e35424ab"
+   "hash": "e0a64dd8cac2529b1efe03ac18bed1ff"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "3df92c63587ab5a0db741e0ff726b133"
+   "hash": "8d64b161ae7b1cfa4f44bcf9c1bb6307"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "5702aeca184c3d0b081471476dcf86ec"
+   "hash": "6725274b664b3fc523e762bdafb56e40"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "d2528d4bb1935bec31b660c8f95f4144"
+   "hash": "137e538bdb3188a60dc87a98a96067b2"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "e50ba2247b5589f025fe32dbd711445c"
+   "hash": "e899e2b552930968d3daa543a14cba1e"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "ecfb831ada7229541851fcce6291ce11"
+   "hash": "9b32ee957ead2cf919a8b3f6d9022e8d"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "85af8b48ecd13f2b2421b11b7fe6e27a"
+   "hash": "130c18286c1c8229c0014373de9ba427"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "e39244584dfebe32726647571bff4498"
+   "hash": "7774dd3c29342ac12952c1ef61769162"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "40c5d8a558559d6e6a328234c650cec3"
+   "hash": "c9816079ec5d32d8b0a0a8acde669da3"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "d1c79579e7af7c42bb11cbe936f11a0e"
+   "hash": "a82efd86ebfcbee357bba8d7b8ff4bfa"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "e6c6097e1466b7a44503b3e4931f3a6f"
+   "hash": "4e983491d0f329f00a0ef67805278444"
   },
   {
    "result": "win",
    "turns": 4,
-   "hash": "7e3339d6ab54de3b9618c234356961b3"
+   "hash": "c662756454ce3379e9d8ca47bf1b2484"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "fb19fec4c432e93e9364cd98babc566f"
+   "hash": "99bd4026c9cdd6796d8d6c690e32e5c6"
   },
   {
    "result": "win",
    "turns": 10,
-   "hash": "07ef013f7cf717bbf94118d767cbdc5a"
+   "hash": "b121d8b6d5ec953a21e15808b2ac6e51"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "202032c166ad93e6fa2608cbb56a8901"
+   "hash": "8dd80cc647fc745f748ad9b4b474f9ce"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "496a7867fc35a0ac77a607d2cc4d5b65"
+   "hash": "16879bbce98e558530d979363d4c222f"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "c1d988fd0dfb0b606aba2358a63a1900"
+   "hash": "8990b1737488321275c6de564c8cbff0"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "be045d201d63c80ceb64b3a5f4ba580c"
+   "hash": "a9b905afc39cdd0b1f4b233ab960189d"
   },
   {
    "result": "win",
    "turns": 15,
-   "hash": "0133801b79586e75f2a11aed8ab46711"
+   "hash": "ba1f879719f7afd8791e5ea5d3ededbe"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "f796fb04b2bf7829d74ced1132fab2ed"
+   "hash": "bd069b0c4d9ea651796eb6db33eec8c0"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "56aa1c082f02e4f3f36d7538a6bae8c6"
+   "hash": "2c2eef6705166202e548f471cd8c65a4"
   },
   {
    "result": "win",
    "turns": 13,
-   "hash": "0517282c368ade3bcbdee76fcd80272f"
+   "hash": "93cf071ecbcd37fbdad45691e2b6e44c"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "87ff08d544622cdb8a39123d6db07406"
+   "hash": "e6fd5941de7b045eae4c901605eb5ac1"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "380ce7c238a5182d26d1d679867a7298"
+   "hash": "324ef7274206e0eb3f76585acf3bf5b1"
   },
   {
    "result": "loss",
    "turns": 12,
-   "hash": "1c6426ad8004ab581b25b85e38b859f1"
+   "hash": "5770c768eba8cae1e277062fe6b06a18"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "13447409ceb19fbb124994122f1b0103"
+   "hash": "a9f6a36f0d3310ccffb0d516c16ed1db"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "b146efcb5f48f3c34b8343cdfa4d0d44"
+   "hash": "e804a175e4f3782c755c839b9f3ba49a"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "b9cd2571c01739e1a978b64cf629da42"
+   "hash": "4dffdb731c24d81a91d2c816a6053733"
   },
   {
    "result": "win",
    "turns": 20,
-   "hash": "0ad7ef29fe7fac99681fb47cdabd3f46"
+   "hash": "9a2a4c1368548dab8677735f830f6c94"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "55bbb6424a73f00b2ff9c139e1e9c595"
+   "hash": "0b5dfccbc720a47e89269a199ba98ffd"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "3f1bdce2fff05df14ed5252c8115ef0c"
+   "hash": "e8fc68de6e505b895867de55a949c91e"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "323b513e40003fb6e99b06761aae8ea0"
+   "hash": "bebf549bd06de6945ed30f0464d3c31a"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "e47515379096ed9a2a222ec4a23f3044"
+   "hash": "472c3b1486df4e5fcf0e2191bdd8d9f4"
   },
   {
    "result": "win",
    "turns": 12,
-   "hash": "b8ae415d0dc199681a3253b454b9fc0c"
+   "hash": "550e9d223ad65b6959381fb653165323"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "e43e1d01631cc2940a940c07628b0d0b"
+   "hash": "52a13072263b44efd7f8914d66c70bee"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "806a0e0f7f9f38ec7fa920a4759835c2"
+   "hash": "f49209a86d8c91f99450711a1cfbe6af"
   },
   {
    "result": "win",
    "turns": 1,
-   "hash": "9c214fd7e0b11ed4cc3107a2882286d3"
+   "hash": "5e5f7adde1b94b4d6d265cf90df01c3e"
   },
   {
    "result": "loss",
    "turns": 15,
-   "hash": "5b53a41a17459014ce62876de0d2d779"
+   "hash": "c24143d4eccf087e8d1b492bb405fcee"
   },
   {
    "result": "win",
    "turns": 7,
-   "hash": "7a090968f8f0e92a5d3b2dc98c15e2ac"
+   "hash": "0731b3917a8188d31a4bb4c2a478d211"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "db70ce5cd67234c0cc227375fc654b2f"
+   "hash": "ecc17ae6321ea179d5cb22daa8adfb7f"
   },
   {
    "result": "win",
    "turns": 10,
-   "hash": "e889706ddcc55fa5fbc91bb788b39dde"
+   "hash": "9fec516f3697859c02f88c08628a5c68"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "c16340ac3537c2fe8292c2baff13dfc3"
+   "hash": "2e9c3543e86d8ef1a157ac9fa98d25ce"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "b4103a7a21c2910ab6c1edbc7efa1fa3"
+   "hash": "2eae1971c06e35c2013492cd9a235a63"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "38a0efb5a10b1e6d22eb971b28d17841"
+   "hash": "b471a00b5c666054a2fd3401a2c8f6ba"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "0bb35903c82e64f424321a1027bbe0aa"
+   "hash": "2e124e591476357a5ae658db8af67d96"
   },
   {
    "result": "win",
    "turns": 3,
-   "hash": "a78a50aa00f6d0f46eface0f132ab678"
+   "hash": "5c325033fb8c81daa4035930da8f0a70"
   },
   {
    "result": "win",
    "turns": 15,
-   "hash": "09325edb8a71735a4e0ef20def7e6158"
+   "hash": "b409291a05d47c377b9930135eadc7d6"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "f1d59ce1ea8e5ffd37d35efe061addc2"
+   "hash": "2ed3909ca2249178f05e0477232457df"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "4ad86d43826ee3c4707ece9b1b9a8a5e"
+   "hash": "940ebdb7225971738bd767d36ed55e9b"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "20257e9276d55fa2d3da5b6fbd690f17"
+   "hash": "2108ee32a4c255f2d015c2f0f51dc60e"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "ac0eab1f5636353cb56fe99ad9aa3d5f"
+   "hash": "84b7442d4f1df0054fb4dc0b987b724d"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "461a17c3dddf435fee12b6e6156002d6"
+   "hash": "168479c596e3d46c6a129ca266d1b1eb"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "147e91fe6f07549de3de1de0c5b199e8"
+   "hash": "f016850d862692bd1bd7906de7c7721b"
   },
   {
    "result": "win",
    "turns": 7,
-   "hash": "7946d51b90b2712567f0e78275b41a2e"
+   "hash": "ff6042e912e91a5a631387115c6627a5"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "db8cff773351f26a3ce4efa4a4979697"
+   "hash": "f8003a8f9ecbbe02c8bc1edcf8faa5c2"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "831b340f1d6a575104ef9b160885b043"
+   "hash": "5d4093eb30428efa823cb5531acfad3a"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "2ae0e390d6caa0a4bdc8a3355cf8e1d6"
+   "hash": "bb7e2e470b62be098cae1562557f0336"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "d107760a774a698c403057b0be9ea60c"
+   "hash": "df3ca18385415ad8f75f5f662b520608"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "c9ae7a13990e8018ff77b9ce703c2654"
+   "hash": "2910e9fac7c92dd99e1987db25b1f534"
   },
   {
    "result": "loss",
    "turns": 2,
-   "hash": "6c7878a837402a685f10b9b092a21ed9"
+   "hash": "7b3a47cc8cfa45dc3f61b62907778c7f"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "5d24ecad1ad09406fecc399d6c337f69"
+   "hash": "dfd91150b5b254ff93137c5098d7b623"
   },
   {
    "result": "loss",
    "turns": 14,
-   "hash": "8dfacadb0a0946714d927d61fcf3a850"
+   "hash": "4e5c6e5bba51fdf5d288f352a90f36bc"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "50b291bed37d2fc22964b44559416028"
+   "hash": "cbf14267cca3eb81c6be23335236fd5e"
   },
   {
    "result": "loss",
    "turns": 16,
-   "hash": "36b950fd9386aa7823b6a35bb8565a05"
+   "hash": "2263d428b4daafd668c64f5075fade45"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "64207958d9e61a734a2bbcc0574b32d3"
+   "hash": "1c4196b18860d6a17a26ff0231132226"
   }
  ],
  "attritionOn": [
   {
    "result": "win",
    "turns": 9,
-   "hash": "fa306f67877d2952f8530a3f06977143"
+   "hash": "afa668fb8cd25dc91006b2fef3d16673"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "f80438684ccc472a1fe86305d9c60e59"
+   "hash": "00c43ad69168df8f511bc0e5be8f724c"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "c3aa348a6832bbe7eeb584d1e1642087"
+   "hash": "4d1212f276a1e6e816e5d8b137449a73"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "056b77e3f879085ce50ffbb1af939844"
+   "hash": "76958dd096fe4e1d769814792e25c5e4"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "9572d74aded27b5ed81b94f4db46f94e"
+   "hash": "7bf6a49f7d39541b808b1be1622e5f16"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "66b0300d6e6e8ed423a8b4cbaebe13f9"
+   "hash": "b7d3477ef4cec86595e8634723b2904d"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "18411a61e5b79afb4a8f1967dd2623db"
+   "hash": "aa829aa2876a3b9b224bdde8c70a41d7"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "b0084a554f779d1eefab89e9d7b02f45"
+   "hash": "1a62687c797142e9bf49e20c48736774"
   },
   {
    "result": "win",
    "turns": 10,
-   "hash": "275f17503acf72f26db80709b1bba43f"
+   "hash": "f64b62e716b86038ef2516cabdd74976"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "3560c175f9defc5f903d941078026603"
+   "hash": "2cda0a736f8de5ff2d8cbdb2036561aa"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "2afe27d1cd025d440ee3e70f66a2b920"
+   "hash": "8a5e56d0f15d896c520ac3f6d9131905"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "a94d23610f730c2f8ab733d74147b011"
+   "hash": "eca879bd3d340627fa01c1341f1e9d5a"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "36e69de09aa1b1f64cb45b32c2f641ec"
+   "hash": "87db0b36057ee9193c6d1c3c8b98a043"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "05b37bd016056e1c24bc2238ccc855ec"
+   "hash": "48b2c91759bf2baee10108f109249c44"
   },
   {
    "result": "win",
    "turns": 7,
-   "hash": "25c4275f3f844c7593fec911175374d2"
+   "hash": "c1ee45075772b46a4d7d16a9eb422bc9"
   },
   {
    "result": "win",
    "turns": 19,
-   "hash": "da6d31a9df2d974fa40e0169162fb729"
+   "hash": "a5c051b7124f51088d3bb46fc788646c"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "6b3c4abe59254177ec205a6b0e1fa7ce"
+   "hash": "a90777c00717afa263e1bd4cb6934916"
   },
   {
    "result": "win",
    "turns": 12,
-   "hash": "04865e3157cfb9546baff9960171bf73"
+   "hash": "9ba2582a70a2f068d25cb12e05f732e8"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "1c287ca658a79650cf2384333a2d550f"
+   "hash": "2e42c1165d53f5c23b26502d4dfceb1b"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "93d13f9b91d02fb9bbd7c68766f41c28"
+   "hash": "07baf492b08503d950710a4cbb97de90"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "3656b55bf9959d6288fc6d2acc100e81"
+   "hash": "65d442833d025a4dfc765531c411ceb2"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "0c9352d4d55c5f9467150c605fee9af7"
+   "hash": "d9cd52f211cac14122e01fc6138b01ce"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "80bd9d8c458cdc7231cba2918dcecbea"
+   "hash": "edcebeefc179650ffa8b0af2cec07204"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "74c0d5447e1345e48eb4d99932a0ed53"
+   "hash": "0c8177e5b83361868cd59a18669a6cbe"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "b08b24ca43acedea4169d830ec9c9e34"
+   "hash": "ec0265871c9a62c8ba2d778b5f915521"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "3e8c8413a98cf9e04bb15150d27a163e"
+   "hash": "e553f01740679ec9a19a018fa55aee8c"
   },
   {
    "result": "win",
    "turns": 4,
-   "hash": "a61df16f6022012ce11b451bdfb4c1f3"
+   "hash": "a6c49baa69f9414f53c90c32c1784330"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "58653f46846a7bc61a961c4fb1251626"
+   "hash": "6b38510b45b96cee8d2e5ec3889fd2db"
   },
   {
    "result": "loss",
    "turns": 2,
-   "hash": "31291388717b3d13bf39c2e16b3c4f86"
+   "hash": "309e60295b12b32f0f00126e7cf0f637"
   },
   {
    "result": "loss",
    "turns": 14,
-   "hash": "e99d69766b5856cffbb1dfed414ff70b"
+   "hash": "3a3cfd7434a4cd4591981d19f9ad0d06"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "bea3abc2e320c0db0cf2ae1a40422a70"
+   "hash": "51d157bfb0acda97e646ded62c3f3581"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "c4537e0431a219db044d50c528c18796"
+   "hash": "af12a7efe5670b12b58e4602a802b08f"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "99098c8d0528b582704afcfbb8b4cb0b"
+   "hash": "ebb2733e24708de5980829acb3a7c49b"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "68079afa196e6c09eefc38d7b0783a56"
+   "hash": "6fd59c7e31a5531b048a5d2bfa295169"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "81cac555118feb5992e8358bd4115d52"
+   "hash": "ddd32cf3a637ba04989480604025b1b4"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "aef4241241dfce1399a2744e89fa6a88"
+   "hash": "59a341bf9b7a15a78757fd10d47af33b"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "281be556b056ca1a8b42c69262a3cc77"
+   "hash": "f86e66d691fd955b9de7a7e7b0640e08"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "0be97d07cafaa9bdb365f0739ff12158"
+   "hash": "9dabdd0c4058468108a3b5e9d6a3b831"
   },
   {
    "result": "loss",
    "turns": 2,
-   "hash": "8fde8d2a4df9f2380df19ccf9260c782"
+   "hash": "778d4670508e0427642c888a99d17ea9"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "d1acaef91059ed36fbb3c43f7e75147c"
+   "hash": "98561fbff94ca2905cf107e2b279b702"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "285ed899b3b41fbf88dc935868f05f55"
+   "hash": "9f709540a3ff87a4e7dcb64c5612d263"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "e0b2ec56b22c9eed27a3793de577d615"
+   "hash": "fc9213544281ed6f58376a3e7c5af89f"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "5576b5e4dd61dbdb778c3852eea9866a"
+   "hash": "fd26d736b7a250223750e2191dd65695"
   },
   {
    "result": "loss",
    "turns": 14,
-   "hash": "51152bc63bb8e02731cecf0e1ea4cf98"
+   "hash": "b833930e7d466d648d8fa2a25c4cf54c"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "3337039bcde6257599ed6e7b9a3eb660"
+   "hash": "d0fd3aefcdeddc58fb6860236a17d2a2"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "9a3a7a77222771edfc6e2c9e4e42353f"
+   "hash": "039d8a62243102af93ef865c99fdf194"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "32c6ccdcaaff11e737f9c6121e614386"
+   "hash": "92e2e48b399fcb248418a3004130dde6"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "0331d347397bbc00495f7ce719a5d697"
+   "hash": "640317fe0978c8924d4ca18c9b1f78b0"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "86eb92d7c20825b82a3030b3e688dd7b"
+   "hash": "d78ff6349119bf81ee103750dc634bd9"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "e3c54850c20027232083a3d336c9623a"
+   "hash": "bcb671e43656c7b527ed881ea8794a74"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "78debd512217d45ace25c8c6f7a8e8e0"
+   "hash": "5dec3d6986c7198018050b0cf11d0d8e"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "f2bdef0d6083c332066809016c5f7005"
+   "hash": "f0251d8069dd6c04026c33669cdb570a"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "55115951b543d275a01bb341b006165e"
+   "hash": "dbef75efb3744587df9392fb7db3dc58"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "15207163cc4bda1e4b6ff02df63976ed"
+   "hash": "ee29d4ef8b06de718581b8eaee6227d7"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "c72b0d5ac4b089e968905d000d63562f"
+   "hash": "37c4d83f5e7b3939f1940db417dd5ea5"
   },
   {
    "result": "loss",
    "turns": 15,
-   "hash": "b6a9d4f5bdf7c78a3c34131b16a08a4c"
+   "hash": "a2398f87598b30ed937437211bc2168e"
   },
   {
    "result": "loss",
    "turns": 2,
-   "hash": "343dff9b22341f1a93167381fb631a5d"
+   "hash": "fb8632c380f23d0f0f1c6e36b587c4b3"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "3aa7532ab72b9eb19c84e52b580453f4"
+   "hash": "d8af2bd9e11ed171f00c6e68b9925a5c"
   },
   {
    "result": "win",
    "turns": 7,
-   "hash": "67aafd9049a2dd569e339afcbfd28895"
+   "hash": "c7d03f7bcd9cd373448a42d614a4bff9"
   },
   {
    "result": "win",
    "turns": 15,
-   "hash": "f528b764e0a7bf3bfc68f5fcf3de2501"
+   "hash": "cc0ddaaf8acb577f913806cbf01adec5"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "1942963a5b1b8bf92b34544ff230f33a"
+   "hash": "bcc6b909fa83ca9ea85ee8b91ddf0ac4"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "7081175542bc23368279743547b5d98f"
+   "hash": "cd2272dfe6400849977df4579d146ddf"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "e06c42bf89f95f98f5e26611e79a3a05"
+   "hash": "f9a080a6ae7196be63f6dc2da28cd2da"
   },
   {
    "result": "loss",
    "turns": 12,
-   "hash": "7449d82a7d60dfe87831108de70e8119"
+   "hash": "8cbbd2c5fae4b2cb0ee62ed1c040a894"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "9fe00487294fbd8837453d504fa0727a"
+   "hash": "272e3a3d15696481eec211f47ab0a6f4"
   },
   {
    "result": "win",
    "turns": 10,
-   "hash": "4f022fb41bd31a9794d55f83d060bde2"
+   "hash": "9d535ab3b89d4adb9fb57e531f2f55a3"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "7d2e6d73edaf06870f364a61b44b9da1"
+   "hash": "75084dafbb11a3407500e0e7853e3856"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "f5f27d32b7dfb113c9d192d6114f724c"
+   "hash": "863e36d000accfaf955c8802b4aec479"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "901f7858a8cb0ec5c02495d2dfaac16d"
+   "hash": "035b0914485506d7b8f18fccde98bbdc"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "96c9c52f0255de0cc2a20c40c6463175"
+   "hash": "4c00bb8f59611d7ba78fac04a2326ae1"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "dcbf6f9209d1fc8962381a51e18c4e40"
+   "hash": "e8eb8421f1ca66b21d702ff348db85ce"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "63459928e08ef982605b4371e7187811"
+   "hash": "9556ab88a1acceba184a419e90a95962"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "f0a3e27bd36cdc3555b54e07da6490c0"
+   "hash": "23d87c747d9a01b7d21cb53c741c504a"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "73129ebd71587deb16db388c22bf6551"
+   "hash": "4bf9347ceb9c9cf9948e54e722d11f2e"
   },
   {
    "result": "win",
    "turns": 7,
-   "hash": "460fd1b9bf52ee5e13e978c9ea6933cb"
+   "hash": "de0767a1916dbf14d33c3bd86f01b2b4"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "88130fade324afb9b62002ab73507d64"
+   "hash": "2ec5ecf325313864fc06584b6f599b08"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "c04d49688c06ac48ecc5b58119545734"
+   "hash": "dfc5407004819d2e6f68c6c9738c7c7c"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "3e050781e5007161520122507935a2f1"
+   "hash": "be0023d6a25cb7e4cd2b5f9155e08270"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "8a07dafd9ae571dd72341f93d70e3cc6"
+   "hash": "488d36dda350d6aa8b6b0cc5f38cbfe2"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "67ecae209bf8f7ca6caa8591d952d13e"
+   "hash": "ebd613fa15d15cbd41cd7fd67ef461e1"
   },
   {
    "result": "win",
    "turns": 3,
-   "hash": "139ac071fd20440384cb2e74da63469b"
+   "hash": "b70edc25cb5ac49c579ad28e31abe5c7"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "f014a8b8cc78bed0c3108b7e187334f5"
+   "hash": "e415a31baa4d3d5a1ef9a09908680d8c"
   },
   {
    "result": "loss",
    "turns": 17,
-   "hash": "3d9ffaf07b0e68f15b59624743fe0433"
+   "hash": "4b5ecb97f345f7cb25cc08dddddb3d27"
   },
   {
    "result": "loss",
    "turns": 13,
-   "hash": "ec15aac44bf1cbf035bc02e6ceeefb53"
+   "hash": "e3718c6df6d0ac4ddeb5393aae852cc4"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "eb7d7e93bc4f2cf4f45e6e898b82d440"
+   "hash": "96f8554d0d6e792e960f1d8498228f46"
   },
   {
    "result": "loss",
    "turns": 12,
-   "hash": "05c97f04de13110155bf8b8c41ea3268"
+   "hash": "6a296d473b6c7e5764ae2940ed041132"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "adf7652d816f060d9d02869a4f381f9a"
+   "hash": "5870ae3a1bd450a9d23ec93f60756174"
   },
   {
    "result": "win",
    "turns": 12,
-   "hash": "d454c7c71df0d6f09f6dbb37838f40b5"
+   "hash": "534b6e13d85647d4efe5592100409636"
   },
   {
    "result": "win",
    "turns": 11,
-   "hash": "3e5d225e8d0d6fa2918d59ea4f8f3a57"
+   "hash": "0b03d24f268168ba7f0d1df14ea853bc"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "0e51303287ebb65e72dd06985ef07493"
+   "hash": "8acd548ee8772915fd91eb8d8ed076ed"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "3ab5df04e593399c46f206560cff9c8a"
+   "hash": "7e06375dbc146b13f36bc0baac527fb5"
   },
   {
    "result": "win",
    "turns": 12,
-   "hash": "7883024401d28ff898fbab79a2e24bb3"
+   "hash": "f323bde90f9e1c2519697abb993d54d5"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "f2709f97a1fa75ad9960ecf6d9092d4a"
+   "hash": "36595d9e3ac49575043bf2fb3fbba759"
   },
   {
    "result": "win",
    "turns": 17,
-   "hash": "d82dc46e79cc71b45086f2dd983f5229"
+   "hash": "004ab84df0f81b608840461b6d484859"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "51674434df2110a71b59501df009e4fd"
+   "hash": "e3f190642bff2bf2af024d88bdd89760"
   },
   {
    "result": "win",
    "turns": 3,
-   "hash": "e8cad255b840924c2ae79b0add9ae2c8"
+   "hash": "84ce094aede1af69ca31e725558dde04"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "ef1675323143d5ef90fa3080d82e733a"
+   "hash": "f83ee823de1d6f28ba0b3e0a392f1a92"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "b77b6b436d433a05023904a29e417f5b"
+   "hash": "f6ba814b2bafdef6c5fb0fa81b513a09"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "853cdddd137fd12a602e9fea17ad287b"
+   "hash": "ca4bc123ec5fe916ece7ce81d876b19d"
   },
   {
    "result": "win",
    "turns": 7,
-   "hash": "db9fbac5a4b14e55f8560eb9eefe1460"
+   "hash": "0d70e93953597873baa9b99be2aa5e81"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "27b97067c27925a6fc7cbef6c240b669"
+   "hash": "97d4633060759827a666168114798e1f"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "53343e20b619980eb0f42fc657b186f3"
+   "hash": "6e6fdd4485cfc9677ceefd2c128586ae"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "d4eb32d7b7106c8080891ddafb21b56c"
+   "hash": "2dbe5d89c7ed97cda90cd6bdffd553ba"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "6e7d9a80e9f505af123de1924bfaa54d"
+   "hash": "75689d309cc9d84a46057e60ba98a134"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "8611a1eb4b11eed60419c50222cc0f3e"
+   "hash": "df3c64fcd127bfc5094ee52a58c0339f"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "387334088678ca6da59769300d285c9f"
+   "hash": "e94d09a1853c542260e4e5361d0b93a0"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "0e06ab7fada40d5faf9fd8a020ee185d"
+   "hash": "d87dfb0d5ad8bcacba21e3e1f89ec522"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "a9e7b5be98c8b053138e3b3f81651031"
+   "hash": "500c00ba9eafadae65c87354c6d818be"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "ea2988cce4c19ff0821eb79e9d62f58b"
+   "hash": "f22eb13194788c8251d1a7a3f632457d"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "f82f3b7df37ad0d14433a947046cc33c"
+   "hash": "fc0fa749173f9c5ceb42f656a27c58b5"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "24eb90910621d08d85e8efb1bd110970"
+   "hash": "f3b2f3b0d3b9a0cc52c703e44e993665"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "e5539feb5c3b99b8fe06fd106458db71"
+   "hash": "0a3e6049e354dc677fb38007af0f8451"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "356052b9bda37b1296fa5f153e29f6a2"
+   "hash": "41230243486051834d2162990381aa10"
   },
   {
    "result": "loss",
    "turns": 16,
-   "hash": "b82afd9b8df056d4e84f64292dfee01e"
+   "hash": "00bdc7e8f0c6cd25b0e7a114f179decd"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "01238b68d39167b973cf7b67cefdfd0f"
+   "hash": "474962079a0cb9cc7002a136505d4602"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "7487372613d0999c76f637f6ef81ddae"
+   "hash": "f7878f90801030867a3023448483c3f1"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "0ff337311566dc13e809f3d6ad03fd10"
+   "hash": "7d086c917977299337f6239dda81b137"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "c80445efd2e7eee5ca5870fc5af937da"
+   "hash": "83fe045602e6cb14d53c8253cdb39d83"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "a191cb1f890b05b21b6b44598fceb1df"
+   "hash": "ceaa4305c38c5236c8050a5ce9896554"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "ff812ac05dc9bc14b6059745c21c6c64"
+   "hash": "772274a2a61a7b56775eb18b3b191043"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "bf00d226186932508cc5e8b5a8a7d41a"
+   "hash": "c461cf07b0c0d9aefc0a33691b633390"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "47222f30029f5ff0b84906e69df633a1"
+   "hash": "55cbda45160ecb9391ec1c704385851e"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "999e26320204c6693e158b129adc8444"
+   "hash": "36644801595c31109201cfd8fdacc698"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "54aeed35f39b795e490827e0731d5933"
+   "hash": "1b6c6c0519adc7f66e1f7ee160fc8a0b"
   },
   {
    "result": "win",
    "turns": 16,
-   "hash": "89deade4911f7e0a5adc787852eb9b8a"
+   "hash": "d609430dc7835416b79029c747305976"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "16decd5eb318ef44028ba5c86b337b9a"
+   "hash": "927dcf39cd626b45e082649d617b30a3"
   },
   {
    "result": "loss",
    "turns": 12,
-   "hash": "f5d7c00aa691b81d4287824de635198c"
+   "hash": "b30083df45316920521636f85846f0c6"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "ac1b00a0744b0db1a041a6aa15500cd8"
+   "hash": "ab78cfaaeb82d2ac6dfd80c65bee43c8"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "216d70655f745eb69cc853bd083e126d"
+   "hash": "51f39c270563af82bb22cc583b2586d9"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "7f8b34b295efedcf220be3e1469840fa"
+   "hash": "b2dee392671e579e35e40be35160e382"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "40f7cfd08ca49d21a302c8e6c4411695"
+   "hash": "04e8d5afb39699353a6e6402363e28ae"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "fc79cc1ad2286be394903d84f2027058"
+   "hash": "188cb60b9ed0a1043a074e38d5a5e529"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "f801a28693033d37b4ca4a061a7f6ab4"
+   "hash": "a972f344bd051a0b7611d16c1f25603e"
   },
   {
    "result": "loss",
    "turns": 2,
-   "hash": "ed0cbf7b2b36722103a50614d1e7419f"
+   "hash": "7f6f7b3fce18b43d429e1ae65544d959"
   },
   {
    "result": "loss",
    "turns": 14,
-   "hash": "f6ef2905d5fbf037b61d924b966c4be9"
+   "hash": "2ee1582c49c7b66ce8e983f59a8f31fa"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "b155688eca3f3068a93fe1e0e35424ab"
+   "hash": "e0a64dd8cac2529b1efe03ac18bed1ff"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "3df92c63587ab5a0db741e0ff726b133"
+   "hash": "8d64b161ae7b1cfa4f44bcf9c1bb6307"
   },
   {
    "result": "loss",
    "turns": 11,
-   "hash": "5702aeca184c3d0b081471476dcf86ec"
+   "hash": "6725274b664b3fc523e762bdafb56e40"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "d2528d4bb1935bec31b660c8f95f4144"
+   "hash": "137e538bdb3188a60dc87a98a96067b2"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "e50ba2247b5589f025fe32dbd711445c"
+   "hash": "e899e2b552930968d3daa543a14cba1e"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "ecfb831ada7229541851fcce6291ce11"
+   "hash": "9b32ee957ead2cf919a8b3f6d9022e8d"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "85af8b48ecd13f2b2421b11b7fe6e27a"
+   "hash": "130c18286c1c8229c0014373de9ba427"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "e39244584dfebe32726647571bff4498"
+   "hash": "7774dd3c29342ac12952c1ef61769162"
   },
   {
    "result": "win",
    "turns": 6,
-   "hash": "40c5d8a558559d6e6a328234c650cec3"
+   "hash": "c9816079ec5d32d8b0a0a8acde669da3"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "d1c79579e7af7c42bb11cbe936f11a0e"
+   "hash": "a82efd86ebfcbee357bba8d7b8ff4bfa"
   },
   {
    "result": "win",
    "turns": 8,
-   "hash": "e6c6097e1466b7a44503b3e4931f3a6f"
+   "hash": "4e983491d0f329f00a0ef67805278444"
   },
   {
    "result": "win",
    "turns": 4,
-   "hash": "7e3339d6ab54de3b9618c234356961b3"
+   "hash": "c662756454ce3379e9d8ca47bf1b2484"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "fb19fec4c432e93e9364cd98babc566f"
+   "hash": "99bd4026c9cdd6796d8d6c690e32e5c6"
   },
   {
    "result": "win",
    "turns": 10,
-   "hash": "07ef013f7cf717bbf94118d767cbdc5a"
+   "hash": "b121d8b6d5ec953a21e15808b2ac6e51"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "202032c166ad93e6fa2608cbb56a8901"
+   "hash": "8dd80cc647fc745f748ad9b4b474f9ce"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "496a7867fc35a0ac77a607d2cc4d5b65"
+   "hash": "16879bbce98e558530d979363d4c222f"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "c1d988fd0dfb0b606aba2358a63a1900"
+   "hash": "8990b1737488321275c6de564c8cbff0"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "be045d201d63c80ceb64b3a5f4ba580c"
+   "hash": "a9b905afc39cdd0b1f4b233ab960189d"
   },
   {
    "result": "win",
    "turns": 15,
-   "hash": "0133801b79586e75f2a11aed8ab46711"
+   "hash": "ba1f879719f7afd8791e5ea5d3ededbe"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "f796fb04b2bf7829d74ced1132fab2ed"
+   "hash": "bd069b0c4d9ea651796eb6db33eec8c0"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "56aa1c082f02e4f3f36d7538a6bae8c6"
+   "hash": "2c2eef6705166202e548f471cd8c65a4"
   },
   {
    "result": "win",
    "turns": 13,
-   "hash": "0517282c368ade3bcbdee76fcd80272f"
+   "hash": "93cf071ecbcd37fbdad45691e2b6e44c"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "87ff08d544622cdb8a39123d6db07406"
+   "hash": "e6fd5941de7b045eae4c901605eb5ac1"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "380ce7c238a5182d26d1d679867a7298"
+   "hash": "324ef7274206e0eb3f76585acf3bf5b1"
   },
   {
    "result": "loss",
    "turns": 12,
-   "hash": "1c6426ad8004ab581b25b85e38b859f1"
+   "hash": "5770c768eba8cae1e277062fe6b06a18"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "13447409ceb19fbb124994122f1b0103"
+   "hash": "a9f6a36f0d3310ccffb0d516c16ed1db"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "b146efcb5f48f3c34b8343cdfa4d0d44"
+   "hash": "e804a175e4f3782c755c839b9f3ba49a"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "b9cd2571c01739e1a978b64cf629da42"
+   "hash": "4dffdb731c24d81a91d2c816a6053733"
   },
   {
    "result": "win",
    "turns": 17,
-   "hash": "affaccf9b5d55aa2b25c9f6fc8c34275"
+   "hash": "4659b7ccf72d3033d2c41b412d8ab013"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "55bbb6424a73f00b2ff9c139e1e9c595"
+   "hash": "0b5dfccbc720a47e89269a199ba98ffd"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "3f1bdce2fff05df14ed5252c8115ef0c"
+   "hash": "e8fc68de6e505b895867de55a949c91e"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "323b513e40003fb6e99b06761aae8ea0"
+   "hash": "bebf549bd06de6945ed30f0464d3c31a"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "e47515379096ed9a2a222ec4a23f3044"
+   "hash": "472c3b1486df4e5fcf0e2191bdd8d9f4"
   },
   {
    "result": "win",
    "turns": 12,
-   "hash": "b8ae415d0dc199681a3253b454b9fc0c"
+   "hash": "550e9d223ad65b6959381fb653165323"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "e43e1d01631cc2940a940c07628b0d0b"
+   "hash": "52a13072263b44efd7f8914d66c70bee"
   },
   {
    "result": "loss",
    "turns": 5,
-   "hash": "806a0e0f7f9f38ec7fa920a4759835c2"
+   "hash": "f49209a86d8c91f99450711a1cfbe6af"
   },
   {
    "result": "win",
    "turns": 1,
-   "hash": "9c214fd7e0b11ed4cc3107a2882286d3"
+   "hash": "5e5f7adde1b94b4d6d265cf90df01c3e"
   },
   {
    "result": "loss",
    "turns": 15,
-   "hash": "5b53a41a17459014ce62876de0d2d779"
+   "hash": "c24143d4eccf087e8d1b492bb405fcee"
   },
   {
    "result": "win",
    "turns": 7,
-   "hash": "7a090968f8f0e92a5d3b2dc98c15e2ac"
+   "hash": "0731b3917a8188d31a4bb4c2a478d211"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "db70ce5cd67234c0cc227375fc654b2f"
+   "hash": "ecc17ae6321ea179d5cb22daa8adfb7f"
   },
   {
    "result": "win",
    "turns": 10,
-   "hash": "e889706ddcc55fa5fbc91bb788b39dde"
+   "hash": "9fec516f3697859c02f88c08628a5c68"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "c16340ac3537c2fe8292c2baff13dfc3"
+   "hash": "2e9c3543e86d8ef1a157ac9fa98d25ce"
   },
   {
    "result": "loss",
    "turns": 6,
-   "hash": "b4103a7a21c2910ab6c1edbc7efa1fa3"
+   "hash": "2eae1971c06e35c2013492cd9a235a63"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "38a0efb5a10b1e6d22eb971b28d17841"
+   "hash": "b471a00b5c666054a2fd3401a2c8f6ba"
   },
   {
    "result": "win",
    "turns": 2,
-   "hash": "0bb35903c82e64f424321a1027bbe0aa"
+   "hash": "2e124e591476357a5ae658db8af67d96"
   },
   {
    "result": "win",
    "turns": 3,
-   "hash": "a78a50aa00f6d0f46eface0f132ab678"
+   "hash": "5c325033fb8c81daa4035930da8f0a70"
   },
   {
    "result": "win",
    "turns": 15,
-   "hash": "09325edb8a71735a4e0ef20def7e6158"
+   "hash": "b409291a05d47c377b9930135eadc7d6"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "f1d59ce1ea8e5ffd37d35efe061addc2"
+   "hash": "2ed3909ca2249178f05e0477232457df"
   },
   {
    "result": "win",
    "turns": 14,
-   "hash": "4ad86d43826ee3c4707ece9b1b9a8a5e"
+   "hash": "940ebdb7225971738bd767d36ed55e9b"
   },
   {
    "result": "loss",
    "turns": 3,
-   "hash": "20257e9276d55fa2d3da5b6fbd690f17"
+   "hash": "2108ee32a4c255f2d015c2f0f51dc60e"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "ac0eab1f5636353cb56fe99ad9aa3d5f"
+   "hash": "84b7442d4f1df0054fb4dc0b987b724d"
   },
   {
    "result": "loss",
    "turns": 4,
-   "hash": "461a17c3dddf435fee12b6e6156002d6"
+   "hash": "168479c596e3d46c6a129ca266d1b1eb"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "147e91fe6f07549de3de1de0c5b199e8"
+   "hash": "f016850d862692bd1bd7906de7c7721b"
   },
   {
    "result": "win",
    "turns": 7,
-   "hash": "7946d51b90b2712567f0e78275b41a2e"
+   "hash": "ff6042e912e91a5a631387115c6627a5"
   },
   {
    "result": "win",
    "turns": 5,
-   "hash": "db8cff773351f26a3ce4efa4a4979697"
+   "hash": "f8003a8f9ecbbe02c8bc1edcf8faa5c2"
   },
   {
    "result": "win",
    "turns": 9,
-   "hash": "831b340f1d6a575104ef9b160885b043"
+   "hash": "5d4093eb30428efa823cb5531acfad3a"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "2ae0e390d6caa0a4bdc8a3355cf8e1d6"
+   "hash": "bb7e2e470b62be098cae1562557f0336"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "d107760a774a698c403057b0be9ea60c"
+   "hash": "df3ca18385415ad8f75f5f662b520608"
   },
   {
    "result": "loss",
    "turns": 10,
-   "hash": "c9ae7a13990e8018ff77b9ce703c2654"
+   "hash": "2910e9fac7c92dd99e1987db25b1f534"
   },
   {
    "result": "loss",
    "turns": 2,
-   "hash": "6c7878a837402a685f10b9b092a21ed9"
+   "hash": "7b3a47cc8cfa45dc3f61b62907778c7f"
   },
   {
    "result": "loss",
    "turns": 8,
-   "hash": "5d24ecad1ad09406fecc399d6c337f69"
+   "hash": "dfd91150b5b254ff93137c5098d7b623"
   },
   {
    "result": "loss",
    "turns": 14,
-   "hash": "8dfacadb0a0946714d927d61fcf3a850"
+   "hash": "4e5c6e5bba51fdf5d288f352a90f36bc"
   },
   {
    "result": "loss",
    "turns": 9,
-   "hash": "50b291bed37d2fc22964b44559416028"
+   "hash": "cbf14267cca3eb81c6be23335236fd5e"
   },
   {
    "result": "loss",
    "turns": 16,
-   "hash": "c5635c03738db358730216a0812a60cd"
+   "hash": "b119e61d0a5aa0b7406afde7db39f683"
   },
   {
    "result": "loss",
    "turns": 7,
-   "hash": "64207958d9e61a734a2bbcc0574b32d3"
+   "hash": "1c4196b18860d6a17a26ff0231132226"
   }
  ]
 }

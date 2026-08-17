@@ -784,36 +784,12 @@ const defs: SkillDef[] = [
     // cleanse re-priced per charge (25 deci): 4 charges = 100 = Bronze exactly.
     effects: [{ kind: 'cleanse', charges: 4 }],
     text: 'Remove up to 4 of your ailments.',
-    // Cleanse is frozen (already at the size-1 empower cap, 100 deci) at every
-    // tier; a TRUE heal (re-priced 2 -> 4 deci/pt, 2026-08-01) plus a weight
-    // dial sinks the rest. Silver: 10×4=40 + 100 cleanse + 10 (weight 8, 2
-    // under baseline) = 150. Gold returns to baseline weight: 25×4=100 + 100 =
-    // 200. Diamond: 35×4=140 + 100 + 10 (weight 8) = 250.
-    tierUpgrades: {
-      silver: {
-        effects: [
-          { kind: 'cleanse', charges: 4 },
-          { kind: 'heal', power: 10 },
-        ],
-        speedWeight: 8,
-        text: 'Remove up to 4 of your ailments. Restore 10 TRUE HP. Light and quick (weight 8).',
-      },
-      gold: {
-        effects: [
-          { kind: 'cleanse', charges: 4 },
-          { kind: 'heal', power: 25 },
-        ],
-        text: 'Remove up to 4 of your ailments. Restore 25 TRUE HP.',
-      },
-      diamond: {
-        effects: [
-          { kind: 'cleanse', charges: 4 },
-          { kind: 'heal', power: 35 },
-        ],
-        speedWeight: 8,
-        text: 'Remove up to 4 of your ailments. Restore 35 TRUE HP. Light and quick (weight 8).',
-      },
-    },
+    // cleanse SCALES with tier (user-locked 2026-08-17): no authored
+    // `tierUpgrades` needed any more. `autoScaleTier` derives the ladder on
+    // its own — cleanse joined the sink kinds, so each tier's full budget
+    // buys more charges instead of a bolted-on TRUE heal: Silver 6 charges
+    // (150 = 15 PL), Gold 8 (200 = 20 PL), Diamond 10 (250 = 25 PL) — each
+    // exact and cap-compliant (tests/engine/tierUpgrades.test.ts).
   },
 
   // ---- Bleed showcase (per-performance DoT) ----

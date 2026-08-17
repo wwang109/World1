@@ -41,16 +41,45 @@ function capture(extra: Partial<CombatConfig>): Entry[] {
 const next = {
   normalization:
     'Hashes are taken through tests/engine/helpers/outcomeHash.ts (shared with outcomeRule.test.ts), ' +
-    'which strips PRESENTATION-ONLY card fields before hashing: `text` anywhere, and `name` on ' +
-    'SkillDef-shaped objects. The sim reads neither, so a content copy-edit no longer forces a ' +
-    'fixture regeneration. Everything the engine consumes — the full event log, all combatant ' +
-    'state (incl. each combatant `name`), and every behavioural SkillDef field (effects, property, ' +
-    'size, speedWeight, cooldownTurns, tier, rarity, element, weapon, scope, aura, special, ' +
-    'tierUpgrades) — is still hashed byte-for-byte. OBJECT KEYS ARE SORTED before ' +
+    'which strips PRESENTATION/AUTHORING-ONLY card fields before hashing: `text` anywhere, `name` ' +
+    'on SkillDef-shaped objects, and (2026-08-17) `tierUpgrades` on SkillDef-shaped objects. The ' +
+    'sim reads none of them at resolved-skill time, so a content copy-edit or a tier-authoring ' +
+    'change no longer forces a fixture regeneration. Everything the engine consumes — the full ' +
+    'event log, all combatant state (incl. each combatant `name`), and every behavioural SkillDef ' +
+    'field (effects, property, size, speedWeight, cooldownTurns, tier, rarity, element, weapon, ' +
+    'scope, aura, special) — is still hashed byte-for-byte. OBJECT KEYS ARE SORTED before ' +
     'stringify (2026-08-09), so the hash is a function of VALUES ONLY and no ' +
     'rebuild-in-a-different-field-order can churn it. ARRAY order is untouched and ' +
     'still fully load-bearing.',
   note:
+    'Regression lock recaptured (2026-08-17) for STRIPPING `tierUpgrades` from the hash — a ' +
+    'REPRESENTATION-ONLY change that moves EVERY hash and NO behaviour. `tierUpgrades` is ' +
+    '*input* consumed only by `applyTier`/`autoScaleTier` (src/engine/cards.ts) at resolve time; ' +
+    'the combat loop never reads it. `resolveEffectiveSkill` returns an UNTIERED piece\'s base ' +
+    '`SkillDef` BY REFERENCE (`piece.tier ? applyTier(def, piece.tier) : def`), so its ' +
+    '`tierUpgrades` rode along into the hash unread — editing an unused tier block used to move ' +
+    'the lock for zero behaviour change. For a TIERED piece the field was never the sole carrier ' +
+    'of a difference either: `applyTier` folds any authored override or the auto-scaler\'s derived ' +
+    'numbers into `effects`/`tier` on the SAME resolved object the hash sees, so a real tier-block ' +
+    'change still moves the hash through those fields with `tierUpgrades` itself excluded. WHY NOW: ' +
+    'unblocks deleting purify\'s three hand-authored `tierUpgrades` blocks (silver/gold/diamond) — ' +
+    'filler TRUE heals bolted on before cleanse could scale with tier — now that `autoScaleTier` ' +
+    'derives the same budget-honest cleanse-charge ladder (6/8/10) on its own (see ' +
+    'tests/engine/tierUpgrades.test.ts, cleanse tier-scaling user-locked 2026-08-17). CONTAINMENT ' +
+    'PROVEN, in the strongest available form: a read-only raw `simulate` dump (full event log, ' +
+    '`turns`, `result`, `finalState` — NOT normalized, NOT hashed) over both 200-fight sweeps, ' +
+    'taken immediately before and immediately after the normalizer edit, was byte-identical in ' +
+    'all 400 cases (SHA-256 of the two dumps matched exactly) — proving `simulate()` itself was ' +
+    'untouched and only the hash DOMAIN moved. Blast radius on the hash itself: 200/200 attritionOn ' +
+    'and 200/200 attritionOff logs changed (188/200 of each decided before ATTRITION_START_TURN), ' +
+    'because 25 of the book\'s 72 skills carry an authored `tierUpgrades` block and all 25 are in ' +
+    'the frozen sweep pool (tests/engine/fixtures/frozenSweepSkillIds.ts) — with boards drawing ' +
+    'several pieces each, nearly every fight includes at least one. `result` and `turns` moved in ' +
+    '0/400 cases (confirmed against `prev` below): every diff is attributable to bytes leaving the ' +
+    'hash input, not to any change in what was simulated. ACCEPTANCE TEST, run immediately after ' +
+    'this regeneration: deleting purify\'s three `tierUpgrades` blocks moved 0/400 of THIS baseline ' +
+    '(vs 200/200 before this normalizer change) — direct proof the narrowing does what it claims. ' +
+    'See tests/engine/helpers/outcomeHash.ts. It supersedes the prior regen: ' +
     'Regression lock recaptured (2026-08-09) for CANONICAL KEY ORDER in the hash ' +
     'normalizer — a REPRESENTATION-ONLY change that moves EVERY hash and NO ' +
     'behaviour. `outcomeHash` ends in JSON.stringify, which serialises object keys ' +
