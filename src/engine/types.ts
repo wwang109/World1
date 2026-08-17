@@ -318,28 +318,40 @@ type ActionKinds =
   /**
    * WARD (self buff) — the AFFLICTION mirror of `negate`. Grants `charges`
    * ward charges on the caster (self) that PREVENT incoming afflictions before
-   * they land: the next `charges` applications of a cleansable status (poison /
-   * burn / bleed / stun / stat debuff / expose) are cancelled outright and never
-   * reach the holder's status list. "Debuff shield." Persists until the charges
-   * run out (no turn expiry); total charges are clamped to `MAX_WARD_CHARGES` at
+   * they land: the next `charges` applications of a WARDABLE status (poison /
+   * burn / bleed / stat debuff / expose) are cancelled outright and never reach
+   * the holder's status list. "Ailment shield." Persists until the charges run
+   * out (no turn expiry); total charges are clamped to `MAX_WARD_CHARGES` at
    * apply time.
    *
-   * ONE CHARGE CANCELS THE WHOLE APPLICATION, regardless of stack count — a
-   * poison-5 costs one charge, not five. That is the `negate` parallel (one
-   * charge = one whole thing denied) and it is deliberately UNLIKE `cleanse`,
-   * which spends one charge per STACK on a stacking DoT. Ward denies every tick
-   * a DoT would ever have dealt; cleanse only strips what is left of one that
-   * already landed. Hence the price ladder cleanse 25 < ward 50 < negate 100
-   * (see `PRICE.wardPerCharge` in balance.ts).
+   * NOT STUN, which cleanse DOES strip — the one difference between `isWardable`
+   * and `isCleansable` (combat/interpreter.ts). User-locked 2026-08-17: ward's
+   * remit is the damage-over-time and stat-debuff family, the effects that sit on
+   * you and grind you down; a stun is LOCKDOWN, a different class of thing, and
+   * is out of scope by design.
+   *
+   * ONE CHARGE CANCELS THE WHOLE APPLICATION, regardless of stack count and
+   * regardless of whether the victim already carries a pile of that kind — a
+   * poison-5 costs one charge, not five, and a poison-5 merging into a standing
+   * poison-3 also costs exactly one. That is the `negate` parallel (one charge =
+   * one whole thing denied) and it is deliberately UNLIKE `cleanse`, which
+   * spends one charge per STACK on a stacking DoT. Ward denies every tick a DoT
+   * would ever have dealt; cleanse only strips what is left of one that already
+   * landed. Hence the price ladder cleanse 25 < ward 50 < negate 100 (see
+   * `PRICE.wardPerCharge` in balance.ts).
+   *
+   * IT PREVENTS, IT DOES NOT CLEANSE: a prevented merge leaves the standing pile
+   * untouched and still ticking. The charge buys "none of the incoming stacks
+   * land", never "the old ones go away".
    *
    * NO `property` FIELD, deliberately: afflictions carry no attacker property to
    * match against (a poison's `property` is the applying CARD's, inherited for
    * DoT mitigation typing, not a defensive axis), so a property dimension here
    * would be a silent no-op. Ward is universal or it is nothing.
    *
-   * It can never block a BUFF (the gate is `isCleansable`, which excludes
-   * guard / negate / thorns / buff), and therefore can never consume ITSELF:
-   * ward is not a cleansable affliction.
+   * It can never block a BUFF (the gate is `isWardable`, built on `isCleansable`,
+   * which excludes guard / negate / thorns / buff), and therefore can never
+   * consume ITSELF: ward is not a cleansable affliction.
    */
   | { kind: 'ward'; charges: number };
 

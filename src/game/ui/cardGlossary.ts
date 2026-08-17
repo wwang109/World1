@@ -201,7 +201,7 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
     case 'ward':
       return {
         title: 'Ward',
-        body: `Prevents the next ${action.charges > 1 ? `${action.charges} ailments` : 'ailment'} outright — poison, burn, bleed, stun, stat debuffs and expose never land. One charge cancels a whole application, however many stacks it carried (max ${MAX_WARD_CHARGES} charges). Buffs are unaffected.`,
+        body: `Prevents the next ${action.charges > 1 ? `${action.charges} ailments` : 'ailment'} outright — poison, burn, bleed, stat debuffs and expose never land, even onto a pile you already carry. One charge cancels a whole application, however many stacks it carried (max ${MAX_WARD_CHARGES} charges). Buffs and stuns are unaffected.`,
       };
     case 'cleanse':
       return {

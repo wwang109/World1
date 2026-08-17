@@ -100,6 +100,28 @@ function isCleansable(kind: StatusInstance['kind']): boolean {
   );
 }
 
+/**
+ * Affliction kinds a `ward` charge can PREVENT: everything `isCleansable`
+ * covers EXCEPT `stun`.
+ *
+ * WARD IS AN AILMENT SHIELD (user-locked 2026-08-17: "ward doesnt affect stun
+ * its only meant for the dots debuff"). Its remit is the damage-over-time and
+ * stat-debuff family — poison, burn, bleed, stat debuffs, expose: effects that
+ * sit on you and grind you down. `stun` is a LOCKDOWN effect, a different class
+ * of thing (it takes a performance away rather than afflicting the unit), and is
+ * out of ward's scope by design.
+ *
+ * `isCleansable` is deliberately UNCHANGED — cleanse still strips stuns. The two
+ * predicates sit side by side precisely so the one-kind difference reads as a
+ * stated design rule rather than a mystery `!==` at a call site.
+ *
+ * A ward still can never consume ITSELF: 'ward' is not cleansable, so it is not
+ * wardable either — this narrowing only removes a kind, never adds one.
+ */
+function isWardable(kind: StatusInstance['kind']): boolean {
+  return isCleansable(kind) && kind !== 'stun';
+}
+
 /** Cleansable afflictions on a unit (what a `cleanse` would strip). */
 function cleansableCount(c: CombatantState): number {
   let n = 0;
@@ -365,6 +387,15 @@ function applyDot(ctx: Ctx, target: CombatantState, kind: 'poison' | 'burn' | 'b
   if (!target.alive || stacks <= 0) return;
   const pile = target.statuses.find((s) => s.kind === kind);
   if (pile) {
+    // WARD taxes a MERGE exactly as `addStatus` taxes a fresh application, and
+    // for the same price: ONE charge cancels ONE whole application. Without this
+    // the keyword half-worked depending on application ORDER — a ward denied an
+    // affliction the holder did not yet have, and did nothing about a top-up of
+    // one they did, i.e. it was weakest precisely when a player would reach for
+    // it. Prevention, not removal: the standing pile below is left untouched
+    // (same stacks, same schedule, still ticking) — only the INCOMING stacks are
+    // denied, and no `statusApplied` is emitted for them.
+    if (consumeWard(ctx, target, kind)) return;
     pile.stacks = (pile.stacks ?? 0) + stacks;
     pile.turnsLeft = pile.stacks;
     pile.source = ctx.source;
@@ -614,23 +645,34 @@ export function cardMatchup(skill: SkillDef, defender: CombatantState): Matchup 
 
 /**
  * WARD CONSUMPTION — the affliction mirror of the `negate` check in `dealDamage`.
+ * THE single implementation, called from BOTH application paths (`addStatus` for
+ * a fresh pile, `applyDot` for a merge into a standing one) so a future fix can
+ * never land on only one of them.
  *
  * Spend ONE ward charge to cancel one whole affliction APPLICATION, whatever its
- * stack count: a poison-5 costs one charge, not five (see the `ward` docs in
- * types.ts — that is the negate parallel, deliberately unlike `cleanse`, which
- * pays per stack). Returns true when the application was prevented, in which case
- * the caller must NOT push the status.
+ * stack count and WHETHER OR NOT the victim already carries a pile of that kind:
+ * a poison-5 costs one charge, not five, and a poison-5 merging into a standing
+ * poison-3 also costs exactly one (see the `ward` docs in types.ts — that is the
+ * negate parallel, deliberately unlike `cleanse`, which pays per stack). Returns
+ * true when the application was prevented, in which case the caller must NOT
+ * apply it: no push, no merge, and no `statusApplied`.
  *
- * Only `isCleansable` kinds are wardable, which is what makes ward unable to
- * block buffs AND unable to consume ITSELF (ward is not cleansable) — no
- * self-reference check is needed, the gate already excludes it.
+ * WARD PREVENTS, IT DOES NOT CLEANSE. A prevented MERGE leaves the standing pile
+ * exactly as it was — same stacks, same tick schedule, same attribution. The
+ * charge buys "none of the incoming stacks land", never "the old ones go away".
+ *
+ * Only `isWardable` kinds get here, which is what makes ward unable to block
+ * buffs, unable to deny a `stun` (out of an ailment shield's remit — see
+ * `isWardable`) AND unable to consume ITSELF: ward is not cleansable, so it is
+ * not wardable, and no self-reference check is needed because the gate already
+ * excludes it.
  *
  * Deterministic: `statuses` is walked BY INDEX and the FIRST ward with charges
  * wins, so co-existing wards are spent in a fixed, lowest-index-first order. No
  * RNG, integer-only.
  */
-function consumeWard(ctx: Ctx, target: CombatantState, status: StatusInstance): boolean {
-  if (!isCleansable(status.kind)) return false;
+function consumeWard(ctx: Ctx, target: CombatantState, kind: StatusInstance['kind']): boolean {
+  if (!isWardable(kind)) return false;
   for (let i = 0; i < target.statuses.length; i += 1) {
     const ward = target.statuses[i]!;
     if (ward.kind !== 'ward' || (ward.charges ?? 0) <= 0) continue;
@@ -641,7 +683,7 @@ function consumeWard(ctx: Ctx, target: CombatantState, status: StatusInstance): 
       kind: 'warded',
       side: target.side,
       unit: target.index,
-      status: status.kind,
+      status: kind,
       chargesLeft: left,
     });
     if (left <= 0) {
@@ -654,19 +696,15 @@ function consumeWard(ctx: Ctx, target: CombatantState, status: StatusInstance): 
 }
 
 /**
- * The single application point for a status pile. Every affliction that lands on
- * a unit passes through here, which is why the WARD hook lives here rather than
- * in each offensive arm.
- *
- * KNOWN LIMIT worth stating: a DoT REAPPLICATION onto an existing pile merges in
- * `applyDot` without reaching this function, so a ward does not tax a top-up of a
- * pile the holder already carried before the ward existed. A ward that blocks the
- * FIRST application never lets a pile exist in the first place, so this only bites
- * when the affliction predates the ward.
+ * The application point for a FRESH status pile — every affliction that lands on
+ * a unit for the first time passes through here, which is why the WARD hook
+ * lives here rather than in each offensive arm. `applyDot`'s MERGE path is the
+ * only other way an affliction reaches a unit, and it calls `consumeWard`
+ * itself; between them the hook covers every application, in either order.
  */
 function addStatus(ctx: Ctx, target: CombatantState, status: StatusInstance): void {
   if (!target.alive) return;
-  if (consumeWard(ctx, target, status)) return;
+  if (consumeWard(ctx, target, status.kind)) return;
   target.statuses.push(status);
   ctx.events.push({
     turn: ctx.state.turn,

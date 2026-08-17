@@ -13,12 +13,18 @@ import type { CombatantState } from '../../src/engine/combat/state';
  *    status never enters `statuses` and no `statusApplied` is emitted for it;
  *  - ONE charge per application regardless of stack count — a poison-5 costs
  *    one charge, not five (the negate parallel, deliberately unlike cleanse);
+ *  - and regardless of APPLICATION ORDER: a MERGE into a pile the holder
+ *    already carries is prevented too, at the same one-charge price. Ward
+ *    PREVENTS rather than cleanses, so the standing pile survives untouched;
  *  - the prevention is announced by a `warded` event that NAMES the affliction
  *    it denied, with the holder's remaining charges;
  *  - charges decrement per prevention and the pile emits `statusExpired` at 0,
  *    after which the next affliction lands normally;
  *  - it cannot block BUFFS (guard/thorns/buffStat), and therefore cannot
  *    consume ITSELF — ward is not a cleansable affliction;
+ *  - it cannot block a STUN either: ward is an ailment shield (DoTs + stat
+ *    debuffs), and lockdown is out of its remit (`isWardable` vs
+ *    `isCleansable` — cleanse still strips stuns);
  *  - total charges clamp to MAX_WARD_CHARGES at apply time.
  */
 
@@ -223,19 +229,95 @@ describe('ward', () => {
     expect(chargesHeld(player)).toBe(MAX_WARD_CHARGES);
   });
 
-  it('a warded event NAMES the prevented affliction kind (debuff / stun / expose too)', () => {
-    // Not just DoTs: every `isCleansable` kind is wardable, and the event must
-    // say which one — a bare "warded" is unrenderable. Note a `debuffStat`
-    // action lands as the status kind 'debuff'.
+  it('a warded event NAMES the prevented affliction kind (debuff and expose, not just DoTs)', () => {
+    // Every `isWardable` kind is prevented, and the event must say WHICH — a
+    // bare "warded" is unrenderable. Note a `debuffStat` action lands as the
+    // status kind 'debuff'. The stun in the middle of this board is deliberate:
+    // it is NOT wardable, so it must pass straight through between the two that
+    // are, without consuming a charge or emitting an event.
     const holder = unit('holder', ['wardThree']);
     const afflicter = unit('afflicter', ['hex', 'bash', 'mark']);
     const { events } = runFull(holder, afflicter);
-    const names = wardedEvents(events).map((e) => e.status);
-    expect(names).toEqual(['debuff', 'stun', 'expose']);
+    expect(wardedEvents(events).map((e) => e.status)).toEqual(['debuff', 'expose']);
     expect(appliedOf(events, 'debuff')).toEqual([]);
-    expect(appliedOf(events, 'stun')).toEqual([]);
     expect(appliedOf(events, 'expose')).toEqual([]);
-    // all three charges spent, in order
-    expect(wardedEvents(events).map((e) => e.chargesLeft)).toEqual([2, 1, 0]);
+    // the stun landed instead of being warded, and cost no charge
+    expect(appliedOf(events, 'stun').length).toBeGreaterThan(0);
+    expect(wardedEvents(events).map((e) => e.chargesLeft)).toEqual([2, 1]);
+  });
+
+  it('does NOT block a stun — lockdown is outside an ailment shield\'s remit', () => {
+    // `isWardable` is `isCleansable` minus stun (user-locked): ward covers the
+    // DoT/stat-debuff family, cleanse still strips stuns.
+    const { events, player } = runFull(unit('holder', ['wardThree']), unit('stunner', ['bash']));
+    expect(appliedOf(events, 'stun').length, 'the stun must land').toBeGreaterThan(0);
+    expect(wardedEvents(events), 'and it must not spend a charge').toEqual([]);
+    expect(chargesHeld(player), 'all charges intact').toBe(MAX_WARD_CHARGES);
+  });
+
+  // ── MERGE PATH: an affliction applied onto a pile the holder ALREADY carries
+  //    is a second application, and ward must tax it exactly like the first.
+  //    Without this, ward half-worked depending on application ORDER — weakest
+  //    precisely when a player would reach for it (already afflicted).
+
+  it('prevents a MERGE into a standing pile, for exactly ONE charge', () => {
+    // T1 the holder is still casting `mend`, so the enemy's poison-3 lands
+    // unopposed. T2 the ward goes up first, then the enemy's poison-FIVE tries
+    // to merge into that standing pile — and is denied for ONE charge, not five.
+    const { events, player } = runFull(
+      unit('holder', ['mend', 'wardThree']),
+      unit('afflicter', ['venom', 'venomFive']),
+    );
+    const applied = appliedOf(events, 'poison');
+    const warded = wardedEvents(events);
+    expect(applied.length, 'only the pre-ward application ever lands').toBe(1);
+    expect(applied[0]!.stacks).toBe(3);
+    expect(warded.length).toBe(1);
+    expect(warded[0]!.status).toBe('poison');
+    expect(warded[0]!.chargesLeft, 'a 5-stack MERGE costs one charge, not five').toBe(MAX_WARD_CHARGES - 1);
+    expect(events.indexOf(warded[0]!), 'the prevention follows the pile it protected').toBeGreaterThan(
+      events.indexOf(applied[0]!),
+    );
+    expect(chargesHeld(player)).toBe(MAX_WARD_CHARGES - 1);
+  });
+
+  it('a prevented merge leaves the standing pile untouched and still ticking', () => {
+    // Ward PREVENTS, it does not cleanse. The pile keeps its own 3 stacks and
+    // its own schedule: a decaying 3-pile deals exactly 3+2+1 = 6 and expires.
+    // Had the poison-5 merged, the pile would have been 8 and dealt 36.
+    const { events } = runFull(
+      unit('holder', ['mend', 'wardThree']),
+      unit('afflicter', ['venom', 'venomFive']),
+    );
+    const ticks = events.filter(
+      (e): e is Extract<CombatEvent, { kind: 'damage' }> =>
+        e.kind === 'damage' && e.source === 'poison' && e.side === 'player',
+    );
+    expect(ticks.map((e) => e.amount)).toEqual([3, 2, 1]);
+    const wardedAt = events.indexOf(wardedEvents(events)[0]!);
+    expect(ticks.filter((t) => events.indexOf(t) > wardedAt).length, 'it keeps ticking after the prevention').toBeGreaterThan(0);
+    expect(events.some((e) => e.kind === 'statusExpired' && e.status === 'poison'), 'and expires on its own schedule').toBe(true);
+  });
+
+  it('works when the ward is applied AFTER the first affliction — every later application is taxed', () => {
+    // The order that used to defeat it entirely: poison first, ward second. Each
+    // subsequent reapplication is a merge, and each must burn a charge until the
+    // pile of charges is gone, after which merges land again.
+    const { events } = runFull(
+      unit('holder', ['mend', 'wardTwo']),
+      unit('afflicter', ['venomQuick']),
+    );
+    const warded = wardedEvents(events);
+    expect(warded.map((e) => e.chargesLeft), 'both charges spent on merges').toEqual([1, 0]);
+    for (const w of warded) expect(w.status).toBe('poison');
+    expect(events.some((e) => e.kind === 'statusExpired' && e.status === 'ward')).toBe(true);
+    const applied = appliedOf(events, 'poison');
+    const firstWard = events.indexOf(warded[0]!);
+    const lastWard = events.indexOf(warded[1]!);
+    expect(events.indexOf(applied[0]!), 'the pre-ward application landed').toBeLessThan(firstWard);
+    expect(
+      applied.some((a) => events.indexOf(a) > lastWard),
+      'and merges land again once the charges are gone',
+    ).toBe(true);
   });
 });
