@@ -1,4 +1,4 @@
-import type { Action, SkillDef } from '../engine/types';
+import { MAX_WARD_CHARGES, type Action, type SkillDef } from '../engine/types';
 
 /**
  * RUNTIME SCHEMA VALIDATION for the JSON content documents.
@@ -57,6 +57,16 @@ const TIERS = ['bronze', 'silver', 'gold', 'diamond'] as readonly string[];
 const ELEMENTS = ['fire', 'frost', 'lightning', 'nature', 'holy', 'dark'] as readonly string[];
 const WEAPONS = ['sword', 'axe', 'lance', 'bow', 'beast'] as readonly string[];
 const BUFFABLE = ['attack', 'magicPower', 'armor', 'magicResist', 'speed'] as readonly string[];
+
+/**
+ * `negate`'s apply-time per-property charge clamp, mirrored from the engine
+ * (`applyAction`'s negate arm in src/engine/combat/interpreter.ts). Unlike ward
+ * — whose clamp is the exported `MAX_WARD_CHARGES` and is imported above — the
+ * negate clamp is still a bare literal at its call site, so this is a MIRROR and
+ * has to move if that literal does. Promoting it to an exported constant in
+ * engine/types.ts alongside MAX_WARD_CHARGES would remove the duplication.
+ */
+const NEGATE_CHARGE_CLAMP = 3;
 
 /** Fields allowed inside a document's `def` payload. `id`/`version` are the KEY
  * and live on the envelope, so finding either in here is a mistake worth naming. */
@@ -140,6 +150,24 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
   const pct = (k: string) => req(raw, k, inRange(-1000, 1000), 'an integer percentage between -1000 and 1000', at, problems);
   const turns = (k: string) => req(raw, k, inRange(0, 99), 'an integer 0..99 turns', at, problems);
   const stacks = (k: string) => req(raw, k, inRange(0, 999), 'an integer 0..999', at, problems);
+  /**
+   * CHARGES ARE RANGE-CHECKED AGAINST THE ENGINE'S APPLY-TIME CLAMP, for two
+   * separate silent-failure reasons:
+   *
+   * OVER the clamp = PAYING PL FOR NOTHING. `applyAction` grants at most the
+   * clamp, but `powerLevelDeci` charges the authored number, so a size-3 bronze
+   * `ward charges: 4` priced clean on budget (480 deci of actions, empower cap
+   * 200) while the engine could only ever grant 3 — 50 deci bought a charge that
+   * can never exist. (`negate` never had this hole by luck: at 100 deci/charge,
+   * 3 charges already blow the size-3 empower cap, so the cap enforced the clamp
+   * for free. Ward's 50 deci/charge rate is what opened it.)
+   *
+   * UNDER zero = BUYING BUDGET. A negative count prices NEGATIVELY —
+   * `ward charges: -3` refunds 150 deci, i.e. 15 PL of headroom for real damage
+   * — and the apply-time `Math.max(0, ...)` then makes it a harmless no-op. So
+   * the floor is 0 for every charge keyword, clamp or no clamp.
+   */
+  const charges = (hi: number) => req(raw, 'charges', inRange(0, hi), 'an integer 0..' + String(hi) + ' (the engine clamps charges at apply time; authoring past the clamp pays PL for a charge that can never be granted, and a negative count would REFUND budget)', at, problems);
 
   // UNKNOWN KEYS on the action itself (fix: `capp` typo used to pass clean).
   const known = ACTION_FIELDS[kind];
@@ -168,9 +196,13 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     case 'disrupt': num('amount'); break;
     case 'expose': pct('pct'); turns('turns'); break;
     case 'guard': property(); pct('pct'); turns('turns'); break;
-    case 'negate': property(); num('charges'); break;
-    case 'ward': num('charges'); break;
-    case 'cleanse': num('charges'); break;
+    case 'negate': property(); charges(NEGATE_CHARGE_CLAMP); break;
+    case 'ward': charges(MAX_WARD_CHARGES); break;
+    // cleanse has NO upper clamp in the engine — every charge is spent against
+    // whatever afflictions are actually present, so a high count is merely
+    // wasteful rather than unbuyable. It gets the same sane authoring ceiling as
+    // `stacks` (catching a stray extra digit) and the same 0 floor as the rest.
+    case 'cleanse': charges(999); break;
     case 'lifesteal': pct('pct'); break;
     case 'shieldBreak': num('amount'); break;
     case 'comboBonus': num('amount'); break;

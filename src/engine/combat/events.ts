@@ -380,9 +380,12 @@ export type CombatEvent =
    *
    * `status` NAMES THE PREVENTED AFFLICTION and is not optional: a bare "warded"
    * with no subject is unrenderable ("blocked… what?") and unverifiable. It is
-   * the kind that was denied (poison / burn / bleed / stun / debuff / expose),
-   * never `'ward'` itself. `chargesLeft` is the holder's remaining ward charges
-   * AFTER this one was spent; at 0 a `statusExpired` for `'ward'` follows
+   * the kind that was denied (poison / burn / bleed / debuff / expose), never
+   * `'ward'` itself. `stun` is NOT in that set: ward's remit is the DoT and
+   * stat-debuff family, and `isWardable` in interpreter.ts excludes lockdown
+   * effects, so a `warded` event can never name a stun.
+   *
+   * `chargesLeft` is the holder's remaining ward charges AFTER this one was spent; at 0 a `statusExpired` for `'ward'` follows
    * immediately, exactly as a spent DoT/thorns pile announces its own expiry.
    *
    * ONE CHARGE PER APPLICATION regardless of stack count, so this event carries

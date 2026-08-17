@@ -267,8 +267,25 @@ export const PRICE = {
    * afflictions are overwhelmingly authored as RIDERS — cards routinely carry a
    * hit plus a rider, so half a card = 50 deci.
    *
-   * That lands ward exactly between the two existing removal keywords, which is
-   * the check that the number is honest:
+   * WHAT A CHARGE ACTUALLY COVERS (state it, don't infer it): a charge denies
+   * one application of a WARDABLE affliction, and that set is exactly
+   *   poison · burn · bleed · debuffStat · expose
+   * — `isWardable` in combat/interpreter.ts, which is `isCleansable` minus
+   * `stun`. STUN IS OUT OF SCOPE (user-locked 2026-08-17): ward is an ailment
+   * shield for the grind-you-down family, not a lockdown answer.
+   *
+   * PRICED AGAINST THAT SET, not by analogy: every application of a covered kind
+   * on the shipped bronze book (n=20), priced through this same table, has a
+   * median of EXACTLY 50 deci — so a charge costs what the thing it denies costs.
+   * Per kind: poison 50, burn 50, bleed 50 (medians); debuffStat 55 and expose 80
+   * sit slightly above, being the two kinds authored at the widest magnitudes.
+   * Removing stun did NOT move this: stun is priced at 100 (stunPerTurn), the one
+   * affliction above a charge's price, and dropping the single shipped 100 from
+   * the pool leaves the median at 50 either way. So the narrowed remit did not
+   * make 50 stale — it removed the only kind a charge was UNDERPAYING for.
+   *
+   * That also lands ward exactly between the two existing removal keywords, which
+   * is the second check that the number is honest:
    *   cleanse 25 < ward 50 < negate 100
    * strictly ABOVE cleanse (which strips an affliction only AFTER it has already
    * ticked, so it recovers part of the damage — ward denies every tick), and

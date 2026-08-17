@@ -34,6 +34,7 @@ immediately):
 | `shield` (TRUE, pure flat, no stat) | `power * flatTrueShieldPerPoint` | `PRICE.flatTrueShieldPerPoint` — typed parity; the TRUE premium is mechanical (typed damage drains the TRUE pool 2:1) |
 | TRUE damage premium | `+truePremiumPerPoint` per point, on top of the flat rate | `PRICE.truePremiumPerPoint` — half-effect rule (user-locked 2026-07-20): TRUE damage costs exactly double typed |
 | `poison` / `bleed` / `burn` | `stacks * dotPerStack` | `PRICE.dotPerStack` — LINEAR PER-STACK (user-locked 2026-07-23); tick gameplay unchanged (poison/bleed decay, burn halves — see `burnTotalDamage`) |
+| `thorns` | `stacks * dotPerStack` | `PRICE.dotPerStack` — the DoT rate, reused: a reflect pile's total is an upper bound realised only while the holder keeps being hit |
 | `stun` | `turns * stunPerTurn` | `PRICE.stunPerTurn` — a consumed performance ≈ a whole Bronze card; sim re-tune deferred |
 | `buffStat` / `debuffStat` | `pct * turns * statPctTurn` | `PRICE.statPctTurn` |
 | `expose` (%amp) | `pct * turns * exposePerPctTurnNum/Den` | `PRICE.exposePerPctTurnNum/Den` — guard parity |
@@ -45,6 +46,7 @@ immediately):
 | `comboBonus` | `amount * comboPerPointNum/Den` | `PRICE.comboPerPointNum/Den` — CONDITIONAL-TRIGGER DISCOUNT (user-locked 2026-07-23): gated riders price at a fraction of their always-on equivalent |
 | `guard` (%DR) | `pct * turns * guardPerPctTurnNum/Den` | `PRICE.guardPerPctTurnNum/Den` — parity with `statPctTurn`; see rationale below |
 | `negate` (charges) | `charges * negatePerCharge` | `PRICE.negatePerCharge` — flat per-charge; see rationale below |
+| `ward` (charges) | `charges * wardPerCharge` | `PRICE.wardPerCharge` — half a negate charge: a charge denies one whole affliction APPLICATION (poison / burn / bleed / debuffStat / expose — not stun) rather than a card's whole damage line, and 50 deci is the median price of an application of a covered kind across the shipped book |
 | multi-hit premium | `(damageActions − 1) * extraHitPremium` | `PRICE.extraHitPremium` — every hit beyond the first re-delivers the caster's full (unpriced) stat add, so each extra hit pays a flat surcharge; each extra hit also eats mitigation again, the built-in counterweight vs armor stacks. First-pass rate, re-derive with sim data |
 | aura `damageFlat` / `healFlat` / `weightDelta` | `mod * rate * reach` (reach = 2 for `allBoard`, else 1) | `PRICE.auraDamageFlat` / `auraHealFlat` / `auraWeightDelta` — flat auras cost 2× a card's own one-shot flat damage: empirically the break-even where the best adjacent placement (2 casting neighbors) is PL-fair (2026-07-23 audit) |
 | weight | `(baseline − weight) * weightPer`, baseline = `size * 10` | `PRICE.weightPer` — lighter costs, heavier refunds |
@@ -61,7 +63,8 @@ run `npm test` — the audit names any cap it breaks.**
 
 - Families: `control` (stun, slow, disrupt, stat-down, expose, shieldBreak) ·
   `dot` (poison + burn + bleed combined) · `empower` (stat-up, guard, negate,
-  cleanse, lifesteal, combo) · `damage` · `shield` · `heal`. Membership sets:
+  ward, cleanse, lifesteal, combo, thorns) · `damage` · `shield` · `heal`.
+  Membership sets:
   `CONTROL_KINDS` / `DOT_KINDS` / `EMPOWER_KINDS`.
 - **Every family's cap is FROZEN across tiers** (user-locked 2026-07-23,
   `TIER_SCALED_FAMILIES` is empty): ranking a card up buys NEW EFFECTS, not
@@ -174,9 +177,9 @@ gem effects — no duplicated switch.
 PL must be fixed regardless of which card it's later socketed into — but
 `actionsPriceDeci` reads `property` for exactly one case, a raw
 `damage`/`heal`/`shield` action. Fixing the property to `physical` means:
-- Riders with no property dependence (poison, stun, buffStat, slow, disrupt,
-  lifesteal, shieldBreak, comboBonus, guard, negate, cleanse) price
-  identically no matter what property is picked.
+- Riders with no property dependence (poison, thorns, stun, buffStat, slow,
+  disrupt, lifesteal, shieldBreak, comboBonus, guard, negate, ward, cleanse)
+  price identically no matter what property is picked.
 - The **TRUE premium never applies to gems** — it's a charge on the CASTING
   card's property, applied outside the gem path; gems never see it.
 

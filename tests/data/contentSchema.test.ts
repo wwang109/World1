@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { actionsPriceDeci, capViolations, isOnBudget } from '../../src/engine/balance';
+import { MAX_WARD_CHARGES, type SkillDef } from '../../src/engine/types';
 import { validateSkillDocument } from '../../src/data/validateSkillContent';
 import { findDuplicateKeys } from '../../scripts/jsonDuplicateKeys';
 import document from '../../src/data/content/skills.v1.json';
@@ -153,5 +155,65 @@ describe('data: content schema contract', () => {
     const d = clone();
     (vers(d)[0]!.def.effects as Array<Record<string, unknown>>)[0]!.kind = 'teleport';
     failsWith(d, 'unhandled action kind');
+  });
+
+  /**
+   * CHARGE COUNTS ARE BOUNDED BY THE ENGINE'S APPLY-TIME CLAMP.
+   *
+   * Both directions are a SILENT ZERO, which is why the schema — not judgement —
+   * has to hold the line:
+   *
+   *  - ABOVE the clamp, the card PAYS for a charge it can never receive.
+   *    `applyAction` grants at most `MAX_WARD_CHARGES`, but `powerLevelDeci`
+   *    charges the authored count, so `ward charges: 4` on a size-3 bronze card
+   *    priced exactly on budget AND under the empower cap while the 4th charge
+   *    was unreachable. The first test below pins that whole story: the two
+   *    balance gates say yes, and the document validator is what says no.
+   *  - BELOW zero, the card BUYS budget. Charges price linearly with no floor,
+   *    so `ward charges: -3` refunds 150 deci (15 PL) of headroom for real
+   *    damage, and the apply-time `Math.max(0, ...)` makes it a no-op.
+   */
+  describe('charge counts are bounded by the engine clamp', () => {
+    const withEffects = (effects: Array<Record<string, unknown>>): Doc => {
+      const d = clone();
+      vers(d)[0]!.def.effects = effects;
+      return d;
+    };
+    const passes = (effects: Array<Record<string, unknown>>): void => {
+      expect(validateSkillDocument(withEffects(effects))).toEqual([]);
+    };
+
+    it('ward past MAX_WARD_CHARGES is rejected — the balance gates alone let it through', () => {
+      const overClamp: SkillDef = {
+        id: 'test_ward_over_clamp', name: 'Over-Warded', archetypes: ['defensive'],
+        property: 'physical', size: 3, rarity: 'common', tier: 'bronze', weapon: 'sword',
+        effects: [{ kind: 'ward', charges: MAX_WARD_CHARGES + 1 }, { kind: 'damage', power: 56 }],
+        text: 'Ward 4. Deal 56 (+ATK) Sword damage.',
+      };
+      // The card the engine can never honour is, to the balance gates, perfect.
+      expect(isOnBudget(overClamp), 'prices exactly on the bronze budget').toBe(true);
+      expect(capViolations(overClamp), 'breaks no effect cap').toEqual([]);
+      // The schema is the gate that catches it.
+      failsWith(withEffects([{ kind: 'ward', charges: MAX_WARD_CHARGES + 1 }]), 'charges must be an integer 0..3');
+    });
+
+    it('negative charges are rejected for ward, negate and cleanse (they REFUND budget)', () => {
+      failsWith(withEffects([{ kind: 'ward', charges: -3 }]), 'charges must be an integer 0..3');
+      failsWith(withEffects([{ kind: 'negate', property: 'magical', charges: -1 }]), 'charges must be an integer 0..3');
+      failsWith(withEffects([{ kind: 'cleanse', charges: -1 }]), 'charges must be an integer 0..999');
+      // The refund is real, not theoretical — this is what the floor closes.
+      expect(actionsPriceDeci([{ kind: 'ward', charges: -3 }], 'physical')).toBe(-150);
+    });
+
+    it('negate past its per-property clamp is rejected', () => {
+      failsWith(withEffects([{ kind: 'negate', property: 'magical', charges: 4 }]), 'charges must be an integer 0..3');
+    });
+
+    it('every count the engine can actually grant still validates', () => {
+      for (let n = 0; n <= MAX_WARD_CHARGES; n += 1) passes([{ kind: 'ward', charges: n }]);
+      for (let n = 0; n <= 3; n += 1) passes([{ kind: 'negate', property: 'magical', charges: n }]);
+      // cleanse has no engine clamp — spare charges simply find nothing to strip.
+      for (const n of [0, 1, 4, 999]) passes([{ kind: 'cleanse', charges: n }]);
+    });
   });
 });
