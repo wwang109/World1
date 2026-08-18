@@ -210,13 +210,116 @@ function weightWithGemIncrease(base: number, pct: number): number {
 }
 
 /**
- * The skill actually cast from this piece. An effect gem appends its actions
- * AFTER the base effects (fixed order: base first, gem after), and — if it
- * carries `cooldownReduction` / `weightIncreasePct` — shortens the card's
- * effective cooldown by that many turns (floored at 0) / raises its effective
- * initiative weight by that percentage. Any other case (no gem / stat gem / an
- * effect gem with none of the three) returns the original def unchanged (same
- * reference).
+ * WHERE a gem's action splices into its host card — BEFORE the host's own
+ * effects (`pre`) or after them (`post`).
+ *
+ * A PROPERTY OF THE ACTION KIND, NOT OF THE GEM (the defect this table exists
+ * to close, 2026-08-17). Gem actions used to be appended unconditionally, which
+ * is only correct for the kinds that READ what the cast already did. The two
+ * kinds that must be in place BEFORE the host's damage resolves were therefore
+ * dead or degraded on every host that shipped them:
+ *   • `comboBonus` writes `cast.bonusFlat`, which only the `damage` arm reads —
+ *     appended last there is no damage action left to read it, so the whole
+ *     keyword was a no-op on a gem (`follow_through_echo` did literally
+ *     nothing);
+ *   • `shieldBreak` opens the victim's plating for the hit that follows it —
+ *     appended last it could only ever help some LATER cast
+ *     (`shield_splitter_echo` watched the host's own hit get absorbed first).
+ * `lifesteal` reads `cast.damageDealt` and so genuinely wants `post`, which is
+ * why the old unconditional append was accidentally right for it.
+ *
+ * EXHAUSTIVE BY TYPE (`Record<Action['kind'], ...>`): a new `Action` kind does
+ * not compile until its author states where a gem carrying it belongs, so the
+ * next "must precede damage" keyword cannot repeat the same silent failure.
+ * This mirrors the ordering convention content already follows by hand — the
+ * two authored cards carrying these kinds (`shield_splitter`, `follow_through`)
+ * both put them first, ahead of their damage line.
+ *
+ * SCOPE: this decides only where GEM actions splice in. A card's OWN authored
+ * effect order is never reordered — `spliceGemActions` keeps `base` intact and
+ * contiguous between the two gem blocks.
+ */
+type GemPhase = 'pre' | 'post';
+
+const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
+  // --- Runs BEFORE the host's effects: it PREPARES the ground for them. ---
+  /** Arms `cast.bonusFlat` so the host's damage arm can read it. */
+  comboBonus: 'pre',
+  /** Strips plating so the host's hit lands on HP, not on a shield. */
+  shieldBreak: 'pre',
+  // --- Runs AFTER, because it READS what the cast already did. ---
+  /** Reads `cast.damageDealt` — must trail every hit of the cast. */
+  lifesteal: 'post',
+  // --- Runs AFTER, matching the convention every authored card follows. ---
+  // Extra hits: additive to the host's kit, never ahead of it (a gem hit takes
+  // no attacker-side bonus and no stat split — see `GemAppended`).
+  damage: 'post',
+  statStrike: 'post',
+  // Offensive statuses the CARD catalog also places after its own hit
+  // (debuffStat 6/6, expose 1/1, bleed 1/1). They would amplify the host's own
+  // hit if hoisted — that is a balance change, not an ordering defect, so a gem
+  // sits exactly where a card would put it. `bleed` additionally cannot be
+  // applied while the victim holds a shield, so trailing the hit (which may
+  // have spent that shield) is also its STRONGER placement.
+  debuffStat: 'post',
+  expose: 'post',
+  bleed: 'post',
+  // --- Runs AFTER; nothing inside one cast can read these back. ---
+  // (`guard`/`negate`/`ward`/`shield` only meet an INCOMING hit, and the only
+  // damage a caster can take mid-cast is a `thorns` reflect, which is TRUE —
+  // it never matches a typed guard/negate and only ever drains the `true`
+  // shield pool. So hoisting them would change nothing.)
+  heal: 'post',
+  shield: 'post',
+  poison: 'post',
+  burn: 'post',
+  stun: 'post',
+  cleanse: 'post',
+  thorns: 'post',
+  taunt: 'post',
+  slow: 'post',
+  disrupt: 'post',
+  guard: 'post',
+  negate: 'post',
+  ward: 'post',
+  // --- Runs AFTER, but knowingly UNLIKE the card convention. ---
+  // The two authored cards pairing a self-buff with a hit (`storm_surge`,
+  // `thunder_step`) buff FIRST, so their own hit swings with the buff. A gem
+  // `buffStat` kept at `post` therefore only pays off on the caster's LATER
+  // casts inside the buff's window — real, readable, but weaker than the same
+  // line on a card. Left as-is deliberately: it is the shipped behavior and
+  // moving it would raise what the gem is worth, which is a pricing decision
+  // (balance-designer), not part of closing this ordering defect.
+  buffStat: 'post',
+};
+
+/**
+ * Fold a gem's actions into the host's, each at its declared phase
+ * (`GEM_ACTION_PHASE`). `base` is copied through UNTOUCHED and contiguous — a
+ * card's authored order is never rewritten — with the gem's `pre` actions ahead
+ * of it and its `post` actions behind it, each block keeping the gem's own
+ * authored order. Plain index walks: no Map/Set iteration, no RNG, no float.
+ */
+function spliceGemActions(base: readonly Action[], gemActions: readonly Action[]): Action[] {
+  const pre: Action[] = [];
+  const post: Action[] = [];
+  for (const action of gemActions) {
+    const marked = markFromGem(action);
+    if (GEM_ACTION_PHASE[action.kind] === 'pre') pre.push(marked);
+    else post.push(marked);
+  }
+  return [...pre, ...base, ...post];
+}
+
+/**
+ * The skill actually cast from this piece. An effect gem splices its actions
+ * into the base effects at the phase its KIND declares (`GEM_ACTION_PHASE`:
+ * `comboBonus`/`shieldBreak` ahead of the card, everything else after it), and
+ * — if it carries `cooldownReduction` / `weightIncreasePct` — shortens the
+ * card's effective cooldown by that many turns (floored at 0) / raises its
+ * effective initiative weight by that percentage. Any other case (no gem / stat
+ * gem / an effect gem with none of the three) returns the original def
+ * unchanged (same reference).
  *
  * THE PROVENANCE SEAM (user-locked 2026-08-07): every appended action is
  * stamped `fromGem: true` HERE — not inferred later. That single mark is what
@@ -237,7 +340,7 @@ export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece): SkillDe
   if (gem.actions.length === 0 && cooldownReduction === 0 && weightIncreasePct <= 0) return tiered;
 
   const effects = gem.actions.length > 0
-    ? [...tiered.effects, ...gem.actions.map(markFromGem)]
+    ? spliceGemActions(tiered.effects, gem.actions)
     : tiered.effects;
   if (cooldownReduction === 0 && weightIncreasePct <= 0) return { ...tiered, effects };
 
