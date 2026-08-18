@@ -424,6 +424,60 @@ const defs: SkillDef[] = [
       },
     },
   },
+  {
+    // PHYSICAL negate (2026-08-18) — `extraHitPremium` is justified in its own
+    // comment (src/engine/balance.ts) by "negate cancels ONE hit per charge",
+    // but until now the only `negate` card in the book was `ward_of_silence`,
+    // fixed at `property: 'magical'`; every PHYSICAL multi-instance card
+    // (barrage, rapid_volley, twin_slash) paid that premium for a counter
+    // nothing in the game could grant them. This closes that gap.
+    //
+    // DELIBERATELY NOT a re-skin of Ward of Silence: that card sinks its
+    // higher tiers into a passive magical SHIELD (absorb-and-wait). Iron
+    // Riposte sinks into physical DAMAGE instead (parry, then punish) — a
+    // block that turns into a counter-attack rather than a wall, so the two
+    // negate cards play differently, not just narrate differently.
+    id: 'iron_riposte',
+    name: 'Iron Riposte',
+    archetypes: ['defensive'],
+    property: 'physical',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    weapon: 'sword',
+    // negatePerCharge 100 deci = 1 charge = Bronze exactly (same shape as
+    // ward_of_silence — negate is frozen `empower`, capped at 100 deci for
+    // size 1 at EVERY tier, so 2 charges (200 deci) would blow the cap alone
+    // and a second empower effect has zero room beside it). `damage` is its
+    // own family (not `empower`), so it is the legal sink: Silver 10 (50) +
+    // 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250 —
+    // verified against src/engine/balance.ts's powerLevelDeci/capViolations.
+    effects: [{ kind: 'negate', property: 'physical', charges: 1 }],
+    text: '{{Negate}} the next physical attack.',
+    tierUpgrades: {
+      silver: {
+        effects: [
+          { kind: 'negate', property: 'physical', charges: 1 },
+          { kind: 'damage', power: 10 },
+        ],
+        text: '{{Negate}} the next physical attack · Deal 10 (+ATK) Sword damage.',
+      },
+      gold: {
+        effects: [
+          { kind: 'negate', property: 'physical', charges: 1 },
+          { kind: 'damage', power: 20 },
+        ],
+        text: '{{Negate}} the next physical attack · Deal 20 (+ATK) Sword damage.',
+      },
+      diamond: {
+        effects: [
+          { kind: 'negate', property: 'physical', charges: 1 },
+          { kind: 'damage', power: 30 },
+        ],
+        text: '{{Negate}} the next physical attack · Deal 30 (+ATK) Sword damage.',
+      },
+    },
+  },
 
   // ---- Healing ----
   {

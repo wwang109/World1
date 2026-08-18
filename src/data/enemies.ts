@@ -24,6 +24,10 @@ import type { EnemyDef } from '../engine/types';
 // hand-inflated numbers here.
 export const enemies: Record<string, EnemyDef> = {
   // --- Basic floor: 2-3 Bronze cards, one mechanic each. ---
+  // THIEF read (2026-08-18 theme pass): the roster's fastest, lightest board
+  // — 2 cards, no size-2/3 card, no defensive investment — wins by chip
+  // damage (a bite plus a poison tick) rather than one big hit. Cards
+  // unchanged; this is a naming/reporting pass, not a re-kit.
   giant_rat: {
     id: 'giant_rat',
     name: 'Giant Rat',
@@ -38,13 +42,22 @@ export const enemies: Record<string, EnemyDef> = {
     goldReward: 12,
     xpReward: 8,
   },
+  // WARDEN re-theme (2026-08-18): dropped `weaponAffinity: 'beast'` — Iron
+  // Bulwark, its shield, is a `weapon: 'sword'` card, so the old dual
+  // affinity claimed a weapon identity its own board never showed (an
+  // authored affinity that the board contradicts is exactly the legibility
+  // bug this pass is closing). Nature is a flavour/matchup identity ON THE
+  // CREATURE ITSELF (its shell), not a claim that its cards are nature-typed
+  // — the same convention every caster on the roster (Ember Imp, Seraph,
+  // Mage, Necromancer, Cleric) already uses, just without a weapon leg. No
+  // pieces changed: still the roster's armored tank (shield + a bite), now
+  // read as a Warden rather than a mislabeled Beast-weapon user.
   stone_beetle: {
     id: 'stone_beetle',
     name: 'Stone Beetle',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     elementAffinity: 'nature',
-    weaponAffinity: 'beast',
     boardSize: 3,
     pieces: [
       { skillId: 'iron_bulwark', slot: 0 },
@@ -143,34 +156,52 @@ export const enemies: Record<string, EnemyDef> = {
     goldReward: 20,
     xpReward: 13,
   },
-  // Adds War Banner — the roster's only `aura` card, passively buffing this
-  // board's own Offense cards (Sword Slash). Knight keeps its existing Iron
-  // Bulwark shield (one of the roster's original 2 shielded enemies).
+  // WARDEN (2026-08-18): swaps Iron Bulwark for Iron Riposte — the roster's
+  // only PHYSICAL `negate` (Ward of Silence is the sole magical one),
+  // deliberately placed here rather than on whichever board "happened to
+  // have room": Knight is the roster's one dedicated shield-and-block
+  // identity, so a second denial tool belongs on it. This is a SWAP, not an
+  // addition — `pieces.length` stays 3 (unlike an add, which would push the
+  // roster's worst-case deck size past 3 and silently move
+  // `REFERENCE_ENEMY_DECK_SIZE`, a run-layer pack-budget constant, out from
+  // under gameplay-programmer). Iron Bulwark's passive shield is replaced by
+  // a HARDER defensive tool (a parry that denies a hit outright, then
+  // counters); War Banner (aura) and Sword Slash (its own swing) are
+  // untouched. Iron Bulwark's shielded-enemy slot moves to Berserker (below)
+  // to keep the roster's 4 shielded enemies whole.
   knight: {
     id: 'knight',
     name: 'Knight',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'sword',
-    boardSize: 4,
+    boardSize: 3,
     pieces: [
       { skillId: 'sword_slash', slot: 0 },
-      { skillId: 'iron_bulwark', slot: 1 },
-      { skillId: 'war_banner', slot: 3 },
+      { skillId: 'iron_riposte', slot: 1 },
+      { skillId: 'war_banner', slot: 2 },
     ],
     goldReward: 22,
     xpReward: 15,
   },
+  // LIGHTNING re-theme (2026-08-18): declared `elementAffinity: 'fire'` while
+  // its board carried Fireball (fire) AND Arcane Bolt (lightning) — a
+  // straight affinity/card contradiction, and a redundant one, since Ember
+  // Imp already owns "fire" as a roster identity (the DoT-forward imp).
+  // Swapped Fireball for Static Jolt (also lightning) so BOTH cards on the
+  // board agree with the declared affinity: Mage is now the roster's pure
+  // arcane blaster (no rider, no DoT, no debuff — a flat MATK glass cannon),
+  // cleanly distinct from Ember Imp (fire/burn) and Necromancer (dark/curse).
   mage: {
     id: 'mage',
     name: 'Mage',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    elementAffinity: 'fire',
-    boardSize: 3,
+    elementAffinity: 'lightning',
+    boardSize: 2,
     pieces: [
-      { skillId: 'fireball', slot: 0 },
-      { skillId: 'arcane_bolt', slot: 2 },
+      { skillId: 'static_jolt', slot: 0 },
+      { skillId: 'arcane_bolt', slot: 1 },
     ],
     goldReward: 19,
     xpReward: 13,
@@ -193,38 +224,51 @@ export const enemies: Record<string, EnemyDef> = {
     goldReward: 17,
     xpReward: 11,
   },
-  // Adds Hamstring — a lance `slow` card, reinforcing Rogue's already
-  // control-forward identity (poison + attack debuff + slow) as the
-  // roster's dedicated debuff specialist.
+  // LANCE re-theme (2026-08-18), renamed Rogue -> Lancer: declared
+  // `weaponAffinity: 'beast'` while 2 of its 3 cards (Crippling Strike,
+  // Hamstring) were already `weapon: 'lance'` — a majority-vs-declared
+  // affinity contradiction, and the roster had ZERO lance-identity enemy to
+  // show for it (sword x2, axe x1, bow x1, beast x3, lance x0 among the
+  // physical fighters). Swapped the one beast card (Venom Fang) for Lance
+  // Thrust so all three cards agree, and fixed the declared affinity to
+  // match. Reads as reach-and-thrust: Lance Thrust closes distance, Crippling
+  // Strike cripples the follow-up, Hamstring holds the enemy at bay with
+  // `slow` — the id stays `rogue` (referenced by MONSTER_PROFILES/save data),
+  // only the display name and kit change.
   rogue: {
     id: 'rogue',
-    name: 'Rogue',
+    name: 'Lancer',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
-    weaponAffinity: 'beast',
+    weaponAffinity: 'lance',
     boardSize: 4,
     pieces: [
-      { skillId: 'venom_fang', slot: 0 },
+      { skillId: 'lance_thrust', slot: 0 },
       { skillId: 'crippling_strike', slot: 1 },
       { skillId: 'hamstring', slot: 3 },
     ],
     goldReward: 20,
     xpReward: 13,
   },
-  // Battle Howl (a redundant self-buff on a single-target basic attacker)
-  // swapped for Stunning Smash — a pure `stun` card, priced identically to
-  // any player card of the same kit (a full turn spent stunning instead of
-  // attacking; no free lunch). Berserker keeps its signature Crushing Blow.
+  // BRUTE (2026-08-18): Battle Howl (a redundant self-buff) was already
+  // swapped for Stunning Smash — a pure `stun`, a full turn spent stunning
+  // instead of attacking, no free lunch. Adds Iron Maiden (thorns + a
+  // physical shield) as a 3rd piece — thick hide that punishes whoever hits
+  // it, reinforcing "heavy, slow, hits hard" rather than diluting it (Iron
+  // Maiden is itself a size-2, naturally-heavy card; zero speed-weighted
+  // profile spend, see MONSTER_PROFILES) — and picks up the roster's 4th
+  // shielded enemy, the slot Knight's Iron Bulwark vacated above.
   berserker: {
     id: 'berserker',
     name: 'Berserker',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'axe',
-    boardSize: 4,
+    boardSize: 6,
     pieces: [
       { skillId: 'crushing_blow', slot: 0 },
-      { skillId: 'stunning_smash', slot: 3 },
+      { skillId: 'iron_maiden', slot: 3 },
+      { skillId: 'stunning_smash', slot: 5 },
     ],
     goldReward: 24,
     xpReward: 16,

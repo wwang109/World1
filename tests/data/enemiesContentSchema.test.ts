@@ -65,7 +65,7 @@ describe('data: enemies content schema contract', () => {
     failsWith(d, 'missing required field speed');
   });
 
-  it('an enemy carrying BOTH elementAffinity and weaponAffinity validates (unlike a card, an enemy is not one type badge — stone_beetle is exactly this)', () => {
+  it('an enemy carrying BOTH elementAffinity and weaponAffinity validates (unlike a card, an enemy is not one type badge — stone_beetle carried exactly this until the 2026-08-18 theme pass dropped its `weaponAffinity`, a real card the field never matched; the rule stays validator-enforced even with no live example on the shipped roster today)', () => {
     const d = clone();
     vers(d)[0]!.def.elementAffinity = 'fire';
     vers(d)[0]!.def.weaponAffinity = 'sword';
