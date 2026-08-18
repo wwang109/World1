@@ -16,7 +16,21 @@ function skillName(skillId: string): string {
 export function choiceOutcomeHint(outcome: EventChoiceOutcome): string {
   if (outcome.kind === 'gamble') return 'GAMBLE';
   switch (outcome.kind) {
-    case 'grantCard': return `CARD${outcome.tier ? ` (${outcome.tier.toUpperCase()})` : ''}`;
+    case 'grantCard': {
+      // A `cardId`-pinned choice (e.g. veterans_last_lesson's "take the
+      // veteran's blade", ruined_anvil's two same-card-different-tier
+      // choices) names an EXACT card — show its real name, not the generic
+      // "CARD (TIER)" placeholder, so two choices offering different tiers
+      // of the same known card actually read as different (previously both
+      // rendered as indistinguishable "CARD (TIER)" text). A `filter`-driven
+      // (or filterless) choice still doesn't know WHICH card it'll resolve
+      // to until the seeded roll happens, so it keeps the generic form —
+      // labeled "RANDOM" rather than bare "CARD" so a player isn't misled
+      // into thinking it's also fixed.
+      const tierSuffix = outcome.tier ? ` (${outcome.tier.toUpperCase()})` : '';
+      if (outcome.cardId) return `${skillName(outcome.cardId).toUpperCase()}${tierSuffix}`;
+      return `RANDOM CARD${tierSuffix}`;
+    }
     case 'grantGem': return 'GEM';
     case 'grantGold': return `+${outcome.amount} GOLD`;
     case 'loseGold': return `-${outcome.amount} GOLD`;

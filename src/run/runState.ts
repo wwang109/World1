@@ -372,7 +372,7 @@ export function fightTableEntryForNode(node: Pick<RunNode, 'fightNumber' | 'figh
  * run's shop shelves get progressively less bronze-heavy as its fights get
  * harder, then plateau at the deepest band once the run runs long enough.
  */
-function shopStockDepthForWave(wave: number): number {
+export function shopStockDepthForWave(wave: number): number {
   if (wave <= 1) return 2;
   if (wave <= 3) return 5;
   return 8;

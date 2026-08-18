@@ -11,10 +11,11 @@ import { eventCatalog, eventCatalogIds, type EventChoiceDef, type EventChoiceOut
 import type { DraftCard } from './draft';
 import { skillBook } from '../data/skills';
 import { gemBook } from '../data/gems';
-import { cardMatchesFilter, gemMatchesFilter } from './shop';
+import { cardMatchesFilter, gemMatchesFilter, pickWeightedGem } from './shop';
 import {
   currentEventNode,
   MAX_LEVEL,
+  shopStockDepthForWave,
   tryInsertRunCard,
   type RunNode,
   type RunState,
@@ -285,16 +286,31 @@ function grantCardOutcome(
   return { state: inserted.state, outcome: { kind: 'grantCard', skillId, tier } };
 }
 
+/**
+ * `depth` is the SAME wave->depth band `rollShopStock` uses for its own
+ * bronze/silver/gold + gem-rarity gating (`shopStockDepthForWave`, shared
+ * from `runState.ts`, never re-derived here) — routing an event's gem grant
+ * through `pickWeightedGem` (shared from `shop.ts`) means a wave-1 event
+ * grant is gated out of Legendary exactly the same as a wave-1 shop shelf
+ * is, instead of the old uniform `rng.pick(Object.values(gemBook))` that let
+ * a free event hand out an ~11.4%-chance Legendary at ANY depth (shop gates
+ * that to ~0% before `LEGENDARY_GATE_DEPTH`). This changes which gem a fixed
+ * (state, choiceId) resolves to versus before — see the module-level
+ * determinism note this function's caller (`resolveEventChoice`) still
+ * honors: one `Rng` per `(eventSeed, choiceId)`, one draw call here, in the
+ * same fixed order as before — only the VALUE that draw resolves to differs.
+ */
 function grantGemOutcome(
   state: RunState,
   rng: Rng,
   spec: Extract<EventOutcomeSpec, { kind: 'grantGem' }>,
+  depth: number,
 ): { state: RunState; outcome: EventOutcome } {
   let gemId = spec.gemId;
   if (!gemId) {
     const pool = Object.values(gemBook).filter((g) => (spec.filter ? gemMatchesFilter(g, spec.filter) : true));
     if (pool.length === 0) throw new Error('grantGem: no gem matches the given filter');
-    gemId = rng.pick(pool).id;
+    gemId = pickWeightedGem(rng, pool, depth).id;
   }
   return {
     state: { ...state, gemInventory: [...state.gemInventory, gemId] },
@@ -380,13 +396,15 @@ function bonusDraftOutcome(
   return { kind: 'bonusDraft', cards: picked.map((s) => toDraftCard(s.id)) };
 }
 
-/** Applies a single (already-rolled, non-gamble) outcome spec. */
-function applySpec(state: RunState, rng: Rng, spec: EventOutcomeSpec): { state: RunState; outcome: EventOutcome } {
+/** Applies a single (already-rolled, non-gamble) outcome spec. `depth` is the
+ * node's shop-stock-equivalent depth band (see `grantGemOutcome`'s doc
+ * comment) — only `grantGem` consumes it today. */
+function applySpec(state: RunState, rng: Rng, spec: EventOutcomeSpec, depth: number): { state: RunState; outcome: EventOutcome } {
   switch (spec.kind) {
     case 'grantCard':
       return grantCardOutcome(state, rng, spec);
     case 'grantGem':
-      return grantGemOutcome(state, rng, spec);
+      return grantGemOutcome(state, rng, spec, depth);
     case 'grantGold':
       return {
         state: {
@@ -443,7 +461,12 @@ function rollGamble(rng: Rng, table: readonly GambleRow[]): EventOutcomeSpec {
  * applies the resulting outcome spec. All rolls derive from
  * `hashSeed('event', node.eventSeed, choiceId)` (fixed call order: the gamble
  * roll, if any, THEN the outcome's own roll, if any — e.g. a `grantCard` with
- * a `filter` draw). Throws if there's no active event node, or `eventId`/
+ * a `filter` draw). A `grantGem` outcome's own draw is gated/weighted by the
+ * active node's `shopStockDepthForWave(node.wave)` depth band — the SAME gem
+ * rarity discipline (`GEM_RARITY_WEIGHT`/`LEGENDARY_GATE_DEPTH`) the shop's
+ * shelf roll uses, via the shared `pickWeightedGem` (`shop.ts`) — so an event
+ * grant can no longer hand out a Legendary gem a same-depth shop shelf could
+ * never offer. Throws if there's no active event node, or `eventId`/
  * `choiceId` don't resolve to a real catalog choice.
  */
 export function resolveEventChoice(
@@ -481,7 +504,7 @@ export function resolveEventChoice(
     ? rollGamble(rng, (choice.outcome as Extract<EventChoiceOutcome, { kind: 'gamble' }>).table)
     : (choice.outcome as EventOutcomeSpec);
 
-  const { state: nextState, outcome } = applySpec(working, rng, spec);
+  const { state: nextState, outcome } = applySpec(working, rng, spec, shopStockDepthForWave(node.wave));
   return {
     state: { ...nextState, stats: { ...nextState.stats, eventsResolved: nextState.stats.eventsResolved + 1 } },
     outcome: { ...outcome, gambled },

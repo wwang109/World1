@@ -438,23 +438,27 @@ describe('run/events: resolveEventChoice', () => {
     expect(next.heroLevel).toBe(state.heroLevel + 1);
   });
 
-  it('loseGold floors at 0', () => {
+  // Replaces the old "loseGold floors at 0" sweep (which forced Beast Nest's
+  // `raid_it` failure branch to observe a `loseGold` outcome): the no-RNG-on-
+  // rewards ruling converted `raid_it` from a gamble (60% card / 40%
+  // loseGold(1)) into a guaranteed grantGold(1), which was ALSO the fix for a
+  // proven defect — `raid_it` had `cost: 0` (the button read FREE) but could
+  // still take a gold from the player on its losing branch. `loseGold` is no
+  // longer produced by ANY catalog event (the floor-at-0 arithmetic itself
+  // still lives in `applySpec`'s `loseGold` case, just with zero live
+  // callers post-fix — same "kept, not deleted" status as the rest of the
+  // gamble machinery). This test now proves the fix directly instead of
+  // sweeping for a dead outcome kind.
+  it("beast_nest's FREE choice (raid_it, cost 0) can no longer take gold — always grants +1 gold now, never loseGold", () => {
     const { state } = stateAtFirstEvent(4);
-    // Force the losing branch deterministically by trying every choiceId seed
-    // offset until we observe a loseGold outcome. Beast Nest's raid is the
-    // wager-free loseGold case (The Gambler's stake is an upfront `cost`).
-    let sawLoseGold = false;
-    for (let i = 0; i < 50 && !sawLoseGold; i++) {
+    for (let i = 0; i < 20; i++) {
       const node = { ...currentEventNodeOrThrow(state), eventSeed: i };
       const withNode: RunState = { ...state, map: replaceNode(state.map, node) };
       const withGold = { ...withNode, gold: 1 };
       const { outcome, state: next } = resolveEventChoice(withGold, 'beast_nest', 'raid_it');
-      if (outcome.kind === 'loseGold') {
-        sawLoseGold = true;
-        expect(next.gold).toBe(0); // floored, not negative
-      }
+      expect(outcome).toEqual({ kind: 'grantGold', amount: 1, gambled: false });
+      expect(next.gold).toBe(2);
     }
-    expect(sawLoseGold).toBe(true);
   });
 
   it('grantLevel matches the win-leveling path (+1 heroLevel)', () => {
@@ -490,12 +494,16 @@ describe('run/events: resolveEventChoice', () => {
     expect(final.bagSlots.some((s) => s?.skillId === pickOutcome.skillId)).toBe(true);
   });
 
-  it('a gamble outcome is flagged gambled:true', () => {
-    const { state } = stateAtFirstEvent(4);
-    const { outcome } = resolveEventChoice(state, 'abandoned_cache', 'open');
-    expect(outcome.gambled).toBe(true);
-  });
-
+  // DELETED: "a gamble outcome is flagged gambled:true" (used to resolve
+  // abandoned_cache/open, previously a 60/40 gamble). The no-RNG-on-rewards
+  // ruling converted all 11 former gamble choices in the catalog to
+  // deterministic outcomes, so the catalog now contains ZERO live `gamble`
+  // choices — there is no real event left through the public API that can
+  // exercise `gambled: true`. The `gambled` flag/plumbing itself is
+  // untouched (kept per the ruling, a verified-in-a-running-game follow-up
+  // removes the machinery); only the test asserting a currently-impossible
+  // outcome is gone. The sibling `gambled:false` case below still covers the
+  // flag's OTHER value.
   it('a non-gamble outcome is flagged gambled:false', () => {
     const { state } = stateAtFirstEvent(4);
     const { outcome } = resolveEventChoice({ ...state, gold: 5 }, 'crossroads_shrine', 'deface');
@@ -660,31 +668,23 @@ describe('run/events: upgradeCard', () => {
     expect(b.state.pieces).toEqual(a.state.pieces);
   });
 
-  it("ember_pit's free gamble can resolve to an upgradeCard pick (sweeping eventSeed for a hit)", () => {
+  // DELETED: "ember_pit's free gamble can resolve to an upgradeCard pick
+  // (sweeping eventSeed for a hit)". The no-RNG-on-rewards ruling converted
+  // ember_pit's free `reach_in` choice from a 50/50 gamble (upgradeCard /
+  // nothing) to a guaranteed `grantGold(1)` — its paid `pay_tender` choice
+  // was ALREADY a guaranteed grantGem, independent of the old gamble's
+  // winning branch, so `upgradeCard` is no longer reachable through
+  // `ember_pit` at all (only through cinderworks_regrind/retiring_smith's
+  // paid, deterministic choices, already covered above in this describe
+  // block). Replaced with a determinism check on `reach_in` itself.
+  it("ember_pit's free choice (reach_in) always grants exactly 1 gold — no chance of upgradeCard or nothing", () => {
     const { state } = stateAtFirstEvent(4);
-    let saw = false;
-    for (let i = 0; i < 50 && !saw; i++) {
+    for (let i = 0; i < 10; i++) {
       const node = { ...currentEventNodeOrThrow(state), eventSeed: i };
-      const rigged: RunState = {
-        ...state,
-        map: replaceNode(state.map, node),
-        gold: 0,
-        pieces: [{ instanceId: 'p', skillId: 'sword_slash', tier: 'bronze', slot: 0 }],
-        bagSlots: [],
-      };
-      const { state: afterChoice, outcome } = resolveEventChoice(rigged, 'ember_pit', 'reach_in');
-      if (outcome.kind === 'upgradeCardPick') {
-        saw = true;
-        expect(outcome).toEqual({
-          kind: 'upgradeCardPick',
-          gambled: true,
-          options: [{ instanceId: 'p', skillId: 'sword_slash', from: 'bronze', to: 'silver' }],
-        });
-        const { outcome: picked } = applyUpgradeCardPick(afterChoice, 'p');
-        expect(picked).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from: 'bronze', to: 'silver' });
-      }
+      const rigged: RunState = { ...state, map: replaceNode(state.map, node), gold: 0 };
+      const { outcome } = resolveEventChoice(rigged, 'ember_pit', 'reach_in');
+      expect(outcome).toEqual({ kind: 'grantGold', amount: 1, gambled: false });
     }
-    expect(saw).toBe(true);
   });
 
   it('never changes RunStats.eventsResolved beyond the standard +1', () => {

@@ -97,16 +97,15 @@ const defs: EventDef[] = [
     theme: 'cache',
     body: 'The trail dips into the Silt Hollows, and there, half-swallowed by mud, a supply crate juts from the muck, its lock long rusted through. Someone left here in a hurry — or never came back at all. Pry it open and it could hold anything worth carrying, or nothing at all but the reason it was abandoned.',
     choices: [
+      // No RNG on rewards (USER-LOCKED): the free choice always grants a
+      // small guaranteed reward; a player who wants the old gamble's WINNING
+      // outcome for certain now pays for it instead of rolling for it.
+      { id: 'open', label: 'Pry it open', outcome: { kind: 'grantGold', amount: 1 } },
       {
-        id: 'open',
-        label: 'Pry it open',
-        outcome: {
-          kind: 'gamble',
-          table: [
-            { weight: 60, outcome: { kind: 'grantCard', tier: 'bronze' } },
-            { weight: 40, outcome: { kind: 'nothing' } },
-          ],
-        },
+        id: 'search_thoroughly',
+        label: 'Search it thoroughly (2 gold)',
+        cost: 2,
+        outcome: { kind: 'grantCard', tier: 'bronze' },
       },
       { id: 'leave', label: 'Leave it be', outcome: { kind: 'nothing' } },
     ],
@@ -131,17 +130,10 @@ const defs: EventDef[] = [
     theme: 'cache',
     body: 'A peddler\'s cart hits a sinking rut at the edge of the Silt Hollows and her satchel bursts, scattering uncut gems across the mud. She scrambles after them, cursing — there\'s more here than she can gather alone, and more than a few have already rolled to rest against your boots.',
     choices: [
-      {
-        id: 'help',
-        label: 'Help her gather them',
-        outcome: {
-          kind: 'gamble',
-          table: [
-            { weight: 70, outcome: { kind: 'grantGem' } },
-            { weight: 30, outcome: { kind: 'nothing' } },
-          ],
-        },
-      },
+      // No RNG on rewards (USER-LOCKED): the free choice always grants a
+      // small guaranteed reward; the paid choice keeps the old gamble's
+      // winning outcome, now guaranteed at the catalog gem rate.
+      { id: 'help', label: 'Help her gather them', outcome: { kind: 'grantGold', amount: 1 } },
       { id: 'rifle', label: 'Rifle through the spill (2 gold)', cost: 2, outcome: { kind: 'grantGem' } },
     ],
   },
@@ -174,25 +166,22 @@ const defs: EventDef[] = [
     id: 'gambler',
     title: 'The Gambler',
     theme: 'omen',
-    body: 'In the shadow of the crossroads shrine, a hooded figure shuffles cards at a folding table, coins stacked at her elbow, never once looking up as travelers pass. "Stake three gold," she says, "double it on the cut, or watch it disappear. Or don\'t play at all — some prefer to keep what little they have."',
+    body: 'In the shadow of the crossroads shrine, a hooded figure shuffles cards at a folding table, coins stacked at her elbow, never once looking up as travelers pass. "Stake two gold on a safe cut," she says, "or five on a bold one — walk off with more than you sat down with, either way. Or don\'t play at all — some prefer to keep what little they have."',
+    // No RNG on rewards (USER-LOCKED) — but wagering is THIS event's whole
+    // identity, so it doesn't take the generic "free grant / paid grant"
+    // template every other gamble in the catalog gets. Instead: two fixed,
+    // deterministic stake tiers (no coin flip — you always win the cut), each
+    // gated on affordability by its own upfront `cost` (never a `loseGold`
+    // branch — see the historical note this replaced: modelling a stake as
+    // loseGold made it a free coin-flip for a broke player, since loseGold
+    // floors at 0). Small stake: 2g -> 3g (+1, 50% return). Big stake: 5g ->
+    // 9g (+4, 80% return) — naturally gated on having the 5-gold surplus to
+    // stake in the first place, same affordability gate as everything else.
+    // `walk_away` stays the free, no-op safe exit since both real choices
+    // cost gold.
     choices: [
-      {
-        id: 'stake',
-        label: 'Stake 3 gold on the cut',
-        // The stake is an UPFRONT cost, not a `loseGold` branch: modelling it as
-        // loseGold made this a free coin-flip for +3 (loseGold floors at 0, so a
-        // broke player risked nothing) and the choice rendered as FREE. With a
-        // cost the scene gates it on affordability and the win pays the stake
-        // back doubled.
-        cost: 3,
-        outcome: {
-          kind: 'gamble',
-          table: [
-            { weight: 50, outcome: { kind: 'grantGold', amount: 6 } },
-            { weight: 50, outcome: { kind: 'nothing' } },
-          ],
-        },
-      },
+      { id: 'stake_small', label: 'Stake 2 gold on a safe cut', cost: 2, outcome: { kind: 'grantGold', amount: 3 } },
+      { id: 'stake_big', label: 'Stake 5 gold on a bold cut', cost: 5, outcome: { kind: 'grantGold', amount: 9 } },
       { id: 'walk_away', label: 'Walk away', outcome: { kind: 'nothing' } },
     ],
   },
@@ -234,16 +223,15 @@ const defs: EventDef[] = [
     theme: 'training',
     body: 'On a mossy boulder overlooking the Hollow Yard, a hermit sits cross-legged, riddle already half-spoken before you\'ve even stopped walking. Answer it right, she says, and you\'ll understand something about yourself no sparring ring could teach. Answer wrong, and you\'ll simply keep walking, no worse for it.',
     choices: [
+      // No RNG on rewards (USER-LOCKED): the free choice always grants a
+      // small guaranteed reward; a new paid choice guarantees the old
+      // gamble's winning outcome at the catalog level-up rate.
+      { id: 'answer', label: 'Answer the riddle', outcome: { kind: 'grantGold', amount: 1 } },
       {
-        id: 'answer',
-        label: 'Answer the riddle',
-        outcome: {
-          kind: 'gamble',
-          table: [
-            { weight: 50, outcome: { kind: 'grantLevel' } },
-            { weight: 50, outcome: { kind: 'nothing' } },
-          ],
-        },
+        id: 'press_further',
+        label: 'Press her for a deeper truth (2 gold)',
+        cost: 2,
+        outcome: { kind: 'grantLevel' },
       },
       { id: 'walk_away', label: 'Walk away', outcome: { kind: 'nothing' } },
     ],
@@ -256,16 +244,15 @@ const defs: EventDef[] = [
     theme: 'cache',
     body: 'A grave-mound in the Silt Hollows has slumped in on itself, exposing a narrow gap into the dark, silt-choked space below. Old barrows like this sometimes hold a forgotten trinket among the bones — and sometimes hold nothing but the bones themselves.',
     choices: [
+      // No RNG on rewards (USER-LOCKED): the free choice always grants a
+      // small guaranteed reward; a new paid choice guarantees the old
+      // gamble's winning outcome at the catalog gem rate.
+      { id: 'crawl_in', label: 'Crawl inside', outcome: { kind: 'grantGold', amount: 1 } },
       {
-        id: 'crawl_in',
-        label: 'Crawl inside',
-        outcome: {
-          kind: 'gamble',
-          table: [
-            { weight: 55, outcome: { kind: 'grantGem' } },
-            { weight: 45, outcome: { kind: 'nothing' } },
-          ],
-        },
+        id: 'dig_further',
+        label: 'Dig further for a real find (2 gold)',
+        cost: 2,
+        outcome: { kind: 'grantGem' },
       },
       { id: 'seal_it', label: 'Seal it back up and move on', outcome: { kind: 'nothing' } },
     ],
@@ -290,16 +277,20 @@ const defs: EventDef[] = [
     theme: 'cache',
     body: 'A trampled nest sits half-sunk in the Silt Hollows\' mud, littered with the shed claws and feathers of something large. Raiding it for a trophy weapon is tempting — if whatever built it doesn\'t come back and cost you a coin purse for the trouble.',
     choices: [
+      // No RNG on rewards (USER-LOCKED) — and this specific choice was also a
+      // PROVEN defect: `raid_it` had `cost: 0` (the UI reads its button as
+      // FREE) but its 40%-weight losing branch was `loseGold(1)` — the only
+      // zero-cost choice in the whole catalog able to take gold from a player
+      // who was told the button cost nothing. The fix removes both problems
+      // at once: `raid_it` is now a guaranteed, gold-only-ever-GOING-UP
+      // grant, and the old gamble's winning outcome (the bow/beast card) is
+      // now a separate, honestly-priced paid choice.
+      { id: 'raid_it', label: 'Raid the nest', outcome: { kind: 'grantGold', amount: 1 } },
       {
-        id: 'raid_it',
-        label: 'Raid the nest',
-        outcome: {
-          kind: 'gamble',
-          table: [
-            { weight: 60, outcome: { kind: 'grantCard', filter: [{ weapons: ['bow', 'beast'] }], tier: 'bronze' } },
-            { weight: 40, outcome: { kind: 'loseGold', amount: 1 } },
-          ],
-        },
+        id: 'raid_prepared',
+        label: 'Raid it properly, gear in hand (2 gold)',
+        cost: 2,
+        outcome: { kind: 'grantCard', filter: [{ weapons: ['bow', 'beast'] }], tier: 'bronze' },
       },
       { id: 'leave_it', label: 'Leave the nest be', outcome: { kind: 'nothing' } },
     ],
@@ -433,17 +424,11 @@ const defs: EventDef[] = [
     theme: 'forge',
     body: "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead.",
     choices: [
-      {
-        id: 'reach_in',
-        label: 'Thrust your gear into the coals',
-        outcome: {
-          kind: 'gamble',
-          table: [
-            { weight: 50, outcome: { kind: 'upgradeCard' } },
-            { weight: 50, outcome: { kind: 'nothing' } },
-          ],
-        },
-      },
+      // No RNG on rewards (USER-LOCKED): the free choice always grants a
+      // small guaranteed reward. The paid choice was ALREADY a guaranteed
+      // gem, unrelated to the gamble's own (now-discarded) upgradeCard
+      // winning branch — it stays exactly as it was.
+      { id: 'reach_in', label: 'Thrust your gear into the coals', outcome: { kind: 'grantGold', amount: 1 } },
       { id: 'pay_tender', label: 'Pay 2 gold to steady the coals first', cost: 2, outcome: { kind: 'grantGem' } },
     ],
   },
@@ -465,17 +450,11 @@ const defs: EventDef[] = [
     theme: 'omen',
     body: "A veiled fortune-teller crouches at the crossroads shrine, cards fanned across a cracked marble slab, and offers a free reading of what's coming — the shrine only asks you trust what it shows. Cross her palm with silver instead, and she presses a smooth luck-stone into your hand.",
     choices: [
-      {
-        id: 'free_reading',
-        label: 'Take the free reading',
-        outcome: {
-          kind: 'gamble',
-          table: [
-            { weight: 50, outcome: { kind: 'grantLevel' } },
-            { weight: 50, outcome: { kind: 'nothing' } },
-          ],
-        },
-      },
+      // No RNG on rewards (USER-LOCKED): the free choice always grants a
+      // small guaranteed reward. The paid choice was ALREADY a guaranteed
+      // gem, unrelated to the gamble's own (now-discarded) grantLevel winning
+      // branch — it stays exactly as it was.
+      { id: 'free_reading', label: 'Take the free reading', outcome: { kind: 'grantGold', amount: 1 } },
       { id: 'cross_palm', label: 'Cross her palm with 2 gold', cost: 2, outcome: { kind: 'grantGem' } },
     ],
   },
@@ -485,16 +464,15 @@ const defs: EventDef[] = [
     theme: 'omen',
     body: "A black basalt stone squats at the crossroads' heart, said to weigh a traveler's resolve at a glance. Press your palm to it and it may show a glimpse of arms you'll carry — or leave your hand simply cold. Others just skirt around it, unwilling to let a stone judge them.",
     choices: [
+      // No RNG on rewards (USER-LOCKED): the free choice always grants a
+      // small guaranteed reward; a new paid choice guarantees the old
+      // gamble's winning outcome (a mini-draft) at the catalog level-up rate.
+      { id: 'press_palm', label: 'Press your palm to the stone', outcome: { kind: 'grantGold', amount: 1 } },
       {
-        id: 'press_palm',
-        label: 'Press your palm to the stone',
-        outcome: {
-          kind: 'gamble',
-          table: [
-            { weight: 45, outcome: { kind: 'bonusDraft' } },
-            { weight: 55, outcome: { kind: 'nothing' } },
-          ],
-        },
+        id: 'press_harder',
+        label: 'Press harder and hold (2 gold)',
+        cost: 2,
+        outcome: { kind: 'bonusDraft' },
       },
       { id: 'skirt_around', label: 'Skirt around it', outcome: { kind: 'nothing' } },
     ],
@@ -505,19 +483,15 @@ const defs: EventDef[] = [
     theme: 'omen',
     body: 'Two ravens perch unnervingly still on the crossroads shrine\'s arms, and old omen-readers swear feeding them buys good fortune while ignoring them buys nothing at all. Toss them your scraps for a coin\'s trouble, or walk the long way around and let them watch you go.',
     choices: [
-      {
-        id: 'feed_them',
-        label: 'Toss them your scraps (1 gold)',
-        cost: 1,
-        outcome: {
-          kind: 'gamble',
-          table: [
-            { weight: 55, outcome: { kind: 'grantGem' } },
-            { weight: 45, outcome: { kind: 'nothing' } },
-          ],
-        },
-      },
-      { id: 'walk_around', label: 'Walk the long way around', outcome: { kind: 'nothing' } },
+      // No RNG on rewards (USER-LOCKED). A guaranteed gem at the OLD 1-gold
+      // price would be strictly better than every other "2g -> gem" event in
+      // the catalog (gemsellers_mishap/ember_pit/fortune_teller/
+      // collapsed_barrow/broken_axle all charge 2 for the same guaranteed
+      // gem) — this is the one deliberate price change the ruling calls for,
+      // bumping the cost to 2 to match the catalog rate instead of
+      // underselling every sibling event.
+      { id: 'feed_them', label: 'Toss them your scraps (2 gold)', cost: 2, outcome: { kind: 'grantGem' } },
+      { id: 'walk_around', label: 'Walk the long way around, coin still in your pocket', outcome: { kind: 'nothing' } },
     ],
   },
 
@@ -538,16 +512,15 @@ const defs: EventDef[] = [
     theme: 'market',
     body: "A cart lies overturned on the Tolling Road, axle snapped clean through, goods scattered across the ruts. The driver begs anyone passing for a shoulder to right it, promising whatever thanks the wreck still holds — or, if you'd rather not strain yourself, just leave him to sort it out alone.",
     choices: [
+      // No RNG on rewards (USER-LOCKED): the free choice always grants a
+      // small guaranteed reward; a new paid choice guarantees the old
+      // gamble's winning outcome at the catalog gem rate.
+      { id: 'help_haul', label: 'Help haul the cart upright', outcome: { kind: 'grantGold', amount: 1 } },
       {
-        id: 'help_haul',
-        label: 'Help haul the cart upright',
-        outcome: {
-          kind: 'gamble',
-          table: [
-            { weight: 55, outcome: { kind: 'grantGem' } },
-            { weight: 45, outcome: { kind: 'nothing' } },
-          ],
-        },
+        id: 'salvage_properly',
+        label: 'Stay and salvage the wreckage properly (2 gold)',
+        cost: 2,
+        outcome: { kind: 'grantGem' },
       },
       { id: 'leave_him', label: 'Leave him to it', outcome: { kind: 'nothing' } },
     ],

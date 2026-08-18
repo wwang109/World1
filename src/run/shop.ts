@@ -280,7 +280,7 @@ const GEM_RARITY_WEIGHT: Record<Rarity, number> = {
  */
 const LEGENDARY_GATE_DEPTH = 5;
 
-function gemRarityEligible(rarity: Rarity, depth: number): boolean {
+export function gemRarityEligible(rarity: Rarity, depth: number): boolean {
   if (rarity === 'legendary') return depth >= LEGENDARY_GATE_DEPTH;
   return true;
 }
@@ -307,7 +307,7 @@ function gemRarityEligible(rarity: Rarity, depth: number): boolean {
  * pure run-layer rule and, on relic_vault specifically, becomes a hard
  * "always exactly 1" (pigeonhole plus the cap now agree on the same slot).
  */
-function sampleGemsWeighted(rng: Rng, pool: readonly GemDef[], count: number): GemDef[] {
+export function sampleGemsWeighted(rng: Rng, pool: readonly GemDef[], count: number): GemDef[] {
   let remaining = [...pool];
   const result: GemDef[] = [];
   const n = Math.min(count, remaining.length);
@@ -329,6 +329,31 @@ function sampleGemsWeighted(rng: Rng, pool: readonly GemDef[], count: number): G
     }
   }
   return result;
+}
+
+/**
+ * ONE depth-gated, rarity-weighted gem pick from `pool` — the shared draw
+ * both the shop shelf (`rollShopStock`, via `sampleGemsWeighted` above) and
+ * event `grantGem` grants (`src/run/events.ts#grantGemOutcome`) now route
+ * through, so a run's gem-rarity discipline (`GEM_RARITY_WEIGHT` +
+ * `LEGENDARY_GATE_DEPTH`) applies identically no matter which system handed
+ * out the gem. Deliberately a THIN wrapper around `sampleGemsWeighted` (one
+ * pick, `count: 1`) rather than a reimplementation — a mirrored copy of the
+ * weight table or the gate constant is exactly the kind of duplication that
+ * caused a live bug elsewhere in this codebase.
+ *
+ * Falls back to the UNGATED `pool` if depth-gating a narrow (e.g.
+ * filter-restricted) pool would leave nothing eligible — defensive only:
+ * every real caller's pool has non-Legendary members, so the fallback should
+ * never actually trigger, but an empty draw pool must never throw over a
+ * content edge case.
+ */
+export function pickWeightedGem(rng: Rng, pool: readonly GemDef[], depth: number): GemDef {
+  const eligible = pool.filter((g) => gemRarityEligible(g.rarity, depth));
+  const drawPool = eligible.length > 0 ? eligible : pool;
+  const [picked] = sampleGemsWeighted(rng, drawPool, 1);
+  if (!picked) throw new Error('pickWeightedGem: empty gem pool');
+  return picked;
 }
 
 /**
