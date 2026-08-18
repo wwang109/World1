@@ -24,6 +24,7 @@ import type { BoardPiece, CombatantSetup, EnemyDef, SkillTier } from '../engine/
 import { enemies } from '../data/enemies';
 import { skillBook } from '../data/skills';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../data/heroes';
+import { ENEMY_MODIFIER_IDS, MODIFIER_PRESETS, type EnemyModifierPreset } from '../data/modifiers';
 import { TIER_BUDGET_DECI } from '../engine/balance';
 import {
   allocateMonsterPL,
@@ -81,40 +82,19 @@ export const ENEMY_TITLES: EnemyTitle[] = ['mob', 'normal', 'elite', 'boss'];
 
 /**
  * Enemy MODIFIERS — the fourth additive dial (rogue-like affixes), stacked on
- * top of (level + rank + extra cards). Each preset is either:
- *   • a bonus PL auto-spend (`bonusPL` + `bonusProfile`), priced through the
- *     SAME `LEVEL_STAT_COST` economy as every other stat point in the game
- *     (so a Swift enemy's speed is exactly as "expensive" as anyone else's), or
- *   • a deck-wide tier override (`forceTier`) applied AFTER rank assignment.
- * Add a new affix = add a row here; the resolver below needs no changes.
+ * top of (level + rank + extra cards). The presets themselves (names, blurbs,
+ * tuning values) are CONTENT and live in `src/data/modifiers.ts` — imported
+ * above and re-exported here so every existing consumer (both prep scenes,
+ * `battleTimeline.ts`, `runState.ts`, `devLaunch.ts`) keeps importing them
+ * from `./encounter` unchanged. This module keeps the MECHANISM: each preset
+ * is either a bonus PL auto-spend (`bonusPL` + `bonusProfile`, applied below
+ * in `buildEnemyEncounter` through the SAME `LEVEL_STAT_COST` economy as
+ * every other stat point in the game) or a deck-wide tier override
+ * (`forceTier`, applied AFTER rank assignment). Add a new affix = add a row
+ * to `MODIFIER_PRESETS` in the data module; the resolver below needs no
+ * changes.
  */
-export interface EnemyModifierPreset {
-  /** Display name, e.g. chip label. */
-  name: string;
-  /** One-line effect description for UI. */
-  blurb: string;
-  /** Extra PL auto-spent (allocateMonsterPL) against `bonusProfile` after level scaling. */
-  bonusPL?: number;
-  bonusProfile?: Partial<StatProfile>;
-  /** Force EVERY deck card to this tier after rank assignment (rank reads as the ceiling). */
-  forceTier?: SkillTier;
-}
-
-export const MODIFIER_PRESETS: Record<string, EnemyModifierPreset> = {
-  diamond: {
-    name: 'DIAMOND-POWERED',
-    blurb: 'Every card upgraded to Diamond tier',
-    forceTier: 'diamond',
-  },
-  swift: {
-    name: 'SWIFT',
-    blurb: '+8 PL of pure Speed (+4 SPD)',
-    bonusPL: 8,
-    bonusProfile: { speed: 1 },
-  },
-};
-
-export const ENEMY_MODIFIER_IDS: readonly string[] = Object.keys(MODIFIER_PRESETS);
+export { ENEMY_MODIFIER_IDS, MODIFIER_PRESETS, type EnemyModifierPreset };
 
 /**
  * Shared extra-card pool keyed by the enemy's damage flavour. All size-1 so

@@ -1,0 +1,51 @@
+{
+ "schemaVersion": 1,
+ "notes": [
+  "Enemy MODIFIERS \u2014 rogue-like affixes an encounter can stack on top of an",
+  "enemy's (level + rank + extra cards). This is CONTENT (names, blurbs, and",
+  "the tuning values behind each affix), authored here rather than in the",
+  "run-layer resolver that consumes it (`src/run/encounter.ts`). That module",
+  "still owns the MECHANISM \u2014 how a `bonusPL`/`bonusProfile` pair gets",
+  "auto-spent through the level-up PL economy, and how `forceTier` overrides",
+  "rank assignment after the fact; this module owns only the DATA those two",
+  "mechanisms read.",
+  "Each preset is either:",
+  "  - a bonus PL auto-spend (`bonusPL` + `bonusProfile`), priced through the",
+  "    SAME `LEVEL_STAT_COST` economy as every other stat point in the game",
+  "    (so a Swift enemy's speed is exactly as \"expensive\" as anyone else's), or",
+  "  - a deck-wide tier override (`forceTier`) applied AFTER rank assignment.",
+  "Add a new affix = add a row here; the resolver in encounter.ts needs no",
+  "changes."
+ ],
+ "modifiers": [
+  {
+   "id": "diamond",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "DIAMOND-POWERED",
+      "blurb": "Every card upgraded to Diamond tier",
+      "forceTier": "diamond"
+     }
+    }
+   ]
+  },
+  {
+   "id": "swift",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "SWIFT",
+      "blurb": "+8 PL of pure Speed (+4 SPD)",
+      "bonusPL": 8,
+      "bonusProfile": {
+       "speed": 1
+      }
+     }
+    }
+   ]
+  }
+ ]
+}
