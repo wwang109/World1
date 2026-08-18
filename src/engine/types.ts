@@ -445,6 +445,21 @@ export interface TierUpgrade {
   speedWeight?: number;
   /** Overrides cooldownTurns at this tier. */
   cooldownTurns?: number;
+  /**
+   * Overrides the card's target scope at this tier — the one tier dial that
+   * buys a card an ABILITY rather than a bigger number: a card can be
+   * single-target at Bronze and hit every living foe (`all`) from Gold up.
+   * Priced by the same `PRICE.aoeTargetsNum/Den` reach multiplier as a
+   * card-level `scope`, because `applyTier` spreads this override onto the def
+   * BEFORE anything (the pricer, `resolveTargets`, the card face) reads it.
+   *
+   * AUTHORING RULE, enforced by `validateSkillContent`: once a tier block sets
+   * `scope`, EVERY higher tier must set it too. `applyTier` always scales from
+   * the BASE def, so an un-authored higher tier would run the auto-scaler on
+   * the base card's scope and silently drop the AoE — a strict DOWNGRADE at a
+   * higher tier. The validator makes that unrepresentable instead of latent.
+   */
+  scope?: 'one' | 'all';
   /** Overrides the card text at this tier. */
   text?: string;
 }

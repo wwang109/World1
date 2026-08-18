@@ -162,6 +162,42 @@ describe('data: content schema contract', () => {
     failsWith(d, 'must carry non-empty text');
   });
 
+  // ---- tier-block scope: the field that buys an ABILITY at a tier ---------
+  it('a tier-block scope outside the one|all union is rejected', () => {
+    const d = clone();
+    vers(d)[0]!.def.tierUpgrades = { silver: { scope: 'every', text: 'Hits every foe.' } };
+    failsWith(d, 'scope must be one or all');
+  });
+
+  it('a tier block that changes scope without text is rejected (the card face would lie)', () => {
+    const d = clone();
+    vers(d)[0]!.def.tierUpgrades = { diamond: { scope: 'all' } };
+    failsWith(d, 'must carry non-empty text');
+  });
+
+  it('a tier-block scope that is not carried to every HIGHER tier is rejected', () => {
+    // Gold goes AoE, Diamond says nothing → `applyTier` would rebuild Diamond
+    // from the BASE card and silently drop the AoE: a downgrade for paying more.
+    const d = clone();
+    vers(d)[0]!.def.tierUpgrades = { gold: { scope: 'all', text: 'Hits every foe.' } };
+    failsWith(d, 'must be carried by every higher tier');
+  });
+
+  it('carrying scope up through Diamond validates', () => {
+    const d = clone();
+    vers(d)[0]!.def.tierUpgrades = {
+      gold: { scope: 'all', text: 'Hits every foe.' },
+      diamond: { scope: 'all', text: 'Hits every foe, harder.' },
+    };
+    expect(validateSkillDocument(d)).toEqual([]);
+  });
+
+  it('a tier block WITHOUT scope is unaffected by the carry-up rule', () => {
+    const d = clone();
+    vers(d)[0]!.def.tierUpgrades = { silver: { speedWeight: 12 } };
+    expect(validateSkillDocument(d)).toEqual([]);
+  });
+
   it('an unknown action kind is rejected', () => {
     const d = clone();
     (vers(d)[0]!.def.effects as Array<Record<string, unknown>>)[0]!.kind = 'teleport';

@@ -320,7 +320,7 @@ function validateAura(raw: unknown, where: string, problems: ContentProblem[]): 
   }
 }
 
-const TIER_UPGRADE_FIELDS = new Set(['effects', 'aura', 'speedWeight', 'cooldownTurns', 'text']);
+const TIER_UPGRADE_FIELDS = new Set(['effects', 'aura', 'speedWeight', 'cooldownTurns', 'scope', 'text']);
 
 function validateTierUpgrade(raw: unknown, where: string, problems: ContentProblem[]): void {
   if (!isObj(raw)) { problems.push({ where, message: 'tier upgrade must be an object' }); return; }
@@ -329,11 +329,20 @@ function validateTierUpgrade(raw: unknown, where: string, problems: ContentProbl
   if (raw.aura !== undefined) validateAura(raw.aura, where, problems);
   opt(raw, 'speedWeight', inRange(0, 200), 'an integer 0..200', where, problems);
   opt(raw, 'cooldownTurns', inRange(0, 99), 'an integer 0..99', where, problems);
+  // TARGET SCOPE per tier — the same closed union the card-level field takes
+  // (`SkillDef.scope`), validated identically here: a tier block is spread onto
+  // the def verbatim by `applyTier`, so an unchecked value would reach
+  // `resolveTargets` and `powerLevelDeci` exactly as if it had been authored at
+  // card level. A field the validator ignores is how a silent zero ships.
+  opt(raw, 'scope', (v) => v === 'one' || v === 'all', 'one or all', where, problems);
   // A tier that changes what the card DOES must say so, or the card face lies at
-  // that tier. (Magnitude/stat-token drift is a separate, deeper gate — see
-  // tests/engine/cardText.test.ts.)
-  if (changesEffects && (typeof raw.text !== 'string' || raw.text.trim() === '')) {
-    problems.push({ where, message: 'a tier upgrade that changes effects must carry non-empty text — otherwise the card face shows the wrong numbers at that tier' });
+  // that tier. Changing SCOPE is the loudest such change there is — "hits every
+  // foe" is a different ability, not a bigger number — so it demands text on the
+  // same terms as an effects swap. (Magnitude/stat-token drift is a separate,
+  // deeper gate — see tests/engine/cardText.test.ts.)
+  const changesFace = changesEffects || raw.scope !== undefined;
+  if (changesFace && (typeof raw.text !== 'string' || raw.text.trim() === '')) {
+    problems.push({ where, message: 'a tier upgrade that changes effects or scope must carry non-empty text — otherwise the card face shows the wrong numbers at that tier' });
   }
   if (Object.keys(raw).length === 0) {
     problems.push({ where, message: 'empty tier upgrade — remove it or give it something to override' });
@@ -399,6 +408,27 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
         if (tier === 'bronze') { problems.push({ where, message: 'tierUpgrades cannot override bronze — bronze IS the authored base' }); continue; }
         if (!TIERS.includes(tier)) { problems.push({ where, message: 'tierUpgrades key ' + tier + ' is not a tier' }); continue; }
         validateTierUpgrade(up, where + '.tierUpgrades.' + tier, problems);
+      }
+      // SCOPE MUST CARRY UPWARD. `applyTier` always scales from the BASE def:
+      // an authored block wins verbatim at ITS tier, and every tier WITHOUT a
+      // block runs the auto-scaler on the base card — which reads the BASE
+      // scope. So a card that becomes AoE at Gold and has no Diamond block is
+      // AoE at Gold and single-target again at Diamond: a strict DOWNGRADE for
+      // paying more. Nothing in the engine can infer the author's intent there,
+      // so the schema demands it be stated at every higher tier.
+      for (const [tier, up] of Object.entries(raw.tierUpgrades)) {
+        const from = TIERS.indexOf(tier);
+        if (from < 1 || !isObj(up) || up.scope === undefined) continue;
+        for (let t = from + 1; t < TIERS.length; t += 1) {
+          const higher = TIERS[t]!;
+          const block = (raw.tierUpgrades as Record<string, unknown>)[higher];
+          if (isObj(block) && block.scope !== undefined) continue;
+          problems.push({
+            where: where + '.tierUpgrades.' + tier,
+            message: 'a tier upgrade that sets scope must be carried by every higher tier — add tierUpgrades.' + higher
+              + ' with its own scope, or the auto-scaler rebuilds ' + higher + ' from the base card and silently drops it',
+          });
+        }
       }
     }
   }
