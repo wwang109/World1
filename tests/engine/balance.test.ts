@@ -71,6 +71,12 @@ import { PACK_VARIANT_WEIGHTS } from '../../src/run/encounter';
 // despite hitting every living foe. Derived from the game's own pack-frequency
 // constants (`BOSS_EVERY`, `PACK_VARIANT_WEIGHTS` — see balance.ts for the full
 // arithmetic), not `MAX_FOES`. NO existing rate moved.
+//
+// 2026-08-18: tauntPerPoint 10 ADDED — closes the last KNOWN SILENT ZERO
+// (`taunt` had `price: []`, no rate at all). Priced at PARITY with
+// `dotPerStack` — the nearest structural comparable (self-only, permanent,
+// one-numeric-field, empower-family) — see balance.ts for the full
+// "nearest priced comparable" derivation. NO existing rate moved.
 describe('PRICE structure lock', () => {
   it('every PRICE rate matches its locked value', () => {
     expect(PRICE).toEqual({
@@ -106,6 +112,7 @@ describe('PRICE structure lock', () => {
       guardPerPctTurnDen: 1,
       exposePerPctTurnNum: 1,
       exposePerPctTurnDen: 1,
+      tauntPerPoint: 10,
       negatePerCharge: 100,
       wardPerCharge: 50,
       auraDamageFlat: 10,

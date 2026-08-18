@@ -1047,6 +1047,216 @@
           }
         }
       ]
+    },
+    {
+      "id": "vulnerability_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Vulnerability Sliver",
+            "text": "{{Expose}} the enemy — +10% damage from all direct hits (2 turns).",
+            "notes": [
+              "NEW (balance-designer, 2026-08-18) — closes a content gap: `expose`",
+              "had a price (exposePerPctTurnNum/Den = 1/1) but no gem. Rung 1 of a",
+              "4-deep ladder: pct*turns*1 lands EVERY rarity band exactly at turns=2",
+              "(10/20/30/40 x2 = 20/40/60/80), unlike `slow`'s even-weight ladder which",
+              "skips a band — so all four are shipped rather than withholding any.",
+              "10*2*1 = 20 deci = Common exactly."
+            ],
+            "kind": "effect",
+            "rarity": "common",
+            "actions": [
+              {
+                "kind": "expose",
+                "pct": 10,
+                "turns": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "weak_point_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Weak Point Sliver",
+            "text": "{{Expose}} the enemy — +20% damage from all direct hits (2 turns).",
+            "notes": [
+              "NEW (balance-designer, 2026-08-18). Rung 2 of the expose ladder — see",
+              "vulnerability_sliver. 20*2*1 = 40 deci = Rare exactly."
+            ],
+            "kind": "effect",
+            "rarity": "rare",
+            "actions": [
+              {
+                "kind": "expose",
+                "pct": 20,
+                "turns": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "exposed_nerve_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Exposed Nerve Sliver",
+            "text": "{{Expose}} the enemy — +30% damage from all direct hits (2 turns).",
+            "notes": [
+              "NEW (balance-designer, 2026-08-18). Rung 3 of the expose ladder — see",
+              "vulnerability_sliver. 30*2*1 = 60 deci = Epic exactly."
+            ],
+            "kind": "effect",
+            "rarity": "epic",
+            "actions": [
+              {
+                "kind": "expose",
+                "pct": 30,
+                "turns": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "raw_nerve_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Raw Nerve Sliver",
+            "text": "{{Expose}} the enemy — +40% damage from all direct hits (2 turns).",
+            "notes": [
+              "NEW (balance-designer, 2026-08-18). Rung 4 of the expose ladder — see",
+              "vulnerability_sliver. 40 <= MAX_EXPOSE_PCT (50), so the apply-time clamp",
+              "never binds. 40*2*1 = 80 deci = Legendary exactly."
+            ],
+            "kind": "effect",
+            "rarity": "legendary",
+            "actions": [
+              {
+                "kind": "expose",
+                "pct": 40,
+                "turns": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "sanctuary_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Sanctuary Sliver",
+            "text": "{{Ward}} 1 — prevent the next ailment outright · +5% ARMOR (2 turns).",
+            "notes": [
+              "NEW (balance-designer, 2026-08-18) — gap-analysis item B. `ward` alone",
+              "has no single-action band landing (charges * 50 = 50/100/150, none of",
+              "20/40/60/80), but a MULTI-ACTION gem is structurally legal (`GEM_ACTION_",
+              "PHASE` in cards.ts is exhaustive over every Action kind including ward,",
+              "and validateGemContent.ts's actions array has no length cap) — so a",
+              "companion action closes the gap instead: ward 1 (50) + buffStat armor",
+              "5%x2t (5*2*1 = 10) = 60 deci = Epic exactly. Companion chosen for theme,",
+              "not filler: a small lingering resilience buff reads as part of the same",
+              "protective ward, not an unrelated bolt-on. Minimal-magnitude clean —",
+              "ward's charges floor at 1 (no smaller variant exists) and buffStat's",
+              "pct/turns each strictly lower the total if decreased alone."
+            ],
+            "kind": "effect",
+            "rarity": "epic",
+            "actions": [
+              {
+                "kind": "ward",
+                "charges": 1
+              },
+              {
+                "kind": "buffStat",
+                "stat": "armor",
+                "pct": 5,
+                "turns": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "renewal_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Renewal Sliver",
+            "text": "Remove up to 1 of your ailments · Restore 3 HP.",
+            "notes": [
+              "NEW (balance-designer, 2026-08-18) — gap-analysis item B. `cleanse` alone",
+              "has no single-action band landing (charges * 25 = 25/50/75/100, none of",
+              "20/40/60/80) and used to be hard-banned on any gem via UNPRICEABLE_KINDS",
+              "— that ban is lifted (see validateGemContent.ts) because a companion",
+              "closes the gap: cleanse 1 (25) + heal 3 physical (3*5 = 15) = 40 deci =",
+              "Rare exactly. heal is the self-repair companion cleanse already pairs",
+              "with on a shipped cleanse CARD (`purge_the_rot`: cleanse 4 + heal 28),",
+              "so this is the same pairing the card catalog already establishes, not a",
+              "new combination invented for the gem. Minimal-magnitude clean — both",
+              "charges and power floor at values where any smaller variant prices",
+              "under 40."
+            ],
+            "kind": "effect",
+            "rarity": "rare",
+            "actions": [
+              {
+                "kind": "cleanse",
+                "charges": 1
+              },
+              {
+                "kind": "heal",
+                "power": 3
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "provoker_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Provoker's Sliver",
+            "text": "Gain 2 aggro (permanent) — whoever holds the most is the default target.",
+            "notes": [
+              "NEW (balance-designer, 2026-08-18) — gap-analysis item C. `taunt` was a",
+              "KNOWN SILENT ZERO (price: [], no card or gem could ever be authored with",
+              "it). Now priced at tauntPerPoint = 10 deci/point (parity with `thorns`'",
+              "dotPerStack — see PRICE.tauntPerPoint in balance.ts for the full",
+              "derivation); 2*10 = 20 deci = Common exactly. No shipped card carries",
+              "`taunt` today, so this rate change and this gem both land with zero",
+              "cascade to the card catalog."
+            ],
+            "kind": "effect",
+            "rarity": "common",
+            "actions": [
+              {
+                "kind": "taunt",
+                "amount": 2
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

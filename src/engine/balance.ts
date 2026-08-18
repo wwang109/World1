@@ -288,6 +288,38 @@ export const PRICE = {
   exposePerPctTurnDen: 1,
 
   /**
+   * taunt: amount * tauntPerPoint deci (balance-designer pass, 2026-08-18 —
+   * closes the last KNOWN SILENT ZERO: `taunt` had an interpreter
+   * implementation and no rate at all, `price: []`, so no card or gem could
+   * ever be authored with it honestly).
+   *
+   * NEAREST PRICED COMPARABLE, not a fresh anchor: `taunt` raises the
+   * caster's own `aggro` by a flat integer, PERMANENTLY (never turn-
+   * decremented, never consumed) — self-only, one numeric field, empower-
+   * family. That is EXACTLY the shape `thorns` already prices (self-only,
+   * permanent-until-consumed, one numeric field, empower-family;
+   * `dotPerStack` = 10 deci/point) — the two closest keywords in the whole
+   * table by structure. `taunt` is if anything the STRONGER of the pair (a
+   * thorns pile depletes as it is triggered; an aggro point never does), so
+   * pricing at PARITY with thorns rather than at a discount is the
+   * conservative direction.
+   *
+   * WHY NOT A PRECISE THROUGHPUT DERIVATION: taunt's actual battlefield
+   * value is a THRESHOLD effect, not a linear one — every unit's `baseAggro`
+   * defaults to 0 (`combat/state.ts`), so the FIRST point of taunt already
+   * wins undivided targeting priority under the default `aggro` policy; every
+   * point beyond that only matters as a tie-breaker against a competing
+   * taunter, and no shipped content (enemy or hero) casts `taunt` today to
+   * measure that against. A precise per-point number would be fictitious
+   * precision; the honest move is the nearest-comparable rate stated above,
+   * left open for a real `npm run sim` re-tune once a taunting enemy exists —
+   * the same "moderated, pending data" stance `stunPerTurn`'s own comment
+   * already takes.
+   *   Showcase: taunt 2 = 20 deci = Common exactly (2/4/6/8 all land clean).
+   */
+  tauntPerPoint: 10,
+
+  /**
    * negate: charges * negatePerCharge deci. A charge cancels a FULL direct
    * hit of the matching property (~ a whole Bronze card's worth of prevented
    * output), so it's priced as a flat per-charge chunk. User-locked

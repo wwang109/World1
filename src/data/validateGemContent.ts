@@ -89,11 +89,31 @@ export function payloadFingerprint(def: Record<string, unknown>): string {
   }));
 }
 
-/** Kinds whose PRICE has no band that lands exactly — structurally unauthorable as a gem. */
+/**
+ * Kinds banned OUTRIGHT from a gem's `actions`, at ANY magnitude, in ANY
+ * combination with other actions — a HARD structural rejection, not merely
+ * "this magnitude misses a band". A kind belongs here ONLY when NO companion
+ * action could ever rescue it: every action's price is ADDED, never
+ * subtracted (an effect gem carries no negative-cost term — that only exists
+ * on a Core's `weightDelta`, a disjoint `kind: 'stat'` payload), so a kind
+ * whose OWN MINIMUM already exceeds Legendary (80) can only be pushed further
+ * over budget by a companion, never brought back under it.
+ *   stun:   100 deci/turn, 1-turn floor = 100 > 80. No companion helps.
+ *   negate: 100 deci/charge, 1-charge floor = 100 > 80. No companion helps.
+ *           (The Echo counterplay is card-only, by design.)
+ * `cleanse` USED to sit here too (25 deci/charge — no charge count alone
+ * lands on 20/40/60/80) but that reasoning only ever covered the SINGLE-
+ * ACTION case: `cleanse 1 (25) + a 15-deci companion = 40` bands exactly on
+ * Rare (see `renewal_sliver`, gem ruleset investigation 2026-08-18), so a
+ * blanket ban was over-broad and is lifted. A lone, uncompanioned `cleanse`
+ * still misses every band — that is now a BALANCE fact (`isGemOnBudget`,
+ * `tests/data/gemsRuleset.test.ts`), not a structural one, matching this
+ * file's own stated boundary ("anything needing the PRICE tables… live with
+ * the other balance audits").
+ */
 const UNPRICEABLE_KINDS: Record<string, string> = {
-  stun: 'stun costs 100 deci/turn, so 1 turn = 100 — past Legendary (80). No turn count lands on a band (20/40/60/80).',
-  negate: 'negate costs 100 deci/charge, so 1 charge = 100 — past Legendary (80). The Echo counterplay is card-only, by design.',
-  cleanse: 'cleanse costs 25 deci/charge, so charges land on 25/50/75/100 — none of which is a band (20/40/60/80).',
+  stun: 'stun costs 100 deci/turn, so 1 turn = 100 — past Legendary (80). No turn count lands on a band (20/40/60/80), and no companion action can ever bring an already-over-budget minimum back down (every action price only adds).',
+  negate: 'negate costs 100 deci/charge, so 1 charge = 100 — past Legendary (80). The Echo counterplay is card-only, by design, and no companion action can ever bring an already-over-budget minimum back down (every action price only adds).',
 };
 
 function validateGemDef(raw: unknown, id: string, problems: ContentProblem[]): void {

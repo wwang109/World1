@@ -109,6 +109,7 @@ export interface PriceRates {
   guardPerPctTurnDen: number;
   exposePerPctTurnNum: number;
   exposePerPctTurnDen: number;
+  tauntPerPoint: number;
   disruptBrackets: readonly { upTo: number; rateDeci: number }[];
 }
 
@@ -190,14 +191,12 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     shieldBreak: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'amount', num: P.shieldBreakPerPointNum, den: P.shieldBreakPerPointDen }] },
     comboBonus: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'amount', num: P.comboPerPointNum, den: P.comboPerPointDen }] },
 
-    // KNOWN SILENT ZERO, now explicit rather than a missing switch arm. `taunt`
-    // has an interpreter implementation and no rate; no card ships it. Giving it
-    // a rate is a balance decision, not a refactor — until then the omission is
-    // visible here instead of invisible in a switch.
-    taunt: {
-      isHit: false, scalable: false, family: null, offensive: false, price: [],
-      unpricedReason: 'no rate set; permanent self-aggro has no duration term to price against',
-    },
+    // PRICED (balance-designer pass, 2026-08-18) — closes the last KNOWN
+    // SILENT ZERO: `taunt` had an interpreter implementation and no rate.
+    // Empower family (self-only, no foe target) alongside its nearest
+    // structural sibling `thorns` — see `PRICE.tauntPerPoint`'s doc comment
+    // in balance.ts for the full "nearest priced comparable" derivation.
+    taunt: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'amount', num: P.tauntPerPoint, den: 1 }] },
   };
 }
 

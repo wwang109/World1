@@ -146,17 +146,34 @@ describe('data: gem ruleset contract', () => {
   });
 
   // ---- structurally unpriceable payloads, with the arithmetic -------------
-  it('rejects stun / negate / cleanse and explains the band arithmetic', () => {
+  // `cleanse` is DELIBERATELY NOT in this list (2026-08-18): unlike
+  // stun/negate, whose own minimum ALREADY exceeds Legendary (no companion
+  // action can ever bring an already-over-budget price back down, since every
+  // action's price only adds), cleanse's 25-deci-per-charge floor is UNDER
+  // every band — a companion action can push it up to land exactly (see
+  // `renewal_sliver`: cleanse 1 (25) + heal 3 (15) = 40 = Rare). A blanket
+  // structural ban was over-broad for cleanse and is lifted; see the next
+  // test for the balance-level fact that a LONE cleanse still misses every
+  // band on its own.
+  it('rejects stun / negate and explains the band arithmetic (no companion can rescue them)', () => {
     const cases: Array<[string, Record<string, unknown>, string]> = [
       ['stun', { turns: 1 }, '100 deci/turn'],
       ['negate', { property: 'physical', charges: 1 }, '100 deci/charge'],
-      ['cleanse', { charges: 1 }, '25/50/75/100'],
     ];
     for (const [kind, extra, fragment] of cases) {
       const d = clone();
       defOf(d, 'venom_sliver').actions = [{ kind, ...extra }];
       failsWith(d, fragment);
     }
+  });
+
+  // ---- cleanse: a BALANCE fact now, not a structural rejection ------------
+  it('a lone, uncompanioned cleanse charge still misses every band (isGemOnBudget, not the validator)', () => {
+    const lone: Gem = { id: 'x', kind: 'effect', rarity: 'rare', actions: [{ kind: 'cleanse', charges: 1 }] } as Gem;
+    // 25 deci at 1 charge — under Rare (40), and every other charge count
+    // (50/75/100 deci) also misses a band (20/40/60/80).
+    expect(gemPowerLevelDeci(lone)).toBe(25);
+    expect(isGemOnBudget(lone)).toBe(false);
   });
 
   it('rejects cooldownReduction (100 deci/turn, no band lands)', () => {
