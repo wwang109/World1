@@ -14,7 +14,7 @@
     "api": "tsx server/battleApi.ts",
     "fight": "tsx scripts/fight.ts",
     "sim": "tsx scripts/balance.ts",
-    "content:export": "tsx scripts/exportContent.ts && tsx scripts/exportGems.ts",
+    "content:export": "tsx scripts/exportContent.ts && tsx scripts/exportGems.ts && tsx scripts/exportEnemies.ts",
     "content:validate": "tsx scripts/validateContent.ts",
     "scaffold:card": "tsx scripts/scaffoldCard.ts"
   },
