@@ -22,6 +22,16 @@ function numbersInText(text: string): number[] {
   return (text.match(/\d+/g) ?? []).map(Number);
 }
 
+/**
+ * The default arm is `assertNever`, so this switch is compile-time exhaustive
+ * over `Action['kind']` (mirrors the trick `validateSkillContent.ts`'s action
+ * switch uses) — a new Action kind fails `tsc`, not silently sails through the
+ * drift guard unchecked the way `ward`/`thorns` did before this comment.
+ */
+function assertNever(value: never): never {
+  throw new Error('expectedNumbers: unhandled action kind ' + JSON.stringify(value));
+}
+
 /** The magnitudes a kit (effects + aura) must spell out in its text. */
 function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined): number[] {
   const expected: number[] = [];
@@ -69,6 +79,36 @@ function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined):
       case 'negate':
         if (eff.charges > 1) expected.push(eff.charges);
         break;
+      // WARD/THORNS (closed 2026-08-18, this was the hole): every authored
+      // ward/thorns card spells the charge/stack count as a literal digit
+      // right after the keyword ("{{Ward}} 2 \u2014 ...", "{{Thorns}} 5
+      // \u2014 ..."), including the charges===1 / stacks===low cases — unlike
+      // `stun`/`negate`, there is no wordy singular phrasing to exempt.
+      case 'ward':
+        expected.push(eff.charges);
+        break;
+      case 'thorns':
+        expected.push(eff.stacks);
+        break;
+      // TAUNT: no card authors this yet, but `amount` is a flat magnitude of
+      // the exact same shape as `disrupt`/`shieldBreak`/`comboBonus` above, so
+      // it is checked the same way rather than left to drift silently.
+      case 'taunt':
+        expected.push(eff.amount);
+        break;
+      // STAT STRIKE: deliberately EXEMPT, same family as the stun/negate
+      // singular exemptions above but for the opposite reason — `shareOf` is
+      // never spelled as a digit by design (docs/card-text-style-guide.md +
+      // the type's own doc comment in src/engine/types.ts): it prints as a
+      // word ratio ("half strength", "a quarter"), because the actual damage
+      // is proportional to a stat the text cannot know at authoring time. A
+      // `cap`, if ever authored, IS a genuine flat number (a hard ceiling on
+      // the payload) and is checked like any other magnitude.
+      case 'statStrike':
+        if (eff.cap !== undefined) expected.push(eff.cap);
+        break;
+      default:
+        assertNever(eff);
     }
   }
 

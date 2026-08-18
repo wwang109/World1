@@ -4952,8 +4952,8 @@
        "fully saturate the cap between them, so heal is the only line with any",
        "room left. Bronze: ward 100 + thorns 50 + heal 18*5=90 = 240 raw -",
        "140 (size-2 grant) = 100 exactly. No tierUpgrades: heal alone absorbs",
-       "every higher budget (silver 38, gold 58, diamond 78 \u2014 verified against",
-       "`autoScaleTier`, since ward+thorns are both frozen and never move).",
+       "every higher budget (silver 34, gold 52, diamond 68 \u2014 confirmed by",
+       "running `autoScaleTier`, since ward+thorns are both frozen and never move).",
        "Creates the ward+thorns pair (previously zero cards) and stacks onto",
        "the existing heal+ward / heal+thorns pairs in one kit."
       ],
