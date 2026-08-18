@@ -43,6 +43,28 @@ export type EventTheme = 'training' | 'cache' | 'recruit' | 'forge' | 'market' |
 export type EventOutcomeSpec =
   | { kind: 'grantCard'; cardId?: string; filter?: CardFilter; tier?: SkillTier }
   | { kind: 'grantGem'; gemId?: string; filter?: GemFilter }
+  // `cardChoice`/`gemChoice` (2026-08-18): the widened, agency-bearing
+  // siblings of `grantCard`/`grantGem` above — same filter/tier vocabulary,
+  // but the resolver draws EVENT_CHOICE_SIZE (3, not `bonusDraft`'s 5 — a
+  // free/cheap grant must not out-earn `bonusDraft`'s paid 5-wide identity)
+  // DISTINCT candidates and hands the player a deferred pick instead of
+  // resolving blind. `cardChoice` reuses `bonusDraft`'s own deferred-offer
+  // shape 1:1 (`src/run/events.ts#cardChoiceOutcome` returns the exact same
+  // `{kind:'bonusDraft', cards}` `EventOutcome` `applyBonusDraftPick` already
+  // finalizes — no new resolved shape). `gemChoice` has no existing analogue
+  // to reuse (gems never had a picker), so it returns a new deferred
+  // `{kind:'gemChoicePick', options}` `EventOutcome`, finalized by the new
+  // `applyGemChoicePick`. No `cardId`/`gemId` field — a choice that already
+  // NAMES its reward stays `grantCard`/`grantGem` (the 4 named-card grants
+  // in this catalog are deliberately untouched).
+  // `tier` is narrowed to `'bronze'` (not the full `SkillTier` `grantCard`
+  // takes): the resolver hands this off to `bonusDraft`'s own deferred-pick
+  // shape (`DraftCard`, `src/run/draft.ts`), whose `tier` field is itself
+  // fixed at `'bronze'` — every existing `bonusDraft` mini-draft in this
+  // catalog is bronze-only for the same reason. Every current `cardChoice`
+  // conversion is bronze already, so this costs nothing today.
+  | { kind: 'cardChoice'; filter?: CardFilter; tier?: 'bronze' }
+  | { kind: 'gemChoice'; filter?: GemFilter }
   | { kind: 'grantGold'; amount: number }
   | { kind: 'loseGold'; amount: number }
   | { kind: 'grantLevel' }
@@ -105,7 +127,7 @@ const defs: EventDef[] = [
         id: 'search_thoroughly',
         label: 'Search it thoroughly (2 gold)',
         cost: 2,
-        outcome: { kind: 'grantCard', tier: 'bronze' },
+        outcome: { kind: 'cardChoice', tier: 'bronze' },
       },
       { id: 'leave', label: 'Leave it be', outcome: { kind: 'nothing' } },
     ],
@@ -134,7 +156,7 @@ const defs: EventDef[] = [
       // small guaranteed reward; the paid choice keeps the old gamble's
       // winning outcome, now guaranteed at the catalog gem rate.
       { id: 'help', label: 'Help her gather them', outcome: { kind: 'grantGold', amount: 1 } },
-      { id: 'rifle', label: 'Rifle through the spill (2 gold)', cost: 2, outcome: { kind: 'grantGem' } },
+      { id: 'rifle', label: 'Rifle through the spill (2 gold)', cost: 2, outcome: { kind: 'gemChoice' } },
     ],
   },
   {
@@ -147,7 +169,7 @@ const defs: EventDef[] = [
         id: 'tithe',
         label: 'Leave a tithe (2 gold)',
         cost: 2,
-        outcome: { kind: 'grantCard', filter: [{ elements: ['holy', 'dark'] }] },
+        outcome: { kind: 'cardChoice', filter: [{ elements: ['holy', 'dark'] }] },
       },
       { id: 'deface', label: 'Deface it for scrap', outcome: { kind: 'grantGold', amount: 3 } },
     ],
@@ -210,10 +232,13 @@ const defs: EventDef[] = [
     body: 'A ring of packed dirt marks the heart of the Hollow Yard, worn smooth by years of practice bouts. A scarred instructor waves you over: "Two gold buys you a real lesson. Or grab a spare blade off the rack and figure it out yourself — that\'s free, and it shows."',
     choices: [
       { id: 'lesson', label: 'Pay 2 gold for a real lesson', cost: 2, outcome: { kind: 'grantLevel' } },
+      // Stays cost 0 — the event's ONLY cost-0 choice (`lesson` costs 2); the
+      // safe-exit invariant (docs at the top of this file) forbids repricing
+      // it, unlike its `take_armor`/`take_stone` siblings below.
       {
         id: 'spare_blade',
         label: 'Take a spare blade from the rack',
-        outcome: { kind: 'grantCard', filter: [{ archetypes: ['offense'] }], tier: 'bronze' },
+        outcome: { kind: 'cardChoice', filter: [{ archetypes: ['offense'] }], tier: 'bronze' },
       },
     ],
   },
@@ -252,7 +277,7 @@ const defs: EventDef[] = [
         id: 'dig_further',
         label: 'Dig further for a real find (2 gold)',
         cost: 2,
-        outcome: { kind: 'grantGem' },
+        outcome: { kind: 'gemChoice' },
       },
       { id: 'seal_it', label: 'Seal it back up and move on', outcome: { kind: 'nothing' } },
     ],
@@ -263,12 +288,21 @@ const defs: EventDef[] = [
     theme: 'cache',
     body: 'A tired quartermaster at the edge of the Silt Hollows shoves a requisition ledger across the counter, muttering about a shipment that was never meant to reach you. "Take the armor plating," he says, "or the loose gemstone in the corner. Don\'t care which — just take it and go before someone notices."',
     choices: [
+      // Both choices here were cost-0 free picks pre-widening; only ONE of an
+      // event's choices needs to stay cost-0 for the safe-exit invariant, so
+      // `take_gem` (gems are the catalog's single biggest RNG win) takes the
+      // +1-gold reprice and `take_armor` stays free.
       {
         id: 'take_armor',
         label: 'Take the armor plating',
-        outcome: { kind: 'grantCard', filter: [{ archetypes: ['defensive'] }], tier: 'bronze' },
+        outcome: { kind: 'cardChoice', filter: [{ archetypes: ['defensive'] }], tier: 'bronze' },
       },
-      { id: 'take_gem', label: 'Take the loose gemstone', outcome: { kind: 'grantGem' } },
+      {
+        id: 'take_gem',
+        label: 'Take the loose gemstone (1 gold)',
+        cost: 1,
+        outcome: { kind: 'gemChoice' },
+      },
     ],
   },
   {
@@ -290,7 +324,7 @@ const defs: EventDef[] = [
         id: 'raid_prepared',
         label: 'Raid it properly, gear in hand (2 gold)',
         cost: 2,
-        outcome: { kind: 'grantCard', filter: [{ weapons: ['bow', 'beast'] }], tier: 'bronze' },
+        outcome: { kind: 'cardChoice', filter: [{ weapons: ['bow', 'beast'] }], tier: 'bronze' },
       },
       { id: 'leave_it', label: 'Leave the nest be', outcome: { kind: 'nothing' } },
     ],
@@ -383,7 +417,7 @@ const defs: EventDef[] = [
         id: 'pay_toll',
         label: 'Pay the 2-gold toll',
         cost: 2,
-        outcome: { kind: 'grantCard', filter: [{ archetypes: ['offense'] }], tier: 'bronze' },
+        outcome: { kind: 'cardChoice', filter: [{ archetypes: ['offense'] }], tier: 'bronze' },
       },
       { id: 'go_around', label: 'Take the long way around', outcome: { kind: 'nothing' } },
     ],
@@ -395,7 +429,10 @@ const defs: EventDef[] = [
     body: 'A fence works a folding table at the shadowed edge of the Tolling Road, goods of dubious origin spread out under a stained cloth. "Coin, or a stone — your pick, no questions asked either way." She taps the table, already bored with the transaction.',
     choices: [
       { id: 'take_coin', label: 'Take the coin', outcome: { kind: 'grantGold', amount: 2 } },
-      { id: 'take_stone', label: 'Take the stone instead', outcome: { kind: 'grantGem' } },
+      // Repriced 0 -> 1 gold (`take_coin` above stays the event's free exit,
+      // so the safe-choice invariant holds) — see the arithmetic note near
+      // `EVENT_CHOICE_SIZE` in src/run/events.ts.
+      { id: 'take_stone', label: 'Take the stone instead (1 gold)', cost: 1, outcome: { kind: 'gemChoice' } },
     ],
   },
 
@@ -429,7 +466,7 @@ const defs: EventDef[] = [
       // gem, unrelated to the gamble's own (now-discarded) upgradeCard
       // winning branch — it stays exactly as it was.
       { id: 'reach_in', label: 'Thrust your gear into the coals', outcome: { kind: 'grantGold', amount: 1 } },
-      { id: 'pay_tender', label: 'Pay 2 gold to steady the coals first', cost: 2, outcome: { kind: 'grantGem' } },
+      { id: 'pay_tender', label: 'Pay 2 gold to steady the coals first', cost: 2, outcome: { kind: 'gemChoice' } },
     ],
   },
   {
@@ -455,7 +492,7 @@ const defs: EventDef[] = [
       // gem, unrelated to the gamble's own (now-discarded) grantLevel winning
       // branch — it stays exactly as it was.
       { id: 'free_reading', label: 'Take the free reading', outcome: { kind: 'grantGold', amount: 1 } },
-      { id: 'cross_palm', label: 'Cross her palm with 2 gold', cost: 2, outcome: { kind: 'grantGem' } },
+      { id: 'cross_palm', label: 'Cross her palm with 2 gold', cost: 2, outcome: { kind: 'gemChoice' } },
     ],
   },
   {
@@ -490,7 +527,7 @@ const defs: EventDef[] = [
       // gem) — this is the one deliberate price change the ruling calls for,
       // bumping the cost to 2 to match the catalog rate instead of
       // underselling every sibling event.
-      { id: 'feed_them', label: 'Toss them your scraps (2 gold)', cost: 2, outcome: { kind: 'grantGem' } },
+      { id: 'feed_them', label: 'Toss them your scraps (2 gold)', cost: 2, outcome: { kind: 'gemChoice' } },
       { id: 'walk_around', label: 'Walk the long way around, coin still in your pocket', outcome: { kind: 'nothing' } },
     ],
   },
@@ -502,7 +539,7 @@ const defs: EventDef[] = [
     theme: 'market',
     body: "A toll collector flags you down on the Tolling Road, ledger open, insisting a road tax is overdue for the wear you've caused passing through. Pay it and he waves you past with a stone from his confiscated crate — refuse, and he shrugs, scrawls something illegible, and lets you walk on regardless.",
     choices: [
-      { id: 'pay_tax', label: 'Pay the 2-gold road tax', cost: 2, outcome: { kind: 'grantGem' } },
+      { id: 'pay_tax', label: 'Pay the 2-gold road tax', cost: 2, outcome: { kind: 'gemChoice' } },
       { id: 'refuse', label: 'Refuse to pay', outcome: { kind: 'nothing' } },
     ],
   },
@@ -520,7 +557,7 @@ const defs: EventDef[] = [
         id: 'salvage_properly',
         label: 'Stay and salvage the wreckage properly (2 gold)',
         cost: 2,
-        outcome: { kind: 'grantGem' },
+        outcome: { kind: 'gemChoice' },
       },
       { id: 'leave_him', label: 'Leave him to it', outcome: { kind: 'nothing' } },
     ],

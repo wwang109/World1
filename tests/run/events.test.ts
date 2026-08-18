@@ -4,6 +4,7 @@ import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
 import {
   applyBonusDraftPick,
+  applyGemChoicePick,
   applyUpgradeCardPick,
   isEventChoiceAffordable,
   resolveEventChoice,
@@ -22,6 +23,7 @@ import {
   type RunState,
 } from '../../src/run/runState';
 import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
+import { gemMatchesFilter } from '../../src/run/shop';
 
 function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
   const draft = rollStartDraft(seed);
@@ -56,7 +58,18 @@ function stateAtFirstEvent(seed: number): { state: RunState; node: RunNode } {
 }
 
 /** Every non-gamble outcome kind in the vocabulary, for the catalog lint. */
-const OUTCOME_KINDS = new Set(['grantCard', 'grantGem', 'grantGold', 'loseGold', 'grantLevel', 'bonusDraft', 'upgradeCard', 'nothing']);
+const OUTCOME_KINDS = new Set([
+  'grantCard',
+  'grantGem',
+  'grantGold',
+  'loseGold',
+  'grantLevel',
+  'bonusDraft',
+  'cardChoice',
+  'gemChoice',
+  'upgradeCard',
+  'nothing',
+]);
 
 function isSafe(choice: { cost?: number; outcome: EventChoiceOutcome }): boolean {
   if ((choice.cost ?? 0) > 0) return false;
@@ -166,14 +179,14 @@ describe('data/events: catalog lint', () => {
     }
   });
 
-  it('every bonusDraft filter resolves to a real, non-empty pool (thin filters allowed, empty is a bug)', () => {
+  it('every bonusDraft/cardChoice filter resolves to a real, non-empty pool (thin filters allowed, empty is a bug)', () => {
     for (const id of eventCatalogIds) {
       const event = eventCatalog[id]!;
       const specs: EventOutcomeSpec[] = event.choices.flatMap((c) =>
         c.outcome.kind === 'gamble' ? c.outcome.table.map((r) => r.outcome) : [c.outcome],
       );
       for (const spec of specs) {
-        if (spec.kind !== 'bonusDraft' || !spec.filter) continue;
+        if ((spec.kind !== 'bonusDraft' && spec.kind !== 'cardChoice') || !spec.filter) continue;
         const pool = Object.values(skillBook).filter((s) =>
           spec.filter!.some((clause) => {
             if (clause.properties && !clause.properties.includes(s.property)) return false;
@@ -186,6 +199,54 @@ describe('data/events: catalog lint', () => {
         expect(pool.length).toBeGreaterThan(0);
       }
     }
+  });
+
+  it('every gemChoice filter resolves to a real, non-empty gem pool (none in the catalog carry one today, but the guard stays live)', () => {
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      const specs: EventOutcomeSpec[] = event.choices.flatMap((c) =>
+        c.outcome.kind === 'gamble' ? c.outcome.table.map((r) => r.outcome) : [c.outcome],
+      );
+      for (const spec of specs) {
+        if (spec.kind !== 'gemChoice' || !spec.filter) continue;
+        const pool = Object.values(gemBook).filter((g) => gemMatchesFilter(g, spec.filter!));
+        expect(pool.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('exactly 6 cardChoice and 9 gemChoice outcomes in the catalog (the 2026-08-18 agency widening), and the 4 named-card grants are untouched', () => {
+    let cardChoiceCount = 0;
+    let gemChoiceCount = 0;
+    let namedGrantCardCount = 0;
+    for (const id of eventCatalogIds) {
+      for (const choice of eventCatalog[id]!.choices) {
+        if (choice.outcome.kind === 'cardChoice') cardChoiceCount++;
+        if (choice.outcome.kind === 'gemChoice') gemChoiceCount++;
+        if (choice.outcome.kind === 'grantCard' && choice.outcome.cardId) namedGrantCardCount++;
+      }
+    }
+    expect(cardChoiceCount).toBe(6);
+    expect(gemChoiceCount).toBe(9);
+    expect(namedGrantCardCount).toBe(4);
+  });
+
+  it('reprices only the 2 currently-free widened choices whose sibling stays a genuinely safe cost-0 exit, leaving the other 2 free', () => {
+    const quartermastersError = eventCatalog.quartermasters_error!;
+    const takeArmor = quartermastersError.choices.find((c) => c.id === 'take_armor')!;
+    const takeGem = quartermastersError.choices.find((c) => c.id === 'take_gem')!;
+    expect(takeArmor.cost ?? 0).toBe(0); // stays free — the event's remaining safe exit
+    expect(takeGem.cost).toBe(1); // +1 gold reprice
+
+    const fencesOffer = eventCatalog.fences_offer!;
+    const takeCoin = fencesOffer.choices.find((c) => c.id === 'take_coin')!;
+    const takeStone = fencesOffer.choices.find((c) => c.id === 'take_stone')!;
+    expect(takeCoin.cost ?? 0).toBe(0); // untouched, stays the event's free exit
+    expect(takeStone.cost).toBe(1); // +1 gold reprice
+
+    const sparringCircle = eventCatalog.sparring_circle!;
+    const spareBlade = sparringCircle.choices.find((c) => c.id === 'spare_blade')!;
+    expect(spareBlade.cost ?? 0).toBe(0); // stays free — sparring_circle's ONLY cost-0 choice
   });
 
   // A stake belongs in `cost`, never in a `loseGold` branch: loseGold floors at
@@ -697,6 +758,96 @@ describe('run/events: upgradeCard', () => {
     };
     const { state: next } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
     expect(next.stats.eventsResolved).toBe(rigged.stats.eventsResolved + 1);
+  });
+});
+
+describe('run/events: cardChoice/gemChoice (the 2026-08-18 agency widening)', () => {
+  it('BEFORE/AFTER — search_thoroughly (abandoned_cache) was a 1-of-1 grantCard, is now a 1-of-3 pick', () => {
+    // BEFORE (documented for the record, not executable): outcome was
+    // `{ kind: 'grantCard', tier: 'bronze' }` — a single blind `rng.pick`,
+    // no deferred choice, no way for the UI to show anything but the
+    // already-resolved card.
+    const before = eventCatalog.abandoned_cache!.choices.find((c) => c.id === 'search_thoroughly')!.outcome;
+    expect(before).toEqual({ kind: 'cardChoice', tier: 'bronze' });
+
+    // AFTER: resolving the choice returns a deferred pick of 3 DISTINCT
+    // bronze cards (the `bonusDraft`-shaped `EventOutcome`, reused verbatim)
+    // instead of a single resolved card.
+    const { state } = stateAtFirstEvent(4);
+    const { outcome } = resolveEventChoice({ ...state, gold: 5 }, 'abandoned_cache', 'search_thoroughly');
+    expect(outcome.kind).toBe('bonusDraft');
+    if (outcome.kind !== 'bonusDraft') return;
+    expect(outcome.cards).toHaveLength(3);
+    expect(new Set(outcome.cards.map((c) => c.skillId)).size).toBe(3);
+    for (const card of outcome.cards) expect(card.tier).toBe('bronze');
+  });
+
+  it('BEFORE/AFTER — rifle (gemsellers_mishap) was a 1-of-1 grantGem, is now a 1-of-3 pick', () => {
+    const before = eventCatalog.gemsellers_mishap!.choices.find((c) => c.id === 'rifle')!.outcome;
+    expect(before).toEqual({ kind: 'gemChoice' });
+
+    const { state } = stateAtFirstEvent(4);
+    const { state: afterChoice, outcome } = resolveEventChoice({ ...state, gold: 5 }, 'gemsellers_mishap', 'rifle');
+    expect(outcome.kind).toBe('gemChoicePick');
+    if (outcome.kind !== 'gemChoicePick') return;
+    expect(outcome.options).toHaveLength(3);
+    expect(new Set(outcome.options).size).toBe(3);
+    for (const gemId of outcome.options) expect(gemBook[gemId]).toBeDefined();
+    // Nothing granted yet — same "roll now, pick later, mutate nothing until
+    // the tap" contract as bonusDraft/upgradeCard.
+    expect(afterChoice.gemInventory).toEqual(state.gemInventory);
+  });
+
+  it('applyGemChoicePick installs exactly the tapped gem id and nothing else', () => {
+    const { state } = stateAtFirstEvent(4);
+    const { state: afterChoice, outcome } = resolveEventChoice({ ...state, gold: 5 }, 'gemsellers_mishap', 'rifle');
+    if (outcome.kind !== 'gemChoicePick') throw new Error('expected gemChoicePick');
+    const picked = outcome.options[1]!;
+    const { state: final, outcome: finalOutcome } = applyGemChoicePick(afterChoice, picked);
+    expect(finalOutcome).toEqual({ kind: 'grantGem', gemId: picked });
+    expect(final.gemInventory).toEqual([...afterChoice.gemInventory, picked]);
+  });
+
+  it('applyGemChoicePick throws on an unknown gem id (defensive — the picker only ever passes back an offered option)', () => {
+    const { state } = stateAtFirstEvent(4);
+    expect(() => applyGemChoicePick(state, 'not_a_real_gem_id')).toThrow();
+  });
+
+  it('cardChoice respects its filter — tithe (crossroads_shrine) only offers holy/dark cards', () => {
+    const { state } = stateAtFirstEvent(4);
+    const { outcome } = resolveEventChoice({ ...state, gold: 5 }, 'crossroads_shrine', 'tithe');
+    expect(outcome.kind).toBe('bonusDraft');
+    if (outcome.kind !== 'bonusDraft') return;
+    expect(outcome.cards).toHaveLength(3);
+    for (const card of outcome.cards) {
+      const skill = skillBook[card.skillId]!;
+      expect(['holy', 'dark']).toContain(skill.element);
+    }
+  });
+
+  it('is deterministic: identical (state, choiceId) resolves to the identical 1-of-3 offer, repeatedly', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withGold = { ...state, gold: 5 };
+    const a = resolveEventChoice(withGold, 'gemsellers_mishap', 'rifle');
+    const b = resolveEventChoice(withGold, 'gemsellers_mishap', 'rifle');
+    expect(b.outcome).toEqual(a.outcome);
+    const c = resolveEventChoice(withGold, 'abandoned_cache', 'search_thoroughly');
+    const d = resolveEventChoice(withGold, 'abandoned_cache', 'search_thoroughly');
+    expect(d.outcome).toEqual(c.outcome);
+  });
+
+  it("widening one choice's own draw does not perturb ANY other (node, choice) pair's roll — each choice's Rng is seeded independently", () => {
+    const { state } = stateAtFirstEvent(4);
+    const withGold = { ...state, gold: 5 };
+    // A sibling choice's outcome (deface, an unrelated grantGold) on the SAME
+    // event must be byte-identical whether or not `tithe` (the widened
+    // choice sharing this event) has ever been resolved — proving the two
+    // choices' `Rng` instances (each seeded off `hashSeed('event', eventSeed,
+    // choiceId)`) never share state.
+    const before = resolveEventChoice(withGold, 'crossroads_shrine', 'deface');
+    resolveEventChoice(withGold, 'crossroads_shrine', 'tithe'); // widened draw, discarded
+    const after = resolveEventChoice(withGold, 'crossroads_shrine', 'deface');
+    expect(after.outcome).toEqual(before.outcome);
   });
 });
 

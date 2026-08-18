@@ -11,7 +11,7 @@ import { eventCatalog, eventCatalogIds, type EventChoiceDef, type EventChoiceOut
 import type { DraftCard } from './draft';
 import { skillBook } from '../data/skills';
 import { gemBook } from '../data/gems';
-import { cardMatchesFilter, gemMatchesFilter, pickWeightedGem } from './shop';
+import { cardMatchesFilter, gemMatchesFilter, pickWeightedGem, pickWeightedGems } from './shop';
 import {
   currentEventNode,
   MAX_LEVEL,
@@ -26,6 +26,42 @@ import {
 const CARD_FALLBACK_GOLD = 2;
 const DEFAULT_CARD_TIER: SkillTier = 'bronze';
 const BONUS_DRAFT_SIZE = 5;
+
+/**
+ * Width of a `cardChoice`/`gemChoice` event outcome's deferred pick
+ * (2026-08-18 agency pass — see `EventOutcomeSpec`'s doc comment in
+ * `data/events.ts`). Deliberately 3, not `BONUS_DRAFT_SIZE` (5): 5-wide is
+ * `bonusDraft`'s own paid identity (its choices cost 0-2 gold across the
+ * catalog) — a widened `grantCard`/`grantGem` must not out-earn it, so it
+ * gets a narrower pool instead of matching width.
+ *
+ * PRICING ARITHMETIC for the choices this widening touches (worked in full
+ * in the PR that introduced it): a shop Bronze card costs 2 gold
+ * (`GOLD_PRICE_BY_TIER.bronze`, shop.ts) and the cheapest (Common) shop gem
+ * costs 1 gold (`goldPriceOfGem`, same file) — both already the SAME price
+ * every existing paid `grantCard`/`grantGem` event choice in this catalog
+ * charges for a single guaranteed pick. Widening 1-of-1 to 1-of-3 at an
+ * UNCHANGED cost is therefore a pure value-up for every choice that was
+ * already paid — no reprice needed there, it just gets better for the same
+ * gold. The 4 choices that were cost-0 are the ones this widening actually
+ * cheapens relative to their paid siblings (a free 1-of-3 pick is now
+ * strictly better than it was, for the same zero gold, while a sibling event
+ * still charges 2g for functionally the same reward category) — against a
+ * run income of ~4-7 gold per winning wave, a 1-gold toll is ~15-25% of one
+ * wave's income: enough to register as a real cost, not decorative, while
+ * staying below every paid sibling's 2-gold price (so the free tier never
+ * out-earns the paid one). +1 gold is applied to exactly 2 of the 4
+ * (`take_gem`, `take_stone`) — the other 2 (`spare_blade`, `take_armor`)
+ * stay cost 0 because repricing them would leave their event with ZERO
+ * affordable choices at 0 gold, breaking the catalog's own "every event
+ * carries a genuinely safe cost-0 choice" invariant (see the doc comment at
+ * the top of `data/events.ts`) — `spare_blade` is `sparring_circle`'s ONLY
+ * cost-0 choice, and `take_armor`/`take_gem` were BOTH of
+ * `quartermasters_error`'s only two choices, so at most one of that pair can
+ * be repriced (gems, called out as the catalog's single biggest RNG win,
+ * take the reprice; the card grant stays free).
+ */
+const EVENT_CHOICE_SIZE = 3;
 
 /** Tier ladder `upgradeCard` climbs — fixed order, index doubles as "rank". */
 const TIER_LADDER: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
@@ -57,12 +93,31 @@ export type EventOutcome =
   | { kind: 'grantGold'; amount: number; fellBack?: boolean; gambled?: boolean }
   | { kind: 'loseGold'; amount: number; gambled?: boolean }
   | { kind: 'grantLevel'; level: number; gambled?: boolean }
+  // `cardChoice` (2026-08-18, see `EventOutcomeSpec`'s doc comment in
+  // data/events.ts) resolves to THIS SAME `bonusDraft` shape, at
+  // `EVENT_CHOICE_SIZE` (3) width instead of `BONUS_DRAFT_SIZE` (5) —
+  // `cardChoiceOutcome` below is the only other producer of this kind, and
+  // `applyBonusDraftPick` finalizes either one identically (a picked
+  // `DraftCard` is a picked `DraftCard` regardless of which choice drew it).
   | { kind: 'bonusDraft'; cards: readonly DraftCard[]; gambled?: boolean }
   // Deferred pick (same "roll now, pick later" shape as `bonusDraft` above) —
   // `upgradeCardOutcome` returns this instead of resolving immediately
   // whenever at least one owned card is eligible; `applyUpgradeCardPick`
   // resolves the player's tap into the FINAL `upgradeCard` outcome below.
   | { kind: 'upgradeCardPick'; options: readonly UpgradeCardOption[]; gambled?: boolean }
+  // `gemChoice`'s deferred offer (2026-08-18) — unlike `cardChoice`, gems had
+  // no pre-existing picker shape to reuse, so this is a genuinely new
+  // `EventOutcome` member: `options` is `EVENT_CHOICE_SIZE` distinct gem ids
+  // (same depth-gated, rarity-weighted draw a single `grantGem` uses, see
+  // `gemChoiceOutcome`). `applyGemChoicePick` finalizes the tapped id into
+  // the FINAL `grantGem` outcome above — no new final shape, only the offer
+  // is new. NOTE FOR UI INTEGRATION: this member is NOT YET handled by
+  // `src/game/ui/eventOutcomeText.ts#outcomeHeadline`'s exhaustive switch
+  // (nor by the event scenes' `bonusDraft`/`upgradeCardPick` branch, which
+  // this needs a third arm added alongside) — that's `src/game/**` surface,
+  // out of this module's ownership; see the PR description for the exact
+  // one-case patch needed to keep `outcomeHeadline` compiling.
+  | { kind: 'gemChoicePick'; options: readonly string[]; gambled?: boolean }
   // `skillId`/`from`/`to` are omitted (not merely falsy) exactly when
   // `fellBack` is true — this DELIBERATELY differs from `grantCard`'s
   // fallback idiom (which swaps the whole outcome to `grantGold`): a
@@ -396,9 +451,61 @@ function bonusDraftOutcome(
   return { kind: 'bonusDraft', cards: picked.map((s) => toDraftCard(s.id)) };
 }
 
+/**
+ * `cardChoice` — the widened `grantCard` sibling (see `EventOutcomeSpec`'s
+ * doc comment in data/events.ts and `EVENT_CHOICE_SIZE`'s pricing-arithmetic
+ * comment above): draws `EVENT_CHOICE_SIZE` DISTINCT skills matching
+ * `spec.filter` (same `cardMatchesFilter` the unwidened `grantCard` and the
+ * paid `bonusDraft` both already use) at `spec.tier ?? DEFAULT_CARD_TIER`,
+ * and returns them as a `bonusDraft`-shaped deferred pick — deliberately
+ * `bonusDraftOutcome`'s EXACT resolved shape, just a narrower width and (for
+ * the first time) a caller-chosen tier, so `applyBonusDraftPick` finalizes a
+ * `cardChoice` pick with zero changes. Falls back to the unfiltered book
+ * (same "never throw over a narrow filter" idiom as `grantCard`) only if the
+ * filtered pool is empty; unlike `grantCard`, this never throws.
+ */
+function cardChoiceOutcome(
+  rng: Rng,
+  spec: Extract<EventOutcomeSpec, { kind: 'cardChoice' }>,
+): EventOutcome {
+  // `spec.tier` is narrowed to `'bronze'` at the type level (see the doc
+  // comment on `cardChoice` in data/events.ts) — `toDraftCard` always builds
+  // a bronze `DraftCard`, so there's nothing to branch on here today.
+  const all = Object.values(skillBook);
+  const pool = spec.filter ? all.filter((s) => cardMatchesFilter(s, spec.filter!)) : all;
+  const picked = sampleDistinct(rng, pool.length > 0 ? pool : all, EVENT_CHOICE_SIZE);
+  return { kind: 'bonusDraft', cards: picked.map((s) => toDraftCard(s.id)) };
+}
+
+/**
+ * `gemChoice` — the widened `grantGem` sibling. Draws `EVENT_CHOICE_SIZE`
+ * DISTINCT gem ids matching `spec.filter` (today, no `gemChoice` in the
+ * catalog carries one — every conversion was an unfiltered `grantGem`, same
+ * as the brief's own audit found for the whole `grantGem` vocabulary), depth-
+ * gated and rarity-weighted through the SAME `pickWeightedGems` a single
+ * `grantGem` grant (`grantGemOutcome`, via `pickWeightedGem`) and a same-
+ * depth shop shelf both draw from — so a wave-1 `gemChoice` is exactly as
+ * Legendary-gated as everything else at that depth. Returns a genuinely NEW
+ * deferred `{kind:'gemChoicePick', options}` (gem ids only — no display
+ * metadata needed, `applyGemChoicePick` re-resolves the picked id against
+ * `gemBook` itself), never mutating `state` — same "roll now, pick later,
+ * apply nothing until the player taps" contract as `bonusDraft`/
+ * `upgradeCard`.
+ */
+function gemChoiceOutcome(
+  rng: Rng,
+  spec: Extract<EventOutcomeSpec, { kind: 'gemChoice' }>,
+  depth: number,
+): EventOutcome {
+  const pool = Object.values(gemBook).filter((g) => (spec.filter ? gemMatchesFilter(g, spec.filter) : true));
+  if (pool.length === 0) throw new Error('gemChoice: no gem matches the given filter');
+  const options = pickWeightedGems(rng, pool, depth, EVENT_CHOICE_SIZE).map((g) => g.id);
+  return { kind: 'gemChoicePick', options };
+}
+
 /** Applies a single (already-rolled, non-gamble) outcome spec. `depth` is the
  * node's shop-stock-equivalent depth band (see `grantGemOutcome`'s doc
- * comment) — only `grantGem` consumes it today. */
+ * comment) — `grantGem` and `gemChoice` both consume it today. */
 function applySpec(state: RunState, rng: Rng, spec: EventOutcomeSpec, depth: number): { state: RunState; outcome: EventOutcome } {
   switch (spec.kind) {
     case 'grantCard':
@@ -430,6 +537,10 @@ function applySpec(state: RunState, rng: Rng, spec: EventOutcomeSpec, depth: num
     }
     case 'bonusDraft':
       return { state, outcome: bonusDraftOutcome(rng, spec) };
+    case 'cardChoice':
+      return { state, outcome: cardChoiceOutcome(rng, spec) };
+    case 'gemChoice':
+      return { state, outcome: gemChoiceOutcome(rng, spec, depth) };
     case 'upgradeCard':
       return upgradeCardOutcome(state);
     case 'nothing':
@@ -561,4 +672,27 @@ export function applyUpgradeCardPick(state: RunState, instanceId: string): { sta
     return { state: { ...state, bagSlots }, outcome: { kind: 'upgradeCard', skillId: target.skillId, from: target.tier, to } };
   }
   return upgradeCardFallback(state);
+}
+
+/**
+ * Finalizes a `gemChoice` outcome's deferred pick (the UI shows the
+ * `EVENT_CHOICE_SIZE` rolled gem ids between `resolveEventChoice` returning
+ * `{kind:'gemChoicePick', options}` and calling this) — pushes the picked
+ * `gemId` into the gem pouch, same as `grantGemOutcome`'s immediate grant
+ * (gems have no capacity limit, so unlike `applyBonusDraftPick`/
+ * `applyUpgradeCardPick` there is no "didn't fit" fallback path to reuse).
+ * Throws if `gemId` isn't a real catalog id — defensive only, since the
+ * picker only ever passes back one of the exact options `gemChoiceOutcome`
+ * just showed it and nothing else can touch `state` in between (same
+ * "shouldn't happen but never silently corrupt state" posture `grantCard`/
+ * `grantGem` take on an unknown/empty pool).
+ */
+export function applyGemChoicePick(state: RunState, gemId: string): { state: RunState; outcome: EventOutcome } {
+  if (!gemBook[gemId]) {
+    throw new Error(`applyGemChoicePick: unknown gem id "${gemId}"`);
+  }
+  return {
+    state: { ...state, gemInventory: [...state.gemInventory, gemId] },
+    outcome: { kind: 'grantGem', gemId },
+  };
 }

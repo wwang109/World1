@@ -777,23 +777,49 @@ export function ensureRunShopShelf(state: RunState, nodeId: string): RunState {
   return { ...state, shopShelves: { ...state.shopShelves, [nodeId]: shelf } };
 }
 
-/** REROLL: costs 1 gold, deals a brand-new shelf from the next seed offset
- * (same `shopSeed + rerollCount` sequence `rollShopStock` uses everywhere).
- * No-op if the wallet can't afford it. Throws if `nodeId` isn't a shop node. */
+/**
+ * Gold cost of the NEXT reroll at `nodeId` — `1 + rerollCount` (1, 2, 3, 4…),
+ * where `rerollCount` is how many rerolls that node has ALREADY spent (0 for
+ * a never-rerolled or not-yet-browsed shelf, so the first reroll is still 1
+ * gold — byte-identical to the old flat price for a player's first reroll at
+ * any node). Escalating (rather than flat 1 forever) makes repeat rerolling
+ * cost something real against a run's ~4-7 gold/winning-wave income instead
+ * of being cheaper than a single Bronze card (2g) for an unlimited number of
+ * fresh 6-offer shelves — the lever this function backs is specifically
+ * "increase the weight of offers already on screen" without touching any
+ * pool/odds. Resets to 1 at the NEXT node automatically: `rerollCount` is
+ * keyed per-node in `state.shopShelves`, never carried across nodes.
+ *
+ * Exported so both shop scenes (`src/game/scenes/{Desktop,Mobile}ShopScene`)
+ * can read the LIVE price for their button label/affordability check instead
+ * of a hardcoded 1 — see `rerollRunShop`'s own doc comment for why this
+ * matters.
+ */
+export function rerollCostForNode(state: RunState, nodeId: string): number {
+  return 1 + (state.shopShelves[nodeId]?.rerollCount ?? 0);
+}
+
+/** REROLL: costs `rerollCostForNode(state, nodeId)` gold (escalating 1, 2, 3,
+ * 4… per node — see that function's doc comment; this used to be a flat 1
+ * gold forever), deals a brand-new shelf from the next seed offset (same
+ * `shopSeed + rerollCount` sequence `rollShopStock` uses everywhere). No-op
+ * if the wallet can't afford the escalated price. Throws if `nodeId` isn't a
+ * shop node. */
 export function rerollRunShop(state: RunState, nodeId: string): RunState {
   const node = findNode(state.map, nodeId);
   if (!node || node.kind !== 'shop' || !node.shopId || node.shopSeed === undefined) {
     throw new Error(`rerollRunShop: "${nodeId}" is not a shop node`);
   }
-  if (state.gold < 1) return state;
+  const cost = rerollCostForNode(state, nodeId);
+  if (state.gold < cost) return state;
   const nextCount = (state.shopShelves[nodeId]?.rerollCount ?? 0) + 1;
   const rolled = rollShopStock(node.shopId, node.shopSeed + nextCount, shopStockDepthForWave(node.wave));
   const shelf: RunShopShelf = { cards: [...rolled.cards], gems: [...rolled.gems], rerollCount: nextCount };
   return {
     ...state,
-    gold: state.gold - 1,
+    gold: state.gold - cost,
     shopShelves: { ...state.shopShelves, [nodeId]: shelf },
-    stats: { ...state.stats, goldSpent: state.stats.goldSpent + 1 },
+    stats: { ...state.stats, goldSpent: state.stats.goldSpent + cost },
   };
 }
 

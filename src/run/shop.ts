@@ -371,6 +371,23 @@ export function pickWeightedGem(rng: Rng, pool: readonly GemDef[], depth: number
 }
 
 /**
+ * `count` depth-gated, rarity-weighted, DISTINCT gem picks from `pool` — the
+ * multi-pick sibling of `pickWeightedGem` above (same eligibility gate/
+ * fallback, same underlying `sampleGemsWeighted`, just `count` instead of a
+ * fixed 1), added for the event catalog's `gemChoice` outcome
+ * (`src/run/events.ts#gemChoiceOutcome`): a player picking 1-of-3 gems still
+ * draws from the SAME depth-gated, one-Legendary-capped pool a same-depth
+ * shop shelf or a single `grantGem` grant would. `pickWeightedGem` itself is
+ * left untouched (still its own thin `count: 1` wrapper) rather than
+ * refactored to call this — no behavior change to any existing caller.
+ */
+export function pickWeightedGems(rng: Rng, pool: readonly GemDef[], depth: number, count: number): GemDef[] {
+  const eligible = pool.filter((g) => gemRarityEligible(g.rarity, depth));
+  const drawPool = eligible.length > 0 ? eligible : pool;
+  return sampleGemsWeighted(rng, drawPool, count);
+}
+
+/**
  * Bronze/silver/gold split by node depth (see docs/run-shops-design.md §1):
  * depths 1-3 -> 70/25/5 (today's byte-identical behavior, the sandbox
  * default), 4-6 -> 45/45/10, 7-9 -> 25/55/20. Diamond never appears in shops.

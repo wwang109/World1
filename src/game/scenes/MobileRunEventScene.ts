@@ -10,13 +10,14 @@ import { eventThemeArea } from '../ui/eventThemeBlurb';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
-import { renderRunBonusDraftPicker, renderRunRewardPanel, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
+import { renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunRewardPanel, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
 import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
 import {
   applyCurrentBonusDraftPick,
+  applyCurrentGemChoicePick,
   applyCurrentUpgradeCardPick,
   currentEventDef,
   getActiveRun,
@@ -62,10 +63,11 @@ interface StoryLayout { innerX: number; innerW: number; contentTop: number }
 export class MobileRunEventScene extends Phaser.Scene {
   private W = SCREEN.width;
   private H = SCREEN.height;
-  private phase: 'choosing' | 'bonusDraftPick' | 'upgradeCardPick' | 'outcome' = 'choosing';
+  private phase: 'choosing' | 'bonusDraftPick' | 'upgradeCardPick' | 'gemChoicePick' | 'outcome' = 'choosing';
   private outcome: EventOutcome | null = null;
   private bonusDraftCards: DraftCard[] = [];
   private upgradeCardOptions: UpgradeCardOption[] = [];
+  private gemChoiceOptions: string[] = [];
   private retireConfirmOpen = false;
   /** Which grid index is under the ⓘ inspect overlay in the bonus-draft/
    * upgrade-card picker, `null` when closed — mirrors `MobileDraftScene`'s
@@ -85,6 +87,7 @@ export class MobileRunEventScene extends Phaser.Scene {
     this.outcome = null;
     this.bonusDraftCards = [];
     this.upgradeCardOptions = [];
+    this.gemChoiceOptions = [];
     this.retireConfirmOpen = false;
     this.inspectedDraftIndex = null;
     this.inspectedUpgradeIndex = null;
@@ -139,6 +142,18 @@ export class MobileRunEventScene extends Phaser.Scene {
         },
         inspectedIndex: this.inspectedUpgradeIndex,
         onInspect: (index) => { this.inspectedUpgradeIndex = index; this.rerender(); },
+      });
+    } else if (this.phase === 'gemChoicePick') {
+      renderRunGemChoicePicker(this, TEMPLATE, this.gemChoiceOptions, {
+        font: F,
+        eventTitle: event.title,
+        onPick: (gemId) => {
+          const outcome = applyCurrentGemChoicePick(gemId);
+          if (!outcome) return;
+          this.phase = 'outcome';
+          this.outcome = outcome;
+          this.rerender();
+        },
       });
     } else {
       const story = this.renderStory(event, event.choices.length * (80 + 8) - 8);
@@ -325,6 +340,9 @@ export class MobileRunEventScene extends Phaser.Scene {
           } else if (outcome.kind === 'upgradeCardPick') {
             this.phase = 'upgradeCardPick';
             this.upgradeCardOptions = [...outcome.options];
+          } else if (outcome.kind === 'gemChoicePick') {
+            this.phase = 'gemChoicePick';
+            this.gemChoiceOptions = [...outcome.options];
           } else {
             this.phase = 'outcome';
             this.outcome = outcome;

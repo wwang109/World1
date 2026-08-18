@@ -2,7 +2,7 @@ import { enemies } from '../data/enemies';
 import type { EventDef } from '../data/events';
 import type { DraftCard, DraftSetKey } from '../run/draft';
 import type { EncounterPack } from '../run/encounter';
-import { applyBonusDraftPick, applyUpgradeCardPick, resolveEventChoice, rollEventForNode, type EventOutcome } from '../run/events';
+import { applyBonusDraftPick, applyGemChoicePick, applyUpgradeCardPick, resolveEventChoice, rollEventForNode, type EventOutcome } from '../run/events';
 import { bankedPL, type Allocation } from '../run/leveling';
 import { battleStatsFromEvents } from '../run/logAnalysis';
 import { battleGoldReward, type BattleFoeSummary } from '../run/shop';
@@ -23,6 +23,7 @@ import {
   leaveShop,
   mergeRunCard,
   recordBattleResult,
+  rerollCostForNode,
   rerollRunShop,
   retireRun,
   runMergeTargetFor,
@@ -406,6 +407,15 @@ export function applyCurrentBonusDraftPick(pick: DraftCard): EventOutcome | unde
 export function applyCurrentUpgradeCardPick(instanceId: string): EventOutcome | undefined {
   if (!activeRun) return undefined;
   const { state, outcome } = applyUpgradeCardPick(activeRun, instanceId);
+  activeRun = state;
+  return outcome;
+}
+
+/** Finalizes a `gemChoice` outcome's deferred pick (the picker overlay) —
+ * pushes the tapped gem id into the run's gem pouch. */
+export function applyCurrentGemChoicePick(gemId: string): EventOutcome | undefined {
+  if (!activeRun) return undefined;
+  const { state, outcome } = applyGemChoicePick(activeRun, gemId);
   activeRun = state;
   return outcome;
 }

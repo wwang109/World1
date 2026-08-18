@@ -21,6 +21,7 @@ import {
   MAX_LEVEL,
   mergeRunCard,
   recordBattleResult,
+  rerollCostForNode,
   rerollRunShop,
   retireRun,
   rollEncounter,
@@ -701,6 +702,41 @@ describe('run/runState: shop-node purchases', () => {
     state = { ...ensureRunShopShelf(state, nodeId), gold: 0 };
     const rerolled = rerollRunShop(state, nodeId);
     expect(rerolled).toBe(state);
+  });
+
+  it('rerollRunShop escalates 1, 2, 3, 4 gold across repeated rerolls at ONE node', () => {
+    let { state, nodeId } = stateAtFirstShop(1);
+    state = { ...ensureRunShopShelf(state, nodeId), gold: 100 };
+    let gold = state.gold;
+    for (const expectedCost of [1, 2, 3, 4]) {
+      expect(rerollCostForNode(state, nodeId)).toBe(expectedCost);
+      state = rerollRunShop(state, nodeId);
+      expect(gold - state.gold).toBe(expectedCost);
+      gold = state.gold;
+    }
+    expect(state.shopShelves[nodeId]!.rerollCount).toBe(4);
+  });
+
+  it('rerollCostForNode resets to 1 at a DIFFERENT node — escalation is per-node, not per-run', () => {
+    let { state, nodeId } = stateAtFirstShop(1);
+    state = { ...ensureRunShopShelf(state, nodeId), gold: 100 };
+    state = rerollRunShop(state, nodeId);
+    state = rerollRunShop(state, nodeId);
+    state = rerollRunShop(state, nodeId);
+    expect(rerollCostForNode(state, nodeId)).toBe(4); // this node has escalated
+    const otherNodeId = `${nodeId}__never_rerolled_probe`;
+    expect(rerollCostForNode(state, otherNodeId)).toBe(1); // an unrelated node id starts fresh
+  });
+
+  it('rerollRunShop no-ops once the escalated price outruns the wallet, at whatever step that happens', () => {
+    let { state, nodeId } = stateAtFirstShop(1);
+    state = { ...ensureRunShopShelf(state, nodeId), gold: 3 }; // affords reroll 1 (1g) and 2 (2g), not 3 (3g, leaves 0 short)
+    state = rerollRunShop(state, nodeId); // gold 3 -> 2
+    state = rerollRunShop(state, nodeId); // gold 2 -> 0
+    expect(state.gold).toBe(0);
+    expect(state.shopShelves[nodeId]!.rerollCount).toBe(2);
+    const stuck = rerollRunShop(state, nodeId); // next reroll costs 3, can't afford
+    expect(stuck).toBe(state);
   });
 
   it('runBagHasRoomFor reflects the run bag, not the sandbox demoState bag', () => {

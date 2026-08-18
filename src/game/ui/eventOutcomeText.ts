@@ -36,6 +36,13 @@ export function choiceOutcomeHint(outcome: EventChoiceOutcome): string {
     case 'loseGold': return `-${outcome.amount} GOLD`;
     case 'grantLevel': return '+1 LEVEL';
     case 'bonusDraft': return 'MINI-DRAFT';
+    // `cardChoice`/`gemChoice` (2026-08-18 agency pass) are a "pick 1 of 3"
+    // deferred offer, not a guaranteed single item — say so up front, since
+    // the width IS the point of the widening (see `EVENT_CHOICE_SIZE`'s doc
+    // comment in `src/run/events.ts`): a player who reads this as an ordinary
+    // "you get a card/gem" hint gets none of the agency the choice offers.
+    case 'cardChoice': return 'CHOICE OF 3 CARDS';
+    case 'gemChoice': return 'CHOICE OF 3 GEMS';
     case 'upgradeCard': return 'UPGRADE';
     case 'nothing': return '—';
     default: return '';
@@ -69,6 +76,13 @@ export function outcomeHeadline(outcome: EventOutcome): { headline: string; deta
     // here). Kept only so the exhaustiveness guard below stays meaningful.
     case 'upgradeCardPick':
       return { headline: 'Choose a card to upgrade', detail: '' };
+    // Unreachable in practice — same reason as `upgradeCardPick`/`bonusDraft`
+    // above: the scenes render `gemChoicePick` through
+    // `renderRunGemChoicePicker` directly, never through this resolved-
+    // outcome headline. Kept only so the exhaustiveness guard below stays
+    // meaningful.
+    case 'gemChoicePick':
+      return { headline: 'Choose a gem to keep', detail: '' };
     case 'upgradeCard':
       return outcome.fellBack
         ? { headline: 'Nothing eligible to upgrade — took gold instead', detail: '' }
