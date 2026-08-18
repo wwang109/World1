@@ -114,6 +114,7 @@ const ACTION_FIELDS: Record<string, readonly string[]> = {
   bleed: ['stacks'],
   stun: ['turns'],
   slow: ['weight'],
+  splash: ['weight'],
   disrupt: ['amount'],
   expose: ['pct', 'turns'],
   guard: ['property', 'pct', 'turns'],
@@ -222,6 +223,16 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
    */
   const slowWeight = () => req(raw, 'weight', inRange(0, 999), 'an integer 0..999 (a negative weight prices as a refund for a rider the engine turns into a no-op — Math.max(pending, weight) never lowers the pending penalty)', at, problems);
 
+  /**
+   * `splash`'s `weight` FLOORED AT 0 — the identical shape to `slowWeight`
+   * above, because splash applies the identical rule one scope down:
+   * `piece.nextWeightPenalty = Math.max(piece.nextWeightPenalty ?? 0, weight)`
+   * on each banded piece (`interpreter.ts`'s `splash` arm). A negative weight
+   * can only ever lose that `Math.max`, so it prices as a refund for a rider
+   * the engine turns into a no-op.
+   */
+  const splashWeight = () => req(raw, 'weight', inRange(0, 999), 'an integer 0..999 (a negative weight prices as a refund for a rider the engine turns into a no-op — Math.max(pending, weight) never lowers a piece\'s pending penalty)', at, problems);
+
   // UNKNOWN KEYS on the action itself (fix: `capp` typo used to pass clean).
   const known = ACTION_FIELDS[kind];
   if (known) {
@@ -246,6 +257,7 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     case 'bleed': stacks('stacks'); break;
     case 'stun': turns('turns'); break;
     case 'slow': slowWeight(); break;
+    case 'splash': splashWeight(); break;
     case 'disrupt': num('amount'); break;
     case 'expose': exposePct(); exposeTurns(); break;
     case 'guard': property(); clampedPct(MAX_GUARD_PCT); turns('turns'); break;
@@ -400,6 +412,51 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   if (raw.aura !== undefined) validateAura(raw.aura, where, problems);
 
   if (Array.isArray(raw.effects)) raw.effects.forEach((a, i) => validateAction(a, where + '.effects[' + String(i) + ']', problems));
+
+  /**
+   * `scope: 'all'` + `splash` IS REJECTED (user-locked 2026-08-18: "this
+   * doesn't affect aoe the same but only for target's current turn's card").
+   *
+   * Splash is single-target AT THE UNIT LEVEL by design — what it spreads
+   * across is ONE victim's board, not a team. It is nonetheless an `offensive`
+   * keyword (`keywords/pricing.ts`, mirroring `isOffensiveAction`), so
+   * `resolveTargets` WOULD fan it out over every living foe under an AoE scope,
+   * quietly turning a board-band keyword into a team-wide one. Two ways to
+   * close that: price the fan-out, or refuse it. Refused — the mechanic's
+   * stated identity is single-target, and pricing a shape the design forbids
+   * would invite it to ship.
+   *
+   * NOT a silent zero either way: splash IS priced (5 deci/weight, control
+   * family), and because it is marked `offensive` an AoE splash would pay
+   * `PRICE.aoeTargetsNum/Den` on top if one were ever constructed in code —
+   * this rule stops one being AUTHORED.
+   *
+   * Checked against the EFFECTIVE (scope, effects) pair at every tier: a tier
+   * block inherits the base card's effects when it declares none, and the base
+   * card's scope when it declares none, so either half can arrive from either
+   * place. `tierUpgrades.<tier>.scope` is additionally required to carry
+   * upward (see below), so this cannot be dodged by leaving a higher tier
+   * unstated.
+   */
+  const carriesSplash = (effects: unknown): boolean =>
+    Array.isArray(effects) && effects.some((a) => isObj(a) && a.kind === 'splash');
+  const rejectAoeSplash = (scope: unknown, effects: unknown, at: string): void => {
+    if (scope === 'all' && carriesSplash(effects)) {
+      problems.push({
+        where: at,
+        message: 'scope: all cannot be combined with a splash action — splash is single-target at the UNIT level '
+          + '(it spreads across ONE victim\'s board, not across a team). Drop the splash, or drop the AoE scope.',
+      });
+    }
+  };
+  rejectAoeSplash(raw.scope, raw.effects, where);
+  if (isObj(raw.tierUpgrades)) {
+    for (const [tier, up] of Object.entries(raw.tierUpgrades)) {
+      if (!isObj(up)) continue;
+      rejectAoeSplash(up.scope ?? raw.scope, up.effects ?? raw.effects, where + '.tierUpgrades.' + tier);
+    }
+  }
+
   if (raw.tierUpgrades !== undefined) {
     if (!isObj(raw.tierUpgrades)) {
       problems.push({ where, message: 'tierUpgrades must be an object keyed by tier' });

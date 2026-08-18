@@ -479,6 +479,39 @@ describe('game/battleTimeline', () => {
     });
   });
 
+  // ---- `splashed` (card-scope weight tax) ----
+  // The renderer's event switch ends in `default: break;`, so a NEW engine event
+  // kind is silently dropped unless it is wired here — and a splashed card's
+  // weight inflates SEVERAL TURNS after the cast that caused it, which is
+  // exactly the "reads as a bug" case the `slowed` row already exists to
+  // prevent. These pin both halves: the DEBUFF row naming the band, and the
+  // per-SLOT attribution on the card the tax actually lands on.
+  describe('splash (card-scope weight tax)', () => {
+    const splashLog = (): CombatEvent[] => [
+      { turn: 1, kind: 'gain', side: 'player', unit: 0, baseSpeed: 10, speedModifier: 0, speed: 10, readinessBefore: 0, readinessAfter: 10 },
+      { turn: 1, kind: 'splashed', side: 'enemy', unit: 0, weight: 6, anchorSlot: 1, slots: [0, 1, 2] },
+      { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 1, skillId: 'sword_slash', weight: 16, size: 1, slotIndex: 1, slotCount: 1 },
+      { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 5, skillId: 'sword_slash', weight: 10, size: 1, slotIndex: 1, slotCount: 1 },
+      { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+    ];
+
+    it('renders a DEBUFF row naming the taxed slots, with the anchor bracketed', () => {
+      const model = buildBattleTimeline(BASE, { events: splashLog(), result: 'win', turns: 3 });
+      const line = [...model.linesByTurn.values()].flat().find((l) => l.text.includes('Splash'));
+      expect(line?.tag).toBe('DEBUFF');
+      expect(line?.text).toContain('Splash +6 weight on slots 1 [2] 3');
+    });
+
+    it('names the pending tax on the PLAY row of the SPLASHED SLOT only — and never twice', () => {
+      const model = buildBattleTimeline(BASE, { events: splashLog(), result: 'win', turns: 3 });
+      const plays = [...model.linesByTurn.values()].flat().filter((l) => l.tag === 'PLAY');
+      // Slot 1 was in the band: its inflated weight is attributed.
+      expect(plays[0]!.text).toContain('SPLASHED');
+      // Slot 5 was not: no attribution, and the slot-1 tax is already spent.
+      expect(plays[1]!.text).not.toContain('SPLASHED');
+    });
+  });
+
   // ---- READY row and PLAY WEIGHT (2026-08-06 gap-closing pass) ----
   // `grep -rn "READY|WEIGHT" tests/` returned nothing before this block: the
   // turn-start readiness row (`flushGainRow`, battleTimeline.ts:495-517) and

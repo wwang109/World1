@@ -185,6 +185,13 @@ for (const e of events) {
     case 'slowed':
       console.log(`${t} │  ${tag(e.side)} next action +${e.weight} weight (slowed)`);
       break;
+    case 'splashed':
+      console.log(
+        `${t} │  ${tag(e.side)} splash +${e.weight} weight on slot${e.slots.length === 1 ? '' : 's'} `
+        + `${e.slots.map((slot) => (slot === e.anchorSlot ? `[${slot + 1}]` : String(slot + 1))).join(' ')} `
+        + `(anchor in brackets)`,
+      );
+      break;
     case 'disrupted':
       console.log(`${t} │  ${tag(e.side)} disrupted −${e.amount} bank -> ${e.bankAfter}`);
       break;

@@ -308,6 +308,37 @@ type ActionKinds =
   // ---- Special ability riders (combined-archetype cards) ----
   /** The enemy's NEXT action is this much heavier (their attack comes later). */
   | { kind: 'slow'; weight: number }
+  /**
+   * SPLASH — `slow` at CARD scope instead of unit scope (user-locked
+   * 2026-08-18: "we can add splash effect which affects cards across and the
+   * cards before and after — this doesn't affect aoe the same but only for
+   * target's current turn's card").
+   *
+   * SINGLE-TARGET AT THE UNIT LEVEL, like `slow`: it resolves against ONE enemy
+   * (whatever `resolveTargets` picks). What it spreads across is that victim's
+   * own BOARD, not their team — hence the deliberate non-interaction with AoE
+   * (`scope: 'all'` + splash is rejected by `validateSkillContent`).
+   *
+   * THE BAND (see `splashBand`, combat/splash.ts): the ANCHOR — the piece the
+   * victim's `castCursor` sits in at the moment splash resolves, i.e. "the
+   * target's current turn's card" — plus the piece immediately BEFORE and the
+   * piece immediately AFTER it on the board. Adjacency is SPATIAL and does NOT
+   * wrap (a card at slot 0 has nothing to its left), measured edge-to-edge with
+   * the same footprint arithmetic the aura system uses (`footprintGaps`), so a
+   * multi-slot card is ONE piece however many slots it spans. The band is
+   * therefore 1..3 pieces; it is priced against the canonical MAXIMUM of 3
+   * (see `PRICE.splashPerWeightNum`), holder-independently.
+   *
+   * WHAT IT DOES: each banded piece costs `weight` EXTRA the next time it is
+   * played (`PieceState.nextWeightPenalty`, summed into the cast weight in
+   * `castSelect.ts` and consumed when that piece actually performs). Weight,
+   * not cooldown — cooldown is a deck-diversity dial in this codebase, not a
+   * balance lever; weight only shifts WHEN a card fires.
+   *
+   * NON-STACKING, exactly like `slow`: a re-splash takes `Math.max`, never a
+   * sum — an unbounded stack would permanently lock a card out.
+   */
+  | { kind: 'splash'; weight: number }
   /** Drain the enemy's banked readiness (steal their built-up tempo). */
   | { kind: 'disrupt'; amount: number }
   /** Heal the caster for pct% of the damage this cast dealt (place after damage). */

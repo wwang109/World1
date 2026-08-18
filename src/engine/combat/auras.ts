@@ -48,6 +48,31 @@ export interface ResolvedAuras {
 }
 
 /**
+ * THE board's edge-to-edge distance rule, in one place: the empty-slot GAP
+ * between two footprints on each side.
+ *
+ *   source occupies [source.slot, source.slot + source.size)
+ *   target occupies [target.slot, target.slot + target.size)
+ *   rightGap = target.slot - (source.slot + source.size)  // >= 0 iff target is right of source
+ *   leftGap  = source.slot - (target.slot + target.size)  // >= 0 iff target is left of source
+ *
+ * Exactly one of the two is >= 0 for any pair of non-overlapping footprints
+ * (0 = physically touching, 1 = one empty slot between them, ...); the other is
+ * negative and means "not on that side". Multi-slot cards are measured as WHOLE
+ * pieces, which is what makes adjacency piece-to-piece rather than slot-to-slot.
+ *
+ * Extracted so the two consumers of board adjacency — aura coverage
+ * ({@link auraCovers}) and the `splash` band ({@link splashBand}, combat/splash.ts)
+ * — measure with the SAME arithmetic instead of each re-deriving it.
+ */
+export function footprintGaps(source: Footprint, target: Footprint): { leftGap: number; rightGap: number } {
+  return {
+    leftGap: source.slot - (target.slot + target.size),
+    rightGap: target.slot - (source.slot + source.size),
+  };
+}
+
+/**
  * Does `source`'s aura reach `target`?
  *
  * Coverage is the empty-slot GAP between their nearest edges being `< reach`,
@@ -76,8 +101,7 @@ export function auraCovers(
 ): boolean {
   // 'allBoard' reaches everyone but itself (identity by footprint position).
   if (affects === 'allBoard') return !(source.slot === target.slot && source.size === target.size);
-  const rightGap = target.slot - (source.slot + source.size);
-  const leftGap = source.slot - (target.slot + target.size);
+  const { leftGap, rightGap } = footprintGaps(source, target);
   const reachesRight = rightGap >= 0 && rightGap < reach;
   const reachesLeft = leftGap >= 0 && leftGap < reach;
   switch (affects) {

@@ -186,6 +186,37 @@ export const PRICE = {
   slowPerWeightDen: 2,
 
   /**
+   * splash: weight * (splashPerWeightNum/Den) — 1 PL per +2 weight, i.e.
+   * EXACTLY 2x the `slow` rate above.
+   *
+   * DERIVED FROM `slow`, NOT INVENTED: splash is the same currency (extra
+   * weight owed) delivered to a band of up to 3 board pieces instead of to the
+   * unit's next action, so it is priced as a multiple of slow's own 5/2 —
+   * never on an unrelated scale.
+   *
+   * THE MULTIPLIER IS 2x, NOT 3x. The band is priced against its CANONICAL
+   * MAXIMUM of 3 pieces, holder-independently (the same rule
+   * `GEM_CANONICAL_PROPERTY` and AoE breadth pricing already follow, so a
+   * card's PL never depends on where the player put it), and then split by
+   * WHEN each piece pays:
+   *   • the ANCHOR is the victim's current card — its tax bites the very next
+   *     thing that unit does, exactly like `slow`. Full rate: 1x.
+   *   • the two NEIGHBOURS sit unplayed until rotation reaches them (and a
+   *     fight can end first). That is the CONDITIONAL-TRIGGER DISCOUNT this
+   *     table already establishes for `comboBonus` — a rider that does not
+   *     fire every turn prices at a fraction of its always-on equivalent —
+   *     applied at comboBonus's own precedent fraction of one HALF: 2 x 1/2.
+   * Total 1 + 1 = 2x slow = 5 deci per weight. Whole-PL steps land on EVEN
+   * weights (weight 2 = 1 PL), so authored magnitudes stay whole-PL.
+   *
+   * CONTROL family (see EFFECT_CAPS_DECI) so it cannot dodge the control cap:
+   * at 5 deci/weight a size-1 card can carry at most `weight: 20` (100 deci =
+   * the size-1 control ceiling, and all of Bronze).
+   */
+  splashPerWeightNum: 5,
+  splashPerWeightDen: 1,
+
+  /**
    * disrupt: ESCALATING BRACKETED rate (user-locked 2026-07-25 — REPLACES the
    * prior flat 1-PL-per-4 rate). Draining banked readiness is a hard tempo
    * denial with no counterplay window (unlike a debuff or DoT the target can
@@ -770,7 +801,7 @@ export function isOnBudget(skill: SkillDef): boolean {
  * a card, run `npm test` and the audit names any rule it breaks.
  */
 export const EFFECT_CAPS_DECI = {
-  /** stun, slow, disrupt, stat-down, expose, shieldBreak — one whole discrete effect */
+  /** stun, slow, splash, disrupt, stat-down, expose, shieldBreak — one whole discrete effect */
   control: { 1: 100, 2: 150, 3: 200 } as Record<number, number>,
   /** poison + burn + bleed combined (deci = stacks × 10 at 1 PL/stack) */
   dot: { 1: 200, 2: 300, 3: 400 } as Record<number, number>,

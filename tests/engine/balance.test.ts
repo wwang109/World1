@@ -88,6 +88,8 @@ describe('PRICE structure lock', () => {
       cooldownPerTurn: 100,
       slowPerWeightNum: 5,
       slowPerWeightDen: 2,
+      splashPerWeightNum: 5,
+      splashPerWeightDen: 1,
       disruptBrackets: [
         { upTo: 5, rateDeci: 5 },
         { upTo: 10, rateDeci: 15 },
@@ -655,7 +657,7 @@ describe('AoE reach pricing (scope: all)', () => {
     // interpreter's private classification directly (layering cycle).
     expect(OFFENSIVE_KINDS).toEqual(new Set([
       'damage', 'statStrike', 'poison', 'burn', 'bleed', 'stun',
-      'debuffStat', 'expose', 'slow', 'disrupt', 'shieldBreak',
+      'debuffStat', 'expose', 'slow', 'splash', 'disrupt', 'shieldBreak',
     ]));
   });
 });

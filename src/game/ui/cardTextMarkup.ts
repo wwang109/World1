@@ -87,6 +87,9 @@ export const KEYWORD_TEXT_COLOR: Record<string, string> = {
   lifesteal: '#e07a90',
   disrupt: '#e0b060',
   slow: '#d8c078',
+  // Splash is slow one scope down — same family, one step cooler so the two
+  // read as related but distinct on a card face.
+  splash: '#c8b8a0',
   combo: '#e8c060',
   shatter: '#d88f6a',
   thorns: '#3f9e7a',

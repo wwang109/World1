@@ -360,6 +360,14 @@ export type CombatEvent =
   /** A unit's threat changed (e.g. taunt); `aggro` is the new total. */
   | { turn: number; kind: 'aggroChanged'; side: Side; unit: number; aggro: number }
   | { turn: number; kind: 'slowed'; side: Side; unit: number; weight: number }
+  /**
+   * `splash` — the CARD-scope sibling of `slowed`. `weight` is the extra weight
+   * each banded piece now owes on its NEXT play; `slots` are the leftmost slots
+   * of the taxed pieces, ascending (1..3 of them — the band does not wrap at the
+   * board edges), and `anchorSlot` names the one the victim's cast cursor was
+   * on. Everything the UI needs to highlight the band is on the event.
+   */
+  | { turn: number; kind: 'splashed'; side: Side; unit: number; weight: number; anchorSlot: number; slots: number[] }
   | {
       turn: number;
       kind: 'disrupted';

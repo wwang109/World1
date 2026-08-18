@@ -15,8 +15,8 @@ import {
 import { demoState, type InventorySlot, type OwnedBoardPiece } from '../demoState';
 import {
   buyCurrentShopCard, buyCurrentShopCardTo, buyCurrentShopGem, currentNode, currentRunBagHasRoomFor,
-  currentRunBagSlots, currentRunGemInventory, currentRunPieces, currentShopMergeTarget, currentShopShelf,
-  ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, mergeCurrentShopCard, rerollCurrentShop,
+  currentRunBagSlots, currentRunGemInventory, currentRunPieces, currentShopMergeTarget, currentShopRerollCost,
+  currentShopShelf, ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, mergeCurrentShopCard, rerollCurrentShop,
   retireActiveRun, sellCurrentRunCard, sellCurrentRunGem, setCurrentRunBagSlots, setCurrentRunGemInventory,
   setCurrentRunPieces,
 } from '../runStore';
@@ -482,10 +482,14 @@ export class DesktopShopScene extends Phaser.Scene {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textSoft,
       }).setOrigin(0.5);
     } else {
-      const canReroll = this.activeGold() >= 1;
+      // Run Mode's reroll cost escalates per node (1, 2, 3, 4… — see
+      // `currentShopRerollCost`); the sandbox shop has no run node to key
+      // off of and keeps its pre-existing flat 1-gold label/gate.
+      const cost = runShop ? currentShopRerollCost() : 1;
+      const canReroll = this.activeGold() >= cost;
       const reroll = this.add.rectangle(rerollX, top, rerollW, 32, canReroll ? UI.chip : UI.panelMuted, canReroll ? 1 : 0.5)
         .setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
-      this.add.text(rerollX + rerollW / 2, top + 16, 'REROLL · 1 G', {
+      this.add.text(rerollX + rerollW / 2, top + 16, `REROLL · ${cost} G`, {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: canReroll ? UI.textOnChip : UI.textSoft,
       }).setOrigin(0.5);
       if (canReroll) {

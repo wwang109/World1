@@ -16,8 +16,8 @@ import {
 import { demoState, type InventorySlot, type OwnedBoardPiece } from '../demoState';
 import {
   buyCurrentShopCard, buyCurrentShopCardTo, buyCurrentShopGem, currentNode, currentRunBagHasRoomFor,
-  currentRunBagSlots, currentRunGemInventory, currentRunPieces, currentShopMergeTarget, currentShopShelf,
-  ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, mergeCurrentShopCard, rerollCurrentShop,
+  currentRunBagSlots, currentRunGemInventory, currentRunPieces, currentShopMergeTarget, currentShopRerollCost,
+  currentShopShelf, ensureCurrentShopShelf, getActiveRun, leaveCurrentShop, mergeCurrentShopCard, rerollCurrentShop,
   retireActiveRun, sellCurrentRunCard, sellCurrentRunGem, setCurrentRunBagSlots, setCurrentRunGemInventory,
   setCurrentRunPieces,
 } from '../runStore';
@@ -424,10 +424,14 @@ export class MobileShopScene extends Phaser.Scene {
       this.add.rectangle(this.W - 10 - rerollW, rerollY, rerollW, 24, 0x16233a, 0.5).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
       this.add.text(this.W - 10 - rerollW / 2, rerollY + 12, 'FULL STOCK', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
     } else {
-      const canReroll = this.activeGold() >= 1;
+      // Run Mode's reroll cost escalates per node (1, 2, 3, 4… — see
+      // `currentShopRerollCost`); the sandbox shop has no run node to key
+      // off of and keeps its pre-existing flat 1-gold label/gate.
+      const cost = runShop ? currentShopRerollCost() : 1;
+      const canReroll = this.activeGold() >= cost;
       const rr = this.add.rectangle(this.W - 10 - rerollW, rerollY, rerollW, 24, canReroll ? 0xb78a46 : 0x16233a, canReroll ? 1 : 0.5)
         .setOrigin(0, 0).setStrokeStyle(1, UI.border, canReroll ? 1 : 0.4);
-      this.add.text(this.W - 10 - rerollW / 2, rerollY + 12, 'REROLL · 1G', { fontSize: `${F.tiny}px`, color: canReroll ? UI.textOnChip : UI.textDisabled, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(this.W - 10 - rerollW / 2, rerollY + 12, `REROLL · ${cost}G`, { fontSize: `${F.tiny}px`, color: canReroll ? UI.textOnChip : UI.textDisabled, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5);
       if (canReroll) {
         rr.setInteractive({ useHandCursor: true });
         rr.on('pointerdown', () => { playSfx('purchase'); runShop ? rerollCurrentShop() : rerollShelf(shopId); this.rerender(); });

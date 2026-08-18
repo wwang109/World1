@@ -523,6 +523,15 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // `dotsEnemies` pile-delta tracking above, not a combat decision.
   const pendingSlowByUnit = new Map<string, number>();
   const slowKey = (side: 'player' | 'enemy', unit: number): string => `${side}:${unit}`;
+  // The CARD-scope twin of `pendingSlowByUnit` above, for `splash`
+  // (`PieceState.nextWeightPenalty`, combat/state.ts). Keyed by side+unit+SLOT
+  // because a splash taxes individual board pieces, not the unit: the anchor
+  // the victim is about to play plus its two neighbours, each of which pays on
+  // ITS OWN next play. Same reconstructed-bookkeeping idiom and the same two
+  // engine rules mirrored exactly — Math.max per re-application, cleared when
+  // THAT piece plays (`simulate.ts`).
+  const pendingSplashBySlot = new Map<string, number>();
+  const splashKey = (side: 'player' | 'enemy', unit: number, slot: number): string => `${side}:${unit}:${slot}`;
   const snapHp = (): HpSnap => ({
     player: curPlayer, enemy: curEnemies[0]!, playerMax, enemyMax: enemyMaxes[0]!,
     enemies: [...curEnemies], enemyMaxes: [...enemyMaxes],
@@ -695,7 +704,13 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const sk = slowKey(e.side, unitOf(e));
         const slowedBy = pendingSlowByUnit.get(sk);
         pendingSlowByUnit.delete(sk);
-        const slowNote = slowedBy ? ` (includes +${slowedBy} SLOWED)` : '';
+        // A `splash` tax is per PIECE, so it clears when THIS slot plays (unlike
+        // the unit-wide slow above) — and both are already baked into
+        // `e.weight` by castSelect.ts, so both are named rather than added.
+        const spk = splashKey(e.side, unitOf(e), e.slot);
+        const splashedBy = pendingSplashBySlot.get(spk);
+        pendingSplashBySlot.delete(spk);
+        const slowNote = `${slowedBy ? ` (includes +${slowedBy} SLOWED)` : ''}${splashedBy ? ` (includes +${splashedBy} SPLASHED)` : ''}`;
         // `e.aoe`/`e.targets` (engine/combat/events.ts's `TargetFields`) is
         // the one place the log can tell a cast that hit every living foe
         // from one that hit a single chosen target — surfaced here the same
@@ -1027,6 +1042,23 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         push(e.turn, 'DEBUFF', `${label(e)} · Slow +${e.weight} weight`);
         break;
       }
+      // `splash` rider — `slow` one scope down: it taxes a BAND of the victim's
+      // board (the card their cursor is on, plus its neighbours) rather than
+      // the unit's next action, so the row names the slots that were hit and
+      // the shadow tracker is per-slot. Without a row here a splashed card's
+      // weight would silently inflate several turns later with nothing in the
+      // log to explain it — the exact confusion the `slow` row above exists to
+      // prevent.
+      case 'splashed': {
+        for (let i = 0; i < e.slots.length; i += 1) {
+          const slot = e.slots[i]!;
+          const key = splashKey(e.side, unitOf(e), slot);
+          pendingSplashBySlot.set(key, Math.max(pendingSplashBySlot.get(key) ?? 0, e.weight));
+        }
+        const where = e.slots.map((slot) => (slot === e.anchorSlot ? `[${slot + 1}]` : `${slot + 1}`)).join(' ');
+        push(e.turn, 'DEBUFF', `${label(e)} · Splash +${e.weight} weight on slot${e.slots.length === 1 ? '' : 's'} ${where}`);
+        break;
+      }
       // `disrupt` rider — the sibling of `slow`: drains banked readiness right
       // now instead of taxing the next card's weight, so (unlike slow) there is
       // nothing pending to attach to a later PLAY row — the effect is already
@@ -1045,7 +1077,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       case 'wait': {
         if (e.reason === 'cantAfford') {
           const pending = pendingSlowByUnit.get(slowKey(e.side, unitOf(e)));
-          const slowNote = pending ? ` (includes +${pending} SLOWED)` : '';
+          const pendingSplash = e.slot === undefined ? undefined : pendingSplashBySlot.get(splashKey(e.side, unitOf(e), e.slot));
+          const slowNote = `${pending ? ` (includes +${pending} SLOWED)` : ''}${pendingSplash ? ` (includes +${pendingSplash} SPLASHED)` : ''}`;
           push(e.turn, 'WAIT', `${label(e)} · ${skillName(e.skillId)} needs WEIGHT ${e.weight}${slowNote}, has ${e.readiness}`);
         } else if (e.reason === 'cooling') {
           push(e.turn, 'WAIT', `${label(e)} · ${skillName(e.skillId)} cooling down, ${e.turnsLeft} turn${e.turnsLeft === 1 ? '' : 's'} left`);

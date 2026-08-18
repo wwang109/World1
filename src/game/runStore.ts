@@ -296,11 +296,25 @@ export function currentShopShelf(): RunShopShelf | undefined {
   return activeRun && node ? activeRun.shopShelves[node.id] : undefined;
 }
 
-/** REROLL on the current shop node — costs 1 gold, no-ops if unaffordable. */
+/** REROLL on the current shop node — costs `currentShopRerollCost()` gold
+ * (escalating 1, 2, 3, 4… per reroll at THIS node — see `rerollCostForNode`),
+ * no-ops if unaffordable. */
 export function rerollCurrentShop(): void {
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return;
   activeRun = rerollRunShop(activeRun, node.id);
+}
+
+/** The current shop node's NEXT reroll cost (1, 2, 3, 4…, escalating per
+ * reroll already spent at this node — `rerollRunShop` already charges and
+ * gates on this exact number, see `rerollCostForNode` in `src/run/runState.ts`).
+ * Falls back to 1 off a shop node / with no active run — the shop scenes'
+ * SANDBOX reroll (no active run, unlimited wallet) has no escalating cost of
+ * its own to report, so this just gives its pre-existing flat label. */
+export function currentShopRerollCost(): number {
+  const node = currentNode();
+  if (!activeRun || !node || node.kind !== 'shop') return 1;
+  return rerollCostForNode(activeRun, node.id);
 }
 
 export type ShopBuyResult = { ok: true } | { ok: false; reason: 'gold' | 'bag' | 'gone' };

@@ -97,6 +97,8 @@ export interface PriceRates {
   wardPerCharge: number;
   slowPerWeightNum: number;
   slowPerWeightDen: number;
+  splashPerWeightNum: number;
+  splashPerWeightDen: number;
   lifestealPerPctNum: number;
   lifestealPerPctDen: number;
   shieldBreakPerPointNum: number;
@@ -170,6 +172,17 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     cleanse: { isHit: false, scalable: true, family: 'cleanse', offensive: false, price: [{ form: 'perUnit', field: 'charges', num: P.cleansePerCharge, den: 1 }] },
 
     slow: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'weight', num: P.slowPerWeightNum, den: P.slowPerWeightDen }] },
+    // SPLASH — `slow`'s card-scope sibling, priced at exactly 2x its rate:
+    // a canonical 3-piece band = the anchor at slow's full rate (it bites the
+    // victim's very next card) + two neighbours at HALF (they sit unplayed
+    // until rotation reaches them — `comboBonus`'s conditional-trigger
+    // discount). Full derivation on `PRICE.splashPerWeightNum` in balance.ts.
+    // `control` family so it cannot dodge the control cap; `offensive` because
+    // it resolves against a foe (mirrors `isOffensiveAction`) — note that
+    // makes `scope: 'all'` + splash pay the AoE reach multiplier rather than
+    // price at a silent zero, though `validateSkillContent` rejects that
+    // combination outright: splash is single-target at the UNIT level.
+    splash: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'weight', num: P.splashPerWeightNum, den: P.splashPerWeightDen }] },
     disrupt: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'bracketed', field: 'amount', brackets: P.disruptBrackets }] },
     lifesteal: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'pct', num: P.lifestealPerPctNum, den: P.lifestealPerPctDen }] },
     shieldBreak: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'amount', num: P.shieldBreakPerPointNum, den: P.shieldBreakPerPointDen }] },

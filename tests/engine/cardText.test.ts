@@ -50,6 +50,7 @@ function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined):
         expected.push(eff.charges);
         break;
       case 'slow':
+      case 'splash':
         expected.push(eff.weight);
         break;
       case 'disrupt':

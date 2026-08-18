@@ -319,6 +319,10 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
   thorns: 'post',
   taunt: 'post',
   slow: 'post',
+  // `splash` taxes the VICTIM's future casts; nothing inside this cast can read
+  // it back, and (unlike `shieldBreak`) it opens nothing up for the host's own
+  // hit. Same placement as its unit-scope sibling `slow`.
+  splash: 'post',
   disrupt: 'post',
   guard: 'post',
   negate: 'post',

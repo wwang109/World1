@@ -6,6 +6,7 @@ import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
 import { anySideWiped, boardPowerLevel, effStat, foesOf, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
+import { splashBand } from './splash';
 
 export interface Ctx {
   state: CombatState;
@@ -31,6 +32,7 @@ function isOffensiveAction(action: Action): boolean {
     case 'debuffStat':
     case 'expose':
     case 'slow':
+    case 'splash':
     case 'disrupt':
     case 'shieldBreak':
       return true;
@@ -1316,6 +1318,41 @@ function applyAction(
       enemy.nextWeightPenalty = Math.max(enemy.nextWeightPenalty, action.weight);
       ctx.events.push({ turn: ctx.state.turn, kind: 'slowed', side: enemy.side, unit: enemy.index, weight: action.weight });
       break;
+    case 'splash': {
+      // SPLASH — `slow` at CARD scope (see the `splash` docs in types.ts).
+      // Single-target at the UNIT level (it lands on the one resolved foe);
+      // what it spreads across is that foe's own BOARD: the anchor piece their
+      // cast cursor is on plus its immediate left/right neighbours, measured
+      // edge-to-edge and NOT wrapping at the board edges (`splashBand`).
+      //
+      // Each banded piece costs `weight` extra the NEXT time it is played, then
+      // the tax is consumed (simulate.ts). SAME NON-STACKING RULE AS `slow`:
+      // `Math.max`, never a sum — an unbounded stack would permanently lock a
+      // card out, which is exactly the reason the `slow` arm above gives.
+      //
+      // A dead unit is a no-op (its board never plays again), and so is an
+      // empty board — neither emits an event, because nothing observable
+      // happened.
+      if (!enemy.alive) break;
+      const splashed = splashBand(enemy);
+      if (!splashed) break;
+      const slots: number[] = [];
+      for (let i = 0; i < splashed.band.length; i += 1) {
+        const piece = splashed.band[i]!;
+        piece.nextWeightPenalty = Math.max(piece.nextWeightPenalty ?? 0, action.weight);
+        slots.push(piece.slot);
+      }
+      ctx.events.push({
+        turn: ctx.state.turn,
+        kind: 'splashed',
+        side: enemy.side,
+        unit: enemy.index,
+        weight: action.weight,
+        anchorSlot: splashed.anchor.slot,
+        slots,
+      });
+      break;
+    }
     case 'disrupt': {
       if (!enemy.alive) break;
       const drained = Math.min(enemy.readiness, action.amount);

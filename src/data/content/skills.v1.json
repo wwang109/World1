@@ -23,7 +23,8 @@
   "after the fact. `MAX_WARD_CHARGES` (3) clamps a holder's TOTAL ward",
   "charges across every source, so a kit's own charge count is never additive",
   "with another ward card's \\u2014 see the per-card notes below for how that",
-  "shaped Aegis of the Unbroken."
+  "shaped Aegis of the Unbroken.",
+  "Hybrid + depth pass (2026-08-18b): deepened ward/thorns/bleed/poison and authored keyword-pair bridges the user asked for by name (heal+thorns, shield+thorns) plus the heal -> ward -> thorns chain (sanctum_thorn, bramblemend, warded_reprisal, bulwark_thicket, unbreakable_stance, umbral_ward, thorn_shackle, mortal_wound, barbed_rampart, crippling_gore, poison_bloom, poison_ritual, evasive_cordon). See content-designer notes on each card for its balance derivation."
  ],
  "cards": [
   {
@@ -4932,6 +4933,1110 @@
         "text": "Deal 64 (+MATK) Fire damage \u00b7 {{Burn}} 17."
        }
       }
+     }
+    }
+   ]
+  },
+  {
+   "id": "sanctum_thorn",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Sanctum Thorn",
+      "text": "{{Ward}} 2 \u2014 prevent the next 2 ailments outright \u00b7 {{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Restore 18 (+DEF) HP.",
+      "notes": [
+       "THE heal -> ward -> thorns CHAIN CARD (2026-08-18 hybrid pass): all three keywords",
+       "of the requested chain on one card. ward 2 (100) + thorns 5 (50) = 150 =",
+       "EXACTLY the size-2 empower cap (150) \u2014 the two frozen empower members",
+       "fully saturate the cap between them, so heal is the only line with any",
+       "room left. Bronze: ward 100 + thorns 50 + heal 18*5=90 = 240 raw -",
+       "140 (size-2 grant) = 100 exactly. No tierUpgrades: heal alone absorbs",
+       "every higher budget (silver 38, gold 58, diamond 78 \u2014 verified against",
+       "`autoScaleTier`, since ward+thorns are both frozen and never move).",
+       "Creates the ward+thorns pair (previously zero cards) and stacks onto",
+       "the existing heal+ward / heal+thorns pairs in one kit."
+      ],
+      "archetypes": [
+       "healing",
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 2,
+      "rarity": "epic",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "ward",
+        "charges": 2
+       },
+       {
+        "kind": "thorns",
+        "stacks": 5
+       },
+       {
+        "kind": "heal",
+        "power": 18
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "bramblemend",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Bramblemend",
+      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Restore 10 (+DEF) HP.",
+      "notes": [
+       "heal+thorns hybrid (2026-08-18): \"you soak, you heal back, they bleed",
+       "on you\" without ward yet. thorns 5 (50, frozen) + heal 10 (50) = 100 =",
+       "Bronze exactly. Silver is left to the auto-scaler (heal 20 \u2014 verified",
+       "against `autoScaleTier`).",
+       "GOLD-TIER IDENTITY: at GOLD the vine finally wards off the affliction",
+       "that would otherwise tax its own healing (anti-heal cuts 20%/category,",
+       "floor -60%) \u2014 `ward` joins, a tool Silver has no access to. thorns 50",
+       "(frozen) + ward 1 (50, frozen) = 100 = EXACTLY the size-1 empower cap,",
+       "so no further empower can ever join this kit at any tier. heal sinks",
+       "the rest: 20 (100) + 50 + 50 = 200 = Gold exactly. Diamond grows heal",
+       "to 30 (150) + 50 + 50 = 250 exactly. This is the heal -> ward -> thorns",
+       "chain completing on a single card as it ranks up."
+      ],
+      "archetypes": [
+       "healing",
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "thorns",
+        "stacks": 5
+       },
+       {
+        "kind": "heal",
+        "power": 10
+       }
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "thorns",
+          "stacks": 5
+         },
+         {
+          "kind": "ward",
+          "charges": 1
+         },
+         {
+          "kind": "heal",
+          "power": 20
+         }
+        ],
+        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 {{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Restore 20 (+DEF) HP."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "thorns",
+          "stacks": 5
+         },
+         {
+          "kind": "ward",
+          "charges": 1
+         },
+         {
+          "kind": "heal",
+          "power": 30
+         }
+        ],
+        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 {{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Restore 30 (+DEF) HP."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "warded_reprisal",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Warded Reprisal",
+      "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Restore 10 (+DEF) HP.",
+      "notes": [
+       "heal+ward, physical mirror of Aegis of the Unbroken (magical/holy):",
+       "ward 1 (50, frozen) + heal 10 (50) = 100 = Bronze exactly. No",
+       "tierUpgrades: heal alone absorbs every higher budget (silver 20, gold",
+       "30, diamond 40 \u2014 verified against `autoScaleTier`). Third heal+ward",
+       "card in the book \u2014 deepens the heal -> ward link in the chain."
+      ],
+      "archetypes": [
+       "healing",
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "ward",
+        "charges": 1
+       },
+       {
+        "kind": "heal",
+        "power": 10
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "bulwark_thicket",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Bulwark Thicket",
+      "text": "{{Thorns}} 20 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Gain 56 (+DEF) physical shield.",
+      "notes": [
+       "shield+thorns deepening, SIZE-3 (the heavy slot): `reflectThorns` fires",
+       "on a hit REGARDLESS of whether a shield absorbed it, so this is a",
+       "genuine engine interaction, not just co-presence \u2014 you take nothing",
+       "and the attacker takes the sting anyway. thorns AT the size-3 empower",
+       "cap (200 deci = 20 stacks) + shield sink 56 (280 raw = 56*5): 200 + 280",
+       "= 480 raw - 380 (size-3 grant) = 100 = Bronze exactly. Silver is left",
+       "to the auto-scaler (shield 84 \u2014 verified against `autoScaleTier`).",
+       "GOLD-TIER IDENTITY: at GOLD the thicket roots deep enough to purge its",
+       "own afflictions \u2014 `cleanse` (the one tier-scaling family) joins, a",
+       "tool Silver has no access to. thorns 200 (frozen) + cleanse 4 (100) +",
+       "shield 94 (470) = 770 raw - 570 (size-3 gold grant) = 200 = Gold",
+       "exactly. Diamond grows cleanse to 6 (150) + shield 112 (560): 200 + 150",
+       "+ 560 = 910 - 660 (grant) = 250 exactly. Not a single-big-number size-3",
+       "\u2014 it gains a whole new ability kind as it ranks up, the same identity",
+       "shape as `bramblewrath`."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 3,
+      "rarity": "epic",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "thorns",
+        "stacks": 20
+       },
+       {
+        "kind": "shield",
+        "power": 56
+       }
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "thorns",
+          "stacks": 20
+         },
+         {
+          "kind": "cleanse",
+          "charges": 4
+         },
+         {
+          "kind": "shield",
+          "power": 94
+         }
+        ],
+        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Remove up to 4 of your ailments \u00b7 Gain 94 (+DEF) physical shield."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "thorns",
+          "stacks": 20
+         },
+         {
+          "kind": "cleanse",
+          "charges": 6
+         },
+         {
+          "kind": "shield",
+          "power": 112
+         }
+        ],
+        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Remove up to 6 of your ailments \u00b7 Gain 112 (+DEF) physical shield."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "unbreakable_stance",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Unbreakable Stance",
+      "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% incoming physical damage (2 turns).",
+      "notes": [
+       "ward+guard: BOTH frozen empower with no scalable sink between them \u2014",
+       "combined they exactly fill the size-1 empower cap (50 + 50 = 100 deci",
+       "= Bronze), so `autoScaleTier` has nothing to grow at higher tiers (a",
+       "CAP-HIT kit, same shape as retaliation_stance/cinder_skin). Hand-",
+       "authored ladder adds a physical shield at Silver/Gold/Diamond ONLY:",
+       "+10/20/30 shield = +50/100/150 deci exactly."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "ward",
+        "charges": 1
+       },
+       {
+        "kind": "guard",
+        "property": "physical",
+        "pct": 25,
+        "turns": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 1
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 10
+         }
+        ],
+        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% incoming physical damage (2 turns) \u00b7 Gain 10 (+DEF) physical shield."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 1
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 20
+         }
+        ],
+        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% incoming physical damage (2 turns) \u00b7 Gain 20 (+DEF) physical shield."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 1
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 30
+         }
+        ],
+        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% incoming physical damage (2 turns) \u00b7 Gain 30 (+DEF) physical shield."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "umbral_ward",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Umbral Ward",
+      "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns).",
+      "notes": [
+       "ward+debuffStat: BOTH frozen (empower + control), no scalable sink at",
+       "Bronze \u2014 CAP-HIT, same shape as unbreakable_stance. ward 1 (50) +",
+       "debuffStat 25%x2t (50) = 100 = Bronze exactly. Hand-authored ladder",
+       "adds a magical damage sink at Silver/Gold/Diamond: +10/20/30 power =",
+       "+50/100/150 deci exactly. Fills the defensive x dark grid cell."
+      ],
+      "archetypes": [
+       "defensive",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "dark",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "ward",
+        "charges": 1
+       },
+       {
+        "kind": "debuffStat",
+        "stat": "armor",
+        "pct": 25,
+        "turns": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 1
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 10
+         }
+        ],
+        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 1
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 20
+         }
+        ],
+        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 1
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 30
+         }
+        ],
+        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "thorn_shackle",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Thorn Shackle",
+      "text": "{{Thorns}} 14 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -50% enemy DEF (2 turns).",
+      "notes": [
+       "thorns+debuffStat: a new pairing for the Thorn Garden (every other",
+       "thorns card pairs with shield/guard/damage). Both frozen (empower +",
+       "control), no scalable sink \u2014 CAP-HIT. Size 2 so there is room for",
+       "both riders before the sink: thorns 14 (140, just under the size-2",
+       "empower cap 150) + debuffStat 50%x2t (100) = 240 raw - 140 (size-2",
+       "grant) = 100 = Bronze exactly. Hand-authored ladder adds a physical",
+       "shield at Silver/Gold/Diamond: 16/34/50 power (80/170/250 deci) \u2014",
+       "solved against the size-2 grant at each tier (170/210/240)."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 2,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "thorns",
+        "stacks": 14
+       },
+       {
+        "kind": "debuffStat",
+        "stat": "armor",
+        "pct": 50,
+        "turns": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "thorns",
+          "stacks": 14
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 16
+         }
+        ],
+        "text": "{{Thorns}} 14 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 16 (+DEF) physical shield."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "thorns",
+          "stacks": 14
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 34
+         }
+        ],
+        "text": "{{Thorns}} 14 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 34 (+DEF) physical shield."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "thorns",
+          "stacks": 14
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 50
+         }
+        ],
+        "text": "{{Thorns}} 14 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 50 (+DEF) physical shield."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "mortal_wound",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Mortal Wound",
+      "text": "Deal 5 (+best stat) TRUE damage \u2014 ignores DEF/MDEF \u00b7 {{Bleed}} 5 \u2014 ticks when the enemy performs; blocked by shields.",
+      "notes": [
+       "Opened Wound, TRUE property: \"a wound too deep to defend against\" \u2014",
+       "the property axis rather than a new weapon. Bleed is priced flat",
+       "(perUnit, not perUnitByProperty) so property only changes the damage",
+       "line's rate: TRUE damage costs flatPowerPerPoint+truePremiumPerPoint",
+       "= 10 deci/point, double physical/magical. Bronze: damage 5 (50) +",
+       "bleed 5 (50) = 100 exactly. Hand-tuned curve (same shape as",
+       "rupturing_strike): moderate bleed growth, rest into damage. Silver:",
+       "bleed 7 (70) + damage 8 (80) = 150. Gold: bleed 8 (80) + damage 12",
+       "(120) = 200. Diamond: bleed 9 (90) + damage 16 (160) = 250.",
+       "Carries a cosmetic `weapon: axe` tag \u2014 TRUE bypasses the matchup",
+       "triangle but the card face still needs a type badge to draw."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "true",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 5
+       },
+       {
+        "kind": "bleed",
+        "stacks": 5
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 8
+         },
+         {
+          "kind": "bleed",
+          "stacks": 7
+         }
+        ],
+        "text": "Deal 8 (+best stat) TRUE damage \u2014 ignores DEF/MDEF \u00b7 {{Bleed}} 7 \u2014 ticks when the enemy performs; blocked by shields."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 12
+         },
+         {
+          "kind": "bleed",
+          "stacks": 8
+         }
+        ],
+        "text": "Deal 12 (+best stat) TRUE damage \u2014 ignores DEF/MDEF \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 16
+         },
+         {
+          "kind": "bleed",
+          "stacks": 9
+         }
+        ],
+        "text": "Deal 16 (+best stat) TRUE damage \u2014 ignores DEF/MDEF \u00b7 {{Bleed}} 9 \u2014 ticks when the enemy performs; blocked by shields."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "barbed_rampart",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Barbed Rampart",
+      "text": "{{Bleed}} 3 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -20% incoming physical damage (2 turns) \u00b7 Deal 6 (+ATK) Beast damage.",
+      "notes": [
+       "bleed+guard: a new pairing for the Opened Wound (every other bleed",
+       "card pairs with shieldBreak/expose/debuffStat/nothing) \u2014 a defensive",
+       "bleeder that fortifies while it wounds. DoT-sink authoring trap:",
+       "`autoScaleTier` would grow bleed to its cap immediately (silver 12,",
+       "gold 17, diamond 20) and crash damage to 0 at Silver/Gold \u2014 hand-",
+       "authored instead. guard 20%x2t (40, frozen) + bleed (moderate growth)",
+       "+ damage (growing sink): Bronze bleed 3 (30) + damage 6 (30) = 100.",
+       "Silver bleed 5 (50) + damage 12 (60) = 150. Gold bleed 7 (70) + damage",
+       "18 (90) = 200. Diamond bleed 8 (80) + damage 26 (130) = 250 (all + the",
+       "frozen guard 40)."
+      ],
+      "archetypes": [
+       "defensive",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "bleed",
+        "stacks": 3
+       },
+       {
+        "kind": "guard",
+        "property": "physical",
+        "pct": 20,
+        "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 6
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "bleed",
+          "stacks": 5
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 20,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 12
+         }
+        ],
+        "text": "{{Bleed}} 5 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -20% incoming physical damage (2 turns) \u00b7 Deal 12 (+ATK) Beast damage."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "bleed",
+          "stacks": 7
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 20,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 18
+         }
+        ],
+        "text": "{{Bleed}} 7 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -20% incoming physical damage (2 turns) \u00b7 Deal 18 (+ATK) Beast damage."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "bleed",
+          "stacks": 8
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 20,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 26
+         }
+        ],
+        "text": "{{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -20% incoming physical damage (2 turns) \u00b7 Deal 26 (+ATK) Beast damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "crippling_gore",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Crippling Gore",
+      "text": "{{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns) \u00b7 Deal 60 (+ATK) Lance damage.",
+      "notes": [
+       "bleed+debuffStat: a new pairing (weaken the guard further while it",
+       "bleeds, distinct from the shieldBreak-then-bleed teaching cards).",
+       "SIZE-3 (the heavy slot, not a single big number): busies the caster",
+       "two extra turns, exactly the window this deep a wound wants to keep",
+       "ticking. Same DoT-sink authoring trap as barbed_rampart \u2014 hand-",
+       "authored: debuffStat 40%x2t (80, frozen) + bleed (moderate) + damage",
+       "(growing sink). Bronze: bleed 10 (100) + damage 60 (300) = 400 + 80 =",
+       "480 raw - 380 (size-3 grant) = 100. Silver: bleed 13 (130) + damage 82",
+       "(410) + 80 = 620 - 470 = 150. Gold: bleed 15 (150) + damage 108 (540)",
+       "+ 80 = 770 - 570 = 200. Diamond: bleed 17 (170) + damage 132 (660) +",
+       "80 = 910 - 660 = 250."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 3,
+      "rarity": "epic",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "bleed",
+        "stacks": 10
+       },
+       {
+        "kind": "debuffStat",
+        "stat": "armor",
+        "pct": 40,
+        "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 60
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "bleed",
+          "stacks": 13
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 40,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 82
+         }
+        ],
+        "text": "{{Bleed}} 13 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns) \u00b7 Deal 82 (+ATK) Lance damage."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "bleed",
+          "stacks": 15
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 40,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 108
+         }
+        ],
+        "text": "{{Bleed}} 15 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns) \u00b7 Deal 108 (+ATK) Lance damage."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "bleed",
+          "stacks": 17
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "armor",
+          "pct": 40,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 132
+         }
+        ],
+        "text": "{{Bleed}} 17 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns) \u00b7 Deal 132 (+ATK) Lance damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "poison_bloom",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Blossoming Toxin",
+      "text": "{{Poison}} 5 (poison bypasses shields) \u00b7 Restore 10 (+MDEF) HP.",
+      "notes": [
+       "poison+heal: the nature \"poison/regen\" identity taken literally \u2014",
+       "you poison the foe and regrow the same turn. New pairing for the",
+       "poison family (every other poison card pairs with plain damage).",
+       "Same DoT-sink authoring trap as venom_fang/thorn_bite \u2014 hand-",
+       "authored: Bronze poison 5 (50) + heal 10 (50) = 100. Silver poison 7",
+       "(70) + heal 16 (80) = 150. Gold poison 8 (80) + heal 24 (120) = 200.",
+       "Diamond poison 9 (90) + heal 32 (160) = 250."
+      ],
+      "archetypes": [
+       "healing",
+       "defensive"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "poison",
+        "stacks": 5
+       },
+       {
+        "kind": "heal",
+        "power": 10
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "poison",
+          "stacks": 7
+         },
+         {
+          "kind": "heal",
+          "power": 16
+         }
+        ],
+        "text": "{{Poison}} 7 (poison bypasses shields) \u00b7 Restore 16 (+MDEF) HP."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "poison",
+          "stacks": 8
+         },
+         {
+          "kind": "heal",
+          "power": 24
+         }
+        ],
+        "text": "{{Poison}} 8 (poison bypasses shields) \u00b7 Restore 24 (+MDEF) HP."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "poison",
+          "stacks": 9
+         },
+         {
+          "kind": "heal",
+          "power": 32
+         }
+        ],
+        "text": "{{Poison}} 9 (poison bypasses shields) \u00b7 Restore 32 (+MDEF) HP."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "poison_ritual",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Plague Ritual",
+      "text": "{{Poison}} 5 (poison bypasses shields) \u00b7 Remove up to 2 of your ailments.",
+      "notes": [
+       "poison+cleanse: the self-cleansing venom-user \u2014 poison the foe, purge",
+       "your own ailments. poison stays frozen at 5 (the DoT-sink trap would",
+       "otherwise sweep it to cap and starve the sink, same failure as",
+       "poison_bloom); `cleanse` (the one tier-scaling family) alone absorbs",
+       "every higher budget, the same shape as warding_prayer/purify. Bronze:",
+       "poison 5 (50) + cleanse 2 (50) = 100. Silver poison 5 (50) + cleanse 4",
+       "(100) = 150. Gold poison 5 (50) + cleanse 6 (150) = 200. Diamond",
+       "poison 5 (50) + cleanse 8 (200) = 250."
+      ],
+      "archetypes": [
+       "support",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "dark",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "poison",
+        "stacks": 5
+       },
+       {
+        "kind": "cleanse",
+        "charges": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "poison",
+          "stacks": 5
+         },
+         {
+          "kind": "cleanse",
+          "charges": 4
+         }
+        ],
+        "text": "{{Poison}} 5 (poison bypasses shields) \u00b7 Remove up to 4 of your ailments."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "poison",
+          "stacks": 5
+         },
+         {
+          "kind": "cleanse",
+          "charges": 6
+         }
+        ],
+        "text": "{{Poison}} 5 (poison bypasses shields) \u00b7 Remove up to 6 of your ailments."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "poison",
+          "stacks": 5
+         },
+         {
+          "kind": "cleanse",
+          "charges": 8
+         }
+        ],
+        "text": "{{Poison}} 5 (poison bypasses shields) \u00b7 Remove up to 8 of your ailments."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "evasive_cordon",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Evasive Cordon",
+      "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Gain 10 (+DEF) physical shield.",
+      "notes": [
+       "ward+shield: physical mirror of Aegis of the Unbroken's ward+heal.",
+       "ward 1 (50, frozen) + shield 10 (50) = 100 = Bronze exactly. No",
+       "tierUpgrades: shield alone absorbs every higher budget (silver 20,",
+       "gold 30, diamond 40 \u2014 verified against `autoScaleTier`). Fills the",
+       "defensive x bow grid cell (previously empty; bow was offense-only)."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "ward",
+        "charges": 1
+       },
+       {
+        "kind": "shield",
+        "power": 10
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "shockwave_slam",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Shockwave Slam",
+      "text": "Deal 14 (+ATK) Axe damage \u00b7 {{Splash}} +6 weight on the card the enemy is about to play and the ones either side of it.",
+      "notes": [
+       "SHOWCASE CARD for the `splash` keyword (2026-08-18). splash is `slow`",
+       "at CARD scope: it taxes a BAND of the victim's board \u2014 the piece their",
+       "cast cursor sits on plus its immediate left/right neighbours, measured",
+       "edge-to-edge and never wrapping at the board edge \u2014 with +weight on",
+       "each piece's NEXT play, Math.max'd like slow, then spent.",
+       "PRICE: splash 6 = 30 deci at PRICE.splashPerWeightNum/Den (5 deci per",
+       "weight = 2x the slow rate: anchor at slow's full rate + two deferred",
+       "neighbours at half, the comboBonus conditional-trigger precedent).",
+       "damage 14 = 70. 30 + 70 = 100 = Bronze exactly, size 1 so no grant and",
+       "weight 10 is baseline (0 delta). Control-family spend is 30 deci,",
+       "well under the size-1 control cap (100).",
+       "WEIGHT 6, NOT MORE: a splash's tax lands on up to three cards at once,",
+       "so it buys stall breadth rather than depth \u2014 6 is a real half-turn of",
+       "readiness on a baseline-weight card without ever locking one out",
+       "(nothing stacks; a re-splash takes the max).",
+       "SINGLE-TARGET, deliberately: `scope: all` + splash is rejected by",
+       "validateSkillContent \u2014 splash spreads across ONE victim's board, not",
+       "across a team. No tierUpgrades: damage alone absorbs every higher",
+       "budget (silver 24, gold 34, diamond 44 \u2014 splash is control and stays",
+       "frozen at 6 at every tier, verified against `autoScaleTier`)."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 14
+       },
+       {
+        "kind": "splash",
+        "weight": 6
+       }
+      ]
      }
     }
    ]

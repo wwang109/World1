@@ -249,6 +249,11 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
       };
     case 'slow':
       return { title: 'Slow', body: `Enemy’s next action costs +${action.weight} weight (comes out later).` };
+    case 'splash':
+      return {
+        title: 'Splash',
+        body: `Hits the card the enemy is about to play plus the ones either side of it: each costs +${action.weight} weight the next time it is played (once, then spent). Board-adjacent only — the band never wraps around the edge.`,
+      };
     case 'disrupt':
       return { title: 'Stagger', body: `Drains ${action.amount} banked readiness — delays their next play.` };
     case 'lifesteal':

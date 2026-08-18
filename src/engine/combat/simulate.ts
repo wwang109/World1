@@ -4,6 +4,11 @@ import type { CombatEvent } from './events';
 import { effStat, initCombatState, isTurnDurationed, teamOf, type CombatState, type CombatantState } from './state';
 import { scanCast, type CastChoice } from './castSelect';
 import { applyCast, dealDamage, targetInfoForCast, type Ctx } from './interpreter';
+// `cursorPiece` lives beside the `splash` band it also defines the anchor for
+// (combat/splash.ts), so "the card whose turn it is" has ONE definition shared
+// by the turn loop and the splash keyword. Behaviour is identical to the local
+// copy it replaces.
+import { cursorPiece } from './splash';
 
 export interface CombatResult {
   result: CombatOutcome;
@@ -310,15 +315,6 @@ function expireStatuses(ctx: Ctx, c: CombatantState): void {
   c.statuses = remaining;
 }
 
-function cursorPiece(c: CombatantState): { piece: CombatantState['pieces'][number]; slotIndex: number } | null {
-  for (const piece of c.pieces) {
-    if (c.castCursor >= piece.slot && c.castCursor < piece.slot + piece.size) {
-      return { piece, slotIndex: c.castCursor - piece.slot + 1 };
-    }
-  }
-  return null;
-}
-
 function emitCursor(ctx: Ctx, c: CombatantState, before: number): void {
   const at = cursorPiece(c);
   ctx.events.push({
@@ -576,6 +572,16 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         });
         emitCursor(ctx, c, cursorBefore);
         c.nextWeightPenalty = 0;
+        // CARD-scope sibling of the line above (`splash`): the tax rides ONE
+        // piece and is spent by THAT piece's next play — the `cost` event just
+        // above paid it (castSelect folded it into `choice.weight`), so it is
+        // consumed here, exactly once, at the one site where a cast really
+        // resolves. Speculative `scanCast` calls only READ it.
+        //
+        // Cleared to `undefined`, never 0: the field is lazily written so an
+        // un-splashed piece carries no key at all (see `PieceState`), and a 0
+        // would survive `JSON.stringify` and move every outcome-baseline hash.
+        if (choice.piece.nextWeightPenalty !== undefined) choice.piece.nextWeightPenalty = undefined;
         c.lastCastArchetypes = choice.skill.archetypes;
         playsThisTurn += 1;
         played.add(c);

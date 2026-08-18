@@ -66,8 +66,20 @@ export function choiceArtKey(kind: string): string {
     case 'bonusDraft':
     case 'upgradeCard':
     case 'upgradeCardPick':
+    // `cardChoice` (2026-08-18 agency pass) is the pre-resolution SPEC kind
+    // shown on the event's own choice row (`choiceArtKey(choice.outcome.kind)`
+    // in both `RunEventScene`s) — same card icon as its `grantCard`/
+    // `bonusDraft` siblings, same idiom as `upgradeCardPick` above reusing
+    // `upgradeCard`'s icon for its own deferred-pick shape.
+    case 'cardChoice':
       return RUN_ART_KEYS.icon.choiceCard;
     case 'grantGem':
+    // `gemChoice` is the pre-resolution spec kind; `gemChoicePick` is the
+    // deferred-pick `EventOutcome` shape shown while `renderRunGemChoicePicker`
+    // is up (its header icon) — both read as the same gem icon as the
+    // guaranteed `grantGem` grant, same reasoning as `cardChoice` above.
+    case 'gemChoice':
+    case 'gemChoicePick':
       return RUN_ART_KEYS.icon.choiceGem;
     case 'grantGold':
     case 'loseGold':

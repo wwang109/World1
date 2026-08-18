@@ -109,6 +109,22 @@ export interface PieceState {
    * so persisted state stays float-free and deterministic.
    */
   lastCastTurn?: number;
+  /**
+   * CARD-SCOPE weight tax pending on THIS piece (from an enemy `splash`): the
+   * next time this piece is played it costs this much extra weight, and the
+   * penalty is then consumed (`simulate.ts`, beside `c.nextWeightPenalty = 0`).
+   * The unit-scope sibling is `CombatantState.nextWeightPenalty`; both are
+   * summed into the cast weight in `castSelect.ts` and both are `Math.max`ed
+   * rather than summed on re-application.
+   *
+   * LAZILY WRITTEN, NEVER INITIALISED — the same idiom as `lastCastTurn` above,
+   * and for a hard reason: `undefined` is dropped by `JSON.stringify` but `0` is
+   * not, so eager-initialising this to 0 would re-bake all 400 hashes in
+   * `tests/engine/fixtures/outcomeBaseline.json` for zero behaviour change. Read
+   * it as `piece.nextWeightPenalty ?? 0`; clear it back to `undefined`, never 0.
+   * Integer, so persisted state stays float-free and deterministic.
+   */
+  nextWeightPenalty?: number;
 }
 
 export interface CombatantState {

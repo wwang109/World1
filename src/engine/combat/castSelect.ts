@@ -69,7 +69,18 @@ export function scanCast(c: CombatantState, skillBook: SkillBook, opts: SelectOp
     const skill = piece.skill;
     if (skill.effects.length === 0 && skill.special === undefined && skill.aura === undefined) continue;
     const { mods, sources } = resolveAuras(c, piece, skillBook);
-    const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty);
+    // THE single place a cast's weight is summed: card base + auras/gems +
+    // the UNIT-scope pending tax (`slow`) + the CARD-scope pending tax on this
+    // very piece (`splash`). Never below 1.
+    //
+    // READ-ONLY, DELIBERATELY: `scanCast` also runs SPECULATIVELY — the
+    // performer search and the `wait`/`cantAfford` explanation pass in
+    // simulate.ts both scan units that will not end up casting at all — so
+    // neither penalty may be consumed here. Both are cleared where a cast
+    // actually resolves and pays its weight (simulate.ts, beside
+    // `c.nextWeightPenalty = 0`). A penalty consumed by a speculative scan is a
+    // silent bug: the tax would vanish without ever being paid.
+    const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty + (piece.nextWeightPenalty ?? 0));
     return { kind: 'choice', choice: { piece, skill, mods, auraSources: sources, weight } };
   }
   return firstCooling ? { kind: 'cooling', ...firstCooling } : { kind: 'none' };

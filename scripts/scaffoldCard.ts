@@ -100,6 +100,7 @@ function seedAction(kind: Action['kind']): Action {
     // "the solver grows it from nothing" is the rule, not a per-keyword judgement.
     case 'ward': return { kind, charges: 0 };
     case 'slow': return { kind, weight: 0 };
+    case 'splash': return { kind, weight: 0 };
     case 'disrupt': return { kind, amount: 0 };
     case 'lifesteal': return { kind, pct: 0 };
     case 'shieldBreak': return { kind, amount: 0 };
@@ -115,7 +116,7 @@ const GROW_FIELD: Partial<Record<Action['kind'], string>> = {
   damage: 'power', heal: 'power', shield: 'power',
   poison: 'stacks', burn: 'stacks', bleed: 'stacks', thorns: 'stacks',
   buffStat: 'pct', debuffStat: 'pct', expose: 'pct', guard: 'pct',
-  slow: 'weight', disrupt: 'amount', lifesteal: 'pct',
+  slow: 'weight', splash: 'weight', disrupt: 'amount', lifesteal: 'pct',
   shieldBreak: 'amount', comboBonus: 'amount',
   negate: 'charges', cleanse: 'charges', ward: 'charges',
 };
@@ -230,6 +231,7 @@ function phrase(a: Action): string {
     case 'cleanse': return `{{Cleanse}} ${a.charges} ailment${a.charges > 1 ? 's' : ''}`;
     case 'ward': return `{{Ward}} ${a.charges} — prevent the next ${a.charges > 1 ? `${a.charges} ailments` : 'ailment'} outright`;
     case 'slow': return `Enemy's next action is +${a.weight} heavier`;
+    case 'splash': return `{{Splash}} +${a.weight} weight on the enemy's current card and the ones either side of it`;
     case 'disrupt': return `{{Disrupt}} ${a.amount} banked readiness`;
     case 'lifesteal': return `{{Lifesteal}} ${a.pct}% of damage dealt`;
     case 'shieldBreak': return `{{Shatter}} ${a.amount} enemy shield`;
