@@ -48,6 +48,32 @@ interface AuditResult {
 
 const violations: AuditResult[] = [];
 
+/**
+ * Things that make the audit itself untrustworthy, as opposed to a layout bug:
+ * a run that threw, a navigation click whose label no longer exists, an
+ * uncaught page error, a screen that was never reached. Any one of these means
+ * the audit did NOT audit what it claims to have audited, so it must exit
+ * non-zero — an audit that cannot fail is worse than no audit, because it is
+ * trusted. (This script used to swallow a thrown run and exit 0 having
+ * inspected nothing at all.)
+ */
+const hardFailures: string[] = [];
+
+const PLATFORMS: Platform[] = ['desktop', 'mobile'];
+
+/** Every screen a complete run MUST have visited, per platform. Without this,
+ * a renamed button silently re-audits the PREVIOUS screen under the next
+ * screen's name and the run still reports green. */
+const EXPECTED_SCREENS: Array<{ label: string; matches: (screen: string) => boolean }> = [
+  { label: 'map-start', matches: (s) => s === 'map-start' },
+  { label: 'draft', matches: (s) => s === 'draft' },
+  { label: 'map-active', matches: (s) => s === 'map-active' },
+  { label: 'node-*', matches: (s) => s.startsWith('node-') },
+  { label: 'deck', matches: (s) => s === 'deck' },
+  { label: 'retire-confirm', matches: (s) => s === 'retire-confirm' },
+  { label: 'end-summary', matches: (s) => s === 'end-summary' },
+];
+
 /** Pulls every visible Text object's world bounds off the live scene graph
  * (recursing into Containers) — the ONLY thing this script trusts is what
  * the browser actually rendered. */
@@ -106,7 +132,7 @@ async function auditScreen(page: Page, screen: string, platform: Platform, requi
   return result;
 }
 
-async function clickExactText(page: Page, label: string): Promise<boolean> {
+async function clickExactText(page: Page, label: string, platform: Platform): Promise<boolean> {
   const { width, height } = await page.evaluate(() => ({ width: (window as any).__gameDesignWidth, height: (window as any).__gameDesignHeight }));
   const hit = await page.evaluate((label: string) => {
     const game = (window as any).__game;
@@ -130,17 +156,23 @@ async function clickExactText(page: Page, label: string): Promise<boolean> {
     }
     return found;
   }, label);
-  if (!hit) return false;
+  if (!hit) {
+    hardFailures.push(`[${platform}] no visible text "${label}" to click — the walkthrough cannot have gone where it says it went`);
+    return false;
+  }
   const canvas = page.locator('canvas');
   const box = await canvas.boundingBox();
-  if (!box) return false;
+  if (!box) {
+    hardFailures.push(`[${platform}] canvas has no bounding box — nothing was clickable`);
+    return false;
+  }
   const dw = width || box.width;
   const dh = height || box.height;
   await page.mouse.click(box.x + (hit.x / dw) * box.width, box.y + (hit.y / dh) * box.height);
   return true;
 }
 
-async function clickPrefixText(page: Page, prefixes: string[]): Promise<string | null> {
+async function clickPrefixText(page: Page, prefixes: string[], platform: Platform): Promise<string | null> {
   const found = await page.evaluate((prefixes: string[]) => {
     const game = (window as any).__game;
     let match: { text: string } | null = null;
@@ -159,8 +191,11 @@ async function clickPrefixText(page: Page, prefixes: string[]): Promise<string |
     }
     return match;
   }, prefixes);
-  if (!found) return null;
-  await clickExactText(page, (found as { text: string }).text);
+  if (!found) {
+    hardFailures.push(`[${platform}] no node matching ${prefixes.join('/')} on the map — the run could not be advanced`);
+    return null;
+  }
+  await clickExactText(page, (found as { text: string }).text, platform);
   return (found as { text: string }).text;
 }
 
@@ -191,7 +226,7 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   await auditScreen(page, 'map-start', platform);
 
   // ---- 2. Start a run -> Draft ----
-  await clickExactText(page, 'START');
+  await clickExactText(page, 'START', platform);
   await page.waitForTimeout(700);
   await shot(page, `${platform}-02-draft`);
   await auditScreen(page, 'draft', platform);
@@ -205,10 +240,10 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
     const key = DRAFT_SET_KEYS[i]!;
     const card = draft[key][0];
     const name = card ? skillBook[card.skillId]?.name : undefined;
-    if (name) { await clickExactText(page, name); await page.waitForTimeout(150); }
-    if (!desktop && i < DRAFT_SET_KEYS.length - 1) { await clickExactText(page, 'NEXT'); await page.waitForTimeout(150); }
+    if (name) { await clickExactText(page, name, platform); await page.waitForTimeout(150); }
+    if (!desktop && i < DRAFT_SET_KEYS.length - 1) { await clickExactText(page, 'NEXT', platform); await page.waitForTimeout(150); }
   }
-  await clickExactText(page, 'START');
+  await clickExactText(page, 'START', platform);
   await page.waitForTimeout(700);
 
   // ---- 3. Map, active run ----
@@ -216,7 +251,7 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   await auditScreen(page, 'map-active', platform, REQUIRED_STATS.filter(Boolean));
 
   // ---- 4. Pick the first available node -> Prep / Shop / Event ----
-  const picked = await clickPrefixText(page, ['FIGHT', 'SHOP', 'EVENT', 'BOSS']);
+  const picked = await clickPrefixText(page, ['FIGHT', 'SHOP', 'EVENT', 'BOSS'], platform);
   await page.waitForTimeout(700);
   const landedOn = await activeSceneKey(page);
   await shot(page, `${platform}-04-node-${landedOn}`);
@@ -225,21 +260,21 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
 
   // ---- 5. DECK / BAG (secondary HUD slot) ----
   const deckLabel = desktop ? 'DECK / BAG' : 'DECK/BAG';
-  const wentToDeck = await clickExactText(page, deckLabel);
+  const wentToDeck = await clickExactText(page, deckLabel, platform);
   if (wentToDeck) {
     await page.waitForTimeout(700);
     await shot(page, `${platform}-05-deck`);
     await auditScreen(page, 'deck', platform, REQUIRED_STATS.filter(Boolean));
-    await clickExactText(page, '‹ MAP');
+    await clickExactText(page, '‹ MAP', platform);
     await page.waitForTimeout(700);
   }
 
   // ---- 6. RETIRE (tertiary HUD slot) -> confirm -> end summary ----
-  await clickExactText(page, 'RETIRE');
+  await clickExactText(page, 'RETIRE', platform);
   await page.waitForTimeout(400);
   await shot(page, `${platform}-06-retire-confirm`);
   await auditScreen(page, 'retire-confirm', platform);
-  await clickExactText(page, 'RETIRE'); // last match = the dialog's red button
+  await clickExactText(page, 'RETIRE', platform); // last match = the dialog's red button
   await page.waitForTimeout(700);
   await shot(page, `${platform}-07-end-summary`);
   await auditScreen(page, 'end-summary', platform);
@@ -250,17 +285,26 @@ async function main(): Promise<void> {
     executablePath: CHROMIUM_PATH,
     args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader', '--disable-gpu-sandbox', '--no-sandbox'],
   });
-  for (const platform of ['desktop', 'mobile'] as Platform[]) {
+  for (const platform of PLATFORMS) {
     const page = await browser.newPage({ viewport: VIEWPORTS[platform] });
-    page.on('pageerror', (err) => console.error(`[${platform}] page error:`, err));
+    // Same precedent as scripts/smoke.mjs: a thrown exception inside the game
+    // fails the run. A screen that renders while throwing is not a pass.
+    page.on('pageerror', (err) => hardFailures.push(`[${platform}] page error: ${String(err)}`));
     try {
       await runPlatform(page, platform);
     } catch (err) {
-      console.error(`[${platform}] audit run threw:`, err);
+      hardFailures.push(`[${platform}] audit run threw: ${err instanceof Error ? err.message : String(err)}`);
     }
     await page.close();
   }
   await browser.close();
+
+  for (const platform of PLATFORMS) {
+    const audited = violations.filter((v) => v.platform === platform).map((v) => v.screen);
+    for (const { label, matches } of EXPECTED_SCREENS) {
+      if (!audited.some(matches)) hardFailures.push(`[${platform}] screen "${label}" was never audited`);
+    }
+  }
 
   let bad = 0;
   for (const v of violations) {
@@ -272,9 +316,19 @@ async function main(): Promise<void> {
     for (const o of v.overlaps) console.log(`  OVERLAP (${o.overlapPx.toFixed(0)}px^2): "${o.a.text}" [${o.a.scene}] <-> "${o.b.text}" [${o.b.scene}]`);
     for (const m of v.missingStats) console.log(`  MISSING STAT: "${m}"`);
   }
+  if (hardFailures.length > 0) {
+    console.log(`\n=== AUDIT DID NOT COMPLETE (${hardFailures.length}) ===`);
+    for (const f of hardFailures) console.log(`  ${f}`);
+  }
+
   console.log(`\nrunScreenTemplate desktop content region:`, runScreenTemplate('desktop').regions.content);
-  console.log(`\nTotal screens audited: ${violations.length}. Total violations: ${bad}.`);
-  process.exit(bad > 0 ? 1 : 0);
+  console.log(`\nTotal screens audited: ${violations.length}. Total violations: ${bad}. Hard failures: ${hardFailures.length}.`);
+  process.exit(bad > 0 || hardFailures.length > 0 ? 1 : 0);
 }
 
-void main();
+// A failure to even start (no browser binary, bad dev URL) is a failed audit,
+// not a silent pass — Node's unhandled-rejection default is not relied on.
+void main().catch((err) => {
+  console.error('audit could not run:', err instanceof Error ? err.message : String(err));
+  process.exit(1);
+});

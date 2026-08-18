@@ -1,0 +1,14 @@
+{
+  // Cloudflare Pages Functions run on the Workers runtime, NOT Node — so they
+  // get their own program with `types: []`. Without this, `functions/` would
+  // inherit the Node globals from the main config and a `process.env` copied
+  // over from its `server/battleApi.ts` twin would typecheck locally and only
+  // fail once deployed. Everything it pulls from src/ is pure TS, so no Node
+  // types are needed here.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [],
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["functions"]
+}

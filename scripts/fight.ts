@@ -9,7 +9,25 @@ import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../src/data/heroes';
 import { enemies } from '../src/data/enemies';
 
 const enemyId = process.argv[2] ?? 'bandit_duelist';
-const seed = Number(process.argv[3] ?? hashSeed('fight', enemyId));
+
+/**
+ * A seed you cannot trust is worse than no seed: `Number('abc')` is NaN, and
+ * `Rng`'s `seed >>> 0` turns NaN into 0 — so a typo silently reproduces a
+ * DIFFERENT fight than the one asked for. Refuse instead.
+ */
+function parseSeed(arg: string | undefined, fallback: number): number {
+  if (arg === undefined) return fallback;
+  // Deliberately NOT Number(): '' and '  ' both coerce to 0, which is the same
+  // silent-zero trap by another route. Plain unsigned decimal digits only.
+  const value = /^[0-9]+$/.test(arg) ? Number(arg) : Number.NaN;
+  if (!Number.isInteger(value) || value > 0xffffffff) {
+    console.error(`Invalid seed '${arg}' — expected an integer in [0, 4294967295].`);
+    process.exit(1);
+  }
+  return value;
+}
+
+const seed = parseSeed(process.argv[3], hashSeed('fight', enemyId));
 
 const enemy = enemies[enemyId];
 if (!enemy) {
