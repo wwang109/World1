@@ -1,11 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { eventCatalog, eventCatalogIds, type EventChoiceOutcome, type EventOutcomeSpec } from '../../src/data/events';
+import { afterEach, describe, expect, it } from 'vitest';
+import { eventCatalog, eventCatalogIds, type EventChoiceOutcome, type EventDef, type EventOutcomeSpec } from '../../src/data/events';
 import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
 import {
   applyBonusDraftPick,
   applyGemChoicePick,
   applyUpgradeCardPick,
+  EVENT_CHOICE_SIZE,
   isEventChoiceAffordable,
   resolveEventChoice,
   rollEventForNode,
@@ -179,14 +180,14 @@ describe('data/events: catalog lint', () => {
     }
   });
 
-  it('every bonusDraft/cardChoice filter resolves to a real, non-empty pool (thin filters allowed, empty is a bug)', () => {
+  it('every bonusDraft filter resolves to a real, non-empty pool (thin filters allowed, empty is a bug)', () => {
     for (const id of eventCatalogIds) {
       const event = eventCatalog[id]!;
       const specs: EventOutcomeSpec[] = event.choices.flatMap((c) =>
         c.outcome.kind === 'gamble' ? c.outcome.table.map((r) => r.outcome) : [c.outcome],
       );
       for (const spec of specs) {
-        if ((spec.kind !== 'bonusDraft' && spec.kind !== 'cardChoice') || !spec.filter) continue;
+        if (spec.kind !== 'bonusDraft' || !spec.filter) continue;
         const pool = Object.values(skillBook).filter((s) =>
           spec.filter!.some((clause) => {
             if (clause.properties && !clause.properties.includes(s.property)) return false;
@@ -201,16 +202,52 @@ describe('data/events: catalog lint', () => {
     }
   });
 
-  it('every gemChoice filter resolves to a real, non-empty gem pool (none in the catalog carry one today, but the guard stays live)', () => {
+  // Tightened from a bare non-empty check (2026-08-18 QA pass): a `cardChoice`
+  // deals a 1-of-`EVENT_CHOICE_SIZE` pick, not a 1-of-N-for-whatever-N-the-
+  // filter-happens-to-match — a pool narrower than that silently ships a
+  // 1-of-1 or 1-of-2 "pick" with no error (see `sampleDistinct`'s doc comment
+  // in `src/run/events.ts`). `cardChoiceOutcome` itself now throws on this at
+  // resolve time (see the "too-small pool" describe block below), so this
+  // lint test is a build-time-loud second guard against the same defect,
+  // catching it at catalog-authoring time instead of at whatever seed first
+  // resolves the choice.
+  it('every cardChoice filter resolves to a pool of at least EVENT_CHOICE_SIZE cards (never a 1-of-1/1-of-2 pick)', () => {
     for (const id of eventCatalogIds) {
       const event = eventCatalog[id]!;
       const specs: EventOutcomeSpec[] = event.choices.flatMap((c) =>
         c.outcome.kind === 'gamble' ? c.outcome.table.map((r) => r.outcome) : [c.outcome],
       );
       for (const spec of specs) {
-        if (spec.kind !== 'gemChoice' || !spec.filter) continue;
-        const pool = Object.values(gemBook).filter((g) => gemMatchesFilter(g, spec.filter!));
-        expect(pool.length).toBeGreaterThan(0);
+        if (spec.kind !== 'cardChoice') continue;
+        const all = Object.values(skillBook);
+        const pool = spec.filter
+          ? all.filter((s) =>
+              spec.filter!.some((clause) => {
+                if (clause.properties && !clause.properties.includes(s.property)) return false;
+                if (clause.weapons && (!s.weapon || !clause.weapons.includes(s.weapon))) return false;
+                if (clause.elements && (!s.element || !clause.elements.includes(s.element))) return false;
+                if (clause.archetypes && !s.archetypes.some((a) => clause.archetypes!.includes(a))) return false;
+                return true;
+              }),
+            )
+          : all;
+        const drawPool = pool.length > 0 ? pool : all;
+        expect(drawPool.length).toBeGreaterThanOrEqual(EVENT_CHOICE_SIZE);
+      }
+    }
+  });
+
+  // Same tightening as the cardChoice lint above, for gemChoice's pool.
+  it('every gemChoice filter resolves to a pool of at least EVENT_CHOICE_SIZE gems (none in the catalog carry a filter today, but the guard stays live)', () => {
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      const specs: EventOutcomeSpec[] = event.choices.flatMap((c) =>
+        c.outcome.kind === 'gamble' ? c.outcome.table.map((r) => r.outcome) : [c.outcome],
+      );
+      for (const spec of specs) {
+        if (spec.kind !== 'gemChoice') continue;
+        const pool = Object.values(gemBook).filter((g) => (spec.filter ? gemMatchesFilter(g, spec.filter) : true));
+        expect(pool.length).toBeGreaterThanOrEqual(EVENT_CHOICE_SIZE);
       }
     }
   });
@@ -577,6 +614,80 @@ describe('run/events: resolveEventChoice', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Cost deduction for the priced `cardChoice`/`gemChoice` vocabulary
+// (2026-08-18 QA pass) — the pre-existing "cost is deducted before the
+// outcome resolves" test (above) only exercised `wandering_tutor`/
+// `grantLevel`, an unrelated outcome kind. This closes that gap for the
+// vocabulary the 2026-08-18 widening actually touched, modeled on
+// `tests/run/runState.test.ts`'s `gold - state.gold === expectedCost` idiom
+// for `rerollRunShop`'s escalating cost.
+// ---------------------------------------------------------------------------
+describe('run/events: resolveEventChoice deducts gold for priced cardChoice/gemChoice choices', () => {
+  it('a priced cardChoice (abandoned_cache/search_thoroughly, 2 gold) deducts exactly its cost', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withGold = { ...state, gold: 10 };
+    const { state: next } = resolveEventChoice(withGold, 'abandoned_cache', 'search_thoroughly');
+    expect(withGold.gold - next.gold).toBe(2);
+    expect(next.gold).toBe(8);
+  });
+
+  it('a priced gemChoice (gemsellers_mishap/rifle, 2 gold) deducts exactly its cost', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withGold = { ...state, gold: 10 };
+    const { state: next } = resolveEventChoice(withGold, 'gemsellers_mishap', 'rifle');
+    expect(withGold.gold - next.gold).toBe(2);
+    expect(next.gold).toBe(8);
+  });
+
+  // The two choices this change moved from free to 1g — called out by name
+  // in the audit as newly deducting gold where they didn't before.
+  it('quartermasters_error/take_gem — newly-priced (0g -> 1g) gemChoice deducts exactly 1 gold', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withGold = { ...state, gold: 5 };
+    const { state: next } = resolveEventChoice(withGold, 'quartermasters_error', 'take_gem');
+    expect(withGold.gold - next.gold).toBe(1);
+    expect(next.gold).toBe(4);
+  });
+
+  it('fences_offer/take_stone — newly-priced (0g -> 1g) gemChoice deducts exactly 1 gold', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withGold = { ...state, gold: 5 };
+    const { state: next } = resolveEventChoice(withGold, 'fences_offer', 'take_stone');
+    expect(withGold.gold - next.gold).toBe(1);
+    expect(next.gold).toBe(4);
+  });
+
+  it('goldSpent stat tracks the same amount deducted for a priced cardChoice/gemChoice', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withGold = { ...state, gold: 10 };
+    const { state: next } = resolveEventChoice(withGold, 'abandoned_cache', 'search_thoroughly');
+    expect(next.stats.goldSpent - withGold.stats.goldSpent).toBe(2);
+  });
+
+  // KNOWN GAP (found by this QA pass, routed rather than fixed here — see the
+  // task summary): `resolveEventChoice`'s cost deduction floors at 0
+  // (`Math.max(0, working.gold - choice.cost)`) and does NOT check
+  // `isEventChoiceAffordable` before applying the outcome, despite the doc
+  // comment above `isEventChoiceAffordable` in `src/run/events.ts` describing
+  // it as "the single predicate authority both this resolver and the UI use".
+  // In practice a broke player who somehow calls `resolveEventChoice` on an
+  // unaffordable priced choice still receives the FULL outcome (a 1-of-3
+  // pick, here) for whatever partial gold they had, not a refusal — the
+  // client only avoids this by dimming the button first via
+  // `isEventChoiceAffordable`, a UI-layer gate this pure resolver doesn't
+  // itself enforce. This test PINS today's actual behavior (so a future
+  // change to it is a deliberate, visible diff, not a silent one) rather than
+  // asserting the refusal the audit assumed exists.
+  it('KNOWN GAP: an unaffordable priced cardChoice is NOT refused — it still resolves, gold floored at 0', () => {
+    const { state } = stateAtFirstEvent(4);
+    const broke = { ...state, gold: 0 };
+    const { state: next, outcome } = resolveEventChoice(broke, 'abandoned_cache', 'search_thoroughly'); // costs 2
+    expect(next.gold).toBe(0); // floored, not refused
+    expect(outcome.kind).toBe('bonusDraft'); // the outcome still resolved despite being unaffordable
+  });
+});
+
 describe('run/events: upgradeCard', () => {
   it('offers every eligible owned card as options — board first (ascending slot), then bag (array order) — and pays cost without mutating anything yet', () => {
     const { state } = stateAtFirstEvent(4);
@@ -848,6 +959,98 @@ describe('run/events: cardChoice/gemChoice (the 2026-08-18 agency widening)', ()
     resolveEventChoice(withGold, 'crossroads_shrine', 'tithe'); // widened draw, discarded
     const after = resolveEventChoice(withGold, 'crossroads_shrine', 'deface');
     expect(after.outcome).toEqual(before.outcome);
+  });
+
+  // Comprehensive sibling of the two BEFORE/AFTER spot checks above: instead
+  // of hand-picking one cardChoice and one gemChoice event, this resolves
+  // EVERY cardChoice/gemChoice choice in the live catalog and proves each one
+  // actually deals EVENT_CHOICE_SIZE DISTINCT options to the player — the
+  // audit's specific ask ("a direct unit test that a player actually
+  // receives 3 distinct options from a real resolved choice", not just a
+  // pool-size lint) — across the whole vocabulary, not two examples of it.
+  it('every cardChoice/gemChoice choice in the catalog resolves to EVENT_CHOICE_SIZE distinct options', () => {
+    let cardChoiceChecked = 0;
+    let gemChoiceChecked = 0;
+    for (const id of eventCatalogIds) {
+      const event = eventCatalog[id]!;
+      for (const choice of event.choices) {
+        if (choice.outcome.kind !== 'cardChoice' && choice.outcome.kind !== 'gemChoice') continue;
+        const { state } = stateAtFirstEvent(4);
+        const { outcome } = resolveEventChoice({ ...state, gold: choice.cost ?? 0 }, id, choice.id);
+        if (choice.outcome.kind === 'cardChoice') {
+          cardChoiceChecked++;
+          expect(outcome.kind).toBe('bonusDraft');
+          if (outcome.kind !== 'bonusDraft') continue;
+          expect(outcome.cards).toHaveLength(EVENT_CHOICE_SIZE);
+          expect(new Set(outcome.cards.map((c) => c.skillId)).size).toBe(EVENT_CHOICE_SIZE);
+        } else {
+          gemChoiceChecked++;
+          expect(outcome.kind).toBe('gemChoicePick');
+          if (outcome.kind !== 'gemChoicePick') continue;
+          expect(outcome.options).toHaveLength(EVENT_CHOICE_SIZE);
+          expect(new Set(outcome.options).size).toBe(EVENT_CHOICE_SIZE);
+        }
+      }
+    }
+    // Sanity on the sweep itself — matches the catalog-lint count test above
+    // (6 cardChoice, 9 gemChoice) so a future content edit that silently
+    // drops one of these choices out of the vocabulary is also caught here.
+    expect(cardChoiceChecked).toBe(6);
+    expect(gemChoiceChecked).toBe(9);
+  });
+});
+
+describe('run/events: cardChoice/gemChoice throw on a too-small filtered pool (2026-08-18 QA pass)', () => {
+  // A synthetic catalog entry, injected into the (plain, mutable)
+  // `eventCatalog` record for the duration of one test and removed
+  // immediately after — `resolveEventChoice` looks up `eventId` directly
+  // from `eventCatalog`, independent of which event a run node actually
+  // drew, so this exercises the REAL resolver/throw path without needing a
+  // live catalog entry narrow enough to trip it (none exist today — see the
+  // lint test above).
+  const RIGGED_ID = '__qa_rigged_narrow_pool__';
+
+  afterEach(() => {
+    delete (eventCatalog as Record<string, EventDef>)[RIGGED_ID];
+  });
+
+  it('cardChoiceOutcome throws rather than silently dealing fewer than EVENT_CHOICE_SIZE cards', () => {
+    // bow+debuff is a real, verified 2-card pool in the live skill book —
+    // non-empty (so this is NOT the pre-existing "no skill matches" throw)
+    // but narrower than EVENT_CHOICE_SIZE (3).
+    const narrowPool = Object.values(skillBook).filter(
+      (s) => s.weapon === 'bow' && s.archetypes.includes('debuff'),
+    );
+    expect(narrowPool.length).toBe(2); // pins the fixture; fails loudly if content ever shifts this count
+    (eventCatalog as Record<string, EventDef>)[RIGGED_ID] = {
+      id: RIGGED_ID,
+      title: 'QA rig',
+      body: '',
+      theme: 'training',
+      choices: [
+        {
+          id: 'narrow',
+          label: '',
+          outcome: { kind: 'cardChoice', filter: [{ weapons: ['bow'], archetypes: ['debuff'] }] },
+        },
+      ],
+    };
+    const { state } = stateAtFirstEvent(4);
+    expect(() => resolveEventChoice({ ...state, gold: 5 }, RIGGED_ID, 'narrow')).toThrow(/cardChoice/);
+  });
+
+  it('gemChoiceOutcome throws rather than silently dealing fewer than EVENT_CHOICE_SIZE gems', () => {
+    const twoGemIds = Object.keys(gemBook).slice(0, 2);
+    expect(twoGemIds).toHaveLength(2);
+    (eventCatalog as Record<string, EventDef>)[RIGGED_ID] = {
+      id: RIGGED_ID,
+      title: 'QA rig',
+      body: '',
+      theme: 'training',
+      choices: [{ id: 'narrow', label: '', outcome: { kind: 'gemChoice', filter: [{ ids: twoGemIds }] } }],
+    };
+    const { state } = stateAtFirstEvent(4);
+    expect(() => resolveEventChoice({ ...state, gold: 5 }, RIGGED_ID, 'narrow')).toThrow(/gemChoice/);
   });
 });
 

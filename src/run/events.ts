@@ -61,7 +61,13 @@ const BONUS_DRAFT_SIZE = 5;
  * be repriced (gems, called out as the catalog's single biggest RNG win,
  * take the reprice; the card grant stays free).
  */
-const EVENT_CHOICE_SIZE = 3;
+// Exported so `tests/run/events.test.ts`'s catalog lint can assert every
+// `cardChoice`/`gemChoice` filter's pool is at least this wide WITHOUT a
+// literal `3` drifting out of sync with the real width (2026-08-18 QA pass,
+// closing a coverage gap: neither `sampleDistinct` (below) nor
+// `pickWeightedGems`/`sampleGemsWeighted` (shop.ts) error on a too-small
+// pool — they just silently hand back FEWER than `count` options).
+export const EVENT_CHOICE_SIZE = 3;
 
 /** Tier ladder `upgradeCard` climbs — fixed order, index doubles as "rank". */
 const TIER_LADDER: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
@@ -462,7 +468,17 @@ function bonusDraftOutcome(
  * the first time) a caller-chosen tier, so `applyBonusDraftPick` finalizes a
  * `cardChoice` pick with zero changes. Falls back to the unfiltered book
  * (same "never throw over a narrow filter" idiom as `grantCard`) only if the
- * filtered pool is empty; unlike `grantCard`, this never throws.
+ * filtered pool is EMPTY.
+ *
+ * If the filtered pool is non-empty but narrower than `EVENT_CHOICE_SIZE`,
+ * this THROWS (2026-08-18 QA pass) rather than silently handing the player a
+ * 1-of-1 or 1-of-2 "pick" — a build-time-loud content-lint failure, same
+ * posture as `grantCard`/`gemChoice`'s existing "no skill/gem matches the
+ * given filter" throws on an empty pool, just at the width this outcome
+ * actually promises instead of at zero. Every filter in the catalog today
+ * matches 17+ skills (see the catalog lint test asserting this), so this can
+ * never trip over live content — it only guards a FUTURE narrow filter from
+ * shipping silently broken.
  */
 function cardChoiceOutcome(
   rng: Rng,
@@ -473,7 +489,13 @@ function cardChoiceOutcome(
   // a bronze `DraftCard`, so there's nothing to branch on here today.
   const all = Object.values(skillBook);
   const pool = spec.filter ? all.filter((s) => cardMatchesFilter(s, spec.filter!)) : all;
-  const picked = sampleDistinct(rng, pool.length > 0 ? pool : all, EVENT_CHOICE_SIZE);
+  const drawPool = pool.length > 0 ? pool : all;
+  if (drawPool.length < EVENT_CHOICE_SIZE) {
+    throw new Error(
+      `cardChoice: filtered pool has only ${drawPool.length} card(s), fewer than EVENT_CHOICE_SIZE (${EVENT_CHOICE_SIZE})`,
+    );
+  }
+  const picked = sampleDistinct(rng, drawPool, EVENT_CHOICE_SIZE);
   return { kind: 'bonusDraft', cards: picked.map((s) => toDraftCard(s.id)) };
 }
 
@@ -491,6 +513,17 @@ function cardChoiceOutcome(
  * `gemBook` itself), never mutating `state` — same "roll now, pick later,
  * apply nothing until the player taps" contract as `bonusDraft`/
  * `upgradeCard`.
+ *
+ * Throws if the filtered pool is narrower than `EVENT_CHOICE_SIZE` (2026-08-18
+ * QA pass) — same reasoning as `cardChoiceOutcome`'s sibling guard above:
+ * `pickWeightedGems` (shop.ts) doesn't error on a too-small pool, it just
+ * hands back fewer than `count` distinct gems, so this is the seam that has
+ * to catch it. Checked against the RAW filtered pool, before
+ * `pickWeightedGems`'s own depth-gating — depth-gating already has its own
+ * "eligible is empty -> fall back to the ungated pool" rule (shop.ts), a
+ * separate, pre-existing concern this guard doesn't touch. No `gemChoice` in
+ * the catalog carries a `filter` today, so this never trips over live
+ * content.
  */
 function gemChoiceOutcome(
   rng: Rng,
@@ -499,6 +532,11 @@ function gemChoiceOutcome(
 ): EventOutcome {
   const pool = Object.values(gemBook).filter((g) => (spec.filter ? gemMatchesFilter(g, spec.filter) : true));
   if (pool.length === 0) throw new Error('gemChoice: no gem matches the given filter');
+  if (pool.length < EVENT_CHOICE_SIZE) {
+    throw new Error(
+      `gemChoice: filtered gem pool has only ${pool.length} gem(s), fewer than EVENT_CHOICE_SIZE (${EVENT_CHOICE_SIZE})`,
+    );
+  }
   const options = pickWeightedGems(rng, pool, depth, EVENT_CHOICE_SIZE).map((g) => g.id);
   return { kind: 'gemChoicePick', options };
 }
