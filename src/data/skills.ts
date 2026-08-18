@@ -23,6 +23,28 @@ const defs: SkillDef[] = [
     weapon: 'sword',
     effects: [{ kind: 'damage', power: 20 }],
     text: 'Deal 20 (+ATK) Sword damage.',
+    // AOE TIER GATE (2026-08-18): the single stroke widens into a sweep at
+    // Gold — the obvious "single-target attack learns to cleave" case, kept
+    // on the plain sword rather than the axe so both weapons get a turn.
+    // Silver is left to the auto-scaler (single-target, exact on its own).
+    // damage 22 is the offensive share — floor(110 x 33/25) = 145 — closed by
+    // an UNMULTIPLIED shield (support half never pays the reach multiplier):
+    // Gold   damage 22 (110) + aoe reach (35) + shield 11 (55)  = 200 exact.
+    // Diamond keeps the SAME damage (the sweep's reach doesn't grow further)
+    // and lets the follow-up guard absorb all of Diamond's extra budget:
+    // Diamond damage 22 (110) + aoe reach (35) + shield 21 (105) = 250 exact.
+    tierUpgrades: {
+      gold: {
+        scope: 'all',
+        effects: [{ kind: 'damage', power: 22 }, { kind: 'shield', power: 11 }],
+        text: 'Deal 22 (+ATK) Sword damage to ALL foes · Gain 11 (+DEF) physical shield.',
+      },
+      diamond: {
+        scope: 'all',
+        effects: [{ kind: 'damage', power: 22 }, { kind: 'shield', power: 21 }],
+        text: 'Deal 22 (+ATK) Sword damage to ALL foes · Gain 21 (+DEF) physical shield.',
+      },
+    },
   },
   {
     // Twin-hit showcase: 2 × 6 base (60 deci) + 1 extra-hit premium (30 deci)
@@ -103,6 +125,27 @@ const defs: SkillDef[] = [
     weapon: 'axe',
     effects: [{ kind: 'damage', power: 96 }],
     text: 'Deal 96 (+ATK) Axe damage.',
+    // AOE TIER GATE (2026-08-18): the mastery capstone for a size-3 axe swing
+    // is a cleave through the whole line — axe is the weapon literally named
+    // for it. Silver is left to the auto-scaler. damage 113 is the offensive
+    // share (floor(565 x 33/25) = 745 deci) held FLAT across Gold and
+    // Diamond (the sweep's own reach doesn't grow further); an unmultiplied
+    // shield absorbs the size-3 grant's own growth with tier PLUS the extra
+    // 50-deci budget:
+    // Gold    damage 113 (565) + aoe reach (180) + shield  5 ( 25) − size3 grant (570) = 200 exact.
+    // Diamond damage 113 (565) + aoe reach (180) + shield 33 (165) − size3 grant (660) = 250 exact.
+    tierUpgrades: {
+      gold: {
+        scope: 'all',
+        effects: [{ kind: 'damage', power: 113 }, { kind: 'shield', power: 5 }],
+        text: 'Deal 113 (+ATK) Axe damage to ALL foes · Gain 5 (+DEF) physical shield.',
+      },
+      diamond: {
+        scope: 'all',
+        effects: [{ kind: 'damage', power: 113 }, { kind: 'shield', power: 33 }],
+        text: 'Deal 113 (+ATK) Axe damage to ALL foes · Gain 33 (+DEF) physical shield.',
+      },
+    },
   },
   {
     id: 'fireball',
@@ -621,6 +664,40 @@ const defs: SkillDef[] = [
       { kind: 'disrupt', amount: 6 },
     ],
     text: 'Deal 12 (+ATK) Bow damage · {{Disrupt}} 6 banked readiness.',
+    // AOE TIER GATE (2026-08-18): a control card going AoE — one shockwave
+    // arrow staggering the whole enemy line at Gold+, "far stronger than it
+    // looks" per the brief (disrupt is `offensive` too, so it fans out to
+    // every foe under `scope: 'all'`, not just the one). `disrupt 6` stays
+    // FROZEN at its Bronze bracket price (40 deci) at every tier — same rule
+    // the auto-scaler already applies to every other control keyword — and
+    // is checked against the (flat) size-1 control cap (100 deci) AT the AoE
+    // reach price: floor(40 x 33/25) = 52 deci, comfortably under. Silver is
+    // left to the auto-scaler. damage 17 is the offensive share alongside
+    // disrupt (floor((85+40) x 33/25) = 165 deci — the two offensive terms
+    // are summed and floored ONCE, per `actionsPriceDeci`), held FLAT across
+    // Gold/Diamond; an unmultiplied shield closes the remainder both tiers:
+    // Gold    (damage 17 + disrupt 6) reach 165 + shield  7 (35) = 200 exact.
+    // Diamond (damage 17 + disrupt 6) reach 165 + shield 17 (85) = 250 exact.
+    tierUpgrades: {
+      gold: {
+        scope: 'all',
+        effects: [
+          { kind: 'damage', power: 17 },
+          { kind: 'disrupt', amount: 6 },
+          { kind: 'shield', power: 7 },
+        ],
+        text: 'Deal 17 (+ATK) Bow damage and {{Disrupt}} 6 banked readiness from ALL foes · Gain 7 (+DEF) physical shield.',
+      },
+      diamond: {
+        scope: 'all',
+        effects: [
+          { kind: 'damage', power: 17 },
+          { kind: 'disrupt', amount: 6 },
+          { kind: 'shield', power: 17 },
+        ],
+        text: 'Deal 17 (+ATK) Bow damage and {{Disrupt}} 6 banked readiness from ALL foes · Gain 17 (+DEF) physical shield.',
+      },
+    },
   },
 
   // ---- Debuff ----
@@ -785,6 +862,25 @@ const defs: SkillDef[] = [
     element: 'dark',
     effects: [{ kind: 'damage', power: 20 }],
     text: 'Deal 20 (+MATK) Dark damage.',
+    // AOE TIER GATE (2026-08-18): a plain bolt widening into the whole enemy
+    // line at Gold+ — the pure "elemental blast" case. Silver is left to the
+    // auto-scaler. damage 25 is the offensive share (floor(125 x 33/25) =
+    // 165 deci), held FLAT across Gold/Diamond; an unmultiplied shield closes
+    // the remainder both tiers:
+    // Gold    damage 25 (125) + aoe reach (40) + shield  7 (35)  = 200 exact.
+    // Diamond damage 25 (125) + aoe reach (40) + shield 17 (85)  = 250 exact.
+    tierUpgrades: {
+      gold: {
+        scope: 'all',
+        effects: [{ kind: 'damage', power: 25 }, { kind: 'shield', power: 7 }],
+        text: 'Deal 25 (+MATK) Dark damage to ALL foes · Gain 7 (+MDEF) magical shield.',
+      },
+      diamond: {
+        scope: 'all',
+        effects: [{ kind: 'damage', power: 25 }, { kind: 'shield', power: 17 }],
+        text: 'Deal 25 (+MATK) Dark damage to ALL foes · Gain 17 (+MDEF) magical shield.',
+      },
+    },
   },
   {
     id: 'purging_strike',
@@ -1185,6 +1281,37 @@ const defs: SkillDef[] = [
       { kind: 'slow', weight: 8 },
     ],
     text: "Deal 16 (+MATK) Lightning damage · {{Slow}} the enemy's next action by +8 weight.",
+    // AOE TIER GATE (2026-08-18): the elemental-blast case done as a CHAIN —
+    // the spark literally arcs to every foe at Gold+, lightning's most
+    // on-theme AoE identity. `slow` (control, also `offensive`) stays FROZEN
+    // at its Bronze `weight: 8` at every tier and pays the same reach
+    // multiplier as damage when summed (floor((105+20) x 33/25) = 165 deci) —
+    // well under the flat size-1 control cap (100 deci) even after reach.
+    // Silver is left to the auto-scaler. damage 21 is the offensive share,
+    // held FLAT across Gold/Diamond; an unmultiplied shield closes the
+    // remainder both tiers:
+    // Gold    (damage 21 + slow 8) reach 165 + shield  7 (35) = 200 exact.
+    // Diamond (damage 21 + slow 8) reach 165 + shield 17 (85) = 250 exact.
+    tierUpgrades: {
+      gold: {
+        scope: 'all',
+        effects: [
+          { kind: 'damage', power: 21 },
+          { kind: 'slow', weight: 8 },
+          { kind: 'shield', power: 7 },
+        ],
+        text: "Deal 21 (+MATK) Lightning damage and {{Slow}} every foe's next action by +8 weight · Gain 7 (+MDEF) magical shield.",
+      },
+      diamond: {
+        scope: 'all',
+        effects: [
+          { kind: 'damage', power: 21 },
+          { kind: 'slow', weight: 8 },
+          { kind: 'shield', power: 17 },
+        ],
+        text: "Deal 21 (+MATK) Lightning damage and {{Slow}} every foe's next action by +8 weight · Gain 17 (+MDEF) magical shield.",
+      },
+    },
   },
   {
     id: 'overcharge',

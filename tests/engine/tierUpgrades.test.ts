@@ -10,8 +10,10 @@ import {
   powerLevelDeci,
   TIER_BUDGET_DECI,
 } from '../../src/engine/balance';
+import { simulate } from '../../src/engine/combat/simulate';
 import { skillBook } from '../../src/data/skills';
-import type { SkillDef, SkillTier } from '../../src/engine/types';
+import type { CombatConfig, CombatantSetup, SkillBook, SkillDef, SkillTier } from '../../src/engine/types';
+import { tc, NO_ENDGAME } from '../helpers';
 
 /**
  * Cards the budget-honest auto-scaler CANNOT lift to a higher tier's budget:
@@ -464,5 +466,82 @@ describe('the FOURTH mirror, closed: the tier scaler prices through powerLevelDe
     const reach = powerLevelBreakdown(scaled).find((p) => p.label === 'aoe reach');
     expect(reach?.deci, 'the reach delta must be paid, not left on the table').toBeGreaterThan(0);
     expect(powerLevelDeci(scaled)).toBeLessThanOrEqual(TIER_BUDGET_DECI.gold);
+  });
+});
+
+/**
+ * AOE TIER GATE (2026-08-18, content-designer): a deliberate subset of the
+ * book — one per weapon/element flavor, not a book-wide inflation step —
+ * where Gold/Diamond buy the ABILITY to hit every foe rather than a bigger
+ * number, using `TierUpgrade.scope` (`src/engine/cards.ts`/`types.ts`,
+ * commit `51f777e`). Each card is single-target below its gate tier and
+ * AoE at and above it; each authored block lands EXACTLY on its tier budget
+ * (never under, the way the auto-scaler settles for AoE) and stays
+ * cap-compliant. See `src/data/skills.ts` for the worked PL math per card.
+ */
+describe('AOE TIER GATE: a rank-up can widen a card\'s scope, not just its numbers', () => {
+  const AOE_GATED_CARDS = ['sword_slash', 'crushing_blow', 'shadow_bolt', 'concussive_shot', 'chain_spark'];
+
+  it.each(AOE_GATED_CARDS)('%s: single-target below Gold, `scope: "all"` AND exact-on-budget from Gold up', (id) => {
+    const base = skillBook[id]!;
+    expect(base.scope, `${id}: base card must ship single-target`).toBeUndefined();
+    expect(applyTier(base, 'silver').scope, `${id}@silver`).toBeUndefined();
+    for (const tier of ['gold', 'diamond'] as const) {
+      const scaled = applyTier(base, tier);
+      expect(scaled.scope, `${id}@${tier}`).toBe('all');
+      expect(powerLevelDeci(scaled), `${id}@${tier}`).toBe(TIER_BUDGET_DECI[tier]);
+      expect(capViolations(scaled), `${id}@${tier}`).toEqual([]);
+      // The AoE reach multiplier must actually be PAID for, not free — a
+      // scope flip with no priced delta would mean the upgrade was a gift.
+      const reach = powerLevelBreakdown(scaled).find((p) => p.label === 'aoe reach');
+      expect(reach?.deci, `${id}@${tier}: the AoE upgrade must be paid for`).toBeGreaterThan(0);
+    }
+  });
+
+  it('the sim actually fans a gated card out to every living foe at Gold, and to only one below it', () => {
+    const BOOK: SkillBook = { chain_spark: skillBook.chain_spark! };
+    const foes: CombatantSetup[] = ['a', 'b', 'c'].map((n) =>
+      tc(n, ['chain_spark'], { speed: 1, attack: 1, magicPower: 1, maxHp: 400 }, { skillBook: BOOK }));
+
+    const run = (tier?: SkillTier): ReturnType<typeof simulate> => {
+      const hero = tc(
+        'hero', ['chain_spark'], { speed: 40, attack: 1, magicPower: 20, maxHp: 500 },
+        { skillBook: BOOK, pieces: [{ skillId: 'chain_spark', slot: 0, ...(tier ? { tier } : {}) }] },
+      );
+      const config: CombatConfig = { playerTeam: [hero], enemyTeam: foes, skillBook: BOOK, ...NO_ENDGAME, cooldownsEnabled: false };
+      return simulate(config, 1);
+    };
+
+    const goldCast = run('gold').events.find((e) => e.kind === 'play' && e.side === 'player') as unknown as { aoe?: boolean; targets?: number[] };
+    expect(goldCast.aoe).toBe(true);
+    expect(goldCast.targets).toEqual([0, 1, 2]);
+
+    const bronzeCast = run(undefined).events.find((e) => e.kind === 'play' && e.side === 'player') as unknown as { aoe?: boolean; targetUnit?: number };
+    expect(bronzeCast.aoe).toBeUndefined();
+    expect(typeof bronzeCast.targetUnit).toBe('number');
+  });
+
+  it('removing `scope` from an authored AoE tier block is exactly the regression the validator exists to catch: the card silently downgrades to single-target and its price is no longer paid for reach', () => {
+    const base = skillBook.shadow_bolt!;
+    const goldBlock = base.tierUpgrades!.gold!;
+    expect(goldBlock.scope, 'precondition: the shipped block sets scope').toBe('all');
+
+    // Strip ONLY `scope` from the authored block — the exact mistake the
+    // schema (validateSkillContent's "must be carried by every higher tier"
+    // rule) makes unrepresentable at content-load time. Bypassing the
+    // validator here (constructing the def directly, not through JSON) is
+    // what lets this test prove `applyTier`/`powerLevelDeci` themselves —
+    // not just the schema — depend on `scope` being present.
+    const stripped: SkillDef = {
+      ...base,
+      tierUpgrades: { ...base.tierUpgrades, gold: { ...goldBlock, scope: undefined } },
+    };
+    const scaled = applyTier(stripped, 'gold');
+    expect(scaled.scope, 'without `scope` the card silently reverts to single-target').toBeUndefined();
+    const reach = powerLevelBreakdown(scaled).find((p) => p.label === 'aoe reach');
+    expect(reach, 'without `scope` no reach multiplier is charged at all').toBeUndefined();
+    // Same effects, cheaper without the reach multiplier — proves the
+    // multiplier (not just the targeting) is gated on this one field.
+    expect(powerLevelDeci(scaled)).toBeLessThan(TIER_BUDGET_DECI.gold);
   });
 });

@@ -88,9 +88,15 @@ describe('TierUpgrade.scope — resolution', () => {
     // carries over from the base def exactly as before this field existed.
     const silver = applyTier(CLEAVE, 'silver');
     expect(Object.prototype.hasOwnProperty.call(silver, 'scope')).toBe(false);
-    // ...and the whole shipped book never grows a scope at any tier.
+    // ...and every OTHER shipped card (none of the five deliberate AoE tier
+    // gates authored 2026-08-18 — see tests/engine/tierUpgrades.test.ts'
+    // "AoE TIER GATE" block) never grows a scope at any tier: a card whose
+    // own `tierUpgrades` never sets `scope` must resolve to its base scope
+    // at every tier, exactly as before this field existed.
     const tiers: SkillTier[] = ['silver', 'gold', 'diamond'];
     for (const skill of Object.values(skillBook)) {
+      const everAuthorsScope = Object.values(skill.tierUpgrades ?? {}).some((up) => up?.scope !== undefined);
+      if (everAuthorsScope) continue;
       for (const tier of tiers) {
         expect(applyTier(skill, tier).scope, `${skill.id}@${tier}`).toBe(skill.scope);
       }
