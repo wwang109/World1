@@ -829,6 +829,33 @@ describe('game/battleTimeline', () => {
       const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 3 });
       expect(model.statusByTurn.get(2)?.enemy ?? []).toContain('poison');
     });
+
+    it('a cleansed-away DEBUFF must not permanently disable later badge clears on the same unit', () => {
+      // Proven defect: `debuffCountByUnit` (the shadow tracker standing in for
+      // debuff's missing badge) is fed by `statusApplied`/`statusExpired`
+      // only — but cleanse never emits `statusExpired` for what it strips, so
+      // a debuff removed BY CLEANSE (not by natural expiry) left the count
+      // stuck above zero forever. Every later `cleansed` event on that unit
+      // then saw `otherCleansableActive === true` and refused to clear an
+      // otherwise-unambiguous single-badge cleanse — the exact stale-badge
+      // bug the `cleansed` case exists to prevent, just reintroduced for any
+      // unit that had ever cleansed away a debuff.
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'debuff', stat: 'armor', pct: 10, turns: 3 },
+        // Debuff is the ONLY active cleansable kind here (no badge active),
+        // so this whole charge unambiguously drained it.
+        { turn: 2, kind: 'cleansed', side: 'enemy', unit: 0, removed: 1 },
+        { turn: 3, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', stacks: 3, turns: 3 },
+        // Poison is now the sole active cleansable kind — this cleanse is
+        // unambiguous and must clear the poison badge.
+        { turn: 5, kind: 'cleansed', side: 'enemy', unit: 0, removed: 3 },
+        { turn: 6, kind: 'combatEnd', result: 'win', turns: 6 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 6 });
+      expect(model.statusByTurn.get(3)?.enemy).toContain('poison');
+      expect(model.statusByTurn.get(5)?.enemy ?? []).not.toContain('poison');
+      expect(model.statusByTurn.get(6)?.enemy ?? []).not.toContain('poison');
+    });
   });
 
   // ---- `formatDmg` (the HIT `D:` math strip) — `exposeBonus` and

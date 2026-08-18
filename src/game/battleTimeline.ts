@@ -952,7 +952,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const bucket = e.side === 'player' ? dotsPlayer : dotsEnemies[unitOf(e)]!;
         const badgeKeys = ['poison', 'burn', 'bleed', 'stun', 'expose'] as const;
         const activeBadgeKeys = badgeKeys.filter((k) => bucket.has(k));
-        const otherCleansableActive = (debuffCountByUnit.get(debuffKey(e.side, unitOf(e))) ?? 0) > 0;
+        const dk = debuffKey(e.side, unitOf(e));
+        const otherCleansableActive = (debuffCountByUnit.get(dk) ?? 0) > 0;
         if (activeBadgeKeys.length === 1 && !otherCleansableActive) {
           const key = activeBadgeKeys[0]!;
           if (key === 'poison' || key === 'burn' || key === 'bleed') {
@@ -973,6 +974,23 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
             // gone entirely.
             bucket.delete(key);
           }
+        } else if (activeBadgeKeys.length === 0 && otherCleansableActive) {
+          // The mirror case, and the one the badge-only branch above missed:
+          // `debuff` is `isCleansable` (interpreter.ts) but carries no badge of
+          // its own, so it is invisible to `activeBadgeKeys`. When NO badge
+          // kind is active, `debuff` is the only cleansable kind left standing
+          // on this unit (badgeKeys is exactly isCleansable minus 'debuff'),
+          // so every one of this event's `removed` charges unambiguously came
+          // from a debuff instance — each costs exactly one charge, same as
+          // stun/expose above (interpreter.ts's non-stacking cleanse branch).
+          // Without this, a cleansed-away debuff never decremented
+          // `debuffCountByUnit` (only `statusExpired` did, and cleanse never
+          // emits it for the statuses it strips) — the shadow count stuck
+          // above zero forever, so `otherCleansableActive` stayed true and
+          // permanently blocked every later single-kind badge clear on this
+          // unit, reinstating the stale-badge bug this file exists to fix.
+          const cur = debuffCountByUnit.get(dk) ?? 0;
+          debuffCountByUnit.set(dk, Math.max(0, cur - e.removed));
         }
         break;
       }
