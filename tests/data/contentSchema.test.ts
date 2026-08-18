@@ -136,7 +136,18 @@ describe('data: content schema contract', () => {
   // ---- numbers, ids, tiers, actions ---------------------------------------
   it('an unsafe integer is rejected', () => {
     const d = clone();
-    (vers(d)[0]!.def.effects as Array<Record<string, unknown>>)[0]!.power = 1e300;
+    // Find any card whose FIRST effect carries a `power` field, rather than
+    // assuming `cards[0]` does: the document is sorted by id, so authoring a
+    // new card that sorts first (e.g. a `ward` kit, which has no `power`
+    // field at all) would otherwise silently break this test's premise
+    // without failing loudly — exactly the kind of position-dependent
+    // fragility this file's own doc comment warns against.
+    const idx = d.cards.findIndex((c) => {
+      const first = (vers(d, d.cards.indexOf(c))[0]!.def.effects as Array<Record<string, unknown>> | undefined)?.[0];
+      return typeof first?.power === 'number';
+    });
+    expect(idx, 'expected at least one card whose first effect has a power field').toBeGreaterThanOrEqual(0);
+    (vers(d, idx)[0]!.def.effects as Array<Record<string, unknown>>)[0]!.power = 1e300;
     failsWith(d, 'must be an integer');
   });
 

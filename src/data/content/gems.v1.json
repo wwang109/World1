@@ -90,6 +90,31 @@
    ]
   },
   {
+   "id": "bramble_sliver",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Bramble Sliver",
+      "text": "Apply {{Thorns}} 2 — attackers take the stack count as TRUE damage per hit.",
+      "notes": [
+       "The Thorn Garden gem tier-in: thorns shares poison/burn/bleed's rate",
+       "(10 deci/stack via `dotPerStack`), so 2 stacks × 10 deci = 20 deci =",
+       "Common exactly, same math as venom_sliver above."
+      ],
+      "kind": "effect",
+      "rarity": "common",
+      "actions": [
+       {
+        "kind": "thorns",
+        "stacks": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
    "id": "brawlers_core",
    "versions": [
     {
@@ -594,6 +619,34 @@
    ]
   },
   {
+   "id": "rending_sliver",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Rending Sliver",
+      "text": "Apply {{Bleed}} 4 — ticks when the enemy performs; blocked by shields.",
+      "notes": [
+       "The Opened Wound gem: bleed shares the same per-stack rate as thorns/",
+       "poison/burn (10 deci/stack), so 4 stacks x 10 = 40 deci = Rare exactly.",
+       "Shipped at Rare rather than Common (the brief offered either): bleed",
+       "already gets three new Bronze CARDS from this same pass, so the gem is",
+       "better spent extending it up the rarity ladder than duplicating the",
+       "Common DoT slot poison/burn already occupy."
+      ],
+      "kind": "effect",
+      "rarity": "rare",
+      "actions": [
+       {
+        "kind": "bleed",
+        "stacks": 4
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
    "id": "resonant_echo",
    "versions": [
     {
@@ -771,6 +824,30 @@
         "speed": 4
        }
       }
+     }
+    }
+   ]
+  },
+  {
+   "id": "thornmail_sliver",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Thornmail Sliver",
+      "text": "Apply {{Thorns}} 4 — attackers take the stack count as TRUE damage per hit.",
+      "notes": [
+       "The Thorn Garden gem, one rarity up from bramble_sliver: 4 stacks × 10",
+       "deci = 40 deci = Rare exactly."
+      ],
+      "kind": "effect",
+      "rarity": "rare",
+      "actions": [
+       {
+        "kind": "thorns",
+        "stacks": 4
+       }
+      ]
      }
     }
    ]

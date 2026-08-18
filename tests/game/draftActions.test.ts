@@ -35,6 +35,31 @@ function largestDraftPicksFor(seed: number): Partial<Record<DraftSetKey, string>
   return picks;
 }
 
+/**
+ * Seeds whose largest-card draft genuinely overflows the 10-slot board.
+ *
+ * SEARCHED, NEVER PINNED. An earlier version hardcoded [25, 45, 158, ...],
+ * which broke the moment content was added: `rollStartDraft` draws from the
+ * live `skillBook`, so growing the book reshuffles which seeds overflow. The
+ * assertion those seeds existed to support — that an overflowing pick is not
+ * dropped — is about the BEHAVIOUR, not about any particular seed, so the test
+ * finds its own fixtures instead of asserting the book never changes.
+ */
+function overflowingSeeds(count: number): number[] {
+  const found: number[] = [];
+  for (let seed = 0; seed < 5000 && found.length < count; seed += 1) {
+    const picks = largestDraftPicksFor(seed);
+    const total = DRAFT_SET_KEYS.map((k) => picks[k])
+      .filter((id): id is string => id != null)
+      .reduce((sum, id) => sum + (skillBook[id]?.size ?? 1), 0);
+    if (total > 10) found.push(seed);
+  }
+  if (found.length < count) {
+    throw new Error(`only ${found.length} overflowing seeds found; the card book may no longer contain enough large cards`);
+  }
+  return found;
+}
+
 /** Every owned skillId across both the board and the bag, after
  * `applyDraftPicks` — the invariant helper: this must always equal the set of
  * picks the player actually made (board OR bag, never neither). */
@@ -46,15 +71,15 @@ function ownedSkillIds(): string[] {
 }
 
 describe('game/draftActions: applyDraftPicks', () => {
-  it('seed 25 (the historical bug): the wildcard pick that overflows the board lands in the bag, not dropped', () => {
+  it('the historical bug: a pick that overflows the board lands in the bag, not dropped', () => {
     // Reproduces the proven failure: offense(3) + defense(3) + support(2) +
     // wildcard(3) = 11 > SLOTS(10). Cursor reaches 8 after the first three
     // picks; the wildcard needs 3 more — before the fix, the `continue`
     // silently dropped it (board ends with 3 cards, bag all null, no error).
-    const picks = largestDraftPicksFor(25);
+    const picks = largestDraftPicksFor(overflowingSeeds(1)[0]!);
     const pickedIds = DRAFT_SET_KEYS.map((key) => picks[key]).filter((id): id is string => id != null);
     const totalSize = pickedIds.reduce((sum, id) => sum + (skillBook[id]?.size ?? 1), 0);
-    expect(totalSize).toBeGreaterThan(10); // confirms this seed actually overflows
+    expect(totalSize).toBeGreaterThan(10); // the searched seed genuinely overflows
 
     applyDraftPicks(picks);
 
@@ -62,15 +87,15 @@ describe('game/draftActions: applyDraftPicks', () => {
     expect(ownedSkillIds().sort()).toEqual([...pickedIds].sort());
     // The overflowing card specifically landed in the bag, not nowhere.
     expect(demoState.bagSlots.some((c) => c != null)).toBe(true);
-    expect(demoState.pieces).toHaveLength(3);
+    expect(demoState.pieces.length).toBeLessThan(pickedIds.length);
   });
 
   it('a pick that overflows the board (largest-card policy) lands in the bag instead of being dropped, across several seeds', () => {
-    for (const seed of [25, 45, 158, 187, 247]) {
+    for (const seed of overflowingSeeds(5)) {
       const picks = largestDraftPicksFor(seed);
       const pickedIds = DRAFT_SET_KEYS.map((key) => picks[key]).filter((id): id is string => id != null);
       const totalSize = pickedIds.reduce((sum, id) => sum + (skillBook[id]?.size ?? 1), 0);
-      expect(totalSize).toBeGreaterThan(10); // confirms this seed actually overflows
+      expect(totalSize).toBeGreaterThan(10); // the searched seed genuinely overflows
 
       applyDraftPicks(picks);
 

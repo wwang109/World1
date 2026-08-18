@@ -70,6 +70,31 @@ function largestDraftPicksFor(seed: number): Partial<Record<DraftSetKey, string>
   return picks;
 }
 
+/**
+ * Seeds whose largest-card draft genuinely overflows the 10-slot board.
+ *
+ * SEARCHED, NEVER PINNED. An earlier version hardcoded [25, 45, 158, ...],
+ * which broke the moment content was added: `rollStartDraft` draws from the
+ * live `skillBook`, so growing the book reshuffles which seeds overflow. The
+ * assertion those seeds existed to support — that an overflowing pick is not
+ * dropped — is about the BEHAVIOUR, not about any particular seed, so the test
+ * finds its own fixtures instead of asserting the book never changes.
+ */
+function overflowingSeeds(count: number): number[] {
+  const found: number[] = [];
+  for (let seed = 0; seed < 5000 && found.length < count; seed += 1) {
+    const picks = largestDraftPicksFor(seed);
+    const total = DRAFT_SET_KEYS.map((k) => picks[k])
+      .filter((id): id is string => id != null)
+      .reduce((sum, id) => sum + (skillBook[id]?.size ?? 1), 0);
+    if (total > 10) found.push(seed);
+  }
+  if (found.length < count) {
+    throw new Error(`only ${found.length} overflowing seeds found; the card book may no longer contain enough large cards`);
+  }
+  return found;
+}
+
 /** Every owned skillId across both the board and the bag, for an
  * `applyDraftResult` output — the invariant helper: this must always equal
  * the set of picks the player actually made. */
@@ -204,11 +229,11 @@ describe('run/runState: draft + choices', () => {
     // Seed 25 reproduces the historical bug: offense(3) + defense(3) +
     // support(2) + wildcard(3) = 11 > RUN_BOARD_SLOTS(10), and the wildcard
     // pick (annihilation_strike) used to be silently dropped.
-    for (const seed of [25, 45, 158, 187, 247]) {
+    for (const seed of overflowingSeeds(5)) {
       const picks = largestDraftPicksFor(seed);
       const pickedIds = DRAFT_SET_KEYS.map((key) => picks[key]).filter((id): id is string => id != null);
       const totalSize = pickedIds.reduce((sum, id) => sum + (skillBook[id]?.size ?? 1), 0);
-      expect(totalSize).toBeGreaterThan(10); // confirms this seed actually overflows
+      expect(totalSize).toBeGreaterThan(10); // the searched seed genuinely overflows
 
       const state = applyDraftResult(createRun(seed), picks);
       expect(state.status).toBe('active');

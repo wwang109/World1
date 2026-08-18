@@ -48,6 +48,17 @@ const gemDefs: Record<string, GemDef> = {
     actions: [{ kind: 'poison', stacks: 2 }],
     text: 'Apply {{Poison}} 2 (poison bypasses shields).',
   },
+  bramble_sliver: {
+    // The Thorn Garden gem tier-in: thorns shares poison/burn/bleed's rate
+    // (10 deci/stack via `dotPerStack`), so 2 stacks × 10 deci = 20 deci =
+    // Common exactly, same math as venom_sliver above.
+    id: 'bramble_sliver',
+    name: 'Bramble Sliver',
+    kind: 'effect',
+    rarity: 'common',
+    actions: [{ kind: 'thorns', stacks: 2 }],
+    text: 'Apply {{Thorns}} 2 — attackers take the stack count as TRUE damage per hit.',
+  },
   swift_charm: {
     id: 'swift_charm',
     name: 'Swift Charm',
@@ -335,6 +346,30 @@ const gemDefs: Record<string, GemDef> = {
     rarity: 'rare',
     actions: [{ kind: 'shield', power: 8 }],
     text: '+8 shield.',
+  },
+  thornmail_sliver: {
+    // The Thorn Garden gem, one rarity up from bramble_sliver: 4 stacks × 10
+    // deci = 40 deci = Rare exactly.
+    id: 'thornmail_sliver',
+    name: 'Thornmail Sliver',
+    kind: 'effect',
+    rarity: 'rare',
+    actions: [{ kind: 'thorns', stacks: 4 }],
+    text: 'Apply {{Thorns}} 4 — attackers take the stack count as TRUE damage per hit.',
+  },
+  rending_sliver: {
+    // The Opened Wound gem: bleed shares the same per-stack rate as thorns/
+    // poison/burn (10 deci/stack), so 4 stacks x 10 = 40 deci = Rare exactly.
+    // Shipped at Rare rather than Common (the brief offered either): bleed
+    // already gets three new Bronze CARDS from this same pass, so the gem is
+    // better spent extending it up the rarity ladder than duplicating the
+    // Common DoT slot poison/burn already occupy.
+    id: 'rending_sliver',
+    name: 'Rending Sliver',
+    kind: 'effect',
+    rarity: 'rare',
+    actions: [{ kind: 'bleed', stacks: 4 }],
+    text: 'Apply {{Bleed}} 4 — ticks when the enemy performs; blocked by shields.',
   },
 
   // ---- Epic (6 PL / 60 deci) ----

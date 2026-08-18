@@ -17,13 +17,22 @@ import { MIGRATED_GEM_IDS } from './migratedGemIds';
  */
 describe('data: gems.v1.json is behaviour-identical to the TS book', () => {
   it('still contains every gem that existed at migration time', () => {
+    // Scoped to the frozen migration-time set on purpose — mirrors the skills
+    // twin (tests/data/skillsJsonParity.test.ts): a gem VANISHING is a real
+    // regression; a gem being ADDED after migration is not, so this is a
+    // SUBSET check plus a same-id-SET-between-books check, not an exact pin
+    // to the frozen list. The old assertion (`toEqual([...MIGRATED_GEM_IDS])`)
+    // pinned the whole book to the frozen list and failed on any legitimately
+    // added gem — the same bug the skills version was fixed for.
     for (const id of MIGRATED_GEM_IDS) expect(gemBookFromJson[id], id).toBeDefined();
-    expect(Object.keys(gemBookFromDefs)).toEqual([...MIGRATED_GEM_IDS]);
+    for (const id of MIGRATED_GEM_IDS) expect(gemBookFromDefs[id], id).toBeDefined();
+    expect(Object.keys(gemBookFromJson).sort()).toEqual(Object.keys(gemBookFromDefs).sort());
   });
 
-  it('deep-equals the TS book across every migrated gem (the migration proof)', () => {
-    const migrated = Object.fromEntries(MIGRATED_GEM_IDS.map((id) => [id, gemBookFromJson[id]]));
-    expect(migrated).toStrictEqual(gemBookFromDefs);
+  it('deep-equals the TS book across every gem (the migration proof)', () => {
+    // WHOLE-BOOK equality, same upgrade the skills twin took: gems added after
+    // migration are parity-proven too, not just the frozen migrated set.
+    expect(gemBookFromJson).toStrictEqual(gemBookFromDefs);
   });
 
   it('every gem round-trips field-for-field, including optional fields', () => {
