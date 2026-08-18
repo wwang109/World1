@@ -20,7 +20,13 @@
   "to place the monster), not stat multipliers \u2014 an elite or boss at the",
   "floor still has a small 2-3 card board and the universal statline; its",
   "intended extra difficulty comes from Title + depth-scaling, not from",
-  "hand-inflated numbers here."
+  "hand-inflated numbers here.",
+  "2-card basic board (its \"elite\" encounter role is a run-layer concern). ---",
+  "wall \u2014 a bow counter-pick is the intended way in via the weapon",
+  "triangle. Its \"boss\" difficulty is future depth-scaling, not baked in",
+  "here. ---",
+  "its own recognizable combat identity at the Bronze floor (small 2-3 card",
+  "board, all Bronze cards, modest default statline). ---"
  ],
  "enemies": [
   {
@@ -31,7 +37,6 @@
      "def": {
       "name": "Bandit Duelist",
       "notes": [
-       "2-card basic board (its \"elite\" encounter role is a run-layer concern). ---",
        "Adds Bramble Ward (thorns + a small physical shield) \u2014 a duelist who",
        "parries as well as swings, and the roster's 3rd shielded enemy (up from",
        "2), widening the `shieldBreak` / bleed-through-shield target set."
@@ -448,8 +453,6 @@
      "def": {
       "name": "Seraph",
       "notes": [
-       "its own recognizable combat identity at the Bronze floor (small 2-3 card",
-       "board, all Bronze cards, modest default statline). ---",
        "Adds Ward of Silence \u2014 the roster's only `negate` card (1 magical",
        "charge). This is the sole source of `negate` in the whole roster: it",
        "makes the multi-hit premium's justification (\"negate cancels one hit",
@@ -532,11 +535,6 @@
      "version": 1,
      "def": {
       "name": "The Wolf King",
-      "notes": [
-       "wall \u2014 a bow counter-pick is the intended way in via the weapon",
-       "triangle. Its \"boss\" difficulty is future depth-scaling, not baked in",
-       "here. ---"
-      ],
       "baseDepth": 1,
       "isBoss": true,
       "weaponAffinity": "beast",

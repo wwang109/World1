@@ -53,7 +53,16 @@ function rescueNotes(): Map<string, string[]> {
     if (open < 0) continue;
     const above: string[] = [];
     for (let j = open - 1; j >= 0 && isComment(srcLines[j] ?? ''); j -= 1) {
-      if (!isBanner(srcLines[j] ?? '')) above.unshift(clean(srcLines[j]!));
+      const line = clean(srcLines[j]!);
+      // STOP at a section banner, do not merely skip it. A banner may span
+      // several lines, and only its FIRST line matches `isBanner` — the
+      // continuation lines are ordinary comments that happen to end in `---`.
+      // Skipping the opener and walking on attached those continuations to the
+      // next enemy as if they were its own balance note, dangling `---` and all
+      // (bandit_duelist, seraph and wolf_king each carried one). Nothing above a
+      // divider belongs to the entry below it, so the walk ends here.
+      if (isBanner(srcLines[j] ?? '') || /---$/.test(line)) break;
+      above.unshift(line);
     }
     const inside: string[] = [];
     let depth = 0;
