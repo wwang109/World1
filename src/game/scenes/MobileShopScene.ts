@@ -677,8 +677,12 @@ export class MobileShopScene extends Phaser.Scene {
     const bagSkills: SkillDef[] = [];
     this.bagSlots.forEach((card, index) => {
       if (!card) return;
-      const skill = skillBook[card.skillId];
-      if (!skill) return;
+      const base = skillBook[card.skillId];
+      if (!base) return;
+      // Tier fold (display-only, no gem — bag cards can't hold one) so a bag
+      // card's face — including whether it reads AoE — matches its OWN
+      // owned tier, not always the bronze base.
+      const skill = card.tier === base.tier ? base : applyTier(base, card.tier);
       bagPieces.push({ skill, slot: index, tier: card.tier });
       bagSkills.push(skill);
     });

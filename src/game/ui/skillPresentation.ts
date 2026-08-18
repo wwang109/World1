@@ -1,3 +1,4 @@
+import { OFFENSIVE_KINDS } from '../../engine/balance';
 import type { BuffableStat, SkillDef } from '../../engine/types';
 import { STAT_TOKEN } from './statLabels';
 
@@ -13,6 +14,19 @@ function signed(value: number): string {
 
 export function isAuraSkill(skill: SkillDef): boolean {
   return Boolean(skill.aura);
+}
+
+/**
+ * True when this card's cast fans out to every living foe — the EFFECTIVE
+ * `scope` (the caller must pass an already-tier/gem-resolved `SkillDef`, e.g.
+ * via `resolveDisplaySkill`/`applyTier`; `scope` can flip on at a tier above
+ * bronze — see `TierUpgrade.scope`, engine/types.ts). Gated on the card
+ * actually carrying an offensive action (mirrors the engine's own
+ * `OFFENSIVE_KINDS`, engine/balance.ts): `scope` only changes targeting for
+ * those, so a stray flag on a pure support/aura card would mislabel it.
+ */
+export function isAoeSkill(skill: SkillDef): boolean {
+  return skill.scope === 'all' && skill.effects.some((action) => OFFENSIVE_KINDS.has(action.kind));
 }
 
 export function formatAuraModifiers(mods: AuraModifierShape, compact = false): string {
@@ -152,6 +166,12 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: Sk
   }
 
   const parts: string[] = [];
+  // AoE is the OTHER load-bearing word (see the aura comment above): a card
+  // that reaches every living foe must not present as the same kind of card
+  // as an otherwise-identical single-target one. Led, like the aura reach
+  // token, so it survives this line's own ellipsis clamp (CardToken.ts)
+  // rather than being the first thing truncated off a crowded face.
+  if (isAoeSkill(skill)) parts.push('AOE');
   let damage = 0;
   let heal = 0;
   let shield = 0;

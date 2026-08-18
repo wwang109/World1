@@ -11,6 +11,7 @@ import {
   propertyEntry,
   skillKeywordEntries,
   slotEntry,
+  targetingEntry,
   tierEntry,
   typeBadgeEntries,
   weightEntry,
@@ -23,6 +24,7 @@ import {
   type FantasyArtAnchor,
 } from './fantasyCardTemplateModel';
 import { FANTASY_CARD_TEMPLATE_SPEC, type RegionBox } from './fantasyCardTemplateSpec';
+import { isAoeSkill } from './skillPresentation';
 
 export interface FantasyCardTemplateV2Options {
   width?: number;
@@ -116,7 +118,14 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     const spec = FANTASY_CARD_TEMPLATE_SPEC;
     const stack = spec.archetypeStack;
     const rail = spec.regions.rightRail;
-    const keywords = skillKeywordEntries(model.skill);
+    // AoE targeting reads from the printed body text (a scope: 'all' tier's
+    // authored/retexted prose says so — validated at content build time), so
+    // its explanation lives on the SAME tap zone as the mechanical keywords
+    // below rather than a new region.
+    const keywords = [
+      ...(isAoeSkill(model.skill) ? [targetingEntry()] : []),
+      ...skillKeywordEntries(model.skill),
+    ];
 
     const zones: Array<{ box: RegionBox; entries: GlossaryEntry[] }> = [
       { box: spec.regions.typeBadge, entries: typeBadgeEntries(model.skill) },

@@ -1,4 +1,4 @@
-import { applyTier } from '../engine/cards';
+import { applyTier, resolveDisplaySkill } from '../engine/cards';
 import { skillBook } from '../data/skills';
 import type { CombatEvent } from '../engine/combat/events';
 import type { ShieldPools } from '../engine/combat/state';
@@ -436,7 +436,16 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const heroPieces: BattlePiece[] = [];
   const heroSkills: SkillDef[] = [];
   for (const p of input.pieces) {
-    const s = skillBook[p.skillId]; if (!s) continue;
+    const base = skillBook[p.skillId]; if (!base) continue;
+    // Tier + socketed-gem fold (resolver seam, display-only) — the board
+    // rendered mid-battle must show the SAME face (numbers, effects, and
+    // therefore targeting scope) as prep/deck-build's owned board, not the
+    // bronze base. This card's board was rendering the un-resolved base
+    // definition regardless of its owned tier/gem until fixed alongside the
+    // AoE-scope face marker (see `isAoeSkill`, ui/skillPresentation.ts) —
+    // without this, an owned Gold AoE card would still show its Bronze,
+    // single-target face mid-fight.
+    const s = resolveDisplaySkill(base, p);
     heroPieces.push({ skill: s, slot: p.slot }); heroSkills.push(s);
   }
   const statLineOf = (s: { attack: number; magicPower: number; armor: number; magicResist: number; speed: number }): string =>
@@ -687,7 +696,13 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const slowedBy = pendingSlowByUnit.get(sk);
         pendingSlowByUnit.delete(sk);
         const slowNote = slowedBy ? ` (includes +${slowedBy} SLOWED)` : '';
-        const playLine = push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress} · WEIGHT ${e.weight}${slowNote}`);
+        // `e.aoe`/`e.targets` (engine/combat/events.ts's `TargetFields`) is
+        // the one place the log can tell a cast that hit every living foe
+        // from one that hit a single chosen target — surfaced here the same
+        // way `slowNote` surfaces a hidden weight modifier, so the PLAY row
+        // itself (not just the card face) distinguishes the two.
+        const aoeNote = e.aoe ? ` · AOE ×${e.targets?.length ?? 0}` : '';
+        const playLine = push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress}${aoeNote} · WEIGHT ${e.weight}${slowNote}`);
         // The matching `cost` event (readinessAfter = the bank left once this
         // weight is paid) hasn't been emitted yet — see the `pendingPlayLine`
         // comment above. Held here; filled in by the `cost` case below.

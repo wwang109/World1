@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { instancePowerLevelDeci, powerLevelDeci } from '../../engine/balance';
-import { gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill } from '../../engine/cards';
+import { applyTier, gemHeroStats, resolveDisplayHeroStats, resolveDisplaySkill } from '../../engine/cards';
 import { boardTypeIdentity, cardType } from '../../engine/combat/typeIdentity';
 import type { Gem, SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
@@ -349,8 +349,11 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     this.dashedRect(10, y, w, h, 0xb78a46, this.hold ? 1 : 0.7);
     this.add.rectangle(18, y + 4, 24, h - 8, 0x16233a).setOrigin(0, 0).setStrokeStyle(1, 0x3a4a62, 0.9);
     if (this.hold) {
-      const skill = skillBook[this.hold.skillId];
-      if (skill) {
+      const base = skillBook[this.hold.skillId];
+      if (base) {
+        // Tier fold (display-only, no gem — a held card can't carry one) so
+        // the TEMP HOLDING face matches the card's own owned tier.
+        const skill = this.hold.tier === base.tier ? base : applyTier(base, this.hold.tier);
         const tok = new CardToken(this, 52 + 105, y + h / 2, skill, { width: 210, height: h - 6, side: 'left', deck: [skill], stats: this.heroStats });
         this.makeDraggable(tok, { where: 'hold', card: this.hold });
       }
@@ -411,7 +414,13 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     for (let row = 0; row < SLOTS; row++) {
       const card = this.bagSlots[row];
       if (card) {
-        const skill = skillBook[card.skillId]!;
+        // Tier fold (display-only, no gem — bag cards can't hold one) so a
+        // bag card's face — including whether it reads AoE — matches its
+        // OWN owned tier, not always the bronze base. See
+        // `resolveDisplaySkill`'s doc comment for the general rule this
+        // mirrors for gemless previews.
+        const base = skillBook[card.skillId]!;
+        const skill = card.tier === base.tier ? base : applyTier(base, card.tier);
         const span = this.sizeOf(card.skillId);
         const h = rowH * span + gap * (span - 1);
         const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
@@ -657,8 +666,12 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     if (index === null) return;
     const card = this.bagSlots[index];
     if (!card) { this.bagDetailIndex = null; return; }
-    const skill = skillBook[card.skillId];
-    if (!skill) { this.bagDetailIndex = null; return; }
+    const base = skillBook[card.skillId];
+    if (!base) { this.bagDetailIndex = null; return; }
+    // Tier fold (display-only, no gem — see the bag-row render above) so
+    // this detail overlay — including `renderCardInfoBox`'s glossary — shows
+    // the card's OWN owned tier, not the bronze base.
+    const skill = card.tier === base.tier ? base : applyTier(base, card.tier);
 
     // No explicit depths here (matches this scene's other overlays —
     // `renderConfirm`/`renderSocketPanel` — which rely on add-ORDER, not

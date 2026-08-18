@@ -6,12 +6,14 @@ import {
   skillKeywordEntries,
   slotEntry,
   statScalingSuffixEntry,
+  targetingEntry,
   tierEntry,
   typeBadgeEntries,
   weightEntry,
   type GlossaryEntry,
 } from './cardGlossary';
 import type { HoverTipEntry } from './hoverTip';
+import { isAoeSkill } from './skillPresentation';
 
 /** The authored `(+ATK)` / `(+MATK)` parenthetical — printed verbatim on any
  * card whose damage/heal/shield line scales off a stat (see
@@ -34,6 +36,7 @@ export function cardGlossaryEntries(skill: SkillDef): GlossaryEntry[] {
     tierEntry(skill.tier),
     powerLevelEntry(),
   ];
+  if (isAoeSkill(skill)) entries.push(targetingEntry());
   if (STAT_SUFFIX_PATTERN.test(skill.text)) entries.push(statScalingSuffixEntry());
   entries.push(...skillKeywordEntries(skill));
   return entries;
@@ -63,8 +66,11 @@ export function cardHoverEntries(skill: SkillDef): HoverTipEntry[] {
   // Hover carries only what the face can't teach at a glance: the scaling
   // suffix + the card's own mechanical keywords, one brief line each. The
   // universal entries (type/weight/slot/tier/PL) live in the overlay and
-  // socket-panel views, which scroll — not here.
+  // socket-panel views, which scroll — not here. AoE targeting is the same
+  // kind of face abbreviation as a keyword token (the face prints "AOE",
+  // this unpacks what it means), so it belongs in this set too.
   const entries: GlossaryEntry[] = [];
+  if (isAoeSkill(skill)) entries.push(targetingEntry());
   if (STAT_SUFFIX_PATTERN.test(skill.text)) entries.push(statScalingSuffixEntry());
   entries.push(...skillKeywordEntries(skill));
   return [header, ...entries.map(brief)];

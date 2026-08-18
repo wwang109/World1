@@ -129,6 +129,19 @@ export function weightEntry(skill: SkillDef): GlossaryEntry {
   };
 }
 
+/**
+ * The face's "AOE" token unpacked — same idiom as every other keyword entry
+ * below (a face abbreviation always has a matching explanation reachable via
+ * hover/inspect). Callers gate this on `isAoeSkill` (`skillPresentation.ts`)
+ * so it only attaches to a card whose EFFECTIVE (post-tier) scope is `'all'`.
+ */
+export function targetingEntry(): GlossaryEntry {
+  return {
+    title: 'AoE targeting',
+    body: 'Hits every living foe at once (ascending board order), not a single chosen target.',
+  };
+}
+
 /** "Power Level (PL)" — the standalone concept entry (as opposed to
  * `tierEntry`, which is about the TIER label). Any UI that shows a bare "PL"
  * number (card face, socket panel, hover tip) should attach this once so a
