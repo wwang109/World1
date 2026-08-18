@@ -38,10 +38,11 @@
  * its size-1/2/3 cap regardless of tier — a capped solo kit of one of those is
  * reported as a tier FAIL here, never shipped.
  *
- * KNOWN TODAY-COST: until the legacy literals in src/data/skills.ts are
- * deleted, a new card must be added BOTH to skills.v1.json and to skills.ts —
- * tests/data/skillsJsonParity.test.ts asserts the two agree. This script
- * prints the JSON document; the parity edit is called out at the end.
+ * `skills.v1.json` is the ONLY place a new card is authored — the legacy
+ * literals in `src/data/skills.ts` (and the parity test that used to hold
+ * them in lockstep) are gone as of the JSON cutover. This script prints the
+ * document to paste straight into `skills.v1.json`'s `cards[]`; nothing else
+ * needs touching.
  */
 import {
   capViolations,
@@ -289,5 +290,3 @@ if (auditFailures.length > 0 || problems.length > 0) {
 
 console.log('\n=== PASTE INTO src/data/content/skills.v1.json (cards[]) ===');
 console.log(JSON.stringify(doc, null, 2));
-console.log('\nNOTE: until the legacy literals are deleted, also add the card to');
-console.log('src/data/skills.ts (tests/data/skillsJsonParity.test.ts asserts parity).');

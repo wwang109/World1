@@ -72,7 +72,9 @@ export interface SkillContentMeta {
  * any order, so "the last one" is exactly the kind of implicit convention that
  * breaks silently later. Highest-wins is order-independent by construction.
  * Duplicate version numbers are rejected by the validator, so the maximum is
- * unambiguous. Exported so `tests/data/skillsJsonParity.test.ts` can pin the rule.
+ * unambiguous. Exported so its order-independence stays pinned by a test — see
+ * `tests/data/contentSchema.test.ts` — rather than only living in this file's
+ * own logic.
  */
 export function currentVersionOf<T extends { version: number }>(entries: readonly T[]): T {
   let current = entries[0]!;

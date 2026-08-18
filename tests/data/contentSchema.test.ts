@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { actionsPriceDeci, capViolations, isOnBudget, MAX_EXPOSE_PCT, MAX_GUARD_PCT } from '../../src/engine/balance';
 import { MAX_WARD_CHARGES, type SkillDef } from '../../src/engine/types';
 import { validateSkillDocument } from '../../src/data/validateSkillContent';
+import { currentVersionOf } from '../../src/data/skillsContent';
 import { findDuplicateKeys } from '../../scripts/jsonDuplicateKeys';
 import document from '../../src/data/content/skills.v1.json';
 
@@ -31,6 +32,20 @@ describe('data: content schema contract', () => {
   it('the shipped document is clean — no duplicate keys, no schema problems', () => {
     expect(findDuplicateKeys(RAW)).toEqual([]);
     expect(validateSkillDocument(document)).toEqual([]);
+  });
+
+  it('currentVersionOf resolves CURRENT by highest version, independent of array order (rehomed from the migration proof at cutover)', () => {
+    // The rule must not be "the last element": a document store may hand the
+    // list back in any order, and array position is authoring convenience
+    // only. This is a pure-function property with no dependency on the TS
+    // book that used to prove it, so it outlives that book's deletion.
+    const ascending = [{ version: 1, tag: 'old' }, { version: 2, tag: 'new' }];
+    const descending = [{ version: 2, tag: 'new' }, { version: 1, tag: 'old' }];
+    const jumbled = [{ version: 3, tag: 'newest' }, { version: 1, tag: 'old' }, { version: 2, tag: 'mid' }];
+    expect(currentVersionOf(ascending).tag).toBe('new');
+    expect(currentVersionOf(descending).tag).toBe('new');
+    expect(currentVersionOf(jumbled).tag).toBe('newest');
+    expect(currentVersionOf([{ version: 7, tag: 'only' }]).tag).toBe('only');
   });
 
   it('carries no raw non-ASCII bytes — the committed convention this document must keep (rehomed from the exporter\'s idempotency check at cutover)', () => {
