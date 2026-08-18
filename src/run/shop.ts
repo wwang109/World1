@@ -95,22 +95,32 @@ export function goldPriceOfCardForShop(tier: SkillTier, priceDelta = 0): number 
  * monotonic in PL. Thresholds key off the rarity bands (Common 20 · Rare 40
  * · Epic 60 · Legendary 80 deci, `RARITY_PL_DECI` in balance.ts, zero-
  * tolerance so every gem's OWN deci lands exactly on its band): Common -> 1,
- * Rare/Epic -> 2 (a shared band — unchanged by this pass), Legendary -> 4
- * (bumped from 3, 2026-08-09 gem ruleset v1 §9.6 + fork 5: the 46 -> 35
- * migration left the catalog with a genuinely build-defining Legendary
- * category — resonant_echo/the Echo among them — so the top of the price
- * ladder should read as meaningfully pricier, not one gold above Rare/Epic.
- * Cheap, monotonic-preserving change: `deci >= 80` was ALREADY exclusively
- * Legendary gems (no other rarity's deci reaches 80), so moving its return
- * value from 3 to 4 re-prices Legendary alone and leaves every other gem's
- * price byte-identical.
+ * Rare -> 2, Epic -> 3, Legendary -> 4 — ONE rung per rarity band, each
+ * exactly 20 deci-PL apart, priced 1 gold apart. (Bumped from 3, 2026-08-09
+ * gem ruleset v1 §9.6 + fork 5: the 46 -> 35 migration left the catalog with
+ * a genuinely build-defining Legendary category — resonant_echo/the Echo
+ * among them — so the top of the price ladder should read as meaningfully
+ * pricier, not one gold above Rare/Epic.)
+ *
+ * Epic split out of the old shared Rare/Epic rung (2026-08-18): the shared
+ * rung priced Epic (60 deci) at the same 2 gold as Rare (40 deci), which
+ * put Epic at 30 deci-PL/gold against a flat 20 everywhere else in the
+ * economy (every card tier is exactly 50 deci-PL/gold; Common/Rare/
+ * Legendary gems were all exactly 20) — Epic was the lone 1.5x outlier, an
+ * unintentional auto-buy relative to its own neighbors. Giving Epic its own
+ * rung restores the flat 20 deci-PL/gold across all four gem rarities:
+ * Common 20/1=20, Rare 40/2=20, Epic 60/3=20, Legendary 80/4=20. Monotonic-
+ * preserving and, like the Legendary bump above, exact on the rarity bands
+ * (no gem's own deci falls in [60, 80) except Epic, so this re-prices Epic
+ * alone and leaves Common/Rare/Legendary byte-identical).
  */
-export function goldPriceOfGem(gemId: string): 1 | 2 | 4 {
+export function goldPriceOfGem(gemId: string): 1 | 2 | 3 | 4 {
   const gem = gemBook[gemId];
   if (!gem) throw new Error(`goldPriceOfGem: unknown gem id "${gemId}"`);
   const deci = gemPowerLevelDeci(gem);
   if (deci < 40) return 1;
-  if (deci < 80) return 2;
+  if (deci < 60) return 2;
+  if (deci < 80) return 3;
   return 4;
 }
 
@@ -136,9 +146,13 @@ export function sellPriceOfCard(tier: SkillTier): number {
 
 /** Sell-back price for a gem — half of its shop price (`goldPriceOfGem`,
  * itself derived from the gem's own PL/rarity), rounded down, floored at 1
- * gold. Common/Rare/Epic (buy 1 or 2) all floor to 1 gold (1/2->1, 2/2->1);
- * Legendary (buy 4, since the 2026-08-09 price bump) sells for 2 — the first
- * gem rarity whose sell-back is actually distinguishable from the rest. */
+ * gold. Common/Rare/Epic (buy 1, 2, or 3 since the 2026-08-18 per-rarity
+ * rung split) all floor to 1 gold (1/2->1, 2/2->1, 3/2->1, still); Legendary
+ * (buy 4, since the 2026-08-09 price bump) sells for 2 — the first gem
+ * rarity whose sell-back is actually distinguishable from the rest. Epic's
+ * OWN sell price is unchanged by the 2026-08-18 rung split (2->1 before,
+ * 3->1 after — floor(2/2) and floor(3/2) are both 1) even though its BUY
+ * price moved. */
 export function sellPriceOfGem(gemId: string): number {
   return Math.max(1, Math.floor(goldPriceOfGem(gemId) / 2));
 }

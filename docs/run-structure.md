@@ -164,10 +164,13 @@ only balance currency (see the comment block in `src/run/shop.ts`).
   Sandbox's loss-still-pays-base behavior is unchanged.
 - **Prices**: cards by offered tier via `GOLD_PRICE_BY_TIER` (bronze 2 …
   diamond 5, shop `priceDelta` folded by `goldPriceOfCardForShop`, floored at
-  1); gems via `goldPriceOfGem` (monotonic in the gem's own PL) — Common/
-  Rare/Epic 1-2 gold, Legendary 4 (bumped from 3, 2026-08-09: the 46→35 gem
+  1); gems via `goldPriceOfGem` (monotonic in the gem's own PL, one rung per
+  rarity band) — Common 1, Rare 2, Epic 3, Legendary 4 gold, each rung a flat
+  20 deci-PL/gold (Legendary bumped from 3, 2026-08-09: the 46→35 gem
   migration left Legendary as a genuinely build-defining band, resonant_echo/
-  the Echo among them).
+  the Echo among them. Epic split out of the shared Rare/Epic rung,
+  2026-08-18: the shared rung had priced Epic at 30 deci-PL/gold, a 1.5x
+  outlier against the flat 20 everywhere else in the gold economy).
 
 ## Shops (`src/run/shop.ts`, themes in `src/data/shopTypes.ts`)
 

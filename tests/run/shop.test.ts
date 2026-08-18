@@ -162,14 +162,10 @@ describe('run/shop: price audit', () => {
     }
   });
 
-  it('ONLY Legendary gems (rarity band 80 deci) price at 4 gold; every other rarity stays at 1 or 2', () => {
+  it('gem gold price maps 1:1 to rarity band — Common 1, Rare 2, Epic 3, Legendary 4 (2026-08-18: Epic split out of the old shared Rare/Epic rung so every rarity is a flat 20 deci-PL/gold, matching Common/Rare/Legendary and every card tier)', () => {
+    const EXPECTED: Record<string, 1 | 2 | 3 | 4> = { common: 1, rare: 2, epic: 3, legendary: 4 };
     for (const gem of Object.values(gemBook)) {
-      const price = goldPriceOfGem(gem.id);
-      if (gem.rarity === 'legendary') {
-        expect(price).toBe(4);
-      } else {
-        expect(price).toBeLessThanOrEqual(2);
-      }
+      expect(goldPriceOfGem(gem.id)).toBe(EXPECTED[gem.rarity]);
     }
   });
 });
