@@ -33,6 +33,18 @@ describe('data: content schema contract', () => {
     expect(validateSkillDocument(document)).toEqual([]);
   });
 
+  it('carries no raw non-ASCII bytes — the committed convention this document must keep (rehomed from the exporter\'s idempotency check at cutover)', () => {
+    // The diagnostic this was originally found with: an un-escaped export
+    // rewrites every `\\uXXXX` site (em dash, middle dot, ...) as a raw UTF-8
+    // character. Pinned against the committed file's raw bytes directly, with
+    // no dependency on the exporter that used to generate them, so the RULE
+    // (skills.v1.json stays ASCII) outlives the MECHANISM (a TS-book exporter)
+    // that produced it. gems.v1.json is deliberately NOT held to this — see
+    // scripts/exportGems.ts's own doc comment — so this check is skills-only.
+    // eslint-disable-next-line no-control-regex
+    expect(/[^\x00-\x7f]/.test(RAW)).toBe(false);
+  });
+
   it('RAW duplicate keys inside one object are caught (JSON.parse hides them)', () => {
     expect(JSON.parse('{"power":20,"power":999}')).toEqual({ power: 999 });
     const found = findDuplicateKeys('{"def":{"power":20,"power":999}}');
