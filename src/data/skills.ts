@@ -2513,6 +2513,32 @@ const defs: SkillDef[] = [
       },
     },
   },
+  {
+    // Debuff x sword was empty, and no card in the book debuffed magicPower \u2014
+    // the five buffable stats had ATK (crippling_strike), armor (armor_break),
+    // magicResist (hex_of_frailty) and speed (slow_hex/glacial_spike/
+    // deep_freeze) covered, but nothing blunted a caster's own damage stat.
+    // Closes both gaps with one card, on the ATK debuff's own numbers
+    // (crippling_strike's bronze kit is also 25%x2t): damage 10 (50) +
+    // debuffStat 25%x2t (50, statPctTurn) = 100 = Bronze exactly. No
+    // tierUpgrades: damage alone is a scalable sink already present at
+    // Bronze, so autoScaleTier grows it and leaves the frozen control kit in
+    // place \u2014 verified against `applyTier`: silver damage 20 (100+50=150),
+    // gold damage 30 (150+50=200), diamond damage 40 (200+50=250).
+    id: 'silencing_slash',
+    name: 'Silencing Slash',
+    archetypes: ['offense', 'debuff'],
+    property: 'physical',
+    weapon: 'sword',
+    size: 1,
+    rarity: 'rare',
+    tier: 'bronze',
+    effects: [
+      { kind: 'damage', power: 10 },
+      { kind: 'debuffStat', stat: 'magicPower', pct: 25, turns: 2 },
+    ],
+    text: 'Deal 10 (+ATK) Sword damage \u00b7 -25% enemy MATK (2 turns).',
+  },
 ];
 
 /**
