@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { shopCatalog } from '../../data/shopTypes';
+import { shopMapFooter } from '../ui/shopMapFooter';
 import { eventThemeBlurb } from '../ui/eventThemeBlurb';
 import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
@@ -254,7 +255,7 @@ export class MobileRunMapScene extends Phaser.Scene {
         kind: node.kind,
         title: titleLabel,
         detail: shop?.tagline ?? '',
-        footer: shop ? `${shop.shelf.cards} CARDS · ${shop.shelf.gems} GEMS` : undefined,
+        footer: shop && node.shopId ? shopMapFooter(node.shopId) : undefined,
         image: { textureKey: shopArtKey(node.shopId ?? '') },
         accent: KIND_COLOR[node.kind],
         enabled: true,
