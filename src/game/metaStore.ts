@@ -17,10 +17,12 @@ import type { RunState } from '../run/runState';
  * call sites `runStore.ts` hits at a run's start and end.
  */
 
-/** `StorageDriver` backed by the real browser `localStorage`. Swallows quota/
+/** `StorageDriver` backed by the real browser `localStorage`. Catches quota/
  * private-mode/`localStorage`-unavailable errors (SSR, disabled storage) so a
- * stats-write failure never breaks gameplay — worst case, lifetime stats just
- * don't persist that session. */
+ * stats write never THROWS and breaks gameplay — but unlike a plain swallow,
+ * `set` reports `false` on failure so `saveLifetimeStats` can tell the
+ * caller the write didn't happen (see `persist` below) instead of the game
+ * silently believing progress was saved when it wasn't. */
 const localStorageDriver: StorageDriver = {
   get(key) {
     try {
@@ -32,8 +34,9 @@ const localStorageDriver: StorageDriver = {
   set(key, value) {
     try {
       window.localStorage.setItem(key, value);
+      return true;
     } catch {
-      /* quota exceeded / private mode / no localStorage — non-fatal */
+      return false; // quota exceeded / private mode / no localStorage
     }
   },
 };
@@ -45,9 +48,20 @@ function current(): LifetimeStats {
   return cached;
 }
 
+/** Updates the in-memory cache unconditionally (so this session's UI keeps
+ * reflecting progress even if the write below is refused/fails), then asks
+ * `saveLifetimeStats` to persist it. A refusal is never silent: it means
+ * either a newer-schema blob is on disk (this session must not downgrade
+ * it — see `src/meta/lifetimeStats.ts`) or the browser's storage write
+ * itself failed (quota exceeded, private mode). Either way nothing on disk
+ * was destroyed; only this session's update to it did not land. */
 function persist(next: LifetimeStats): void {
   cached = next;
-  saveLifetimeStats(localStorageDriver, next);
+  const outcome = saveLifetimeStats(localStorageDriver, next);
+  if (!outcome.ok) {
+    // eslint-disable-next-line no-console -- best-effort dev/user visibility; non-fatal by design.
+    console.warn(`lifetime stats not saved (${outcome.reason}) — this session's progress will not persist`);
+  }
 }
 
 /** The account's lifetime stats (loaded lazily, cached for the session) —

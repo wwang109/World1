@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   emptyLifetimeStats,
+  LIFETIME_STATS_BACKUP_KEY,
   LIFETIME_STATS_STORAGE_KEY,
   loadLifetimeStats,
   recordRunEnd,
@@ -19,7 +20,18 @@ function fakeStorage(initial: Record<string, string> = {}): StorageDriver {
   const map = new Map(Object.entries(initial));
   return {
     get: (key) => map.get(key) ?? null,
-    set: (key, value) => void map.set(key, value),
+    set: (key, value) => { map.set(key, value); return true; },
+  };
+}
+
+/** A `StorageDriver` whose `get`/`set` behave like `fakeStorage`, but `set`
+ * reports failure (like a real driver hitting quota-exceeded) without ever
+ * throwing and without mutating the backing map. */
+function fakeQuotaExceededStorage(initial: Record<string, string> = {}): StorageDriver {
+  const map = new Map(Object.entries(initial));
+  return {
+    get: (key) => map.get(key) ?? null,
+    set: () => false,
   };
 }
 
@@ -253,11 +265,131 @@ describe('meta/lifetimeStats: StorageDriver seam stays DOM-free', () => {
       },
       set: (key, value) => {
         sets += 1;
+        return true;
       },
     };
     loadLifetimeStats(spy);
+    // `saveLifetimeStats` peeks the existing blob's version before writing
+    // (the newer-version-on-disk guard), so a save costs one `get` too.
     saveLifetimeStats(spy, emptyLifetimeStats());
-    expect(gets).toBe(1);
+    expect(gets).toBe(2);
     expect(sets).toBe(1);
+  });
+});
+
+describe('meta/lifetimeStats: a newer blob on disk is never downgraded', () => {
+  function futureBlob(): Record<string, unknown> {
+    return {
+      schemaVersion: SCHEMA_VERSION + 1,
+      runsStarted: 12,
+      runsRetired: 4,
+      runsDead: 1,
+      totalFights: 20,
+      totalWins: 15,
+      totalLosses: 5,
+      totalBossesCleared: 3,
+      bestRun: { bossesCleared: 3, deepestWave: 9 },
+      totals: {
+        damageDealt: 500,
+        damageTaken: 200,
+        healingDone: 50,
+        goldEarned: 80,
+        goldSpent: 60,
+        cardsBought: 6,
+        gemsBought: 3,
+        eventsResolved: 9,
+        livesLost: 2,
+      },
+      // A v2-only field a v1 build (this one) has no idea how to interpret.
+      ascensionLevel: 7,
+      unlockedHeroes: ['knight', 'ranger'],
+      totalPlaytimeMs: 1234567,
+    };
+  }
+
+  it('a load-then-save round trip does NOT overwrite a newer-versioned stored blob', () => {
+    const raw = JSON.stringify(futureBlob());
+    const storage = fakeStorage({ [LIFETIME_STATS_STORAGE_KEY]: raw });
+    const loaded = loadLifetimeStats(storage);
+    const outcome = saveLifetimeStats(storage, loaded);
+    expect(outcome).toEqual({ ok: false, reason: 'newer-version-on-disk' });
+    // The stored bytes are untouched — still the original v2 blob, byte for byte.
+    expect(storage.get(LIFETIME_STATS_STORAGE_KEY)).toBe(raw);
+    const stillThere = JSON.parse(storage.get(LIFETIME_STATS_STORAGE_KEY) as string);
+    expect(stillThere.ascensionLevel).toBe(7);
+    expect(stillThere.unlockedHeroes).toEqual(['knight', 'ranger']);
+    expect(stillThere.totalPlaytimeMs).toBe(1234567);
+  });
+
+  it('recordRunStart/recordRunEnd folded onto the best-effort read still refuse to save over a newer blob', () => {
+    const raw = JSON.stringify(futureBlob());
+    const storage = fakeStorage({ [LIFETIME_STATS_STORAGE_KEY]: raw });
+    const loaded = loadLifetimeStats(storage);
+    const afterPlay = recordRunEnd(recordRunStart(loaded), {
+      status: 'defeat',
+      wins: 1,
+      losses: 1,
+      bossesCleared: 0,
+      stats: {
+        damageDealt: 10, damageTaken: 10, healingDone: 0, goldEarned: 0, goldSpent: 0,
+        cardsBought: 0, gemsBought: 0, eventsResolved: 0, livesLost: 1, deepestWave: 1,
+      },
+    });
+    const outcome = saveLifetimeStats(storage, afterPlay);
+    expect(outcome.ok).toBe(false);
+    expect(storage.get(LIFETIME_STATS_STORAGE_KEY)).toBe(raw); // still the original v2 bytes
+  });
+
+  it('an OLDER stored blob (or same-version) saves normally — the guard only blocks strictly-newer', () => {
+    const storage = fakeStorage();
+    const stats = recordRunStart(emptyLifetimeStats());
+    expect(saveLifetimeStats(storage, stats)).toEqual({ ok: true });
+    expect(JSON.parse(storage.get(LIFETIME_STATS_STORAGE_KEY) as string).runsStarted).toBe(1);
+  });
+});
+
+describe('meta/lifetimeStats: a corrupt blob is backed up, not destroyed, when reset to empty', () => {
+  it('unparseable JSON is copied to the backup key before the ledger resets to empty', () => {
+    const truncated = '{"schemaVersion":1,"runsStarted":1,"runsRetired":0,"totals":{"damageDeal';
+    const storage = fakeStorage({ [LIFETIME_STATS_STORAGE_KEY]: truncated });
+    const loaded = loadLifetimeStats(storage);
+    expect(loaded).toEqual(emptyLifetimeStats());
+    expect(storage.get(LIFETIME_STATS_BACKUP_KEY)).toBe(truncated);
+  });
+
+  it('a non-object JSON value (array) is also backed up before resetting to empty', () => {
+    const storage = fakeStorage({ [LIFETIME_STATS_STORAGE_KEY]: '[1,2,3]' });
+    loadLifetimeStats(storage);
+    expect(storage.get(LIFETIME_STATS_BACKUP_KEY)).toBe('[1,2,3]');
+  });
+
+  it('the FIRST write after a corrupt load does not need to touch the backup key again — it is only load that backs up', () => {
+    const truncated = '{not json at all';
+    const storage = fakeStorage({ [LIFETIME_STATS_STORAGE_KEY]: truncated });
+    const loaded = loadLifetimeStats(storage);
+    expect(storage.get(LIFETIME_STATS_BACKUP_KEY)).toBe(truncated);
+    const afterStart = recordRunStart(loaded);
+    const outcome = saveLifetimeStats(storage, afterStart);
+    // The corrupt blob (not a "newer version") does not block the write —
+    // a fresh, valid ledger is written, but the original bad bytes remain
+    // recoverable at the backup key untouched by this save.
+    expect(outcome).toEqual({ ok: true });
+    expect(JSON.parse(storage.get(LIFETIME_STATS_STORAGE_KEY) as string).runsStarted).toBe(1);
+    expect(storage.get(LIFETIME_STATS_BACKUP_KEY)).toBe(truncated);
+  });
+});
+
+describe('meta/lifetimeStats: a StorageDriver write failure (e.g. quota exceeded) is surfaced, not swallowed', () => {
+  it('saveLifetimeStats reports { ok: false, reason: "write-failed" } and never throws', () => {
+    const storage = fakeQuotaExceededStorage();
+    expect(() => saveLifetimeStats(storage, emptyLifetimeStats())).not.toThrow();
+    expect(saveLifetimeStats(storage, emptyLifetimeStats())).toEqual({ ok: false, reason: 'write-failed' });
+  });
+
+  it('a failed write does not silently look like a successful one on the next load', () => {
+    const storage = fakeQuotaExceededStorage();
+    saveLifetimeStats(storage, recordRunStart(emptyLifetimeStats()));
+    // Nothing was actually written — loading back still finds nothing stored.
+    expect(loadLifetimeStats(storage)).toEqual(emptyLifetimeStats());
   });
 });
