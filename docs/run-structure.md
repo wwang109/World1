@@ -293,9 +293,17 @@ Two layers, both pure/integer, no UI yet (a stats screen is separate):
   `window.localStorage`-backed driver lives in `src/game/metaStore.ts`, which
   also owns the two call sites (`runStore.ts#startRun` ->
   `noteRunStarted`, and the retire/defeat transitions -> `noteRunEnded`).
-  Versioned (`schemaVersion`) with a tolerant loader — bad/missing/malformed
-  JSON, or an unrecognized future shape, all normalize to safe zeroed
-  defaults field-by-field rather than crashing boot.
+  Versioned (`schemaVersion`), stable storage key (`LIFETIME_STATS_STORAGE_KEY`,
+  NOT re-derived per version — see its doc comment), with a tolerant loader
+  and a NOT-tolerant saver: `loadLifetimeStats` never throws — bad/missing/
+  malformed JSON, or an unrecognized future shape, all normalize to safe
+  zeroed defaults field-by-field for READING (an unparseable blob is copied
+  to a side backup key first, so it isn't destroyed) — but `saveLifetimeStats`
+  refuses to write (`SaveOutcome`) if the blob currently on disk is from a
+  NEWER `schemaVersion` than this build understands, so a stale tab or a
+  rollback can never downgrade-and-overwrite a future version's ledger. A
+  `StorageDriver`-level write failure (quota exceeded, private mode) is
+  reported the same way rather than swallowed.
 
 ## `src/run` module map
 

@@ -48,9 +48,16 @@ tests/        vitest suites (engine invariants, audits, run logic, UI specs).
   preview must come from here too, since the client cannot simulate).
 
 **Production**: Cloudflare Pages serves the built client, and
-`functions/battle.ts` / `functions/damage-band.ts` are the same-origin
-production twins of those two routes (client default BASE_URL `''` reaches
-them with no CORS). Deployment target: the `proof-of-concept-ab-deckbuilder`
+`functions/battle.ts` / `functions/damage-band.ts` are the twins of those two
+routes (client default BASE_URL `''` reaches them same-origin, no CORS
+needed on that path). Both twins also answer with
+`access-control-allow-origin: *` and an `OPTIONS` preflight handler, matching
+`server/battleApi.ts` exactly — a production build that sets
+`VITE_BATTLE_API` to a different origin (`src/game/battleApi.ts` supports
+this) still works, and dev/prod no longer diverge on this. Deliberate `*`,
+not an allowlist: both routes are stateless, unauthenticated pure functions
+of their request body, so there is no per-caller state or credential for an
+allowlist to protect. Deployment target: the `proof-of-concept-ab-deckbuilder`
 CF Pages project.
 
 **Dev workflow**: run BOTH `npm run dev` (Vite) and `npm run api` (battle
