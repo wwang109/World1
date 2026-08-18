@@ -53,16 +53,24 @@ export const enemies: Record<string, EnemyDef> = {
     goldReward: 15,
     xpReward: 10,
   },
+  // DoT-forward re-kit (2026-08-18): every card on this board applies burn
+  // alongside modest direct damage — no pure-damage filler at all (the old
+  // `arcane_bolt`, a mismatched Lightning hit, is dropped). Over a fight the
+  // majority of Ember Imp's total damage comes from burn ticks, not direct
+  // hits, which is the deliberate "bad matchup" thorns never had before
+  // (thorns only fires on a landed direct hit, never a DoT tick) and the
+  // real target Ward's affliction-prevention was missing.
   ember_imp: {
     id: 'ember_imp',
     name: 'Ember Imp',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     elementAffinity: 'fire',
-    boardSize: 3,
+    boardSize: 4,
     pieces: [
       { skillId: 'fireball', slot: 0 },
-      { skillId: 'arcane_bolt', slot: 2 },
+      { skillId: 'cinder_dart', slot: 2 },
+      { skillId: 'ember_lash', slot: 3 },
     ],
     goldReward: 18,
     xpReward: 12,
@@ -70,6 +78,9 @@ export const enemies: Record<string, EnemyDef> = {
 
   // --- Elite floor: a balanced human sword-duelist, hero-baseline statline,
   // 2-card basic board (its "elite" encounter role is a run-layer concern). ---
+  // Adds Bramble Ward (thorns + a small physical shield) — a duelist who
+  // parries as well as swings, and the roster's 3rd shielded enemy (up from
+  // 2), widening the `shieldBreak` / bleed-through-shield target set.
   bandit_duelist: {
     id: 'bandit_duelist',
     name: 'Bandit Duelist',
@@ -77,10 +88,11 @@ export const enemies: Record<string, EnemyDef> = {
     isElite: true,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'sword',
-    boardSize: 2,
+    boardSize: 3,
     pieces: [
       { skillId: 'sword_slash', slot: 0 },
       { skillId: 'follow_through', slot: 1 },
+      { skillId: 'bramble_ward', slot: 2 },
     ],
     goldReward: 30,
     xpReward: 20,
@@ -110,30 +122,41 @@ export const enemies: Record<string, EnemyDef> = {
   // --- Signature monster roster: fixed decks, no theme/faction system, each
   // its own recognizable combat identity at the Bronze floor (small 2-3 card
   // board, all Bronze cards, modest default statline). ---
+  // Adds Ward of Silence — the roster's only `negate` card (1 magical
+  // charge). This is the sole source of `negate` in the whole roster: it
+  // makes the multi-hit premium's justification ("negate cancels one hit
+  // per charge") real for magical multi-instance casts, and gives the
+  // player's magical single-hit spells a genuine denial to play around,
+  // exactly the way the player's own Ward of Silence would.
   seraph: {
     id: 'seraph',
     name: 'Seraph',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     elementAffinity: 'holy',
-    boardSize: 3,
+    boardSize: 4,
     pieces: [
       { skillId: 'mending_light', slot: 0 },
       { skillId: 'judgment_light', slot: 2 },
+      { skillId: 'ward_of_silence', slot: 3 },
     ],
     goldReward: 20,
     xpReward: 13,
   },
+  // Adds War Banner — the roster's only `aura` card, passively buffing this
+  // board's own Offense cards (Sword Slash). Knight keeps its existing Iron
+  // Bulwark shield (one of the roster's original 2 shielded enemies).
   knight: {
     id: 'knight',
     name: 'Knight',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'sword',
-    boardSize: 3,
+    boardSize: 4,
     pieces: [
       { skillId: 'sword_slash', slot: 0 },
       { skillId: 'iron_bulwark', slot: 1 },
+      { skillId: 'war_banner', slot: 3 },
     ],
     goldReward: 22,
     xpReward: 15,
@@ -152,34 +175,46 @@ export const enemies: Record<string, EnemyDef> = {
     goldReward: 19,
     xpReward: 13,
   },
+  // Adds Piercing Arrow — a bow card carrying `expose` (+damage from all
+  // direct hits), rounding Hunter out into a marksman who softens armor
+  // ahead of its follow-up shots.
   hunter: {
     id: 'hunter',
     name: 'Hunter',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'bow',
-    boardSize: 2,
+    boardSize: 3,
     pieces: [
       { skillId: 'hunter_shot', slot: 0 },
       { skillId: 'concussive_shot', slot: 1 },
+      { skillId: 'piercing_arrow', slot: 2 },
     ],
     goldReward: 17,
     xpReward: 11,
   },
+  // Adds Hamstring — a lance `slow` card, reinforcing Rogue's already
+  // control-forward identity (poison + attack debuff + slow) as the
+  // roster's dedicated debuff specialist.
   rogue: {
     id: 'rogue',
     name: 'Rogue',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     weaponAffinity: 'beast',
-    boardSize: 3,
+    boardSize: 4,
     pieces: [
       { skillId: 'venom_fang', slot: 0 },
       { skillId: 'crippling_strike', slot: 1 },
+      { skillId: 'hamstring', slot: 3 },
     ],
     goldReward: 20,
     xpReward: 13,
   },
+  // Battle Howl (a redundant self-buff on a single-target basic attacker)
+  // swapped for Stunning Smash — a pure `stun` card, priced identically to
+  // any player card of the same kit (a full turn spent stunning instead of
+  // attacking; no free lunch). Berserker keeps its signature Crushing Blow.
   berserker: {
     id: 'berserker',
     name: 'Berserker',
@@ -189,7 +224,7 @@ export const enemies: Record<string, EnemyDef> = {
     boardSize: 4,
     pieces: [
       { skillId: 'crushing_blow', slot: 0 },
-      { skillId: 'battle_howl', slot: 3 },
+      { skillId: 'stunning_smash', slot: 3 },
     ],
     goldReward: 24,
     xpReward: 16,
@@ -208,6 +243,10 @@ export const enemies: Record<string, EnemyDef> = {
     goldReward: 20,
     xpReward: 13,
   },
+  // Second Wind (a second, redundant heal alongside Mending Light) swapped
+  // for Sanctified Bulwark — `guard` + a small magical shield, the roster's
+  // 4th shielded enemy (up from 2) and its only `guard` source. Cleric keeps
+  // its Mending Light heal, so the healing archetype identity is unchanged.
   cleric: {
     id: 'cleric',
     name: 'Cleric',
@@ -217,7 +256,7 @@ export const enemies: Record<string, EnemyDef> = {
     boardSize: 4,
     pieces: [
       { skillId: 'mending_light', slot: 0 },
-      { skillId: 'second_wind', slot: 2 },
+      { skillId: 'sanctified_bulwark', slot: 2 },
       { skillId: 'purging_strike', slot: 3 },
     ],
     goldReward: 18,
