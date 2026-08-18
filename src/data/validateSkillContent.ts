@@ -186,6 +186,21 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
   const clampedPct = (hi: number) => req(raw, 'pct', inRange(0, hi), 'an integer 0..' + String(hi) + ' (the engine clamps pct at apply time; authoring past ' + String(hi) + ' pays PL for amplification it will never deliver, and a negative pct would REFUND budget)', at, problems);
 
   /**
+   * `expose`'s `pct` AND `turns` MUST BE POSITIVE — a stricter floor than
+   * `clampedPct`'s shared 0, mirroring the engine's own drop rule (2026-08-18).
+   * `interpreter.ts`'s `expose` arm now refuses to apply an application that
+   * can amplify nothing (`pct <= 0 || turns <= 0` breaks before any status
+   * exists), because such an application used to be a FREE affliction: priced
+   * at 0 deci, it still armed anti-heal, baited a cleanse charge, drained a
+   * ward and — under the old refresh rule — held someone else's 50% pile open
+   * forever. Authoring one is now dead content rather than an exploit, and the
+   * same silent-no-op shape `slowWeight`/`lifestealPct` below close.
+   * `guard` keeps the shared `clampedPct` floor: its arm has no such drop.
+   */
+  const exposePct = () => req(raw, 'pct', inRange(1, MAX_EXPOSE_PCT), 'an integer 1..' + String(MAX_EXPOSE_PCT) + ' (a 0 or negative pct is dropped outright by the engine — it applies no status at all)', at, problems);
+  const exposeTurns = () => req(raw, 'turns', inRange(1, 99), 'an integer 1..99 turns (a 0-turn expose is dropped outright by the engine — it applies no status at all)', at, problems);
+
+  /**
    * `lifesteal`'s `pct` FLOORED AT 0. No engine ceiling to mirror here (unlike
    * `clampedPct`'s pair) — lifesteal scales off whatever damage THIS cast
    * actually deals (`PRICE.lifestealPerPctNum/Den`), so there is no fixed
@@ -232,7 +247,7 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     case 'stun': turns('turns'); break;
     case 'slow': slowWeight(); break;
     case 'disrupt': num('amount'); break;
-    case 'expose': clampedPct(MAX_EXPOSE_PCT); turns('turns'); break;
+    case 'expose': exposePct(); exposeTurns(); break;
     case 'guard': property(); clampedPct(MAX_GUARD_PCT); turns('turns'); break;
     case 'negate': property(); charges(MAX_NEGATE_CHARGES); break;
     case 'ward': charges(MAX_WARD_CHARGES); break;

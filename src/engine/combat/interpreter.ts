@@ -574,8 +574,29 @@ function restoreHp(target: CombatantState, request: number): { applied: number; 
 /** Per-cast scratch state for rider actions (combo bonus, lifesteal). */
 interface CastCtx {
   damageDealt: number;
-  /** FLAT damage added by a triggered comboBonus this cast. */
+  /**
+   * FLAT damage added by a triggered comboBonus this cast — ONE bonus per cast,
+   * SPENT by the first `damage` action that reads it (see `readsComboBonus` and
+   * its call site in `applyCast`). It used to be accumulated and never cleared
+   * while the `damage` arm's `flatBonus` read it unconditionally, so every own
+   * damage action of a multi-hit host collected the whole bonus again:
+   * Follow-Through Echo's +16 landed +16 ON EACH of Barrage's / Rapid Volley's /
+   * Twin Slash's hits (+32 delivered for a 16-priced, "+16"-printed effect), and
+   * a base card authoring `comboBonus` alongside two damage actions would have
+   * done exactly the same.
+   */
   bonusFlat: number;
+}
+
+/**
+ * Does this action READ (and therefore SPEND) the cast's combo bonus? Exactly
+ * the `damage` arm's own condition — a GEM-APPENDED hit is self-contained and
+ * takes no attacker-side bonus (`GemAppended` in types.ts), and `statStrike`
+ * explicitly takes none either — so the two can never disagree about what a
+ * bonus was spent on.
+ */
+function readsComboBonus(action: Action): boolean {
+  return action.kind === 'damage' && action.fromGem !== true;
 }
 
 /**
@@ -636,16 +657,28 @@ export function dealDamage(
   }
 
   // Expose: the mirror of guard. Amplifies a DIRECT hit (source `skill`) by
-  // +pct% per active expose, in statuses-array order (deterministic), floored.
-  // Runs right after guard reduction and before shields. DoT ticks (poison /
-  // burn / bleed) and fatigue never trigger expose — only direct skill hits.
+  // +pct% of the STRONGEST standing expose, floored. Runs right after guard
+  // reduction and before shields. DoT ticks (poison / burn / bleed) and fatigue
+  // never trigger expose — only direct skill hits.
+  //
+  // MAX, NOT SUM (2026-08-18) — applications no longer merge into one pile (see
+  // the `expose` arm of `applyAction` for the whole rule), so several can stand
+  // at once, and compounding them would accelerate without bound and break
+  // expose's parity pricing against `guard`. A victim carrying exactly one pile
+  // — every case that existed before this change — is byte-identical. Indexed
+  // scan, no RNG, integer-only.
   let exposed = 0;
   if (source === 'skill') {
-    for (const s of victim.statuses) {
+    let strongestPct = 0;
+    for (let i = 0; i < victim.statuses.length; i += 1) {
+      const s = victim.statuses[i]!;
       if (s.kind !== 'expose') continue;
-      const amp = Math.floor((reduced * (s.pct ?? 0)) / 100);
-      exposed += amp;
-      reduced += amp;
+      const p = s.pct ?? 0;
+      if (p > strongestPct) strongestPct = p;
+    }
+    if (strongestPct > 0) {
+      exposed = Math.floor((reduced * strongestPct) / 100);
+      reduced += exposed;
     }
   }
 
@@ -1141,57 +1174,90 @@ function applyAction(
     case 'expose': {
       // Offensive debuff: applied to the enemy. pct clamped to <=50 at apply time.
       //
-      // ONE PILE PER VICTIM, REFRESHED — never a second concurrent pile.
-      // A re-application takes the STRONGER pct and the LONGER remaining
-      // duration, and becomes `fresh` again so the refreshed window is worth
-      // exactly what a first application would be worth: strictly monotone (a
-      // recast can never shorten or weaken a standing expose) and strictly
-      // bounded (the amplification a victim can carry is one clamped pct, ever).
+      // ONE PILE PER APPLICATION, NEVER COMPOUNDED — the amplification a victim
+      // carries is the STRONGEST standing pile's pct (`dealDamage` takes the
+      // max, not the sum), and each application keeps its OWN pct for its OWN
+      // window.
       //
-      // WHY REFRESH RATHER THAN A SECOND PILE, given `guard` — expose's stated
-      // mirror — opens one: `dealDamage` compounds piles MULTIPLICATIVELY, and
-      // the two mirrors compound in opposite directions. Guard's second pile is
-      // worth LESS than its first (50% then 50% leaves 25% — diminishing toward
-      // zero), while expose's second pile is worth MORE than its first (+50%
-      // then +50% is ×2.25, not ×2 — accelerating without bound). PRICE follows
-      // that asymmetry: expose is priced at PARITY with guard, `pct × turns`
-      // (`exposePerPctTurnNum` in balance.ts, "amplifying incoming damage and
-      // reducing it are worth the same per pct*turn"). Parity only holds while
-      // the marginal application is worth the same as the first, which is true
-      // of guard's stacking and false of expose's — so the offensive mirror is
-      // the one that must not stack. The engine already draws this exact line
-      // for the other offensive non-additive debuff: `slow` takes the strongest
-      // pending value rather than summing, "that would permanently lock out slow
-      // enemies".
+      // WHY THIS RULE (2026-08-18) — the invariant is: A CARD DELIVERS WHAT IT
+      // WAS PRICED FOR, WHATEVER ELSE IS ON THE TARGET. Expose is priced per
+      // application at `pct x turns` (`exposePerPctTurnNum` in balance.ts), so
+      // neither direction may leak:
+      //   • it must not OVER-deliver — the previous rule kept ONE pile and took
+      //     `max(pct)` with a refreshed duration, so casting `piercing_arrow`
+      //     (30%/2t, priced 30 deci) while `ruinous_hex`'s pile (50%/2t, priced
+      //     100 deci) stood applied FIFTY percent and re-armed the window. The
+      //     weak card delivered the strong card's amplification for a third of
+      //     its price, on two cards that both ship;
+      //   • it must not UNDER-deliver either — so a weak application can never
+      //     overwrite, shorten or weaken a stronger standing pile.
+      // Separate applications are the only rule that satisfies both: the true
+      // envelope of "50% for one more turn, then 30% for two" is not
+      // representable as a single (pct, turns) pair.
       //
-      // MERGE (the DoT / thorns rule) was rejected outright: those merge STACK
-      // COUNTS, a linear resource each tick spends, whereas summing expose `pct`
-      // would breach the <=50 apply-time clamp the type documents on the very
-      // first recast.
+      // MAX, NOT SUM — `guard`, expose's stated mirror, compounds
+      // MULTIPLICATIVELY and diminishes toward zero (50% then 50% leaves 25%),
+      // whereas compounding exposes ACCELERATES without bound (+50% then +50% is
+      // x2.25, not x2). Parity pricing with guard holds only while the marginal
+      // application is worth no more than the first, so the offensive mirror
+      // reads the strongest pile and ignores the rest — the same line the engine
+      // already draws for `slow`, which takes the strongest pending value rather
+      // than summing ("that would permanently lock out slow enemies").
       //
-      // WARD still taxes the refresh, exactly as it taxes a DoT merge in
-      // `applyDot` — one charge cancels one whole application whether or not the
-      // victim already carries a pile (see `consumeWard`). Prevention, not
-      // removal: a warded refresh leaves the standing pile exactly as it was.
+      // THE PILE SET IS AN ANTICHAIN, so it can neither grow without bound nor
+      // hold a redundant entry:
+      //   • an application some standing pile DOMINATES (>= pct AND >= turnsLeft)
+      //     is ABSORBED: no new pile, NO REFRESH of the standing one, no ward
+      //     spent, no event — nothing observable happened, because the victim is
+      //     already taking at least that much for at least that long. This is
+      //     what closes the unbounded-duration hole: the old branch set
+      //     `fresh = true` on ANY re-application whatever its pct, and
+      //     `expireStatuses` skips a fresh pile's decrement, so a card whose
+      //     cadence was no longer than its own duration held its pile FOREVER —
+      //     and an `expose pct: 0` action, priced at literally nothing, kept a
+      //     standing 50% pile alive indefinitely;
+      //   • an application that DOMINATES standing piles REPLACES them (they are
+      //     no stronger and no longer, so nothing is lost); each is dropped with
+      //     its own `statusExpired` BEFORE the new `statusApplied`, so a log
+      //     replay's status set never desyncs from the sim's;
+      //   • anything else COEXISTS, and the max rule reads whichever pile is
+      //     strongest at each hit.
+      // Domination compares the RAW `turnsLeft`, so an incoming application loses
+      // the one-turn `fresh` grace against an equal standing pile: under-, never
+      // over-delivery — the only safe direction to round a priced effect.
+      //
+      // WARD still taxes a real application exactly as it taxes a DoT merge in
+      // `applyDot` (prevention, not removal: a warded application leaves every
+      // standing pile exactly as it was). It is consumed HERE, before any pile is
+      // dropped; the `addStatus` call below re-checks and can only find no charge
+      // left, because a charge that existed was just spent.
       if (!enemy.alive) break;
       const pct = Math.max(0, Math.min(50, action.pct));
-      const pile = enemy.statuses.find((st) => st.kind === 'expose');
-      if (pile) {
-        if (consumeWard(ctx, enemy, 'expose')) break;
-        pile.pct = Math.max(pile.pct ?? 0, pct);
-        pile.turnsLeft = Math.max(pile.turnsLeft, action.turns);
-        pile.fresh = true;
-        ctx.events.push({
-          turn: ctx.state.turn,
-          kind: 'statusApplied',
-          side: enemy.side,
-          unit: enemy.index,
-          status: 'expose',
-          pct: pile.pct,
-          turns: pile.turnsLeft,
-        });
-        break;
+      // An application that can amplify nothing (0%) or covers no turn is not a
+      // status at all: it would otherwise be a free affliction — anti-heal
+      // trigger, cleanse bait, ward drain — bought for 0 deci.
+      if (pct <= 0 || action.turns <= 0) break;
+      let dominated = false;
+      for (let i = 0; i < enemy.statuses.length; i += 1) {
+        const st = enemy.statuses[i]!;
+        if (st.kind !== 'expose') continue;
+        if ((st.pct ?? 0) >= pct && st.turnsLeft >= action.turns) {
+          dominated = true;
+          break;
+        }
       }
+      if (dominated) break;
+      if (consumeWard(ctx, enemy, 'expose')) break;
+      const kept: typeof enemy.statuses = [];
+      for (let i = 0; i < enemy.statuses.length; i += 1) {
+        const st = enemy.statuses[i]!;
+        if (st.kind === 'expose' && (st.pct ?? 0) <= pct && st.turnsLeft <= action.turns) {
+          ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: enemy.side, unit: enemy.index, status: 'expose' });
+          continue;
+        }
+        kept.push(st);
+      }
+      enemy.statuses = kept;
       addStatus(ctx, enemy, { kind: 'expose', pct, turnsLeft: action.turns, fresh: true });
       break;
     }
@@ -1484,6 +1550,16 @@ export function applyCast(
       // by the FIRST victim's thorns must not land the remaining AoE hits.
       if (castCutShort()) break;
     }
+    // ONE COMBO BONUS PER CAST — spent by the first damage ACTION that read it,
+    // cleared HERE rather than inside `applyAction` so an AoE hit still delivers
+    // it to EVERY foe of that one action (the fan-out above is one action, not
+    // several). A later damage action on the same card gets nothing: the card
+    // face prints one number ("+20 if previous cast was Offense") and one number
+    // is what the cast delivers, however many hits it splits into. The
+    // alternative — dividing the bonus across the host's hits — was rejected
+    // because the per-hit number would then depend on the host, and the printed
+    // face cannot show that.
+    if (readsComboBonus(action)) cast.bonusFlat = 0;
     // ...and between actions, so a killing blow (or a killed caster) drops every
     // remaining effect of the card. See `castCutShort`.
     if (castCutShort()) break;

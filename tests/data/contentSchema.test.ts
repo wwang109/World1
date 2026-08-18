@@ -251,7 +251,7 @@ describe('data: content schema contract', () => {
       // gates see a card that prices exactly on budget and breaks no cap.
       expect(isOnBudget(overClamp), 'prices exactly on the bronze budget').toBe(true);
       expect(capViolations(overClamp), 'breaks no effect cap').toEqual([]);
-      failsWith(withEffects([{ kind: 'expose', pct: 100, turns: 1 }]), `pct must be an integer 0..${MAX_EXPOSE_PCT}`);
+      failsWith(withEffects([{ kind: 'expose', pct: 100, turns: 1 }]), `pct must be an integer 1..${MAX_EXPOSE_PCT}`);
     });
 
     it('guard pct:100 turns:1 is rejected — the balance gates alone let it through', () => {
@@ -268,8 +268,17 @@ describe('data: content schema contract', () => {
     });
 
     it('every pct the engine can actually deliver still validates', () => {
-      for (const n of [0, 25, MAX_EXPOSE_PCT]) passes([{ kind: 'expose', pct: n, turns: 1 }]);
+      for (const n of [1, 25, MAX_EXPOSE_PCT]) passes([{ kind: 'expose', pct: n, turns: 1 }]);
       for (const n of [0, 30, MAX_GUARD_PCT]) passes([{ kind: 'guard', property: 'magical', pct: n, turns: 1 }]);
+    });
+
+    it('a ZERO expose is rejected too — the engine drops it outright, so it is dead content (2026-08-18)', () => {
+      // `interpreter.ts`'s expose arm breaks on `pct <= 0 || turns <= 0` before
+      // any status exists, because a 0-priced application used to still arm
+      // anti-heal, bait a cleanse charge, drain a ward and hold someone else's
+      // pile open. `guard` has no such drop, so its own 0 still validates above.
+      failsWith(withEffects([{ kind: 'expose', pct: 0, turns: 2 }]), `pct must be an integer 1..${MAX_EXPOSE_PCT}`);
+      failsWith(withEffects([{ kind: 'expose', pct: 30, turns: 0 }]), 'turns must be an integer 1..99');
     });
   });
 
@@ -289,7 +298,7 @@ describe('data: content schema contract', () => {
     };
 
     it('negative pct is rejected for expose and guard', () => {
-      failsWith(withEffects([{ kind: 'expose', pct: -20, turns: 5 }]), `pct must be an integer 0..${MAX_EXPOSE_PCT}`);
+      failsWith(withEffects([{ kind: 'expose', pct: -20, turns: 5 }]), `pct must be an integer 1..${MAX_EXPOSE_PCT}`);
       failsWith(withEffects([{ kind: 'guard', property: 'magical', pct: -50, turns: 2 }]), `pct must be an integer 0..${MAX_GUARD_PCT}`);
       // The refund is real, not theoretical — this is what the floor closes.
       expect(actionsPriceDeci([{ kind: 'expose', pct: -20, turns: 5 }], 'magical')).toBe(-100);

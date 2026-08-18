@@ -52,6 +52,55 @@ const next = {
     'rebuild-in-a-different-field-order can churn it. ARRAY order is untouched and ' +
     'still fully load-bearing.',
   note:
+    'Regression lock recaptured (2026-08-18) for the EXPOSE APPLICATION RULE — a REAL, REVIEWED '  +
+    'RULE CHANGE closing a pricing defect LIVE on shipped content. The 2026-08-17 regen below made '  +
+    'expose ONE PILE PER VICTIM, REFRESHED, taking `max(pct)` and the longer duration. That let a '  +
+    'WEAK application deliver a STRONG one\'s amplification: with `ruinous_hex`\'s pile (50%/2t, '  +
+    'priced 100 deci) standing, every `piercing_arrow` cast (authored 30%, priced 30 deci) emitted '  +
+    '`pct=50` and re-armed the window — a third of the price for the whole effect, on two cards '  +
+    'that both ship and are both in the frozen sweep pool. The same branch ran for ANY expose '  +
+    'action whatever its pct and set `fresh = true` every time, and `expireStatuses` skips a fresh '  +
+    'pile\'s decrement, so a card whose cadence was no longer than its duration held its pile '  +
+    'FOREVER (an "expose 10% for 1 turn" on a 0-cooldown rotation measured 20 applications / 0 '  +
+    'expiries) and an `expose pct: 0` action — priced at nothing — kept a standing 50% pile alive '  +
+    'indefinitely. THE NEW RULE: applications are SEPARATE and never compound. `dealDamage` '  +
+    'amplifies by the STRONGEST standing pile (max, not sum — compounding accelerates without '  +
+    'bound and would break expose\'s parity pricing with `guard`, whose own stacking diminishes). '  +
+    'The pile set is an ANTICHAIN: an application some standing pile dominates (>= pct AND >= '  +
+    'turnsLeft) is ABSORBED — no pile, no refresh, no ward spent, no event; an application that '  +
+    'dominates standing piles REPLACES them (each dropped with its own `statusExpired` before the '  +
+    'new `statusApplied`, so a replay\'s status set cannot desync); anything else COEXISTS and the '  +
+    'max rule reads whichever is strongest per hit. An `expose` of 0% or 0 turns applies nothing '  +
+    'at all (it would otherwise be a free affliction — anti-heal trigger, cleanse bait, ward drain '  +
+    '— bought for 0 deci). The invariant satisfied in BOTH directions: a card delivers what it was '  +
+    'priced for whatever else is on the target — it can neither borrow a stronger card\'s pct nor '  +
+    'have its own weakened by a cheaper recast. BLAST RADIUS verified BEFORE regenerating, from a '  +
+    'read-only RAW dump (full event log + turns + result + finalState, NOT normalized, NOT hashed) '  +
+    'of both 200-fight sweeps taken immediately before and immediately after the change: 6/400 '  +
+    'logs moved (3 fights, each appearing in both sweeps), with ZERO winner flips and ZERO turn '  +
+    'changes. CONTAINMENT PROVEN BY EXHAUSTION: 194/400 configs carry `ruinous_hex` or '  +
+    '`piercing_arrow` (the frozen pool\'s only expose carriers) and ALL 6 movers are inside that '  +
+    'set — 0 moved without one. Every mover\'s FIRST divergence is an expose event, enumerated '  +
+    'individually: #042 and #079 (a second application now SUPERSEDES a shorter-lived pile: '  +
+    '`statusExpired` then `statusApplied`, +1 event) and #109 (a dominated application is now '  +
+    'ABSORBED outright, -1 event). The 188 carrying configs that did NOT move never had two expose '  +
+    'windows overlap on one victim, which is the only situation the rule changes. TWO OTHER '  +
+    'DEFECT FIXES RODE IN THE SAME CHANGE AND MOVED 0/400 LOGS, which is itself the evidence they '  +
+    'are contained: (1) `autoScaleTier` (src/engine/cards.ts) no longer re-derives its own copy of '  +
+    'the price — it prices every candidate kit through `powerLevelDeci` itself, closing a FOURTH '  +
+    'mirror whose `actionsPriceDeci` calls dropped `scope` (an AoE card was solved at '  +
+    'single-target prices and then priced at the 1.32x reach multiplier: 32% OVER budget at every '  +
+    'tier) and whose multi-hit premium was hand-rolled; no shipped card sets `scope`, and tier '  +
+    'resolution never runs in this sweep (no piece carries a tier); (2) a triggered `comboBonus` '  +
+    'is now SPENT by the first damage action that reads it, instead of being accumulated and read '  +
+    'again by every own-hit of a multi-hit host (`follow_through_echo`\'s +16 was landing +16 on '  +
+    'EACH of Barrage\'s / Rapid Volley\'s / Twin Slash\'s two hits); the book\'s only '  +
+    'comboBonus-authoring card, `follow_through`, has exactly one damage action, and no sweep '  +
+    'board sockets a gem. See src/engine/combat/interpreter.ts (the `expose` arm, `dealDamage`\'s '  +
+    'expose read, `readsComboBonus`), src/engine/cards.ts (`autoScaleTier`), '  +
+    'tests/engine/bleedExpose.test.ts, tests/engine/comboBonus.test.ts and '  +
+    'tests/engine/tierUpgrades.test.ts. '  +
+    'It supersedes the prior regen: ' +
     'Regression lock recaptured (2026-08-17) for the EXPOSE DURATION FIX — a REAL, REVIEWED RULE ' +
     'CHANGE, and a defect fix rather than a design pass. `expose` was the ONLY turn-durationed ' +
     'status missing from `expireStatuses`\'s decrement set (stun decrements on consumption, DoTs in ' +

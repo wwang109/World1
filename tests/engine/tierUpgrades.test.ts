@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyTier, autoScaleTier } from '../../src/engine/cards';
 import {
   auraModsDeci,
+  PRICE,
   capViolations,
   cooldownDeviationDeci,
   MAX_COOLDOWN_TURNS,
@@ -251,5 +252,106 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
       expect(powerLevelDeci(scaled)).toBe(TIER_BUDGET_DECI.silver);
       expect(capViolations(scaled)).toEqual([]);
     });
+  });
+});
+
+describe('the FOURTH mirror, closed: the tier scaler prices through powerLevelDeci, `scope` and all', () => {
+  /**
+   * `autoScaleTier` used to re-derive its own frozen bucket, and its
+   * `actionsPriceDeci` calls passed NO `scope` while `powerLevelDeci` prices the
+   * offensive share of a `scope: 'all'` card at the AoE reach multiplier
+   * (`PRICE.aoeTargetsNum/Den` = 1.32). The solver therefore solved
+   * single-target and shipped a card priced 32% OVER budget at every tier
+   * (a size-1 `damage 30` probe: silver 198/150, gold 264/200, diamond
+   * 330/250 — the last also blowing the size-1 damage cap). The multi-hit
+   * premium was hand-rolled at the raw rate for the same reason.
+   *
+   * Latent only because no shipped card sets `scope` yet — which is exactly
+   * what the AoE pricing work exists to enable.
+   */
+  const ABOVE_BRONZE: SkillTier[] = ['silver', 'gold', 'diamond'];
+
+  const probe = (over: Partial<SkillDef>): SkillDef => ({
+    id: 'probe', name: 'Probe', archetypes: ['offense'], property: 'physical', weapon: 'sword',
+    size: 1, rarity: 'common', tier: 'bronze',
+    effects: [{ kind: 'damage', power: 30 }],
+    text: 'Deal 30 damage.',
+    ...over,
+  });
+
+  const AOE_PROBES: Array<[string, SkillDef]> = [
+    ['plain damage', probe({ scope: 'all' })],
+    ['damage + expose rider', probe({
+      scope: 'all',
+      effects: [{ kind: 'damage', power: 10 }, { kind: 'expose', pct: 30, turns: 2 }],
+    })],
+    ['two hits (multi-hit premium)', probe({
+      scope: 'all',
+      effects: [{ kind: 'damage', power: 10 }, { kind: 'damage', power: 10 }],
+    })],
+    ['damage + poison line', probe({
+      scope: 'all',
+      effects: [{ kind: 'damage', power: 10 }, { kind: 'poison', stacks: 2 }],
+    })],
+  ];
+
+  it('an auto-scaled AoE card is NEVER over its tier budget, and never breaks a cap', () => {
+    for (const [label, base] of AOE_PROBES) {
+      for (const tier of ABOVE_BRONZE) {
+        const scaled = autoScaleTier(base, tier);
+        const deci = powerLevelDeci(scaled);
+        expect(deci, `${label}@${tier}: ${deci / 10} PL over the ${TIER_BUDGET_DECI[tier] / 10} PL budget`)
+          .toBeLessThanOrEqual(TIER_BUDGET_DECI[tier]);
+        expect(capViolations(scaled), `${label}@${tier}`).toEqual([]);
+      }
+    }
+  });
+
+  it('it lands EXACTLY on budget wherever the floored reach multiplier admits it', () => {
+    // 1.32 x an integer offensive total lands on a budget only sometimes: a
+    // size-1 physical damage sink steps 6 or 7 deci per point, so the size-1
+    // `damage` probe hits Diamond exactly (38 power -> floor(190 x 1.32) = 250)
+    // and falls one step short at Silver (145/150) and Gold (198/200).
+    const scaled = autoScaleTier(probe({ scope: 'all' }), 'diamond');
+    expect(powerLevelDeci(scaled)).toBe(TIER_BUDGET_DECI.diamond);
+    expect(scaled.effects[0]).toMatchObject({ kind: 'damage', power: 38 });
+  });
+
+  it('where exactness is unreachable, the shortfall is under ONE more point of the sink (maximal spend, never over)', () => {
+    for (const [label, base] of AOE_PROBES) {
+      for (const tier of ABOVE_BRONZE) {
+        const scaled = autoScaleTier(base, tier);
+        const sinkIndex = scaled.effects.findIndex((a) => a.kind === 'damage');
+        const oneMore = {
+          ...scaled,
+          effects: scaled.effects.map((a, i) => (i === sinkIndex ? { ...a, power: (a as { power: number }).power + 1 } : a)),
+        };
+        expect(powerLevelDeci(oneMore), `${label}@${tier}: one more point still fits — the solve stopped early`)
+          .toBeGreaterThan(TIER_BUDGET_DECI[tier]);
+      }
+    }
+  });
+
+  it('the single-target twin of every probe still lands EXACTLY on budget (linear pricing, unchanged rule)', () => {
+    for (const [label, base] of AOE_PROBES) {
+      const single: SkillDef = { ...base, scope: undefined };
+      for (const tier of ABOVE_BRONZE) {
+        const scaled = autoScaleTier(single, tier);
+        expect(powerLevelDeci(scaled), `${label}@${tier}`).toBe(TIER_BUDGET_DECI[tier]);
+      }
+    }
+  });
+
+  it('the multi-hit premium is charged through the SAME function powerLevelDeci uses (no hand-rolled copy)', () => {
+    // Two hits under AoE reach: the premium pays the multiplier too (it is an
+    // offensive cost). The hand-rolled term charged it raw, leaving the solver
+    // with budget powerLevelDeci then took back at 1.32.
+    const twoHits = probe({ scope: 'all', effects: [{ kind: 'damage', power: 10 }, { kind: 'damage', power: 10 }] });
+    const scaled = autoScaleTier(twoHits, 'gold');
+    const premium = powerLevelBreakdown(scaled).find((p) => p.label === 'multi-hit');
+    expect(premium?.deci).toBe(PRICE.extraHitPremium);
+    const reach = powerLevelBreakdown(scaled).find((p) => p.label === 'aoe reach');
+    expect(reach?.deci, 'the reach delta must be paid, not left on the table').toBeGreaterThan(0);
+    expect(powerLevelDeci(scaled)).toBeLessThanOrEqual(TIER_BUDGET_DECI.gold);
   });
 });
