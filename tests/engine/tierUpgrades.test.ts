@@ -189,6 +189,117 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
   });
 
   /**
+   * GOLD/DIAMOND IDENTITY (2026-08-18): tier is not just a bigger number —
+   * a rank-up can hand a card a whole ability the lower tier has no access
+   * to at all (the `armor_break` precedent, extended here to a deliberate
+   * subset spanning both classic cards and all three 2026-08-18 synergy
+   * themes). Each assertion below locks BOTH halves of the claim: the new
+   * kind is ABSENT below its gate tier and PRESENT (paid for, budget-exact,
+   * cap-compliant) at and above it.
+   */
+  describe('GOLD/DIAMOND IDENTITY: a rank-up can grant an ability the lower tier cannot afford at all', () => {
+    const kindsOf = (skill: SkillDef): Set<string> => new Set(skill.effects.map((a) => a.kind));
+
+    it('crippling_strike: `stun` exists ONLY at Gold+ (Bronze/Silver have no lockdown tool at all)', () => {
+      const base = skillBook.crippling_strike!;
+      expect(kindsOf(base).has('stun')).toBe(false);
+      expect(kindsOf(applyTier(base, 'silver')).has('stun')).toBe(false);
+      for (const tier of ['gold', 'diamond'] as const) {
+        const scaled = applyTier(base, tier);
+        expect(kindsOf(scaled).has('stun')).toBe(true);
+        expect(powerLevelDeci(scaled)).toBe(TIER_BUDGET_DECI[tier]);
+        expect(capViolations(scaled)).toEqual([]);
+      }
+    });
+
+    it('static_jolt: `disrupt` exists ONLY at Gold+ (the pure Bronze/Silver zap has no stagger tool)', () => {
+      const base = skillBook.static_jolt!;
+      expect(kindsOf(base).has('disrupt')).toBe(false);
+      expect(kindsOf(applyTier(base, 'silver')).has('disrupt')).toBe(false);
+      for (const tier of ['gold', 'diamond'] as const) {
+        const scaled = applyTier(base, tier);
+        expect(kindsOf(scaled).has('disrupt')).toBe(true);
+        expect(powerLevelDeci(scaled)).toBe(TIER_BUDGET_DECI[tier]);
+        expect(capViolations(scaled)).toEqual([]);
+      }
+    });
+
+    it('bramblewrath: `stun` exists ONLY at Gold+ (Thorn Garden theme)', () => {
+      const base = skillBook.bramblewrath!;
+      expect(kindsOf(base).has('stun')).toBe(false);
+      expect(kindsOf(applyTier(base, 'silver')).has('stun')).toBe(false);
+      for (const tier of ['gold', 'diamond'] as const) {
+        const scaled = applyTier(base, tier);
+        expect(kindsOf(scaled).has('stun')).toBe(true);
+        expect(powerLevelDeci(scaled)).toBe(TIER_BUDGET_DECI[tier]);
+        expect(capViolations(scaled)).toEqual([]);
+      }
+    });
+
+    it('hemorrhage: `expose` exists ONLY at Gold+ (Opened Wound theme)', () => {
+      const base = skillBook.hemorrhage!;
+      expect(kindsOf(base).has('expose')).toBe(false);
+      expect(kindsOf(applyTier(base, 'silver')).has('expose')).toBe(false);
+      for (const tier of ['gold', 'diamond'] as const) {
+        const scaled = applyTier(base, tier);
+        expect(kindsOf(scaled).has('expose')).toBe(true);
+        expect(powerLevelDeci(scaled)).toBe(TIER_BUDGET_DECI[tier]);
+        expect(capViolations(scaled)).toEqual([]);
+      }
+    });
+
+    it('verdant_rebuke: `lifesteal` exists ONLY at Gold+ (The Unbroken theme)', () => {
+      const base = skillBook.verdant_rebuke!;
+      expect(kindsOf(base).has('lifesteal')).toBe(false);
+      expect(kindsOf(applyTier(base, 'silver')).has('lifesteal')).toBe(false);
+      for (const tier of ['gold', 'diamond'] as const) {
+        const scaled = applyTier(base, tier);
+        expect(kindsOf(scaled).has('lifesteal')).toBe(true);
+        expect(powerLevelDeci(scaled)).toBe(TIER_BUDGET_DECI[tier]);
+        expect(capViolations(scaled)).toEqual([]);
+      }
+    });
+  });
+
+  /**
+   * AoE reach through the PUBLIC tier-up entry point (`applyTier`, not just
+   * `autoScaleTier` directly — the FOURTH MIRROR block above already proves
+   * the scaler; this proves the dispatcher built on it charges the same
+   * way). A card that is `scope: 'all'` from its base tier stays `scope:
+   * 'all'` through every rank-up (scope is a base-card field, not a
+   * `tierUpgrades` override — see the OPEN note below), and each rank-up's
+   * price is STILL charged through the AoE reach multiplier, never at the
+   * single-target rate.
+   *
+   * OPEN (content-designer, 2026-08-18): `TierUpgrade` (src/engine/types.ts)
+   * has no `scope` field, so a card cannot be single-target at Bronze/Silver
+   * and switch to `scope: 'all'` at Gold/Diamond via an authored tier
+   * block — `scope` can only be set once, for the WHOLE card, at every tier.
+   * Shipping "AoE as a tier gate" needs that field added (additive,
+   * resolver-seam only — `applyTier`'s existing `{ ...def, tier, ...override
+   * }` spread already forwards it correctly with zero other code changes);
+   * requested from combat-engine-programmer rather than authored here, since
+   * `src/engine/types.ts` is outside this pass's file scope.
+   */
+  it('a `scope: \'all\'` card keeps paying the AoE reach multiplier through every rank-up applyTier performs', () => {
+    const aoeBase: SkillDef = {
+      id: 'test_aoe_tier_gate', name: 'Test AoE Tier Gate', archetypes: ['offense'],
+      property: 'physical', weapon: 'sword', size: 1, rarity: 'common', tier: 'bronze',
+      scope: 'all',
+      effects: [{ kind: 'damage', power: 15 }],
+      text: 'Deal 15 (+ATK) Sword damage to every foe.',
+    };
+    for (const tier of ['silver', 'gold', 'diamond'] as const) {
+      const scaled = applyTier(aoeBase, tier);
+      expect(scaled.scope).toBe('all');
+      const reach = powerLevelBreakdown(scaled).find((p) => p.label === 'aoe reach');
+      expect(reach?.deci, `${tier}: the AoE upgrade must be PAID FOR, not free`).toBeGreaterThan(0);
+      expect(powerLevelDeci(scaled)).toBeLessThanOrEqual(TIER_BUDGET_DECI[tier]);
+      expect(capViolations(scaled)).toEqual([]);
+    }
+  });
+
+  /**
    * THE THIRD MIRROR (fail-open close, 2026-08-17). `autoScaleTier` used to
    * hand-roll BOTH the cooldown-deviation term AND the aura-mods term a
    * second time, each unclamped/signed independently of `powerLevelDeci`'s

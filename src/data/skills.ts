@@ -168,6 +168,17 @@ const defs: SkillDef[] = [
 
   // ---- Offense + Debuff (multi-archetype) ----
   {
+    // GOLD-TIER IDENTITY (2026-08-18): Silver is left to the auto-scaler
+    // (damage 54, debuffStat frozen at 25%/2t — verified against
+    // `autoScaleTier`, exact and cap-compliant on its own). At GOLD the card
+    // gains a whole ability Silver cannot afford: `stun` — debuffStat 25%×2t
+    // (50 deci) + stun 1 turn (100 deci, `stunPerTurn`) = 150 deci, exactly
+    // the size-2 control cap at every tier (flat by design), with no room
+    // for a bigger debuff OR a second stun turn (`MAX_STUN_PER_CARD` = 1) —
+    // so the ability itself, not a bigger number, is what Gold buys. Damage
+    // sinks the remainder: Gold 52 (260) + control 150 (frozen) − size-2
+    // grant (210) = 200 = Gold exactly. Diamond keeps the same control kit
+    // and grows damage further: 68 (340) + 150 − 240 (grant) = 250 exactly.
     id: 'crippling_strike',
     name: 'Crippling Strike',
     archetypes: ['offense', 'debuff'],
@@ -181,6 +192,24 @@ const defs: SkillDef[] = [
       { kind: 'debuffStat', stat: 'attack', pct: 25, turns: 2 },
     ],
     text: 'Deal 38 (+ATK) Lance damage · -25% enemy ATK (2 turns).',
+    tierUpgrades: {
+      gold: {
+        effects: [
+          { kind: 'damage', power: 52 },
+          { kind: 'debuffStat', stat: 'attack', pct: 25, turns: 2 },
+          { kind: 'stun', turns: 1 },
+        ],
+        text: "Deal 52 (+ATK) Lance damage · -25% enemy ATK (2 turns) · {{Stun}} — the enemy's next performance is consumed.",
+      },
+      diamond: {
+        effects: [
+          { kind: 'damage', power: 68 },
+          { kind: 'debuffStat', stat: 'attack', pct: 25, turns: 2 },
+          { kind: 'stun', turns: 1 },
+        ],
+        text: "Deal 68 (+ATK) Lance damage · -25% enemy ATK (2 turns) · {{Stun}} — the enemy's next performance is consumed.",
+      },
+    },
   },
   {
     id: 'venom_fang',
@@ -1091,6 +1120,14 @@ const defs: SkillDef[] = [
 
   // ---- Lightning (speed/stagger identity) ----
   {
+    // GOLD-TIER IDENTITY (2026-08-18): a pure clean hit at Bronze/Silver
+    // (Silver left to the auto-scaler — damage 26, exact and cap-compliant on
+    // its own). At GOLD the jolt grows into the Lightning theme's own
+    // identity (speed/stagger, see the section header above) by gaining
+    // `disrupt` — a tool Silver has no access to at all. disrupt 6 (40 deci,
+    // `disruptBrackets`: 5×5 + 1×15) + damage 28 (140) + weight-6 refund
+    // (+20, (10−6)×5) = 200 = Gold exactly. Diamond keeps disrupt frozen at
+    // 6 and grows damage: 38 (190) + 40 + 20 = 250 = Diamond exactly.
     id: 'static_jolt',
     name: 'Static Jolt',
     archetypes: ['offense'],
@@ -1102,6 +1139,22 @@ const defs: SkillDef[] = [
     element: 'lightning',
     effects: [{ kind: 'damage', power: 16 }],
     text: 'Deal 16 (+MATK) Lightning damage. Very quick (weight 6).',
+    tierUpgrades: {
+      gold: {
+        effects: [
+          { kind: 'damage', power: 28 },
+          { kind: 'disrupt', amount: 6 },
+        ],
+        text: 'Deal 28 (+MATK) Lightning damage · {{Disrupt}} 6 banked readiness. Very quick (weight 6).',
+      },
+      diamond: {
+        effects: [
+          { kind: 'damage', power: 38 },
+          { kind: 'disrupt', amount: 6 },
+        ],
+        text: 'Deal 38 (+MATK) Lightning damage · {{Disrupt}} 6 banked readiness. Very quick (weight 6).',
+      },
+    },
   },
   {
     id: 'thunder_step',
@@ -1752,9 +1805,17 @@ const defs: SkillDef[] = [
     text: '{{Ward}} 2 \u2014 prevent the next 2 ailments outright \u00b7 Restore 28 (+MDEF) HP.',
   },
   {
-    // ward 1 (50, frozen) + damage sink (50) = 100 = Bronze exactly. No
-    // tierUpgrades: damage alone absorbs every higher budget (silver 20,
-    // gold 30, diamond 40 \u2014 verified against `autoScaleTier`).
+    // ward 1 (50, frozen) + damage sink (50) = 100 = Bronze exactly. Silver
+    // is left to the auto-scaler (damage 20 \u2014 verified against
+    // `autoScaleTier`).
+    //
+    // GOLD-TIER IDENTITY (2026-08-18): at GOLD the ward starts feeding on
+    // the counterattack \u2014 `lifesteal` (empower), a tool Silver has no access
+    // to at all. ward 50 (frozen) + lifesteal 45% (30, 45\u00d72/3) = 80 of the
+    // size-1 empower cap (100), leaving damage to sink the rest: 24 (120) +
+    // 50 + 30 = 200 = Gold exactly. Diamond deepens the siphon to 60% (40,
+    // still under the 100 cap) and grows damage: 32 (160) + 50 + 40 = 250
+    // exactly.
     id: 'verdant_rebuke',
     name: 'Verdant Rebuke',
     archetypes: ['offense', 'defensive'],
@@ -1768,6 +1829,24 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 10 },
     ],
     text: '{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Deal 10 (+MATK) Nature damage.',
+    tierUpgrades: {
+      gold: {
+        effects: [
+          { kind: 'ward', charges: 1 },
+          { kind: 'damage', power: 24 },
+          { kind: 'lifesteal', pct: 45 },
+        ],
+        text: '{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Deal 24 (+MATK) Nature damage \u00b7 heal 45% of damage dealt.',
+      },
+      diamond: {
+        effects: [
+          { kind: 'ward', charges: 1 },
+          { kind: 'damage', power: 32 },
+          { kind: 'lifesteal', pct: 60 },
+        ],
+        text: '{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Deal 32 (+MATK) Nature damage \u00b7 heal 60% of damage dealt.',
+      },
+    },
   },
   {
     // Two DIFFERENT-RATE sinks (cleanse 25 deci/charge, heal 5 deci/point) \u2014
@@ -1844,13 +1923,21 @@ const defs: SkillDef[] = [
   {
     // thorns AT the size-3 empower cap (200 deci = 20 stacks) + damage sink
     // 56 (280 raw = 56*5): 200 + 280 = 480 raw - 380 (size-3 grant) = 100 =
-    // Bronze exactly. No tierUpgrades: damage alone absorbs every higher
-    // budget (silver 84, gold 114, diamond 142 \u2014 verified against
-    // `autoScaleTier`). Size-3 is the argument for this card, not a bigger
+    // Bronze exactly. Size-3 is the argument for this card, not a bigger
     // number: it busies its caster two turns after firing, exactly the
     // window a large thorn pile wants to sit up and punish incoming hits \u2014
     // the first size-3 in the book whose case for its size is tempo, not a
     // single inflated line.
+    //
+    // GOLD-TIER IDENTITY (2026-08-18): Silver stays the auto-scaler's own
+    // damage-only growth (84 \u2014 verified against `autoScaleTier`). At GOLD
+    // the bramble pile finally roots the target: `stun` (100 deci) joins
+    // thorns (empower, unaffected) at ZERO cost to the control family \u2014
+    // this kit spends nothing else there, so stun fits with 100 deci of
+    // size-3 control cap (200) to spare. Damage sinks the rest: Gold 94 (470)
+    // + thorns 200 + stun 100 \u2212 570 (size-3 grant) = 200 = Gold exactly.
+    // Diamond keeps the same control kit and grows damage: 122 (610) + 200 +
+    // 100 \u2212 660 (grant) = 250 exactly.
     id: 'bramblewrath',
     name: 'Bramblewrath',
     archetypes: ['defensive', 'offense'],
@@ -1864,6 +1951,24 @@ const defs: SkillDef[] = [
       { kind: 'damage', power: 56 },
     ],
     text: '{{Thorns}} 20 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Deal 56 (+ATK) Lance damage.',
+    tierUpgrades: {
+      gold: {
+        effects: [
+          { kind: 'thorns', stacks: 20 },
+          { kind: 'damage', power: 94 },
+          { kind: 'stun', turns: 1 },
+        ],
+        text: "{{Thorns}} 20 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Deal 94 (+ATK) Lance damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed.",
+      },
+      diamond: {
+        effects: [
+          { kind: 'thorns', stacks: 20 },
+          { kind: 'damage', power: 122 },
+          { kind: 'stun', turns: 1 },
+        ],
+        text: "{{Thorns}} 20 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Deal 122 (+ATK) Lance damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed.",
+      },
+    },
   },
   {
     // thorns + guard are BOTH frozen empower members with no scalable sink
@@ -2019,7 +2124,17 @@ const defs: SkillDef[] = [
     // would afford. Bronze: bleed 6 (60) + damage 14 (70) = 130 - (-30 weight
     // refund, i.e. +30 spent) ... concretely: 130 raw + (10-16)*5 = 130 - 30 =
     // 100 = Bronze exactly. Same DoT-sink authoring trap as Gutting Cleave \u2014
-    // hand-authored: bleed 6/8/9/10, damage climbing 14/20/28/36.
+    // hand-authored. Silver keeps the plain damage/bleed growth (bleed 8,
+    // damage 20 \u2014 no new ability yet).
+    //
+    // GOLD-TIER IDENTITY (2026-08-18): at GOLD the wound is torn wide enough
+    // to gain `expose` \u2014 a tool Silver cannot buy at all \u2014 trading SOME of
+    // the raw damage line for a team-wide amplifier. bleed 9 (90) + expose
+    // 20%\u00d72t (40) + damage 20 (100) + weight -30 = 200 = Gold exactly (down
+    // from the old damage-only 28, since expose now spends part of the
+    // budget). Diamond grows both the bleed (10, matching the old curve) and
+    // the exposure (30%\u00d72t = 60): 100 + 60 + damage 24 (120) - 30 = 250
+    // exactly.
     id: 'hemorrhage',
     name: 'Hemorrhage',
     archetypes: ['debuff'],
@@ -2045,16 +2160,18 @@ const defs: SkillDef[] = [
       gold: {
         effects: [
           { kind: 'bleed', stacks: 9 },
-          { kind: 'damage', power: 28 },
+          { kind: 'damage', power: 20 },
+          { kind: 'expose', pct: 20, turns: 2 },
         ],
-        text: '{{Bleed}} 9 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 28 (+ATK) Axe damage.',
+        text: '{{Bleed}} 9 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 20 (+ATK) Axe damage \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns).',
       },
       diamond: {
         effects: [
           { kind: 'bleed', stacks: 10 },
-          { kind: 'damage', power: 36 },
+          { kind: 'damage', power: 24 },
+          { kind: 'expose', pct: 30, turns: 2 },
         ],
-        text: '{{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 36 (+ATK) Axe damage.',
+        text: '{{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 24 (+ATK) Axe damage \u00b7 {{Expose}} the enemy \u2014 +30% damage from all direct hits (2 turns).',
       },
     },
   },
