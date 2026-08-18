@@ -57,22 +57,36 @@ wasted or ambiguous slack.
 
 ## Current depth-1 floor roster (reference)
 
-| Enemy | Role | Cards | HP | Key stats | Affinity |
-|---|---|---|---|---|---|
-| Giant Rat | Basic | 2 | 90 | atk 9, spd 13, crit 5 (fast beast glass cannon) | weapon: beast |
-| Stone Beetle | Basic | 2 | 150 | atk 8, armor 5, spd 7 (tanky) | element: nature, weapon: beast |
-| Ember Imp | Basic | 2 | 85 | mp 13, crit 10 (magic glass cannon) | element: fire |
-| Bandit Duelist | Elite (tag only) | 2 | 120 | atk 12, armor 2, crit 8 (balanced human duelist, ~hero baseline) | weapon: sword |
-| The Wolf King | Boss (tag only) | 3 | 160 | atk 13, armor 2, spd 13, crit 8 (modest beast, not a wall) | weapon: beast |
-| Seraph | Basic | 2 | 110 | mp 12, magicResist 4 (holy caster-support) | element: holy |
-| Knight | Basic | 2 | 170 | atk 10, armor 6, spd 9 (sturdy defender) | weapon: sword |
-| Mage | Basic | 2 | 80 | mp 14, crit 12 (arcane/fire glass cannon) | element: fire |
-| Hunter | Basic | 2 | 95 | atk 11, spd 15 (nimble archer) | weapon: bow |
-| Rogue | Basic | 2 | 90 | atk 10, spd 14, crit 18 (poison + crit assassin) | weapon: beast |
-| Berserker | Basic | 2 | 140 | atk 14, armor 1 (axe brute) | weapon: axe |
-| Necromancer | Basic | 2 | 90 | mp 12, magicResist 3 (dark debuffer) | element: dark |
-| Cleric | Basic | 3 | 130 | atk 6, mp 9, armor 2 (healer w/ small attack) | element: holy |
+Since the unified-statline lock (2026-07-24), every monster's floor `stats`
+is the SAME Level-1 statline as the player (maxHp 100, atk 1, magicPower 1,
+armor 1, magicResist 1, speed 10) — there is no bespoke per-monster HP/stat
+row any more, and crit was removed from the engine entirely (2026-07-23), so
+this table no longer carries an "HP"/"Key stats" column of hand-authored
+numbers. A monster's identity now lives in three places: its **cards**, its
+declared **affinity**, and its `MONSTER_PROFILES` **level-up weight profile**
+(`src/run/leveling.ts`) — the weights below are ratios (only relative
+proportions matter), not absolute point totals; see that file for the exact
+allocation algorithm.
 
-Source of truth for exact numbers is always `src/data/enemies.ts` — this
+| Enemy (id) | Role | Theme | Cards | Affinity | Level-up profile emphasis |
+|---|---|---|---|---|---|
+| Giant Rat (`giant_rat`) | Basic | Beast thief — fast, light, chip damage | 2 | weapon: beast | speed-dominant, light attack, minimal HP |
+| Stone Beetle (`stone_beetle`) | Basic | Nature warden — armored tank | 2 | element: nature | maxHp/armor-dominant |
+| Ember Imp (`ember_imp`) | Basic | Fire DoT caster | 3 | element: fire | magicPower-dominant, no HP (glass) |
+| Bandit Duelist (`bandit_duelist`) | Elite (tag only) | Sword duelist — balanced tempo, parry | 3 | weapon: sword | attack/speed balanced, light HP |
+| The Wolf King (`wolf_king`) | Boss (tag only) | Beast alpha / brute | 3 | weapon: beast | attack-dominant, moderate HP |
+| Seraph (`seraph`) | Basic | Holy guardian / support caster | 3 | element: holy | magicPower/magicResist balanced, light HP |
+| Knight (`knight`) | Basic | Sword warden — block, buff, parry | 3 | weapon: sword | maxHp/armor-dominant |
+| Mage (`mage`) | Basic | Lightning blaster — glass cannon | 2 | element: lightning | magicPower only (no HP/armor/resist) |
+| Hunter (`hunter`) | Basic | Bow marksman | 3 | weapon: bow | attack-dominant, moderate speed |
+| Lancer (`rogue`) | Basic | Lance skirmisher — reach and thrust | 3 | weapon: lance | attack-dominant, moderate speed, light HP |
+| Berserker (`berserker`) | Basic | Axe brute — heavy, slow, big hits | 3 | weapon: axe | attack/HP balanced, zero speed (slow) |
+| Necromancer (`necromancer`) | Basic | Dark curse-debuffer | 2 | element: dark | magicPower/magicResist balanced, no HP |
+| Cleric (`cleric`) | Basic | Holy warden-healer | 3 | element: holy | magicPower/magicResist/HP balanced |
+
+Source of truth for exact numbers is always `src/data/enemies.ts` (cards/
+affinity) and `src/run/leveling.ts` (`MONSTER_PROFILES`, weights) — this
 table is a snapshot for quick reference and should be kept in sync when the
-roster changes.
+roster or its profiles change. (The `rogue` id is unchanged for save-data/
+profile-lookup compatibility — only its display name and cards became
+"Lancer".)

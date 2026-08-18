@@ -60,24 +60,41 @@ export const DEFAULT_PROFILE: StatProfile = profile({
 
 /**
  * Per-monster identity weight profiles, one per current roster id. Weights
- * are relative (integers); only their ratio matters. Add an entry here for
- * every new monster id content-designer ships — unlisted ids fall back to
- * DEFAULT_PROFILE.
+ * are relative (integers); only their RATIO matters — a profile's absolute
+ * weight total does not change how much PL it spends (that is fixed by
+ * `monsterLevelPL`, level-only) nor is it comparable across monsters; two
+ * profiles with the same ratio (e.g. `{attack:3,speed:2}` vs
+ * `{attack:6,speed:4}`) allocate identically at every level. Add an entry
+ * here for every new monster id content-designer ships — unlisted ids fall
+ * back to DEFAULT_PROFILE.
  *
  * Since every monster now shares the SAME level-1 floor statline as the
  * player, these weights are the ONLY thing left carrying stat identity as a
- * monster levels up (e.g. `ember_imp`/`mage`/`rogue` carry zero `maxHp`
- * weight — they stay glass cannons because they simply never buy HP; a
- * caster like `seraph` grants itself a little `maxHp` alongside its magic
- * stats to feel sturdier). Reviewed 2026-07-24 against the unification: all
- * existing weights already express their monster's identity correctly, so
- * none needed to change.
+ * monster levels up (e.g. `ember_imp`/`mage` carry zero `maxHp` weight —
+ * they stay glass cannons because they simply never buy HP; a caster like
+ * `seraph` grants itself a little `maxHp` alongside its magic stats to feel
+ * sturdier).
+ *
+ * Theme pass (2026-08-18): re-audited every weight against the theme each
+ * monster's cards/comments now declare in `src/data/enemies.ts` (content-
+ * designer's same-date re-kit pass). `giant_rat` and `rogue` (now "Lancer")
+ * were carrying weights from concepts the roster no longer has (an
+ * attack-first rat, and the deleted poison-crit assassin — crit removed
+ * from the engine 2026-07-23) and are fixed below; every other profile was
+ * checked against its declared theme and left unchanged (see
+ * docs/enemy-design.md for the per-monster reasoning).
  */
 export const MONSTER_PROFILES: Record<string, StatProfile> = {
   // --- Basic floor ---
-  // Former critPct weights folded into each identity's dominant offensive
-  // stat (attack for physical, magicPower for casters) — crit removed 2026-07-23.
-  giant_rat: profile({ maxHp: 2, attack: 3, speed: 2 }),
+  // THIEF (2026-08-18): was attack-dominant (`attack:3, speed:2`), which grew
+  // a rat that hits harder than it runs — backwards for "the roster's
+  // fastest, lightest" board (see enemies.ts comment: chip damage from a
+  // bite + a poison tick, not one big hit). Speed is now dominant, attack
+  // stays secondary chip damage, maxHp stays the profile's smallest weight
+  // (light). Total weight kept at 7 (unchanged) purely so the before/after
+  // magnitude is easy to eyeball — the ratio is what carries identity, not
+  // the total (see doc comment above).
+  giant_rat: profile({ speed: 4, attack: 2, maxHp: 1 }),
   stone_beetle: profile({ maxHp: 3, armor: 3, attack: 1 }),
   ember_imp: profile({ magicPower: 5, speed: 1 }),
 
@@ -90,7 +107,15 @@ export const MONSTER_PROFILES: Record<string, StatProfile> = {
   knight: profile({ maxHp: 3, armor: 3, attack: 1 }),
   mage: profile({ magicPower: 6 }),
   hunter: profile({ speed: 3, attack: 4 }),
-  rogue: profile({ speed: 2, attack: 5 }),
+  // LANCE (2026-08-18), was `{speed:2, attack:5}` with ZERO maxHp/armor
+  // weight — a pure-burst-glass shape left over from the deleted poison-crit
+  // assassin concept the id used to be. Renamed/re-kitted to Lancer, a
+  // reach-and-thrust skirmisher (lance_thrust/crippling_strike/hamstring),
+  // which is still offense-led (attack stays the dominant weight) but is no
+  // longer the zero-survivability assassin read — it now buys a little
+  // maxHp as it levels, same pattern every other non-glass-cannon melee
+  // identity on the roster uses (bandit_duelist, wolf_king, berserker).
+  rogue: profile({ attack: 4, speed: 2, maxHp: 1 }),
   berserker: profile({ attack: 3, maxHp: 3 }),
   necromancer: profile({ magicPower: 3, magicResist: 3 }),
   cleric: profile({ magicPower: 2, magicResist: 2, maxHp: 2 }),
