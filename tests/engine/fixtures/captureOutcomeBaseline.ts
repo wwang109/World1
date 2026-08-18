@@ -52,6 +52,51 @@ const next = {
     'rebuild-in-a-different-field-order can churn it. ARRAY order is untouched and ' +
     'still fully load-bearing.',
   note:
+    'Regression lock recaptured (2026-08-18) for the SLOW LIFETIME RULE — a REAL, REVIEWED RULE ' +
+    'CHANGE, user-locked verbatim: "a slow is only applied to that 1 card and doesn\'t stay — so ' +
+    'after the turn it was applied on, the slow effect is removed". The engine did not do that. ' +
+    'The unit-scope tax (`CombatantState.nextWeightPenalty`) was cleared ONLY in the perform path ' +
+    '(after the `cost` event), which is an "until you next act" lifetime, not a turn lifetime: a ' +
+    'victim too poor to pay the taxed weight kept the tax INDEFINITELY, and every fresh slow ' +
+    '`Math.max`ed on top of a debt it had never discharged — the audited lockout of 5 performances ' +
+    'in 40 turns. THE NEW RULE: the tax has two exits and takes whichever comes first — the ' +
+    'victim\'s next resolved cast THIS TURN (which pays it, exactly as before), or the END OF THAT ' +
+    'TURN, which drops it PAID OR NOT. The new clear is one line in the turn loop beside ' +
+    '`expireStatuses` (`for (const c of units) c.nextWeightPenalty = 0;`), deliberately placed ' +
+    'AFTER the resolve loop (a slow landed early in a turn still taxes a victim that performs later ' +
+    'in that same turn) and AFTER the `wait` explanation pass (a `cantAfford` line still reports ' +
+    'the taxed weight that actually stopped the unit). A victim who is stunned, busy mid-span, ' +
+    'cooling or simply cannot afford the taxed weight now carries NOTHING forward, so accumulation ' +
+    'across turns is impossible BY CONSTRUCTION and the engine deliberately adds no clamp. It emits ' +
+    'no new event — the `end` event immediately after it already marks the boundary. ' +
+    'BLAST RADIUS verified BEFORE regenerating, from a read-only RAW dump (full event log + turns + ' +
+    'result + finalState, NOT normalized, NOT hashed) of both 200-fight sweeps taken immediately ' +
+    'before and immediately after the change: 100/200 logs moved in EACH sweep. Of those 100, 82 ' +
+    'are EVENT-LOG movers and 18 have a BYTE-IDENTICAL event log and differ only in finalState — ' +
+    'and for all 18 the complete set of differing field paths is `nextWeightPenalty` alone, whose ' +
+    'residual values are 8, 12 and 16: exactly `chain_spark`, `frost_shackle` and `hamstring`\'s ' +
+    'authored slow weights, left pending in a fight that ended mid-turn and now zeroed. Fights get ' +
+    'SHORTER, which is what un-stalling a victim must do: 16 turn changes with attrition off (15 ' +
+    'shorter, 1 longer) and 17 with it on, and 3 winner flips in each (#155, #181, #188, all ' +
+    'win->loss, the same three cases in both sweeps). CONTAINMENT PROVEN BY EXHAUSTION, BOTH ' +
+    'DIRECTIONS: 0/400 logs moved without carrying one of the frozen pool\'s three slow cards, and ' +
+    '0/400 moved without an actual `slowed` event in the log — and for every one of the 82 ' +
+    'event-log movers the FIRST divergence is at or after that log\'s first `slowed` event, with ' +
+    'the diverging event kinds exclusively tempo-shaped (33 performStart, 30 play, 13 wait, 5 ' +
+    'wait->performStart, 1 noPerformer->performStart) — no damage/heal/status kind diverges first. ' +
+    'In the other direction 136/200 configs carry a slow card and 36 of them did NOT move: 31 never ' +
+    'emitted a `slowed` event at all (the card was never reached), and the remaining 5 are ' +
+    'enumerated individually — #19, #52, #161 and #186 END on the very turn the slow lands (the ' +
+    'victim never plays again and the end-of-turn clear is never reached), and #101\'s victim PAID ' +
+    'the tax inside the same turn it landed, which both rules resolve identically. `splash` ' +
+    '(`PieceState.nextWeightPenalty`, card scope) is DELIBERATELY UNCHANGED and cannot appear here ' +
+    'anyway: its only carrier, `shockwave_slam`, is not in the frozen sweep pool. No price moved ' +
+    '(`PRICE.slowPerWeightNum/Den` untouched), so every slow card still lands exactly on its tier ' +
+    'budget and balance.test.ts is green — the honesty of that rate against the weaker effect is ' +
+    'flagged for a separate balance pass, not patched here. See src/engine/combat/simulate.ts (the ' +
+    'end-of-turn clear beside `expireStatuses`), src/engine/combat/interpreter.ts (the `slow` arm), ' +
+    'src/engine/combat/state.ts, src/engine/types.ts, src/engine/combat/castSelect.ts and ' +
+    'tests/engine/slowLifetime.test.ts. It supersedes the prior regen: ' +
     'Regression lock recaptured (2026-08-18) for the EXPOSE APPLICATION RULE — a REAL, REVIEWED '  +
     'RULE CHANGE closing a pricing defect LIVE on shipped content. The 2026-08-17 regen below made '  +
     'expose ONE PILE PER VICTIM, REFRESHED, taking `max(pct)` and the longer duration. That let a '  +

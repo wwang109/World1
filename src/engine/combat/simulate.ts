@@ -571,6 +571,13 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
           paid: choice.weight,
         });
         emitCursor(ctx, c, cursorBefore);
+        // SLOW, half one: the tax hit exactly ONE card — this one — and the
+        // `cost` event just above paid it (castSelect folded it into
+        // `choice.weight`), so it is spent here. Half two is the end-of-turn
+        // clear at the bottom of the turn loop, which drops it whether or not
+        // it was ever paid (user-locked 2026-08-18); the two together mean a
+        // slow can never outlive the turn it landed on, so nothing accumulates
+        // and no clamp is needed.
         c.nextWeightPenalty = 0;
         // CARD-scope sibling of the line above (`splash`): the tax rides ONE
         // piece and is spent by THAT piece's next play — the `cost` event just
@@ -705,6 +712,32 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
 
     // Durations decrement once per gameplay turn.
     for (const c of units) expireStatuses(ctx, c);
+    // SLOW EXPIRES WITH THE TURN IT LANDED ON (user-locked 2026-08-18): "a slow
+    // is only applied to that 1 card and doesn't stay — after the turn it was
+    // applied on, the slow effect is removed". A slow applied during turn N can
+    // therefore only tax what its victim plays during turn N; at the start of
+    // N+1 it is gone, PAID OR NOT. A victim who is stunned, busy mid-span,
+    // waiting on cooldown, or simply cannot afford the taxed weight carries
+    // NOTHING forward.
+    //
+    // WHY HERE, and not where the tax is consumed. The old rule cleared the
+    // field only in the perform path (`c.nextWeightPenalty = 0` after `cost`),
+    // which is a "until you next act" lifetime, not a turn lifetime: a victim
+    // too slow to pay kept the tax indefinitely and every fresh slow `Math.max`ed
+    // on top of a debt it had never discharged — an observed lockout of 5
+    // performances in 40 turns. An end-of-turn rule belongs in the turn loop.
+    //
+    // ORDERING, deliberately: AFTER the resolve loop (so a slow landed early in
+    // the turn still taxes a victim that performs later in that same turn, and
+    // the `cost` event still pays the inflated weight), AFTER the `wait`
+    // explanation pass (so a `cantAfford` line still reports the taxed weight
+    // that actually stopped the unit this turn), and beside `expireStatuses`
+    // because this IS a global-turn duration — the same tick that decrements
+    // every other turn-durationed effect. It reads and writes one integer per
+    // unit, consumes no RNG, emits no event (the `end` event immediately below
+    // already marks the boundary — playback that shadow-tracks the pending tax
+    // must drop it there too) and iterates `units` by index order.
+    for (const c of units) c.nextWeightPenalty = 0;
     events.push({ turn: state.turn, kind: 'end' });
   }
 

@@ -80,6 +80,12 @@ export function scanCast(c: CombatantState, skillBook: SkillBook, opts: SelectOp
     // actually resolves and pays its weight (simulate.ts, beside
     // `c.nextWeightPenalty = 0`). A penalty consumed by a speculative scan is a
     // silent bug: the tax would vanish without ever being paid.
+    //
+    // The UNIT-scope one has a second, NON-PAYING exit: it is also dropped at
+    // END OF TURN, paid or not (user-locked 2026-08-18 — a slow lives exactly
+    // the turn it landed on). That is why the `wait`/`cantAfford` explanation
+    // pass in simulate.ts must run BEFORE that clear: the weight it reports is
+    // the taxed weight that actually stopped the unit this turn.
     const weight = Math.max(1, weightOf(skill) + mods.weightDelta + c.nextWeightPenalty + (piece.nextWeightPenalty ?? 0));
     return { kind: 'choice', choice: { piece, skill, mods, auraSources: sources, weight } };
   }

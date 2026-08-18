@@ -1312,8 +1312,11 @@ function applyAction(
       break;
     }
     case 'slow':
-      // Slows don't stack (that would permanently lock out slow enemies):
-      // the strongest pending slow applies until the enemy next performs.
+      // ONE TURN, ONE CARD (user-locked 2026-08-18). The strongest pending slow
+      // applies to whatever the victim plays for the REST OF THIS TURN, and is
+      // dropped at end of turn whether or not it was ever paid (`simulate.ts`,
+      // beside `expireStatuses`). Slows don't stack — `Math.max`, never a sum —
+      // which now matters only WITHIN a turn, since nothing survives it.
       if (!enemy.alive) break;
       enemy.nextWeightPenalty = Math.max(enemy.nextWeightPenalty, action.weight);
       ctx.events.push({ turn: ctx.state.turn, kind: 'slowed', side: enemy.side, unit: enemy.index, weight: action.weight });

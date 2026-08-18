@@ -306,7 +306,19 @@ type ActionKinds =
    */
   | { kind: 'taunt'; amount: number }
   // ---- Special ability riders (combined-archetype cards) ----
-  /** The enemy's NEXT action is this much heavier (their attack comes later). */
+  /**
+   * The enemy's NEXT action is this much heavier (their attack comes later) —
+   * and ONLY for the REST OF THE TURN IT LANDS ON (user-locked 2026-08-18: "a
+   * slow is only applied to that 1 card and doesn't stay — after the turn it
+   * was applied on, the slow effect is removed").
+   *
+   * So a slow is spent by whichever of the two comes first: the victim's next
+   * cast this turn (which pays the inflated weight, `castSelect.ts`), or the
+   * end of the turn (`simulate.ts`, beside `expireStatuses`) — a victim who is
+   * stunned, busy mid-span, cooling or simply too poor to afford the taxed
+   * weight carries NOTHING into the next turn. Taxes therefore cannot
+   * accumulate across turns and no clamp is needed.
+   */
   | { kind: 'slow'; weight: number }
   /**
    * SPLASH — `slow` at CARD scope instead of unit scope (user-locked

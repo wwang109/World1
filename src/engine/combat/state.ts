@@ -117,6 +117,14 @@ export interface PieceState {
    * summed into the cast weight in `castSelect.ts` and both are `Math.max`ed
    * rather than summed on re-application.
    *
+   * LIFETIME DIVERGENCE, deliberate and pending a ruling: splash is still
+   * "until that piece is next played", with NO turn limit — it is the one
+   * remaining tax that can cross a turn boundary. `slow` was narrowed to a
+   * single turn on 2026-08-18; whether splash should follow has not been
+   * decided (it is a one-line change here plus a re-price, since a tax that can
+   * expire unpaid is worth strictly less than one that is always eventually
+   * paid). See `CombatantState.nextWeightPenalty`.
+   *
    * LAZILY WRITTEN, NEVER INITIALISED — the same idiom as `lastCastTurn` above,
    * and for a hard reason: `undefined` is dropped by `JSON.stringify` but `0` is
    * not, so eager-initialising this to 0 would re-bake all 400 hashes in
@@ -145,7 +153,21 @@ export interface CombatantState {
   performs: number;
   /** Accumulated sudden-death damage amp (%). */
   sdStacks: number;
-  /** Extra weight on this side's next action (from enemy Slow Next riders). */
+  /**
+   * UNIT-SCOPE weight tax pending on this combatant (from an enemy `slow`).
+   *
+   * LIFETIME — THE TURN IT LANDED ON, AND NO LONGER (user-locked 2026-08-18).
+   * Cleared by whichever comes first: this unit's next resolved cast, which
+   * PAYS it (`simulate.ts`, after the `cost` event), or the end of the current
+   * global turn, which drops it UNPAID (`simulate.ts`, beside the
+   * `expireStatuses` pass). A victim that never gets to act still loses it, so
+   * the value can never carry across a turn boundary and successive slows
+   * cannot accumulate into a lockout.
+   *
+   * Eagerly initialised to 0 (unlike the lazily-written `PieceState` sibling
+   * below): it is a required field that every combatant has always carried, so
+   * a 0 here is already in the outcome-baseline hashes.
+   */
   nextWeightPenalty: number;
   /** Archetypes of the last card this side cast (for Combo riders). */
   lastCastArchetypes: Archetype[];
