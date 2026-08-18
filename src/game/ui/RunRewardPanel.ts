@@ -2,13 +2,16 @@ import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
+import type { SkillDef } from '../../engine/types';
 import type { DraftCard } from '../../run/draft';
 import type { UpgradeCardOption } from '../../run/events';
 import { DESKTOP_PROFILE, MOBILE_PROFILE, type LayoutProfile } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, UI } from '../theme';
 import { CardToken } from './CardToken';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
-import { addHoverTipZone } from './hoverTip';
+import { addHoverTipZone, attachHoverTip } from './hoverTip';
+import { cardHoverEntries } from './cardHoverEntries';
+import { renderCardDetailOverlay } from './cardDetailOverlay';
 import { gemHoverEntry } from './gemGlossary';
 import { addRunArt, choiceArtKey } from './runArt';
 import { centeredBox, FEATURE_CARD_SIZE, layoutFeatureGrid, type Box } from './runRewardGeometry';
@@ -344,6 +347,49 @@ function renderPickHeader(
 }
 
 /**
+ * Attaches ONE cell's inspect affordance in a bonus-draft/upgrade-card
+ * picker grid — desktop gets a mouse hover-tip (`cardHoverEntries`, the SAME
+ * entries `DesktopDraftScene`'s own start-draft grid already shows); mobile
+ * gets a small "ⓘ" corner badge (mirrors `MobileDraftScene`'s own badge)
+ * that opens `renderCardDetailOverlay` instead of picking. Before this, a
+ * mid-run, irreversible 5-wide pick carried strictly LESS information than
+ * the reversible turn-zero draft — this is the one place both pickers below
+ * pick up that parity, instead of each re-deriving it.
+ *
+ * The badge is a second, smaller interactive object drawn ON TOP of the
+ * cell's own PICK hit-rectangle (`hit`) — Phaser dispatches only the topmost
+ * hit-testing object under the pointer, so the badge's own `stopPropagation`
+ * is what keeps the PICK handler underneath it silent on an inspect tap.
+ * No-op on mobile if the caller has no `onInspect` wired (never true today,
+ * but keeps this helper honest about being opt-in).
+ */
+function attachCellInspect(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  cell: Box,
+  skill: SkillDef,
+  onInspect: (() => void) | undefined,
+): void {
+  if (template.platform === 'desktop') {
+    const hit = scene.add.rectangle(cell.x + cell.w / 2, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0);
+    attachHoverTip(scene, hit, { x: cell.x, y: cell.y, w: cell.w, h: cell.h }, cardHoverEntries(skill));
+    return;
+  }
+  if (!onInspect) return;
+  const badgeSize = 22;
+  const bx = cell.x + cell.w - badgeSize / 2 - 4;
+  const by = cell.y + badgeSize / 2 + 4;
+  const badge = scene.add.rectangle(bx, by, badgeSize, badgeSize, 0x0b1420, 0.85)
+    .setOrigin(0.5).setStrokeStyle(1, UI.chip, 0.9).setInteractive({ useHandCursor: true });
+  scene.add.text(bx, by, 'i', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: '11px', color: UI.textAccent }).setOrigin(0.5);
+  badge.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+    event.stopPropagation();
+    playSfx('uiClick');
+    onInspect();
+  });
+}
+
+/**
  * The "PICK ONE TO KEEP" bonus-draft picker — THE one implementation both
  * `DesktopRunEventScene` and `MobileRunEventScene` call for a resolved
  * `bonusDraft` outcome, in place of each scene's own hand-rolled row/column
@@ -356,18 +402,32 @@ function renderPickHeader(
  * same visual weight. No `detail` row (the picker never has one) — left
  * blank exactly like every other outcome that has no detail text, not a
  * special case.
+ *
+ * `inspectedIndex`/`onInspect` (both optional) are the mobile ⓘ-overlay's
+ * state, owned by the calling SCENE (same "lift state up" shape as
+ * `DesktopShopScene`'s `inspectOwned`/`MobileDraftScene`'s `detailSkillId`)
+ * — this function stays a stateless renderer of whatever index the scene
+ * says is currently inspected, never owning that state itself so it survives
+ * this function being re-invoked wholesale on every `rerender()`.
  */
 export function renderRunBonusDraftPicker(
   scene: Phaser.Scene,
   template: RunScreenTemplate,
   cards: readonly DraftCard[],
-  opts: { font: LayoutProfile['font']; eventTitle: string; onPick: (card: DraftCard) => void },
+  opts: {
+    font: LayoutProfile['font'];
+    eventTitle: string;
+    onPick: (card: DraftCard) => void;
+    inspectedIndex?: number | null;
+    onInspect?: (index: number | null) => void;
+  },
 ): void {
   renderPickHeader(scene, template, choiceArtKey('bonusDraft'), 'PICK ONE TO KEEP', opts.eventTitle, opts.font, 'Run reward bonus draft title');
 
   const { feature } = template.contentSlots.reward;
   const ideal = FEATURE_CARD_SIZE[template.platform];
   const cells = layoutFeatureGrid(feature, cards.length, ideal.w, ideal.h, GRID_GAP[template.platform]);
+  let inspecting: SkillDef | undefined;
   cards.forEach((card, i) => {
     const cell = cells[i];
     const skill = skillBook[card.skillId];
@@ -378,7 +438,12 @@ export function renderRunBonusDraftPicker(
     new CardToken(scene, cx, cy, shown, { width: cell.w, height: cell.h, side: 'left' });
     const hit = scene.add.rectangle(cx, cy, cell.w, cell.h, 0xffffff, 0).setInteractive({ useHandCursor: true });
     hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(card); });
+    attachCellInspect(scene, template, cell, shown, opts.onInspect ? () => opts.onInspect?.(i) : undefined);
+    if (opts.inspectedIndex === i) inspecting = shown;
   });
+  if (inspecting) {
+    renderCardDetailOverlay(scene, inspecting, { font: opts.font, onClose: () => opts.onInspect?.(null) });
+  }
 }
 
 /** Small label-strip height (per platform) reserved ABOVE each card in the
@@ -404,12 +469,22 @@ const UPGRADE_TIER_LABEL_H: Record<RunTemplatePlatform, number> = { desktop: 22,
  * one uniform scale factor governs both the card and its label together,
  * never just the card) rather than drawing it as a separate, unscaled
  * overlay that could grow past a shrunk cell.
+ *
+ * `inspectedIndex`/`onInspect` mirror `renderRunBonusDraftPicker`'s own
+ * (same doc comment applies: state lives in the calling scene, this stays a
+ * stateless renderer of whichever index the scene says is inspected).
  */
 export function renderRunUpgradeCardPicker(
   scene: Phaser.Scene,
   template: RunScreenTemplate,
   options: readonly UpgradeCardOption[],
-  opts: { font: LayoutProfile['font']; eventTitle: string; onPick: (option: UpgradeCardOption) => void },
+  opts: {
+    font: LayoutProfile['font'];
+    eventTitle: string;
+    onPick: (option: UpgradeCardOption) => void;
+    inspectedIndex?: number | null;
+    onInspect?: (index: number | null) => void;
+  },
 ): void {
   renderPickHeader(scene, template, choiceArtKey('upgradeCard'), 'CHOOSE A CARD TO UPGRADE', opts.eventTitle, opts.font, 'Run reward upgrade picker title');
 
@@ -418,6 +493,7 @@ export function renderRunUpgradeCardPicker(
   const labelH = UPGRADE_TIER_LABEL_H[template.platform];
   const idealH = cardIdeal.h + labelH;
   const cells = layoutFeatureGrid(feature, options.length, cardIdeal.w, idealH, GRID_GAP[template.platform]);
+  let inspecting: SkillDef | undefined;
   options.forEach((option, i) => {
     const cell = cells[i];
     const base = skillBook[option.skillId];
@@ -440,5 +516,15 @@ export function renderRunUpgradeCardPicker(
     new CardToken(scene, cx, cy, shown, { width: cell.w, height: cardH, side: 'left' });
     const hit = scene.add.rectangle(cx, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0).setInteractive({ useHandCursor: true });
     hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(option); });
+    // Inspect target is the CARD sub-rect (excludes the tier-label strip
+    // above it) so a mobile badge sits at the card's own top-right corner,
+    // matching every other card's badge position, rather than floating
+    // above the card in the label strip.
+    const cardCell: Box = { x: cell.x, y: cell.y + cellLabelH, w: cell.w, h: cardH };
+    attachCellInspect(scene, template, cardCell, shown, opts.onInspect ? () => opts.onInspect?.(i) : undefined);
+    if (opts.inspectedIndex === i) inspecting = shown;
   });
+  if (inspecting) {
+    renderCardDetailOverlay(scene, inspecting, { font: opts.font, onClose: () => opts.onInspect?.(null) });
+  }
 }

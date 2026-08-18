@@ -67,6 +67,16 @@ export class MobileRunEventScene extends Phaser.Scene {
   private bonusDraftCards: DraftCard[] = [];
   private upgradeCardOptions: UpgradeCardOption[] = [];
   private retireConfirmOpen = false;
+  /** Which grid index is under the ⓘ inspect overlay in the bonus-draft/
+   * upgrade-card picker, `null` when closed — mirrors `MobileDraftScene`'s
+   * own `detailSkillId` (state lives on the scene; `RunRewardPanel.ts`'s
+   * pickers stay stateless renderers of whichever index this says is
+   * inspected). Separate fields (not one shared index) because the two
+   * pickers' arrays are indexed independently and only one phase is ever
+   * active at a time, but a stale index surviving a phase switch should
+   * never silently reappear against the WRONG array. */
+  private inspectedDraftIndex: number | null = null;
+  private inspectedUpgradeIndex: number | null = null;
 
   constructor() { super('MobileRunEvent'); }
 
@@ -76,6 +86,8 @@ export class MobileRunEventScene extends Phaser.Scene {
     this.bonusDraftCards = [];
     this.upgradeCardOptions = [];
     this.retireConfirmOpen = false;
+    this.inspectedDraftIndex = null;
+    this.inspectedUpgradeIndex = null;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -111,6 +123,8 @@ export class MobileRunEventScene extends Phaser.Scene {
           this.outcome = outcome;
           this.rerender();
         },
+        inspectedIndex: this.inspectedDraftIndex,
+        onInspect: (index) => { this.inspectedDraftIndex = index; this.rerender(); },
       });
     } else if (this.phase === 'upgradeCardPick') {
       renderRunUpgradeCardPicker(this, TEMPLATE, this.upgradeCardOptions, {
@@ -123,6 +137,8 @@ export class MobileRunEventScene extends Phaser.Scene {
           this.outcome = outcome;
           this.rerender();
         },
+        inspectedIndex: this.inspectedUpgradeIndex,
+        onInspect: (index) => { this.inspectedUpgradeIndex = index; this.rerender(); },
       });
     } else {
       const story = this.renderStory(event, event.choices.length * (80 + 8) - 8);
