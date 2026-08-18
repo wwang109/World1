@@ -328,8 +328,13 @@ type ActionKinds =
    *
    * SINGLE-TARGET AT THE UNIT LEVEL, like `slow`: it resolves against ONE enemy
    * (whatever `resolveTargets` picks). What it spreads across is that victim's
-   * own BOARD, not their team — hence the deliberate non-interaction with AoE
-   * (`scope: 'all'` + splash is rejected by `validateSkillContent`).
+   * own BOARD, not their team — hence the deliberate non-interaction with AoE,
+   * closed on BOTH paths a card can acquire the pair: an AUTHORED
+   * `scope: 'all'` + splash card is rejected by `validateSkillContent`, and a
+   * GEM's splash is dropped at resolve time by the splash gate in
+   * `spliceGemActions` (cards.ts) on any host that already hits more than one
+   * target — or that already carries a splash of its own, so a socket can
+   * never double up the band tax.
    *
    * THE BAND (see `splashBand`, combat/splash.ts): the ANCHOR — the piece the
    * victim's `castCursor` sits in at the moment splash resolves, i.e. "the
@@ -565,6 +570,31 @@ export type SkillBook = Record<string, SkillDef>;
 
 export function weightOf(skill: SkillDef): number {
   return skill.speedWeight ?? skill.size * 10;
+}
+
+/**
+ * Whether this skill's OFFENSIVE effects resolve against MORE THAN ONE unit.
+ *
+ * THE CONCEPT, ONE DEFINITION — deliberately not a `scope === 'all'` test
+ * copied at each call site. `scope: 'all'` is the only multi-target mechanism
+ * the game has TODAY, so today this function is exactly that comparison; the
+ * point is that the two places which must agree about it read the SAME
+ * function:
+ *   • `resolveTargets` (combat/interpreter.ts) — the fan-out itself, "AoE: all
+ *     living foes, ascending index";
+ *   • the SPLASH GATE in `resolveEffectiveSkill` (cards.ts) — a gem's `splash`
+ *     no-ops on a host that already hits more than one unit, because splash is
+ *     single-target at the UNIT level (see the `splash` action docs above).
+ * A future multi-target mechanism (chain / cleave / split shot) is added HERE,
+ * and both the fan-out and every rule written against "hits more than one
+ * target" inherit it — no new special case, no rule that silently applies to
+ * only one of the two mechanisms.
+ *
+ * Takes just the `scope` field so a partial/effective card can be asked the
+ * question as cheaply as a full `SkillDef`.
+ */
+export function isMultiTargetSkill(skill: Pick<SkillDef, 'scope'>): boolean {
+  return skill.scope === 'all';
 }
 
 export type EquipmentSlot = 'weapon' | 'armor' | 'trinket';

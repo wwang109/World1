@@ -1,6 +1,6 @@
 import type { Rng } from '../rng';
 import type { Action, EffectSourceRef, Property, SkillDef } from '../types';
-import { MAX_NEGATE_CHARGES, MAX_WARD_CHARGES } from '../types';
+import { isMultiTargetSkill, MAX_NEGATE_CHARGES, MAX_WARD_CHARGES } from '../types';
 import type { AntiHealCategory, AntiHealReduction, CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
@@ -215,7 +215,11 @@ export function resolveTargets(
   }
   const foes = foesOf(ctx.state, caster);
   const living = foes.filter((f) => f.alive);
-  if (skill.scope === 'all') return living; // AoE: all living foes, ascending index.
+  // AoE: all living foes, ascending index. Asked through `isMultiTargetSkill`
+  // (types.ts) rather than comparing `scope` here, so THIS fan-out and every
+  // rule written against "hits more than one target" (the splash gate in
+  // cards.ts) read one definition of the concept — see that function.
+  if (isMultiTargetSkill(skill)) return living;
   if (living.length === 0) return foes.length > 0 ? [foes[0]!] : [];
   if (caster.focus !== undefined) {
     const focused = living.find((f) => f.index === caster.focus);

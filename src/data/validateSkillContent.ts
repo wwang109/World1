@@ -414,8 +414,9 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   if (Array.isArray(raw.effects)) raw.effects.forEach((a, i) => validateAction(a, where + '.effects[' + String(i) + ']', problems));
 
   /**
-   * `scope: 'all'` + `splash` IS REJECTED (user-locked 2026-08-18: "this
-   * doesn't affect aoe the same but only for target's current turn's card").
+   * AN AUTHORED `scope: 'all'` + `splash` CARD IS REJECTED (user-locked
+   * 2026-08-18: "this doesn't affect aoe the same but only for target's
+   * current turn's card").
    *
    * Splash is single-target AT THE UNIT LEVEL by design — what it spreads
    * across is ONE victim's board, not a team. It is nonetheless an `offensive`
@@ -425,6 +426,19 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
    * close that: price the fan-out, or refuse it. Refused — the mechanic's
    * stated identity is single-target, and pricing a shape the design forbids
    * would invite it to ship.
+   *
+   * WHAT THIS RULE DOES AND DOES NOT COVER (corrected 2026-08-18 — it used to
+   * claim the combination was "rejected outright", full stop). This validator
+   * reads the AUTHORED card def, so it can only refuse the combination a
+   * DESIGNER writes: it never sees an effect GEM's actions, which are spliced
+   * onto the host at resolve time and are the one way an AoE card can acquire
+   * a splash after authoring. That path is closed separately, by THE SPLASH
+   * GATE in `resolveEffectiveSkill`/`spliceGemActions` (src/engine/cards.ts),
+   * which drops a gem `splash` on a multi-target host (and on a host that
+   * already splashes). Both rules stay: the engine gate makes the combination
+   * harmless at runtime, and THIS rule keeps it a loud build failure, so a
+   * designer writing AoE + splash by hand is told rather than shipping an
+   * effect the engine will silently drop.
    *
    * NOT a silent zero either way: splash IS priced (5 deci/weight, control
    * family), and because it is marked `offensive` an AoE splash would pay

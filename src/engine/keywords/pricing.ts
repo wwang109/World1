@@ -180,8 +180,10 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // `control` family so it cannot dodge the control cap; `offensive` because
     // it resolves against a foe (mirrors `isOffensiveAction`) — note that
     // makes `scope: 'all'` + splash pay the AoE reach multiplier rather than
-    // price at a silent zero, though `validateSkillContent` rejects that
-    // combination outright: splash is single-target at the UNIT level.
+    // price at a silent zero. Nothing can reach that price in practice: splash
+    // is single-target at the UNIT level, so `validateSkillContent` refuses an
+    // AUTHORED AoE+splash card and the splash gate in `resolveEffectiveSkill`
+    // (cards.ts) drops a GEM's splash on a multi-target host.
     splash: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'weight', num: P.splashPerWeightNum, den: P.splashPerWeightDen }] },
     disrupt: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'bracketed', field: 'amount', brackets: P.disruptBrackets }] },
     lifesteal: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'pct', num: P.lifestealPerPctNum, den: P.lifestealPerPctDen }] },

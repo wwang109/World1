@@ -343,6 +343,35 @@
    ]
   },
   {
+   "id": "fracture_sliver",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Fracture Sliver",
+      "text": "{{Splash}} +8 weight on the card the enemy is about to play and the ones either side of it.",
+      "notes": [
+       "THE SPLASH GRANT, upper rung (2026-08-18) — see tremor_sliver for the",
+       "keyword's rationale and the full ladder note.",
+       "PRICE: 8 x 5 deci = 40 deci = Rare EXACTLY (weight 7 prices at 35, which is",
+       "no band). Double the Common rung, the same doubling step the slow gems use.",
+       "Pitched deliberately ABOVE shockwave_slam's own splash 6: the showcase card",
+       "spends most of its budget on damage, so the dedicated Rare gem is what a",
+       "board built around board-tempo denial actually wants."
+      ],
+      "kind": "effect",
+      "rarity": "rare",
+      "actions": [
+       {
+        "kind": "splash",
+        "weight": 8
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
    "id": "frost_ward_echo",
    "versions": [
     {
@@ -872,6 +901,46 @@
         "weightDelta": -1
        }
       }
+     }
+    }
+   ]
+  },
+  {
+   "id": "tremor_sliver",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Tremor Sliver",
+      "text": "{{Splash}} +4 weight on the card the enemy is about to play and the ones either side of it.",
+      "notes": [
+       "THE SPLASH GRANT, entry rung (2026-08-18). splash was authored as a card",
+       "keyword with one showcase card (shockwave_slam); the point of the mechanic",
+       "is granting it to a card that has none, and a gem is how that is done.",
+       "PRICE: splash is 5 deci per weight (PRICE.splashPerWeightNum/Den — 2x the",
+       "slow rate, because the tax lands on a canonical 3-piece band instead of on",
+       "the unit's next action). 4 x 5 = 20 deci = Common EXACTLY. Minimal for its",
+       "band: weight 3 prices at 15, which is no band at all.",
+       "Ladders with fracture_sliver (Rare, weight 8) on the same DOUBLING shape",
+       "the slow gems use (8 / 16 / 32) — at half the weights, since splash costs",
+       "twice as much per point. Epic and Legendary rungs would land exactly at",
+       "weight 12 (60) and weight 16 (80); deliberately NOT shipped yet — splash",
+       "has one card and no play data, and a +16 tax on up to three of a victim's",
+       "cards is the heaviest board disruption in the game. Those rungs are",
+       "balance-designer's to open.",
+       "NOT usable to make a splash AoE or to double an existing one: the splash",
+       "gate in resolveEffectiveSkill (src/engine/cards.ts) drops this action on a",
+       "host that already hits more than one target, and on a host that already",
+       "carries a splash of its own (the host's own splash always wins)."
+      ],
+      "kind": "effect",
+      "rarity": "common",
+      "actions": [
+       {
+        "kind": "splash",
+        "weight": 4
+       }
+      ]
      }
     }
    ]

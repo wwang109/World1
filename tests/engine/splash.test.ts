@@ -3,13 +3,17 @@ import { simulate } from '../../src/engine/combat/simulate';
 import { initCombatState, type CombatState, type CombatantState } from '../../src/engine/combat/state';
 import { splashAnchor, splashBand } from '../../src/engine/combat/splash';
 import { scanCast } from '../../src/engine/combat/castSelect';
-import { applyCast } from '../../src/engine/combat/interpreter';
+import { applyCast, resolveTargets } from '../../src/engine/combat/interpreter';
 import { NO_MODS } from '../../src/engine/combat/auras';
 import { Rng } from '../../src/engine/rng';
 import { EFFECT_CAPS_DECI, PRICE, powerLevelDeci, capViolations } from '../../src/engine/balance';
 import { validateSkillDocument } from '../../src/data/validateSkillContent';
 import { skillBook } from '../../src/data/skills';
-import type { BoardPiece, CombatConfig, SkillBook, SkillDef } from '../../src/engine/types';
+import { gemBook } from '../../src/data/gems';
+import { resolveEffectiveSkill, splashSuppressionOn } from '../../src/engine/cards';
+import { gemPowerLevelDeci, isGemOnBudget, RARITY_PL_DECI } from '../../src/engine/balance';
+import { isMultiTargetSkill } from '../../src/engine/types';
+import type { BoardPiece, CombatConfig, Gem, SkillBook, SkillDef } from '../../src/engine/types';
 import type { CombatEvent as Ev } from '../../src/engine/combat/events';
 import { cfg, tc, NO_ENDGAME } from '../helpers';
 
@@ -50,6 +54,12 @@ const BOOK: SkillBook = {
   // Fires ONCE per fight (cooldowns enabled) so a consumption test sees the
   // tax spent without the caster immediately re-applying it.
   splashOnce: card('splashOnce', { effects: [{ kind: 'splash', weight: 6 }], archetypes: ['debuff'], cooldownTurns: 99 }),
+  // GEM HOSTS. `splashless` is an ordinary single-target card with no splash of
+  // its own; `aoeJab` is the same card with the one multi-target mechanism the
+  // game has today. Both carry a damage line so the host still fires when its
+  // gem's splash is dropped.
+  splashless: card('splashless'),
+  aoeJab: card('aoeJab', { scope: 'all' }),
 };
 
 /** A combat state whose ENEMY board is exactly `pieces`, cursor parked at `cursor`. */
@@ -334,5 +344,195 @@ describe('splash pricing', () => {
       }],
     };
     expect(validateSkillDocument(doc)).toEqual([]);
+  });
+});
+
+/**
+ * SPLASH ON A GEM — the grant the keyword was built for, and the two gates that
+ * keep it honest (user ruling, 2026-08-18: "splash is supposed to be on a gem
+ * that allows giving other cards this effect in the first place").
+ *
+ * The gem is the point: `shockwave_slam` shows the keyword off, the gem is how
+ * any card gets it. Because a gem is spliced onto its host AFTER authoring,
+ * `validateSkillContent` cannot see it — so the two rules that protect splash's
+ * identity live at the resolver seam (`spliceGemActions`, src/engine/cards.ts)
+ * and are pinned here:
+ *   (a) a host that already hits MORE THAN ONE target drops the gem's splash —
+ *       otherwise the offensive fan-out taxes every living foe's whole board
+ *       band at a single-target price;
+ *   (b) a host that ALREADY SPLASHES drops it too, host's-own-splash-wins, so a
+ *       socket can never double the band tax or rewrite an audited magnitude.
+ */
+
+/** A gem carrying exactly one splash of `weight` (id/rarity are irrelevant to the gate). */
+const splashGem = (weight: number, id = 'test_splash_gem'): Gem =>
+  ({ kind: 'effect', id, rarity: 'common', actions: [{ kind: 'splash', weight }] });
+
+describe('splash gems: the catalog', () => {
+  it('ships a Common and a Rare rung that land EXACTLY on their rarity bands', () => {
+    // splash prices at 5 deci per weight, so a gem's whole PL is 5 x weight:
+    //   weight 4 -> 20 deci = Common (20)   ·   weight 8 -> 40 deci = Rare (40)
+    // (weight 3 -> 15 and weight 7 -> 35 are no band at all, which is what
+    // makes each shipped magnitude MINIMAL for its band.)
+    const tremor = gemBook.tremor_sliver!;
+    const fracture = gemBook.fracture_sliver!;
+    expect(tremor.kind).toBe('effect');
+    expect(fracture.kind).toBe('effect');
+    expect(gemPowerLevelDeci(tremor)).toBe(RARITY_PL_DECI.common);
+    expect(gemPowerLevelDeci(fracture)).toBe(RARITY_PL_DECI.rare);
+    expect(isGemOnBudget(tremor) && isGemOnBudget(fracture)).toBe(true);
+    expect(gemPowerLevelDeci(splashGem(4))).toBe(20);
+    expect(gemPowerLevelDeci(splashGem(8))).toBe(40);
+  });
+
+  it('GRANTS splash to a host that has none — the whole point of the gem', () => {
+    // sword_slash carries no splash of its own. Socketed, the hero's cast taxes
+    // the foe's band; un-socketed the same board never emits a `splashed` event.
+    const foeRow = tc('foe', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK });
+    const run = (gem?: Gem) => simulate({
+      ...cfg(
+        tc('hero', [], { speed: 30, maxHp: 500 }, {
+          pieces: [{ skillId: 'splashless', slot: 0, ...(gem ? { gem } : {}) }],
+          skillBook: BOOK,
+        }),
+        foeRow,
+        { ...NO_ENDGAME, maxTurns: 4 },
+      ),
+      skillBook: BOOK,
+    }, 1);
+
+    expect(run().events.some((e) => e.kind === 'splashed')).toBe(false);
+
+    const splashed = run(gemBook.tremor_sliver!).events
+      .filter((e): e is Extract<Ev, { kind: 'splashed' }> => e.kind === 'splashed');
+    expect(splashed.length).toBeGreaterThan(0);
+    expect(splashed[0]).toMatchObject({ side: 'enemy', weight: 4, anchorSlot: 0, slots: [0, 1] });
+  });
+});
+
+describe('splash gems: GATE (a) — a host that hits more than one target', () => {
+  it('drops the gem splash on an AoE host, at the RESOLVER (no splash on the effective card)', () => {
+    const aoe = BOOK.aoeJab!;
+    expect(isMultiTargetSkill(aoe)).toBe(true);
+    const eff = resolveEffectiveSkill(aoe, { skillId: 'aoeJab', slot: 0, gem: splashGem(8) });
+    expect(eff.effects.some((a) => a.kind === 'splash')).toBe(false);
+    expect(splashSuppressionOn(aoe)).toBe('multiTarget');
+  });
+
+  it('applies NOTHING at runtime: not one splashed event, on any foe', () => {
+    const config: CombatConfig = {
+      ...cfg(
+        tc('hero', [], { speed: 30, maxHp: 500 }, {
+          pieces: [{ skillId: 'aoeJab', slot: 0, gem: gemBook.fracture_sliver! }],
+          skillBook: BOOK,
+        }),
+        tc('foe', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
+        { ...NO_ENDGAME, maxTurns: 4 },
+      ),
+      skillBook: BOOK,
+    };
+    // Three foes, so a fanned-out splash would be loudly visible (3 events/cast).
+    config.enemyTeam = [
+      tc('foe1', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
+      tc('foe2', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
+      tc('foe3', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
+    ];
+    const { events } = simulate(config, 1);
+    expect(events.some((e) => e.kind === 'damage' && e.side === 'enemy')).toBe(true); // the host still fires
+    expect(events.some((e) => e.kind === 'splashed')).toBe(false);
+    for (const piece of simulate(config, 1).finalState.enemyTeam.flatMap((c) => c.pieces)) {
+      expect(piece.nextWeightPenalty ?? 0).toBe(0);
+    }
+  });
+
+  it('drops ONLY the splash — every other action the gem carries still lands', () => {
+    const mixed: Gem = {
+      kind: 'effect', id: 'mixed', rarity: 'rare',
+      actions: [{ kind: 'splash', weight: 8 }, { kind: 'poison', stacks: 3 }],
+    };
+    const eff = resolveEffectiveSkill(BOOK.aoeJab!, { skillId: 'aoeJab', slot: 0, gem: mixed });
+    expect(eff.effects.map((a) => a.kind)).toEqual(['damage', 'poison']);
+    expect(eff.effects[1]).toMatchObject({ kind: 'poison', stacks: 3, fromGem: true });
+  });
+});
+
+describe('splash gems: GATE (b) — a host that already splashes', () => {
+  const showcase = skillBook.shockwave_slam!;
+
+  const shockwaveFight = (gem?: Gem): CombatConfig => cfg(
+    tc('hero', [], { attack: 12, speed: 24, maxHp: 500 }, {
+      pieces: [{ skillId: 'shockwave_slam', slot: 0, ...(gem ? { gem } : {}) }],
+    }),
+    tc('foe', ['sword_slash', 'fireball', 'armor_break'], { speed: 10, maxHp: 500 }),
+    { ...NO_ENDGAME, maxTurns: 10 },
+  );
+
+  it('the HOST’s splash wins: socketing a splash gem is BYTE-IDENTICAL to the bare card', () => {
+    const bare = simulate(shockwaveFight(), 7);
+    for (const gem of [gemBook.tremor_sliver!, gemBook.fracture_sliver!, splashGem(16)]) {
+      const gemmed = simulate(shockwaveFight(gem), 7);
+      expect(JSON.stringify(gemmed.events)).toBe(JSON.stringify(bare.events));
+      expect(JSON.stringify(gemmed.finalState)).toBe(JSON.stringify(bare.finalState));
+      expect(gemmed.result).toEqual(bare.result);
+    }
+    // ...and the card still splashes at ITS authored 6, exactly once per cast.
+    const splashes = bare.events.filter((e): e is Extract<Ev, { kind: 'splashed' }> => e.kind === 'splashed');
+    expect(splashes.length).toBeGreaterThan(0);
+    expect(splashes.every((e) => e.weight === 6)).toBe(true);
+  });
+
+  it('precedence is PROVENANCE, not magnitude and not list order', () => {
+    // A HEAVIER gem splash does not win (that would rewrite an audited card),
+    // and a gem whose splash sits first in its own action list does not either.
+    expect(splashSuppressionOn(showcase)).toBe('hostAlreadySplashes');
+    const heavy = resolveEffectiveSkill(showcase, { skillId: 'shockwave_slam', slot: 0, gem: splashGem(16) });
+    const splashActions = heavy.effects.filter((a) => a.kind === 'splash');
+    expect(splashActions).toHaveLength(1);
+    expect(splashActions[0]).toMatchObject({ weight: 6 });
+    expect(splashActions[0]).not.toHaveProperty('fromGem');
+  });
+
+  it('a gem carrying TWO splashes keeps exactly ONE (one band tax, one event per cast)', () => {
+    const doubled: Gem = {
+      kind: 'effect', id: 'doubled', rarity: 'rare',
+      actions: [{ kind: 'splash', weight: 8 }, { kind: 'splash', weight: 2 }],
+    };
+    const eff = resolveEffectiveSkill(BOOK.splashless!, { skillId: 'splashless', slot: 0, gem: doubled });
+    const kept = eff.effects.filter((a) => a.kind === 'splash');
+    expect(kept).toHaveLength(1);
+    expect(kept[0]).toMatchObject({ kind: 'splash', weight: 8, fromGem: true });
+  });
+
+  it('an ORDINARY single-target host with no splash is untouched by the gate', () => {
+    const host = BOOK.splashless!;
+    expect(splashSuppressionOn(host)).toBeNull();
+    const eff = resolveEffectiveSkill(host, { skillId: 'splashless', slot: 0, gem: gemBook.fracture_sliver! });
+    expect(eff.effects.map((a) => a.kind)).toEqual(['damage', 'splash']);
+    expect(eff.effects[1]).toMatchObject({ kind: 'splash', weight: 8, fromGem: true });
+  });
+});
+
+describe('splash gates: the multi-target CONCEPT, not a scope literal', () => {
+  it('the gate and the fan-out ask the SAME question (`isMultiTargetSkill`)', () => {
+    // If a future mechanism makes a card multi-target without `scope: 'all'`,
+    // this pairing is what forces both sides to move together: the fan-out
+    // reaches every living foe exactly when the gate suppresses splash.
+    const foes = ['a', 'b', 'c'].map((n) => tc('foe' + n, ['jab'], { speed: 1, maxHp: 500 }, { skillBook: BOOK }));
+    for (const id of ['aoeJab', 'splashless'] as const) {
+      const state = initCombatState({
+        playerTeam: [tc('hero', [], { speed: 30, maxHp: 500 }, { pieces: [{ skillId: id, slot: 0 }], skillBook: BOOK })],
+        enemyTeam: foes,
+        skillBook: BOOK,
+      });
+      const skill = BOOK[id]!;
+      const targets = resolveTargets(
+        { state, rng: new Rng(1), events: [] },
+        state.playerTeam[0]!,
+        skill,
+        { kind: 'damage', power: 1 },
+      );
+      expect(targets.length > 1).toBe(isMultiTargetSkill(skill));
+      expect(splashSuppressionOn(skill) === 'multiTarget').toBe(isMultiTargetSkill(skill));
+    }
   });
 });

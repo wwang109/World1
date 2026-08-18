@@ -20,6 +20,7 @@ import {
 import { scalableRateDeci as tableScalableRateDeci } from './keywords/pricing';
 import {
   BASELINE_COOLDOWN,
+  isMultiTargetSkill,
   weightOf,
   type Action,
   type BoardPiece,
@@ -321,7 +322,9 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
   slow: 'post',
   // `splash` taxes the VICTIM's future casts; nothing inside this cast can read
   // it back, and (unlike `shieldBreak`) it opens nothing up for the host's own
-  // hit. Same placement as its unit-scope sibling `slow`.
+  // hit. Same placement as its unit-scope sibling `slow`. (WHERE it splices is
+  // this table's business; WHETHER it splices at all is THE SPLASH GATE's —
+  // see `spliceGemActions` below.)
   splash: 'post',
   disrupt: 'post',
   guard: 'post',
@@ -339,27 +342,107 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
 };
 
 /**
- * Fold a gem's actions into the host's, each at its declared phase
- * (`GEM_ACTION_PHASE`). `base` is copied through UNTOUCHED and contiguous — a
- * card's authored order is never rewritten — with the gem's `pre` actions ahead
- * of it and its `post` actions behind it, each block keeping the gem's own
- * authored order. Plain index walks: no Map/Set iteration, no RNG, no float.
+ * WHY a gem's `splash` was dropped from the effective card — `null` when it
+ * applies normally. See `SPLASH GATE` below for the rule; this is the reason
+ * code, exported so a socket UI can say "this gem does nothing on this card"
+ * without re-deriving (or drifting from) the engine's rule.
+ *
+ * Ask it of the card BEFORE its gem is folded in (the authored/tiered def, i.e.
+ * what `applyTier` returns). Handing it an already-resolved skill still answers
+ * correctly: the host-splash arm ignores `fromGem` actions, so a gem's own
+ * splash never counts as the host's.
  */
-function spliceGemActions(base: readonly Action[], gemActions: readonly Action[]): Action[] {
+export type SplashSuppression = 'multiTarget' | 'hostAlreadySplashes';
+
+export function splashSuppressionOn(host: SkillDef): SplashSuppression | null {
+  // (a) The host already resolves against more than one unit. Asked as a
+  // CONCEPT (`isMultiTargetSkill`, types.ts), not as `scope === 'all'` — that
+  // is merely the only mechanism that exists today, and a future one must
+  // inherit this rule rather than need a second special case.
+  if (isMultiTargetSkill(host)) return 'multiTarget';
+  // (b) The host already carries a splash of its own.
+  for (let i = 0; i < host.effects.length; i += 1) {
+    const action = host.effects[i]!;
+    if (action.kind === 'splash' && !action.fromGem) return 'hostAlreadySplashes';
+  }
+  return null;
+}
+
+/**
+ * Fold a gem's actions into the host's, each at its declared phase
+ * (`GEM_ACTION_PHASE`). The host's own effects are copied through UNTOUCHED and
+ * contiguous — a card's authored order is never rewritten — with the gem's
+ * `pre` actions ahead of them and its `post` actions behind, each block keeping
+ * the gem's own authored order. Plain index walks: no Map/Set iteration, no
+ * RNG, no float.
+ *
+ * THE SPLASH GATE (user-locked 2026-08-18) — the ONE kind this function can
+ * refuse to splice. `splash` taxes a 3-piece band on ONE victim's board and is
+ * single-target AT THE UNIT LEVEL by design (see the `splash` docs in
+ * types.ts). A gem is the only way that identity can be violated after
+ * authoring, so the rule is enforced HERE, at the resolver seam, where the
+ * effective card is built — NOT in the combat loop, which stays keyword-blind,
+ * and not only in `validateSkillContent`, which inspects the AUTHORED def and
+ * structurally cannot see a gem-appended action. A gem `splash` is dropped when
+ * either arm of `splashSuppressionOn` fires:
+ *
+ *  (a) THE HOST ALREADY HITS MORE THAN ONE TARGET. Otherwise `resolveTargets`
+ *      fans the (offensive) splash across every living foe and each one's whole
+ *      board band is taxed — team-wide board disruption bought at a
+ *      single-target price, since `gemPowerLevelDeci` prices a gem host-blind
+ *      at `scope: 'one'`.
+ *
+ *  (b) THE HOST ALREADY CARRIES A SPLASH. THE HOST'S OWN SPLASH WINS, always —
+ *      precedence is decided by PROVENANCE, never by list position or
+ *      magnitude, so the outcome cannot depend on gem action ordering (nor on
+ *      which of the two is larger). Rationale: the authored card is the priced,
+ *      audited artifact and the gem is the addition, so the addition yields.
+ *      The two rejected alternatives: `Math.max` of the weights would make
+ *      socketing a gem silently REWRITE a card's audited magnitude (and would
+ *      let a Common gem look like a downgrade on a big-splash host), and
+ *      "last one wins" would hand the outcome to authoring order inside the
+ *      gem. Note the runtime is NOT a safe fallback here either: two splash
+ *      actions would apply `Math.max` twice to the same band and emit TWO
+ *      `splashed` events for one cast — the playback log would show a second
+ *      effect that changed nothing.
+ *
+ * A gem carrying MORE THAN ONE splash keeps only the FIRST (its own authored
+ * order): the effective card carries at most one splash, so the same
+ * one-event-per-cast guarantee holds for the pathological case too.
+ *
+ * SILENT, BY DESIGN — the drop emits nothing to the event log. It is resolved
+ * once at board setup (`initCombatant`), before turn 1: there is no turn, no
+ * caster and no target to attribute an event to, and re-logging it per cast
+ * would put an identical noise line in every fight the socket appears in. The
+ * event log is the record of what HAPPENED in combat; a statically-known
+ * no-op did not happen in combat. The place to warn a player is the socket UI,
+ * which can ask `splashSuppressionOn` directly.
+ */
+function spliceGemActions(host: SkillDef, gemActions: readonly Action[]): Action[] {
   const pre: Action[] = [];
   const post: Action[] = [];
-  for (const action of gemActions) {
+  const splashBlocked = splashSuppressionOn(host) !== null;
+  let splashTaken = false;
+  for (let i = 0; i < gemActions.length; i += 1) {
+    const action = gemActions[i]!;
+    if (action.kind === 'splash') {
+      if (splashBlocked || splashTaken) continue;
+      splashTaken = true;
+    }
     const marked = markFromGem(action);
     if (GEM_ACTION_PHASE[action.kind] === 'pre') pre.push(marked);
     else post.push(marked);
   }
-  return [...pre, ...base, ...post];
+  return [...pre, ...host.effects, ...post];
 }
 
 /**
  * The skill actually cast from this piece. An effect gem splices its actions
  * into the base effects at the phase its KIND declares (`GEM_ACTION_PHASE`:
- * `comboBonus`/`shieldBreak` ahead of the card, everything else after it), and
+ * `comboBonus`/`shieldBreak` ahead of the card, everything else after it —
+ * with ONE refusal, THE SPLASH GATE on `spliceGemActions`: a gem `splash` is
+ * dropped on a host that already hits more than one target or already splashes
+ * of its own), and
  * — if it carries `cooldownReduction` / `weightIncreasePct` — shortens the
  * card's effective cooldown by that many turns (floored at 0) / raises its
  * effective initiative weight by that percentage. Any other case (no gem / stat
@@ -385,7 +468,7 @@ export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece): SkillDe
   if (gem.actions.length === 0 && cooldownReduction === 0 && weightIncreasePct <= 0) return tiered;
 
   const effects = gem.actions.length > 0
-    ? spliceGemActions(tiered.effects, gem.actions)
+    ? spliceGemActions(tiered, gem.actions)
     : tiered.effects;
   if (cooldownReduction === 0 && weightIncreasePct <= 0) return { ...tiered, effects };
 
