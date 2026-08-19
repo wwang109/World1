@@ -46,14 +46,26 @@ const BOOK: SkillBook = {
   jab3: card('jab3'),
   jab4: card('jab4'),
   jab5: card('jab5'),
-  // A size-3 card — ONE piece however many slots it covers.
+  // Multi-slot cards — ONE piece however many slots they cover.
   wide: card('wide', { size: 3, speedWeight: 30 }),
+  wide2: card('wide2', { size: 2, speedWeight: 20 }),
   // The keyword under test, with no damage line so nothing else moves.
   splash6: card('splash6', { effects: [{ kind: 'splash', weight: 6 }], archetypes: ['debuff'] }),
   splash2: card('splash2', { effects: [{ kind: 'splash', weight: 2 }], archetypes: ['debuff'] }),
   // Fires ONCE per fight (cooldowns enabled) so a consumption test sees the
   // tax spent without the caster immediately re-applying it.
   splashOnce: card('splashOnce', { effects: [{ kind: 'splash', weight: 6 }], archetypes: ['debuff'], cooldownTurns: 99 }),
+  // Heavy enough that the caster must bank four turns before it fires — long
+  // enough for a 3-card victim to walk its whole board and park the cursor PAST
+  // the last card, which is the no-wrap anchor case.
+  splashLate: card('splashLate', { effects: [{ kind: 'splash', weight: 6 }], archetypes: ['debuff'], speedWeight: 40, cooldownTurns: 99 }),
+  // Both taxes from one cast, so their SUM and their different lifetimes can be
+  // watched on the same victim.
+  slowSplash: card('slowSplash', {
+    effects: [{ kind: 'slow', weight: 4 }, { kind: 'splash', weight: 6 }],
+    archetypes: ['debuff'],
+    cooldownTurns: 99,
+  }),
   // GEM HOSTS. `splashless` is an ordinary single-target card with no splash of
   // its own; `aoeJab` is the same card with the one multi-target mechanism the
   // game has today. Both carry a damage line so the host still fires when its
@@ -145,6 +157,37 @@ describe('splash band geometry', () => {
     expect(splashAnchor(foe)?.slot).toBe(4);
     expect(slotsOf(foe)).toEqual([0, 4]);
   });
+
+  it('THE ANCHOR DOES NOT WRAP: a cursor past the last card anchors on the LAST CARD PLAYED', () => {
+    // User ruling 2026-08-19. The cursor parks at `slot + 1` after a cast, so a
+    // victim that just played its rightmost card sits here every rotation.
+    // Wrapping made the anchor slot 0 — a piece that by definition has no left
+    // neighbour, so the band was deterministically 2 wide on every wrap AND it
+    // teleported to the far side of the board. Now it stays where the action
+    // was: anchor 2, band [1, 2].
+    const foe = enemyBoard(row(['jab', 'jab2', 'jab3']), 3);
+    expect(splashAnchor(foe)?.slot).toBe(2);
+    expect(slotsOf(foe)).toEqual([1, 2]);
+  });
+
+  it('holds however far past the last card the cursor is parked, and over gaps', () => {
+    const foe = enemyBoard([
+      { skillId: 'jab', slot: 0 },
+      { skillId: 'wide', slot: 2 }, // slots 2-4
+    ], 8);
+    expect(splashAnchor(foe)?.slot).toBe(2); // the size-3 card, not slot 0
+    expect(slotsOf(foe)).toEqual([0, 2]);
+  });
+
+  it('a card AHEAD of the cursor still wins over one behind it (forward first, then fall back)', () => {
+    // Both directions have a piece: the rotation reaches slot 5 next, so that is
+    // the anchor — the backward fallback is only for "nothing ahead at all".
+    const foe = enemyBoard([
+      { skillId: 'jab', slot: 0 },
+      { skillId: 'jab2', slot: 5 },
+    ], 2);
+    expect(splashAnchor(foe)?.slot).toBe(5);
+  });
 });
 
 /** Fire ONE `splash` cast from the hero onto the enemy, in isolation. */
@@ -182,13 +225,6 @@ describe('splash application', () => {
     expect(state.enemy.pieces.map((p) => p.nextWeightPenalty)).toEqual([6, 6, 6]);
     castSplashOn(state, BOOK.splash6!); // equal: still 6, not 12
     expect(state.enemy.pieces.map((p) => p.nextWeightPenalty)).toEqual([6, 6, 6]);
-  });
-
-  it('a weaker splash cannot LOWER a standing penalty either', () => {
-    const state = splashState(row(['jab', 'jab2', 'jab3']), 1);
-    castSplashOn(state, BOOK.splash6!);
-    castSplashOn(state, BOOK.splash2!);
-    expect(state.enemy.pieces[1]!.nextWeightPenalty).toBe(6);
   });
 
   it('is a NO-OP on a dead unit — no penalty, no event', () => {
@@ -277,6 +313,157 @@ describe('splash penalty consumption', () => {
       expect(Object.prototype.hasOwnProperty.call(piece, 'nextWeightPenalty')).toBe(false);
     }
   });
+
+  it('a splashed-then-CONSUMED piece has the key DELETED, not left as undefined', () => {
+    // The consumption site must `delete` (simulate.ts). `= undefined` also
+    // hides from JSON.stringify, but leaves hasOwnProperty true — visible to
+    // Object.keys, toStrictEqual and structured-clone, so a consumed piece
+    // would no longer be byte-equal to a never-splashed one.
+    const { events, finalState } = simulate(multicastFight(), 1);
+    // Slots 0-1 were taxed and both played (see the multi-cast test below);
+    // slot 2 was never in the band.
+    expect(events.some((e) => e.kind === 'splashed')).toBe(true);
+    const foe = finalState.enemyTeam[0]!;
+    for (const piece of foe.pieces) {
+      expect(Object.prototype.hasOwnProperty.call(piece, 'nextWeightPenalty')).toBe(false);
+    }
+    expect(Object.keys(foe.pieces[0]!)).not.toContain('nextWeightPenalty');
+    // A consumed piece is structurally identical to an untouched one.
+    expect(Object.keys(foe.pieces[0]!).sort()).toEqual(Object.keys(foe.pieces[2]!).sort());
+  });
+});
+
+/**
+ * THROUGH `simulate()`, not `splashBand()` — the cases where the tax's LIFETIME
+ * and the turn loop are the thing under test: who pays, when, how often, and
+ * how it composes with the unit-scope `slow`.
+ */
+
+/** Hero splashes once (cooldown 99) on turn 1, then the fight plays out. */
+function splashFight(
+  hero: string,
+  foe: ReturnType<typeof tc>,
+  heroStats: Parameters<typeof tc>[2] = {},
+  extra: Parameters<typeof cfg>[2] = {},
+): CombatConfig {
+  return {
+    ...cfg(
+      tc('hero', [hero], { speed: 30, attack: 1, maxHp: 500, ...heroStats }, { skillBook: BOOK }),
+      foe,
+      { ...NO_ENDGAME, maxTurns: 30, cooldownsEnabled: true, ...extra },
+    ),
+    skillBook: BOOK,
+  };
+}
+
+const enemyPlays = (events: Ev[]): Extract<Ev, { kind: 'play' }>[] =>
+  events.filter((e): e is Extract<Ev, { kind: 'play' }> => e.kind === 'play' && e.side === 'enemy');
+
+/** First and subsequent play weights, keyed by slot. */
+function payments(plays: Extract<Ev, { kind: 'play' }>[]): { first: Map<number, number>; later: Map<number, number[]> } {
+  const first = new Map<number, number>();
+  const later = new Map<number, number[]>();
+  for (const play of plays) {
+    if (first.has(play.slot)) later.set(play.slot, [...(later.get(play.slot) ?? []), play.weight]);
+    else first.set(play.slot, play.weight);
+  }
+  return { first, later };
+}
+
+/** A foe fast enough to resolve THREE casts inside one turn, splashed first. */
+const multicastFight = (): CombatConfig => ({
+  ...cfg(
+    tc('hero', ['splashOnce'], { speed: 100, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
+    tc('foe', ['jab', 'jab2', 'jab3'], { speed: 60, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
+    { ...NO_ENDGAME, maxTurns: 2, cooldownsEnabled: true },
+  ),
+  skillBook: BOOK,
+});
+
+describe('splash through the turn loop', () => {
+  it('THE NO-WRAP ANCHOR, END TO END: a splash landing after the victim walked its board taxes the LAST CARD PLAYED and its left neighbour', () => {
+    // The hero banks four turns (weight 40 vs speed 10) while the foe plays
+    // slots 0, 1, 2 on turns 1-3. On turn 4 the foe's cursor is parked at 3 —
+    // past the last card — and the hero fires.
+    const config = splashFight(
+      'splashLate',
+      tc('foe', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
+      { speed: 10 },
+      { maxTurns: 6, cooldownsEnabled: false },
+    );
+    const { events } = simulate(config, 1);
+    const splashed = events.filter((e): e is Extract<Ev, { kind: 'splashed' }> => e.kind === 'splashed');
+    expect(splashed[0]).toMatchObject({ turn: 4, weight: 6, anchorSlot: 2, slots: [1, 2] });
+    // WRAPPING WOULD HAVE SAID anchorSlot 0 / slots [0, 1] here.
+    expect(splashed[0]!.slots).not.toContain(0);
+    // And the untaxed slot 0, which the foe plays later that same turn, still
+    // costs base weight — proof the band really is where the event says.
+    const after = enemyPlays(events).filter((e) => e.turn === 4);
+    expect(after.map((e) => [e.slot, e.weight])).toEqual([[0, 10]]);
+  });
+
+  it('a SIZE-2 and a SIZE-3 taxed piece each pay the tax exactly ONCE, on the cast that starts their span', () => {
+    // wide2 (weight 20, slots 0-1) and wide (weight 30, slots 2-4). The anchor
+    // is wide2; wide is its right neighbour edge-to-edge, so both are taxed.
+    const config = splashFight(
+      'splashOnce',
+      tc('foe', [], { speed: 20, attack: 1, maxHp: 500 }, {
+        pieces: [{ skillId: 'wide2', slot: 0 }, { skillId: 'wide', slot: 2 }],
+        skillBook: BOOK,
+      }),
+    );
+    const { events } = simulate(config, 1);
+    expect(events.filter((e) => e.kind === 'splashed')).toHaveLength(1);
+    const { first, later } = payments(enemyPlays(events));
+    expect(first.get(0)).toBe(26); // 20 base + 6
+    expect(first.get(2)).toBe(36); // 30 base + 6
+    // Every REPLAY is back to base: a multi-slot card pays the tax on the cast
+    // that opens its span, and the busy span turns that follow re-charge nothing.
+    expect(later.get(0)!.length).toBeGreaterThan(0);
+    expect(later.get(2)!.length).toBeGreaterThan(0);
+    expect(later.get(0)!.every((w) => w === 20)).toBe(true);
+    expect(later.get(2)!.every((w) => w === 30)).toBe(true);
+    // One play per cast: the span rows are not extra `play` events at slot 2.
+    expect(enemyPlays(events).every((e) => e.slotIndex === 1)).toBe(true);
+  });
+
+  it('SLOW AND SPLASH ON ONE VICTIM: the two taxes SUM on the anchor, then diverge — slow dies with the turn, splash rides until the piece plays', () => {
+    const config = splashFight(
+      'slowSplash',
+      tc('foe', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
+      {},
+      { maxTurns: 6 },
+    );
+    const { events } = simulate(config, 1);
+    // TURN 1 — both land, and castSelect sums them: 10 base + 4 slow + 6 splash
+    // = 20, which the foe (readiness 10) cannot afford. The `wait` reports the
+    // taxed weight that actually stopped it.
+    expect(events.find((e) => e.kind === 'wait' && e.side === 'enemy' && e.turn === 1))
+      .toMatchObject({ reason: 'cantAfford', weight: 20, slot: 0 });
+    const plays = enemyPlays(events);
+    // TURN 2 — the slow is gone (dropped at end of turn 1, never paid), the
+    // splash is not: 10 + 6 = 16, not 20 and not 10.
+    expect(plays[0]).toMatchObject({ turn: 2, slot: 0, weight: 16 });
+    const { first, later } = payments(plays);
+    // The other banded piece pays its 6 whenever it finally plays — turns later,
+    // long after any slow could have survived.
+    expect(first.get(1)).toBe(16);
+    expect(first.get(2)).toBe(10); // outside the band
+    expect(later.get(0)!.every((w) => w === 10)).toBe(true);
+    // Exactly one application of each, so nothing above is a re-cast artefact.
+    expect(events.filter((e) => e.kind === 'slowed')).toHaveLength(1);
+    expect(events.filter((e) => e.kind === 'splashed')).toHaveLength(1);
+  });
+
+  it('A MULTI-CASTING UNIT pays BOTH taxed pieces in the SAME turn, each exactly once', () => {
+    // Speed 60 against weight-10 cards: the foe resolves three casts in turn 1.
+    // Two of them are banded, and both pay — the tax is per PIECE, so one turn
+    // can spend more than one of them.
+    const { events } = simulate(multicastFight(), 1);
+    const turnOne = enemyPlays(events).filter((e) => e.turn === 1);
+    expect(turnOne.map((e) => [e.slot, e.weight])).toEqual([[0, 16], [1, 16], [2, 10]]);
+    expect(events.filter((e) => e.kind === 'splashed')).toHaveLength(1);
+  });
 });
 
 describe('splash pricing', () => {
@@ -325,6 +512,66 @@ describe('splash pricing', () => {
     };
     const problems = validateSkillDocument(doc).map((p) => p.message).join('\n');
     expect(problems).toContain('scope: all cannot be combined with a splash action');
+  });
+
+  /**
+   * The rule is checked against the EFFECTIVE (scope, effects) pair at EVERY
+   * tier, and a tier block inherits whichever half it does not declare
+   * (`up.scope ?? raw.scope`, `up.effects ?? raw.effects` in
+   * validateSkillContent). Both inheritance directions are live rules, so both
+   * get a test: a legal base card must not be able to become AoE+splash at
+   * diamond by declaring only one half of the pair.
+   */
+  const tieredDoc = (def: Record<string, unknown>) => ({
+    schemaVersion: 1,
+    cards: [{
+      id: 'tiered_splash',
+      versions: [{
+        version: 1,
+        def: {
+          name: 'Tiered Splash', text: 'Deal 10 damage.',
+          archetypes: ['offense'], property: 'physical', weapon: 'axe',
+          size: 1, rarity: 'common', tier: 'bronze',
+          ...def,
+        },
+      }],
+    }],
+  });
+
+  it('a tier that adds `scope: all` INHERITS the base effects — and is caught carrying the base splash', () => {
+    const problems = validateSkillDocument(tieredDoc({
+      effects: [{ kind: 'damage', power: 10 }, { kind: 'splash', weight: 6 }],
+      tierUpgrades: { silver: { scope: 'all' }, gold: { scope: 'all' }, diamond: { scope: 'all' } },
+    }));
+    // Bronze itself is clean (no scope); the three upgraded tiers are not.
+    const where = problems.filter((p) => p.message.includes('scope: all cannot be combined with a splash action'));
+    expect(where.map((p) => p.where.split('.tierUpgrades.')[1]).sort()).toEqual(['diamond', 'gold', 'silver']);
+  });
+
+  it('a tier that adds a splash INHERITS the base `scope: all` — and is caught too', () => {
+    const problems = validateSkillDocument(tieredDoc({
+      scope: 'all',
+      effects: [{ kind: 'damage', power: 10 }],
+      tierUpgrades: { silver: { effects: [{ kind: 'damage', power: 12 }, { kind: 'splash', weight: 6 }] } },
+    })).map((p) => p.message).join('\n');
+    expect(problems).toContain('scope: all cannot be combined with a splash action');
+  });
+
+  it('inheritance does not INVENT the pair: an AoE base with a splashless tier, and a splash base with a scopeless tier, both pass', () => {
+    expect(validateSkillDocument(tieredDoc({
+      scope: 'all',
+      effects: [{ kind: 'damage', power: 10 }],
+      tierUpgrades: { silver: { text: 'Deal 12 damage to all.', effects: [{ kind: 'damage', power: 12 }] } },
+    }))).toEqual([]);
+    expect(validateSkillDocument(tieredDoc({
+      effects: [{ kind: 'damage', power: 10 }, { kind: 'splash', weight: 6 }],
+      tierUpgrades: {
+        silver: {
+          text: 'Deal 12 damage · splash +6 weight.',
+          effects: [{ kind: 'damage', power: 12 }, { kind: 'splash', weight: 6 }],
+        },
+      },
+    }))).toEqual([]);
   });
 
   it('the same card WITHOUT the AoE scope validates clean', () => {

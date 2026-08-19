@@ -342,9 +342,18 @@ type ActionKinds =
    * piece immediately AFTER it on the board. Adjacency is SPATIAL and does NOT
    * wrap (a card at slot 0 has nothing to its left), measured edge-to-edge with
    * the same footprint arithmetic the aura system uses (`footprintGaps`), so a
-   * multi-slot card is ONE piece however many slots it spans. The band is
-   * therefore 1..3 pieces; it is priced against the canonical MAXIMUM of 3
-   * (see `PRICE.splashPerWeightNum`), holder-independently.
+   * multi-slot card is ONE piece however many slots it spans.
+   *
+   * NOTHING ABOUT THE KEYWORD WRAPS (user-locked 2026-08-19) — the board is a
+   * line. That includes the ANCHOR: when the cursor is parked past the last
+   * card, splash anchors on the LAST CARD PLAYED rather than jumping to the
+   * leftmost piece (`splashAnchor`, which also documents why it deliberately
+   * does not share `scanCast`'s cooling/played-this-turn skips).
+   *
+   * The band is therefore 1..3 pieces wide, decided by the VICTIM's board
+   * layout. It is priced against the 2-piece FLOOR that any board with two or
+   * more pieces guarantees (see `PRICE.splashPerWeightNum`), so a card's PL is
+   * holder-independent AND opponent-independent; the third piece is unpriced.
    *
    * WHAT IT DOES: each banded piece costs `weight` EXTRA the next time it is
    * played (`PieceState.nextWeightPenalty`, summed into the cast weight in

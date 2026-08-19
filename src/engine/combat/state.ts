@@ -129,7 +129,9 @@ export interface PieceState {
    * and for a hard reason: `undefined` is dropped by `JSON.stringify` but `0` is
    * not, so eager-initialising this to 0 would re-bake all 400 hashes in
    * `tests/engine/fixtures/outcomeBaseline.json` for zero behaviour change. Read
-   * it as `piece.nextWeightPenalty ?? 0`; clear it back to `undefined`, never 0.
+   * it as `piece.nextWeightPenalty ?? 0`; clear it with `delete` (NOT `= 0`, and
+   * NOT `= undefined` — that leaves the key present for `Object.keys` /
+   * `toStrictEqual` / structured-clone even though `JSON.stringify` hides it).
    * Integer, so persisted state stays float-free and deterministic.
    */
   nextWeightPenalty?: number;

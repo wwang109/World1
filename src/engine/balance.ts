@@ -189,25 +189,44 @@ export const PRICE = {
    * splash: weight * (splashPerWeightNum/Den) — 1 PL per +2 weight, i.e.
    * EXACTLY 2x the `slow` rate above.
    *
-   * DERIVED FROM `slow`, NOT INVENTED: splash is the same currency (extra
-   * weight owed) delivered to a band of up to 3 board pieces instead of to the
-   * unit's next action, so it is priced as a multiple of slow's own 5/2 —
-   * never on an unrelated scale.
+   * THE UNIT IS `slow`, NOT AN INVENTED SCALE: splash owes the same currency
+   * (extra weight) as slow, just to board PIECES instead of to the unit's next
+   * action. So the whole price is "how many pieces do we charge for, times
+   * slow's own 5/2". The answer is TWO.
    *
-   * THE MULTIPLIER IS 2x, NOT 3x. The band is priced against its CANONICAL
-   * MAXIMUM of 3 pieces, holder-independently (the same rule
-   * `GEM_CANONICAL_PROPERTY` and AoE breadth pricing already follow, so a
-   * card's PL never depends on where the player put it), and then split by
-   * WHEN each piece pays:
-   *   • the ANCHOR is the victim's current card — its tax bites the very next
-   *     thing that unit does, exactly like `slow`. Full rate: 1x.
-   *   • the two NEIGHBOURS sit unplayed until rotation reaches them (and a
-   *     fight can end first). That is the CONDITIONAL-TRIGGER DISCOUNT this
-   *     table already establishes for `comboBonus` — a rider that does not
-   *     fire every turn prices at a fraction of its always-on equivalent —
-   *     applied at comboBonus's own precedent fraction of one HALF: 2 x 1/2.
-   * Total 1 + 1 = 2x slow = 5 deci per weight. Whole-PL steps land on EVEN
-   * weights (weight 2 = 1 PL), so authored magnitudes stay whole-PL.
+   * WHY TWO — the geometry's FLOOR, not its maximum (re-derived 2026-08-19,
+   * after the anchor stopped wrapping; see `splashAnchor`, combat/splash.ts).
+   * The band runs 1..3 pieces wide: 3 when the anchor has a piece on each side,
+   * 2 at either end of the line, 1 on a lone card. Two facts pick the number:
+   *   • ANY board holding two or more pieces gives at least 2 — every anchor on
+   *     such a board has at least one neighbour. 2 is a guarantee, not an
+   *     average, and it needs no assumption about board shape.
+   *   • The shape in question is the VICTIM's board, which the card's holder
+   *     does not control at all. Pricing the 3-piece case would charge every
+   *     holder for coverage the opponent decides — strictly worse than the
+   *     holder-independence rule `GEM_CANONICAL_PROPERTY` and AoE breadth
+   *     already follow. The third piece is deliberately UNPRICED upside.
+   * Both charged pieces pay at slow's FULL rate, with no deferral discount:
+   * splash's tax rides its piece until that piece is next played, with no turn
+   * limit, whereas a `slow` is dropped at end of turn whether or not it was ever
+   * paid (user-locked 2026-08-18). A deferred splash piece is therefore not a
+   * probabilistic slow — it is a slow that always eventually gets collected. It
+   * lands later, which is worth less; it cannot expire unpaid, which is worth
+   * more. We call that a wash rather than pretend to measure it.
+   *
+   * HONEST LABEL: 2 is CHOSEN, not computed. Real delivered value swings with
+   * the victim's board (1..3 pieces) and with how long the fight runs, and no
+   * single number is "the" value of a splash. 2 is a static anchor at the low
+   * end of that range — it under-charges a mid-board anchor and over-charges a
+   * lone card, and it errs toward under-charging on purpose, because the swing
+   * is the opponent's to decide. (The pre-2026-08-19 comment reached the same
+   * 2x by a different route — anchor 1x plus two neighbours at comboBonus's ½
+   * — which borrowed a fraction that measures UPTIME to describe neighbours
+   * that are deterministic-but-deferred. That was numerology; this is not, and
+   * the number happens to coincide, so no content moved.)
+   *
+   * Total 2 x 5/2 = 5 deci per weight. Whole-PL steps land on EVEN weights
+   * (weight 2 = 1 PL), so authored magnitudes stay whole-PL.
    *
    * CONTROL family (see EFFECT_CAPS_DECI) so it cannot dodge the control cap:
    * at 5 deci/weight a size-1 card can carry at most `weight: 20` (100 deci =

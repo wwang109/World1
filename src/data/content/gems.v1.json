@@ -914,8 +914,11 @@
             "text": "{{Splash}} +4 weight on the card the enemy is about to play and the ones either side of it.",
             "notes": [
               "Entry rung (2026-08-18). PRICE: splash is 5 deci per weight",
-              "(PRICE.splashPerWeightNum/Den - 2x the slow rate, because the tax lands",
-              "on a canonical 3-piece band instead of on the unit's next action).",
+              "(PRICE.splashPerWeightNum/Den - 2x the slow rate: the tax lands on a",
+              "BAND of board pieces instead of on the unit's next action, and the band's",
+              "guaranteed floor is 2 pieces on any board holding more than one card.",
+              "Re-derived 2026-08-19 when the anchor stopped wrapping; the rate did not",
+              "move, so no weight here changed).",
               "4 x 5 = 20 deci = Common EXACTLY. Minimal for its band: weight 3",
               "prices at 15, which is no band at all.",
               "Ladders with fracture_sliver (Rare, weight 8) on the same DOUBLING shape",

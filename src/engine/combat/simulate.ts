@@ -585,10 +585,14 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         // consumed here, exactly once, at the one site where a cast really
         // resolves. Speculative `scanCast` calls only READ it.
         //
-        // Cleared to `undefined`, never 0: the field is lazily written so an
-        // un-splashed piece carries no key at all (see `PieceState`), and a 0
-        // would survive `JSON.stringify` and move every outcome-baseline hash.
-        if (choice.piece.nextWeightPenalty !== undefined) choice.piece.nextWeightPenalty = undefined;
+        // DELETED, not set to 0 and not set to `undefined`: the field is lazily
+        // written so an un-splashed piece carries no key at all (see
+        // `PieceState`). A 0 would survive `JSON.stringify` and move every
+        // outcome-baseline hash; assigning `undefined` leaves `hasOwnProperty`
+        // true, which `JSON.stringify` hides but `toStrictEqual`, `Object.keys`
+        // and structured-clone all see. `delete` restores the piece to the exact
+        // shape it had before it was ever splashed.
+        delete choice.piece.nextWeightPenalty;
         c.lastCastArchetypes = choice.skill.archetypes;
         playsThisTurn += 1;
         played.add(c);

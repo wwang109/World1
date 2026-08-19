@@ -174,10 +174,10 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
 
     slow: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'weight', num: P.slowPerWeightNum, den: P.slowPerWeightDen }] },
     // SPLASH — `slow`'s card-scope sibling, priced at exactly 2x its rate:
-    // a canonical 3-piece band = the anchor at slow's full rate (it bites the
-    // victim's very next card) + two neighbours at HALF (they sit unplayed
-    // until rotation reaches them — `comboBonus`'s conditional-trigger
-    // discount). Full derivation on `PRICE.splashPerWeightNum` in balance.ts.
+    // TWO pieces at slow's full rate, 2 being the band's guaranteed FLOOR on any
+    // board with more than one piece (the band runs 1..3 wide on the VICTIM's
+    // board, which the holder does not control, so the third piece is unpriced
+    // upside). Full derivation on `PRICE.splashPerWeightNum` in balance.ts.
     // `control` family so it cannot dodge the control cap; `offensive` because
     // it resolves against a foe (mirrors `isOffensiveAction`) — note that
     // makes `scope: 'all'` + splash pay the AoE reach multiplier rather than

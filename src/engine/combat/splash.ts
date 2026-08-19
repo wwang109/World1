@@ -23,27 +23,62 @@ export function cursorPiece(c: CombatantState): { piece: PieceState; slotIndex: 
 /**
  * "The target's current turn's card" — the piece a `splash` anchors on.
  *
- * Normally that is simply the piece the cursor stands in. The cursor can also
- * sit on an EMPTY slot (after a cast it moves to `piece.slot + 1`, which is
- * empty whenever the next card is not immediately adjacent), and in that case
- * the anchor is the next card the ROTATION would reach — the same forward,
- * wrapping, leftmost-slot scan `scanCast`/`moveCursorToNextCard` already use, so
- * the anchor is always the card the victim is about to play. Rotation wraps;
- * the BAND below deliberately does not.
+ * THE BOARD IS A LINE, NOT A RING (user-locked 2026-08-19). Three cases, in
+ * order:
+ *   1. the cursor stands INSIDE a piece → that piece;
+ *   2. the cursor sits on an EMPTY slot with a card still ahead of it (after a
+ *      cast the cursor moves to `piece.slot + 1`, which is empty whenever the
+ *      next card is not adjacent) → the NEAREST piece to the RIGHT, i.e. the
+ *      next card this pass of the rotation reaches;
+ *   3. the cursor is parked PAST THE LAST CARD → the NEAREST piece to the LEFT,
+ *      i.e. THE LAST CARD PLAYED. It does NOT wrap round to the leftmost piece.
+ *
+ * Case 3 is the ruling. Wrapping made the anchor the leftmost card, which by
+ * definition has no left neighbour, so every rotation wrap deterministically
+ * produced a 2-piece band while the price charged for more; and it made a
+ * splash's band jump the length of the board for no reason a player can see.
+ * Anchoring on the last card played keeps the band where the action just was.
+ * Edges genuinely give a smaller band — that is priced (see
+ * `PRICE.splashPerWeightNum`, balance.ts, which charges the 2-piece FLOOR).
+ *
+ * DELIBERATELY NOT `scanCast` PARITY (corrected 2026-08-19 — this comment used
+ * to claim it, and it was never true). `scanCast` additionally skips pieces
+ * that are COOLING, pieces already played this turn (`excludedThisTurn`) and
+ * pieces whose card has no effect at all. The anchor skips none of them, on
+ * purpose:
+ *   • Case 3 REQUIRES it. "The last card played" is precisely a piece
+ *     `scanCast` would refuse (it is in `excludedThisTurn`, and usually cooling
+ *     too), so full parity is incompatible with the ruling above.
+ *   • Cooling / already-played are TRANSIENT, but the tax is not: it rides the
+ *     piece until that piece is next played, however many turns that takes. So
+ *     taxing a momentarily-unavailable card is not a whiff — it is simply paid
+ *     later. `scanCast`'s skips answer "what can fire RIGHT NOW", which is a
+ *     different question from "which card is the cursor parked on".
+ *   • The anchor stays a pure function of (`pieces`, `castCursor`) — no turn
+ *     number, no cooldown flag, no turn-loop-local `excludedThisTurn` set. That
+ *     is what lets the interpreter, the event log and playback all reproduce
+ *     the same band from board state alone.
  *
  * `null` only when the board holds no pieces at all.
  */
 export function splashAnchor(c: CombatantState): PieceState | null {
   const at = cursorPiece(c);
   if (at) return at.piece;
-  for (let offset = 1; offset < c.boardSize; offset += 1) {
-    const slot = (c.castCursor + offset) % c.boardSize;
-    for (let i = 0; i < c.pieces.length; i += 1) {
-      const piece = c.pieces[i]!;
-      if (piece.slot === slot) return piece;
+  // Indexed walk, no wrap: nearest piece strictly right of the cursor, else
+  // (nothing ahead on this line) the nearest piece left of it. Pieces whose
+  // footprint covers the cursor were already returned by `cursorPiece`, so
+  // every remaining piece is unambiguously on one side or the other.
+  let ahead: PieceState | null = null;
+  let behind: PieceState | null = null;
+  for (let i = 0; i < c.pieces.length; i += 1) {
+    const piece = c.pieces[i]!;
+    if (piece.slot > c.castCursor) {
+      if (ahead === null || piece.slot < ahead.slot) ahead = piece;
+    } else if (behind === null || piece.slot > behind.slot) {
+      behind = piece;
     }
   }
-  return null;
+  return ahead ?? behind;
 }
 
 /**
@@ -59,9 +94,14 @@ export function splashAnchor(c: CombatantState): PieceState | null {
  *
  * IT DOES NOT WRAP, on purpose (user-locked 2026-08-18): a card at slot 0 has
  * nothing to its left, so an edge anchor yields a 2-piece band and a lone card
- * yields a 1-piece band. Splash is nonetheless PRICED against the canonical
- * maximum of 3 (see `PRICE.splashPerWeightNum`, balance.ts) so a card's PL never
- * depends on where the holder happened to put it.
+ * yields a 1-piece band. Neither does the ANCHOR (user-locked 2026-08-19, see
+ * `splashAnchor` above) — the whole keyword now treats the board as a line.
+ *
+ * The band is therefore 1..3 pieces wide depending on where on the VICTIM's
+ * board the cursor happens to be — something the card's holder does not control
+ * at all. So splash is priced against the 2-piece FLOOR that any board with two
+ * or more pieces always delivers, holder-independently; the third piece is
+ * unpriced upside. Full derivation on `PRICE.splashPerWeightNum` (balance.ts).
  *
  * Returns `null` on an empty board. `band` is in ascending slot order and
  * always contains `anchor`.
