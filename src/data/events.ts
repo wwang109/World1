@@ -551,6 +551,100 @@ const defs: EventDef[] = [
       { id: 'leave_him', label: 'Leave him to it', outcome: { kind: 'nothing' } },
     ],
   },
+
+  // ==========================================================================
+  // New-mechanics batch (2026-08-19, +4 events) — the catalog predated splash,
+  // the 4-rung expose gem ladder, ward/cleanse/taunt utility gems, and the
+  // poison/thorns/ward hybrid lanes; none of it was ever surfaced through an
+  // event. `CardFilter` has no action-kind axis (only `GemFilter` does — see
+  // the doc comment at the top of `shopTypes.ts`), so the two card-choice
+  // events below reach for the closest existing property/weapon/archetype
+  // axis instead of a literal "poison"/"thorns" tag — same approximation the
+  // rest of this catalog already leans on (e.g. `sparring_circle`'s
+  // "offense"-tagged "spare blade" isn't literally a sellsword's inventory
+  // either). Match counts verified against the live skill/gem book at
+  // authoring time (content-designer, all comfortably clear of
+  // `EVENT_CHOICE_SIZE` = 3): `archetypes: ['defensive']` = 33 cards,
+  // `archetypes: ['debuff']` = 37 cards, `weapons: ['axe','lance'],
+  // archetypes: ['offense']` = 15 cards, gem `actionKinds: ['ward','cleanse',
+  // 'taunt']` = 3 gems (sanctuary_sliver/renewal_sliver/provoker_sliver — the
+  // WHOLE utility trio, one apiece), gem `actionKinds: ['expose']` = 4 gems
+  // (vulnerability_sliver/weak_point_sliver/exposed_nerve_sliver/
+  // raw_nerve_sliver — the full 4-rung ladder; the top rung is Legendary and
+  // depth-gated out below wave 2, leaving exactly 3 eligible at wave 1 — still
+  // clears the floor). No new card/gem content and no resolver changes; pure
+  // catalog additions over the existing `cardChoice`/`gemChoice`/`grantGold`/
+  // `nothing` vocabulary.
+  // ==========================================================================
+
+  {
+    id: 'thorn_garden_shrine',
+    title: 'The Thorn Garden Shrine',
+    theme: 'cache',
+    body: "Deep in the Silt Hollows, a shrine has vanished beneath a decade of bramble growth, thorned vines lashed so thick across the stone that whatever it once honored is anyone's guess. Something in the tangle glints when the light catches it right — worth the scratches, if you're willing to push through and find out.",
+    choices: [
+      { id: 'gather_thorns', label: 'Gather the fallen thorns at the edge', outcome: { kind: 'grantGold', amount: 1 } },
+      {
+        id: 'push_through',
+        label: 'Push through the brambles (2 gold)',
+        cost: 2,
+        outcome: { kind: 'cardChoice', filter: [{ archetypes: ['defensive'] }], tier: 'bronze' },
+      },
+      { id: 'leave_it', label: 'Leave the shrine to the thorns', outcome: { kind: 'nothing' } },
+    ],
+  },
+  {
+    id: 'venomers_den',
+    title: "The Venomer's Den",
+    theme: 'recruit',
+    body: 'Off the Muster Road, half-hidden behind a curtain of hanging roots, a venomer keeps her still and her jars in careful rows, breath sharp with something that isn\'t quite smoke. "The weak batch is yours for nothing," she says, nodding at a dull green vial, "or two gold buys you a taste of what I actually sell."',
+    choices: [
+      { id: 'weak_batch', label: 'Take the weak batch for free', outcome: { kind: 'grantGold', amount: 1 } },
+      {
+        id: 'true_batch',
+        label: 'Pay 2 gold for what she actually sells',
+        cost: 2,
+        outcome: { kind: 'cardChoice', filter: [{ archetypes: ['debuff'] }], tier: 'bronze' },
+      },
+    ],
+  },
+  {
+    id: 'the_lapidary',
+    title: 'The Lapidary',
+    theme: 'forge',
+    body: 'A lapidary has set up her wheel at the quiet end of the Cinderworks, trays of uncut facets sorted by what they promise rather than what they cost: a warding cut here, a cleansing cut there, a taunting cut that seems to want attention paid to it just for existing. Beside them, a second tray holds nothing but sharpened, cutting facets meant to lay a foe bare. "Reject bin\'s free to pick through," she says, without looking up. "The good trays aren\'t."',
+    choices: [
+      { id: 'reject_bin', label: 'Pick through the reject bin', outcome: { kind: 'grantGold', amount: 1 } },
+      {
+        id: 'warding_cut',
+        label: 'Pay 2 gold for a warding cut',
+        cost: 2,
+        outcome: { kind: 'gemChoice', filter: [{ actionKinds: ['ward', 'cleanse', 'taunt'] }] },
+      },
+      {
+        id: 'cutting_cut',
+        label: 'Pay 2 gold for a cutting facet',
+        cost: 2,
+        outcome: { kind: 'gemChoice', filter: [{ actionKinds: ['expose'] }] },
+      },
+    ],
+  },
+  {
+    id: 'sweep_drill',
+    title: 'The Sweep Drill',
+    theme: 'training',
+    body: 'A grizzled instructor has cordoned off a stretch of the Hollow Yard for wide, sweeping cuts alone — the kind that catch whatever\'s standing next to your actual target, whether you meant it to or not. "Newer recruits call it splash," she snorts, resting a training axe on her shoulder. "I call it not missing twice. Two gold, and I\'ll show you the stance properly."',
+    choices: [
+      {
+        id: 'proper_stance',
+        label: 'Pay 2 gold to learn the stance properly',
+        cost: 2,
+        outcome: { kind: 'cardChoice', filter: [{ weapons: ['axe', 'lance'], archetypes: ['offense'] }], tier: 'bronze' },
+      },
+      { id: 'scavenge', label: 'Scavenge the practice yard for scraps', outcome: { kind: 'grantGold', amount: 1 } },
+      { id: 'skip', label: 'Skip the drill', outcome: { kind: 'nothing' } },
+    ],
+  },
 ];
 
 export const eventCatalog: Record<string, EventDef> = Object.fromEntries(defs.map((d) => [d.id, d]));

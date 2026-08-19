@@ -77,9 +77,9 @@ function isSafe(choice: { cost?: number; outcome: EventOutcomeSpec }): boolean {
 }
 
 describe('data/events: catalog lint', () => {
-  it('has exactly 28 events, each with a unique id', () => {
-    expect(eventCatalogIds.length).toBe(28);
-    expect(new Set(eventCatalogIds).size).toBe(28);
+  it('has exactly 32 events, each with a unique id', () => {
+    expect(eventCatalogIds.length).toBe(32);
+    expect(new Set(eventCatalogIds).size).toBe(32);
   });
 
   it('every event has a theme', () => {
@@ -217,7 +217,7 @@ describe('data/events: catalog lint', () => {
     }
   });
 
-  it('exactly 6 cardChoice and 9 gemChoice outcomes in the catalog (the 2026-08-18 agency widening), and the 4 named-card grants are untouched', () => {
+  it('exactly 9 cardChoice and 11 gemChoice outcomes in the catalog (2026-08-18 agency widening + 2026-08-19 new-mechanics batch), and the 4 named-card grants are untouched', () => {
     let cardChoiceCount = 0;
     let gemChoiceCount = 0;
     let namedGrantCardCount = 0;
@@ -228,8 +228,8 @@ describe('data/events: catalog lint', () => {
         if (choice.outcome.kind === 'grantCard' && choice.outcome.cardId) namedGrantCardCount++;
       }
     }
-    expect(cardChoiceCount).toBe(6);
-    expect(gemChoiceCount).toBe(9);
+    expect(cardChoiceCount).toBe(9);
+    expect(gemChoiceCount).toBe(11);
     expect(namedGrantCardCount).toBe(4);
   });
 
@@ -912,10 +912,10 @@ describe('run/events: cardChoice/gemChoice (the 2026-08-18 agency widening)', ()
       }
     }
     // Sanity on the sweep itself — matches the catalog-lint count test above
-    // (6 cardChoice, 9 gemChoice) so a future content edit that silently
+    // (9 cardChoice, 11 gemChoice) so a future content edit that silently
     // drops one of these choices out of the vocabulary is also caught here.
-    expect(cardChoiceChecked).toBe(6);
-    expect(gemChoiceChecked).toBe(9);
+    expect(cardChoiceChecked).toBe(9);
+    expect(gemChoiceChecked).toBe(11);
   });
 });
 
@@ -973,7 +973,7 @@ describe('run/events: cardChoice/gemChoice throw on a too-small filtered pool (2
   });
 });
 
-describe('run/events: catalog invariants still hold with the expanded (28-event) catalog', () => {
+describe('run/events: catalog invariants still hold with the expanded (32-event) catalog', () => {
   it('an event rolled at gold 0 always has an affordable, non-nothing choice (many seeds/nodes)', () => {
     for (let i = 0; i < 20; i++) {
       const seed = i * 41 + 7;
