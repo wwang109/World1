@@ -231,7 +231,9 @@ dialogues with 2-3 choices, seeded outcomes.
   bag-full → `fellBack` to gold) · `grantGem` · `grantGold` · `loseGold` ·
   `grantLevel` (capped at `MAX_LEVEL`) · `bonusDraft` (single-set 1-5 card
   mini-draft) · `upgradeCard` (bumps one owned card +1 tier, see below) ·
-  `nothing`; `gambled` marks risk outcomes.
+  `nothing` · `gemChoicePick` (3-wide gem pick). All outcomes are
+  deterministic — the gamble machinery and its `gambled` flag were deleted
+  once every risk choice became a real pick.
 - `upgradeCard` (2026-08-04): +1 tier (bronze→silver→gold→diamond) on ONE
   already-owned card. **v1 has no picker UI** — `upgradeCardOutcome`
   (`run/events.ts`) deterministically targets the lowest-tier eligible
