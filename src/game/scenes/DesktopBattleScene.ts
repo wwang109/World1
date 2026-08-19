@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import type { SkillDef } from '../../engine/types';
 import {
-  buildBattleTimeline, shieldPoolsLabel,
+  buildBattleTimeline, formatGuardBadge, shieldPoolsLabel,
   type BattleTimelineInput,
-  type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
+  type CombatSummary, type FoeModel, type GuardBadgeEntry, type GuardSnap, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
 } from '../battleTimeline';
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
@@ -65,7 +65,7 @@ const TAG_COLOR: Record<string, string> = {
  * rendered on screen to be caught. Teal has no other relative here (every
  * other entry is green/orange/red/tan/purple/blue).
  */
-const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8', thorns: '#3f9e7a' };
+const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8', thorns: '#3f9e7a', guard: '#7a9cc9' };
 // `ward` gets its OWN key here, same precedent `thorns` set: this map is
 // keyed by `statusByTurn`'s ailment names, and a held-charges buff is exactly
 // as invisible on the HP badge as an affliction pile once its own status row
@@ -73,7 +73,14 @@ const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3
 // Picked a blue with no relative in this palette (every other entry is
 // green/orange/red/teal/tan/purple) so it can never be mistaken for another
 // ailment's tint, which was one of the thorns review's five defects.
-const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xa678d8, thorns: 0x3f9e7a, ward: 0x4fa8d8 };
+// `guard` gets its own key for the same reason `ward` did above: this map is
+// keyed by `statusByTurn`'s ailment names, and a stacked guard pile was
+// otherwise invisible on the HP badge for its whole lifetime once its own
+// application row scrolled off — nothing here fed a 'guard' bucket key until
+// the guard badge below existed to read a real per-property number. Picked a
+// slate blue distinct from `ward`'s brighter sky blue (both read as
+// "defensive"/cool-toned but must stay tellable apart at a glance).
+const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xa678d8, thorns: 0x3f9e7a, ward: 0x4fa8d8, guard: 0x7a9cc9 };
 
 /** Shared landscape geometry — computed once from the desktop canvas so the
  * board/log/footer regions never overlap and nothing draws past y=876. */
@@ -115,6 +122,7 @@ export class DesktopBattleScene extends Phaser.Scene {
   private shieldByTurn = new Map<number, ShieldSnap>();
   private statusByTurn = new Map<number, { player: string[]; enemy: string[]; enemyUnits?: string[][] }>();
   private exposePctByTurn = new Map<number, { player: number; enemy: number; enemyUnits?: number[] }>();
+  private guardPctByTurn = new Map<number, GuardSnap>();
   private speedByTurn = new Map<number, SpeedSnap>();
   private playSlotByTurn = new Map<number, { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }>();
   private turns: number[] = [];
@@ -186,6 +194,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.shieldByTurn = new Map();
     this.statusByTurn = new Map();
     this.exposePctByTurn = new Map();
+    this.guardPctByTurn = new Map();
     this.speedByTurn = new Map();
     this.playSlotByTurn = new Map();
     this.turns = [];
@@ -318,6 +327,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.shieldByTurn = model.shieldByTurn;
     this.statusByTurn = model.statusByTurn;
     this.exposePctByTurn = model.exposePctByTurn;
+    this.guardPctByTurn = model.guardPctByTurn;
     this.speedByTurn = model.speedByTurn;
     this.playSlotByTurn = model.playSlotByTurn;
     this.turns = model.turns;
@@ -363,6 +373,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     const shield = this.shieldByStep[this.idx] ?? this.shieldByTurn.get(turn) ?? { player: 0, enemy: 0 };
     const status = this.statusByTurn.get(turn) ?? { player: [], enemy: [] };
     const exposePct = this.exposePctByTurn.get(turn) ?? { player: 0, enemy: 0 };
+    const guardPct = this.guardPctByTurn.get(turn) ?? { player: [], enemy: [] };
     // FX (floating numbers, shakes, bar tweens, card pulse) only fire on a
     // single forward step — playback tick or one scrub click — never on a
     // jump/rewind, which would otherwise replay every step's FX in a burst.
@@ -413,6 +424,7 @@ export class DesktopBattleScene extends Phaser.Scene {
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
       shieldPoolsLabel(shield.playerPools),
       exposePct.player,
+      guardPct.player,
     );
     // Full statline under the bar — the stat-sheet spend (e.g. DEF buys) must
     // be VISIBLE in battle, not only inferable from the D: math expansions.
@@ -445,6 +457,7 @@ export class DesktopBattleScene extends Phaser.Scene {
       const foeShield = shield.enemies?.[u] ?? shield.enemy;
       const foeStatus = status.enemyUnits?.[u] ?? status.enemy;
       const foeExposePct = exposePct.enemyUnits?.[u] ?? exposePct.enemy;
+      const foeGuardPct = guardPct.enemyUnits?.[u] ?? guardPct.enemy;
       const prevFoeHp = prevHp ? (prevHp.enemies?.[u] ?? prevHp.enemy) : undefined;
       const prevFoeShield = prevShield ? (prevShield.enemies?.[u] ?? prevShield.enemy) : undefined;
       const foePools = shield.enemiesPools?.[u] ?? (u === 0 ? shield.enemyPools : undefined);
@@ -453,6 +466,7 @@ export class DesktopBattleScene extends Phaser.Scene {
         animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
         shieldPoolsLabel(foePools),
         foeExposePct,
+        foeGuardPct,
       );
       this.add.text(rightX, top + 46, foeModel.statLine, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim });
       addHoverTipZone(this, { x: rightX, y: top + 46, w: PANEL_W, h: F.small + 4 }, ALL_STAT_ENTRIES);
@@ -827,6 +841,11 @@ export class DesktopBattleScene extends Phaser.Scene {
      * most recently applied pile's pct: a weaker reapplication landing on a
      * unit already carrying a stronger expose must not drop this number. */
     exposePct?: number,
+    /** Current EFFECTIVE guard mitigation (%), one entry per property still
+     * mitigated — `BattleTimeline.guardPctByTurn`. Property-scoped (unlike
+     * expose): a unit can carry an active physical AND magical guard at once,
+     * each compounded from its OWN piles independently. */
+    guardPct?: GuardBadgeEntry[],
   ): HpBarHandles {
     const nameText = this.boundedText(panelX, panelY, name.toUpperCase(), { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.text }, panelW - 90);
     const hpLabelText = this.add.text(panelX + panelW, panelY, `${hp}/${max}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.text }).setOrigin(1, 0);
@@ -843,9 +862,21 @@ export class DesktopBattleScene extends Phaser.Scene {
     });
     // Expose badge number — the EFFECTIVE (strongest-standing) amplification,
     // never the last application's own pct (see the `exposePct` param doc).
+    let ailmentBadgeRight = panelX;
     if ((exposePct ?? 0) > 0) {
-      this.add.text(panelX, barY + 20, `EXPOSE +${exposePct}%`, {
+      const exposeText = this.add.text(panelX, barY + 20, `EXPOSE +${exposePct}%`, {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#a678d8',
+      });
+      ailmentBadgeRight = exposeText.x + exposeText.width + 8;
+    }
+    // Guard badge — the EFFECTIVE (compounded) per-property mitigation (see
+    // the `guardPct` param doc + `formatGuardBadge`). Stacks to the RIGHT of
+    // the expose badge on the same row (never both at panelX) — the two are
+    // independent statuses a unit can carry at once.
+    const guardBadgeText = formatGuardBadge(guardPct ?? []);
+    if (guardBadgeText) {
+      this.add.text(ailmentBadgeRight, barY + 20, guardBadgeText, {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: AILMENT_COLOR.guard ?? '#7a9cc9',
       });
     }
 

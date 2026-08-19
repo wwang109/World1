@@ -44,6 +44,15 @@ export interface ShieldSnap {
   enemiesPools?: Array<ShieldPools | undefined>;
 }
 export interface SpeedSnap { player: string; enemy: string; enemyUnits?: string[]; }
+
+/** One property's EFFECTIVE (compounded) guard mitigation, for the HP-bar
+ * guard badge — see `guardPctByTurn` below for the full compounding rule. */
+export interface GuardBadgeEntry { property: Property; pct: number; }
+/** Per-side (and, for multi-foe, per-enemy-unit) guard badge entries for one
+ * turn — parallel shape to `exposePctByTurn`, except guard is PROPERTY-scoped
+ * (a physical guard and a magical guard on the same unit are two independent
+ * mitigations), so each side's value is an array rather than one number. */
+export interface GuardSnap { player: GuardBadgeEntry[]; enemy: GuardBadgeEntry[]; enemyUnits?: GuardBadgeEntry[][]; }
 /**
  * One playback-FX event for a step: floating number + (for damage) a bar
  * shake, OR a `cast` trigger (a card was just played — the skill-usage
@@ -157,6 +166,13 @@ export interface BattleTimeline {
    * scan (interpreter.ts `dealDamage`), NOT the most recent application's pct.
    * 0 when no pile is standing. Drives the HP-bar expose badge's number. */
   exposePctByTurn: Map<number, { player: number; enemy: number; enemyUnits?: number[] }>;
+  /** Current EFFECTIVE guard mitigation (%) per property, per side, per turn —
+   * every matching-property guard pile compounds MULTIPLICATIVELY, in
+   * application order, floored, min-1-remaining each step (interpreter.ts
+   * `dealDamage`'s real read rule for a matching-property hit) — so two 50%
+   * piles read 75%, never a naive 100% (sum) or 50% (last-applied-wins).
+   * Drives the HP-bar guard badge. Empty array when nothing is standing. */
+  guardPctByTurn: Map<number, GuardSnap>;
   speedByTurn: Map<number, SpeedSnap>;
   /** Which board slot each side cast from, per turn — drives the gold cursor. */
   playSlotByTurn: Map<number, { player?: number; enemy?: number }>;
@@ -252,6 +268,25 @@ export function shieldPoolsLabel(pools: ShieldPools | undefined): string | undef
   if (pools.magical > 0) parts.push(`${pools.magical} M`);
   if (pools.true > 0) parts.push(`${pools.true} T`);
   return parts.length > 1 ? parts.join(' · ') : undefined;
+}
+
+/** Single-letter property abbreviation — mirrors `shieldPoolsLabel`'s P/M/T. */
+function propertyLetter(p: Property): string {
+  return p === 'physical' ? 'P' : p === 'magical' ? 'M' : 'T';
+}
+
+/**
+ * Compact "GUARD 75%P 40%M" badge text for the HP-bar guard badge — one
+ * `pct%LETTER` token per currently-mitigated property (see `guardPctByTurn`'s
+ * doc comment for the compounding rule each pct already reflects), joined
+ * with a single space so a unit carrying both a physical and a magical guard
+ * at once reads as two numbers rather than one merged (and wrong) total.
+ * `undefined` when nothing is standing, so callers can `&&`-gate the row
+ * exactly like the EXPOSE badge's `(exposePct ?? 0) > 0` check.
+ */
+export function formatGuardBadge(entries: GuardBadgeEntry[]): string | undefined {
+  if (entries.length === 0) return undefined;
+  return `GUARD ${entries.map((e) => `${e.pct}%${propertyLetter(e.property)}`).join(' ')}`;
 }
 
 function propertyWord(p: Property | undefined): string {
@@ -488,6 +523,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const shieldByTurn = new Map<number, ShieldSnap>();
   const statusByTurn = new Map<number, { player: string[]; enemy: string[]; enemyUnits?: string[][] }>();
   const exposePctByTurn = new Map<number, { player: number; enemy: number; enemyUnits?: number[] }>();
+  const guardPctByTurn = new Map<number, GuardSnap>();
   const speedByTurn = new Map<number, SpeedSnap>();
   const playSlotByTurn = new Map<number, { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }>();
 
@@ -557,6 +593,74 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       const active = strict ? p.expiresAtTurn > turn : p.expiresAtTurn >= turn;
       return active && p.pct > max ? p.pct : max;
     }, 0);
+  // Guard's own shadow-pile mirror, the sibling of the expose antichain above
+  // (same idiom, different compounding rule). UNLIKE expose, a guard's real
+  // read rule (interpreter.ts `dealDamage`, "Magical Guard") is neither
+  // MAX-of-standing-piles nor a merge into one pile: every matching-PROPERTY
+  // pile applies in turn, multiplicatively, over the array of statuses (which
+  // is application order — `addStatus` only ever pushes) — so a badge fed
+  // from the last `statusApplied` event's own pct (or a naive sum) would both
+  // be wrong the moment a second same-property guard is standing at once.
+  // Guard is also PROPERTY-SCOPED (unlike expose, which amplifies ANY direct
+  // hit regardless of property) — a physical guard and a magical guard on the
+  // same unit are two independent mitigations, so piles are grouped by
+  // `property` before compounding, and the badge is an ARRAY, one entry per
+  // property currently mitigated, never a single number.
+  interface GuardPile { property: Property; pct: number; expiresAtTurn: number; }
+  const guardPilesPlayer: GuardPile[] = [];
+  const guardPilesEnemies: GuardPile[][] = foes.map(() => []);
+  const guardPilesFor = (side: 'player' | 'enemy', unit: number): GuardPile[] =>
+    (side === 'player' ? guardPilesPlayer : guardPilesEnemies[unit]!);
+  /** Deterministic display order, independent of application order (which pile
+   * landed first has no bearing on which property should list first). */
+  const GUARD_PROPERTY_ORDER: Property[] = ['physical', 'magical', 'true'];
+  /** Every property's EFFECTIVE (compounded) mitigation among piles still
+   * active AS OF `turn` — `strict`/inclusive semantics exactly mirror
+   * `effectiveExposePct` above (a `statusExpired` handler passes `strict:
+   * true`, meaning "as of now, this pile is gone"). For each property, the
+   * piles matching it are walked in application order over a normalized
+   * 100-unit hit — `remaining = max(1, floor(remaining * (100-pct) / 100))`
+   * per pile, EXACTLY the engine's own per-hit loop — and the reported pct is
+   * `100 - remaining`: two 50% piles leave `max(1, floor(100*50/100))=50`,
+   * then `max(1, floor(50*50/100))=25`, so the badge reads 75%, not 100%
+   * (naive sum) or 50% (last-applied-wins). A property with no active pile is
+   * simply absent from the returned array (0% is "not mitigated", not "0%
+   * guard" — nothing to badge). */
+  const effectiveGuardByProperty = (piles: GuardPile[], turn: number, strict = false): GuardBadgeEntry[] => {
+    const byProperty = new Map<Property, number[]>();
+    for (const p of piles) {
+      const active = strict ? p.expiresAtTurn > turn : p.expiresAtTurn >= turn;
+      if (!active) continue;
+      const pcts = byProperty.get(p.property);
+      if (pcts) pcts.push(p.pct); else byProperty.set(p.property, [p.pct]);
+    }
+    const out: GuardBadgeEntry[] = [];
+    for (const [property, pcts] of byProperty) {
+      let remaining = 100;
+      for (const pct of pcts) remaining = Math.max(1, Math.floor((remaining * (100 - pct)) / 100));
+      const effective = 100 - remaining;
+      if (effective > 0) out.push({ property, pct: effective });
+    }
+    out.sort((a, b) => GUARD_PROPERTY_ORDER.indexOf(a.property) - GUARD_PROPERTY_ORDER.indexOf(b.property));
+    return out;
+  };
+  // Last-computed guard badge entries per (side, unit) — the per-event flush
+  // below (`guardPctByTurn.set`) reads THIS, not a fresh re-derive off the
+  // piles at the flush's own `e.turn`. That distinction matters: the
+  // `statusApplied`/`statusExpired` handlers below call `effectiveGuardByProperty`
+  // with DIFFERENT `strict` values on purpose (inclusive on application,
+  // exclusive-at-expiry on expiry — exactly `effectiveExposePct`'s own
+  // strict/non-strict split), and re-deriving generically at flush time with
+  // one fixed `strict` would silently override whichever one of those two
+  // reads was actually correct for the event that just fired (proven: the
+  // flush's own non-strict re-derive at a `statusExpired`'s exact
+  // `expiresAtTurn` counted the just-expired pile as still active, because
+  // non-strict is `>=`). `exposePctByTurn` sidesteps this the same way — it
+  // reads `dotsPlayer.get('expose')`, a value the handlers already computed
+  // with the right strictness, rather than recomputing from `exposePilesFor`
+  // a second time at a possibly-wrong strictness.
+  const guardBadgeCurrent = new Map<string, GuardBadgeEntry[]>();
+  const guardBadgeKey = (side: 'player' | 'enemy', unit: number): string => `${side}:${unit}`;
   // Shadow-count of ACTIVE stat-debuff instances per (side, unit) — fed by
   // statusApplied/statusExpired for `status: 'debuff'` exactly like every
   // other reconstruction in this section. `debuff` never touches an HP-bar
@@ -1237,8 +1341,14 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           // `stacks` at all) — a bare "Stun" made a 1-turn stun and a 5-turn
           // stun read identically, the one gap `explainStatus`'s doc comment
           // (just above `push`, below) wrongly claimed didn't exist.
+          //
+          // User ruling (2026-08-19): "1 turn"/"N turns" was a LIE — a stun
+          // denies the victim's next action WHENEVER it happens, not on a
+          // real-time clock (a pending stun just waits while something else
+          // is already stopping the victim from acting; see `cardGlossary.ts`
+          // for the full semantics). Relabeled to name what it actually does.
           const turns = e.turns;
-          stacksText = ` ${turns} turn${turns === 1 ? '' : 's'}`;
+          stacksText = turns > 1 ? ` — skips its next ${turns} actions` : ' — skips its next action';
         } else if (e.stacks) {
           stacksText = ` ${e.stacks}`;
         }
@@ -1263,6 +1373,20 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           const effective = effectiveExposePct(piles, e.turn);
           if (effective > 0) bucket.set('expose', effective);
           else bucket.delete('expose');
+        }
+        else if (e.status === 'guard' && e.property) {
+          // Record this application as its OWN pile, grouped by PROPERTY —
+          // see the doc comment on `guardPilesPlayer`/`guardPilesEnemies`
+          // above for why a same-property reapplication must compound rather
+          // than overwrite the badge. `bucket.set('guard', 1)` is a bare
+          // presence flag (the number is never read back — the real
+          // magnitude lives in `guardBadgeCurrent`/`guardPctByTurn`) purely so
+          // the HP-bar tint/pip picks up an active guard exactly like
+          // thorns/ward do.
+          const piles = guardPilesFor(e.side, unitOf(e));
+          piles.push({ property: e.property, pct: e.pct ?? 0, expiresAtTurn: e.turn + e.turns });
+          guardBadgeCurrent.set(guardBadgeKey(e.side, unitOf(e)), effectiveGuardByProperty(piles, e.turn));
+          bucket.set('guard', 1);
         }
         // Thorns feeds the same per-unit ailment bucket the HP badge reads —
         // it has had an `AILMENT_TINT` entry since the thorns fix, but this
@@ -1298,6 +1422,20 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           const effective = effectiveExposePct(piles, e.turn, true);
           if (effective > 0) bucket.set('expose', effective);
           else bucket.delete('expose');
+        } else if (e.status === 'guard') {
+          // Same reasoning as expose above, adapted for guard's per-PROPERTY
+          // piles: this event names neither which pile nor which property
+          // expired (no `property` field on `statusExpired`), so — rather
+          // than guess — recompute every property's own effective pct from
+          // its own piles at this turn. A property whose only pile just
+          // expired drops out; a property still carrying a standing pile (of
+          // ITS OWN, unaffected by another property's pile ending) keeps its
+          // own compounded number untouched.
+          const piles = guardPilesFor(e.side, unitOf(e));
+          const entries = effectiveGuardByProperty(piles, e.turn, true);
+          guardBadgeCurrent.set(guardBadgeKey(e.side, unitOf(e)), entries);
+          if (entries.length > 0) bucket.set('guard', 1);
+          else bucket.delete('guard');
         } else {
           bucket.delete(e.status);
         }
@@ -1427,6 +1565,17 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       enemy: dotsEnemies[0]!.get('expose') ?? 0,
       enemyUnits: dotsEnemies.map((m) => m.get('expose') ?? 0),
     });
+    // Guard's badge, unlike expose's, can't be read straight off the presence
+    // flag `dotsPlayer.get('guard')` set above (it's per-PROPERTY, not one
+    // number) — read the array the `statusApplied`/`statusExpired` handlers
+    // already computed into `guardBadgeCurrent`, at whichever strictness was
+    // correct for the event that produced it (see that map's own doc comment
+    // for why re-deriving generically here at one fixed strictness is wrong).
+    guardPctByTurn.set(e.turn, {
+      player: guardBadgeCurrent.get(guardBadgeKey('player', 0)) ?? [],
+      enemy: guardBadgeCurrent.get(guardBadgeKey('enemy', 0)) ?? [],
+      enemyUnits: guardPilesEnemies.map((_, u) => guardBadgeCurrent.get(guardBadgeKey('enemy', u)) ?? []),
+    });
     speedByTurn.set(e.turn, { ...speed, enemyUnits: [...speed.enemyUnits!] });
   }
   // Defensive: every real log's last event is `combatEnd` (never `gain`), so
@@ -1544,6 +1693,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     shieldByTurn,
     statusByTurn,
     exposePctByTurn,
+    guardPctByTurn,
     speedByTurn,
     playSlotByTurn,
     turns,

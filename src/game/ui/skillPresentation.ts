@@ -184,7 +184,18 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: Sk
       case 'poison': extras.push(`PSN ${action.stacks}`); break;
       case 'burn': extras.push(`BRN ${action.stacks}`); break;
       case 'bleed': extras.push(`BLD ${action.stacks}`); break;
-      case 'stun': extras.push(`STUN ${action.turns}`); break;
+      // User ruling (2026-08-19): a stun denies the victim's next ACTION
+      // whenever it happens — a pending stun survives untouched while
+      // something else keeps the victim from acting (still building
+      // readiness, on cooldown), it does not tick down on a real-time clock.
+      // "STUN 1" used to read like a 1-TURN duration (the number was the lie);
+      // this face token drops the number entirely rather than reintroduce it
+      // in a different shape. `action.turns` still exists on the action (how
+      // many performances a MULTI-stun denies) but has no honest one-line
+      // face phrasing at this width, so a multi-stun's exact count is left to
+      // the tap-to-expand glossary (`cardGlossary.ts`), same as ward/negate's
+      // charge counts already are for their own harder-to-summarize detail.
+      case 'stun': extras.push('STUN NEXT ACTION'); break;
       case 'thorns': extras.push(`THORN ${action.stacks}`); break;
       case 'buffStat': extras.push(`+${action.pct}% ${STAT_TOKEN[action.stat]}`); break;
       case 'debuffStat': extras.push(`-${action.pct}% ${STAT_TOKEN[action.stat]}`); break;

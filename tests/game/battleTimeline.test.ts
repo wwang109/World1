@@ -1042,6 +1042,113 @@ describe('game/battleTimeline', () => {
     });
   });
 
+  // ---- guard badge (`guardPctByTurn`) tracks the EFFECTIVE, COMPOUNDED
+  // mitigation per property — mirrors the engine's own read rule EXACTLY
+  // (interpreter.ts `dealDamage`, "Magical Guard": every matching-property
+  // guard pile applies MULTIPLICATIVELY, in application order, floored,
+  // min-1-remaining each step) — so two 50% piles read 75%, never a naive
+  // 100% (sum) or 50% (last-applied-wins, which is right for expose's MAX
+  // rule but wrong for guard's compounding one). UNLIKE expose, guard is
+  // PROPERTY-SCOPED: a physical guard and a magical guard on the same unit
+  // are two independent numbers, never merged into one.
+  describe('guard badge (guardPctByTurn) tracks EFFECTIVE, COMPOUNDED per-property mitigation', () => {
+    it('two same-property 50% piles compound multiplicatively to 75%, not 100% (sum) or 50% (last-wins)', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 50, turns: 3 },
+        { turn: 2, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 50, turns: 3 },
+        { turn: 8, kind: 'combatEnd', result: 'win', turns: 8 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 8 });
+      expect(model.guardPctByTurn.get(2)?.enemy).toEqual([{ property: 'physical', pct: 75 }]);
+      expect(model.statusByTurn.get(2)?.enemy).toContain('guard');
+    });
+
+    it('different properties display as separate entries, never merged into one number', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 40, turns: 4 },
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'magical', pct: 20, turns: 4 },
+        { turn: 5, kind: 'combatEnd', result: 'win', turns: 5 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 5 });
+      expect(model.guardPctByTurn.get(1)?.enemy).toEqual([
+        { property: 'physical', pct: 40 },
+        { property: 'magical', pct: 20 },
+      ]);
+    });
+
+    it('one pile of a same-property stack expiring recomputes down to the remaining pile\'s own pct', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 50, turns: 2 }, // expires end of turn 3
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 30, turns: 6 }, // outlives it
+        { turn: 3, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard' },
+        { turn: 8, kind: 'combatEnd', result: 'win', turns: 8 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 8 });
+      expect(model.guardPctByTurn.get(3)?.enemy).toEqual([{ property: 'physical', pct: 30 }]);
+      expect(model.statusByTurn.get(3)?.enemy).toContain('guard');
+    });
+
+    it('one property\'s pile expiring leaves a DIFFERENT property\'s still-standing pile untouched', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 40, turns: 2 }, // expires end of turn 3
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'magical', pct: 25, turns: 6 },
+        { turn: 3, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard' },
+        { turn: 8, kind: 'combatEnd', result: 'win', turns: 8 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 8 });
+      expect(model.guardPctByTurn.get(3)?.enemy).toEqual([{ property: 'magical', pct: 25 }]);
+      expect(model.statusByTurn.get(3)?.enemy).toContain('guard');
+    });
+
+    it('clears (and drops the presence tint) once every pile has expired', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 40, turns: 2 }, // expires end of turn 3
+        { turn: 3, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard' },
+        { turn: 4, kind: 'combatEnd', result: 'win', turns: 4 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 4 });
+      expect(model.guardPctByTurn.get(3)?.enemy ?? []).toEqual([]);
+      expect(model.statusByTurn.get(3)?.enemy ?? []).not.toContain('guard');
+    });
+
+    // Guard is NOT `isCleansable` (interpreter.ts: cleanse strips
+    // poison/burn/bleed/stun/debuff/expose — never guard/buff/negate/ward), so
+    // the engine never emits a `cleansed` event that drains a guard pile in
+    // the first place. This pins that a cleanse targeting a DIFFERENT,
+    // genuinely cleansable status on the same unit leaves the guard badge
+    // completely alone — a regression that wired guard into the cleanse path
+    // (mirroring expose's) would be caught here.
+    it('is unaffected by a cleanse on the same unit (guard is not cleansable)', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 40, turns: 6 },
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'poison', stacks: 5, turns: 5 },
+        { turn: 2, kind: 'cleansed', side: 'enemy', unit: 0, removed: 1 },
+        { turn: 7, kind: 'combatEnd', result: 'win', turns: 7 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 7 });
+      expect(model.guardPctByTurn.get(2)?.enemy).toEqual([{ property: 'physical', pct: 40 }]);
+    });
+
+    it('the hero side and multi-foe enemyUnits are tracked independently', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'guard', property: 'physical', pct: 30, turns: 4 },
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'magical', pct: 45, turns: 4 },
+        { turn: 2, kind: 'statusApplied', side: 'enemy', unit: 1, status: 'guard', property: 'true', pct: 10, turns: 2 },
+        { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+      ];
+      const model = buildBattleTimeline(
+        { ...BASE, enemyTeam: [
+          { enemyId: 'bandit_duelist', level: 1, title: 'elite', rank: 2, modifiers: [] },
+          { enemyId: 'giant_rat', level: 1, title: 'normal', rank: 0, modifiers: [] },
+        ] },
+        { events, result: 'win', turns: 3 },
+      );
+      expect(model.guardPctByTurn.get(2)?.player).toEqual([{ property: 'physical', pct: 30 }]);
+      expect(model.guardPctByTurn.get(2)?.enemy).toEqual([{ property: 'magical', pct: 45 }]);
+      expect((model.guardPctByTurn.get(2) as { enemyUnits?: unknown[] })?.enemyUnits?.[1]).toEqual([{ property: 'true', pct: 10 }]);
+    });
+  });
+
   // ---- `formatDmg` (the HIT `D:` math strip) — `exposeBonus` and
   // `minimumDamageBonus` were missing entirely, so the printed terms did not
   // sum to the printed total, defeating the whole point of a strip a player
@@ -1199,8 +1306,13 @@ describe('game/battleTimeline', () => {
   // ---- Stun's duration was missing from its own log line (battleTimeline.ts
   // `stacksText` handled poison/burn/bleed/ward but not stun, whose magnitude
   // lives in `turns` rather than `stacks`).
-  describe('stun prints its own duration on the log line', () => {
-    it('a 2-turn stun reads "Stun 2 turns", not a bare "Stun"', () => {
+  //
+  // User ruling (2026-08-19): "N turn(s)" is a LIE — a stun denies the
+  // victim's next action WHENEVER it happens, not on a real-time clock (see
+  // `cardGlossary.ts`'s stun entry for the full semantics). Relabeled to name
+  // what it actually does instead of a misleading duration.
+  describe('stun prints what it actually does on the log line, not a duration', () => {
+    it('a 2-charge stun reads "Stun — skips its next 2 actions"', () => {
       const events: CombatEvent[] = [
         { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'stun', turns: 2 },
         { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
@@ -1208,17 +1320,17 @@ describe('game/battleTimeline', () => {
       const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
       const lines = [...model.linesByTurn.values()].flat();
       const line = lines.find((l) => l.text.includes('Stun'));
-      expect(line!.text).toBe(`${model.foeName} · Stun 2 turns`);
+      expect(line!.text).toBe(`${model.foeName} · Stun — skips its next 2 actions`);
     });
 
-    it('singular "turn" for a 1-turn stun', () => {
+    it('singular "action" for a 1-charge stun', () => {
       const events: CombatEvent[] = [
         { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'stun', turns: 1 },
         { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
       ];
       const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
       const lines = [...model.linesByTurn.values()].flat();
-      expect(lines.find((l) => l.text.includes('Stun'))!.text).toBe(`${model.foeName} · Stun 1 turn`);
+      expect(lines.find((l) => l.text.includes('Stun'))!.text).toBe(`${model.foeName} · Stun — skips its next action`);
     });
   });
 

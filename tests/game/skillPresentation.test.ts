@@ -84,6 +84,23 @@ describe('summarizeEffects — live stat scaling', () => {
   });
 });
 
+// User ruling (2026-08-19): a stun denies the victim's next action WHENEVER
+// it happens, not "1 turn" from now — the old "STUN 1" face token read like a
+// 1-turn duration, and the number was the lie (every stun-carrying card in the
+// current data always applies exactly `turns: 1`; the face token drops the
+// number entirely rather than reintroduce a misleading count in a new shape).
+describe('summarizeEffects — stun reads "next action", not a turn count', () => {
+  it('names a 1-charge stun STUN NEXT ACTION, no number', () => {
+    const skill = makeSkill({ effects: [{ kind: 'stun', turns: 1 }] });
+    expect(summarizeEffects(skill)).toBe('STUN NEXT ACTION');
+  });
+
+  it('keeps the same face token for a multi-charge stun (the count moves to the tap-to-expand glossary)', () => {
+    const skill = makeSkill({ effects: [{ kind: 'stun', turns: 3 }] });
+    expect(summarizeEffects(skill)).toBe('STUN NEXT ACTION');
+  });
+});
+
 // Guard and negate each cover ONE property carried by the action itself (not
 // inferable from the card — a gem can graft a differently-typed one onto any
 // card), so the card face names it P./M./T.GUARD and P./M./T.NEGATE, mirroring

@@ -208,13 +208,20 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
         body: `Applies ${action.stacks} bleed. A shield blocks the application, but ticks bypass shields once applied — one tick per PERFORM (not per turn), ${(action.stacks * (action.stacks + 1)) / 2} total.`,
       };
     case 'stun':
-      // A stunned unit's readiness is wiped to 0, not carried (`simulate.ts`:
-      // `c.readiness = 0` on the stun branch) — this used to say "still banks
-      // Speed", the opposite of what happens: proven, a 20-point bank is
-      // erased, not preserved. Fixed 2026-08-17.
+      // User ruling (2026-08-19): a stun denies the victim's next ACTION
+      // WHENEVER IT HAPPENS, not "1 turn" from now — the old "1 turn" framing
+      // (both here and on the card face) implied a real-time countdown that
+      // isn't how the engine actually reads it. A pending stun does not tick
+      // down while something ELSE is already keeping the victim from acting
+      // (still banking readiness, on cooldown) — it just waits, unconsumed,
+      // until the victim would otherwise have performed; only THEN does it
+      // collect, skipping that performance outright and wiping banked
+      // readiness to 0 (`simulate.ts`: `c.readiness = 0` on the stun branch —
+      // this used to say "still banks Speed", the opposite of what happens,
+      // fixed 2026-08-17). Cleanse can strip a stun before it ever collects.
       return {
         title: 'Stun',
-        body: `Consumes the enemy’s next ${action.turns > 1 ? `${action.turns} performances` : 'performance'} and wipes their banked readiness to 0 — nothing carries over.`,
+        body: `Takes the target's next ${action.turns > 1 ? `${action.turns} actions` : 'action'}, whenever it would have happened — if something else is already stopping them from acting, the stun just waits. The moment it does collect, that performance is skipped outright and it wipes their banked readiness to 0. Cleanse can strip it first.`,
       };
     case 'buffStat':
     case 'debuffStat':

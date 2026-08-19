@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import type { SkillDef } from '../../engine/types';
 import {
-  buildBattleTimeline, shieldPoolsLabel,
+  buildBattleTimeline, formatGuardBadge, shieldPoolsLabel,
   type BattleTimelineInput,
-  type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
+  type CombatSummary, type FoeModel, type GuardBadgeEntry, type GuardSnap, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
 } from '../battleTimeline';
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
@@ -84,12 +84,13 @@ const TAG_COLOR: Record<string, string> = {
  * Desktop's map — a new tag must be added to BOTH or it renders untinted on
  * whichever scene is missed.
  */
-const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8', thorns: '#3f9e7a' };
+const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8', thorns: '#3f9e7a', guard: '#7a9cc9' };
 // `ward` gets its own key here, mirroring Desktop's map byte-for-byte (see
 // the comment there for why: thorns already set the precedent that a BUFF
 // status still needs a badge tint, and blue has no relative in this palette
-// so it can never collide with another ailment's color).
-const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xa678d8, thorns: 0x3f9e7a, ward: 0x4fa8d8 };
+// so it can never collide with another ailment's color). `guard` mirrors
+// Desktop's own newest entry the same way — same slate-blue, same reasoning.
+const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xa678d8, thorns: 0x3f9e7a, ward: 0x4fa8d8, guard: 0x7a9cc9 };
 
 /**
  * Mobile Battle — vertical: LOG dock (top, tap a HIT to expand its D: math) ·
@@ -107,6 +108,7 @@ export class MobileBattleScene extends Phaser.Scene {
   /** Active ailment keys per side per turn — drives the HP-bar ailment tint. */
   private statusByTurn = new Map<number, { player: string[]; enemy: string[]; enemyUnits?: string[][] }>();
   private exposePctByTurn = new Map<number, { player: number; enemy: number; enemyUnits?: number[] }>();
+  private guardPctByTurn = new Map<number, GuardSnap>();
   private speedByTurn = new Map<number, SpeedSnap>();
   /** Which board slot each side cast from, per turn — drives the gold cursor. */
   private playSlotByTurn = new Map<number, { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }>();
@@ -337,6 +339,7 @@ export class MobileBattleScene extends Phaser.Scene {
     this.shieldByTurn = model.shieldByTurn;
     this.statusByTurn = model.statusByTurn;
     this.exposePctByTurn = model.exposePctByTurn;
+    this.guardPctByTurn = model.guardPctByTurn;
     this.speedByTurn = model.speedByTurn;
     this.playSlotByTurn = model.playSlotByTurn;
     this.turns = model.turns;
@@ -372,6 +375,7 @@ export class MobileBattleScene extends Phaser.Scene {
     const shield = this.shieldByStep[this.idx] ?? this.shieldByTurn.get(turn) ?? { player: 0, enemy: 0 };
     const status = this.statusByTurn.get(turn) ?? { player: [], enemy: [] };
     const exposePct = this.exposePctByTurn.get(turn) ?? { player: 0, enemy: 0 };
+    const guardPct = this.guardPctByTurn.get(turn) ?? { player: [], enemy: [] };
     // FX (floating numbers, shakes, bar tweens, card pulse) only fire on a
     // single forward step — playback tick or one scrub click — never on a
     // jump/rewind, which would otherwise replay every step's FX in a burst.
@@ -506,6 +510,7 @@ export class MobileBattleScene extends Phaser.Scene {
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
       shieldPoolsLabel(shield.playerPools),
       exposePct.player,
+      guardPct.player,
     );
     this.boundedText(120, hpY + 17, this.heroStatLine, { fontSize: `${F.tiny}px`, color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
     addHoverTipZone(this, { x: 120, y: hpY + 17, w: this.W - 120 - 84, h: 12 }, ALL_STAT_ENTRIES);
@@ -519,6 +524,7 @@ export class MobileBattleScene extends Phaser.Scene {
       const foeShield = shield.enemies?.[u] ?? shield.enemy;
       const foeStatus = status.enemyUnits?.[u] ?? status.enemy;
       const foeExposePct = exposePct.enemyUnits?.[u] ?? exposePct.enemy;
+      const foeGuardPct = guardPct.enemyUnits?.[u] ?? guardPct.enemy;
       const prevFoeHp = prevHp ? (prevHp.enemies?.[u] ?? prevHp.enemy) : undefined;
       const prevFoeShield = prevShield ? (prevShield.enemies?.[u] ?? prevShield.enemy) : undefined;
       const foePools = shield.enemiesPools?.[u] ?? (u === 0 ? shield.enemyPools : undefined);
@@ -527,6 +533,7 @@ export class MobileBattleScene extends Phaser.Scene {
         animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
         shieldPoolsLabel(foePools),
         foeExposePct,
+        foeGuardPct,
       );
       this.boundedText(120, barY + 17, foeModel.statLine, { fontSize: `${F.tiny}px`, color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
       addHoverTipZone(this, { x: 120, y: barY + 17, w: this.W - 120 - 84, h: 12 }, ALL_STAT_ENTRIES);
@@ -769,6 +776,11 @@ export class MobileBattleScene extends Phaser.Scene {
      * most recently applied pile's pct: a weaker reapplication landing on a
      * unit already carrying a stronger expose must not drop this number. */
     exposePct?: number,
+    /** Current EFFECTIVE guard mitigation (%), one entry per property still
+     * mitigated — `BattleTimeline.guardPctByTurn`. Property-scoped (unlike
+     * expose): a unit can carry an active physical AND magical guard at once,
+     * each compounded from its OWN piles independently. */
+    guardPct?: GuardBadgeEntry[],
   ): HpBarHandles {
     const barX = 120; const barW = this.W - barX - 84;
     const frac = (v: number): number => barW * Math.max(0, Math.min(1, v / max));
@@ -815,11 +827,23 @@ export class MobileBattleScene extends Phaser.Scene {
           fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#a678d8', fontFamily: FONT.body, fontStyle: 'bold',
         }).setOrigin(1, 0)
       : undefined;
+    // Guard badge — the EFFECTIVE (compounded) per-property mitigation (see
+    // the `guardPct` param doc + `formatGuardBadge`). Stacks one slot further
+    // LEFT than the expose badge, same chained idiom `exposeText` already uses
+    // to stack left of `shieldText`/`hpText` — the two badges are independent
+    // statuses a unit can carry at once, so neither may overwrite the other.
+    const guardAnchor = exposeText ?? anchorText;
+    const guardBadgeText = formatGuardBadge(guardPct ?? []);
+    const guardText = guardBadgeText
+      ? this.add.text(guardAnchor.x - guardAnchor.width - 6, y, guardBadgeText, {
+          fontSize: `${F.tiny}px`, color: AILMENT_COLOR.guard ?? '#7a9cc9', fontFamily: FONT.body, fontStyle: 'bold',
+        }).setOrigin(1, 0)
+      : undefined;
 
     return {
       fillRect,
       shieldRect,
-      shakeTargets: [nameText, fillRect, hpText, ...(shieldText ? [shieldText] : []), ...(exposeText ? [exposeText] : [])],
+      shakeTargets: [nameText, fillRect, hpText, ...(shieldText ? [shieldText] : []), ...(exposeText ? [exposeText] : []), ...(guardText ? [guardText] : [])],
       floatX: barX + barW / 2,
       floatY: y + 7,
     };
