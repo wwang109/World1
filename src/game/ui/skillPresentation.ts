@@ -208,9 +208,14 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: Sk
       case 'shieldBreak': extras.push(`SHATTER ${action.amount}`); break;
       case 'comboBonus': extras.push(`SKILL +${action.amount}`); break;
       case 'slow': extras.push(`SLOW +${action.weight}`); break;
-      // SPLASH is `slow` at CARD scope — the face names the band width (up to
-      // 3 pieces) so it can't be misread as the unit-wide SLOW token above.
-      case 'splash': extras.push(`SPLASH +${action.weight} ×3`); break;
+      // SPLASH is `slow` at CARD scope — BAND (not a fixed "×3") because the
+      // band is the anchor slot plus its edge-to-edge neighbours: 3 pieces
+      // mid-board, but only 2 on a 2-card board or at a board edge (the band
+      // never wraps — see cardGlossary.ts's `splash` prose and
+      // combat/splash.ts), and 1 on a 1-card board. "×3" printed a count the
+      // engine doesn't guarantee; "BAND" names the shape without promising a
+      // number, and still reads distinctly from the unit-wide SLOW token above.
+      case 'splash': extras.push(`SPLASH +${action.weight} BAND`); break;
       case 'disrupt': extras.push(`STAG ${action.amount}`); break;
       // `statStrike` (the Resonant Echo gem's payload — see gems.ts) is an
       // EXTRA, self-contained hit with no `power` of its own (engine/types.ts):

@@ -512,6 +512,60 @@ describe('game/battleTimeline', () => {
     });
   });
 
+  // ---- `slowed` tax expires at end of turn, paid or not (cb2cc6c) ----
+  // Before cb2cc6c the tax only cleared once the victim actually paid it (on
+  // their next `play`), so a victim who sat out the whole turn it landed on
+  // carried it forward untouched. The engine now drops it unpaid at the turn
+  // boundary — mirrored here by clearing `pendingSlowByUnit` on the `end`
+  // event rather than only on `play`.
+  describe('slow tax expires at end of turn, paid or not', () => {
+    it('a unit slowed on turn N that does not act that turn shows an UNTAXED weight on turn N+1', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'slowed', side: 'enemy', unit: 0, weight: 16 },
+        // The victim never plays on turn 1 — nothing to pay the tax with —
+        // so the turn simply ends.
+        { turn: 1, kind: 'end' },
+        // Turn 2: the victim finally plays. Its weight is NOT inflated by
+        // the stale turn-1 slow — the engine dropped it unpaid at turn 1's
+        // boundary, so `e.weight` here is already the flat (untaxed) cost.
+        { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 0, skillId: 'sword_slash', weight: 20, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 3 });
+      const playLine = [...model.linesByTurn.values()].flat().find((l) => l.tag === 'PLAY')!;
+      expect(playLine.text).toContain('WEIGHT 20');
+      expect(playLine.text).not.toContain('SLOWED');
+    });
+
+    it('a unit that DOES act the same turn it was slowed still shows the tax named on that play (unchanged exit #1)', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'slowed', side: 'enemy', unit: 0, weight: 16 },
+        { turn: 1, kind: 'play', side: 'enemy', unit: 0, slot: 0, skillId: 'sword_slash', weight: 20, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 1, kind: 'end' },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const playLine = [...model.linesByTurn.values()].flat().find((l) => l.tag === 'PLAY')!;
+      expect(playLine.text).toContain('WEIGHT 20');
+      expect(playLine.text).toContain('includes +16 SLOWED');
+    });
+
+    it('does NOT touch the splash per-slot tax on `end` — splash rides until that piece is played', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'splashed', side: 'enemy', unit: 0, weight: 6, anchorSlot: 0, slots: [0, 1] },
+        // Nobody plays the splashed slots this turn.
+        { turn: 1, kind: 'end' },
+        // Turn 2: slot 1 (one of the splashed slots) finally plays — the
+        // splash tax must STILL be attributed, unlike slow above.
+        { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 1, skillId: 'sword_slash', weight: 16, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 3 });
+      const playLine = [...model.linesByTurn.values()].flat().find((l) => l.tag === 'PLAY')!;
+      expect(playLine.text).toContain('includes +6 SPLASHED');
+    });
+  });
+
   // ---- READY row and PLAY WEIGHT (2026-08-06 gap-closing pass) ----
   // `grep -rn "READY|WEIGHT" tests/` returned nothing before this block: the
   // turn-start readiness row (`flushGainRow`, battleTimeline.ts:495-517) and

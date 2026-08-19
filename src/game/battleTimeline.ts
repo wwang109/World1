@@ -516,11 +516,16 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // Shadow-tracks the engine's own `nextWeightPenalty` (combat/state.ts) so a
   // `slow` rider's pending bonus weight can be named on the WAIT/PLAY row of
   // the very card it will hit, not just the DEBUFF row announcing it landed.
-  // Mirrors the engine's own rule exactly (Math.max per re-application,
-  // cleared the instant that side/unit next plays ANY card — see
-  // `castSelect.ts`/`simulate.ts` `c.nextWeightPenalty = 0`) — reconstructed
-  // bookkeeping over already-emitted events, same idiom as the `dotsPlayer`/
-  // `dotsEnemies` pile-delta tracking above, not a combat decision.
+  // Mirrors the engine's own rule exactly (Math.max per re-application) —
+  // and, since cb2cc6c, the tax now has TWO exits, whichever comes first: the
+  // victim's next resolved cast THIS TURN (`c.nextWeightPenalty = 0` in
+  // castSelect.ts/simulate.ts, mirrored in the `play` case below), or the end
+  // of the turn, which drops it unpaid regardless of whether the victim ever
+  // acted (`for (const c of units) c.nextWeightPenalty = 0` right before the
+  // engine's own `end` event — mirrored by clearing this whole map on the
+  // `end` case below). Reconstructed bookkeeping over already-emitted events,
+  // same idiom as the `dotsPlayer`/`dotsEnemies` pile-delta tracking above,
+  // not a combat decision.
   const pendingSlowByUnit = new Map<string, number>();
   const slowKey = (side: 'player' | 'enemy', unit: number): string => `${side}:${unit}`;
   // The CARD-scope twin of `pendingSlowByUnit` above, for `splash`
@@ -698,9 +703,12 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // A pending `slow`/nextWeightPenalty bonus is baked into `e.weight`
         // already (castSelect.ts folds it in before the engine ever emits this
         // event) — name it here so the inflated number is traceable to the
-        // rider that caused it, then clear the shadow tracker: the engine
-        // resets `nextWeightPenalty` to 0 the instant this side/unit performs
-        // ANY cast, regardless of which piece.
+        // rider that caused it, then clear the shadow tracker: this is exit #1
+        // of the tax's two exits (see the `pendingSlowByUnit` declaration
+        // above) — the engine resets `nextWeightPenalty` to 0 the instant this
+        // side/unit performs ANY cast, regardless of which piece. Exit #2 (the
+        // tax going unpaid past end of turn) is mirrored on the `end` case,
+        // below.
         const sk = slowKey(e.side, unitOf(e));
         const slowedBy = pendingSlowByUnit.get(sk);
         pendingSlowByUnit.delete(sk);
@@ -1245,6 +1253,19 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       case 'fatigueStart': push(e.turn, 'PHASE', 'FATIGUE · flat damage begins every turn'); break;
       case 'attritionStart': push(e.turn, 'PHASE', `ATTRITION · ${e.amount} to everyone, rising`); break;
       case 'died': push(e.turn, 'DOWN', `${label(e)} falls`); break;
+      // Mirrors the engine's own end-of-turn clear (simulate.ts:
+      // `for (const c of units) c.nextWeightPenalty = 0` runs right before
+      // this very `end` event is pushed) — exit #2 of the two exits described
+      // on `pendingSlowByUnit` above. A `slow` tax that landed this turn but
+      // whose victim never acted must NOT still be shown as owed on the
+      // victim's next turn; the engine drops it unpaid at the turn boundary
+      // regardless of whether the whole side's units all cost-cleared it via
+      // a play this turn. No row of its own — this is bookkeeping over an
+      // already-silent engine event, not something a player reads.
+      // Deliberately does NOT touch `pendingSplashBySlot`: splash's tax is
+      // per PIECE and rides until that piece is actually played, unchanged by
+      // this engine update — see the `pendingSplashBySlot` declaration above.
+      case 'end': pendingSlowByUnit.clear(); break;
       case 'combatEnd': {
         // combatEnd is the log's final event, so HP here is final state — a
         // same-step MUTUAL wipe (both sides at 0) is decided by the engine's
