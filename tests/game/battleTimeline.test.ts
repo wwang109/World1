@@ -1214,6 +1214,43 @@ describe('game/battleTimeline', () => {
       const lines = [...model.linesByTurn.values()].flat();
       expect(lines.some((l) => l.text === `${model.foeName} · Guard wore off`)).toBe(true);
     });
+
+    // Regression: the eviction event names only (property, pct) — it cannot
+    // say WHICH pile, and interpreter.ts's own tie-break for a same-pct pair
+    // is "soonest-expiring", never "first applied". A(10%, expires turn 11)
+    // is applied before C(10%, expires turn 3) — same pct as A, much shorter
+    // duration — with B(20%, expires turn 7) as an unrelated third pile
+    // filling the MAX_GUARD_PILES=3 cap. The dominating D(25%, expires turn
+    // 15) then evicts the 10%-tied pair's SOONER-expiring member, C, per the
+    // engine's own rule — so A survives. The old first-match-in-array-order
+    // code spliced A instead (it happened to sit earlier in application
+    // order) and kept the already-nearly-dead C, so its badge dropped
+    // straight to "D alone" (25%) at turn 7 — four turns before the engine's
+    // real drop at turn 11 — skipping the 33% (A+D) state entirely.
+    it('splices the SOONEST-EXPIRING same-pct pile on eviction, not the first one in application order', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 10, turns: 10 }, // A, expires turn 11
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 20, turns: 6 },  // B, expires turn 7
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 10, turns: 2 },  // C, expires turn 3
+        { turn: 1, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 10 }, // engine evicts C (10%-tie, sooner-expiring)
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 25, turns: 14 }, // D, dominates all three, expires turn 15
+        { turn: 7, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard' }, // B's natural expiry
+        { turn: 11, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard' }, // A's natural expiry
+        { turn: 12, kind: 'combatEnd', result: 'win', turns: 12 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 12 });
+      // Turn 1: A, B, D all standing — 100 -> 90 -> 72 -> 54 = 46% effective.
+      // (Same number the old bug also produced here, by coincidence: A and C
+      // share the same pct, so which one is kept doesn't matter YET.)
+      expect(model.guardPctByTurn.get(1)?.enemy).toEqual([{ property: 'physical', pct: 46 }]);
+      // Turn 7: B has worn off; A survives (real expiry isn't until turn 11)
+      // alongside D — 100 -> 90 -> 67 = 33% effective. The old bug, having
+      // kept C (already expired at turn 3) instead of A, showed D-alone
+      // (25%) here already.
+      expect(model.guardPctByTurn.get(7)?.enemy).toEqual([{ property: 'physical', pct: 33 }]);
+      // Turn 11: A has now genuinely expired too — D alone, 25%.
+      expect(model.guardPctByTurn.get(11)?.enemy).toEqual([{ property: 'physical', pct: 25 }]);
+    });
   });
 
   // ---- `formatDmg` (the HIT `D:` math strip) — `exposeBonus` and

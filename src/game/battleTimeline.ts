@@ -1453,17 +1453,35 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           // domination-replace (which is provably safe to leave in a MAX-rule
           // shadow list — see the doc comment above `exposePilesPlayer`),
           // guard COMPOUNDS every active pile, so a phantom extra pile is not
-          // harmless here. The eviction event names exactly what it dropped
-          // (`property` + `pct`), so splice the first shadow pile matching
-          // that (property, pct) pair that hasn't naturally expired yet — ANY
-          // pile matching is the right one to drop, since compounding only
-          // ever reads the multiset of standing pcts per property, never which
-          // application produced which pct.
+          // harmless here. The eviction event names WHAT it dropped by
+          // (`property` + `pct`) only — NOT which of possibly several
+          // same-pct piles, because a pct tie is exactly the case
+          // interpreter.ts's own drop-selection breaks on `turnsLeft`
+          // (soonest-expiring), never on array/application order. Two piles
+          // CAN share (property, pct) while differing in remaining duration
+          // — two different cards both granting the same pct, or the steady
+          // state of recasting one card at the pile cap — and splicing the
+          // wrong one desyncs the badge from the engine's own standing set
+          // for every turn between the two piles' expiries (either
+          // under-reporting, if the kept shadow pile expires before the
+          // engine's real survivor, or over-reporting, if it outlives it).
+          // So splice the SOONEST-EXPIRING shadow pile matching
+          // (property, pct) that hasn't naturally expired yet — mirroring
+          // interpreter.ts's own cap tie-break (lowest pct first, ties to
+          // soonest `turnsLeft`) — rather than the first one found in
+          // application order, which has no relationship to that rule.
           const piles = guardPilesFor(e.side, unitOf(e));
           if (e.property !== undefined && e.pct !== undefined) {
-            const idx = piles.findIndex(
-              (p) => p.property === e.property && p.pct === e.pct && p.expiresAtTurn >= e.turn,
-            );
+            let idx = -1;
+            let idxExpiresAtTurn = Infinity;
+            for (let i = 0; i < piles.length; i += 1) {
+              const p = piles[i]!;
+              if (p.property !== e.property || p.pct !== e.pct || p.expiresAtTurn < e.turn) continue;
+              if (idx === -1 || p.expiresAtTurn < idxExpiresAtTurn) {
+                idx = i;
+                idxExpiresAtTurn = p.expiresAtTurn;
+              }
+            }
             if (idx !== -1) piles.splice(idx, 1);
           }
           const entries = effectiveGuardByProperty(piles, e.turn, true);
