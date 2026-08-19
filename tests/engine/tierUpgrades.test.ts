@@ -322,20 +322,25 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
       // The base (Bronze) card is invalid content on its own: cooldownTurns
       // 8 exceeds MAX_COOLDOWN_TURNS (6) — named at authoring time.
       expect(capViolations(base)).toEqual([`cooldownTurns 8 exceeds the max of ${MAX_COOLDOWN_TURNS}`]);
-      // Its own (pre-scale) price already reads the CLAMPED cooldown term —
-      // (BASELINE_COOLDOWN - 6) * 100 = -300, not the unclamped (3-8)*100 = -500.
+      // Its own (pre-scale) price already reads the CLAMPED cooldown term.
+      // The clamp itself is unchanged by the 2026-08-19 diminishing-refund
+      // pass (issue #22) — only the RATE within it moved, from the flat
+      // (BASELINE_COOLDOWN - 6) * 100 = -300 to the diminishing walk's total
+      // -(50+30+20) = -100 (still nowhere near the unclamped (3-8)*100 = -500).
       expect(powerLevelDeci(base)).toBe(1 * 5 + cooldownDeviationDeci(8));
-      expect(cooldownDeviationDeci(8)).toBe(-300);
+      expect(cooldownDeviationDeci(8)).toBe(-100);
 
-      // Scaling to Silver: BEFORE this fix, autoScaleTier's own hand-rolled
-      // cooldownCost used the UNCLAMPED -500, freeing 650 deci of sink budget
-      // and deriving `damage: 130` (650/5) — a card that then ALSO blew the
-      // size-1 damage cap (650 deci = 65 PL against a 30 PL ceiling). AFTER
-      // this fix, autoScaleTier calls the exact same `cooldownDeviationDeci`
-      // powerLevelDeci uses, so it frees only 450 deci and derives `damage: 90`.
+      // Scaling to Silver: BEFORE the 2026-08-17 clamp fix, autoScaleTier's own
+      // hand-rolled cooldownCost used the UNCLAMPED -500, freeing 650 deci of
+      // sink budget and deriving `damage: 130` (650/5) — a card that then ALSO
+      // blew the size-1 damage cap (650 deci = 65 PL against a 30 PL ceiling).
+      // AFTER that fix (flat clamped rate), it derived `damage: 90` (450/5).
+      // AFTER the 2026-08-19 diminishing-refund pass, the clamped total itself
+      // shrank to -100, so autoScaleTier frees only 250 deci and derives
+      // `damage: 50` (250/5) — comfortably under the size-1 damage cap now too.
       const scaled = autoScaleTier(base, 'silver');
       const dmg = scaled.effects.find((a) => a.kind === 'damage') as { power: number };
-      expect(dmg.power).toBe(90); // NOT 130 — the pre-fix, drifted value
+      expect(dmg.power).toBe(50); // NOT 90 (old flat-rate clamp) nor 130 (pre-clamp, drifted)
       expect(powerLevelDeci(scaled)).toBe(TIER_BUDGET_DECI.silver);
       // The 'cooldown' part of the scaled card's OWN balance.ts breakdown
       // agrees EXACTLY with the clamped value autoScaleTier used internally

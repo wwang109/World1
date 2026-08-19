@@ -11,7 +11,7 @@ import { validateSkillDocument } from '../../src/data/validateSkillContent';
 import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
 import { resolveEffectiveSkill, splashSuppressionOn } from '../../src/engine/cards';
-import { gemPowerLevelDeci, isGemOnBudget, RARITY_PL_DECI } from '../../src/engine/balance';
+import { gemPowerLevelDeci, instancePowerLevelDeci, isGemOnBudget, RARITY_PL_DECI } from '../../src/engine/balance';
 import { isMultiTargetSkill } from '../../src/engine/types';
 import type { BoardPiece, CombatConfig, Gem, SkillBook, SkillDef } from '../../src/engine/types';
 import type { CombatEvent as Ev } from '../../src/engine/combat/events';
@@ -781,5 +781,72 @@ describe('splash gates: the multi-target CONCEPT, not a scope literal', () => {
       expect(targets.length > 1).toBe(isMultiTargetSkill(skill));
       expect(splashSuppressionOn(skill) === 'multiTarget').toBe(isMultiTargetSkill(skill));
     }
+  });
+});
+
+/**
+ * INSTANCE PL, HOST-AWARE (balance-designer pass, 2026-08-19 — closes a
+ * flagged loose end from the splash-gem pass). `instancePowerLevelDeci` is
+ * the ONE gem-PL surface that knows the host (used for echo's measured
+ * share); before this fix it still added a suppressed gem splash's FULL
+ * uncapped price even on a host where THE SPLASH GATE drops it entirely —
+ * paying PL for an effect that never fires. A suppressed action must
+ * contribute ZERO instance PL. Covers both gate arms (`splashSuppressionOn`'s
+ * two reasons) plus the unconditional "keep only the gem's first splash"
+ * rule `spliceGemActions` applies even on an ORDINARY host.
+ */
+describe('instancePowerLevelDeci: a gem splash SUPPRESSED by the gate prices at ZERO', () => {
+  it('GATE (a) multiTarget — a splash gem on an AoE host contributes nothing', () => {
+    const aoe = BOOK.aoeJab!;
+    expect(splashSuppressionOn(aoe)).toBe('multiTarget');
+    const gem = splashGem(8);
+    const base = powerLevelDeci(aoe);
+    expect(instancePowerLevelDeci(aoe, { gem })).toBe(base);
+    // The naive (pre-fix) number would have added the gem's full, unsuppressed
+    // price — proving this isn't an accidental match.
+    expect(instancePowerLevelDeci(aoe, { gem })).not.toBe(base + gemPowerLevelDeci(gem, aoe));
+  });
+
+  it('GATE (b) hostAlreadySplashes — a splash gem on shockwave_slam contributes nothing', () => {
+    const host = skillBook.shockwave_slam!;
+    expect(splashSuppressionOn(host)).toBe('hostAlreadySplashes');
+    const gem = splashGem(16);
+    const base = powerLevelDeci(host);
+    expect(instancePowerLevelDeci(host, { gem })).toBe(base);
+    expect(instancePowerLevelDeci(host, { gem })).not.toBe(base + gemPowerLevelDeci(gem, host));
+  });
+
+  it('suppression zeroes ONLY the splash — every other action on the same gem still prices', () => {
+    const mixed: Gem = {
+      kind: 'effect', id: 'mixed', rarity: 'rare',
+      actions: [{ kind: 'splash', weight: 8 }, { kind: 'poison', stacks: 3 }],
+    };
+    const aoe = BOOK.aoeJab!;
+    // poison 3 stacks * dotPerStack(10) = 30 deci; splash contributes 0 (suppressed).
+    expect(instancePowerLevelDeci(aoe, { gem: mixed })).toBe(powerLevelDeci(aoe) + 30);
+    expect(instancePowerLevelDeci(aoe, { gem: mixed })).not.toBe(powerLevelDeci(aoe) + gemPowerLevelDeci(mixed, aoe));
+  });
+
+  it('an UNSUPPRESSED host still gets the gem\'s full splash price (the fix is host-aware, not a blanket zero)', () => {
+    const host = BOOK.splashless!;
+    expect(splashSuppressionOn(host)).toBeNull();
+    const gem = splashGem(8);
+    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + gemPowerLevelDeci(gem, host));
+    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + 40); // 8 * 5
+  });
+
+  it('a gem carrying TWO splashes: instance PL keeps only the FIRST, even on an unsuppressed host', () => {
+    // Mirrors `spliceGemActions`'s "keep only the first" rule — the runtime
+    // never applies (or logs) the second splash on ANY host, gated or not, so
+    // pricing it would charge PL for an effect that can never fire.
+    const doubled: Gem = {
+      kind: 'effect', id: 'doubled', rarity: 'rare',
+      actions: [{ kind: 'splash', weight: 8 }, { kind: 'splash', weight: 2 }],
+    };
+    const host = BOOK.splashless!;
+    expect(splashSuppressionOn(host)).toBeNull();
+    // Naive (both splashes priced): 8*5 + 2*5 = 50. Correct (first only): 40.
+    expect(gemPowerLevelDeci(doubled, host)).toBe(50);
+    expect(instancePowerLevelDeci(host, { gem: doubled })).toBe(powerLevelDeci(host) + 40);
   });
 });

@@ -77,6 +77,15 @@ import { PACK_VARIANT_WEIGHTS } from '../../src/run/encounter';
 // `dotPerStack` — the nearest structural comparable (self-only, permanent,
 // one-numeric-field, empower-family) — see balance.ts for the full
 // "nearest priced comparable" derivation. NO existing rate moved.
+//
+// 2026-08-19: cooldownRefundStepDeci [50, 30, 20] ADDED — the LONG (refund)
+// side of cooldown deviation moved off the flat `cooldownPerTurn` rate onto a
+// diminishing per-extra-turn walk (issue #22: a flat rate let a Bronze card
+// recoup up to 300 deci/30 PL by cooldownTurns 6, when the marginal turns are
+// NOT equally weakening — see balance.ts for the fight-length-derived 5:3:2
+// ratio and the 100-deci total-refund anchor). `cooldownPerTurn` itself is
+// UNCHANGED and now prices the SHORT (cost) side only. NO shipped card moved
+// (0/74 override `cooldownTurns`).
 describe('PRICE structure lock', () => {
   it('every PRICE rate matches its locked value', () => {
     expect(PRICE).toEqual({
@@ -92,6 +101,7 @@ describe('PRICE structure lock', () => {
       sizeGrant2Bronze: 140,
       sizeGrant3Bronze: 380,
       cooldownPerTurn: 100,
+      cooldownRefundStepDeci: [50, 30, 20],
       slowPerWeightNum: 5,
       slowPerWeightDen: 2,
       splashPerWeightNum: 5,
@@ -420,6 +430,14 @@ describe('Power Level budgets', () => {
 // -> PL -9500, all with capViolations() === []. See MAX_COOLDOWN_TURNS's doc
 // comment in balance.ts for the fight-length arithmetic the clamp is derived
 // from.
+//
+// FOLLOW-UP (2026-08-19, issue #22): clamping the TOTAL wasn't enough — a flat
+// per-turn rate WITHIN the clamped range still overpaid the far turns (5->6
+// refunded the same as 3->4, when the marginal cast-count drop is much
+// smaller by then). `cooldownDeviationDeci`'s long side now walks
+// `PRICE.cooldownRefundStepDeci` (50/30/20, diminishing), replacing the flat
+// `(BASELINE_COOLDOWN - cooldown) * cooldownPerTurn` on that side only — see
+// balance.ts for the fight-length-derived ratio and the 100-deci anchor.
 describe('cooldown deviation is CLAMPED (fail-open close)', () => {
   const mk = (cooldownTurns: number): SkillDef => ({
     id: 'x', name: 'x', archetypes: ['offense'], property: 'physical', weapon: 'sword',
@@ -435,32 +453,43 @@ describe('cooldown deviation is CLAMPED (fail-open close)', () => {
 
   it('cooldownDeviationDeci stops growing past MAX_COOLDOWN_TURNS — every value beyond it prices IDENTICALLY', () => {
     const atCap = cooldownDeviationDeci(MAX_COOLDOWN_TURNS);
-    expect(atCap).toBe((BASELINE_COOLDOWN - MAX_COOLDOWN_TURNS) * PRICE.cooldownPerTurn);
-    expect(atCap).toBe(-300); // (3 - 6) * 100
+    const totalStepRefund = PRICE.cooldownRefundStepDeci.reduce((a, b) => a + b, 0);
+    expect(atCap).toBe(-totalStepRefund);
+    expect(atCap).toBe(-100); // 50 + 30 + 20 — was the flat -300 ((3-6)*100)
     for (const cd of [7, 8, 16, 50, 99]) {
       expect(cooldownDeviationDeci(cd)).toBe(atCap);
     }
-    // Below the cap, every turn still moves the price (unclamped side is
-    // honest — the refund only stops growing once it would be fictitious).
+    // Below the cap, every turn still moves the price, and — the point of
+    // issue #22's fix — each successive turn refunds STRICTLY LESS than the
+    // one before it, not the same flat amount.
     expect(cooldownDeviationDeci(5)).toBeLessThan(cooldownDeviationDeci(4));
     expect(cooldownDeviationDeci(4)).toBeLessThan(cooldownDeviationDeci(3));
+    const step1 = cooldownDeviationDeci(3) - cooldownDeviationDeci(4); // 50
+    const step2 = cooldownDeviationDeci(4) - cooldownDeviationDeci(5); // 30
+    const step3 = cooldownDeviationDeci(5) - cooldownDeviationDeci(6); // 20
+    expect([step1, step2, step3]).toEqual([50, 30, 20]);
+    expect(step1).toBeGreaterThan(step2);
+    expect(step2).toBeGreaterThan(step3);
   });
 
   it('an omitted cooldownTurns prices at exactly +0 (baseline is free, unaffected by the clamp)', () => {
     expect(cooldownDeviationDeci(undefined)).toBe(0);
   });
 
-  it('powerLevelDeci on sword_slash: the refund is now bounded — cd 8/16/99 all price IDENTICALLY, not −400/−1200/−9500', () => {
+  it('powerLevelDeci on sword_slash: the refund is bounded AND diminishing — cd 8/16/99 all price IDENTICALLY, not −400/−1200/−9500 (nor the old flat-rate −300 clamp)', () => {
     const sword = skillBook.sword_slash!;
     const at = (cd: number): number => powerLevelDeci({ ...sword, cooldownTurns: cd });
     const baseline = at(BASELINE_COOLDOWN);
     expect(at(0)).toBe(baseline + 300); // (3-0)*100, unaffected: short side is unclamped
-    expect(at(4)).toBe(baseline - 100);
+    expect(at(4)).toBe(baseline - 50); // 1st extra turn: was the old flat −100
+    expect(at(5)).toBe(baseline - 80); // +30 more (cumulative 80): was the old flat −200
     const clamped = at(MAX_COOLDOWN_TURNS);
+    expect(clamped).toBe(baseline - 100); // +20 more (cumulative 100): was the old flat −300
     expect(at(8)).toBe(clamped);
     expect(at(16)).toBe(clamped);
     expect(at(99)).toBe(clamped);
-    expect(at(8)).not.toBe(baseline - 500); // the old unclamped figure
+    expect(at(8)).not.toBe(baseline - 300); // the OLD (flat-rate) clamped figure
+    expect(at(8)).not.toBe(baseline - 500); // the pre-clamp unclamped figure
     expect(at(16)).not.toBe(baseline - 1300);
     expect(at(99)).not.toBe(baseline - 9600);
   });

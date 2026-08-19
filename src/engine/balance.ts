@@ -11,7 +11,7 @@
 // docs/power-level-reference.md, sourced from these exact constants. Do not
 // hand-copy numbers elsewhere — read PRICE.
 
-import { BASELINE_COOLDOWN, weightOf, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
+import { BASELINE_COOLDOWN, isMultiTargetSkill, weightOf, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
 import { buildKeywordPricing, priceActionDeci, walkBrackets, type CapFamily } from './keywords/pricing';
 
 export const TIER_BUDGET_DECI: Record<SkillTier, number> = {
@@ -157,13 +157,15 @@ export const PRICE = {
   sizeGrant3Bronze: 380,
 
   /**
-   * cooldown: (BASELINE_COOLDOWN − cooldownTurns) * cooldownPerTurn — a
-   * SHORTER cooldown fires more often (stronger, costs MORE PL); a LONGER
-   * cooldown fires less often (weaker, REFUNDS PL). Baseline (3, the default
-   * when `cooldownTurns` is omitted) is free — deviation 0 → +0 PL, so every
-   * existing (baseline) card is unaffected.
+   * cooldown — a SHORTER cooldown fires more often (stronger, costs MORE
+   * PL): `(BASELINE_COOLDOWN − cooldownTurns) * cooldownPerTurn`. A LONGER
+   * cooldown fires less often (weaker, REFUNDS PL) at a DIFFERENT, DIMINISHING
+   * rate — `cooldownDeviationDeci` walks `cooldownRefundStepDeci` for that
+   * side (balance-designer pass, 2026-08-19; see that constant). Baseline (3,
+   * the default when `cooldownTurns` is omitted) is free — deviation 0 → +0
+   * PL, so every existing (baseline) card is unaffected.
    *
-   * Priced at 100 deci (10 PL) per turn — user-locked 2026-07-19: a shorter
+   * Priced at 100 deci (10 PL) per turn on the SHORT side — user-locked 2026-07-19: a shorter
    * cooldown is a full extra cast over the course of a fight, close to a
    * whole Bronze card's worth of power, so it is priced like one. At this
    * rate NO gem rarity budget (2-8 PL) can afford even −1 turn, so nothing
@@ -178,8 +180,55 @@ export const PRICE = {
    * with. See `MAX_COOLDOWN_TURNS` / `cooldownDeviationDeci` below — the ONE
    * place this term is now computed, shared by `powerLevelDeci` here and
    * `autoScaleTier` in cards.ts.
+   *
+   * THIS RATE NOW PRICES THE SHORT (COST) SIDE ONLY (balance-designer pass,
+   * 2026-08-19). The long (refund) side moved off this flat rate onto
+   * `cooldownRefundStepDeci` below — see that constant for why a single flat
+   * rate over the whole 3->6 range was dishonest, and for the diminishing
+   * shape that replaced it. The short side is untouched: cooldown is a
+   * deck-diversity dial, and a card BUYING a shorter cooldown is buying a
+   * real, guaranteed extra cast every time — a flat per-turn cost is still
+   * the honest shape there, and stays this rate.
    */
   cooldownPerTurn: 100,
+
+  /**
+   * DIMINISHING REFUND PER EXTRA TURN, one entry per turn beyond
+   * `BASELINE_COOLDOWN` (index 0 = the 1st extra turn, 3->4; index 1 = 4->5;
+   * index 2 = 5->6, the `MAX_COOLDOWN_TURNS` clamp) — balance-designer pass,
+   * 2026-08-19, REPLACES the flat `cooldownPerTurn` rate on the refund side
+   * (issue #22: a flat rate let a Bronze card recoup up to 300 deci/30 PL by
+   * turn 6, when cooldown is doctrine'd as a deck-diversity dial, not a power
+   * dial, and the marginal turns are NOT equally weakening).
+   *
+   * DERIVED FROM THE SAME FIGHT-LENGTH DATA `MAX_COOLDOWN_TURNS` ALREADY
+   * CITES (the frozen 200-fight regression sweep, mean fight length ≈7.6
+   * turns), not felt. A lone card's expected casts over a fight of that
+   * length is ≈ meanLength / (cooldownTurns + 1) (`cooldownRemaining`'s own
+   * "stride cooldown+1" arithmetic) — so the MARGINAL casts a further
+   * cooldown turn removes is itself diminishing:
+   *   3->4: 7.6/4 − 7.6/5 = 0.380 casts
+   *   4->5: 7.6/5 − 7.6/6 = 0.253 casts
+   *   5->6: 7.6/6 − 7.6/7 = 0.181 casts
+   *   ratio  0.380 : 0.253 : 0.181  ≈  5 : 3 : 2
+   *
+   * ANCHORED, NOT RE-GUESSED: the TOTAL refund at the clamp (cd 6) is capped
+   * at exactly `cooldownPerTurn` (100 deci) — the SAME "one whole extra cast,
+   * ~ a Bronze card's worth of power" value the short side already charges
+   * to BUY one more cast. That symmetry is not a coincidence: by cd 6, the
+   * earliest possible second cast (turn 1+7=8) no longer fits inside the
+   * mean-length fight at all (`MAX_COOLDOWN_TURNS`'s own derivation), i.e.
+   * the card has lost one WHOLE cast relative to baseline — worth exactly
+   * what buying one costs on the other side of the same table, not a
+   * multiple of it.
+   *
+   * Splitting 100 deci across the 5:3:2 ratio and rounding to whole-PL steps
+   * (whole-PL per step is a design invariant, same as every other rate in
+   * this table): 50 / 30 / 20 deci for the 1st / 2nd / 3rd extra turn —
+   * cumulative 50 -> 80 -> 100 deci (5 -> 8 -> 10 PL) at cooldownTurns 4 / 5
+   * / 6, down from the old flat 100 -> 200 -> 300.
+   */
+  cooldownRefundStepDeci: [50, 30, 20] as readonly number[],
 
   /** slow: weight * (slowPerWeightNum/Den) — 1 PL per +4 weight. */
   slowPerWeightNum: 5,
@@ -667,13 +716,23 @@ export const MAX_COOLDOWN_TURNS = 6;
  * Deviation is measured from `BASELINE_COOLDOWN`, clamped at
  * `MAX_COOLDOWN_TURNS` on the long (refund) side — see its doc comment for
  * the full derivation. The short side (a shorter-than-baseline cooldown,
- * which COSTS PL) is left unclamped: it is self-limiting (no gem rarity
- * budget, and no card tier budget, can afford even −1 turn at this rate), so
- * there is no fictitious value to bound there.
+ * which COSTS PL) is left unclamped, at the flat `cooldownPerTurn` rate: it
+ * is self-limiting (no gem rarity budget, and no card tier budget, can
+ * afford even −1 turn at this rate), so there is no fictitious value to
+ * bound there.
+ *
+ * THE LONG SIDE IS NOW A DIMINISHING WALK, not a flat rate (balance-designer
+ * pass, 2026-08-19 — see `PRICE.cooldownRefundStepDeci` for the full
+ * derivation): each turn beyond baseline refunds strictly less than the one
+ * before it, read off that step table rather than multiplied by a constant.
  */
 export function cooldownDeviationDeci(cooldownTurns: number | undefined): number {
-  const cooldown = Math.min(cooldownTurns ?? BASELINE_COOLDOWN, MAX_COOLDOWN_TURNS);
-  return (BASELINE_COOLDOWN - cooldown) * PRICE.cooldownPerTurn;
+  const raw = cooldownTurns ?? BASELINE_COOLDOWN;
+  if (raw <= BASELINE_COOLDOWN) return (BASELINE_COOLDOWN - raw) * PRICE.cooldownPerTurn;
+  const cooldown = Math.min(raw, MAX_COOLDOWN_TURNS);
+  let refund = 0;
+  for (let i = 0; i < cooldown - BASELINE_COOLDOWN; i += 1) refund += PRICE.cooldownRefundStepDeci[i] ?? 0;
+  return -refund;
 }
 
 /**
@@ -1182,6 +1241,28 @@ export function isGemOnBudget(gem: Gem): boolean {
 }
 
 /**
+ * Whether a HOST would suppress an appended gem `splash` action — re-derives
+ * `spliceGemActions`'s THE SPLASH GATE (`src/engine/cards.ts`) rather than
+ * importing it: cards.ts sits DOWNSTREAM of balance.ts (it imports
+ * `powerLevelDeci`/`gemPowerLevelDeci`/`PRICE` from here), so importing the
+ * gate back would close the same layering cycle `echoHostShareDeci` already
+ * declines to close for `ownDamagePower` — same tradeoff, same fix. A
+ * regression test (`tests/engine/splash.test.ts`) pins this copy against
+ * `splashSuppressionOn` in cards.ts so the two can never drift.
+ *
+ * Both gate arms, exactly as `splashSuppressionOn` states them: (a) a host
+ * that already resolves against more than one unit, and (b) a host that
+ * already carries its own (non-gem) splash.
+ */
+function hostSuppressesSplash(host: SkillDef): boolean {
+  if (isMultiTargetSkill(host)) return true;
+  for (const action of host.effects) {
+    if (action.kind === 'splash' && !action.fromGem) return true;
+  }
+  return false;
+}
+
+/**
  * Display/run-power readout for a socketed piece: base card PL (audited,
  * tier-budgeted) plus the gem's own uncapped bonus PL. Never fed back into
  * `isOnBudget` — the base-tier audit must stay gem-blind.
@@ -1196,7 +1277,31 @@ export function isGemOnBudget(gem: Gem): boolean {
  * contract — callers pass `skillBook[piece.skillId]`, not a tier-resolved or
  * gem-resolved skill. A piece's `tier` therefore does not scale the echo term
  * here, exactly as it does not scale `powerLevelDeci(def)` here.
+ *
+ * THE SPLASH GATE, PRICED (balance-designer pass, 2026-08-19 — closes a
+ * flagged loose end from the splash-gem pass): `spliceGemActions` drops a
+ * gem's `splash` action at cast-resolution time when THE SPLASH GATE fires
+ * (host already multi-target, or host already splashes) — it never fires on
+ * that host, so it must contribute ZERO instance PL there, not its full
+ * uncapped price. Filters `gem.actions` down to what the gate would actually
+ * keep (dropping every splash when suppressed, or every splash past the
+ * gem's own first when it isn't — the same "keep only the first" rule
+ * `spliceGemActions` applies) before pricing the rest of the gem normally;
+ * every other gem shape is untouched, so nothing else moves.
  */
 export function instancePowerLevelDeci(def: SkillDef, piece: { gem?: Gem | null }): number {
-  return powerLevelDeci(def) + (piece.gem ? gemPowerLevelDeci(piece.gem, def) : 0);
+  const gem = piece.gem;
+  if (!gem) return powerLevelDeci(def);
+  if (gem.kind !== 'effect' || !gem.actions.some((a) => a.kind === 'splash')) {
+    return powerLevelDeci(def) + gemPowerLevelDeci(gem, def);
+  }
+  const suppressed = hostSuppressesSplash(def);
+  let splashSeen = false;
+  const actions = gem.actions.filter((action) => {
+    if (action.kind !== 'splash') return true;
+    if (suppressed || splashSeen) return false;
+    splashSeen = true;
+    return true;
+  });
+  return powerLevelDeci(def) + gemPowerLevelDeci({ ...gem, actions }, def);
 }

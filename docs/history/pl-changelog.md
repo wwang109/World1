@@ -161,3 +161,62 @@ points):
 Every ladder lands EXACTLY on budget (no fudged numbers). `PRICE` in
 `src/engine/balance.ts` is the source of truth; this section is a changelog
 record only.
+
+## 2026-08-19 changelog: cooldown LONG-side refund re-priced to a diminishing walk (issue #22)
+
+**Standing finding actioned:** `cooldownDeviationDeci`'s long (refund) side
+priced every turn past `BASELINE_COOLDOWN` at the same flat `cooldownPerTurn`
+rate (100 deci), so a Bronze card could recoup up to 300 deci (30 PL) by
+`cooldownTurns` 6 — but the game's own doctrine (allocator work) is that
+cooldown is a deck-diversity dial, not a power dial, and the marginal turns
+are not equally weakening: a further cooldown turn matters much less once the
+card is already rarely available (the 5→6 step buys far less real weakening
+than 3→4).
+
+`PRICE.cooldownRefundStepDeci` (`[50, 30, 20]`, one entry per turn beyond
+baseline) REPLACES the flat rate on this side only — `cooldownPerTurn` is
+unchanged and now prices the SHORT (cost) side exclusively.
+
+**Derived, not felt:** reused the SAME fight-length data `MAX_COOLDOWN_TURNS`
+already cites (frozen 200-fight regression sweep, mean length ≈7.6 turns). A
+lone card's expected casts over a fight of that length is
+`≈ meanLength / (cooldownTurns + 1)` (`cooldownRemaining`'s own
+"stride cooldown+1" arithmetic), so the MARGINAL casts a further cooldown
+turn removes is itself diminishing:
+
+| step | casts removed | ratio |
+|---|---|---|
+| 3→4 | 0.380 | ~5 |
+| 4→5 | 0.253 | ~3 |
+| 5→6 | 0.181 | ~2 |
+
+The TOTAL refund at the `MAX_COOLDOWN_TURNS` clamp is anchored, not
+re-guessed, at exactly `cooldownPerTurn` itself (100 deci) — the same "one
+whole extra cast, ~ a Bronze card's worth of power" value the SHORT side
+already charges to BUY a cast. This is not a coincidence: by `cooldownTurns`
+6 the earliest possible second cast (turn 1+7=8) no longer fits the
+mean-length fight at all, i.e. the card has symmetrically LOST one whole
+cast relative to baseline. Splitting 100 deci across the 5:3:2 ratio and
+rounding to whole-PL steps: 50 / 30 / 20 deci for the 1st / 2nd / 3rd extra
+turn (cumulative 50 → 80 → 100 deci, 5 → 8 → 10 PL, at `cooldownTurns`
+4 / 5 / 6 — down from the old flat 100 → 200 → 300).
+
+**Zero cascade:** no shipped card overrides `cooldownTurns` (0/74) and no
+shipped gem carries `cooldownReduction` — the balance audit (every card on
+budget) is unaffected, and no re-solve was required. `cooldownDeviationDeci`
+remains the ONE place this term is computed (shared by `powerLevelDeci` and
+`autoScaleTier` in `cards.ts`), so both callers moved together.
+
+**Folded in at the same pass — `instancePowerLevelDeci` splash-suppression
+fix:** the one host-aware PL surface (used for a socketed piece's display/
+run-power readout) still added a suppressed gem `splash`'s full uncapped
+price even when THE SPLASH GATE (`spliceGemActions`, `src/engine/cards.ts`)
+drops it entirely at cast-resolution time — on a multi-target host, or a host
+that already carries its own splash. A suppressed action never fires, so it
+must contribute ZERO instance PL; `instancePowerLevelDeci` now re-derives the
+gate's predicate (`hostSuppressesSplash`, mirroring `splashSuppressionOn`
+without closing the cards.ts→balance.ts import cycle, same tradeoff
+`echoHostShareDeci` already accepts) and filters the gem's actions down to
+what the gate would actually keep before pricing. Covered for both
+suppression reasons, plus the gate's "keep only the gem's first splash"
+rule on an ordinary host, in `tests/engine/splash.test.ts`.

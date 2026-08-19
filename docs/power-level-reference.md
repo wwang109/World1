@@ -52,7 +52,8 @@ immediately):
 | aura `damageFlat` / `healFlat` / `weightDelta` | `mod * rate * reach` (reach = 2 for `allBoard`, else 1) | `PRICE.auraDamageFlat` / `auraHealFlat` / `auraWeightDelta` — flat auras cost 2× a card's own one-shot flat damage: empirically the break-even where the best adjacent placement (2 casting neighbors) is PL-fair (2026-07-23 audit) |
 | weight | `(baseline − weight) * weightPer`, baseline = `size * 10` | `PRICE.weightPer` — lighter costs, heavier refunds |
 | size grant | `−sizeGrantDeci(size, tier)` | `PRICE.sizeGrant2Bronze/3Bronze` — grows at HALF the tier-budget growth (user-locked 2026-07-19); big cards get extra kit budget for board space + turn span |
-| cooldown (`cooldownTurns`) | `(BASELINE_COOLDOWN − cooldownTurns) * cooldownPerTurn` | `PRICE.cooldownPerTurn`, `BASELINE_COOLDOWN` (`src/engine/types.ts`) — see rationale below |
+| cooldown (`cooldownTurns`), SHORT side (shorter than baseline, costs PL) | `(BASELINE_COOLDOWN − cooldownTurns) * cooldownPerTurn` | `PRICE.cooldownPerTurn`, `BASELINE_COOLDOWN` (`src/engine/types.ts`) — see rationale below |
+| cooldown, LONG side (longer than baseline, refunds PL) | diminishing per-turn walk, clamped at `MAX_COOLDOWN_TURNS` | `PRICE.cooldownRefundStepDeci` (50/30/20 deci for the 1st/2nd/3rd extra turn) — re-priced 2026-08-19, see rationale below |
 
 ## Effect investment caps (design contract, user-locked 2026-07-20)
 
@@ -176,13 +177,34 @@ cooldown decides which cards are even eligible. A card cast on turn T is
 unavailable T+1..T+cooldown and eligible again at T+cooldown+1 — a lone card
 fires with stride `cooldown + 1` (baseline 3 → every 4th turn).
 
-`cooldownPerTurn = 100` deci (10 PL) per turn of deviation — **user-locked
+`cooldownPerTurn = 100` deci (10 PL) per turn of deviation on the SHORT side
+(a shorter-than-baseline cooldown, which COSTS PL) — **user-locked
 2026-07-19**: a shorter cooldown is a full extra cast over the course of a
 fight, close to a whole Bronze card's worth of power, so it is priced like
 one. Baseline (cooldownTurns omitted) prices at exactly +0, so every existing
 card is unaffected. At this rate NO gem rarity budget (2-8 PL) can afford even
 −1 turn, and no card in the shipped catalog overrides `cooldownTurns` — the
 rate exists to price any future exception honestly.
+
+**The LONG side (a longer-than-baseline cooldown, which REFUNDS PL) no longer
+shares this flat rate** (balance-designer pass, 2026-08-19, issue #22): a flat
+per-turn refund let a Bronze card recoup up to 300 deci (30 PL) by
+`cooldownTurns` 6, when cooldown is doctrine'd as a deck-diversity dial, not a
+power dial — and the marginal turns are not equally weakening (5→6 buys much
+less real weakening than 3→4, since the card is already rarely available by
+then). `cooldownDeviationDeci` (`src/engine/balance.ts`) instead walks
+`PRICE.cooldownRefundStepDeci` — 50 / 30 / 20 deci for the 1st / 2nd / 3rd
+extra turn (cumulative 50 → 80 → 100 deci at `cooldownTurns` 4 / 5 / 6),
+DERIVED from the same fight-length data `MAX_COOLDOWN_TURNS` cites (mean
+≈7.6 turns): a lone card's expected casts over a fight scale as
+`meanLength / (cooldownTurns + 1)`, so the MARGINAL cast reduction per extra
+turn is itself diminishing (0.380 : 0.253 : 0.181 ≈ 5 : 3 : 2 across the
+3→4/4→5/5→6 steps). The total at the `MAX_COOLDOWN_TURNS` clamp is capped at
+exactly `cooldownPerTurn` (100 deci) — the SAME "one whole extra cast" value
+the short side charges to BUY a cast, since by `cooldownTurns` 6 the card has
+symmetrically LOST one whole cast relative to baseline. No shipped card moved
+(0/74 override `cooldownTurns`). Full derivation:
+`src/engine/balance.ts`'s `PRICE.cooldownRefundStepDeci` doc comment.
 
 ## Socket / Gem PL accounting
 
