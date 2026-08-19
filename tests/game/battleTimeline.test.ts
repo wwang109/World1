@@ -1362,6 +1362,36 @@ describe('game/battleTimeline', () => {
       expect(playLine.text).toContain(`· target ${model.foes[1]!.name} #2`);
     });
 
+    // Regression for the audit-found cross-renderer inconsistency (2026-08-19):
+    // `scripts/fight.ts` derives its `#n` suffix from the STARTING team array
+    // length, fixed once, so a unit's displayed identity never changes because
+    // an ally died. This file used to re-derive the same suffix (and whether to
+    // show a target note AT ALL) from the CURRENTLY-LIVING count instead, so
+    // once unit 0 died the note for unit 1 silently disappeared mid-fight —
+    // diverging from the ASCII log, which kept printing "target Giant Rat #2"
+    // for the rest of the fight. A death must not change later labels.
+    it('keeps naming the surviving foe with its ORIGINAL #n suffix after an ally on its side has died', () => {
+      const events: CombatEvent[] = [
+        // Unit 0 (Bandit Duelist, "#1") dies first.
+        {
+          turn: 1, kind: 'damage', side: 'enemy', unit: 0, amount: 999, property: 'physical',
+          blocked: 0, hpAfter: 0, source: 'skill',
+        },
+        // A later cast targets the sole survivor, unit 1 (Giant Rat, "#2").
+        // Its side started the fight with 2 units and now has only 1 living —
+        // the label must still read "#2", not drop the suffix or the note.
+        {
+          turn: 2, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'sword_slash',
+          weight: 6, size: 1, slotIndex: 1, slotCount: 1,
+          targetUnit: 1, targetPolicy: 'lowestHp', targetValue: 40,
+        },
+        { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+      ];
+      const model = buildBattleTimeline(multiInput, { events, result: 'win', turns: 3 });
+      const playLine = [...model.linesByTurn.values()].flat().find((l) => l.tag === 'PLAY')!;
+      expect(playLine.text).toContain(`· target ${model.foes[1]!.name} #2`);
+    });
+
     it('names nothing extra for an AoE cast — the existing "AOE ×N" note stands alone', () => {
       const events: CombatEvent[] = [
         {

@@ -736,20 +736,28 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const unitOf = (e: { unit?: number }): number => e.unit ?? 0;
   const label = (e: Extract<CombatEvent, { side: 'player' | 'enemy' }>): string =>
     (e.side === 'player' ? heroName : (foes[unitOf(e as { unit?: number })]?.name ?? foeName));
-  // Number of units on `side` still standing AS OF the current point in the
-  // event stream (`curPlayer`/`curEnemies`, updated by the `damage` case below
-  // as it's walked) — the gate for whether a single-target PLAY line needs to
-  // name its victim at all: with only one unit left on the target's side there
-  // is no ambiguity to resolve (mirrors `scripts/fight.ts`, commit 902e178).
-  const sideLivingCount = (side: 'player' | 'enemy'): number =>
-    (side === 'player' ? (curPlayer > 0 ? 1 : 0) : curEnemies.filter((hp) => hp > 0).length);
-  // `#n` (1-based lineup position) only when the side actually fields more
-  // than one unit — same convention `scripts/fight.ts` just landed, so a 1v1
-  // fight's target note never grows a redundant "#1".
+  // STARTING roster size for `side` — fixed once at team-build time from
+  // `foes`/the single hero unit, and never re-derived from who's still alive
+  // mid-fight. This is exactly `scripts/fight.ts`'s convention (commit
+  // 902e178): its `#n` disambiguator comes from `playerTeam.length` /
+  // `enemyTeam.length`, values that never change once the fight starts, so a
+  // unit's displayed identity is stable across a kill. An earlier version of
+  // this file gated the target note on `curEnemies.filter(hp > 0).length`
+  // (living count) INSTEAD of this static size — so a pack fight's "· target
+  // Foe #2" note would silently vanish the instant an ally died, diverging
+  // mid-fight from the ASCII log, which keeps printing it for the rest of the
+  // fight (adversarial audit, 2026-08-19). Both the "show a target note at
+  // all" gate and the `#n` suffix below now read this SAME static count, so
+  // they can never drift apart from each other or from fight.ts again.
+  const sideRosterSize = (side: 'player' | 'enemy'): number => (side === 'player' ? 1 : foes.length);
+  // `#n` (1-based lineup position) only when the side's STARTING roster
+  // actually fields more than one unit — same convention `scripts/fight.ts`
+  // uses, so a 1v1 fight's target note never grows a redundant "#1", and a
+  // pack fight's suffix never changes once the fight is underway.
   const sideUnitLabel = (side: 'player' | 'enemy', unit: number): string => {
     if (side === 'player') return heroName; // today's single hero unit — never ambiguous.
     const name = foes[unit]?.name ?? foeName;
-    return foes.length > 1 ? `${name} #${unit + 1}` : name;
+    return sideRosterSize(side) > 1 ? `${name} #${unit + 1}` : name;
   };
   // Turn-start readiness row: the engine emits one `gain` event PER LIVING
   // COMBATANT at the top of every turn, always consecutively (before any
@@ -903,13 +911,17 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const aoeNote = e.aoe ? ` · AOE ×${e.targets?.length ?? 0}` : '';
         // Named victim for a single-target cast — the same defect the ASCII
         // fight log just had fixed (commit 902e178): a pack fight's PLAY line
-        // named the caster but never which of several living foes its
-        // targeting policy actually picked. Silent (no note) for a support/
-        // self cast (no `targetUnit`), an AoE cast (already says `AOE ×N`
-        // above), or when the target's side only fields one living unit — a
-        // 1v1 fight's log reads byte-identically to before this fix.
+        // named the caster but never which of several foes its targeting
+        // policy actually picked. Silent (no note) for a support/self cast (no
+        // `targetUnit`), an AoE cast (already says `AOE ×N` above), or when
+        // the target's side only STARTED the fight with one unit — a 1v1
+        // fight's log reads byte-identically to before this fix. Gated on the
+        // side's STARTING roster size (`sideRosterSize`), not who's still
+        // alive right now: a kill mid-fight must not make this note (or its
+        // `#n` suffix) disappear or renumber out from under a still-running
+        // transcript — see `sideRosterSize` above.
         const targetSide: 'player' | 'enemy' = e.side === 'player' ? 'enemy' : 'player';
-        const targetNote = !e.aoe && e.targetUnit !== undefined && sideLivingCount(targetSide) > 1
+        const targetNote = !e.aoe && e.targetUnit !== undefined && sideRosterSize(targetSide) > 1
           ? ` · target ${sideUnitLabel(targetSide, e.targetUnit)}`
           : '';
         const playLine = push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress}${aoeNote}${targetNote} · WEIGHT ${e.weight}${slowNote}`);
