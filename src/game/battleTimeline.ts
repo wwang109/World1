@@ -1436,14 +1436,36 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           else bucket.delete('expose');
         } else if (e.status === 'guard') {
           // Same reasoning as expose above, adapted for guard's per-PROPERTY
-          // piles: this event names neither which pile nor which property
-          // expired (no `property` field on `statusExpired`), so — rather
-          // than guess — recompute every property's own effective pct from
-          // its own piles at this turn. A property whose only pile just
-          // expired drops out; a property still carrying a standing pile (of
-          // ITS OWN, unaffected by another property's pile ending) keeps its
-          // own compounded number untouched.
+          // piles: recompute every property's own effective pct from its own
+          // piles at this turn rather than guess which one ended. A property
+          // whose only pile just expired drops out; a property still
+          // carrying a standing pile (of ITS OWN, unaffected by another
+          // property's pile ending) keeps its own compounded number untouched.
+          //
+          // A NATURAL expiry carries no `property`/`pct` and needs nothing
+          // more than that recompute — `expiresAtTurn` filtering alone drops
+          // it. An early MAX_GUARD_PILES CAP EVICTION (interpreter.ts's
+          // `guard` arm, "three coats of armour is the wall's limit") is
+          // different: the evicted pile's `expiresAtTurn` is still in the
+          // future (it was cut short, not run out), so the turn-filter alone
+          // would keep compounding it forever — the badge would show one more
+          // pile than the engine is actually carrying. Unlike expose's own
+          // domination-replace (which is provably safe to leave in a MAX-rule
+          // shadow list — see the doc comment above `exposePilesPlayer`),
+          // guard COMPOUNDS every active pile, so a phantom extra pile is not
+          // harmless here. The eviction event names exactly what it dropped
+          // (`property` + `pct`), so splice the first shadow pile matching
+          // that (property, pct) pair that hasn't naturally expired yet — ANY
+          // pile matching is the right one to drop, since compounding only
+          // ever reads the multiset of standing pcts per property, never which
+          // application produced which pct.
           const piles = guardPilesFor(e.side, unitOf(e));
+          if (e.property !== undefined && e.pct !== undefined) {
+            const idx = piles.findIndex(
+              (p) => p.property === e.property && p.pct === e.pct && p.expiresAtTurn >= e.turn,
+            );
+            if (idx !== -1) piles.splice(idx, 1);
+          }
           const entries = effectiveGuardByProperty(piles, e.turn, true);
           guardBadgeCurrent.set(guardBadgeKey(e.side, unitOf(e)), entries);
           if (entries.length > 0) bucket.set('guard', 1);
@@ -1485,7 +1507,14 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         if (e.status === 'buff' || e.status === 'debuff' || e.status === 'guard' || e.status === 'expose' || e.status === 'thorns' || e.status === 'ward') {
           const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'thorns' || e.status === 'ward';
           const cap = e.status.charAt(0).toUpperCase() + e.status.slice(1);
-          push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap} wore off`);
+          // A MAX_GUARD_PILES cap eviction is a `statusExpired` immediately
+          // followed by the `statusApplied` that replaced it (same turn, no
+          // gap) — "Guard wore off" there reads like a dropped buff, not the
+          // deliberate swap it is. Named evictions (property+pct present) get
+          // their own wording so the transcript doesn't look like a bug.
+          const evicted = e.status === 'guard' && e.property !== undefined && e.pct !== undefined;
+          const verb = evicted ? 'replaced (at the 3-pile cap)' : 'wore off';
+          push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap} ${verb}`);
         }
         break;
       }

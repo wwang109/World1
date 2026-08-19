@@ -1149,6 +1149,73 @@ describe('game/battleTimeline', () => {
     });
   });
 
+  // ---- MAX_GUARD_PILES cap eviction (src/engine/combat/interpreter.ts,
+  // "three coats of armour is the wall's limit") — at the 3-pile cap, a
+  // strictly-dominating application evicts the weakest dominated pile,
+  // emitting a NAMED `statusExpired` (`property` + `pct` set) BEFORE the new
+  // `statusApplied`. Unlike a natural expiry, the evicted pile's own
+  // `expiresAtTurn` is still in the future, so the badge's shadow list must
+  // splice it out by name rather than let `expiresAtTurn` filtering keep
+  // compounding it forever.
+  describe('guard badge — MAX_GUARD_PILES cap eviction (named statusExpired)', () => {
+    /** Mirrors `dominating_fourth` in tests/engine/guardPileCap.test.ts:
+     * three piles stand (10%/1t, 60%/3t, 60%/3t), then a dominating 40%/2t
+     * application replaces the 10%/1t pile — expiry-then-application, in
+     * that order, all on turn 1. */
+    const capEvents: CombatEvent[] = [
+      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 10, turns: 1 },
+      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 60, turns: 3 },
+      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 60, turns: 3 },
+      { turn: 1, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 10 },
+      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 40, turns: 2 },
+      { turn: 4, kind: 'combatEnd', result: 'win', turns: 4 },
+    ];
+
+    it('splices the evicted pile out — badge compounds the surviving 3, not the phantom 4th', () => {
+      const model = buildBattleTimeline(BASE, { events: capEvents, result: 'win', turns: 4 });
+      // 60%, 60%, 40% compounded (application order, the evicted 10% gone):
+      // 100 -> 40 -> 16 -> 9 (min-1-remaining each step) = 91% effective.
+      // Left un-spliced, the evicted 10% pile would still be read (its
+      // expiresAtTurn is turn 2, still in the future at turn 1) and the
+      // compound would read 92%, one pile's worth too much.
+      expect(model.guardPctByTurn.get(1)?.enemy).toEqual([{ property: 'physical', pct: 91 }]);
+    });
+
+    it('a later NATURAL expiry (no property/pct) is unaffected by the splice logic and still recomputes normally', () => {
+      const events: CombatEvent[] = [
+        ...capEvents,
+        // The winning 40%/2t pile (applied turn 1, turns: 2) is the one to
+        // naturally run out — expiresAtTurn 3 — while the surviving 60%/3t
+        // piles (expiresAtTurn 4) are still standing.
+        { turn: 3, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard' },
+        { turn: 5, kind: 'combatEnd', result: 'win', turns: 5 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 5 });
+      // 60% x 60% compounded (100 -> 40 -> 16) = 84% effective; the
+      // unnamed natural-expiry event must recompute off the plain
+      // expiresAtTurn filter, untouched by the eviction-splice codepath.
+      expect(model.guardPctByTurn.get(3)?.enemy).toEqual([{ property: 'physical', pct: 84 }]);
+    });
+
+    it('transcript: an eviction reads "Guard replaced", not "Guard wore off" (it is immediately followed by a new pile)', () => {
+      const model = buildBattleTimeline(BASE, { events: capEvents, result: 'win', turns: 4 });
+      const lines = [...model.linesByTurn.values()].flat();
+      expect(lines.some((l) => l.text === `${model.foeName} · Guard replaced (at the 3-pile cap)`)).toBe(true);
+      expect(lines.some((l) => l.text === `${model.foeName} · Guard wore off`)).toBe(false);
+    });
+
+    it('transcript: a natural expiry still reads "Guard wore off", unaffected by the eviction wording', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 30, turns: 1 },
+        { turn: 2, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard' },
+        { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 3 });
+      const lines = [...model.linesByTurn.values()].flat();
+      expect(lines.some((l) => l.text === `${model.foeName} · Guard wore off`)).toBe(true);
+    });
+  });
+
   // ---- `formatDmg` (the HIT `D:` math strip) — `exposeBonus` and
   // `minimumDamageBonus` were missing entirely, so the printed terms did not
   // sum to the printed total, defeating the whole point of a strip a player
