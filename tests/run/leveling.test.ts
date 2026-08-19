@@ -52,6 +52,16 @@ describe('run/leveling: monster PL spend (allocateMonsterPL)', () => {
     expect(profileFor('some_future_monster')).toEqual(DEFAULT_PROFILE);
   });
 
+  it('every current roster enemy has an explicit MONSTER_PROFILES entry (no silent DEFAULT_PROFILE fallthrough)', () => {
+    // Guards the content/gameplay hand-off: a new enemy id landing in
+    // src/data/enemies.ts without a matching profile entry here still
+    // "works" (profileFor falls back to DEFAULT_PROFILE), but silently
+    // loses its stat identity as it levels. Fail loudly instead so the next
+    // enemy can't slip through unnoticed.
+    const missing = Object.keys(enemies).filter((id) => !(id in MONSTER_PROFILES));
+    expect(missing).toEqual([]);
+  });
+
   it('never allocates to a stat weighted zero in the profile', () => {
     const alloc = allocateMonsterPL(11, profileFor('mage')); // mage has no armor weight
     expect(alloc.armor ?? 0).toBe(0);

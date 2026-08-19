@@ -83,11 +83,11 @@ allocation algorithm.
 | Berserker (`berserker`) | Basic | Axe brute — heavy, slow, big hits | 3 | weapon: axe | attack/HP balanced, zero speed (slow) |
 | Necromancer (`necromancer`) | Basic | Dark curse-debuffer | 2 | element: dark | magicPower/magicResist balanced, no HP |
 | Cleric (`cleric`) | Basic | Holy warden-healer | 3 | element: holy | magicPower/magicResist/HP balanced |
-| Toxic Druid (`toxic_druid`) | Basic | Nature poisoner — three poison hybrids, no pure-damage filler | 3 | element: nature | *(no profile entry — falls back to `DEFAULT_PROFILE`)* |
-| Reaver (`bleed_reaver`) | Basic | Axe bleed duelist — shieldBreak opens the guard, bleed piles on, armor shred softens the follow-up | 3 | weapon: axe | *(no profile entry — falls back to `DEFAULT_PROFILE`)* |
-| Warbreaker (`warbreaker`) | Basic | Axe tempo-denial brute — the roster's `splash` showcase, shieldBreak follow-up | 2 | weapon: axe | *(no profile entry — falls back to `DEFAULT_PROFILE`)* |
-| Thornback (`thorn_beast`) | Basic | Beast thorns+shield — punishes fast/multi-hit attackers, sits behind a big shield | 2 | weapon: beast | *(no profile entry — falls back to `DEFAULT_PROFILE`)* |
-| Sentinel (`warded_sentinel`) | Elite (tag only) | Sword warded protector — ward+guard denial layered on a flat shield, the roster's hardest normal-pool pick | 3 | weapon: sword | *(no profile entry — falls back to `DEFAULT_PROFILE`)* |
+| Toxic Druid (`toxic_druid`) | Basic | Nature poisoner — three poison hybrids, no pure-damage filler | 3 | element: nature | magicPower-dominant, light magicResist (its own heal card), no HP (glass) |
+| Reaver (`bleed_reaver`) | Basic | Axe bleed duelist — shieldBreak opens the guard, bleed piles on, armor shred softens the follow-up | 3 | weapon: axe | attack-dominant, light HP, no speed |
+| Warbreaker (`warbreaker`) | Basic | Axe tempo-denial brute — the roster's `splash` showcase, shieldBreak follow-up | 2 | weapon: axe | attack/speed balanced (tempo-first), light HP |
+| Thornback (`thorn_beast`) | Basic | Beast thorns+shield — punishes fast/multi-hit attackers, sits behind a big shield | 2 | weapon: beast | maxHp/armor-dominant, light attack |
+| Sentinel (`warded_sentinel`) | Elite (tag only) | Sword warded protector — ward+guard denial layered on a flat shield, the roster's hardest normal-pool pick | 3 | weapon: sword | armor-dominant (edges out maxHp), light attack |
 
 Source of truth for exact numbers is always `src/data/enemies.ts` (cards/
 affinity) and `src/run/leveling.ts` (`MONSTER_PROFILES`, weights) — this
@@ -118,10 +118,10 @@ Sentinel (32, now above Bandit Duelist's 30) anchor the roster's toughest
 band — Sentinel is tagged `isElite` as the new hardest normal-pool pick, the
 same encounter-role-only tag Bandit Duelist already carried.
 
-None of the five have a `MONSTER_PROFILES` entry in `src/run/leveling.ts` yet
-(out of this pass's file scope — that module belongs to gameplay-programmer);
-they fall back to `DEFAULT_PROFILE` (`maxHp:2, attack:2, magicPower:1,
-armor:1, magicResist:1, speed:1`) until a follow-up gives each its own
-identity-shaped weights (e.g. Toxic Druid should probably lean `magicPower`,
-Sentinel probably `armor`/`maxHp`, mirroring how every other caster/tank on
-the roster already does).
+Follow-up (2026-08-19, gameplay-programmer): all five now have an explicit
+`MONSTER_PROFILES` entry in `src/run/leveling.ts` (see the table above for
+each one's emphasis, and that file's own comments for the per-card scaling
+read the weights were built from) — none fall back to `DEFAULT_PROFILE` any
+more. `tests/run/leveling.test.ts` asserts every id in `src/data/enemies.ts`
+has an explicit profile entry, so a future enemy landing without one now
+fails loudly instead of silently inheriting the flat default.

@@ -119,6 +119,56 @@ export const MONSTER_PROFILES: Record<string, StatProfile> = {
   berserker: profile({ attack: 3, maxHp: 3 }),
   necromancer: profile({ magicPower: 3, magicResist: 3 }),
   cleric: profile({ magicPower: 2, magicResist: 2, maxHp: 2 }),
+
+  // --- 2026-08-19 keyword-family roster expansion (docs/enemy-design.md) ---
+  // TOXIC DRUID: nature poisoner. Two of its three cards (thorn_bite,
+  // blooming_vine) are pure "damage (+MATK) + poison" hits; the third
+  // (poison_bloom) is poison + a "heal (+MDEF)" sustain line — magicPower
+  // is still the dominant read (2 of 3 cards, and it IS the damage/poison
+  // stat), magicResist gets a much lighter secondary weight for the one
+  // self-heal card, and it carries zero maxHp — same glass-poisoner shape
+  // as Ember Imp/Mage, since nothing on its board buys survivability
+  // directly (its own heal is the sustain, not raw HP).
+  toxic_druid: profile({ magicPower: 4, magicResist: 1 }),
+  // REAVER: axe bleed duelist. All three cards (gutting_cleave, hemorrhage,
+  // armor_break) are physical hits that scale off (+ATK) — attack is the
+  // whole kit's stat, so it stays the dominant weight, same as every other
+  // axe/attack duelist (rogue, berserker). A little maxHp is folded in
+  // (same pattern bandit_duelist/rogue/berserker all use) since bleed is a
+  // damage-over-time race — Reaver needs to still be standing for its own
+  // stacked bleed ticks and follow-up hits to matter, not just its opener.
+  // No speed weight: unlike rogue/hunter (explicit speed identity) or
+  // Warbreaker (tempo), nothing on this board reads "fast" — it wins by
+  // piling damage, not by acting first.
+  bleed_reaver: profile({ attack: 4, maxHp: 2 }),
+  // WARBREAKER: axe tempo-denial brute. Shockwave Slam/Shield Splitter both
+  // scale damage off (+ATK), but the card the enemy comment calls out is
+  // the SPLASH tempo tax, not the raw damage sink — Warbreaker wants to
+  // keep landing hits (and therefore keep re-splashing) more than it wants
+  // to out-damage anyone in one swing. attack and speed are weighted
+  // evenly (unlike bandit_duelist's attack-led 3:2 split) to read as
+  // "tempo-first" rather than "duelist with some speed"; a light maxHp
+  // weight keeps it from being a pure glass burst piece, matching every
+  // other non-glass melee identity on the roster.
+  warbreaker: profile({ attack: 3, speed: 3, maxHp: 1 }),
+  // THORNBACK: beast thorns+shield tank. thorns is a flat stack count (no
+  // scaling stat at all — it punishes hits by COUNT, not by a stat term)
+  // and Bulwark Thicket's shield scales off (+DEF); Savage Bite is the
+  // board's only offense and a minor chip line. Bulk is what actually
+  // serves this identity ("sits behind a big shield and counter-punches
+  // forever") — maxHp/armor dominant, same ratio as the roster's other
+  // armored tank pairs (Stone Beetle, Knight), with attack kept as the
+  // same small residual weight those two use for their own minor swing.
+  thorn_beast: profile({ maxHp: 3, armor: 3, attack: 1 }),
+  // SENTINEL: sword warded-protector elite. Unbreakable Stance's ward+guard
+  // is flat (no stat term), but both Iron Bulwark's AND Unbreakable
+  // Stance's higher-tier shields scale off (+DEF), and it is explicitly
+  // authored as "the wall" — the roster's hardest denial pick. Armor is
+  // weighted slightly above maxHp (reversed from Knight/Stone Beetle's
+  // even split) to read as more shield-and-mitigation-first than a plain
+  // HP tank; Sword Slash is its only offense, so attack stays the same
+  // small residual weight the other armored identities carry.
+  warded_sentinel: profile({ armor: 4, maxHp: 3, attack: 1 }),
 };
 
 /** Profile lookup for an enemy id, falling back to DEFAULT_PROFILE. */
