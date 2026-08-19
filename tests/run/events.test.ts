@@ -217,7 +217,25 @@ describe('data/events: catalog lint', () => {
     }
   });
 
-  it('exactly 9 cardChoice and 11 gemChoice outcomes in the catalog (2026-08-18 agency widening + 2026-08-19 new-mechanics batch), and the 4 named-card grants are untouched', () => {
+  // Pinned margin (content-designer, 2026-08-19 defect fix): `the_lapidary`'s
+  // `warding_cut` choice used to filter to EXACTLY 3 gems (sanctuary_sliver,
+  // renewal_sliver, provoker_sliver) — matching `EVENT_CHOICE_SIZE` with zero
+  // slack, one gem retirement/reclassification away from tripping
+  // `gemChoiceOutcome`'s narrower-than-`EVENT_CHOICE_SIZE` throw for every
+  // player who picks that choice. `taunting_sliver` (provoker_sliver's Rare
+  // taunt-ladder sibling) was added to widen the pool to 4; this pins the
+  // margin at a stricter bound than the generic `>= EVENT_CHOICE_SIZE` lint
+  // above so a future edit that erodes the slack back to exactly 3 fails
+  // here specifically, with the filter named in the assertion.
+  it("the_lapidary's warding_cut gemChoice pool has slack above EVENT_CHOICE_SIZE (>= 4, not exactly 3)", () => {
+    const event = eventCatalog.the_lapidary!;
+    const choice = event.choices.find((c) => c.id === 'warding_cut')!;
+    const spec = choice.outcome as Extract<EventOutcomeSpec, { kind: 'gemChoice' }>;
+    const pool = Object.values(gemBook).filter((g) => gemMatchesFilter(g, spec.filter!));
+    expect(pool.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('exactly 8 cardChoice and 11 gemChoice outcomes in the catalog (2026-08-18 agency widening + 2026-08-19 new-mechanics batch and defect-fix pass), and the 5 named-card grants are accounted for', () => {
     let cardChoiceCount = 0;
     let gemChoiceCount = 0;
     let namedGrantCardCount = 0;
@@ -228,9 +246,9 @@ describe('data/events: catalog lint', () => {
         if (choice.outcome.kind === 'grantCard' && choice.outcome.cardId) namedGrantCardCount++;
       }
     }
-    expect(cardChoiceCount).toBe(9);
+    expect(cardChoiceCount).toBe(8);
     expect(gemChoiceCount).toBe(11);
-    expect(namedGrantCardCount).toBe(4);
+    expect(namedGrantCardCount).toBe(5);
   });
 
   it('reprices only the 2 currently-free widened choices whose sibling stays a genuinely safe cost-0 exit, leaving the other 2 free', () => {
@@ -912,9 +930,11 @@ describe('run/events: cardChoice/gemChoice (the 2026-08-18 agency widening)', ()
       }
     }
     // Sanity on the sweep itself — matches the catalog-lint count test above
-    // (9 cardChoice, 11 gemChoice) so a future content edit that silently
+    // (8 cardChoice, 11 gemChoice — 2026-08-19 defect fix converted
+    // sweep_drill's `proper_stance` from a cardChoice to a named grantCard,
+    // see that event's own comment) so a future content edit that silently
     // drops one of these choices out of the vocabulary is also caught here.
-    expect(cardChoiceChecked).toBe(9);
+    expect(cardChoiceChecked).toBe(8);
     expect(gemChoiceChecked).toBe(11);
   });
 });

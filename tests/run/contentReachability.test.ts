@@ -127,6 +127,10 @@ describe('run/content: catalog-wide acquisition-surface audit', () => {
     'fracture_sliver', 'tremor_sliver', 'vulnerability_sliver', 'weak_point_sliver',
     'exposed_nerve_sliver', 'raw_nerve_sliver', 'sanctuary_sliver', 'renewal_sliver',
     'provoker_sliver',
+    // ADDED (content-designer, 2026-08-19 defect-fix pass): taunting_sliver,
+    // authored to widen `the_lapidary`'s warding_cut gemChoice pool off the
+    // crash-boundary 3-gem count — see its own notes in gems.v1.json.
+    'taunting_sliver',
   ] as const;
 
   it('every 2026-08-19 hybrid/debuff/showcase card exists and is reachable', () => {

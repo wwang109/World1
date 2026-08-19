@@ -1260,6 +1260,46 @@
           }
         }
       ]
+    },
+    {
+      "id": "taunting_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Taunting Sliver",
+            "text": "Gain 4 aggro (permanent) — whoever holds the most is the default target.",
+            "notes": [
+              "NEW (content-designer, 2026-08-19) — closes an adversarial-audit find",
+              "on the 2026-08-19 event batch: `the_lapidary`'s `warding_cut` choice",
+              "filters gemChoice on `{actionKinds: ['ward','cleanse','taunt']}`, which",
+              "matched EXACTLY 3 gems (sanctuary_sliver, renewal_sliver,",
+              "provoker_sliver) — one gem-retirement or reclassification away from",
+              "tripping `gemChoiceOutcome`'s narrower-than-EVENT_CHOICE_SIZE throw.",
+              "This is rung 2 of the taunt ladder provoker_sliver (rung 1, common,",
+              "amount 2) opened: amount 4 * tauntPerPoint (10, see PRICE.tauntPerPoint",
+              "in balance.ts) = 40 deci = Rare exactly, laddering the same way the",
+              "expose ladder already does (vulnerability_sliver -> weak_point_sliver",
+              "-> exposed_nerve_sliver -> raw_nerve_sliver). amount 3 (30 deci) lands",
+              "on no band at BUDGET_TOLERANCE_DECI = 0, so 4 is the minimal integer",
+              "that clears Rare — no floor twin, and no mechanical twin of",
+              "provoker_sliver since the payload (amount) and rarity both differ.",
+              "Widens the_lapidary's warding_cut pool from 3 to 4, and its own lint",
+              "from >=3 to >=4 (tests/run/events.test.ts). Curated into the Bulwark",
+              "themed shop list (shopTypes.ts) alongside provoker_sliver — same",
+              "aggro-holding tank identity, per that list's own comment."
+            ],
+            "kind": "effect",
+            "rarity": "rare",
+            "actions": [
+              {
+                "kind": "taunt",
+                "amount": 4
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

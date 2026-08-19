@@ -55,8 +55,13 @@ export type EventOutcomeSpec =
   // to reuse (gems never had a picker), so it returns a new deferred
   // `{kind:'gemChoicePick', options}` `EventOutcome`, finalized by the new
   // `applyGemChoicePick`. No `cardId`/`gemId` field — a choice that already
-  // NAMES its reward stays `grantCard`/`grantGem` (the 4 named-card grants
-  // in this catalog are deliberately untouched).
+  // NAMES its reward stays `grantCard`/`grantGem`. 4 named-card grants were
+  // deliberately untouched by the original 2026-08-18 widening; a 5th
+  // (`sweep_drill`'s `proper_stance`, 2026-08-19 defect fix — see that
+  // event's own comment) was added afterward for an unrelated reason: its
+  // `cardChoice` filter delivered its body's "splash" promise on only 1 of
+  // 15 pool cards, so it became a named grant of the one card that keeps
+  // the promise, not a widened pool.
   // `tier` is narrowed to `'bronze'` (not the full `SkillTier` `grantCard`
   // takes): the resolver hands this off to `bonusDraft`'s own deferred-pick
   // shape (`DraftCard`, `src/run/draft.ts`), whose `tier` field is itself
@@ -630,16 +635,30 @@ const defs: EventDef[] = [
     ],
   },
   {
+    // DEFECT FIX (content-designer, 2026-08-19, adversarial audit of this
+    // batch): `proper_stance` used to be a `cardChoice` filtered on
+    // `{weapons:['axe','lance'], archetypes:['offense']}`, a 15-card pool of
+    // which exactly ONE (`shockwave_slam`) actually carries splash — so the
+    // body's "newer recruits call it splash" promise paid off for ~7% of
+    // pulls. Converted to a NAMED grant of `shockwave_slam` itself: the
+    // instructor is teaching one specific, named technique (same "signature
+    // move" shape as `veterans_last_lesson`'s `crushing_blow` and
+    // `wandering_smith`'s `armor_break`), so the reward now matches the
+    // promise on every pull instead of most of the time missing it. Cost
+    // stays 2 gold, unchanged — already the standard price every other paid
+    // `grantCard` in this catalog charges for one guaranteed bronze-tier
+    // pick (see `EVENT_CHOICE_SIZE`'s pricing-arithmetic comment in
+    // src/run/events.ts), and `shockwave_slam` is bronze tier already.
     id: 'sweep_drill',
     title: 'The Sweep Drill',
     theme: 'training',
-    body: 'A grizzled instructor has cordoned off a stretch of the Hollow Yard for wide, sweeping cuts alone — the kind that catch whatever\'s standing next to your actual target, whether you meant it to or not. "Newer recruits call it splash," she snorts, resting a training axe on her shoulder. "I call it not missing twice. Two gold, and I\'ll show you the stance properly."',
+    body: 'A grizzled instructor has cordoned off a stretch of the Hollow Yard for wide, sweeping cuts alone — the kind that catch whatever\'s standing next to your actual target, whether you meant it to or not. "Newer recruits call it splash," she snorts, resting a training axe on her shoulder. "I call it not missing twice. Two gold, and I\'ll teach you the sweep itself."',
     choices: [
       {
         id: 'proper_stance',
-        label: 'Pay 2 gold to learn the stance properly',
+        label: 'Pay 2 gold to learn the sweep',
         cost: 2,
-        outcome: { kind: 'cardChoice', filter: [{ weapons: ['axe', 'lance'], archetypes: ['offense'] }], tier: 'bronze' },
+        outcome: { kind: 'grantCard', cardId: 'shockwave_slam', tier: 'bronze' },
       },
       { id: 'scavenge', label: 'Scavenge the practice yard for scraps', outcome: { kind: 'grantGold', amount: 1 } },
       { id: 'skip', label: 'Skip the drill', outcome: { kind: 'nothing' } },

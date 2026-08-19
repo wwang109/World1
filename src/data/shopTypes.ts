@@ -253,6 +253,9 @@ const defs: ShopTypeDef[] = [
         // ailment block plus resilience, the tank kit's own gem. provoker_
         // sliver (taunt) is the aggro-holding half of the same tank identity:
         // the enemy hits the wall instead of the squishies behind it.
+        // ADD (2026-08-19, content-designer, defect fix): taunting_sliver is
+        // provoker_sliver's Rare rung-2 sibling on the same taunt ladder —
+        // same aggro-holding tank identity, curated alongside it.
         ids: [
           'bulwark_core',
           'iron_bulwark_echo',
@@ -264,6 +267,7 @@ const defs: ShopTypeDef[] = [
           'restorative_core',
           'sanctuary_sliver',
           'provoker_sliver',
+          'taunting_sliver',
         ],
       },
     ],
