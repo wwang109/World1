@@ -6044,6 +6044,367 @@
      }
     }
    ]
+  },
+  {
+   "id": "disarming_blow",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Disarming Blow",
+      "text": "-50% enemy ATK (2 turns).",
+      "notes": [
+       "ATK/MATK debuff parity pass (2026-08-19, issue #39): the catalog had a",
+       "heavy PURE debuff for DEF (armor_break) and MDEF (hex_of_frailty) but",
+       "ATK/MATK debuffing only existed as a light rider bolted onto a damage",
+       "card (crippling_strike, silencing_slash). This is armor_break's exact",
+       "shape, restated on ATK: -50%\u00d72t debuffStat is frozen `control` at the",
+       "size-1 cap (100 deci) at every tier; an Axe chop sinks the rest.",
+       "Bronze: 100 = Bronze exactly. Silver 10 (50) + 100 = 150. Gold 20 (100)",
+       "+ 100 = 200. Diamond 30 (150) + 100 = 250 \u2014 verified with",
+       "`powerLevelDeci`/`capViolations` at every tier (zero cap violations,",
+       "exact budget match). Weapon deliberately axe, not bow: a `weapon:",
+       "'bow', archetypes: ['debuff']` pool is pinned at exactly 2 cards by",
+       "tests/run/events.test.ts's narrow-pool fixture (concussive_shot,",
+       "piercing_arrow) \u2014 axe already carries 9 debuff cards, so this adds no",
+       "new narrow-pool risk."
+      ],
+      "archetypes": [
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "debuffStat",
+        "stat": "attack",
+        "pct": 50,
+        "turns": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "attack",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 10
+         }
+        ],
+        "text": "-50% enemy ATK (2 turns) \u00b7 Deal 10 (+ATK) Axe damage."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "attack",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 20
+         }
+        ],
+        "text": "-50% enemy ATK (2 turns) \u00b7 Deal 20 (+ATK) Axe damage."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "attack",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 30
+         }
+        ],
+        "text": "-50% enemy ATK (2 turns) \u00b7 Deal 30 (+ATK) Axe damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "mind_frost",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Mind Frost",
+      "text": "-50% enemy MATK (2 turns).",
+      "notes": [
+       "ATK/MATK debuff parity pass (2026-08-19, issue #39): the MATK-side twin",
+       "of Disarming Blow, same shape as hex_of_frailty's MDEF version restated",
+       "on MATK. -50%\u00d72t debuffStat is frozen `control` at the size-1 cap (100",
+       "deci) at every tier; a Frost bolt sinks the rest. Bronze: 100 = Bronze",
+       "exactly. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond",
+       "30 (150) + 100 = 250 \u2014 verified with `powerLevelDeci`/`capViolations`",
+       "at every tier (zero cap violations, exact budget match)."
+      ],
+      "archetypes": [
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "debuffStat",
+        "stat": "magicPower",
+        "pct": 50,
+        "turns": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "magicPower",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 10
+         }
+        ],
+        "text": "-50% enemy MATK (2 turns) \u00b7 Deal 10 (+MATK) Frost damage."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "magicPower",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 20
+         }
+        ],
+        "text": "-50% enemy MATK (2 turns) \u00b7 Deal 20 (+MATK) Frost damage."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "magicPower",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "damage",
+          "power": 30
+         }
+        ],
+        "text": "-50% enemy MATK (2 turns) \u00b7 Deal 30 (+MATK) Frost damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "toxic_bulwark",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Toxic Bulwark",
+      "text": "-30% incoming physical damage (2 turns) \u00b7 {{Poison}} 4 (poison bypasses shields).",
+      "notes": [
+       "poison lane depth pass (2026-08-19, issue #51): blooming_vine/thorn_bite/",
+       "venom_fang were three near-identical damage+poison cards. This is a",
+       "genuinely NEW pairing \u2014 poison+guard, the defensive poisoner \u2014 not a",
+       "fourth damage+poison card. guard 30%\u00d72t (60 deci, frozen `empower`,",
+       "well under the size-1 cap of 100) + poison 4 (40 deci) = 100 = Bronze",
+       "exactly. poison is the DoT-sink: it grows toward the size-1 `dot` cap",
+       "(200 deci) as the tier budget rises, guard stays frozen at its authored",
+       "value. Silver 60 + poison 9 (90) = 150. Gold 60 + poison 14 (140) = 200.",
+       "Diamond 60 + poison 19 (190, under the 200 cap) = 250 \u2014 hand-authored",
+       "ladder, but the numbers are exactly what `autoScaleTier` itself",
+       "computes for this kit (confirmed by actually running it: silver ->",
+       "poison 9, gold -> poison 14, diamond -> poison 19, zero cap",
+       "violations at every tier) \u2014 hand-authored anyway so the shipped text",
+       "carries its own accurate numbers at every tier rather than relying on",
+       "the generic retext pass."
+      ],
+      "archetypes": [
+       "defensive",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "guard",
+        "property": "physical",
+        "pct": 30,
+        "turns": 2
+       },
+       {
+        "kind": "poison",
+        "stacks": 4
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 30,
+          "turns": 2
+         },
+         {
+          "kind": "poison",
+          "stacks": 9
+         }
+        ],
+        "text": "-30% incoming physical damage (2 turns) \u00b7 {{Poison}} 9 (poison bypasses shields)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 30,
+          "turns": 2
+         },
+         {
+          "kind": "poison",
+          "stacks": 14
+         }
+        ],
+        "text": "-30% incoming physical damage (2 turns) \u00b7 {{Poison}} 14 (poison bypasses shields)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 30,
+          "turns": 2
+         },
+         {
+          "kind": "poison",
+          "stacks": 19
+         }
+        ],
+        "text": "-30% incoming physical damage (2 turns) \u00b7 {{Poison}} 19 (poison bypasses shields)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "nettle_ward",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Nettle Ward",
+      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 {{Poison}} 5 (poison bypasses shields).",
+      "notes": [
+       "poison lane depth pass (2026-08-19, issue #51): the second genuinely NEW",
+       "pairing \u2014 poison+thorns, contact venom that lashes back at attackers.",
+       "poison+shieldBreak was considered and rejected (poison already bypasses",
+       "shields, so shieldBreak buys nothing there); poison+heal and",
+       "poison+cleanse already ship as poison_bloom/poison_ritual. thorns 5",
+       "stacks (50 deci, frozen `empower`, well under the size-1 cap of 100) +",
+       "poison 5 (50 deci) = 100 = Bronze exactly. poison is the DoT-sink,",
+       "chosen to land EXACTLY on the size-1 `dot` cap (200 deci = 20 stacks)",
+       "at Diamond by construction (250 budget \u2212 50 frozen thorns = 200):",
+       "Silver 50 + poison 10 (100) = 150. Gold 50 + poison 15 (150) = 200.",
+       "Diamond 50 + poison 20 (200, exactly the dot cap) = 250 \u2014 confirmed by",
+       "actually running `autoScaleTier` on this kit (it independently lands on",
+       "the same 10/15/20 stack ladder with zero cap violations at every",
+       "tier); hand-authored anyway so the shipped text carries its own",
+       "accurate numbers rather than relying on the generic retext pass."
+      ],
+      "archetypes": [
+       "defensive",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "thorns",
+        "stacks": 5
+       },
+       {
+        "kind": "poison",
+        "stacks": 5
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "thorns",
+          "stacks": 5
+         },
+         {
+          "kind": "poison",
+          "stacks": 10
+         }
+        ],
+        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 {{Poison}} 10 (poison bypasses shields)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "thorns",
+          "stacks": 5
+         },
+         {
+          "kind": "poison",
+          "stacks": 15
+         }
+        ],
+        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 {{Poison}} 15 (poison bypasses shields)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "thorns",
+          "stacks": 5
+         },
+         {
+          "kind": "poison",
+          "stacks": 20
+         }
+        ],
+        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 {{Poison}} 20 (poison bypasses shields)."
+       }
+      }
+     }
+    }
+   ]
   }
  ]
 }
