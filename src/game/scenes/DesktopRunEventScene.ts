@@ -8,6 +8,7 @@ import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel 
 import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { choiceOutcomeHint } from '../ui/eventOutcomeText';
 import { eventThemeArea } from '../ui/eventThemeBlurb';
+import { eventArtHeight, eventBodyMaxHeight, eventChoiceBlockHeight, eventStoryLimit } from '../ui/runEventStoryLayout';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
 import { renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunRewardPanel, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
@@ -135,7 +136,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
         },
       });
     } else {
-      const story = this.renderStory(event);
+      const story = this.renderStory(event, event.choices.length);
       this.renderChoicePanel(run.gold, event, story);
     }
     if (this.retireConfirmOpen) {
@@ -184,12 +185,39 @@ export class DesktopRunEventScene extends Phaser.Scene {
   // ---------- story (area intro → title → body panel; CHOOSING phase only) ----------
 
   /** Renders the narrative header (area caption, title, framed body) for the
-   * CHOOSING phase and returns where the choice rows below it should start. */
-  private renderStory(event: EventDef): StoryLayout {
+   * CHOOSING phase and returns where the choice rows below it should start.
+   *
+   * `choiceCount` drives a RESERVE-FIRST budget (2026-08-19 fix): the choice
+   * block's own height (`runChoicePanelMinHeight` × `choiceCount`, the exact
+   * same formula `renderChoicePanel` below uses to lay the rows out — no
+   * second hand-picked number to drift out of sync) is subtracted from the
+   * canvas up front, giving a hard `storyLimit` the art + body must fit
+   * above. Before this, the art image was a FIXED 520×260 regardless of how
+   * many choice rows followed, so a 3-choice event with a long body pushed
+   * its rows past the bottom of a 900px canvas — the 3rd row's "FREE" label
+   * rendered 6-18px off-canvas (repro: "Hermit's Riddle", "The Weighing
+   * Stone", "The Broken Axle", "Collapsed Barrow", all 3-choice events).
+   * The art now SHRINKS (never grows past its 520×260 ideal) to hold back a
+   * floor for the title and a readable minimum of body text; the body's
+   * `auditTextBlock` maxHeight is then whatever's left of `storyLimit` after
+   * the actual (not worst-case) caption/art/title heights are known, so a
+   * long body shrinks its own font (and truncates, as a last resort) rather
+   * than ever pushing the choice rows off the bottom of the screen — proven
+   * against every catalog event by `tests/game/runEventStoryLayout.test.ts`. */
+  private renderStory(event: EventDef, choiceCount: number): StoryLayout {
     const { px, py, pw } = this.panelGeometry();
     const inset = 32;
     const innerX = px + inset;
     const innerW = pw - inset * 2;
+
+    // Reserve the choice block's own footprint FIRST — see the doc comment
+    // above. `rowGap`/`runChoicePanelMinHeight(F, true)` here MUST stay
+    // identical to `renderChoicePanel`'s own — same call, same constant.
+    const rowH = runChoicePanelMinHeight(F, true);
+    const rowGap = 10;
+    const reserveBelowH = eventChoiceBlockHeight(choiceCount, rowH, rowGap);
+    const maxBottom = SCREEN.height - DESKTOP_PROFILE.safe.bottom;
+    const storyLimit = eventStoryLimit(maxBottom, 0, reserveBelowH, 20, py + 200);
 
     // 1. Area intro — a small atmospheric caption ABOVE the title, so the
     // stop reads as a PLACE before it reads as a decision.
@@ -201,31 +229,42 @@ export class DesktopRunEventScene extends Phaser.Scene {
     auditTextBlock(areaLine, { name: 'Run event area intro', maxWidth: innerW, maxHeight: F.small * 3 + 12, minFontSize: 9 });
     let cursor = py + areaLine.height + 14;
 
-    const artW = Math.min(innerW, 520);
-    const artH = Math.round(artW * 0.5);
+    // 2. Art — clamped DOWN from its 520×260 ideal (never up) just far
+    // enough to hold back `TITLE_RESERVE` + a `BODY_TEXT_FLOOR` of body room
+    // within `storyLimit`, using the title's own worst-case audited height
+    // (not yet rendered) so this clamp is a real upper bound, not a guess.
+    const TITLE_RESERVE = F.title * 2 + 14;
+    const BODY_TEXT_FLOOR = 80;
+    const bodyPad = 20;
+    const idealArtW = Math.min(innerW, 520);
+    const idealArtH = Math.round(idealArtW * 0.5);
+    const artH = eventArtHeight(storyLimit, cursor, TITLE_RESERVE, 16, bodyPad, BODY_TEXT_FLOOR, idealArtH, 90);
+    const artW = Math.round(idealArtW * (artH / idealArtH));
     const artX = px + (pw - artW) / 2;
     addRunArt(this, eventArtKey(event.theme), { x: artX, y: cursor, width: artW, height: artH }, 0.9);
     this.add.rectangle(artX, cursor, artW, artH, UI.bg, 0.16).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.45);
     cursor += artH + 16;
 
-    // 2. Title.
+    // 3. Title.
     const title = this.add.text(innerX, cursor, event.title, {
       fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.text, wordWrap: { width: innerW },
     });
     auditTextBlock(title, { name: 'Run event title', maxWidth: innerW, maxHeight: F.title * 2, minFontSize: 12 });
     cursor += title.height + 14;
 
-    // 3. Body — its own framed "page" panel (comfortable line-height), sized
-    // to the ACTUAL rendered text height so whatever sits below starts right
-    // after it, never a fixed far-away slot.
-    const bodyPad = 20;
+    // 4. Body — its own framed "page" panel (comfortable line-height), capped
+    // to whatever's actually left of `storyLimit` (never the old fixed
+    // `F.body * 12 + 24`) so `auditTextBlock` shrinks the font — and, only
+    // as a last resort, truncates with an ellipsis — rather than letting the
+    // choice rows below lose their reserved room.
     const bodyBoxTop = cursor;
+    const bodyMaxHeight = eventBodyMaxHeight(storyLimit, bodyBoxTop, bodyPad, 40);
     const bodyBox = this.add.rectangle(px, bodyBoxTop, pw, 10, UI.panel, 0.94).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.7);
     const bodyRail = this.add.rectangle(px, bodyBoxTop, 6, 10, UI.chip, 0.92).setOrigin(0, 0);
     const body = this.add.text(innerX, bodyBoxTop + bodyPad, event.body, {
       fontFamily: FONT.body, fontSize: `${F.body}px`, color: UI.textDim, wordWrap: { width: innerW }, lineSpacing: 6,
     });
-    auditTextBlock(body, { name: 'Run event body', maxWidth: innerW, maxHeight: F.body * 12 + 24, minFontSize: 10 });
+    auditTextBlock(body, { name: 'Run event body', maxWidth: innerW, maxHeight: bodyMaxHeight, minFontSize: 10 });
     const bodyBoxH = body.height + bodyPad * 2;
     bodyBox.setSize(pw, bodyBoxH);
     bodyRail.setSize(6, bodyBoxH);

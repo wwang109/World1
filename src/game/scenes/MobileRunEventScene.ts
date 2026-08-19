@@ -12,6 +12,7 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
 import { renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunRewardPanel, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
 import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
+import { eventChoiceBlockHeight } from '../ui/runEventStoryLayout';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { setDeckBuildContext } from '../deckBuildContext';
@@ -156,7 +157,7 @@ export class MobileRunEventScene extends Phaser.Scene {
         },
       });
     } else {
-      const story = this.renderStory(event, event.choices.length * (80 + 8) - 8);
+      const story = this.renderStory(event, event.choices.length);
       this.renderChoices(run.gold, event, story);
     }
     if (this.retireConfirmOpen) {
@@ -206,10 +207,23 @@ export class MobileRunEventScene extends Phaser.Scene {
   // ---------- story (area intro → title → body panel; CHOOSING phase only) ----------
 
   /** Renders the narrative header (area caption, title, framed body — the
-   * body capped + made small-scrollable only if it and `reserveBelowH`
-   * together would overflow the content region) for the CHOOSING phase and
-   * returns where the choice rows below it should start. */
-  private renderStory(event: EventDef, reserveBelowH: number): StoryLayout {
+   * body capped + made small-scrollable only if it and `choiceCount`'s own
+   * reserved footprint together would overflow the content region) for the
+   * CHOOSING phase and returns where the choice rows below it should start.
+   *
+   * `choiceCount` (not a pre-computed height) so the reserve is always the
+   * SAME formula `renderChoices` below actually lays rows out with
+   * (`runChoicePanelMinHeight(F, true)` × count + gaps) — this used to be a
+   * hand-picked `count * (80 + 8) - 8` that under-counted the real ~90px row
+   * height by 20-30px per screen (2026-08-19 audit alongside the desktop
+   * sibling's off-canvas "FREE" label bug), silently giving the body more
+   * scroll budget than it should have and letting the last choice row's
+   * footer text sit UNDER the fixed bottom action bar rather than fully
+   * above it. */
+  private renderStory(event: EventDef, choiceCount: number): StoryLayout {
+    const rowH = runChoicePanelMinHeight(F, true);
+    const rowGap = 8;
+    const reserveBelowH = eventChoiceBlockHeight(choiceCount, rowH, rowGap);
     const innerX = 12;
     const innerW = this.W - 24;
     let y = TEMPLATE.regions.content.y;
