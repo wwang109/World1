@@ -26,6 +26,7 @@ import {
   type PackVariant,
 } from './encounter';
 import { canAfford, spentPL, type Allocation, type LevelStat } from './leveling';
+import { anchorPoolFor, computeEnemyDepthBands, fillerPoolFor, type DepthBand } from './enemyDepth';
 import type { EventTheme } from '../data/events';
 import {
   BOSS_EVERY,
@@ -219,6 +220,19 @@ const FIGHT_POOL: readonly string[] = Object.values(enemies)
 const BOSS_POOL: readonly string[] = Object.values(enemies)
   .filter((e) => e.isBoss)
   .map((e) => e.id);
+
+/**
+ * DEPTH GATING (2026-08-19) — per-pool depth bands, derived once from the
+ * live `enemies` book (see `enemyDepth.ts` for the full model/rationale).
+ * Computed from EXACTLY the same enemy sets `FIGHT_POOL`/`BOSS_POOL` draw
+ * from, so a band always exists for every id either pool can roll.
+ */
+const FIGHT_POOL_BANDS: Readonly<Record<string, DepthBand>> = computeEnemyDepthBands(
+  Object.values(enemies).filter((e) => !e.isBoss),
+);
+const BOSS_POOL_BANDS: Readonly<Record<string, DepthBand>> = computeEnemyDepthBands(
+  Object.values(enemies).filter((e) => e.isBoss),
+);
 
 /**
  * HERO level cap — USER-LOCKED (2026-07-30): "Uncap the ENEMY level; keep the
@@ -582,6 +596,20 @@ function rollPackVariant(rng: Rng): PackVariant {
  * title bump is simply capped back down). Rank stays the SAME per-title
  * budget every solo foe uses (`TITLE_PRESETS[title].rank`) — no new budget
  * path, per member.
+ *
+ * DEPTH GATING (2026-08-19, see `enemyDepth.ts`): the node's `fightNumber`
+ * (the fight track's own depth measure — shared across a fight column's
+ * easy/standard/hard risk options, since gating is about WHICH MONSTERS this
+ * point in the ladder may field, orthogonal to the title/level risk dial) is
+ * the depth every member's enemy-id draw is gated against. Slot 0 (the
+ * anchor — the only member on a solo roll) draws from `anchorPoolFor` (only
+ * enemies whose tier band covers this depth); every additional pack member
+ * draws from `fillerPoolFor` (any enemy whose tier has opened by this depth,
+ * which may be weaker than the anchor's own tier). This changes WHICH pool
+ * each slot's existing `rng.int(pool.length)` draw indexes into — it spends
+ * NO additional Rng calls, so it does not disturb this node's other draws,
+ * though the enemy id a given roll now resolves to legitimately differs from
+ * before gating existed (expected — see the module's task history).
  */
 export function rollEncounter(state: RunState): EncounterPack {
   const node = state.currentNodeId ? findNode(state.map, state.currentNodeId) : undefined;
@@ -596,6 +624,10 @@ export function rollEncounter(state: RunState): EncounterPack {
   if (pool.length === 0) {
     throw new Error(`rollEncounter: no enemies available for node kind "${node.kind}"`);
   }
+  const bands = node.kind === 'boss' ? BOSS_POOL_BANDS : FIGHT_POOL_BANDS;
+  const gateDepth = node.fightNumber!;
+  const anchorPool = anchorPoolFor(pool, bands, gateDepth);
+  const fillerPool = fillerPoolFor(pool, bands, gateDepth);
   const entry = fightTableEntryForNode(node);
   const gateOpen = node.kind !== 'boss' && (node.fightNumber ?? 0) >= MIN_PACK_FIGHT_NUMBER;
   let variant: PackVariant = gateOpen ? rollPackVariant(rng) : 'solo';
@@ -618,7 +650,8 @@ export function rollEncounter(state: RunState): EncounterPack {
 
   const units: EncounterUnit[] = [];
   for (let i = 0; i < size; i++) {
-    const enemyId = pool[rng.int(pool.length)]!;
+    const drawPool = i === 0 ? anchorPool : fillerPool;
+    const enemyId = drawPool[rng.int(drawPool.length)]!;
     units.push(buildEnemyEncounter(enemyId, memberLevel, memberTitle, rank, entry.modifiers));
   }
   return { variant, units };
