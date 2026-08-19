@@ -97,7 +97,18 @@ export class MobileRunMapScene extends Phaser.Scene {
     }
 
     this.renderHud(run);
-    this.renderTrail(run);
+    // Every overlay below (stat panel / retire confirm / stats overlay) is a
+    // centered, opaque-panel modal over a full-screen scrim — its dialog rect
+    // sits ON TOP OF (and, for retire confirm, fully inside) the trail's
+    // "STOP IN PROGRESS"/choice block region. Drawing the trail underneath it
+    // anyway leaves dead Text objects at the exact same screen coordinates as
+    // the dialog's own copy — invisible to the player (the opaque panel is a
+    // higher Phaser depth), but still real GameObjects the HUD audit's text-
+    // bounds overlap check (rightly) flags, since it has no notion of one
+    // object being drawn UNDER another. Skipping the trail while a modal owns
+    // the screen is the honest fix: nothing is drawn that could never be seen.
+    const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.statsOverlayOpen;
+    if (!modalOpen) this.renderTrail(run);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
         compact: true,
