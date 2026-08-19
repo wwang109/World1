@@ -277,6 +277,32 @@ async function readPendingSeed(page: Page): Promise<number | null> {
  * letting the walkthrough re-audit the previous screen under the next
  * screen's label (the "byte-identical screenshots" failure mode this script
  * used to have).
+ *
+ * KNOWN HARNESS FLAKE (task #62, 2026-08-19) — unlike `shop-smoke.ts`, this
+ * script does NOT retry a click that lands with no effect; per the doc
+ * comment above, a step that doesn't take is meant to fail loudly by name.
+ * Be aware, though, that a "no visible text to click"/"scene never changed"
+ * failure on a button whose text WAS confirmed present a moment earlier can
+ * be this known artifact rather than a real regression: this script (like
+ * `shop-smoke.ts`) launches Chromium with `--use-angle=swiftshader` (no real
+ * GPU in this sandbox), and a direct measurement of `game.loop.actualFps`
+ * during a real run showed the game loop at ~5-30 fps against Phaser's
+ * 60fps target. Phaser defers a dispatched pointer event's hit-test to its
+ * own next game step rather than processing it synchronously with the DOM
+ * event; at this frame rate that step can be 150-200ms+ away — long enough
+ * for an unrelated in-flight action (another rebuild, a tween-heavy fight
+ * render) to destroy-and-recreate the display list before the queued click
+ * is hit-tested, leaving it with nothing to land on. Confirmed NOT a
+ * `Scale.Events.RESIZE`-driven relayout race (logged every RESIZE event
+ * across dozens of repro attempts in `shop-smoke.ts`; none fired at the
+ * failure point) and NOT a Playwright-synthetic-event artifact (the same
+ * click mechanism reproduced zero no-effect clicks in short, lightly-loaded
+ * sessions). A real player's device clears Phaser's frame budget with far
+ * more headroom than this software-rendered sandbox, so if this audit starts
+ * flaking on a specific click, retry it (mirroring `shop-smoke.ts`'s
+ * pattern) rather than treating a single failure as proof of a product bug —
+ * see `shop-smoke.ts`'s `handleFight` CONTINUE-retry comment for the full
+ * writeup.
  */
 async function clickExactText(page: Page, label: string, platform: Platform, step: string): Promise<boolean> {
   const { width, height } = await page.evaluate(() => ({ width: (window as any).__gameDesignWidth, height: (window as any).__gameDesignHeight }));

@@ -384,10 +384,41 @@ async function handleFight(page: Page, platform: Platform, prefix: string): Prom
   if (!resolved) return false;
   // Retry the CONTINUE click — observed occasionally landing with no effect
   // (scene still on the battle screen seconds later) despite the button
-  // being found and clicked; a stray timing/animation race, not gated logic
-  // (`footerButtons` always includes CONTINUE with no precondition once
-  // `getBattleContext() === 'run'`). Re-clicking with a fresh coordinate
-  // lookup each attempt is a pragmatic guard against whatever that race is.
+  // being found and clicked. INVESTIGATED (task #62, 2026-08-19): confirmed
+  // HARNESS-ONLY, not a `DesktopBattleScene`/`MobileBattleScene` bug —
+  // `footerButtons` always includes CONTINUE with no precondition/debounce
+  // once `getBattleContext() === 'run'`, and its `.on('pointerdown', ...)` is
+  // wired synchronously in the SAME `render()` call that draws the button
+  // (checked both platforms; no async gap between "text visible" and
+  // "listener attached").
+  //   Root cause is this SANDBOX's forced software rendering: both this
+  // script and `run-hud-audit.ts` launch Chromium with
+  // `--use-angle=swiftshader` (no real GPU here), and a direct measurement
+  // (`game.loop.actualFps` + a raw `requestAnimationFrame` counter) during a
+  // real run showed the game loop at ~5-30 fps against Phaser's 60fps
+  // target — an environment-specific 2-12x slowdown, confirmed by the
+  // "GPU stall due to ReadPixels" warnings Chromium logs to the page console
+  // here. Phaser defers a dispatched pointer event's HIT-TEST to its own next
+  // game step rather than processing it synchronously with the DOM event; at
+  // this frame rate that step can be 150-200ms+ away, wide enough for an
+  // UNRELATED action already in flight (e.g. the previous card pick's own
+  // `rerender()`, or this same fight's floating-number/tween churn) to
+  // destroy-and-recreate the display list before the queued click is finally
+  // hit-tested, leaving it with nothing to land on. Two things this is NOT:
+  // (a) a spurious `Scale.Events.RESIZE` → `relayoutScene` → `rebuildScene`
+  // race (`src/game/renderScale.ts`) — logged every RESIZE event across
+  // dozens of retries reproduced this way and NONE fired at the retry point;
+  // (b) a Playwright-synthetic-event artifact — the SAME click mechanism
+  // against the SAME buttons via the SAME production route reproduced ZERO
+  // no-effect clicks (0/220+) in short, lightly-loaded sessions, and only
+  // showed up once a longer session (many real battle-service fights, heavy
+  // WebGL/tween load) was already driving the frame rate down. A real
+  // player's device — even a slow phone — clears Phaser's 60fps budget by
+  // 10-30x more headroom than this sandbox's software renderer, which is why
+  // this reads as "occasional" for a live player but reproduces at up to
+  // 100% here under load. Re-clicking with a fresh coordinate lookup each
+  // attempt is a good compensating control for that: nothing to fix in the
+  // scenes themselves.
   for (let attempt = 1; attempt <= 3; attempt++) {
     await clickMatchingText(page, platform, `${prefix} -> CONTINUE (attempt ${attempt})`, (t) => t.startsWith('CONTINUE'), '"CONTINUE ›"');
     const left = await waitUntil(page, async () => !['DesktopBattle', 'MobileBattle'].includes(await activeSceneKey(page)), attempt < 3 ? 4000 : 10000);
@@ -513,9 +544,11 @@ async function runDraft(page: Page, platform: Platform): Promise<void> {
       // then surfaces downstream as a generic, hard-to-diagnose "START did
       // nothing" — checking the counter here names the ACTUAL row that
       // failed. Retried up to 3x with a fresh coordinate lookup each time —
-      // an occasional single click not registering (same stray-timing shape
-      // as the battle CONTINUE button) otherwise misreports as "ambiguous
-      // duplicate name" when it's really just a missed click.
+      // an occasional single click not registering (same shape, and same
+      // confirmed harness-only root cause — see `handleFight`'s CONTINUE
+      // retry comment, task #62) as the battle CONTINUE button — otherwise
+      // misreports as "ambiguous duplicate name" when it's really just a
+      // missed click.
       let progressed = false;
       for (let attempt = 1; attempt <= 3 && !progressed; attempt++) {
         await clickNthText(page, name, occurrence, platform, `draft -> pick ${key} (${name}, attempt ${attempt})`);
@@ -538,7 +571,9 @@ async function runDraft(page: Page, platform: Platform): Promise<void> {
       // ZERO matches (this row's cards genuinely aren't on screen yet),
       // which read like a missing-card bug rather than a timing gap. Retried
       // with a fresh click each time — the same occasional "clicked it, no
-      // effect" flake seen on CONTINUE/START, just hitting NEXT this time.
+      // effect" flake seen on CONTINUE/START (confirmed harness-only, task
+      // #62 — see `handleFight`'s CONTINUE retry comment), just hitting NEXT
+      // this time.
       const nextSet = i + 2; // 1-based index of the row NEXT is advancing TO
       let advanced = false;
       for (let attempt = 1; attempt <= 3 && !advanced; attempt++) {
@@ -549,9 +584,12 @@ async function runDraft(page: Page, platform: Platform): Promise<void> {
     }
   }
   // Retry the START click — the same occasional "found the text, clicked it,
-  // scene didn't move" flake observed on the battle CONTINUE button, just
-  // hitting the draft's START button instead. Not a gating issue (every row
-  // reported PICK ONE PER ROW · 4/4 before this point).
+  // scene didn't move" flake observed on the battle CONTINUE button
+  // (confirmed harness-only, task #62 — see `handleFight`'s CONTINUE retry
+  // comment), just hitting the draft's START button instead. Not a gating
+  // issue (every row reported PICK ONE PER ROW · 4/4 before this point, and
+  // `DesktopDraftScene`/`MobileDraftScene` only call `setInteractive()` on
+  // START once `ready` — checked true here — with no separate debounce).
   let draftLanded = DRAFT_SCENE[platform];
   for (let attempt = 1; attempt <= 3 && draftLanded === DRAFT_SCENE[platform]; attempt++) {
     await clickExactText(page, 'START', platform, `draft -> START (attempt ${attempt})`);
