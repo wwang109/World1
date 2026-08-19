@@ -423,10 +423,13 @@ export class DesktopShopScene extends Phaser.Scene {
       addRunArt(this, shopArtKey(id), { x: cx, y: gridTopRow, width: cellW, height: bannerH }, 0.82);
       this.add.rectangle(cx, gridTopRow, cellW, bannerH, UI.bg, 0.28).setOrigin(0, 0);
       this.add.rectangle(cx, gridTopRow + bannerH, cellW, 1, UI.border, 0.5).setOrigin(0, 0);
-      this.add.text(cx + 16, gridTopRow + bannerH + 8, shop.name.toUpperCase(), {
+      const tileTitle = this.add.text(cx + 16, gridTopRow + bannerH + 8, shop.name.toUpperCase(), {
         fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.text,
       });
-      this.add.text(cx + 16, gridTopRow + bannerH + 8 + F.name + 4, shop.tagline, {
+      // Same fix as the shelf header below: derive the tagline's y from the
+      // title's own measured height instead of a hardcoded `F.name` guess,
+      // so no theme's name+tagline pair can collide regardless of content.
+      this.add.text(cx + 16, tileTitle.y + tileTitle.height + 4, shop.tagline, {
         fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
         wordWrap: { width: cellW - 32 }, lineSpacing: 3,
       });
@@ -468,8 +471,17 @@ export class DesktopShopScene extends Phaser.Scene {
       back.on('pointerdown', () => { playSfx('uiBack'); this.selectedShop = null; this.rerender(); });
       titleX = gx + backW + 16;
     }
-    this.add.text(titleX, top, shop.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent });
-    this.add.text(titleX, top + F.name + 2, shop.tagline, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim });
+    // Position the tagline off the TITLE's own measured height (not a
+    // hardcoded `F.name` guess) — the display font's real rendered line
+    // height can exceed its nominal point size, and that gap is constant
+    // across every shop name (it's a font-metrics fact, not a name-length
+    // one), so a hand-tuned offset either overlaps EVERY theme's header or
+    // none — it just depends on which theme a given run happens to land on.
+    // Deriving the gap from `titleText.height` (same measurement `getBounds()`
+    // uses) guarantees the tagline clears the title for every theme, long or
+    // short, with no per-theme layout math to keep in sync with content.
+    const titleText = this.add.text(titleX, top, shop.name.toUpperCase(), { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent });
+    this.add.text(titleX, titleText.y + titleText.height + 2, shop.tagline, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim });
 
     // A thin shop whose WHOLE pool already fits the shelf can never reveal
     // anything new on reroll (docs/run-shops-design.md §2b, USER-LOCKED) —
