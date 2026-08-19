@@ -106,6 +106,7 @@ export class MobileBattleScene extends Phaser.Scene {
   private shieldByTurn = new Map<number, ShieldSnap>();
   /** Active ailment keys per side per turn — drives the HP-bar ailment tint. */
   private statusByTurn = new Map<number, { player: string[]; enemy: string[]; enemyUnits?: string[][] }>();
+  private exposePctByTurn = new Map<number, { player: number; enemy: number; enemyUnits?: number[] }>();
   private speedByTurn = new Map<number, SpeedSnap>();
   /** Which board slot each side cast from, per turn — drives the gold cursor. */
   private playSlotByTurn = new Map<number, { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }>();
@@ -335,6 +336,7 @@ export class MobileBattleScene extends Phaser.Scene {
     this.hpByTurn = model.hpByTurn;
     this.shieldByTurn = model.shieldByTurn;
     this.statusByTurn = model.statusByTurn;
+    this.exposePctByTurn = model.exposePctByTurn;
     this.speedByTurn = model.speedByTurn;
     this.playSlotByTurn = model.playSlotByTurn;
     this.turns = model.turns;
@@ -369,6 +371,7 @@ export class MobileBattleScene extends Phaser.Scene {
     const hp = this.hpByStep[this.idx] ?? this.hpByTurn.get(turn) ?? { player: 0, enemy: 0, playerMax: 1, enemyMax: 1 };
     const shield = this.shieldByStep[this.idx] ?? this.shieldByTurn.get(turn) ?? { player: 0, enemy: 0 };
     const status = this.statusByTurn.get(turn) ?? { player: [], enemy: [] };
+    const exposePct = this.exposePctByTurn.get(turn) ?? { player: 0, enemy: 0 };
     // FX (floating numbers, shakes, bar tweens, card pulse) only fire on a
     // single forward step — playback tick or one scrub click — never on a
     // jump/rewind, which would otherwise replay every step's FX in a burst.
@@ -502,6 +505,7 @@ export class MobileBattleScene extends Phaser.Scene {
       hpY, this.heroName, hp.player, hp.playerMax, shield.player, UI.good ?? 0x4f9e57, status.player,
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
       shieldPoolsLabel(shield.playerPools),
+      exposePct.player,
     );
     this.boundedText(120, hpY + 17, this.heroStatLine, { fontSize: `${F.tiny}px`, color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
     addHoverTipZone(this, { x: 120, y: hpY + 17, w: this.W - 120 - 84, h: 12 }, ALL_STAT_ENTRIES);
@@ -514,6 +518,7 @@ export class MobileBattleScene extends Phaser.Scene {
       const foeMax = hp.enemyMaxes?.[u] ?? hp.enemyMax;
       const foeShield = shield.enemies?.[u] ?? shield.enemy;
       const foeStatus = status.enemyUnits?.[u] ?? status.enemy;
+      const foeExposePct = exposePct.enemyUnits?.[u] ?? exposePct.enemy;
       const prevFoeHp = prevHp ? (prevHp.enemies?.[u] ?? prevHp.enemy) : undefined;
       const prevFoeShield = prevShield ? (prevShield.enemies?.[u] ?? prevShield.enemy) : undefined;
       const foePools = shield.enemiesPools?.[u] ?? (u === 0 ? shield.enemyPools : undefined);
@@ -521,6 +526,7 @@ export class MobileBattleScene extends Phaser.Scene {
         barY, foeModel.name, foeHp, foeMax, foeShield, UI.bad ?? 0xb0483c, foeStatus,
         animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
         shieldPoolsLabel(foePools),
+        foeExposePct,
       );
       this.boundedText(120, barY + 17, foeModel.statLine, { fontSize: `${F.tiny}px`, color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
       addHoverTipZone(this, { x: 120, y: barY + 17, w: this.W - 120 - 84, h: 12 }, ALL_STAT_ENTRIES);
@@ -758,6 +764,11 @@ export class MobileBattleScene extends Phaser.Scene {
     /** "20 P · 30 M" — present only once >1 shield pool is nonzero, so a
      * stacked physical+magical shield never reads as one merged number. */
     poolsLabel?: string,
+    /** Current EFFECTIVE expose amplification (%) — the strongest standing
+     * pile, per `BattleTimeline.exposePctByTurn` (battleTimeline.ts). NOT the
+     * most recently applied pile's pct: a weaker reapplication landing on a
+     * unit already carrying a stronger expose must not drop this number. */
+    exposePct?: number,
   ): HpBarHandles {
     const barX = 120; const barW = this.W - barX - 84;
     const frac = (v: number): number => barW * Math.max(0, Math.min(1, v / max));
@@ -794,11 +805,21 @@ export class MobileBattleScene extends Phaser.Scene {
     // (physical/magical/true) instead of one merged number.
     const shieldLabel = shield > 0 ? (poolsLabel ? `+${shield} (${poolsLabel})` : `+${shield}`) : '';
     const shieldText = shield > 0 ? this.add.text(hpText.x - hpText.width - 6, y, shieldLabel, { fontSize: `${F.label}px`, color: '#5fa8d3', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0) : undefined;
+    // Expose badge number — the EFFECTIVE (strongest-standing) amplification,
+    // never the last application's own pct (see the `exposePct` param doc).
+    // Stacks to the left of whichever of shield/hp is currently the row's
+    // leftmost label, same idiom as `shieldText` stacking left of `hpText`.
+    const anchorText = shieldText ?? hpText;
+    const exposeText = (exposePct ?? 0) > 0
+      ? this.add.text(anchorText.x - anchorText.width - 6, y, `EXPOSE +${exposePct}%`, {
+          fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#a678d8', fontFamily: FONT.body, fontStyle: 'bold',
+        }).setOrigin(1, 0)
+      : undefined;
 
     return {
       fillRect,
       shieldRect,
-      shakeTargets: [nameText, fillRect, hpText, ...(shieldText ? [shieldText] : [])],
+      shakeTargets: [nameText, fillRect, hpText, ...(shieldText ? [shieldText] : []), ...(exposeText ? [exposeText] : [])],
       floatX: barX + barW / 2,
       floatY: y + 7,
     };

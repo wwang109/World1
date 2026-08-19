@@ -945,6 +945,103 @@ describe('game/battleTimeline', () => {
     });
   });
 
+  // ---- expose badge (`exposePctByTurn`) tracks the EFFECTIVE (strongest
+  // standing) pct, never the most recently applied one — the engine's own
+  // rule (interpreter.ts `case 'expose'`, "MAX, NOT SUM (2026-08-18)") is that
+  // reapplications no longer refresh/merge into one pile: separate
+  // applications COEXIST as an antichain (an application a standing pile
+  // dominates — pct AND duration both no better — is absorbed/replaced, but
+  // anything else stands alongside it), and a hit amplifies by the STRONGEST
+  // currently-standing pile, never the one most recently applied. Before this
+  // fix, the HP-bar badge was fed straight from each `statusApplied` event's
+  // own `pct` (last-event-wins) and wiped by ANY `statusExpired` regardless of
+  // which pile it was — so a weak reapplication landing on a unit already
+  // carrying a strong pile visibly DROPPED the badge to the weak number while
+  // the engine kept amplifying at the strong one, and the strong pile's own
+  // natural expiry could blank the badge even while a second, weaker pile was
+  // still live.
+  describe('expose badge (exposePctByTurn) tracks the EFFECTIVE pct, not the last application', () => {
+    it('a weaker expose landing on a stronger standing pile does not drop the badge', () => {
+      const events: CombatEvent[] = [
+        // Strong pile: 50%, 3 turns — active through turn 1+3=4.
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'expose', pct: 50, turns: 3 },
+        // Weaker, longer-lived pile lands on top — the engine's antichain
+        // keeps BOTH standing (neither dominates the other: this one is
+        // weaker but outlasts the first).
+        { turn: 2, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'expose', pct: 20, turns: 5 },
+        { turn: 8, kind: 'combatEnd', result: 'win', turns: 8 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 8 });
+      // The old last-event-wins bug would show 20 here.
+      expect(model.exposePctByTurn.get(2)?.enemy).toBe(50);
+      expect(model.statusByTurn.get(2)?.enemy).toContain('expose');
+    });
+
+    it('once the strong pile naturally expires, the badge falls to whatever the engine would then apply (the weaker standing pile), not to zero', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'expose', pct: 50, turns: 3 }, // expires end of turn 4
+        { turn: 2, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'expose', pct: 20, turns: 5 }, // expires end of turn 7
+        // The engine's own natural-expiry event for the strong pile, reported
+        // on the exact turn its own duration accounting lands on
+        // (`expireStatuses`, combat/simulate.ts).
+        { turn: 4, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'expose' },
+        { turn: 8, kind: 'combatEnd', result: 'win', turns: 8 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 8 });
+      expect(model.exposePctByTurn.get(4)?.enemy).toBe(20);
+      // Still an active ailment — the badge must not disappear while the
+      // weaker pile is still standing.
+      expect(model.statusByTurn.get(4)?.enemy).toContain('expose');
+    });
+
+    it('the badge clears (and the presence tint drops) once every standing pile has expired', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'expose', pct: 50, turns: 3 }, // expires end of turn 4
+        { turn: 2, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'expose', pct: 20, turns: 5 }, // expires end of turn 7
+        { turn: 4, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'expose' },
+        { turn: 7, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'expose' },
+        { turn: 8, kind: 'combatEnd', result: 'win', turns: 8 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 8 });
+      expect(model.exposePctByTurn.get(7)?.enemy).toBe(0);
+      expect(model.statusByTurn.get(7)?.enemy ?? []).not.toContain('expose');
+    });
+
+    it('a cleanse draining the soonest-expiring pile leaves the other standing pile\'s pct on the badge, rather than blanking it', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'expose', pct: 50, turns: 2 }, // soonest: expires end of turn 3
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'expose', pct: 30, turns: 5 }, // longer-lived, weaker
+        // Sole active badge kind ⇒ unambiguous single-charge cleanse; per the
+        // engine's documented "expiring-soonest first" cleanse order, this
+        // drains the 50%/2-turn pile, not the 30%/5-turn one.
+        { turn: 2, kind: 'cleansed', side: 'enemy', unit: 0, removed: 1 },
+        { turn: 6, kind: 'combatEnd', result: 'win', turns: 6 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 6 });
+      expect(model.exposePctByTurn.get(2)?.enemy).toBe(30);
+      expect(model.statusByTurn.get(2)?.enemy).toContain('expose');
+    });
+
+    it('the hero side and multi-foe enemyUnits are tracked independently', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'expose', pct: 15, turns: 4 },
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'expose', pct: 40, turns: 4 },
+        { turn: 2, kind: 'statusApplied', side: 'enemy', unit: 1, status: 'expose', pct: 10, turns: 2 },
+        { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+      ];
+      const model = buildBattleTimeline(
+        { ...BASE, enemyTeam: [
+          { enemyId: 'bandit_duelist', level: 1, title: 'elite', rank: 2, modifiers: [] },
+          { enemyId: 'giant_rat', level: 1, title: 'normal', rank: 0, modifiers: [] },
+        ] },
+        { events, result: 'win', turns: 3 },
+      );
+      expect(model.exposePctByTurn.get(2)?.player).toBe(15);
+      expect(model.exposePctByTurn.get(2)?.enemy).toBe(40);
+      expect((model.exposePctByTurn.get(2) as { enemyUnits?: number[] })?.enemyUnits?.[1]).toBe(10);
+    });
+  });
+
   // ---- `formatDmg` (the HIT `D:` math strip) — `exposeBonus` and
   // `minimumDamageBonus` were missing entirely, so the printed terms did not
   // sum to the printed total, defeating the whole point of a strip a player

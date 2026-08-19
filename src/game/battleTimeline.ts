@@ -152,6 +152,11 @@ export interface BattleTimeline {
   shieldByTurn: Map<number, ShieldSnap>;
   /** Active ailment keys per side per turn — drives the HP-bar ailment tint. */
   statusByTurn: Map<number, { player: string[]; enemy: string[] }>;
+  /** Current EFFECTIVE expose amplification (%) per side per turn — the
+   * strongest standing pile's pct, mirroring the engine's own `strongestPct`
+   * scan (interpreter.ts `dealDamage`), NOT the most recent application's pct.
+   * 0 when no pile is standing. Drives the HP-bar expose badge's number. */
+  exposePctByTurn: Map<number, { player: number; enemy: number; enemyUnits?: number[] }>;
   speedByTurn: Map<number, SpeedSnap>;
   /** Which board slot each side cast from, per turn — drives the gold cursor. */
   playSlotByTurn: Map<number, { player?: number; enemy?: number }>;
@@ -482,6 +487,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const hpByTurn = new Map<number, HpSnap>();
   const shieldByTurn = new Map<number, ShieldSnap>();
   const statusByTurn = new Map<number, { player: string[]; enemy: string[]; enemyUnits?: string[][] }>();
+  const exposePctByTurn = new Map<number, { player: number; enemy: number; enemyUnits?: number[] }>();
   const speedByTurn = new Map<number, SpeedSnap>();
   const playSlotByTurn = new Map<number, { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }>();
 
@@ -500,6 +506,57 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const speed: SpeedSnap = { player: '', enemy: '', enemyUnits: foes.map(() => '') };
   const dotsPlayer = new Map<string, number>();
   const dotsEnemies = foes.map(() => new Map<string, number>());
+  // Shadow-mirror of the engine's expose ANTICHAIN (interpreter.ts, "MAX, NOT
+  // SUM (2026-08-18)"): re-applying expose no longer refreshes a single pile —
+  // separate applications COEXIST (each keeps its own pct for its own window),
+  // and incoming damage amplifies by the STRONGEST currently-standing pile's
+  // pct, not the most recently applied one. The old code fed the `dotsPlayer`/
+  // `dotsEnemies` 'expose' badge value straight from each `statusApplied`
+  // event's `pct` (last-event-wins) and wiped it on ANY `statusExpired`
+  // (whichever pile happened to end first), so a weak reapplication landing on
+  // a unit already carrying a strong pile made the badge DROP to the weak
+  // number while the engine kept amplifying at the strong one — and the
+  // strong pile's own natural expiry could blank the badge even while a
+  // second, weaker pile was still live.
+  //
+  // Fix: track every application's (pct, expiresAtTurn) and always report the
+  // MAX pct among piles still active "as of" the turn being displayed —
+  // exactly the engine's `strongestPct` scan in `dealDamage`. `expiresAtTurn`
+  // is computed once, at application time, as `e.turn + e.turns` — the exact
+  // turn number the engine's OWN natural-expiry `statusExpired` event reports
+  // for that pile (`expireStatuses`/`simulate.ts`: durations decrement once
+  // per turn, skipping the turn a pile was freshly applied, so a pile applied
+  // turn T for N turns is still active through turn T+N and is removed only at
+  // the END of turn T+N). Piles are never spliced out on a later STRONGER
+  // application overwriting them (the engine's own domination/replace bookkeeping,
+  // interpreter.ts's `expose` arm) because a pile the engine would have dropped
+  // as "dominated" (pct <= AND expiresAtTurn <= the new one) can, by
+  // definition, never win the max over any turn range the new pile doesn't
+  // already cover at least as strongly — so leaving it in the shadow list and
+  // just re-taking the max is byte-identical to pruning it, without needing to
+  // replicate the engine's replace step at all. `cleanse` is the one exception
+  // (an artificial, out-of-band removal `expiresAtTurn` can't express) and is
+  // handled at its own call site below by dropping the soonest-expiring
+  // pile(s), mirroring the engine's documented "expiring-soonest first" order.
+  interface ExposePile { pct: number; expiresAtTurn: number; }
+  const exposePilesPlayer: ExposePile[] = [];
+  const exposePilesEnemies: ExposePile[][] = foes.map(() => []);
+  const exposePilesFor = (side: 'player' | 'enemy', unit: number): ExposePile[] =>
+    (side === 'player' ? exposePilesPlayer : exposePilesEnemies[unit]!);
+  /** Max pct among piles still active AS OF `turn` — mirrors the engine's
+   * `strongestPct` scan over `victim.statuses` exactly (see doc above); 0
+   * when nothing is standing. `turn` is inclusive by default (a pile applied
+   * turn T for N turns is active through turn T+N, matching a `statusApplied`
+   * event query at any turn in that span); pass `strict: true` from a
+   * `statusExpired`(expose) handler, where `e.turn` IS a pile's own
+   * `expiresAtTurn` and the event means "as of now, that pile no longer
+   * counts" — a `>=` query there would count the very pile the event is
+   * announcing the end of. */
+  const effectiveExposePct = (piles: ExposePile[], turn: number, strict = false): number =>
+    piles.reduce((max, p) => {
+      const active = strict ? p.expiresAtTurn > turn : p.expiresAtTurn >= turn;
+      return active && p.pct > max ? p.pct : max;
+    }, 0);
   // Shadow-count of ACTIVE stat-debuff instances per (side, unit) — fed by
   // statusApplied/statusExpired for `status: 'debuff'` exactly like every
   // other reconstruction in this section. `debuff` never touches an HP-bar
@@ -1005,8 +1062,24 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
             const remaining = Math.max(0, (bucket.get(key) ?? 0) - e.removed);
             if (remaining > 0) bucket.set(key, remaining);
             else bucket.delete(key);
+          } else if (key === 'expose') {
+            // Expose is no longer a single pile (see the antichain doc
+            // comment on `exposePilesPlayer` above), so "sole badge active"
+            // no longer means "sole PILE active" — two co-existing expose
+            // piles both collapse to the one 'expose' badge key. `cleanse`
+            // drains whichever `isCleansable` kind expires SOONEST
+            // (interpreter.ts's documented order), so approximate the same
+            // choice here: drop the `e.removed` soonest-expiring piles (by our
+            // own `expiresAtTurn`) rather than assuming the whole ailment is
+            // gone, then recompute the badge from whatever's left.
+            const piles = exposePilesFor(e.side, unitOf(e));
+            piles.sort((a, b) => a.expiresAtTurn - b.expiresAtTurn);
+            piles.splice(0, Math.max(0, e.removed));
+            const effective = effectiveExposePct(piles, e.turn);
+            if (effective > 0) bucket.set('expose', effective);
+            else bucket.delete('expose');
           } else {
-            // stun/expose are removed WHOLE by one charge, never partially
+            // stun is removed WHOLE by one charge, never partially
             // (interpreter.ts's cleanse loop only takes multiple stacks from
             // the STACKING-DoT branch) — sole active + `removed > 0` means
             // gone entirely.
@@ -1153,7 +1226,18 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // which read as a damage number beside `DMG n` and was not one.)
         if (e.status === 'poison' || e.status === 'burn' || e.status === 'bleed') bucket.set(e.status, e.stacks ?? 0);
         else if (e.status === 'stun') bucket.set('stun', e.turns);
-        else if (e.status === 'expose') bucket.set('expose', e.pct ?? 0);
+        else if (e.status === 'expose') {
+          // Record this application as its OWN pile (see the doc comment on
+          // `exposePilesPlayer`/`exposePilesEnemies` above) rather than
+          // overwriting the badge with this event's own pct — a weaker
+          // reapplication landing on a stronger standing pile must not drop
+          // the badge to the weaker number.
+          const piles = exposePilesFor(e.side, unitOf(e));
+          piles.push({ pct: e.pct ?? 0, expiresAtTurn: e.turn + e.turns });
+          const effective = effectiveExposePct(piles, e.turn);
+          if (effective > 0) bucket.set('expose', effective);
+          else bucket.delete('expose');
+        }
         // Thorns feeds the same per-unit ailment bucket the HP badge reads —
         // it has had an `AILMENT_TINT` entry since the thorns fix, but this
         // bucket never got fed, so the tint has been dead code (and thorns has
@@ -1177,7 +1261,20 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       }
       case 'statusExpired': {
         const bucket = e.side === 'player' ? dotsPlayer : dotsEnemies[unitOf(e)]!;
-        bucket.delete(e.status);
+        if (e.status === 'expose') {
+          // Do NOT blindly clear the badge — this event only says ONE pile
+          // (the engine's own antichain member expiring, whether by natural
+          // duration or by being domination-replaced at application time; see
+          // the doc comment on `exposePilesPlayer` above) is gone; another,
+          // separately-applied pile can still be standing. Recompute the
+          // effective (strongest-remaining) pct instead of deleting the key.
+          const piles = exposePilesFor(e.side, unitOf(e));
+          const effective = effectiveExposePct(piles, e.turn, true);
+          if (effective > 0) bucket.set('expose', effective);
+          else bucket.delete('expose');
+        } else {
+          bucket.delete(e.status);
+        }
         if (e.status === 'debuff') {
           const dk = debuffKey(e.side, unitOf(e));
           const cur = debuffCountByUnit.get(dk) ?? 0;
@@ -1295,6 +1392,15 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       enemy: [...dotsEnemies[0]!.keys()],
       enemyUnits: dotsEnemies.map((m) => [...m.keys()]),
     });
+    // `dotsPlayer`/`dotsEnemies`' 'expose' VALUE is now always the effective
+    // (strongest-standing) pct — see the `statusApplied`/`statusExpired`/
+    // `cleansed` handling above — so reading it straight through here gives
+    // the badge the correct number for free.
+    exposePctByTurn.set(e.turn, {
+      player: dotsPlayer.get('expose') ?? 0,
+      enemy: dotsEnemies[0]!.get('expose') ?? 0,
+      enemyUnits: dotsEnemies.map((m) => m.get('expose') ?? 0),
+    });
     speedByTurn.set(e.turn, { ...speed, enemyUnits: [...speed.enemyUnits!] });
   }
   // Defensive: every real log's last event is `combatEnd` (never `gain`), so
@@ -1411,6 +1517,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     hpByTurn,
     shieldByTurn,
     statusByTurn,
+    exposePctByTurn,
     speedByTurn,
     playSlotByTurn,
     turns,
