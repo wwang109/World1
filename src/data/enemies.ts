@@ -306,4 +306,168 @@ export const enemies: Record<string, EnemyDef> = {
     goldReward: 18,
     xpReward: 12,
   },
+
+  // --- Keyword-family roster expansion (2026-08-19): the catalog grew a
+  // batch of new keyword-family cards (ward 3->8, thorns 6->10, bleed 4->7,
+  // ward+thorns/shield+thorns hybrids, poison hybrids, the roster's first
+  // `splash` card) with no enemy ever fielding most of them — a depth-1
+  // player could draft any of these mechanics and never see them played
+  // back. Every board below is real catalog cards only (the "an enemy is
+  // just a replicable player build" rule), Bronze floor, small 2-3 piece
+  // board, universal statline. goldReward is chosen to seat each one at a
+  // deliberate rung of the FIGHT_POOL ladder (`src/run/enemyDepth.ts` derives
+  // depth bands from goldReward) rather than clustering the new mechanics
+  // all at one difficulty — see the per-monster note for its intended band.
+  //
+  // TOXIC DRUID: nature magical poisoner. All three pieces are
+  // poison+damage/heal hybrids (thorn_bite, blooming_vine, poison_bloom) —
+  // no pure-damage filler, same "majority of the fight's damage is a DoT
+  // tick, not a direct hit" shape as Ember Imp's fire rework, but poison
+  // BYPASSES SHIELDS where Ember Imp's burn does not, and poison_bloom heals
+  // the Druid back off its own poison application, giving it real DoT-race
+  // sustain. `elementAffinity: 'nature'` makes this the roster's first
+  // genuinely nature-CASTING enemy (Stone Beetle's nature tag is flavor only
+  // — see that enemy's own comment). goldReward 16 seats it in the
+  // WEAKEST/tier-0 band (alongside Giant Rat/Stone Beetle/Hunter/Cleric) —
+  // deliberately early, so poison stacking is something a fresh run meets
+  // immediately, not something saved for a late-game reveal. Counter-play:
+  // Ward denies poison outright (poison IS wardable, unlike stun); cleanse
+  // strips an applied stack; racing it down before 3 stacks of poison
+  // compound also works since none of its 3 cards hit hard on their own.
+  toxic_druid: {
+    id: 'toxic_druid',
+    name: 'Toxic Druid',
+    baseDepth: 1,
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
+    elementAffinity: 'nature',
+    boardSize: 3,
+    pieces: [
+      { skillId: 'thorn_bite', slot: 0 },
+      { skillId: 'poison_bloom', slot: 1 },
+      { skillId: 'blooming_vine', slot: 2 },
+    ],
+    goldReward: 16,
+    xpReward: 11,
+  },
+
+  // REAVER: the roster's bleed+shieldBreak axe duelist. Gutting Cleave IS
+  // the requested combo on one card (shatters the target's shield, THEN its
+  // bleed can land — bleed is explicitly blocked by shields, unlike
+  // poison); Hemorrhage piles a second bleed stack; Armor Break shreds DEF
+  // so the bleed damage-over-time and any follow-up hit both land harder.
+  // Reads as "breaks your defenses open, then lets you bleed out" — distinct
+  // from Berserker (axe, pure stun-brute) and from Warbreaker below (axe,
+  // tempo/board-control rather than a HP-attrition race). goldReward 19
+  // seats it in tier-1 (`[5,12]`), just above Ember Imp. Counter-play:
+  // cleanse or healing that outpaces the bleed ticks, or simply not
+  // stacking a shield for Gutting Cleave to shatter in the first place (a
+  // shieldless build denies its opening line no target).
+  bleed_reaver: {
+    id: 'bleed_reaver',
+    name: 'Reaver',
+    baseDepth: 1,
+    weaponAffinity: 'axe',
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
+    boardSize: 4,
+    pieces: [
+      { skillId: 'gutting_cleave', slot: 0 },
+      { skillId: 'hemorrhage', slot: 2 },
+      { skillId: 'armor_break', slot: 3 },
+    ],
+    goldReward: 19,
+    xpReward: 13,
+  },
+
+  // WARBREAKER: showcase for the roster's first `splash` card (Shockwave
+  // Slam) — a tempo-denial axe brute rather than a raw damage race. Splash
+  // taxes weight on the band of cards around wherever the target's own cast
+  // cursor currently sits (up to 3 pieces at once), stalling its NEXT couple
+  // of plays; Shield Splitter then cracks whatever shield the target has
+  // banked while it is stalled. Distinct from both axe siblings above:
+  // Berserker locks a turn down outright (stun), Reaver races HP down
+  // (bleed); Warbreaker instead denies TEMPO — it wants the fight to run
+  // long enough for repeated weight taxes to matter. goldReward 22 seats it
+  // in tier-2 (`[9,16]`), next to Knight. Counter-play: a board with few,
+  // cheap, low-weight pieces recovers from a splash tax fast (there is
+  // nothing to stack — a re-splash just takes the max, per its own design
+  // note), and not banking a shield leaves Shield Splitter's shatter with
+  // nothing to open.
+  warbreaker: {
+    id: 'warbreaker',
+    name: 'Warbreaker',
+    baseDepth: 1,
+    weaponAffinity: 'axe',
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
+    boardSize: 3,
+    pieces: [
+      { skillId: 'shockwave_slam', slot: 0 },
+      { skillId: 'shield_splitter', slot: 1 },
+    ],
+    goldReward: 22,
+    xpReward: 15,
+  },
+
+  // THORNBACK: the roster's thorns+shield beast — "punishes fast
+  // attackers" because thorns fires once per LANDED DIRECT HIT, so a
+  // multi-hit/fast-swinging board pays its stack count back over and over
+  // in TRUE damage while Thornback just sits behind Bulwark Thicket's 56
+  // shield. Savage Bite is the only offense on the board — this monster's
+  // real damage is the counter-punch, not its own swing. Distinct from
+  // Stone Beetle (shield, but zero thorns) and from Iron Maiden/Bulwark
+  // Thicket's other card-level owners (Berserker, none currently on this
+  // roster carries this exact card) — Thornback is the SIGNATURE thorns
+  // showcase. goldReward 27 seats it in tier-3 (`[13,∞)`), the roster's
+  // toughest band alongside Bandit Duelist. Counter-play: DoT/poison decks
+  // never trigger thorns at all (thorns only answers a landed DIRECT hit,
+  // never a tick) — the exact matchup Ember Imp's own rework called out as
+  // thorns' blind spot — or shieldBreak to strip the 56 shield before
+  // committing a big single hit instead of many small ones.
+  thorn_beast: {
+    id: 'thorn_beast',
+    name: 'Thornback',
+    baseDepth: 1,
+    weaponAffinity: 'beast',
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
+    boardSize: 4,
+    pieces: [
+      { skillId: 'bulwark_thicket', slot: 0 },
+      { skillId: 'savage_bite', slot: 3 },
+    ],
+    goldReward: 27,
+    xpReward: 18,
+  },
+
+  // SENTINEL: the roster's ward+guard warded protector. Unbreakable Stance
+  // is the requested combo on one card (a ward charge that prevents the
+  // next ailment outright, PLUS a -25% incoming-physical guard window);
+  // Iron Bulwark banks a flat 48 physical shield on top, and Sword Slash is
+  // its only offense. The composite reads as "the wall": a single ward
+  // charge alone is a thin denial layer, but stacked with a % guard window
+  // and a flat shield pool it becomes genuinely hard to burst OR chip
+  // through in the same fight — the hardest denial matchup on the roster,
+  // which is why it is tagged `isElite` (a title/encounter-role tag only,
+  // per docs/enemy-design.md — not a stat multiplier) the same way Bandit
+  // Duelist was the previous hardest normal-pool pick. goldReward 32 seats
+  // it in tier-3 (`[13,∞)`), above Bandit Duelist — the new hardest
+  // fight-pool anchor. Counter-play: ward only blocks the DoT/debuff/expose
+  // family, never `stun` — a stun opener bypasses it entirely; a shieldBreak
+  // hit still cracks Iron Bulwark's flat shield even though it can never be
+  // warded away (shieldBreak is not in the wardable set either, so it lands
+  // regardless of the ward charge).
+  warded_sentinel: {
+    id: 'warded_sentinel',
+    name: 'Sentinel',
+    baseDepth: 1,
+    isElite: true,
+    weaponAffinity: 'sword',
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
+    boardSize: 4,
+    pieces: [
+      { skillId: 'unbreakable_stance', slot: 0 },
+      { skillId: 'iron_bulwark', slot: 1 },
+      { skillId: 'sword_slash', slot: 3 },
+    ],
+    goldReward: 32,
+    xpReward: 21,
+  },
 };
