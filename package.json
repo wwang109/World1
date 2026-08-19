@@ -16,7 +16,8 @@
     "sim": "tsx scripts/balance.ts",
     "content:export": "tsx scripts/exportEnemies.ts && tsx scripts/exportModifiers.ts",
     "content:validate": "tsx scripts/validateContent.ts",
-    "scaffold:card": "tsx scripts/scaffoldCard.ts"
+    "scaffold:card": "tsx scripts/scaffoldCard.ts",
+    "shop:smoke": "tsx scripts/shop-smoke.ts"
   },
   "dependencies": {
     "phaser": "^3.90.0"
