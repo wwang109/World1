@@ -100,6 +100,13 @@ describe('data/events: catalog lint', () => {
     }
   });
 
+  // Upper bound of 3 is not arbitrary: it is the largest choice count
+  // `src/game/ui/runEventStoryLayout.ts`'s reservation math can guarantee
+  // fits on BOTH platforms (see `EventDef.choices`'s doc comment in
+  // `src/data/events.ts` for the full arithmetic, and
+  // `tests/game/runEventStoryLayout.test.ts`'s "bound derivation" describe
+  // block for the synthetic proof at 3 vs. the documented failure at 4).
+  // Mobile is the binding platform (desktop alone would tolerate 4).
   it('every event has 2-3 choices', () => {
     for (const id of eventCatalogIds) {
       const event = eventCatalog[id]!;

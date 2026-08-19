@@ -160,3 +160,106 @@ describe('MobileRunEventScene story layout — every catalog event', () => {
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Bound derivation — SYNTHETIC (non-catalog) proof of the max-choices bound
+// documented on `EventDef.choices` (src/data/events.ts) and enforced by
+// `tests/run/events.test.ts`'s "every event has 2-3 choices" lint. The
+// catalog-driven suites above only ever see today's real events (max 3
+// choices) — they can prove today's catalog is safe, but not that 3 is
+// actually the CEILING the math supports, nor document what breaks past it.
+// These synthetic cases fill that gap directly, independent of catalog
+// content, using a longest-plausible body (~420 chars, longer than any real
+// event's ~380-char max) to stand in for a future wordy event.
+// ---------------------------------------------------------------------------
+
+describe('bound derivation — synthetic events at and past the max-choices limit', () => {
+  const LONGEST_PLAUSIBLE_BODY =
+    'A synthetic worst-case body, deliberately longer than any real catalog event, standing in for a future wordy event so the reservation proof below is not flattered by a short real body. '.repeat(2);
+
+  function syntheticEvent(choiceCount: number) {
+    return {
+      title: `synthetic ${choiceCount}-choice event`,
+      body: LONGEST_PLAUSIBLE_BODY,
+      choices: Array.from({ length: choiceCount }, (_, i) => ({ id: `c${i}` })),
+    };
+  }
+
+  describe('desktop', () => {
+    const F = DESKTOP_PROFILE.font;
+    const rowH = runChoicePanelMinHeight(F, true);
+    const rowGap = 10;
+    const bottomGap = 20;
+    const py = runScreenTemplate('desktop').regions.content.y + 10;
+    const maxBottom = DESKTOP_PROFILE.canvas.height - DESKTOP_PROFILE.safe.bottom;
+    const floorMin = py + 200;
+
+    it('at the bound (3 choices): the reservation still fits, floor does not bind', () => {
+      const event = syntheticEvent(3);
+      const reserveBelowH = eventChoiceBlockHeight(event.choices.length, rowH, rowGap);
+      const storyLimit = eventStoryLimit(maxBottom, 0, reserveBelowH, bottomGap, floorMin);
+      expect(storyLimit).toBe(maxBottom - reserveBelowH - bottomGap);
+      expect(storyLimit + bottomGap + reserveBelowH).toBeLessThanOrEqual(maxBottom);
+    });
+
+    it('one past the bound (4 choices): desktop ALONE still fits (it is not the binding platform)', () => {
+      // Documented for completeness: desktop's own ceiling is 4, not 3 — see
+      // the mobile case below for the platform that actually fails at 4,
+      // which is why the catalog-wide bound is 3, not 4.
+      const event = syntheticEvent(4);
+      const reserveBelowH = eventChoiceBlockHeight(event.choices.length, rowH, rowGap);
+      const storyLimit = eventStoryLimit(maxBottom, 0, reserveBelowH, bottomGap, floorMin);
+      expect(storyLimit).toBe(maxBottom - reserveBelowH - bottomGap);
+    });
+
+    it('two past desktop\'s own ceiling (5 choices): the floor DOES bind — the regression this module fixes', () => {
+      const event = syntheticEvent(5);
+      const reserveBelowH = eventChoiceBlockHeight(event.choices.length, rowH, rowGap);
+      const storyLimit = eventStoryLimit(maxBottom, 0, reserveBelowH, bottomGap, floorMin);
+      // The floor binds (clamped to floorMin instead of the true ceiling
+      // reservation), which is exactly the "story column doesn't know how
+      // much room the choice rows need" failure mode: the reserved block no
+      // longer ends at-or-before the safe bottom.
+      expect(storyLimit).toBe(floorMin);
+      expect(storyLimit + bottomGap + reserveBelowH).toBeGreaterThan(maxBottom);
+    });
+  });
+
+  describe('mobile — the binding platform for the 3-choice catalog bound', () => {
+    const F = MOBILE_PROFILE.font;
+    const rowH = runChoicePanelMinHeight(F, true);
+    const rowGap = 8;
+    const footerY = runScreenTemplate('mobile').regions.footer.y;
+    const maxBottom = footerY - 10;
+    const captionCapH = F.tiny * 4 + 8;
+    const titleCapH = F.title * 2;
+    const artH = Math.round((MOBILE_PROFILE.canvas.width - 24) * 0.5);
+    const worstBodyBoxTop = runScreenTemplate('mobile').regions.content.y + captionCapH + 8 + artH + 10 + titleCapH + 8;
+
+    it('at the bound (3 choices): the reserved choice block fits, the 70px floor does not bind', () => {
+      const event = syntheticEvent(3);
+      const reserveBelowH = eventChoiceBlockHeight(event.choices.length, rowH, rowGap);
+      const budget = Math.max(70, maxBottom - worstBodyBoxTop - 14 - reserveBelowH);
+      expect(budget).toBeGreaterThan(70);
+      const choiceTop = worstBodyBoxTop + budget + 14;
+      expect(choiceTop + reserveBelowH).toBeLessThanOrEqual(maxBottom);
+    });
+
+    it('one past the bound (4 choices): the 70px floor DOES bind — this is why the catalog max is 3, not 4', () => {
+      const event = syntheticEvent(4);
+      const reserveBelowH = eventChoiceBlockHeight(event.choices.length, rowH, rowGap);
+      const rawBudget = maxBottom - worstBodyBoxTop - 14 - reserveBelowH;
+      const budget = Math.max(70, rawBudget);
+      // The floor binds: the RAW budget the content actually needs has
+      // already dropped to (or below) the 70px floor, so `budget` no longer
+      // reflects "whatever storyLimit computed" — it is a clamp. Once the
+      // floor binds, the body box can grow past what the choice block below
+      // it was reserved for, and the choice rows are no longer guaranteed to
+      // land at-or-before `maxBottom`. This is the documented failure mode a
+      // 4-choice event would ship silently without the `EventChoiceDef[]`
+      // length bound this test exists to justify.
+      expect(rawBudget).toBeLessThanOrEqual(70);
+      expect(budget).toBe(70);
+    });
+  });
+});

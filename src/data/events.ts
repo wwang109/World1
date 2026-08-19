@@ -93,6 +93,29 @@ export interface EventDef {
   body: string;
   /** Which of the 6 event themes this node displays as (docs/run-events-design.md §3b). */
   theme: EventTheme;
+  /**
+   * 2-3 choices, enforced by `tests/run/events.test.ts`'s "every event has
+   * 2-3 choices" catalog lint. The upper bound of 3 is not arbitrary — it is
+   * the largest choice count `src/game/ui/runEventStoryLayout.ts`'s
+   * reservation math can guarantee fits on BOTH platforms without the choice
+   * block's bottom row landing off-canvas (the exact 2026-08-19 bug this
+   * module's own doc comment describes):
+   *
+   *   - DESKTOP tolerates up to 4: at N=4, `eventChoiceBlockHeight` reserves
+   *     426px (4×99 + 3×10), leaving `eventStoryLimit` at 430px — still above
+   *     its 340px defensive floor. N=5 needs 535px, which floor-clamps the
+   *     reservation (the regression this comment exists to prevent).
+   *   - MOBILE tolerates only up to 3: at N=3 the reserved 286px
+   *     (3×90 + 2×8) leaves the capped body box a 132px budget, comfortably
+   *     above its own 70px floor. N=4 needs 384px, which shrinks that budget
+   *     to 34px — clamped to the 70px floor, i.e. the SAME failure mode.
+   *
+   * The bound is the MIN across platforms (3, from mobile), not desktop's
+   * own 4 — a 4-choice event would render fine on desktop and broken on
+   * mobile. See `tests/game/runEventStoryLayout.test.ts`'s "bound
+   * derivation" describe block for the synthetic proof at N=3 (fits) and the
+   * documented failure at N=4 (does not).
+   */
   choices: readonly EventChoiceDef[];
 }
 
