@@ -380,6 +380,12 @@ type ActionKinds =
    * turns. Applied on the caster (self). `pct` is clamped to <=60 at apply time.
    * True damage bypasses (no cross-property match); matching-property DoTs are
    * covered on purpose.
+   *
+   * Piles COEXIST and compound (a recast opens a second pile, it does not
+   * merge), so the COUNT of same-property piles is capped at `MAX_GUARD_PILES`
+   * at apply time; at the cap an application either replaces a pile it
+   * dominates or is absorbed outright. Full rule in the `guard` arm of
+   * `applyAction` (src/engine/combat/interpreter.ts).
    */
   | { kind: 'guard'; property: Property; pct: number; turns: number }
   /**
@@ -453,6 +459,41 @@ export const MAX_NEGATE_CHARGES = 3;
  * ceiling by `scripts/scaffoldCard.ts`.
  */
 export const MAX_WARD_CHARGES = 3;
+
+/**
+ * Apply-time ceiling on the number of SIMULTANEOUS guard piles one unit may
+ * hold OF ONE PROPERTY — the third member of the `MAX_NEGATE_CHARGES` /
+ * `MAX_WARD_CHARGES` family, enforced in the `guard` arm of `applyAction`
+ * (src/engine/combat/interpreter.ts). Different properties do NOT share it: a
+ * unit may hold 3 physical piles AND 3 magical piles AND 3 true piles, because
+ * each property is an independent mitigation axis (`dealDamage` only ever
+ * compounds piles whose `property` matches the incoming hit).
+ *
+ * WHY IT EXISTS (measured 2026-08-19). `MAX_GUARD_PCT` (balance.ts) clamps ONE
+ * pile to 60%, but nothing clamped the pile COUNT, and `dealDamage` compounds
+ * EVERY matching-property pile multiplicatively — so mitigation approached 100%
+ * with pile count, and pile count was free. A probe built a LEGAL board with
+ * 6 distinct physical-guard cards each socketing a `ward_of_silence_echo` gem
+ * (a gem's guard splices into the host's cast: two piles per cast, zero extra
+ * board slots, and `gemInventory` is uncapped so a run can hoard copies of one
+ * gem) = 12 SIMULTANEOUS physical piles, measuring 85-98% physical mitigation
+ * and winning vs berserker / Sentinel / Wolf King in 5-9 turns at speed 24.
+ * The same board WITHOUT gems (6 piles) LOSES the Sentinel matchup, so the
+ * stacking itself — not the cards — was the deciding variable.
+ *
+ * 3 is the same "enough to matter, not enough to lock out" number negate and
+ * ward already settled on, and it sits far above anything shipped content
+ * reaches on its own: over 2400 random sweep boards (the 400-case regression
+ * sweep plus a 2000-case probe) the deepest same-property pile stack ever
+ * observed was 2, so this bound changes NO shipped outcome — it closes the
+ * gem/multi-copy stacking tail only. Three 60% piles still leave a hard floor
+ * of 6.4% damage through (100 -> 40 -> 16 -> 6), which is the point: guard
+ * mitigates, it can never make a unit immune.
+ *
+ * A pile cap is a RULES BOUND, not a price term — no PL family or rate moves,
+ * exactly as `MAX_NEGATE_CHARGES` prices nothing.
+ */
+export const MAX_GUARD_PILES = 3;
 
 /** Positional modifiers a (usually Support/passive) card projects onto board neighbors. */
 export interface AuraDef {

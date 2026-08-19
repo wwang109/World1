@@ -355,7 +355,22 @@ export type CombatEvent =
       calculation?: { power: number; statBonus: number };
     }
   | { turn: number; kind: 'statusApplied'; side: Side; unit: number; status: StatusName; property?: Property; stat?: BuffableStat; pct?: number; amount?: number; stacks?: number; turns: number; charges?: number }
-  | { turn: number; kind: 'statusExpired'; side: Side; unit: number; status: StatusName }
+  /**
+   * A status left the unit. `property`/`pct` are OMITTED for every natural
+   * (duration/charge/stack) expiry — a replay tracks those windows itself, so
+   * naming the pile would be redundant and would move every captured log.
+   *
+   * They are populated for exactly ONE case: the `MAX_GUARD_PILES` cap
+   * REPLACING a dominated guard pile (interpreter.ts, the `guard` arm), where a
+   * pile leaves EARLY, before the duration a replay computed for it. Without
+   * the pile's identity the log would not be a sufficient source of truth for
+   * playback — a consumer reconstructing guard piles (src/game/battleTimeline.ts)
+   * cannot otherwise tell WHICH of several standing piles just left. Guard
+   * compounding depends only on the MULTISET of pcts per property, so dropping
+   * any one active pile matching (`property`, `pct`) reproduces the engine's
+   * state exactly.
+   */
+  | { turn: number; kind: 'statusExpired'; side: Side; unit: number; status: StatusName; property?: Property; pct?: number }
   | { turn: number; kind: 'cleansed'; side: Side; unit: number; removed: number }
   /** A unit's threat changed (e.g. taunt); `aggro` is the new total. */
   | { turn: number; kind: 'aggroChanged'; side: Side; unit: number; aggro: number }

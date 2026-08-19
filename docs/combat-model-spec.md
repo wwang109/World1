@@ -247,3 +247,46 @@ Checks:
 Pure `simulate(cfg, seed)`; integer-only state; the only RNG is the coin-flip
 tiebreak, drawn from the seeded `Rng` in a fixed call order; canonical iteration
 (player side first, then unit index) except where §2.4 play-order applies.
+
+---
+
+## 8. Typed guard — the pile cap (locked 2026-08-19)
+
+Guard piles COEXIST and compound: a recast opens a second pile, and every
+matching-`property` pile reduces an incoming hit multiplicatively in
+statuses-array order (`dealDamage`, `interpreter.ts`). `MAX_GUARD_PCT` (60,
+`balance.ts`) bounds ONE pile; **`MAX_GUARD_PILES` (3, `src/engine/types.ts`)
+bounds the COUNT of piles of one property on one unit**, enforced at apply time
+in the `guard` arm of `applyAction` — the same kind of hard rules bound as
+`MAX_NEGATE_CHARGES` / `MAX_WARD_CHARGES`, and priced like them: not at all.
+
+**Why:** the count was the free axis. A legal board — 6 physical-guard cards,
+each socketing a `ward_of_silence_echo` gem (a gem's guard splices into the
+host's cast: two piles per cast, zero extra slots, and gem inventory is
+uncapped) — stood **12 simultaneous physical piles** and measured **85–98%
+physical mitigation**, winning vs berserker / Sentinel / Wolf King in 5–9 turns;
+the same board without gems (6 piles) loses the Sentinel matchup, so the
+stacking itself was the deciding variable. Three 60% piles still leave a hard
+floor of 6.4% damage through (100 → 40 → 16 → 6): guard mitigates, it never
+grants immunity.
+
+**At the cap** (per unit, per property), an incoming application:
+
+- **replaces** the WEAKEST pile it STRICTLY dominates (`pct ≥` and `turnsLeft ≥`,
+  strictly greater in at least one) — weakest = lowest pct, ties to
+  soonest-expiring, ties to earliest-applied. The dropped pile emits its own
+  `statusExpired` (carrying `property` + `pct`, the only case where that event
+  names a pile) BEFORE the new `statusApplied`, so a replay never holds four
+  piles. Nothing is lost: the evicted pile was no stronger and no longer, so a
+  full-price card still delivers and the holder's mitigation never gets worse;
+- otherwise is **absorbed**: no pile, no event, nothing spent. That covers both
+  a weaker application (which must not evict a better pile — a self-inflicted
+  downgrade) and an application EQUAL to a standing pile (which must not evict a
+  clone and re-arm the window, or a card whose cadence matches its own duration
+  would hold its piles forever — the hole the expose antichain closed).
+
+This is deliberately `expose`'s domination vocabulary (the other two-axis
+`(pct, turns)` status), compared on raw `turnsLeft`. Below the cap nothing
+changes at all, and nothing shipped reaches it: over 2400 random sweep boards
+the deepest same-property stack observed was 2, so the 400-case regression
+baseline is byte-identical. See `tests/engine/guardPileCap.test.ts`.
