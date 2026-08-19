@@ -9,16 +9,37 @@
 //   put the rules back in the shipped bundle. Type-only imports are fine;
 //   they are erased at build time.
 //
-// Both rules read from ONE module-specifier extractor (`moduleSpecifiers`), so
-// every import shape a bundler follows is covered by both: `import from`,
-// bare side-effect `import 'x'`, `export … from` / `export * from` re-export
-// chains, dynamic `import('x')` and `require('x')`. A shape the extractor
-// misses is a hole in every rule at once, which is why they share it.
+// This is an AST-based checker (TypeScript's own compiler API — already a
+// project devDependency, no new dependency added), not a regex-based one. A
+// regex extractor is blind to anything it isn't spelled out for: an earlier
+// regex version of this file closed 8 evasion routes one at a time and was
+// STILL structurally blind to `import(someComputedVar)` / `require(x + y)` —
+// a dynamic import/require whose specifier isn't a plain string literal has
+// no fixed shape to match against. Parsing the real AST means every import,
+// export-from, dynamic import(), and require() in a file is found by asking
+// "is this an ImportDeclaration / ExportDeclaration / CallExpression to
+// import()-or-require()", not by hoping a pattern was anticipated.
+//
+// Philosophy: FAIL CLOSED. A dynamic import()/require() in either guarded
+// layer (src/engine, src/data, src/run, src/meta, src/game) whose specifier
+// isn't a literal string is flagged as a violation BY DEFAULT — the checker
+// cannot verify where it points, so it does not get the benefit of the
+// doubt. The escape hatch is a `// boundary-allow: <reason>` comment on the
+// same line or the line directly above the call, which requires a written
+// reason to exist in the file (grep-able, reviewable), not a silent pass.
+//
+// Both rules (and the fail-closed dynamic-import pass) share ONE AST walk
+// per file (`parse`), cached, so every import shape a bundler follows is
+// covered consistently: `import from`, bare side-effect `import 'x'`,
+// `export … from` / `export * from` re-export chains, dynamic `import('x')`
+// and `require('x')` — plus, now, the non-literal forms of the last two.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, posix } from 'node:path';
+import ts from 'typescript';
 
 const PURE_DIRS = ['src/engine', 'src/data', 'src/run', 'src/meta'];
 const GAME_DIR = 'src/game';
+const GUARDED_DIRS = [...PURE_DIRS, GAME_DIR];
 const SOURCE_EXT = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 
 /** Extensions/index files an import specifier may resolve to, in order. */
@@ -60,31 +81,92 @@ const read = (file) => {
   }
 };
 
-// An import/export clause never contains a `;` or a quote, so [^;'"] keeps a
-// match from spanning statements — which is what makes the type-only guard
-// trustworthy.
-const FROM_CLAUSE = /\b(?:import|export)\b\s*(type\b)?([^;'"]*?)\bfrom\s*['"]([^'"]+)['"]/g;
-const SIDE_EFFECT = /\bimport\s*['"]([^'"]+)['"]/g;
-const DYNAMIC = /\bimport\s*\(\s*['"]([^'"]+)['"]/g;
-const REQUIRE = /\brequire\s*\(\s*['"]([^'"]+)['"]/g;
+/** Which TS/JS dialect to parse a file as — affects only syntax acceptance
+ * (JSX angle-bracket ambiguity, etc.), never type-checking (none is done). */
+function pickScriptKind(file) {
+  if (file.endsWith('.tsx')) return ts.ScriptKind.TSX;
+  if (file.endsWith('.jsx')) return ts.ScriptKind.JSX;
+  if (file.endsWith('.ts') || file.endsWith('.mts') || file.endsWith('.cts')) return ts.ScriptKind.TS;
+  return ts.ScriptKind.JS; // .js, .mjs, .cjs
+}
 
 /**
- * Every module specifier `text` pulls in, in any shape.
+ * A single module reference found anywhere in a file:
+ *   - `import ... from 'x'` / bare `import 'x'`        (kind: 'import')
+ *   - `export ... from 'x'` / `export * from 'x'`      (kind: 'export')
+ *   - `import('x')`                                    (kind: 'dynamic import()', dynamic: true)
+ *   - `require('x')`                                   (kind: 'require()', dynamic: true)
  *
- * `includeTypeOnly` splits the two rules. The thin-client rule cares about what
- * SHIPS, so `import type … from` / `export type … from` are excluded — erased
- * at build. The pure-layer rule is stricter on purpose (and was before this
- * checker was rewritten): src/engine may not so much as name a Phaser type.
+ * `spec` is the literal string module specifier, or `null` if the argument /
+ * moduleSpecifier isn't a plain string literal (a variable, a template with
+ * substitutions, a computed expression — anything the checker cannot
+ * statically resolve). `typeOnly` is true only for a WHOLE `import type … from`
+ * / `export type … from` declaration (matches this checker's historical
+ * granularity — inline `{ type X }` specifiers aren't split out).
  */
-function moduleSpecifiers(text, { includeTypeOnly = false } = {}) {
-  const specs = new Set();
-  for (const [, typeKeyword, , spec] of text.matchAll(FROM_CLAUSE)) {
-    if (!typeKeyword || includeTypeOnly) specs.add(spec);
+function parse(file, cache) {
+  if (cache.has(file)) return cache.get(file);
+  const text = read(file);
+  if (text === null) {
+    const empty = { text: null, sourceFile: null, refs: [] };
+    cache.set(file, empty);
+    return empty;
   }
-  for (const re of [SIDE_EFFECT, DYNAMIC, REQUIRE]) {
-    for (const [, spec] of text.matchAll(re)) specs.add(spec);
+  const sourceFile = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, pickScriptKind(file));
+  const refs = [];
+  const litOrNull = (node) => (node && ts.isStringLiteralLike(node) ? node.text : null);
+  function visit(node) {
+    if (ts.isImportDeclaration(node)) {
+      refs.push({
+        spec: litOrNull(node.moduleSpecifier),
+        typeOnly: node.importClause?.isTypeOnly === true,
+        dynamic: false,
+        kind: 'import',
+        node,
+      });
+    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier) {
+      refs.push({
+        spec: litOrNull(node.moduleSpecifier),
+        typeOnly: node.isTypeOnly === true,
+        dynamic: false,
+        kind: 'export … from',
+        node,
+      });
+    } else if (ts.isCallExpression(node)) {
+      const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+      const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require';
+      if (isDynamicImport || isRequire) {
+        refs.push({
+          spec: litOrNull(node.arguments[0]),
+          typeOnly: false,
+          dynamic: true,
+          kind: isDynamicImport ? 'dynamic import()' : 'require()',
+          node,
+        });
+      }
+    }
+    ts.forEachChild(node, visit);
   }
-  return [...specs];
+  visit(sourceFile);
+  const result = { text, sourceFile, refs };
+  cache.set(file, result);
+  return result;
+}
+
+/** The escape hatch: a `// boundary-allow: <reason>` comment on the same
+ * line as the call, or the line directly above it. A comment with no text
+ * after the colon does not count — the reason has to actually be written. */
+const ALLOW_COMMENT = /boundary-allow:\s*(\S.*)/;
+function allowReason(sourceFile, text, node) {
+  const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+  const lines = text.split('\n');
+  for (const idx of [line, line - 1]) {
+    const l = idx >= 0 ? lines[idx] : undefined;
+    if (!l) continue;
+    const m = ALLOW_COMMENT.exec(l);
+    if (m) return m[1].trim();
+  }
+  return null;
 }
 
 /** Phaser, including deep subpaths like `phaser/dist/phaser.esm.js`. */
@@ -104,13 +186,40 @@ function pointsAtGame(fromFile, spec) {
 }
 
 const violations = [];
+const cache = new Map();
+
+// ---- Fail-closed pass: dynamic import()/require() with a non-literal
+// specifier, in EITHER guarded layer, is a violation by default. This is the
+// hole regex extraction structurally cannot see (`await import(someVar)`,
+// `require(computed)`) — a specifier the checker cannot read has no text to
+// pattern-match, so "cannot resolve" must mean "reject", not "skip".
+for (const dir of GUARDED_DIRS) {
+  for (const file of walk(dir)) {
+    const { text, sourceFile, refs } = parse(file, cache);
+    if (text === null) continue;
+    for (const ref of refs) {
+      if (!ref.dynamic || ref.spec !== null) continue;
+      if (allowReason(sourceFile, text, ref.node)) continue;
+      violations.push(
+        `${file}: ${ref.kind} with a non-literal specifier — cannot statically verify where it points ` +
+        `(fail-closed); use a literal specifier or add a "// boundary-allow: <reason>" comment on the ` +
+        `line above the call`
+      );
+    }
+  }
+}
+
+// ---- Rule 1: pure layers must not import phaser or src/game. Type-only
+// imports COUNT here on purpose (stricter than rule 2): src/engine may not
+// so much as name a Phaser type.
 for (const dir of PURE_DIRS) {
   for (const file of walk(dir)) {
-    const text = read(file);
+    const { text, refs } = parse(file, cache);
     if (text === null) continue;
-    for (const spec of moduleSpecifiers(text, { includeTypeOnly: true })) {
-      if (isPhaser(spec)) violations.push(`${file}: imports phaser ('${spec}') — pure layers must stay headless`);
-      else if (pointsAtGame(file, spec)) violations.push(`${file}: imports src/game ('${spec}') — pure layers must not depend on the Phaser layer`);
+    for (const ref of refs) {
+      if (ref.spec === null) continue; // non-literal dynamic — handled above
+      if (isPhaser(ref.spec)) violations.push(`${file}: imports phaser ('${ref.spec}') — pure layers must stay headless`);
+      else if (pointsAtGame(file, ref.spec)) violations.push(`${file}: imports src/game ('${ref.spec}') — pure layers must not depend on the Phaser layer`);
     }
   }
 }
@@ -145,6 +254,10 @@ function bannedHit(spec, resolved) {
  * client bundle, which is exactly how `run/analysis` leaked the engine before.
  * Matching on the RESOLVED path as well as the specifier is what keeps a
  * barrel (`export * from './simulate'`) from laundering the name away.
+ * Only VALUE-carrying refs continue the walk: type-only imports are erased at
+ * build and never ship; a non-literal dynamic ref can't be resolved further
+ * (it was already flagged by the fail-closed pass above) so the walk simply
+ * cannot follow it — it is not silently treated as safe.
  */
 function pathToCombat(entry) {
   const seen = new Set();
@@ -153,12 +266,14 @@ function pathToCombat(entry) {
     const [file, trail] = stack.pop();
     if (seen.has(file)) continue;
     seen.add(file);
-    const text = read(file);
+    const { text, refs } = parse(file, cache);
     if (text === null) continue;
-    for (const spec of moduleSpecifiers(text)) {
-      const next = resolveImport(file, spec);
-      const hit = bannedHit(spec, next);
-      if (hit) return { trail: [...trail, next ?? spec], why: hit.why };
+    for (const ref of refs) {
+      if (ref.typeOnly) continue;
+      if (ref.spec === null) continue; // unresolvable — already flagged above
+      const next = resolveImport(file, ref.spec);
+      const hit = bannedHit(ref.spec, next);
+      if (hit) return { trail: [...trail, next ?? ref.spec], why: hit.why };
       if (next) stack.push([next, [...trail, next]]);
     }
   }

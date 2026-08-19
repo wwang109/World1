@@ -93,6 +93,18 @@ real browser, both viewports:
 Run: `npx tsx scripts/run-hud-audit.ts [outDir]` with dev (:5173) and api
 (:8787) already running.
 
+Chromium resolution is environment-aware (`resolveChromiumPath` in the
+script), in priority order: `PW_CHROMIUM` (explicit path, always wins) →
+`PLAYWRIGHT_BROWSERS_PATH` (scanned for a `chromium-*` build, since
+Playwright's own version-resolution can name a revision that isn't actually
+unpacked under a custom browsers path) → a platform default (the historical
+Windows dev-machine path below, or `~/.cache/ms-playwright` on Linux/Mac,
+scanned the same way). It throws with a clear message if nothing resolves,
+rather than silently letting Playwright pick a possibly-mismatched version.
+On the Linux CI/sandbox environment, `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`
+resolves via the `chromium` convenience symlink; the launch args already
+include `--no-sandbox`.
+
 ## Screenshot capture recipe
 
 - Chromium for Playwright on this machine:

@@ -117,6 +117,43 @@ describe('check-boundaries: shapes that must be REJECTED', () => {
     });
     expect(v.code).toBe(1);
   });
+
+  // The AST rewrite's whole reason for existing: a regex extractor has no
+  // fixed shape to match a COMPUTED specifier against, so it is structurally
+  // blind to these. Fail-closed means "cannot resolve" -> reject by default.
+  it('rejects a computed dynamic import (non-literal specifier) in a pure layer', () => {
+    const v = check({
+      'src/engine/x.ts': "const mod = 'phaser';\nexport const load = () => import(mod);\n",
+    });
+    expect(v.code).toBe(1);
+    expect(v.out).toContain('src/engine/x.ts');
+    expect(v.out).toContain('non-literal specifier');
+  });
+
+  it('rejects a computed require() in src/game', () => {
+    const v = check({
+      'src/game/y.ts': "declare function getPath(): string;\nconst p = getPath();\nconst m = require(p);\nexport const y = m;\n",
+    });
+    expect(v.code).toBe(1);
+    expect(v.out).toContain('src/game/y.ts');
+    expect(v.out).toContain('non-literal specifier');
+  });
+
+  it('rejects a computed dynamic import laundered through a template literal with a substitution', () => {
+    const v = check({
+      'src/run/z.ts': "const suffix = 'foo';\nexport const load = () => import(`../game/${suffix}`);\n",
+    });
+    expect(v.code).toBe(1);
+    expect(v.out).toContain('src/run/z.ts');
+  });
+
+  it('still rejects a computed dynamic import when the allow comment carries no written reason', () => {
+    const v = check({
+      'src/engine/w.ts': "// boundary-allow:\nexport const load = (mod: string) => import(mod);\n",
+    });
+    expect(v.code).toBe(1);
+    expect(v.out).toContain('src/engine/w.ts');
+  });
 });
 
 describe('check-boundaries: shapes that must be ACCEPTED', () => {
@@ -143,6 +180,24 @@ describe('check-boundaries: shapes that must be ACCEPTED', () => {
       { 'src/engine/ok.ts': 'export const ok = 1;\n' },
       (root) => symlinkSync(join(root, 'does-not-exist.ts'), join(root, 'src/engine/dangling.ts')),
     );
+    expect(v.code).toBe(0);
+    expect(v.out).toContain('boundaries OK');
+  });
+
+  it('accepts a computed dynamic import carrying a written boundary-allow reason', () => {
+    const v = check({
+      'src/engine/z.ts':
+        '// boundary-allow: legacy plugin loader, path is validated against an allowlist upstream (#123)\n' +
+        'export const load = (mod: string) => import(mod);\n',
+    });
+    expect(v.code).toBe(0);
+    expect(v.out).toContain('boundaries OK');
+  });
+
+  it('accepts a same-line trailing boundary-allow reason', () => {
+    const v = check({
+      'src/game/trusted.ts': "export const load = (mod: string) => import(mod); // boundary-allow: dev-only hot-reload hook, stripped in prod build\n",
+    });
     expect(v.code).toBe(0);
     expect(v.out).toContain('boundaries OK');
   });
