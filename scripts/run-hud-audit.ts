@@ -10,15 +10,23 @@
  *      strings (DAY/WAVE/GOLD/LV/LIVES/BOSSES) missing from the stats
  *      region.
  *   2. Drives an actual playthrough (Map -> Draft -> Map -> a node -> Deck
- *      Build -> RETIRE -> end summary) using ONLY exact-text clicks against
- *      the scene graph (no hardcoded canvas coordinates for anything the
- *      HUD/game renders dynamically), screenshotting every screen.
+ *      Build -> RETIRE -> end summary) against the scene graph (no hardcoded
+ *      canvas coordinates for anything the HUD/game renders dynamically),
+ *      screenshotting every screen. Text that carries a variable suffix
+ *      (node titles, the front-door button) is matched by PREFIX
+ *      (`clickPrefixText`); text that's genuinely fixed is matched exactly
+ *      (`clickExactText`) — either way, a step whose target text isn't on
+ *      screen fails LOUDLY, by the step's own name, instead of silently
+ *      clicking nothing and leaving the walkthrough parked on the previous
+ *      screen (repeat screenshot hashes are also checked directly, as a
+ *      second, independent guard against exactly that failure mode).
  *
  * Usage: `npx tsx scripts/run-hud-audit.ts [outDir]`
  * Requires the Vite dev server running at :5173 (`npm run dev`) and the
  * battle API at :8787 (`npm run api`) — neither is started by this script.
  */
 import { existsSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { chromium, type Page } from 'playwright';
 import { rollStartDraft, DRAFT_SET_KEYS } from '../src/run/draft';
@@ -188,6 +196,34 @@ function overlaps(a: TextBound, b: TextBound): number {
   return ix * iy;
 }
 
+/**
+ * Reconstructs the HUD stats line(s) that `RunProgressStrip.ts` draws as
+ * SEQUENTIAL sibling Text objects (label, value, separator — each its own
+ * node, sharing one color per segment) rather than one string. A regex like
+ * `DAY \d` will never match any SINGLE object's `.text` under that scheme —
+ * "DAY " and "0" are two different nodes — so naively testing each text node
+ * in isolation flags every required stat "missing" even when the HUD is
+ * rendering them correctly. Every segment in one stats line shares the exact
+ * same `y` (see `drawKickerTitleStats`), so grouping by (scene, y) and
+ * concatenating left-to-right by `x` reconstructs the line the audit actually
+ * needs to test against, with no dependency on the rendering internals beyond
+ * "same row, same y".
+ */
+function reconstructRows(texts: TextBound[]): string[] {
+  const groups = new Map<string, TextBound[]>();
+  for (const t of texts) {
+    const key = `${t.scene}|${Math.round(t.y)}`;
+    const g = groups.get(key);
+    if (g) g.push(t); else groups.set(key, [t]);
+  }
+  const rows: string[] = [];
+  for (const g of groups.values()) {
+    if (g.length < 2) continue; // a lone text needs no reconstruction — already checked directly
+    rows.push([...g].sort((a, b) => a.x - b.x).map((t) => t.text).join(''));
+  }
+  return rows;
+}
+
 /** Layer (a)+(b): canvas containment + pairwise overlap, both with a small
  * pixel tolerance (subpixel rounding / hairline kerning is not a real bug). */
 async function auditScreen(page: Page, screen: string, platform: Platform, requiredStats: string[] = []): Promise<AuditResult> {
@@ -202,13 +238,47 @@ async function auditScreen(page: Page, screen: string, platform: Platform, requi
       if (area > 36) overlapsFound.push({ a: texts[i]!, b: texts[j]!, overlapPx: area }); // >6x6px real overlap
     }
   }
-  const missingStats = requiredStats.filter((needle) => !texts.some((t) => new RegExp(needle).test(t.text)));
+  const rows = reconstructRows(texts);
+  const missingStats = requiredStats.filter((needle) => {
+    const re = new RegExp(needle);
+    return !texts.some((t) => re.test(t.text)) && !rows.some((r) => re.test(r));
+  });
   const result: AuditResult = { screen, platform, offCanvas, overlaps: overlapsFound, missingStats, textCount: texts.length };
   violations.push(result);
   return result;
 }
 
-async function clickExactText(page: Page, label: string, platform: Platform): Promise<boolean> {
+/**
+ * Scrapes the pre-run seed straight off the Start screen's own footnote
+ * ("seed 123456 · tap to reroll", `StartScene.ts`) instead of assuming a
+ * fixed value. `pendingSeed` is randomized at module load
+ * (`1 + Math.floor(Math.random() * 999999)`, `runStore.ts`) — a script that
+ * hardcodes `seed=1` to pre-compute the draft's card names will match the
+ * live board only by a 1-in-999999 coincidence, which is exactly the kind of
+ * silent, un-thrown mismatch this audit exists to catch. Reading the real
+ * seed off the page keeps the picked cards byte-identical to what a player
+ * actually sees, no matter what `pendingSeed` rolls to.
+ */
+async function readPendingSeed(page: Page): Promise<number | null> {
+  const texts = await collectTexts(page);
+  for (const t of texts) {
+    const m = /^seed (\d+)/.exec(t.text);
+    if (m) return Number(m[1]);
+  }
+  return null;
+}
+
+/**
+ * Clicks the ONE Text object whose rendered string equals `label` exactly.
+ * `step` is a short, human-readable name for what this click is SUPPOSED to
+ * accomplish ("map-start -> START RUN", "retire-confirm -> RETIRE (confirm)",
+ * ...) — every failure is reported against that name, never silently, so a
+ * stale selector fails the step it broke instead of quietly no-opping and
+ * letting the walkthrough re-audit the previous screen under the next
+ * screen's label (the "byte-identical screenshots" failure mode this script
+ * used to have).
+ */
+async function clickExactText(page: Page, label: string, platform: Platform, step: string): Promise<boolean> {
   const { width, height } = await page.evaluate(() => ({ width: (window as any).__gameDesignWidth, height: (window as any).__gameDesignHeight }));
   const hit = await page.evaluate((label: string) => {
     const game = (window as any).__game;
@@ -233,13 +303,13 @@ async function clickExactText(page: Page, label: string, platform: Platform): Pr
     return found;
   }, label);
   if (!hit) {
-    hardFailures.push(`[${platform}] no visible text "${label}" to click — the walkthrough cannot have gone where it says it went`);
+    hardFailures.push(`[${platform}] step "${step}": no visible text "${label}" to click — the walkthrough cannot have gone where it says it went`);
     return false;
   }
   const canvas = page.locator('canvas');
   const box = await canvas.boundingBox();
   if (!box) {
-    hardFailures.push(`[${platform}] canvas has no bounding box — nothing was clickable`);
+    hardFailures.push(`[${platform}] step "${step}": canvas has no bounding box — nothing was clickable`);
     return false;
   }
   const dw = width || box.width;
@@ -248,31 +318,36 @@ async function clickExactText(page: Page, label: string, platform: Platform): Pr
   return true;
 }
 
-async function clickPrefixText(page: Page, prefixes: string[], platform: Platform): Promise<string | null> {
-  const found = await page.evaluate((prefixes: string[]) => {
-    const game = (window as any).__game;
-    let match: { text: string } | null = null;
-    const stack: any[] = [];
-    for (const scene of game.scene.scenes) {
-      if (!scene.sys.isActive()) continue;
-      for (const obj of scene.children.list) stack.push(obj);
-    }
-    while (stack.length > 0 && !match) {
-      const obj = stack.shift();
-      if (!obj || obj.visible === false) continue;
-      if (obj.type === 'Text' && typeof obj.text === 'string' && prefixes.some((p) => obj.text.startsWith(p))) {
-        match = { text: obj.text };
-      }
-      if (Array.isArray(obj.list)) for (const child of obj.list) stack.push(child);
-    }
-    return match;
-  }, prefixes);
-  if (!found) {
-    hardFailures.push(`[${platform}] no node matching ${prefixes.join('/')} on the map — the run could not be advanced`);
+/**
+ * Clicks the first visible Text object whose string satisfies `predicate` —
+ * the resilient matcher: node titles / front-door copy carry variable
+ * suffixes ("FIGHT · EASY", "START RUN ›") that an exact-text match would go
+ * stale against on every wording tweak. The predicate runs in NODE (against
+ * texts fetched via `collectTexts`), not serialized into the page, so it can
+ * be as precise as the caller needs — a naive `startsWith('BOSS')`, for
+ * instance, also matches the HUD's own `"BOSSES "` stat-strip label (a
+ * completely different, non-interactive text object that happens to render
+ * on every run screen), silently "picking" that instead of a real BOSS node
+ * and leaving the walkthrough exactly where it started with no thrown error.
+ * `describe` names the match rule in any failure message. Reports the actual
+ * matched string (not just the rule) so a caller can chain a further exact
+ * click against precisely what's on screen.
+ */
+async function clickMatchingText(
+  page: Page,
+  platform: Platform,
+  step: string,
+  predicate: (text: string) => boolean,
+  describe: string,
+): Promise<string | null> {
+  const texts = await collectTexts(page);
+  const match = texts.find((t) => predicate(t.text));
+  if (!match) {
+    hardFailures.push(`[${platform}] step "${step}": no visible text matching ${describe} — the walkthrough could not advance`);
     return null;
   }
-  await clickExactText(page, (found as { text: string }).text, platform);
-  return (found as { text: string }).text;
+  await clickExactText(page, match.text, platform, step);
+  return match.text;
 }
 
 async function activeSceneKey(page: Page): Promise<string> {
@@ -283,8 +358,78 @@ async function activeSceneKey(page: Page): Promise<string> {
   });
 }
 
-async function shot(page: Page, name: string): Promise<void> {
-  await page.screenshot({ path: `${OUT_DIR}/${name}.png` });
+/** Polls `predicate` every 200ms until it's true or `timeoutMs` elapses.
+ * Returns whether it succeeded — callers turn a `false` into a named,
+ * loud hard failure rather than plowing on regardless. */
+async function waitUntil(page: Page, predicate: () => Promise<boolean>, timeoutMs: number): Promise<boolean> {
+  const start = Date.now();
+  for (;;) {
+    if (await predicate()) return true;
+    if (Date.now() - start >= timeoutMs) return false;
+    await page.waitForTimeout(200);
+  }
+}
+
+/**
+ * Waits for at least one visible Text matching `predicate` to appear.
+ * Replaces this script's old fixed `waitForTimeout(900)` after page load,
+ * which assumed the BootScene loader always finishes near-instantly — on
+ * this machine it's documented to take 20s+, so a 900ms sleep raced it and
+ * intermittently screenshotted/audited the STILL-LOADING screen while the
+ * walkthrough's very first click ("START RUN") found nothing yet and the
+ * failure looked like a stale selector rather than a slow loader.
+ */
+async function waitForText(
+  page: Page,
+  platform: Platform,
+  step: string,
+  predicate: (text: string) => boolean,
+  describe: string,
+  timeoutMs = 30_000,
+): Promise<boolean> {
+  const ok = await waitUntil(page, async () => (await collectTexts(page)).some((t) => predicate(t.text)), timeoutMs);
+  if (!ok) hardFailures.push(`[${platform}] step "${step}": no text matching ${describe} appeared within ${timeoutMs}ms`);
+  return ok;
+}
+
+/**
+ * Waits for the active scene to become something OTHER than any key in
+ * `awayFrom` — the post-condition for every click that's supposed to trigger
+ * a `scene.start(...)` transition. A click whose target text existed and got
+ * clicked, but whose handler was gated off (e.g. the Draft "START" button is
+ * only interactive once every row has a pick) leaves the scene unchanged with
+ * NO thrown error and no missing-selector failure either — the only way to
+ * catch that is to check the postcondition actually holds.
+ */
+async function waitForSceneChange(page: Page, platform: Platform, step: string, awayFrom: string[], timeoutMs = 15_000): Promise<string> {
+  await waitUntil(page, async () => !awayFrom.includes(await activeSceneKey(page)), timeoutMs);
+  const landed = await activeSceneKey(page);
+  if (awayFrom.includes(landed)) {
+    hardFailures.push(`[${platform}] step "${step}": scene is still "${landed}" ${timeoutMs}ms later — the click had no effect (target disabled? postcondition not met?)`);
+  }
+  return landed;
+}
+
+/** md5 of every screenshot ever taken, by platform — the direct guard against
+ * this script's own historical failure mode: a click that silently missed
+ * left the walkthrough parked on the previous screen, so every later
+ * screenshot in the run was byte-identical to the one before it while the
+ * script still reported nothing wrong. A repeated hash now fails LOUDLY and
+ * names which two screens collided, independent of whether the click that
+ * caused it also happened to report a hard failure of its own. */
+const shotHashes: Record<Platform, Map<string, string>> = { desktop: new Map(), mobile: new Map() };
+
+async function shot(page: Page, name: string, platform: Platform): Promise<void> {
+  const path = `${OUT_DIR}/${name}.png`;
+  const buf = await page.screenshot({ path });
+  const hash = createHash('md5').update(buf).digest('hex');
+  const seen = shotHashes[platform];
+  for (const [prevName, prevHash] of seen) {
+    if (prevHash === hash) {
+      hardFailures.push(`[${platform}] screenshot "${name}" is byte-identical (md5 ${hash}) to earlier "${prevName}" — the walkthrough did not actually move between them`);
+    }
+  }
+  seen.set(name, hash);
 }
 
 async function runPlatform(page: Page, platform: Platform): Promise<void> {
@@ -294,65 +439,119 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
     ? ['DAY \\d', 'WAVE \\d', 'GOLD \\d', 'LV \\d', 'LIVES \\d', 'BOSSES \\d']
     : ['D\\d', 'W\\d', 'G\\d', 'LV\\d', '♥\\d', 'B\\d'];
 
+  const DRAFT_SCENE = desktop ? 'DesktopDraft' : 'MobileDraft';
+  const MAP_SCENE_KEY = desktop ? 'DesktopRunMap' : 'MobileRunMap';
+  const DECK_SCENE = desktop ? 'DesktopDeck' : 'MobileDeckBuild';
+
   // ---- 1. Map, no run ----
+  // A run map with no active run is now a single, one-door redirect straight
+  // to the `Start` scene (`DesktopRunMapScene`/`MobileRunMapScene`: "ONE
+  // front door: no duplicate start panel here"). `?scene=desktop-runmap`/
+  // `mrunmap` still resolves the VIEWPORT profile via `layoutProfile.ts`, the
+  // redirect just fires before this screen paints anything of its own — so
+  // what actually gets audited here is the Start screen, and that is correct.
+  //
+  // NO fixed sleep here: `BootScene`'s asset loader is documented to take
+  // 20s+ on this machine, and a short `waitForTimeout` used to race it —
+  // intermittently screenshotting/auditing the still-loading screen and then
+  // failing the FIRST click ("START RUN") in a way that looked exactly like
+  // a stale selector. Wait for the condition that actually matters instead:
+  // the front-door button text is on screen.
   await page.goto(`${BASE}/?ui=${platform}&scene=${MAP_SCENE[platform]}`, { waitUntil: 'networkidle' });
   await page.evaluate(({ w, h }) => { (window as any).__gameDesignWidth = w; (window as any).__gameDesignHeight = h; }, { w: width, h: height });
-  await page.waitForTimeout(900);
-  await shot(page, `${platform}-01-map-start`);
+  await waitForText(page, platform, 'map-start -> loader finished', (t) => t.startsWith('START RUN') || t.startsWith('RESUME RUN'), 'START RUN/RESUME RUN', 30_000);
+  await shot(page, `${platform}-01-map-start`, platform);
   await auditScreen(page, 'map-start', platform);
 
+  // Read the REAL pre-run seed off the Start screen's own footnote
+  // ("seed 123456 · tap to reroll") before pressing START — `pendingSeed` is
+  // randomized at module load (`runStore.ts`), not a fixed `1`, so the draft
+  // this script pre-computes below must use the number actually on screen or
+  // its card-name clicks silently target skills the live board never rolled.
+  const seed = await readPendingSeed(page);
+  if (seed === null) {
+    hardFailures.push(`[${platform}] step "map-start -> read seed": no "seed NNNN · tap to reroll" text found — cannot predict the draft`);
+  }
+
   // ---- 2. Start a run -> Draft ----
-  await clickExactText(page, 'START', platform);
-  await page.waitForTimeout(700);
-  await shot(page, `${platform}-02-draft`);
+  // The front door reads "START RUN ›" (or "RESUME RUN ›" if a run is already
+  // active) — `runStore.ts`'s in-memory state is always fresh here since each
+  // platform gets its own full page navigation above, so "START RUN" is the
+  // only branch this walkthrough should ever hit, but both are matched so a
+  // rerun against a page that didn't fully reset fails loudly instead of
+  // silently clicking nothing.
+  await clickMatchingText(page, platform, 'map-start -> START RUN', (t) => t.startsWith('START RUN') || t.startsWith('RESUME RUN'), '"START RUN"/"RESUME RUN"');
+  await waitForSceneChange(page, platform, 'map-start -> START RUN transition', ['Start']);
+  await shot(page, `${platform}-02-draft`, platform);
   await auditScreen(page, 'draft', platform);
 
-  // Pick the FIRST card in every draft row — deterministic (same seed=1 the
-  // browser's pendingSeed defaults to), computed independently here so the
-  // click targets an EXACT text the scene actually rendered. Desktop shows
-  // all 4 rows at once; mobile shows one set at a time (NEXT between sets).
-  const draft = rollStartDraft(1);
+  // Pick the FIRST card in every draft row, computed against the SEED READ
+  // OFF THE PAGE above (not a hardcoded guess), so the click always targets
+  // an EXACT text the scene actually rendered. Desktop shows all 4 rows at
+  // once; mobile shows one set at a time (NEXT between sets).
+  const draft = rollStartDraft(seed ?? 1);
   for (let i = 0; i < DRAFT_SET_KEYS.length; i++) {
     const key = DRAFT_SET_KEYS[i]!;
     const card = draft[key][0];
     const name = card ? skillBook[card.skillId]?.name : undefined;
-    if (name) { await clickExactText(page, name, platform); await page.waitForTimeout(150); }
-    if (!desktop && i < DRAFT_SET_KEYS.length - 1) { await clickExactText(page, 'NEXT', platform); await page.waitForTimeout(150); }
+    if (name) { await clickExactText(page, name, platform, `draft -> pick ${key} (${name})`); await page.waitForTimeout(150); }
+    if (!desktop && i < DRAFT_SET_KEYS.length - 1) { await clickExactText(page, 'NEXT', platform, `draft -> NEXT (after ${key})`); await page.waitForTimeout(150); }
   }
-  await clickExactText(page, 'START', platform);
-  await page.waitForTimeout(700);
+  await clickExactText(page, 'START', platform, 'draft -> START');
+  // The draft's START button is only INTERACTIVE once all 4 rows have a pick
+  // (`DesktopDraftScene`/`MobileDraftScene`: `ready = picks.length === 4`) —
+  // its Text label reads "START" either way, so a click that lands on a
+  // disabled button finds its target text (no missing-selector failure) and
+  // does nothing (no scene change, no thrown error). Checking the actual
+  // postcondition — the scene left Draft — is the only way to catch that.
+  await waitForSceneChange(page, platform, 'draft -> START transition', [DRAFT_SCENE]);
 
   // ---- 3. Map, active run ----
-  await shot(page, `${platform}-03-map-active`);
+  await shot(page, `${platform}-03-map-active`, platform);
   await auditScreen(page, 'map-active', platform, REQUIRED_STATS.filter(Boolean));
 
   // ---- 4. Pick the first available node -> Prep / Shop / Event ----
-  const picked = await clickPrefixText(page, ['FIGHT', 'SHOP', 'EVENT', 'BOSS'], platform);
-  await page.waitForTimeout(700);
-  const landedOn = await activeSceneKey(page);
-  await shot(page, `${platform}-04-node-${landedOn}`);
+  // Match rule: exactly the kind label, or the kind label followed by the
+  // "KIND · SUFFIX" theme grammar (`DesktopRunMapScene.choiceViewModel`) — NOT
+  // a bare `startsWith('BOSS')`. The run HUD's own stats strip prints a
+  // "BOSSES " label (`RunProgressStrip.ts`) on EVERY run screen including
+  // this one; `'BOSSES '.startsWith('BOSS')` is true, so a naive prefix match
+  // silently "picks" that stat label instead of a real node — no thrown
+  // error, just a click on a non-interactive text that changes nothing.
+  const NODE_KINDS = ['FIGHT', 'SHOP', 'EVENT', 'BOSS'];
+  const picked = await clickMatchingText(
+    page, platform, 'map-active -> pick a node',
+    (t) => NODE_KINDS.some((k) => t === k || t.startsWith(`${k} ·`)),
+    'a node title (KIND or KIND · SUFFIX)',
+  );
+  const landedOn = await waitForSceneChange(page, platform, 'map-active -> node transition', [MAP_SCENE_KEY]);
+  await shot(page, `${platform}-04-node-${landedOn}`, platform);
   await auditScreen(page, `node-${landedOn}`, platform, REQUIRED_STATS.filter(Boolean));
   console.log(`[${platform}] picked "${picked}" -> landed on scene "${landedOn}"`);
 
   // ---- 5. DECK / BAG (secondary HUD slot) ----
   const deckLabel = desktop ? 'DECK / BAG' : 'DECK/BAG';
-  const wentToDeck = await clickExactText(page, deckLabel, platform);
+  const wentToDeck = await clickExactText(page, deckLabel, platform, `node-${landedOn} -> DECK/BAG`);
   if (wentToDeck) {
-    await page.waitForTimeout(700);
-    await shot(page, `${platform}-05-deck`);
+    await waitForSceneChange(page, platform, `node-${landedOn} -> DECK/BAG transition`, [landedOn]);
+    await shot(page, `${platform}-05-deck`, platform);
     await auditScreen(page, 'deck', platform, REQUIRED_STATS.filter(Boolean));
-    await clickExactText(page, '‹ MAP', platform);
-    await page.waitForTimeout(700);
+    await clickExactText(page, '‹ MAP', platform, 'deck -> ‹ MAP');
+    await waitForSceneChange(page, platform, 'deck -> ‹ MAP transition', [DECK_SCENE]);
   }
 
   // ---- 6. RETIRE (tertiary HUD slot) -> confirm -> end summary ----
-  await clickExactText(page, 'RETIRE', platform);
-  await page.waitForTimeout(400);
-  await shot(page, `${platform}-06-retire-confirm`);
+  // Neither RETIRE click triggers a `scene.start` — both just flip a boolean
+  // and re-render the SAME scene (`this.retireConfirmOpen = true; this.rerender()`
+  // then `retireActiveRun(); this.rerender()`) — so the postcondition to wait
+  // for is new TEXT appearing, not a scene-key change.
+  await clickExactText(page, 'RETIRE', platform, 'map-active -> RETIRE');
+  await waitForText(page, platform, 'map-active -> RETIRE confirm dialog', (t) => t === 'RETIRE THIS RUN?', '"RETIRE THIS RUN?"', 10_000);
+  await shot(page, `${platform}-06-retire-confirm`, platform);
   await auditScreen(page, 'retire-confirm', platform);
-  await clickExactText(page, 'RETIRE', platform); // last match = the dialog's red button
-  await page.waitForTimeout(700);
-  await shot(page, `${platform}-07-end-summary`);
+  await clickExactText(page, 'RETIRE', platform, 'retire-confirm -> RETIRE (confirm)'); // last match = the dialog's red button
+  await waitForText(page, platform, 'retire-confirm -> end summary', (t) => t === 'RUN RETIRED' || t === 'DEFEAT', '"RUN RETIRED"/"DEFEAT"', 10_000);
+  await shot(page, `${platform}-07-end-summary`, platform);
   await auditScreen(page, 'end-summary', platform);
 }
 
