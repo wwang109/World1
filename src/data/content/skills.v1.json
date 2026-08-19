@@ -6046,6 +6046,117 @@
    ]
   },
   {
+   "id": "arc_cascade",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Arc Cascade",
+      "text": "Deal 12 (+MATK) Lightning damage \u00b7 {{Splash}} +8 weight on the card the enemy is about to play and the ones either side of it.",
+      "notes": [
+       "MAGICAL SPLASH (content-designer pass, 2026-08-19) \u2014 opens `splash` to",
+       "the MATK side. shockwave_slam was the only splash card in the book and",
+       "it is physical/axe; this card is magical/lightning with no weapon, and",
+       "trades a HEAVIER splash for a LIGHTER damage line than shockwave (8 vs",
+       "6 weight, 12 vs 14 damage) \u2014 same control-family shape, a different",
+       "point on the tax-vs-damage axis, so the two showcase cards read as",
+       "distinct builds (control-leaning vs damage-leaning) rather than a",
+       "recolor of the same card.",
+       "PRICE: splash 8 = 40 deci at PRICE.splashPerWeightNum/Den (5 deci per",
+       "weight). damage 12 = 60. 40 + 60 = 100 = Bronze exactly, size 1 so no",
+       "grant and weight 10 is baseline (0 delta). Control-family spend is 40",
+       "deci, under the size-1 control cap (100 \u2014 verified with",
+       "capViolations).",
+       "No tierUpgrades: damage alone absorbs every higher budget (silver 22,",
+       "gold 32, diamond 42 \u2014 splash is control and stays frozen at 8 at every",
+       "tier, verified against `autoScaleTier`).",
+       "SINGLE-TARGET, deliberately, like every splash card: `scope: all` +",
+       "splash is rejected by validateSkillContent \u2014 splash spreads across ONE",
+       "victim's board, not across a team."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "lightning",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 12
+       },
+       {
+        "kind": "splash",
+        "weight": 8
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "line_breaker",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Line Breaker",
+      "text": "Deal 10 (+ATK) Lance damage \u00b7 {{Slow}} the enemy's next action by +8 weight \u00b7 {{Splash}} +6 weight on the card the enemy is about to play and the ones either side of it.",
+      "notes": [
+       "SPLASH + SLOW PAIRING (content-designer pass, 2026-08-19) \u2014 the double",
+       "tempo tax: `slow` taxes the UNIT (whatever the enemy plays for the rest",
+       "of this turn), `splash` taxes the BAND on the enemy's own board (the",
+       "piece their cast cursor sits on plus its neighbours, paid whenever each",
+       "is next played). `castSelect.ts` sums both onto one cast",
+       "(`weightOf(skill) + mods.weightDelta + c.nextWeightPenalty +",
+       "piece.nextWeightPenalty`), so when the two land on the same upcoming",
+       "piece within the turn this card double-taxes it rather than paying",
+       "just one tempo cost.",
+       "PRICE: slow 8 = 20 deci (PRICE.slowPerWeightNum/Den, 5/2). splash 6 =",
+       "30 deci (PRICE.splashPerWeightNum/Den, 5/1). Control-family spend",
+       "(slow+splash together) is 50 deci \u2014 HALF the size-1 control cap (100),",
+       "verified with capViolations; the cap stays nowhere near breached at",
+       "any tier, since control is frozen and only the damage sink grows.",
+       "damage 10 = 50. 50 + 50 = 100 = Bronze exactly, size 1 so no grant and",
+       "weight 10 is baseline (0 delta).",
+       "No tierUpgrades: damage alone absorbs every higher budget (silver 20,",
+       "gold 30, diamond 40 \u2014 slow and splash both stay frozen at every tier,",
+       "verified against `autoScaleTier`).",
+       "WEAPON LANCE, NOT AXE (shockwave_slam's weapon), and a three-effect",
+       "kit rather than shockwave's two \u2014 differentiates from the existing",
+       "showcase on both the weapon and the mechanic-pairing axis."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 10
+       },
+       {
+        "kind": "slow",
+        "weight": 8
+       },
+       {
+        "kind": "splash",
+        "weight": 6
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
    "id": "disarming_blow",
    "versions": [
     {
