@@ -148,23 +148,26 @@ describe('run/content: catalog-wide acquisition-surface audit', () => {
   });
 
   // ---------------------------------------------------------------------
-  // Documents a real (non-failing) finding from the same audit: the 9
-  // 2026-08-19 gems are reachable ONLY through Gemcutter's whole-book
-  // catch-all (`gemFilter: [{ all: true }]`, minWave 2) among shops — none
-  // of the curated per-theme `ids` lists in shopTypes.ts were updated to
-  // include any of them, so a themed shop a player might expect to sell
-  // one (e.g. Alchemist for the 4 expose gems, Bulwark for sanctuary_sliver/
-  // renewal_sliver) never will. Not a failure — Gemcutter+events already
-  // make every one of them obtainable — but pinned here so it doesn't
-  // silently get worse (a future edit removing Gemcutter's `all: true`
-  // WOULD flip these gems to zero shop surfaces, caught by the test above).
+  // Curation follow-up (2026-08-19): the original audit found the 9 new
+  // gems reachable ONLY through Gemcutter's whole-book catch-all — no
+  // curated per-theme `ids` list mentioned any of them, so a themed shop a
+  // player might expect to sell one (Alchemist for splash, Armory for the
+  // expose ladder, Bulwark for sanctuary_sliver/provoker_sliver, Sanctum for
+  // renewal_sliver) never would. That gap is now closed in shopTypes.ts, so
+  // this pins the BETTER state: every 2026-08-19 gem is shop-reachable
+  // through at least one CURATED themed list, not just Gemcutter's `all`
+  // clause. A future edit that quietly drops one of these ids back out of
+  // every themed list regresses this to a failure instead of a silent slide
+  // back to the old finding.
   // ---------------------------------------------------------------------
-  it('[FINDING] the 2026-08-19 gems are shop-reachable ONLY via Gemcutter\'s all-gem catch-all', () => {
+  it('every 2026-08-19 gem is shop-reachable via at least one curated themed list (not just Gemcutter)', () => {
     const themedShopIds = shopTypeIds.filter((id) => id !== 'gemcutter');
+    const unreached: string[] = [];
     for (const id of NEW_GEMS_2026_08_19) {
       const gem = gemBook[id]!;
       const themedHit = themedShopIds.some((sid) => gemMatchesFilter(gem, shopCatalog[sid]!.gemFilter));
-      expect(themedHit, `${id} unexpectedly matches a curated themed shop too — finding may be stale`).toBe(false);
+      if (!themedHit) unreached.push(id);
     }
+    expect(unreached, `gems reachable ONLY via Gemcutter's catch-all: ${unreached.join(', ')}`).toEqual([]);
   });
 });

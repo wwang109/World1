@@ -86,6 +86,12 @@ const defs: ShopTypeDef[] = [
       {
         // RETIRE (gem ruleset v1 §10, 2026-08-09): sword_slash_echo,
         // crushing_blow_echo removed (flat-damage duplicates).
+        // ADD (2026-08-19, reachability curation pass): the full expose ladder
+        // (vulnerability/weak_point/exposed_nerve/raw_nerve) is the same
+        // "reduce enemy resilience so a hit counts for more" idea armor_break_
+        // echo/enfeebling_shard already sell here, generalized from DEF-only to
+        // all direct hits — and Armory was the one v1 theme with no Legendary
+        // in its curated list, a gap raw_nerve_sliver now closes.
         ids: [
           'brawlers_core',
           'bulwark_core',
@@ -93,6 +99,10 @@ const defs: ShopTypeDef[] = [
           'armor_break_echo',
           'enfeebling_shard',
           'war_banner_echo',
+          'vulnerability_sliver',
+          'weak_point_sliver',
+          'exposed_nerve_sliver',
+          'raw_nerve_sliver',
         ],
       },
     ],
@@ -147,6 +157,10 @@ const defs: ShopTypeDef[] = [
     cardFilter: [{ elements: ['holy', 'dark'] }, { archetypes: ['healing', 'support'] }],
     gemFilter: [
       {
+        // ADD (2026-08-19, reachability curation pass): renewal_sliver
+        // (cleanse + heal) is the healing/support theme's own gem — the same
+        // cleanse+heal pairing the catalog already ships on `purge_the_rot`
+        // (a Sanctum-eligible healing card), just as a socketable facet.
         ids: [
           'mending_light_echo',
           'second_wind_echo',
@@ -154,6 +168,7 @@ const defs: ShopTypeDef[] = [
           'restorative_core',
           'prism_barrier_echo',
           'ward_of_silence_echo',
+          'renewal_sliver',
         ],
       },
     ],
@@ -167,6 +182,10 @@ const defs: ShopTypeDef[] = [
     gemFilter: [
       {
         // RETIRE: stunning_smash_echo, hamstring_echo removed (slow duplicates).
+        // ADD (2026-08-19, reachability curation pass): tremor_sliver/
+        // fracture_sliver (splash) are a bind on the enemy's next few plays —
+        // a control effect in the same family as the slow/poison hexes
+        // already curated here, not a weapon mechanic.
         ids: [
           'venom_sliver',
           'venom_fang_echo',
@@ -174,6 +193,8 @@ const defs: ShopTypeDef[] = [
           'concussive_shot_echo',
           'concussive_shard',
           'slow_hex_echo',
+          'tremor_sliver',
+          'fracture_sliver',
         ],
       },
     ],
@@ -227,6 +248,11 @@ const defs: ShopTypeDef[] = [
     ],
     gemFilter: [
       {
+        // ADD (2026-08-19, reachability curation pass): sanctuary_sliver
+        // (ward + armor buff) is "nothing gets through" itself — an outright
+        // ailment block plus resilience, the tank kit's own gem. provoker_
+        // sliver (taunt) is the aggro-holding half of the same tank identity:
+        // the enemy hits the wall instead of the squishies behind it.
         ids: [
           'bulwark_core',
           'iron_bulwark_echo',
@@ -236,6 +262,8 @@ const defs: ShopTypeDef[] = [
           'ward_of_silence_echo',
           'purify_echo',
           'restorative_core',
+          'sanctuary_sliver',
+          'provoker_sliver',
         ],
       },
     ],
