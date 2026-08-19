@@ -8,11 +8,11 @@
 // Every choice carries an optional upfront `cost` (gold, paid BEFORE the
 // outcome resolves — the "cost/known-reward inline" line the UI shows on each
 // button) and exactly ONE outcome from the small vocabulary in
-// `EventOutcomeSpec`. At most one choice per event is a `gamble` (a weighted
-// table over that SAME vocabulary, minus gamble itself — no nested gambles,
-// weights are integer percent and must sum to 100). Every event carries a
-// genuinely SAFE choice — cost 0, and if it's a gamble, one whose worst
-// branch is `nothing` — so a broke player is never soft-locked.
+// `EventOutcomeSpec` — deterministic, no RNG gamble tables (the old weighted-
+// table `gamble` outcome kind was removed once every catalog choice had
+// already been converted to a fixed outcome; see git history for the former
+// `GambleRow`/`rollGamble`). Every event carries a genuinely SAFE choice —
+// cost 0, `nothing` outcome — so a broke player is never soft-locked.
 //
 // `upgradeCard` (2026-08-04, picker added 2026-08-08): bumps ONE
 // player-CHOSEN already-owned card +1 tier (bronze->silver->gold->diamond).
@@ -37,9 +37,9 @@ import type { CardFilter, GemFilter } from './shopTypes';
  * gameplay branching in the resolver. */
 export type EventTheme = 'training' | 'cache' | 'recruit' | 'forge' | 'market' | 'omen';
 
-/** The result vocabulary a (non-gamble) event choice resolves to. Small on
- * purpose — every grant reuses an existing system (bag insert, gem pouch,
- * run wallet, hero level, the start-draft set roller). */
+/** The result vocabulary an event choice resolves to. Small on purpose —
+ * every grant reuses an existing system (bag insert, gem pouch, run wallet,
+ * hero level, the start-draft set roller). */
 export type EventOutcomeSpec =
   | { kind: 'grantCard'; cardId?: string; filter?: CardFilter; tier?: SkillTier }
   | { kind: 'grantGem'; gemId?: string; filter?: GemFilter }
@@ -72,17 +72,6 @@ export type EventOutcomeSpec =
   | { kind: 'upgradeCard' }
   | { kind: 'nothing' };
 
-export interface GambleRow {
-  /** Integer percent weight; a gamble table's weights must sum to 100. */
-  weight: number;
-  outcome: EventOutcomeSpec;
-}
-
-/** A choice's outcome is either fixed (one `EventOutcomeSpec`) or a seeded
- * gamble over a weighted table of them (never nested — a gamble row can't
- * itself be a gamble). */
-export type EventChoiceOutcome = EventOutcomeSpec | { kind: 'gamble'; table: readonly GambleRow[] };
-
 export interface EventChoiceDef {
   id: string;
   /** Button label, e.g. "Pay 3 gold" / "Walk away". */
@@ -90,7 +79,7 @@ export interface EventChoiceDef {
   /** Upfront gold cost paid before the outcome resolves (omitted/0 = free —
    * every event needs at least one cost-0 choice as its safe exit). */
   cost?: number;
-  outcome: EventChoiceOutcome;
+  outcome: EventOutcomeSpec;
 }
 
 export interface EventDef {
@@ -107,9 +96,9 @@ const defs: EventDef[] = [
     id: 'wandering_tutor',
     title: 'The Wandering Tutor',
     theme: 'training',
-    body: 'The dust of the Hollow Yard has barely settled from the last duel when an old sellsword rises to meet you, gnarled staff in hand. "Three gold," she says, "and I\'ll show you where you\'re wasting your strength." Her lesson won\'t be free — but it won\'t be forgotten, either.',
+    body: 'The dust of the Hollow Yard has barely settled from the last duel when an old sellsword rises to meet you, gnarled staff in hand. "Two gold," she says, "and I\'ll show you where you\'re wasting your strength." Her lesson won\'t be free — but it won\'t be forgotten, either.',
     choices: [
-      { id: 'pay', label: 'Pay 3 gold for the lesson', cost: 3, outcome: { kind: 'grantLevel' } },
+      { id: 'pay', label: 'Pay 2 gold for the lesson', cost: 2, outcome: { kind: 'grantLevel' } },
       { id: 'decline', label: 'Keep walking', outcome: { kind: 'nothing' } },
     ],
   },

@@ -97,7 +97,7 @@ export interface RunScreenTemplate {
      *              draw a duplicate CONTINUE into (task #33, 2026-08-07).
      *   icon     — the small outcome-kind icon (top of panel).
      *   headline — "Gained a BRONZE card" — the one-line (up to 2) summary.
-     *   detail   — an optional second line ("The gamble paid off.").
+     *   detail   — an optional second line of fallback/context text.
      *   feature  — the reward's own visual: a `CardToken` for `grantCard`, a
      *              gem chip for `grantGem`, nothing for gold/level/nothing.
      *              Gets WHATEVER is left down to the panel's bottom edge, so

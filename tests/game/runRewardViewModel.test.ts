@@ -32,12 +32,6 @@ describe('buildRunRewardViewModel', () => {
     expect(model.feature).toEqual({ kind: 'card', skill: skillBook[SKILL_ID] });
   });
 
-  it('grantCard: gambled=true surfaces the "gamble paid off" detail line', () => {
-    const outcome: EventOutcome = { kind: 'grantCard', skillId: SKILL_ID, tier: 'bronze', gambled: true };
-    const model = buildRunRewardViewModel(outcome);
-    expect(model.detail).toBe('The gamble paid off.');
-  });
-
   it('grantCard fellBack: headline reports the gold fallback, feature falls back to the icon (no skillId to show)', () => {
     const outcome: EventOutcome = { kind: 'grantCard', skillId: SKILL_ID, tier: 'bronze', fellBack: true };
     const model = buildRunRewardViewModel(outcome);
@@ -137,9 +131,4 @@ describe('buildRunRewardViewModel', () => {
     expect(model.feature).toEqual({ kind: 'icon' });
   });
 
-  it('nothing: gambled=true reports the gamble coming up empty instead', () => {
-    const outcome: EventOutcome = { kind: 'nothing', gambled: true };
-    const model = buildRunRewardViewModel(outcome);
-    expect(model.headline).toBe('The gamble came up empty');
-  });
 });

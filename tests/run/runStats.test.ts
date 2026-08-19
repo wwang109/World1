@@ -276,16 +276,16 @@ describe('run/runState: RunStats — event resolution (eventsResolved/goldEarned
   it('resolveEventChoice increments eventsResolved by exactly 1, for whichever event actually drew on this node', () => {
     const { state: atNode, node } = stateAtFirstEvent(2);
     const { state, event } = rollEventForNode(atNode, node);
-    // Pick the event's own genuinely-safe choice (cost 0, non-gamble outcome) —
-    // every catalog event guarantees at least one (see the events catalog lint).
-    const safeChoice = event.choices.find((c) => (c.cost ?? 0) === 0 && c.outcome.kind !== 'gamble') ?? event.choices[0]!;
+    // Pick the event's own genuinely-safe choice (cost 0) — every catalog
+    // event guarantees at least one (see the events catalog lint).
+    const safeChoice = event.choices.find((c) => (c.cost ?? 0) === 0) ?? event.choices[0]!;
     const before = state.stats.eventsResolved;
     const { state: after } = resolveEventChoice(state, event.id, safeChoice.id);
     expect(after.stats.eventsResolved).toBe(before + 1);
   });
 
   it('a cost > 0 choice adds to goldSpent, and its non-gold outcome does not touch cardsBought/gemsBought', () => {
-    const costly = findChoice((c) => (c.cost ?? 0) > 0 && c.outcome.kind !== 'gamble');
+    const costly = findChoice((c) => (c.cost ?? 0) > 0);
     expect(costly).toBeDefined();
     if (!costly) return;
     let { state } = stateAtFirstEvent(2);

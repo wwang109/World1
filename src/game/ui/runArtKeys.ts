@@ -86,8 +86,6 @@ export function choiceArtKey(kind: string): string {
       return RUN_ART_KEYS.icon.choiceGold;
     case 'grantLevel':
       return RUN_ART_KEYS.icon.choiceLevel;
-    case 'gamble':
-      return RUN_ART_KEYS.icon.choiceGamble;
     case 'nothing':
     default:
       return RUN_ART_KEYS.icon.choiceNothing;

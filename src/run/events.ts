@@ -7,7 +7,7 @@
 
 import { hashSeed, Rng } from '../engine/rng';
 import type { SkillTier } from '../engine/types';
-import { eventCatalog, eventCatalogIds, type EventChoiceDef, type EventChoiceOutcome, type EventDef, type EventOutcomeSpec, type EventTheme, type GambleRow } from '../data/events';
+import { eventCatalog, eventCatalogIds, type EventChoiceDef, type EventDef, type EventOutcomeSpec, type EventTheme } from '../data/events';
 import type { DraftCard } from './draft';
 import { skillBook } from '../data/skills';
 import { gemBook } from '../data/gems';
@@ -94,23 +94,23 @@ export interface UpgradeCardOption {
 }
 
 export type EventOutcome =
-  | { kind: 'grantCard'; skillId: string; tier: SkillTier; fellBack?: boolean; gambled?: boolean }
-  | { kind: 'grantGem'; gemId: string; gambled?: boolean }
-  | { kind: 'grantGold'; amount: number; fellBack?: boolean; gambled?: boolean }
-  | { kind: 'loseGold'; amount: number; gambled?: boolean }
-  | { kind: 'grantLevel'; level: number; gambled?: boolean }
+  | { kind: 'grantCard'; skillId: string; tier: SkillTier; fellBack?: boolean }
+  | { kind: 'grantGem'; gemId: string }
+  | { kind: 'grantGold'; amount: number; fellBack?: boolean }
+  | { kind: 'loseGold'; amount: number }
+  | { kind: 'grantLevel'; level: number }
   // `cardChoice` (2026-08-18, see `EventOutcomeSpec`'s doc comment in
   // data/events.ts) resolves to THIS SAME `bonusDraft` shape, at
   // `EVENT_CHOICE_SIZE` (3) width instead of `BONUS_DRAFT_SIZE` (5) —
   // `cardChoiceOutcome` below is the only other producer of this kind, and
   // `applyBonusDraftPick` finalizes either one identically (a picked
   // `DraftCard` is a picked `DraftCard` regardless of which choice drew it).
-  | { kind: 'bonusDraft'; cards: readonly DraftCard[]; gambled?: boolean }
+  | { kind: 'bonusDraft'; cards: readonly DraftCard[] }
   // Deferred pick (same "roll now, pick later" shape as `bonusDraft` above) —
   // `upgradeCardOutcome` returns this instead of resolving immediately
   // whenever at least one owned card is eligible; `applyUpgradeCardPick`
   // resolves the player's tap into the FINAL `upgradeCard` outcome below.
-  | { kind: 'upgradeCardPick'; options: readonly UpgradeCardOption[]; gambled?: boolean }
+  | { kind: 'upgradeCardPick'; options: readonly UpgradeCardOption[] }
   // `gemChoice`'s deferred offer (2026-08-18) — unlike `cardChoice`, gems had
   // no pre-existing picker shape to reuse, so this is a genuinely new
   // `EventOutcome` member: `options` is `EVENT_CHOICE_SIZE` distinct gem ids
@@ -123,7 +123,7 @@ export type EventOutcome =
   // this needs a third arm added alongside) — that's `src/game/**` surface,
   // out of this module's ownership; see the PR description for the exact
   // one-case patch needed to keep `outcomeHeadline` compiling.
-  | { kind: 'gemChoicePick'; options: readonly string[]; gambled?: boolean }
+  | { kind: 'gemChoicePick'; options: readonly string[] }
   // `skillId`/`from`/`to` are omitted (not merely falsy) exactly when
   // `fellBack` is true — this DELIBERATELY differs from `grantCard`'s
   // fallback idiom (which swaps the whole outcome to `grantGold`): a
@@ -134,11 +134,11 @@ export type EventOutcome =
   // `applyUpgradeCardPick`). This is the FINAL, resolved outcome shown by the
   // reward screen — either the immediate no-choice-available fallback, or
   // what `applyUpgradeCardPick` produced from a picked `UpgradeCardOption`.
-  | ({ kind: 'upgradeCard'; gambled?: boolean } & (
+  | ({ kind: 'upgradeCard' } & (
       | { fellBack: true; skillId?: undefined; from?: undefined; to?: undefined }
       | { fellBack?: false; skillId: string; from: SkillTier; to: SkillTier }
     ))
-  | { kind: 'nothing'; gambled?: boolean };
+  | { kind: 'nothing' };
 
 /** Draw `count` DISTINCT items from `pool` via `rng.int`, fixed call order
  * (same idiom used by draft.ts/shop.ts/runMap.ts). */
@@ -177,9 +177,7 @@ export function isEventChoiceAffordable(state: RunState, choice: EventChoiceDef)
 /** An event is eligible to be OFFERED at `state.gold` if at least one of its
  * choices is both affordable AND not the `nothing` no-op outcome — an event
  * whose only affordable option is the safe "walk away" exit is exactly the
- * dead-end case this guards against. (A `gamble` choice's outcome.kind is
- * `'gamble'`, never `'nothing'`, so a free gamble always counts as "does
- * something interesting" even though one of its rows may resolve to nothing.) */
+ * dead-end case this guards against. */
 function hasAffordableChoice(state: RunState, event: EventDef): boolean {
   return event.choices.some((c) => isEventChoiceAffordable(state, c) && c.outcome.kind !== 'nothing');
 }
@@ -541,7 +539,7 @@ function gemChoiceOutcome(
   return { kind: 'gemChoicePick', options };
 }
 
-/** Applies a single (already-rolled, non-gamble) outcome spec. `depth` is the
+/** Applies a single (already-rolled) outcome spec. `depth` is the
  * node's shop-stock-equivalent depth band (see `grantGemOutcome`'s doc
  * comment) — `grantGem` and `gemChoice` both consume it today. */
 function applySpec(state: RunState, rng: Rng, spec: EventOutcomeSpec, depth: number): { state: RunState; outcome: EventOutcome } {
@@ -590,33 +588,18 @@ function applySpec(state: RunState, rng: Rng, spec: EventOutcomeSpec, depth: num
   }
 }
 
-/** Rolls a gamble's weighted table (integer percent, fixed call order: one
- * `rng.int(100)` roll, cumulative-weight scan in table order). Falls back to
- * the last row if weights don't sum to exactly 100 (should never happen —
- * the catalog lint test enforces it — but never throws mid-run over content). */
-function rollGamble(rng: Rng, table: readonly GambleRow[]): EventOutcomeSpec {
-  const roll = rng.int(100);
-  let cursor = 0;
-  for (const row of table) {
-    cursor += row.weight;
-    if (roll < cursor) return row.outcome;
-  }
-  return table[table.length - 1]!.outcome;
-}
-
 /**
  * Resolves the currently-active event node's `choiceId` on `eventId`: deducts
- * the choice's upfront `cost` (if any), rolls its gamble table (if any), then
- * applies the resulting outcome spec. All rolls derive from
- * `hashSeed('event', node.eventSeed, choiceId)` (fixed call order: the gamble
- * roll, if any, THEN the outcome's own roll, if any — e.g. a `grantCard` with
- * a `filter` draw). A `grantGem` outcome's own draw is gated/weighted by the
- * active node's `shopStockDepthForWave(node.wave)` depth band — the SAME gem
- * rarity discipline (`GEM_RARITY_WEIGHT`/`LEGENDARY_GATE_DEPTH`) the shop's
- * shelf roll uses, via the shared `pickWeightedGem` (`shop.ts`) — so an event
- * grant can no longer hand out a Legendary gem a same-depth shop shelf could
- * never offer. Throws if there's no active event node, or `eventId`/
- * `choiceId` don't resolve to a real catalog choice.
+ * the choice's upfront `cost` (if any), then applies its outcome spec. All
+ * rolls derive from `hashSeed('event', node.eventSeed, choiceId)` (fixed call
+ * order — e.g. a `grantCard` with a `filter` draw). A `grantGem` outcome's own
+ * draw is gated/weighted by the active node's `shopStockDepthForWave(node.wave)`
+ * depth band — the SAME gem rarity discipline (`GEM_RARITY_WEIGHT`/
+ * `LEGENDARY_GATE_DEPTH`) the shop's shelf roll uses, via the shared
+ * `pickWeightedGem` (`shop.ts`) — so an event grant can no longer hand out a
+ * Legendary gem a same-depth shop shelf could never offer. Throws if there's
+ * no active event node, or `eventId`/`choiceId` don't resolve to a real
+ * catalog choice.
  */
 export function resolveEventChoice(
   state: RunState,
@@ -648,15 +631,10 @@ export function resolveEventChoice(
   }
 
   const rng = new Rng(hashSeed('event', node.eventSeed!, choiceId));
-  const gambled = choice.outcome.kind === 'gamble';
-  const spec: EventOutcomeSpec = gambled
-    ? rollGamble(rng, (choice.outcome as Extract<EventChoiceOutcome, { kind: 'gamble' }>).table)
-    : (choice.outcome as EventOutcomeSpec);
-
-  const { state: nextState, outcome } = applySpec(working, rng, spec, shopStockDepthForWave(node.wave));
+  const { state: nextState, outcome } = applySpec(working, rng, choice.outcome, shopStockDepthForWave(node.wave));
   return {
     state: { ...nextState, stats: { ...nextState.stats, eventsResolved: nextState.stats.eventsResolved + 1 } },
-    outcome: { ...outcome, gambled },
+    outcome,
   };
 }
 

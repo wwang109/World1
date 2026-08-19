@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { eventCatalog, eventCatalogIds, type EventChoiceOutcome, type EventDef, type EventOutcomeSpec } from '../../src/data/events';
+import { eventCatalog, eventCatalogIds, type EventDef, type EventOutcomeSpec } from '../../src/data/events';
 import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
 import {
@@ -58,7 +58,7 @@ function stateAtFirstEvent(seed: number): { state: RunState; node: RunNode } {
   throw new Error('guard exceeded while looking for an event node');
 }
 
-/** Every non-gamble outcome kind in the vocabulary, for the catalog lint. */
+/** Every outcome kind in the vocabulary, for the catalog lint. */
 const OUTCOME_KINDS = new Set([
   'grantCard',
   'grantGem',
@@ -72,10 +72,8 @@ const OUTCOME_KINDS = new Set([
   'nothing',
 ]);
 
-function isSafe(choice: { cost?: number; outcome: EventChoiceOutcome }): boolean {
-  if ((choice.cost ?? 0) > 0) return false;
-  if (choice.outcome.kind !== 'gamble') return true;
-  return choice.outcome.table.some((row) => row.outcome.kind === 'nothing');
+function isSafe(choice: { cost?: number; outcome: EventOutcomeSpec }): boolean {
+  return (choice.cost ?? 0) === 0;
 }
 
 describe('data/events: catalog lint', () => {
@@ -110,43 +108,18 @@ describe('data/events: catalog lint', () => {
     }
   });
 
-  it('every event has a genuinely safe exit (cost 0, worst gamble branch is nothing)', () => {
+  it('every event has a genuinely safe exit (a cost-0 choice)', () => {
     for (const id of eventCatalogIds) {
       const event = eventCatalog[id]!;
       expect(event.choices.some(isSafe)).toBe(true);
     }
   });
 
-  it('at most one gamble choice per event', () => {
-    for (const id of eventCatalogIds) {
-      const event = eventCatalog[id]!;
-      const gambles = event.choices.filter((c) => c.outcome.kind === 'gamble');
-      expect(gambles.length).toBeLessThanOrEqual(1);
-    }
-  });
-
-  it('every outcome (and every gamble row) uses only vocabulary kinds, and gambles never nest', () => {
+  it('every outcome uses only vocabulary kinds', () => {
     for (const id of eventCatalogIds) {
       const event = eventCatalog[id]!;
       for (const choice of event.choices) {
-        if (choice.outcome.kind === 'gamble') {
-          for (const row of choice.outcome.table) {
-            expect(OUTCOME_KINDS.has(row.outcome.kind)).toBe(true);
-          }
-        } else {
-          expect(OUTCOME_KINDS.has(choice.outcome.kind)).toBe(true);
-        }
-      }
-    }
-  });
-
-  it('every gamble table sums to exactly 100', () => {
-    for (const id of eventCatalogIds) {
-      const event = eventCatalog[id]!;
-      for (const choice of event.choices) {
-        if (choice.outcome.kind !== 'gamble') continue;
-        const total = choice.outcome.table.reduce((sum, row) => sum + row.weight, 0);
-        expect(total).toBe(100);
+        expect(OUTCOME_KINDS.has(choice.outcome.kind)).toBe(true);
       }
     }
   });
@@ -154,9 +127,7 @@ describe('data/events: catalog lint', () => {
   it('every fixed grantCard/grantGem id and filter resolves to a real, non-empty pool', () => {
     for (const id of eventCatalogIds) {
       const event = eventCatalog[id]!;
-      const specs: EventOutcomeSpec[] = event.choices.flatMap((c) =>
-        c.outcome.kind === 'gamble' ? c.outcome.table.map((r) => r.outcome) : [c.outcome],
-      );
+      const specs: EventOutcomeSpec[] = event.choices.map((c) => c.outcome);
       for (const spec of specs) {
         if (spec.kind === 'grantCard') {
           if (spec.cardId) expect(skillBook[spec.cardId]).toBeDefined();
@@ -183,9 +154,7 @@ describe('data/events: catalog lint', () => {
   it('every bonusDraft filter resolves to a real, non-empty pool (thin filters allowed, empty is a bug)', () => {
     for (const id of eventCatalogIds) {
       const event = eventCatalog[id]!;
-      const specs: EventOutcomeSpec[] = event.choices.flatMap((c) =>
-        c.outcome.kind === 'gamble' ? c.outcome.table.map((r) => r.outcome) : [c.outcome],
-      );
+      const specs: EventOutcomeSpec[] = event.choices.map((c) => c.outcome);
       for (const spec of specs) {
         if (spec.kind !== 'bonusDraft' || !spec.filter) continue;
         const pool = Object.values(skillBook).filter((s) =>
@@ -214,9 +183,7 @@ describe('data/events: catalog lint', () => {
   it('every cardChoice filter resolves to a pool of at least EVENT_CHOICE_SIZE cards (never a 1-of-1/1-of-2 pick)', () => {
     for (const id of eventCatalogIds) {
       const event = eventCatalog[id]!;
-      const specs: EventOutcomeSpec[] = event.choices.flatMap((c) =>
-        c.outcome.kind === 'gamble' ? c.outcome.table.map((r) => r.outcome) : [c.outcome],
-      );
+      const specs: EventOutcomeSpec[] = event.choices.map((c) => c.outcome);
       for (const spec of specs) {
         if (spec.kind !== 'cardChoice') continue;
         const all = Object.values(skillBook);
@@ -241,9 +208,7 @@ describe('data/events: catalog lint', () => {
   it('every gemChoice filter resolves to a pool of at least EVENT_CHOICE_SIZE gems (none in the catalog carry a filter today, but the guard stays live)', () => {
     for (const id of eventCatalogIds) {
       const event = eventCatalog[id]!;
-      const specs: EventOutcomeSpec[] = event.choices.flatMap((c) =>
-        c.outcome.kind === 'gamble' ? c.outcome.table.map((r) => r.outcome) : [c.outcome],
-      );
+      const specs: EventOutcomeSpec[] = event.choices.map((c) => c.outcome);
       for (const spec of specs) {
         if (spec.kind !== 'gemChoice') continue;
         const pool = Object.values(gemBook).filter((g) => (spec.filter ? gemMatchesFilter(g, spec.filter) : true));
@@ -286,33 +251,6 @@ describe('data/events: catalog lint', () => {
     expect(spareBlade.cost ?? 0).toBe(0); // stays free — sparring_circle's ONLY cost-0 choice
   });
 
-  // A stake belongs in `cost`, never in a `loseGold` branch: loseGold floors at
-  // 0, so a table pairing grantGold with loseGold is a free coin-flip that mints
-  // gold for a broke player (the bug this test locks out).
-  it('never models a wager as grantGold-vs-loseGold in one gamble table', () => {
-    for (const event of Object.values(eventCatalog)) {
-      for (const choice of event.choices) {
-        if (choice.outcome.kind !== 'gamble') continue;
-        const kinds = choice.outcome.table.map((r) => r.outcome.kind);
-        const wagered = kinds.includes('grantGold') && kinds.includes('loseGold');
-        expect(wagered, `${event.id}/${choice.id} should use \`cost\` for its stake`).toBe(false);
-      }
-    }
-  });
-
-  it('gates every gold-costing choice behind an affordable wallet', () => {
-    for (const event of Object.values(eventCatalog)) {
-      for (const choice of event.choices) {
-        // A choice that can PAY OUT gold must charge for the privilege, else it
-        // is free money; flat small grants (<= one fight's income) are fine.
-        if (choice.outcome.kind !== 'gamble') continue;
-        const payout = choice.outcome.table
-          .map((r) => (r.outcome.kind === 'grantGold' ? r.outcome.amount : 0))
-          .reduce((a, b) => Math.max(a, b), 0);
-        if (payout > 2) expect(choice.cost ?? 0).toBeGreaterThan(0);
-      }
-    }
-  });
 });
 
 describe('run/events: rollEventForNode', () => {
@@ -524,7 +462,7 @@ describe('run/events: resolveEventChoice', () => {
     const event = eventCatalog.overloaded_caravan!;
     const withGold = { ...state, gold: 5 };
     const { state: next, outcome } = resolveEventChoice(withGold, event.id, 'push');
-    expect(outcome).toEqual({ kind: 'grantGold', amount: 1, gambled: false });
+    expect(outcome).toEqual({ kind: 'grantGold', amount: 1 });
     expect(next.gold).toBe(6);
   });
 
@@ -532,7 +470,7 @@ describe('run/events: resolveEventChoice', () => {
     const { state } = stateAtFirstEvent(4);
     const withGold = { ...state, gold: 10 };
     const { state: next } = resolveEventChoice(withGold, 'wandering_tutor', 'pay');
-    expect(next.gold).toBe(7);
+    expect(next.gold).toBe(8);
     expect(next.heroLevel).toBe(state.heroLevel + 1);
   });
 
@@ -544,8 +482,7 @@ describe('run/events: resolveEventChoice', () => {
   // still take a gold from the player on its losing branch. `loseGold` is no
   // longer produced by ANY catalog event (the floor-at-0 arithmetic itself
   // still lives in `applySpec`'s `loseGold` case, just with zero live
-  // callers post-fix — same "kept, not deleted" status as the rest of the
-  // gamble machinery). This test now proves the fix directly instead of
+  // callers post-fix). This test now proves the fix directly instead of
   // sweeping for a dead outcome kind.
   it("beast_nest's FREE choice (raid_it, cost 0) can no longer take gold — always grants +1 gold now, never loseGold", () => {
     const { state } = stateAtFirstEvent(4);
@@ -554,7 +491,7 @@ describe('run/events: resolveEventChoice', () => {
       const withNode: RunState = { ...state, map: replaceNode(state.map, node) };
       const withGold = { ...withNode, gold: 1 };
       const { outcome, state: next } = resolveEventChoice(withGold, 'beast_nest', 'raid_it');
-      expect(outcome).toEqual({ kind: 'grantGold', amount: 1, gambled: false });
+      expect(outcome).toEqual({ kind: 'grantGold', amount: 1 });
       expect(next.gold).toBe(2);
     }
   });
@@ -575,7 +512,7 @@ describe('run/events: resolveEventChoice', () => {
     }));
     const fullBag: RunState = { ...state, bagSlots, gold: 0 };
     const { state: next, outcome } = resolveEventChoice(fullBag, 'veterans_last_lesson', 'take_blade');
-    expect(outcome).toEqual({ kind: 'grantGold', amount: 2, fellBack: true, gambled: false });
+    expect(outcome).toEqual({ kind: 'grantGold', amount: 2, fellBack: true });
     expect(next.gold).toBe(2);
   });
 
@@ -590,22 +527,6 @@ describe('run/events: resolveEventChoice', () => {
     expect(pickOutcome.kind).toBe('grantCard');
     if (pickOutcome.kind !== 'grantCard') return;
     expect(final.bagSlots.some((s) => s?.skillId === pickOutcome.skillId)).toBe(true);
-  });
-
-  // DELETED: "a gamble outcome is flagged gambled:true" (used to resolve
-  // abandoned_cache/open, previously a 60/40 gamble). The no-RNG-on-rewards
-  // ruling converted all 11 former gamble choices in the catalog to
-  // deterministic outcomes, so the catalog now contains ZERO live `gamble`
-  // choices — there is no real event left through the public API that can
-  // exercise `gambled: true`. The `gambled` flag/plumbing itself is
-  // untouched (kept per the ruling, a verified-in-a-running-game follow-up
-  // removes the machinery); only the test asserting a currently-impossible
-  // outcome is gone. The sibling `gambled:false` case below still covers the
-  // flag's OTHER value.
-  it('a non-gamble outcome is flagged gambled:false', () => {
-    const { state } = stateAtFirstEvent(4);
-    const { outcome } = resolveEventChoice({ ...state, gold: 5 }, 'crossroads_shrine', 'deface');
-    expect(outcome.gambled).toBe(false);
   });
 
   it('throws when no event node is currently active', () => {
@@ -704,7 +625,6 @@ describe('run/events: upgradeCard', () => {
     const { state: next, outcome } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
     expect(outcome).toEqual({
       kind: 'upgradeCardPick',
-      gambled: false,
       options: [
         { instanceId: 'p_silver', skillId: 'sword_slash', from: 'silver', to: 'gold' },
         { instanceId: 'p_bronze_early', skillId: 'sword_slash', from: 'bronze', to: 'silver' },
@@ -755,7 +675,6 @@ describe('run/events: upgradeCard', () => {
     // Board options precede bag options; within the bag, array order is preserved.
     expect(pick).toEqual({
       kind: 'upgradeCardPick',
-      gambled: false,
       options: [
         { instanceId: 'p_gold', skillId: 'sword_slash', from: 'gold', to: 'diamond' },
         { instanceId: 'b_gold', skillId: 'sword_slash', from: 'gold', to: 'diamond' },
@@ -783,7 +702,7 @@ describe('run/events: upgradeCard', () => {
         bagSlots: [],
       };
       const { state: afterChoice, outcome: pick } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
-      expect(pick).toEqual({ kind: 'upgradeCardPick', gambled: false, options: [{ instanceId: 'p', skillId: 'sword_slash', from, to }] });
+      expect(pick).toEqual({ kind: 'upgradeCardPick', options: [{ instanceId: 'p', skillId: 'sword_slash', from, to }] });
       const { outcome } = applyUpgradeCardPick(afterChoice, 'p');
       expect(outcome).toEqual({ kind: 'upgradeCard', skillId: 'sword_slash', from, to });
     }
@@ -812,7 +731,7 @@ describe('run/events: upgradeCard', () => {
       bagSlots: [{ instanceId: 'b_diamond', skillId: 'sword_slash', tier: 'diamond' }],
     };
     const { state: next, outcome } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
-    expect(outcome).toEqual({ kind: 'upgradeCard', fellBack: true, gambled: false });
+    expect(outcome).toEqual({ kind: 'upgradeCard', fellBack: true });
     expect(next.gold).toBe(10 - 5 + 2); // cost paid, then fallback gold credited
     expect(next.pieces[0]!.tier).toBe('diamond');
     expect(next.bagSlots[0]!.tier).toBe('diamond');
@@ -822,7 +741,7 @@ describe('run/events: upgradeCard', () => {
     const { state } = stateAtFirstEvent(4);
     const rigged: RunState = { ...state, gold: 10, pieces: [], bagSlots: [] };
     const { state: next, outcome } = resolveEventChoice(rigged, 'cinderworks_regrind', 'regrind');
-    expect(outcome).toEqual({ kind: 'upgradeCard', fellBack: true, gambled: false });
+    expect(outcome).toEqual({ kind: 'upgradeCard', fellBack: true });
     expect(next.gold).toBe(10 - 5 + 2);
   });
 
@@ -855,7 +774,7 @@ describe('run/events: upgradeCard', () => {
       const node = { ...currentEventNodeOrThrow(state), eventSeed: i };
       const rigged: RunState = { ...state, map: replaceNode(state.map, node), gold: 0 };
       const { outcome } = resolveEventChoice(rigged, 'ember_pit', 'reach_in');
-      expect(outcome).toEqual({ kind: 'grantGold', amount: 1, gambled: false });
+      expect(outcome).toEqual({ kind: 'grantGold', amount: 1 });
     }
   });
 

@@ -399,8 +399,8 @@ export function currentEventDef(): EventDef | undefined {
   return event;
 }
 
-/** Resolves a choice on the current event node: deducts cost, rolls any
- * gamble, applies the outcome. Undefined if there's no active event node. */
+/** Resolves a choice on the current event node: deducts cost, applies the
+ * outcome. Undefined if there's no active event node. */
 export function resolveCurrentEventChoice(eventId: string, choiceId: string): EventOutcome | undefined {
   if (!activeRun) return undefined;
   const { state, outcome } = resolveEventChoice(activeRun, eventId, choiceId);

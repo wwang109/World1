@@ -1,4 +1,4 @@
-import type { EventChoiceOutcome } from '../../data/events';
+import type { EventOutcomeSpec } from '../../data/events';
 import type { EventOutcome } from '../../run/events';
 import { skillBook } from '../../data/skills';
 
@@ -9,12 +9,8 @@ function skillName(skillId: string): string {
 }
 
 /** Short inline reward hint shown on a choice button ("→ CARD (BRONZE)",
- * "→ +2 GOLD", "→ GAMBLE"…) — gambles telegraph as "GAMBLE" since the exact
- * odds/stakes are already spelled out in the choice label/event body
- * (docs/run-events-design.md §2: "gambles must telegraph stakes in the body
- * text"), not re-derived here. */
-export function choiceOutcomeHint(outcome: EventChoiceOutcome): string {
-  if (outcome.kind === 'gamble') return 'GAMBLE';
+ * "→ +2 GOLD"…). */
+export function choiceOutcomeHint(outcome: EventOutcomeSpec): string {
   switch (outcome.kind) {
     case 'grantCard': {
       // A `cardId`-pinned choice (e.g. veterans_last_lesson's "take the
@@ -51,19 +47,19 @@ export function choiceOutcomeHint(outcome: EventChoiceOutcome): string {
 
 /** Headline + detail line for a RESOLVED outcome (what actually happened),
  * for the event scene's outcome panel. The headline is the one-line summary;
- * `detail` (may be empty) adds gamble/fallback context. */
+ * `detail` (may be empty) adds fallback context. */
 export function outcomeHeadline(outcome: EventOutcome): { headline: string; detail: string } {
   switch (outcome.kind) {
     case 'grantCard':
       return outcome.fellBack
         ? { headline: 'Bag was full — took gold instead', detail: '' }
-        : { headline: `Gained a ${outcome.tier.toUpperCase()} card`, detail: outcome.gambled ? 'The gamble paid off.' : '' };
+        : { headline: `Gained a ${outcome.tier.toUpperCase()} card`, detail: '' };
     case 'grantGem':
-      return { headline: 'Gained a gem', detail: outcome.gambled ? 'The gamble paid off.' : '' };
+      return { headline: 'Gained a gem', detail: '' };
     case 'grantGold':
       return outcome.fellBack
         ? { headline: `Bag was full — gained ${outcome.amount} gold instead`, detail: '' }
-        : { headline: `Gained ${outcome.amount} gold`, detail: outcome.gambled ? 'The gamble paid off.' : '' };
+        : { headline: `Gained ${outcome.amount} gold`, detail: '' };
     case 'loseGold':
       return { headline: `Lost ${outcome.amount} gold`, detail: '' };
     case 'grantLevel':
@@ -88,10 +84,10 @@ export function outcomeHeadline(outcome: EventOutcome): { headline: string; deta
         ? { headline: 'Nothing eligible to upgrade — took gold instead', detail: '' }
         : {
             headline: `Your ${skillName(outcome.skillId!)} is re-tempered — ${outcome.from!.toUpperCase()} → ${outcome.to!.toUpperCase()}.`,
-            detail: outcome.gambled ? 'The gamble paid off.' : '',
+            detail: '',
           };
     case 'nothing':
-      return { headline: outcome.gambled ? 'The gamble came up empty' : 'Nothing happens', detail: '' };
+      return { headline: 'Nothing happens', detail: '' };
     default: {
       // Exhaustiveness guard (same idiom as `applySpec` in src/run/events.ts):
       // a future `EventOutcome` kind added to the union without a case here

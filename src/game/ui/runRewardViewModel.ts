@@ -32,7 +32,7 @@ export interface RunRewardViewModel {
   iconKey: string;
   /** "Gained a BRONZE card" — the one-line (up to 2) summary. */
   headline: string;
-  /** Optional second line ("The gamble paid off."). */
+  /** Optional second line for fallback/context text. */
   detail?: string;
   feature: RunRewardFeature;
 }
