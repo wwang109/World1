@@ -100,11 +100,31 @@ type PendingSell = { location: 'board' | 'bag' | 'gem'; index: number };
  * (SELL) in one unified drag system. */
 type DragSource =
   | { kind: 'shelfCard'; index: number }
+  /** A shelf GEM offer — tap-only (no drop target, unlike `shelfCard`'s
+   * drag-to-board/bag), but still routed through this same unified system
+   * (rather than a bespoke native `setInteractive`) so it shares the
+   * `shelfCard` viewport gate below. See `wireDrag`'s pointerdown doc
+   * comment for why that gate is load-bearing: a shelf row scrolled below
+   * the masked viewport keeps its full, unclipped hit box (Phaser masks
+   * clip rendering, never input), and this scene's shelf container renders
+   * ON TOP of the run HUD (added later in `create()`) — a mobile-twin bug
+   * (LEAVE SHOP unresponsive after 2 rerolls) confirmed this is a real
+   * hazard, not merely theoretical, on this same rerender pattern. */
+  | { kind: 'shelfGem'; index: number }
   | { kind: 'board'; index: number } // index into `this.pieces`
   | { kind: 'bag'; index: number } // slot index into `this.bagSlots`
   | { kind: 'gem'; index: number }; // index into `this.gemInventory`
 
-interface DragEntry { bounds: Phaser.Geom.Rectangle; src: DragSource; obj: Phaser.GameObjects.Container }
+/** `obj` is a `Container` for every OTHER drag source (CardToken/board-bag
+ * tokens/pouch gem box) but a plain `Rectangle` for `shelfGem` (no per-row
+ * container exists — the row's texts are siblings, not children, so only the
+ * backing cell needs a hit box). Every op this scene runs on `.obj`
+ * (`setPosition`/`setDepth`/`setAlpha`) exists on both. */
+interface DragEntry {
+  bounds: Phaser.Geom.Rectangle;
+  src: DragSource;
+  obj: Phaser.GameObjects.Container | Phaser.GameObjects.Rectangle;
+}
 
 /**
  * Geometry the drag hit-testing (`wireDrag`) and the invalid-drop flash need
@@ -611,8 +631,14 @@ export class DesktopShopScene extends Phaser.Scene {
         }
         const gem = gemBook[offer.gemId]!;
         const cell = A(this.add.rectangle(cx, cy, gemW, gemH, UI.panel, 0.94)
-          .setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8).setInteractive({ useHandCursor: true }));
-        cell.on('pointerdown', () => { playSfx('uiClick'); this.detailGemIndex = i; this.inspectOwned = null; this.rerender(); });
+          .setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.8));
+        // Routed through the unified `draggables` system (see `DragSource`'s
+        // `shelfGem` doc comment) instead of a native `setInteractive` +
+        // `pointerdown` — that native form had no viewport gate, so a gem row
+        // scrolled below the masked shelf viewport (a fresh, real offer, not
+        // a non-interactive SOLD OUT placeholder) kept its full hit box and
+        // could swallow taps aimed at content below it.
+        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, cy, gemW, gemH), src: { kind: 'shelfGem', index: i }, obj: cell });
         A(this.add.rectangle(cx + 22, cy + 22, 14, 14, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45));
         A(this.add.text(cx + 38, cy + 12, gem.name, { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.text }));
         const body = A(this.add.text(cx + 16, cy + 40, stripCardTextMarkup(gem.text), {
@@ -1124,7 +1150,10 @@ export class DesktopShopScene extends Phaser.Scene {
    * captured `bounds` assume an unscrolled container, so hit-testing against
    * the pointer's WORLD coords must add the container's current scroll y. */
   private worldBounds(e: DragEntry): Phaser.Geom.Rectangle {
-    if (e.src.kind !== 'shelfCard' || !this.shelfContainer) return e.bounds;
+    // Both shelf-hosted kinds (`shelfCard`, `shelfGem`) live inside the
+    // scrollable container — their captured `bounds` assume an unscrolled
+    // container, exactly alike.
+    if ((e.src.kind !== 'shelfCard' && e.src.kind !== 'shelfGem') || !this.shelfContainer) return e.bounds;
     return new Phaser.Geom.Rectangle(e.bounds.x, e.bounds.y + this.shelfContainer.y, e.bounds.width, e.bounds.height);
   }
 
@@ -1178,7 +1207,7 @@ export class DesktopShopScene extends Phaser.Scene {
 
   private wireDrag(): void {
     this.input.removeAllListeners();
-    let dragging: { src: DragSource; obj: Phaser.GameObjects.Container } | null = null;
+    let dragging: { src: DragSource; obj: Phaser.GameObjects.Container | Phaser.GameObjects.Rectangle } | null = null;
     let ghost: Phaser.GameObjects.Container | null = null;
     let totalMove = 0;
     let start = { x: 0, y: 0 };
@@ -1199,15 +1228,15 @@ export class DesktopShopScene extends Phaser.Scene {
       // behind a state flag at all (see `renderStorefront`).
       if (wasPointerConsumedByRebuild(this, p)) return;
       if (this.pendingBuy || this.pendingSell || this.retireConfirmOpen) return;
-      // A shelfCard's registered bounds are its UNCLIPPED position inside the
-      // scrollable container — a card scrolled below the masked viewport
-      // still has bounds sitting where it would be, invisible but "clickable"
-      // there. Gate shelfCard hits on `inViewport` too, or a scrolled-away
-      // card can steal a tap intended for whatever's actually visible at
-      // that pixel (the BOARD/BAG columns, once the shelf is short enough to
-      // need scrolling at all — true for mobile's default stock).
+      // A shelfCard/shelfGem's registered bounds are its UNCLIPPED position
+      // inside the scrollable container — a row scrolled below the masked
+      // viewport still has bounds sitting where it would be, invisible but
+      // "clickable" there. Gate BOTH shelf-hosted kinds on `inViewport`, or a
+      // scrolled-away row can steal a tap intended for whatever's actually
+      // visible at that pixel (the BOARD/BAG columns, once the shelf is short
+      // enough to need scrolling at all — true for mobile's default stock).
       const hit = this.draggables.find((d) => this.worldBounds(d).contains(p.worldX, p.worldY)
-        && (d.src.kind !== 'shelfCard' || inViewport(p.worldX, p.worldY)));
+        && ((d.src.kind !== 'shelfCard' && d.src.kind !== 'shelfGem') || inViewport(p.worldX, p.worldY)));
       if (hit) {
         dragging = { src: hit.src, obj: hit.obj };
         totalMove = 0;
@@ -1227,12 +1256,16 @@ export class DesktopShopScene extends Phaser.Scene {
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (dragging) {
         totalMove = Math.max(totalMove, Math.hypot(p.worldX - start.x, p.worldY - start.y));
-        if (dragging.src.kind === 'shelfCard' && this.shelfContainer) {
+        if (dragging.src.kind === 'shelfGem') {
+          // Tap-only shelf offer (no drop target) — no drag visual, mirrors
+          // the native-listener behavior this replaced; `totalMove` above is
+          // still tracked for the tap-vs-drag threshold in `pointerup`.
+        } else if (dragging.src.kind === 'shelfCard' && this.shelfContainer) {
           dragging.obj.setPosition(p.worldX, p.worldY - this.shelfContainer.y);
         } else {
           dragging.obj.setPosition(p.worldX, p.worldY);
         }
-        if (dragging.src.kind !== 'shelfCard' && this.sellZoneRectObj && this.sellZoneLabelObj) {
+        if (dragging.src.kind !== 'shelfCard' && dragging.src.kind !== 'shelfGem' && this.sellZoneRectObj && this.sellZoneLabelObj) {
           const sell = this.sellRefFor(dragging.src);
           const hovering = sell != null && this.ownedColumns != null && this.ownedColumns.sellRect.contains(p.worldX, p.worldY);
           if (hovering && sell) {
@@ -1294,6 +1327,20 @@ export class DesktopShopScene extends Phaser.Scene {
               this.invalidFlash = { where, index: slot };
             }
           }
+        }
+        this.rerender();
+        return;
+      }
+
+      // Shelf GEM offer: tap-only, same open-detail action the old native
+      // `pointerdown` listener performed — see `DragSource`'s `shelfGem` doc
+      // comment for why this now lives in the unified system instead.
+      if (src.kind === 'shelfGem') {
+        draggedObj.setDepth(0).setAlpha(1);
+        if (totalMove < 6) {
+          playSfx('uiClick');
+          this.detailGemIndex = src.index;
+          this.inspectOwned = null;
         }
         this.rerender();
         return;
