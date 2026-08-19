@@ -632,6 +632,21 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const unitOf = (e: { unit?: number }): number => e.unit ?? 0;
   const label = (e: Extract<CombatEvent, { side: 'player' | 'enemy' }>): string =>
     (e.side === 'player' ? heroName : (foes[unitOf(e as { unit?: number })]?.name ?? foeName));
+  // Number of units on `side` still standing AS OF the current point in the
+  // event stream (`curPlayer`/`curEnemies`, updated by the `damage` case below
+  // as it's walked) — the gate for whether a single-target PLAY line needs to
+  // name its victim at all: with only one unit left on the target's side there
+  // is no ambiguity to resolve (mirrors `scripts/fight.ts`, commit 902e178).
+  const sideLivingCount = (side: 'player' | 'enemy'): number =>
+    (side === 'player' ? (curPlayer > 0 ? 1 : 0) : curEnemies.filter((hp) => hp > 0).length);
+  // `#n` (1-based lineup position) only when the side actually fields more
+  // than one unit — same convention `scripts/fight.ts` just landed, so a 1v1
+  // fight's target note never grows a redundant "#1".
+  const sideUnitLabel = (side: 'player' | 'enemy', unit: number): string => {
+    if (side === 'player') return heroName; // today's single hero unit — never ambiguous.
+    const name = foes[unit]?.name ?? foeName;
+    return foes.length > 1 ? `${name} #${unit + 1}` : name;
+  };
   // Turn-start readiness row: the engine emits one `gain` event PER LIVING
   // COMBATANT at the top of every turn, always consecutively (before any
   // play/busy/wait event for that turn — see simulate.ts Phase 1). Buffer the
@@ -782,7 +797,18 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // way `slowNote` surfaces a hidden weight modifier, so the PLAY row
         // itself (not just the card face) distinguishes the two.
         const aoeNote = e.aoe ? ` · AOE ×${e.targets?.length ?? 0}` : '';
-        const playLine = push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress}${aoeNote} · WEIGHT ${e.weight}${slowNote}`);
+        // Named victim for a single-target cast — the same defect the ASCII
+        // fight log just had fixed (commit 902e178): a pack fight's PLAY line
+        // named the caster but never which of several living foes its
+        // targeting policy actually picked. Silent (no note) for a support/
+        // self cast (no `targetUnit`), an AoE cast (already says `AOE ×N`
+        // above), or when the target's side only fields one living unit — a
+        // 1v1 fight's log reads byte-identically to before this fix.
+        const targetSide: 'player' | 'enemy' = e.side === 'player' ? 'enemy' : 'player';
+        const targetNote = !e.aoe && e.targetUnit !== undefined && sideLivingCount(targetSide) > 1
+          ? ` · target ${sideUnitLabel(targetSide, e.targetUnit)}`
+          : '';
+        const playLine = push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress}${aoeNote}${targetNote} · WEIGHT ${e.weight}${slowNote}`);
         // The matching `cost` event (readinessAfter = the bank left once this
         // weight is paid) hasn't been emitted yet — see the `pendingPlayLine`
         // comment above. Held here; filled in by the `cost` case below.

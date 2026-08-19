@@ -1221,4 +1221,88 @@ describe('game/battleTimeline', () => {
       expect(lines.find((l) => l.text.includes('Stun'))!.text).toBe(`${model.foeName} · Stun 1 turn`);
     });
   });
+
+  // ---- PLAY line names its victim (the same defect scripts/fight.ts had
+  // fixed, commit 902e178) — the engine has always recorded `targetUnit` on
+  // the `play` event, but the PLAY row only ever read `aoe`/`targets`, so a
+  // pack fight's log named the caster and never said which of several living
+  // foes its targeting policy picked.
+  describe('PLAY row names its single-target victim in a multi-foe fight', () => {
+    const multiInput: BattleTimelineInput = {
+      ...BASE,
+      enemyTeam: [
+        { enemyId: 'bandit_duelist', level: 1, title: 'elite', rank: 2, modifiers: [] },
+        { enemyId: 'giant_rat', level: 1, title: 'normal', rank: 0, modifiers: [] },
+      ],
+    };
+
+    it('names the chosen foe when its side has more than one living unit', () => {
+      const events: CombatEvent[] = [
+        {
+          turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'sword_slash',
+          weight: 6, size: 1, slotIndex: 1, slotCount: 1,
+          targetUnit: 1, targetPolicy: 'lowestHp', targetValue: 40,
+        },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(multiInput, { events, result: 'win', turns: 2 });
+      const playLine = [...model.linesByTurn.values()].flat().find((l) => l.tag === 'PLAY')!;
+      expect(playLine.text).toContain(`· target ${model.foes[1]!.name} #2`);
+    });
+
+    it('names nothing extra for an AoE cast — the existing "AOE ×N" note stands alone', () => {
+      const events: CombatEvent[] = [
+        {
+          turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'sword_slash',
+          weight: 6, size: 1, slotIndex: 1, slotCount: 1,
+          aoe: true, targets: [0, 1],
+        },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(multiInput, { events, result: 'win', turns: 2 });
+      const playLine = [...model.linesByTurn.values()].flat().find((l) => l.tag === 'PLAY')!;
+      expect(playLine.text).toContain('AOE ×2');
+      expect(playLine.text).not.toContain('· target');
+    });
+
+    it('names nothing on a support/self cast — no targetUnit on the event at all', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'second_wind', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(multiInput, { events, result: 'win', turns: 2 });
+      const playLine = [...model.linesByTurn.values()].flat().find((l) => l.tag === 'PLAY')!;
+      expect(playLine.text).not.toContain('· target');
+    });
+  });
+
+  describe('PLAY row prints no redundant target in a 1v1 fight', () => {
+    it('a single-target cast against a lone foe adds no "· target" note', () => {
+      const events: CombatEvent[] = [
+        {
+          turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'sword_slash',
+          weight: 6, size: 1, slotIndex: 1, slotCount: 1,
+          targetUnit: 0, targetPolicy: 'first',
+        },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const playLine = [...model.linesByTurn.values()].flat().find((l) => l.tag === 'PLAY')!;
+      expect(playLine.text).not.toContain('· target');
+    });
+
+    it('an enemy casting on the lone hero adds no "· target" note either (the hero side never has more than one unit)', () => {
+      const events: CombatEvent[] = [
+        {
+          turn: 1, kind: 'play', side: 'enemy', unit: 0, slot: 0, skillId: 'sword_slash',
+          weight: 6, size: 1, slotIndex: 1, slotCount: 1,
+          targetUnit: 0, targetPolicy: 'first',
+        },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      const playLine = [...model.linesByTurn.values()].flat().find((l) => l.tag === 'PLAY')!;
+      expect(playLine.text).not.toContain('· target');
+    });
+  });
 });
