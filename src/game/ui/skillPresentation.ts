@@ -180,19 +180,32 @@ export interface EffectSegment {
  * uses THIS form directly so it can color each token independently.
  */
 export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed'): EffectSegment[] {
-  // Reach is the load-bearing word: an all-board +5 and an adjacent +15 are
-  // the same PL, and the face must not present them as the same kind of card.
+  // User ruling (2026-08-20): "aura card should just say aura, not this far
+  // near thing." This branch used to lead with a reach word (ALL/NEAR)
+  // because an all-board +5 and an adjacent +15 price the same and the face
+  // must not present them as the same kind of card — that PL argument is
+  // still true, but the user judged it a bad trade for a face token nobody
+  // could decode on sight. Reach now lives in exactly two places: the full
+  // card text every aura card carries ("Passive: adjacent Offense cards deal
+  // +15 damage." / "Passive: ALL board cards deal +6 damage.", see
+  // skills.v1.json), and the wiki detail pane that renders that text verbatim
+  // (`shown.text` in DesktopWikiScene.ts / MobileWikiScene.ts). No keyword
+  // color: `aura` names a card MECHANIC (how the mod is delivered), not a
+  // status/keyword like poison or guard with its own color elsewhere to
+  // match (no card's flavor text ever wraps `{{aura}}` — the six aura cards'
+  // text above has no markup at all) — same reasoning that leaves AOE/DMG/
+  // HEAL/buffStat/debuffStat neutral, so this token stays neutral too.
   if (skill.aura) {
-    const reach = skill.aura.affects === 'allBoard' ? 'ALL' : 'NEAR';
-    return [{ text: `${reach} ${formatAuraModifiers(skill.aura.mods, true)}` }];
+    return [{ text: `AURA ${formatAuraModifiers(skill.aura.mods, true)}` }];
   }
 
   const segments: EffectSegment[] = [];
-  // AoE is the OTHER load-bearing word (see the aura comment above): a card
-  // that reaches every living foe must not present as the same kind of card
-  // as an otherwise-identical single-target one. Led, like the aura reach
-  // token, so it survives this line's own ellipsis clamp (CardToken.ts)
-  // rather than being the first thing truncated off a crowded face.
+  // AoE is load-bearing the way aura reach used to be (see the aura branch
+  // above, before the 2026-08-20 ruling dropped that one from the face): a
+  // card that reaches every living foe must not present as the same kind of
+  // card as an otherwise-identical single-target one. Led so it survives this
+  // line's own ellipsis clamp (CardToken.ts) rather than being the first
+  // thing truncated off a crowded face.
   if (isAoeSkill(skill)) segments.push({ text: 'AOE' });
   let damage = 0;
   let heal = 0;
@@ -234,23 +247,48 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
       // above — same gap, same fix: P.NEGATE / M.NEGATE / T.NEGATE, mirroring
       // the battle log's negateToken (battleTimeline.ts).
       case 'negate': extras.push({ text: `${action.property === 'physical' ? 'P' : action.property === 'magical' ? 'M' : 'T'}.NEGATE ×${action.charges}`, keyword: 'negate' }); break;
-      case 'cleanse': extras.push({ text: `CLEANSE ${action.charges}`, keyword: 'cleanse' }); break;
+      // `×N` marks a CHARGE count (one-time uses, spent as consumed) the same
+      // way NEGATE and WARD mark theirs just below — a bare "CLEANSE 3" sat
+      // inconsistently next to those two for the same kind of number (sweep,
+      // 2026-08-20).
+      case 'cleanse': extras.push({ text: `CLEANSE ×${action.charges}`, keyword: 'cleanse' }); break;
       // A ward has NO property axis (unlike guard/negate above) — afflictions
       // carry no attacker property to match — so the face token is unqualified.
       case 'ward': extras.push({ text: `WARD ×${action.charges}`, keyword: 'ward' }); break;
       case 'taunt': extras.push({ text: 'TAUNT' }); break;
       case 'lifesteal': extras.push({ text: `LSTEAL ${action.pct}%`, keyword: 'lifesteal' }); break;
       case 'shieldBreak': extras.push({ text: `SHATTER ${action.amount}`, keyword: 'shatter' }); break;
-      case 'comboBonus': extras.push({ text: `SKILL +${action.amount}`, keyword: 'combo' }); break;
-      case 'slow': extras.push({ text: `SLOW +${action.weight}`, keyword: 'slow' }); break;
-      // SPLASH is `slow` at CARD scope — BAND (not a fixed "×3") because the
-      // band is the anchor slot plus its edge-to-edge neighbours: 3 pieces
-      // mid-board, but only 2 on a 2-card board or at a board edge (the band
-      // never wraps — see cardGlossary.ts's `splash` prose and
-      // combat/splash.ts), and 1 on a 1-card board. "×3" printed a count the
-      // engine doesn't guarantee; "BAND" names the shape without promising a
-      // number, and still reads distinctly from the unit-wide SLOW token above.
-      case 'splash': extras.push({ text: `SPLASH +${action.weight} BAND`, keyword: 'splash' }); break;
+      // The keyword is 'combo' (glossary title "Combo", KEYWORD_TEXT_COLOR
+      // has a 'combo' entry), but this face token printed 'SKILL' instead of
+      // its own keyword's name. That word IS used elsewhere — battleTimeline's
+      // `formatDmg`/`formatHeal` label the runtime `effectBonusDamage`/
+      // `healFlat` bucket "SKILL" — but that is a DIFFERENT, wider thing: a
+      // combined-at-resolve-time total across every flat bonus source
+      // (aura AND comboBonus together), read inside an already-labeled `D: …`
+      // derivation. This token instead names ONE card's OWN comboBonus effect
+      // before combat ever runs, with no derivation line to lean on, so it
+      // needs its own keyword's name to read on its own — "COMBO" (sweep,
+      // 2026-08-20). `amount` is a flat damage add, spent by the next
+      // `damage` action in this same cast (`CastCtx.bonusFlat`,
+      // combat/interpreter.ts), so it gets the DMG unit too.
+      case 'comboBonus': extras.push({ text: `COMBO +${action.amount} DMG`, keyword: 'combo' }); break;
+      // WT is the established face abbreviation for a weight tax (see
+      // `formatAuraModifiers`'s `compact` mode) — SLOW's `action.weight` is
+      // exactly that currency, so it gets the same unit rather than a bare
+      // number a player has to guess the meaning of.
+      case 'slow': extras.push({ text: `SLOW +${action.weight} WT`, keyword: 'slow' }); break;
+      // User ruling (2026-08-20): "I been seeing splash +6 band, what does
+      // that even mean." SPLASH is `slow` at CARD scope, so its number is the
+      // SAME weight tax SLOW prints above — it now carries the same WT unit
+      // instead of the invented noun "BAND". The shape BAND used to name (the
+      // anchor slot plus its edge-to-edge neighbours: 3 pieces mid-board, but
+      // only 2 on a 2-card board or at a board edge — the band never wraps —
+      // and 1 on a 1-card board) is real and still explained in full, just not
+      // on the compact face: it lives in `cardGlossary.ts`'s `splash` entry
+      // (tap-to-expand) and `combat/splash.ts`. "×3" would still be wrong here
+      // for the reason the old comment gave — the engine doesn't guarantee a
+      // fixed count — so the fix is the established unit, not a corrected count.
+      case 'splash': extras.push({ text: `SPLASH +${action.weight} WT`, keyword: 'splash' }); break;
       case 'disrupt': extras.push({ text: `STAG ${action.amount}`, keyword: 'disrupt' }); break;
       // `statStrike` (the Resonant Echo gem's payload — see gems.ts) is an
       // EXTRA, self-contained hit with no `power` of its own (engine/types.ts):

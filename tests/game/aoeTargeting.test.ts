@@ -67,16 +67,18 @@ describe('summarizeEffects — AoE face marker', () => {
     expect(summarizeEffects(skill)).toBe('HEAL 20');
   });
 
-  it('an aura card keeps its own ALL/NEAR reach word and never prints AOE too', () => {
+  it('an aura card keeps its own AURA token and never prints AOE too', () => {
     // Mutually exclusive branch (summarizeEffects returns early for auras) —
-    // scope is meaningless there; this pins that the two reach vocabularies
-    // never collide on one face.
+    // scope is meaningless there; this pins that AOE never leaks onto an aura
+    // face. (Reach — ALL vs adjacent — dropped off the aura token entirely by
+    // a separate 2026-08-20 ruling; see skillPresentation.test.ts's "aura
+    // cards just say AURA" suite.)
     const skill = makeSkill({
       effects: [],
       scope: 'all',
       aura: { affects: 'allBoard', mods: { damageFlat: 5 } },
     });
-    expect(summarizeEffects(skill)).toBe('ALL +5 DMG');
+    expect(summarizeEffects(skill)).toBe('AURA +5 DMG');
   });
 
   // THE CASE THIS FIX EXISTS FOR: `TierUpgrade.scope` (engine/types.ts) lets a

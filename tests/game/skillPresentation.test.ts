@@ -140,23 +140,29 @@ describe('summarizeEffects — guard/negate property tokens', () => {
   });
 });
 
-describe('summarizeEffects — aura reach on the card face', () => {
-  it('all-board auras lead with ALL', () => {
+// User ruling (2026-08-20): "aura card should just say aura, not this far
+// near thing." The face used to lead with a reach word (ALL/NEAR) — an
+// all-board +5 and an adjacent +15 price the same and the OLD face token
+// distinguished them for that reason — but the user overruled it for the
+// compact face; reach now lives only in the full card text + wiki detail
+// pane (see the comment above `summarizeEffectSegments`'s aura branch).
+describe('summarizeEffects — aura cards just say AURA', () => {
+  it('an all-board aura reads AURA, no reach word', () => {
     const skill = makeSkill({ aura: { affects: 'allBoard', mods: { damageFlat: 5 } } });
-    expect(summarizeEffects(skill)).toBe('ALL +5 DMG');
+    expect(summarizeEffects(skill)).toBe('AURA +5 DMG');
   });
 
-  it('adjacent auras lead with NEAR', () => {
+  it('an adjacent aura ALSO reads AURA — same token as all-board, on purpose', () => {
     const skill = makeSkill({
       aura: { affects: 'adjacent', archetypeFilter: 'offense', mods: { damageFlat: 15 } },
     });
-    expect(summarizeEffects(skill)).toBe('NEAR +15 DMG');
+    expect(summarizeEffects(skill)).toBe('AURA +15 DMG');
   });
 
-  it('weight auras keep the reach word too', () => {
+  it('weight auras drop the reach word too', () => {
     const skill = makeSkill({ aura: { affects: 'adjacent', mods: { weightDelta: -5 } } });
-    expect(summarizeEffects(skill)).toBe('NEAR -5 WT');
-    expect(summarizeEffects(skill, { attack: 10, magicPower: 10, armor: 0, magicResist: 0 })).toBe('NEAR -5 WT');
+    expect(summarizeEffects(skill)).toBe('AURA -5 WT');
+    expect(summarizeEffects(skill, { attack: 10, magicPower: 10, armor: 0, magicResist: 0 })).toBe('AURA -5 WT');
   });
 });
 
@@ -235,6 +241,33 @@ describe('summarizeEffects — desktop composition mode', () => {
 
   it('leaves aura cards untouched by mode', () => {
     const skill = makeSkill({ aura: { affects: 'allBoard', mods: { damageFlat: 5 } } });
-    expect(summarizeEffects(skill, undefined, 'composition')).toBe('ALL +5 DMG');
+    expect(summarizeEffects(skill, undefined, 'composition')).toBe('AURA +5 DMG');
+  });
+});
+
+// Sweep (2026-08-20): the rest of `summarizeEffectSegments`'s tokens audited
+// against "a first-time player can tell what the number is AND roughly who it
+// lands on" — three genuine inconsistencies fixed alongside the two rulings
+// above; everything else in the switch already passed (established
+// abbreviations, bare stack counts matching the battle log's own convention).
+describe('summarizeEffects — sweep fixes', () => {
+  it('SLOW carries the WT unit (was a bare number)', () => {
+    const skill = makeSkill({ effects: [{ kind: 'slow', weight: 6 }] });
+    expect(summarizeEffects(skill)).toBe('SLOW +6 WT');
+  });
+
+  it('SPLASH uses the WT unit instead of the invented "BAND" noun', () => {
+    const skill = makeSkill({ effects: [{ kind: 'splash', weight: 6 }] });
+    expect(summarizeEffects(skill)).toBe('SPLASH +6 WT');
+  });
+
+  it('CLEANSE marks its charge count with × like NEGATE/WARD do', () => {
+    const skill = makeSkill({ effects: [{ kind: 'cleanse', charges: 2 }] });
+    expect(summarizeEffects(skill)).toBe('CLEANSE ×2');
+  });
+
+  it('comboBonus reads COMBO (its own keyword name), not the unrelated "SKILL", plus the DMG unit', () => {
+    const skill = makeSkill({ effects: [{ kind: 'comboBonus', amount: 20 }] });
+    expect(summarizeEffects(skill)).toBe('COMBO +20 DMG');
   });
 });
