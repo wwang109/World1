@@ -5,9 +5,11 @@ import { gemBook } from '../../src/data/gems';
 import {
   applyBonusDraftPick,
   applyGemChoicePick,
+  applySellGemPick,
   applyUpgradeCardPick,
   EVENT_CHOICE_SIZE,
   isEventChoiceAffordable,
+  isEventChoiceUsable,
   resolveEventChoice,
   rollEventForNode,
 } from '../../src/run/events';
@@ -24,7 +26,7 @@ import {
   type RunState,
 } from '../../src/run/runState';
 import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
-import { gemMatchesFilter } from '../../src/run/shop';
+import { gemMatchesFilter, sellPriceOfGem } from '../../src/run/shop';
 
 function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
   const draft = rollStartDraft(seed);
@@ -69,6 +71,7 @@ const OUTCOME_KINDS = new Set([
   'cardChoice',
   'gemChoice',
   'upgradeCard',
+  'sellGem',
   'nothing',
 ]);
 
@@ -242,19 +245,22 @@ describe('data/events: catalog lint', () => {
     expect(pool.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('exactly 8 cardChoice and 11 gemChoice outcomes in the catalog (2026-08-18 agency widening + 2026-08-19 new-mechanics batch and defect-fix pass), and the 5 named-card grants are accounted for', () => {
+  it('exactly 8 cardChoice, 10 gemChoice, and 1 sellGem outcome in the catalog (2026-08-18 agency widening + 2026-08-19 new-mechanics batch and defect-fix pass + 2026-08-20 sellGem, which replaced the_lapidary\'s old cutting_cut gemChoice), and the 5 named-card grants are accounted for', () => {
     let cardChoiceCount = 0;
     let gemChoiceCount = 0;
+    let sellGemCount = 0;
     let namedGrantCardCount = 0;
     for (const id of eventCatalogIds) {
       for (const choice of eventCatalog[id]!.choices) {
         if (choice.outcome.kind === 'cardChoice') cardChoiceCount++;
         if (choice.outcome.kind === 'gemChoice') gemChoiceCount++;
+        if (choice.outcome.kind === 'sellGem') sellGemCount++;
         if (choice.outcome.kind === 'grantCard' && choice.outcome.cardId) namedGrantCardCount++;
       }
     }
     expect(cardChoiceCount).toBe(8);
-    expect(gemChoiceCount).toBe(11);
+    expect(gemChoiceCount).toBe(10);
+    expect(sellGemCount).toBe(1);
     expect(namedGrantCardCount).toBe(5);
   });
 
@@ -937,12 +943,129 @@ describe('run/events: cardChoice/gemChoice (the 2026-08-18 agency widening)', ()
       }
     }
     // Sanity on the sweep itself — matches the catalog-lint count test above
-    // (8 cardChoice, 11 gemChoice — 2026-08-19 defect fix converted
+    // (8 cardChoice, 10 gemChoice — 2026-08-19 defect fix converted
     // sweep_drill's `proper_stance` from a cardChoice to a named grantCard,
-    // see that event's own comment) so a future content edit that silently
-    // drops one of these choices out of the vocabulary is also caught here.
+    // see that event's own comment; 2026-08-20 replaced the_lapidary's
+    // `cutting_cut` gemChoice with a `sellGem` choice, 11 -> 10) so a future
+    // content edit that silently drops one of these choices out of the
+    // vocabulary is also caught here.
     expect(cardChoiceChecked).toBe(8);
-    expect(gemChoiceChecked).toBe(11);
+    expect(gemChoiceChecked).toBe(10);
+  });
+});
+
+describe('run/events: sellGem (2026-08-20 — the lapidary event\'s originally-wanted "sell a gem" outcome)', () => {
+  // Three real, distinct gem ids (deterministic book order) — used as a
+  // synthetic pouch, never the live-catalog roll (this outcome has no `Rng`
+  // draw of its own to seed; see `sellGemOutcome`'s doc comment).
+  const GEM_IDS = Object.keys(gemBook);
+  const gemA = GEM_IDS[0]!;
+  const gemB = GEM_IDS[1]!;
+  const gemC = GEM_IDS[2]!;
+
+  it('sellGemOutcome offers every pouch gem, in inventory order, priced at sellPriceOfGem', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withPouch = { ...state, gold: 0, gemInventory: [gemA, gemB, gemC] };
+    const { outcome } = resolveEventChoice(withPouch, 'the_lapidary', 'sell_facet');
+    expect(outcome.kind).toBe('sellGemPick');
+    if (outcome.kind !== 'sellGemPick') return;
+    expect(outcome.options).toEqual([
+      { pouchIndex: 0, gemId: gemA, price: sellPriceOfGem(gemA) },
+      { pouchIndex: 1, gemId: gemB, price: sellPriceOfGem(gemB) },
+      { pouchIndex: 2, gemId: gemC, price: sellPriceOfGem(gemC) },
+    ]);
+  });
+
+  it('resolving sellGem does not itself mutate the pouch or wallet — nothing happens until the pick is finalized', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withPouch = { ...state, gold: 0, gemInventory: [gemA, gemB] };
+    const { state: afterChoice } = resolveEventChoice(withPouch, 'the_lapidary', 'sell_facet');
+    expect(afterChoice.gemInventory).toEqual(withPouch.gemInventory);
+    expect(afterChoice.gold).toBe(withPouch.gold);
+  });
+
+  it('applySellGemPick removes exactly the picked pouch gem and credits exactly its sellPriceOfGem gold', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withPouch = { ...state, gold: 3, gemInventory: [gemA, gemB, gemC] };
+    const price = sellPriceOfGem(gemB);
+    const { state: final, outcome } = applySellGemPick(withPouch, 1);
+    expect(outcome).toEqual({ kind: 'sellGem', gemId: gemB, price });
+    expect(final.gold).toBe(withPouch.gold + price);
+    // Exactly gemB's slot is gone — gemA/gemC (and their relative order)
+    // survive untouched, not just "the count went down by one".
+    expect(final.gemInventory).toEqual([gemA, gemC]);
+    expect(final.stats.goldEarned).toBe(withPouch.stats.goldEarned + price);
+  });
+
+  it('applySellGemPick throws on an out-of-range/empty pouch index (defensive — the picker only ever passes back an offered index)', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withPouch = { ...state, gemInventory: [gemA] };
+    expect(() => applySellGemPick(withPouch, 5)).toThrow();
+    expect(() => applySellGemPick(withPouch, -1)).toThrow();
+  });
+
+  it('round-trips through resolveEventChoice -> applySellGemPick exactly like the live picker flow', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withPouch = { ...state, gold: 0, gemInventory: [gemA, gemB] };
+    const { state: afterChoice, outcome: pick } = resolveEventChoice(withPouch, 'the_lapidary', 'sell_facet');
+    if (pick.kind !== 'sellGemPick') throw new Error('expected sellGemPick');
+    const picked = pick.options[0]!;
+    const { state: final, outcome: finalOutcome } = applySellGemPick(afterChoice, picked.pouchIndex);
+    expect(finalOutcome).toEqual({ kind: 'sellGem', gemId: picked.gemId, price: picked.price });
+    expect(final.gold).toBe(afterChoice.gold + picked.price);
+    expect(final.gemInventory).toEqual([gemB]);
+  });
+
+  it('sellGemOutcome throws on an empty pouch (defensive — should be gated unusable before resolve, never reached in the live UI)', () => {
+    const { state } = stateAtFirstEvent(4);
+    const empty = { ...state, gold: 0, gemInventory: [] };
+    expect(() => resolveEventChoice(empty, 'the_lapidary', 'sell_facet')).toThrow();
+  });
+
+  it('is deterministic: identical (state, choiceId) resolves to the identical option list, repeatedly', () => {
+    const { state } = stateAtFirstEvent(4);
+    const withPouch = { ...state, gold: 0, gemInventory: [gemA, gemB, gemC] };
+    const a = resolveEventChoice(withPouch, 'the_lapidary', 'sell_facet');
+    const b = resolveEventChoice(withPouch, 'the_lapidary', 'sell_facet');
+    expect(b.outcome).toEqual(a.outcome);
+  });
+
+  describe('gating — isEventChoiceUsable', () => {
+    const sellChoice = eventCatalog.the_lapidary!.choices.find((c) => c.id === 'sell_facet')!;
+
+    it('a sellGem choice is NOT usable with an empty pouch, even though it is cost-0 (always "affordable")', () => {
+      const { state } = stateAtFirstEvent(4);
+      const empty = { ...state, gemInventory: [] };
+      expect(isEventChoiceAffordable(empty, sellChoice)).toBe(true);
+      expect(isEventChoiceUsable(empty, sellChoice)).toBe(false);
+    });
+
+    it('a sellGem choice IS usable once the pouch has at least one gem', () => {
+      const { state } = stateAtFirstEvent(4);
+      const withPouch = { ...state, gemInventory: [gemA] };
+      expect(isEventChoiceUsable(withPouch, sellChoice)).toBe(true);
+    });
+
+    it('non-sellGem choices are unaffected by the pouch gate — isEventChoiceUsable matches isEventChoiceAffordable for them', () => {
+      const { state } = stateAtFirstEvent(4);
+      const empty = { ...state, gold: 0, gemInventory: [] };
+      const wardingCut = eventCatalog.the_lapidary!.choices.find((c) => c.id === 'warding_cut')!;
+      const rejectBin = eventCatalog.the_lapidary!.choices.find((c) => c.id === 'reject_bin')!;
+      expect(isEventChoiceUsable(empty, wardingCut)).toBe(isEventChoiceAffordable(empty, wardingCut));
+      expect(isEventChoiceUsable(empty, rejectBin)).toBe(isEventChoiceAffordable(empty, rejectBin));
+      expect(isEventChoiceUsable(empty, rejectBin)).toBe(true);
+    });
+
+    it("the_lapidary is never drawn as an offered event when broke AND pouch-empty is not a real risk — reject_bin (free, non-sellGem) keeps it eligible", () => {
+      // Belt-and-suspenders on the catalog invariant: even a player with 0
+      // gold AND 0 gems still has a usable, non-nothing choice on this event
+      // (`reject_bin`), so `sellGem`'s pouch gate can never soft-lock it.
+      const broke = { gold: 0, gemInventory: [] as string[] } as unknown as RunState;
+      const usable = eventCatalog.the_lapidary!.choices.some(
+        (c) => isEventChoiceUsable(broke, c) && c.outcome.kind !== 'nothing',
+      );
+      expect(usable).toBe(true);
+    });
   });
 });
 

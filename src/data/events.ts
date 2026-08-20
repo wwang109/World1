@@ -75,6 +75,24 @@ export type EventOutcomeSpec =
   | { kind: 'grantLevel' }
   | { kind: 'bonusDraft'; filter?: CardFilter }
   | { kind: 'upgradeCard' }
+  // `sellGem` (2026-08-20) — the lapidary event's originally-wanted "sell a
+  // gem" outcome, parked until the vocabulary/resolver work below existed.
+  // Deliberately the mirror image of `gemChoice`: instead of drawing NEW gems
+  // from the catalog, it offers the player's own OWNED, UNSOCKETED pouch gems
+  // (`RunState.gemInventory` — a socketed gem lives on `BoardPiece.gem`
+  // instead and is out of scope for v1; selling one would require an
+  // unsocket step this outcome doesn't build) as a deferred pick, same
+  // "roll now [nothing to roll, it's just the pouch's own contents], pick
+  // later" shape as `gemChoice`'s own `{kind:'gemChoicePick', options}`. No
+  // `filter` field — v1 offers the WHOLE pouch, not a themed slice of it (a
+  // themed sell restriction can be added later without a shape change). No
+  // `gemId`/fixed target either — unlike `grantGem`, there's nothing to name
+  // in advance; which gem sells is entirely the player's pick. See
+  // `src/run/events.ts#sellGemOutcome`/`applySellGemPick` for the resolver
+  // and `EventOutcome`'s `sellGemPick`/`sellGem` members for the deferred/
+  // resolved shapes, and this module's `the_lapidary` entry for the one
+  // catalog choice that uses it today.
+  | { kind: 'sellGem' }
   | { kind: 'nothing' };
 
 export interface EventChoiceDef {
@@ -640,7 +658,7 @@ const defs: EventDef[] = [
     id: 'the_lapidary',
     title: 'The Lapidary',
     theme: 'forge',
-    body: 'A lapidary has set up her wheel at the quiet end of the Cinderworks, trays of uncut facets sorted by what they promise rather than what they cost: a warding cut here, a cleansing cut there, a taunting cut that seems to want attention paid to it just for existing. Beside them, a second tray holds nothing but sharpened, cutting facets meant to lay a foe bare. "Reject bin\'s free to pick through," she says, without looking up. "The good trays aren\'t."',
+    body: 'A lapidary has set up her wheel at the quiet end of the Cinderworks, trays of uncut facets sorted by what they promise rather than what they cost: a warding cut here, a cleansing cut there, a taunting cut that seems to want attention paid to it just for existing. "Reject bin\'s free to pick through," she says, without looking up, "and if you\'ve got a stone you\'re done carrying, I\'ll take it off your hands too — fair price, no haggling." The good tray, though, isn\'t free.',
     choices: [
       { id: 'reject_bin', label: 'Pick through the reject bin', outcome: { kind: 'grantGold', amount: 1 } },
       {
@@ -649,11 +667,22 @@ const defs: EventDef[] = [
         cost: 2,
         outcome: { kind: 'gemChoice', filter: [{ actionKinds: ['ward', 'cleanse', 'taunt'] }] },
       },
+      // `sellGem` (2026-08-20, parked-capability build — see the
+      // `EventOutcomeSpec` doc comment above): replaces the old
+      // `cutting_cut` (expose-filtered `gemChoice`) choice, which stayed a
+      // 2-3-choice-bound casualty — the expose ladder it drew from
+      // (vulnerability/weak_point/exposed_nerve/raw_nerve_sliver) is still
+      // reachable via the Armory shop's gem shelf (see
+      // `tests/run/contentReachability.test.ts`), so this trade doesn't strand
+      // any gem. Cost 0 (selling nets gold, it doesn't cost an upfront toll)
+      // — a SECOND cost-0 choice alongside `reject_bin` in this event, which
+      // is fine: the catalog's "genuinely safe exit" invariant only requires
+      // AT LEAST one (see `recruiter`/`sellsword_camp`, which already have
+      // two cost-0 choices apiece).
       {
-        id: 'cutting_cut',
-        label: 'Pay 2 gold for a cutting facet',
-        cost: 2,
-        outcome: { kind: 'gemChoice', filter: [{ actionKinds: ['expose'] }] },
+        id: 'sell_facet',
+        label: "Sell her a facet you're not using",
+        outcome: { kind: 'sellGem' },
       },
     ],
   },

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { EventChoiceDef, EventDef } from '../../data/events';
 import type { DraftCard } from '../../run/draft';
-import type { EventOutcome, UpgradeCardOption } from '../../run/events';
+import { isEventChoiceUsable, type EventOutcome, type SellGemOption, type UpgradeCardOption } from '../../run/events';
 import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
@@ -10,7 +10,7 @@ import { eventThemeArea } from '../ui/eventThemeBlurb';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
-import { renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunRewardPanel, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
+import { renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunRewardPanel, renderRunSellGemPicker, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
 import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
 import { eventChoiceBlockHeight } from '../ui/runEventStoryLayout';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
@@ -25,6 +25,7 @@ import {
   leaveCurrentEvent,
   resolveCurrentEventChoice,
   retireActiveRun,
+  sellCurrentRunGem,
 } from '../runStore';
 
 const F = MOBILE_PROFILE.font;
@@ -64,11 +65,12 @@ interface StoryLayout { innerX: number; innerW: number; contentTop: number }
 export class MobileRunEventScene extends Phaser.Scene {
   private W = SCREEN.width;
   private H = SCREEN.height;
-  private phase: 'choosing' | 'bonusDraftPick' | 'upgradeCardPick' | 'gemChoicePick' | 'outcome' = 'choosing';
+  private phase: 'choosing' | 'bonusDraftPick' | 'upgradeCardPick' | 'gemChoicePick' | 'sellGemPick' | 'outcome' = 'choosing';
   private outcome: EventOutcome | null = null;
   private bonusDraftCards: DraftCard[] = [];
   private upgradeCardOptions: UpgradeCardOption[] = [];
   private gemChoiceOptions: string[] = [];
+  private sellGemOptions: SellGemOption[] = [];
   private retireConfirmOpen = false;
   /** Which grid index is under the ⓘ inspect overlay in the bonus-draft/
    * upgrade-card picker, `null` when closed — mirrors `MobileDraftScene`'s
@@ -89,6 +91,7 @@ export class MobileRunEventScene extends Phaser.Scene {
     this.bonusDraftCards = [];
     this.upgradeCardOptions = [];
     this.gemChoiceOptions = [];
+    this.sellGemOptions = [];
     this.retireConfirmOpen = false;
     this.inspectedDraftIndex = null;
     this.inspectedUpgradeIndex = null;
@@ -156,9 +159,21 @@ export class MobileRunEventScene extends Phaser.Scene {
           this.rerender();
         },
       });
+    } else if (this.phase === 'sellGemPick') {
+      renderRunSellGemPicker(this, TEMPLATE, this.sellGemOptions, {
+        font: F,
+        eventTitle: event.title,
+        onPick: (option) => {
+          const result = sellCurrentRunGem(option.pouchIndex);
+          if (!result.ok) return;
+          this.phase = 'outcome';
+          this.outcome = { kind: 'sellGem', gemId: option.gemId, price: result.goldReceived };
+          this.rerender();
+        },
+      });
     } else {
       const story = this.renderStory(event, event.choices.length);
-      this.renderChoices(run.gold, event, story);
+      this.renderChoices(run, event, story);
     }
     if (this.retireConfirmOpen) {
       // CORRECTED (audit 2026-08): unlike its RunPrep/RunMap siblings, THIS
@@ -321,7 +336,7 @@ export class MobileRunEventScene extends Phaser.Scene {
 
   // ---------- choosing ----------
 
-  private renderChoices(gold: number, event: EventDef, story: StoryLayout): void {
+  private renderChoices(run: NonNullable<ReturnType<typeof getActiveRun>>, event: EventDef, story: StoryLayout): void {
     let y = story.contentTop;
     // ASK the panel how tall it needs to be; never guess. The old hand-picked
     // 80 was short of its own content, so `detail` collapsed to an ellipsis
@@ -330,7 +345,11 @@ export class MobileRunEventScene extends Phaser.Scene {
     const gap = 8;
     event.choices.forEach((choice: EventChoiceDef) => {
       const cost = choice.cost ?? 0;
-      const affordable = gold >= cost;
+      // `isEventChoiceUsable` (not the bare `gold >= cost` this used to be) —
+      // a `sellGem` choice also needs SOMETHING in the pouch to sell (see
+      // that function's doc comment, src/run/events.ts); every other outcome
+      // kind still reduces to the plain cost check.
+      const affordable = isEventChoiceUsable(run, choice);
       const costLabel = cost > 0 ? `COST ${cost} GOLD` : 'FREE';
       const model: RunChoiceViewModel = {
         nodeId: `event-${choice.id}`,
@@ -357,6 +376,9 @@ export class MobileRunEventScene extends Phaser.Scene {
           } else if (outcome.kind === 'gemChoicePick') {
             this.phase = 'gemChoicePick';
             this.gemChoiceOptions = [...outcome.options];
+          } else if (outcome.kind === 'sellGemPick') {
+            this.phase = 'sellGemPick';
+            this.sellGemOptions = [...outcome.options];
           } else {
             this.phase = 'outcome';
             this.outcome = outcome;

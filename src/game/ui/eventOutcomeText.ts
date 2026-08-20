@@ -40,6 +40,10 @@ export function choiceOutcomeHint(outcome: EventOutcomeSpec): string {
     case 'cardChoice': return 'CHOICE OF 3 CARDS';
     case 'gemChoice': return 'CHOICE OF 3 GEMS';
     case 'upgradeCard': return 'UPGRADE';
+    // `sellGem` (2026-08-20) — nets gold, doesn't grant anything; say so up
+    // front so this doesn't read like every other "GEM" hint above (a gain),
+    // which would misrepresent a choice that spends a gem to earn gold.
+    case 'sellGem': return 'SELL A GEM';
     case 'nothing': return '—';
     default: return '';
   }
@@ -79,6 +83,14 @@ export function outcomeHeadline(outcome: EventOutcome): { headline: string; deta
     // meaningful.
     case 'gemChoicePick':
       return { headline: 'Choose a gem to keep', detail: '' };
+    // Unreachable in practice — same reason as `upgradeCardPick`/
+    // `gemChoicePick` above: the scenes render `sellGemPick` through
+    // `renderRunSellGemPicker` directly, never through this resolved-outcome
+    // headline. Kept only so the exhaustiveness guard below stays meaningful.
+    case 'sellGemPick':
+      return { headline: 'Choose a gem to sell', detail: '' };
+    case 'sellGem':
+      return { headline: `Sold a gem for ${outcome.price} gold`, detail: '' };
     case 'upgradeCard':
       return outcome.fellBack
         ? { headline: 'Nothing eligible to upgrade — took gold instead', detail: '' }

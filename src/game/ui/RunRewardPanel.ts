@@ -5,7 +5,7 @@ import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
 import type { SkillDef } from '../../engine/types';
 import type { DraftCard } from '../../run/draft';
-import type { UpgradeCardOption } from '../../run/events';
+import type { SellGemOption, UpgradeCardOption } from '../../run/events';
 import { DESKTOP_PROFILE, MOBILE_PROFILE, type LayoutProfile } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, UI } from '../theme';
 import { CardToken } from './CardToken';
@@ -106,8 +106,15 @@ function renderFeatureBackdrop(scene: Phaser.Scene, rect: Rect, box: Box, color:
  * up to the solo feature's much larger box. Leaves the chip's own click/hover
  * wiring to the caller (the two callers want different affordances: the solo
  * feature is inert but hoverable, the picker is a clickable pick target).
+ *
+ * `priceLabel` (added 2026-08-20 for `renderRunSellGemPicker`) draws a small
+ * right-aligned gold-colored tag ("SELL 2g") inside the chip's own right
+ * edge — optional and omitted by every OTHER caller (`renderBigFeature`'s
+ * solo gem feature, `renderRunGemChoicePicker`'s grid), which keep the
+ * original name-only chip untouched. The name's own wordWrap width shrinks to
+ * leave room for it so a long gem name can never run under the tag.
  */
-function renderGemChip(scene: Phaser.Scene, box: Box, gem: GemDef): void {
+function renderGemChip(scene: Phaser.Scene, box: Box, gem: GemDef, priceLabel?: string): void {
   scene.add.rectangle(box.x, box.y, box.w, box.h, UI.panelAlt, 0.9)
     .setOrigin(0, 0)
     .setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.9);
@@ -116,11 +123,18 @@ function renderGemChip(scene: Phaser.Scene, box: Box, gem: GemDef): void {
   const textX = markerCx + markerSize * 1.3;
   const fontPx = Math.round(box.h * 0.28);
   scene.add.rectangle(markerCx, box.y + box.h / 2, markerSize, markerSize, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
+  let priceW = 0;
+  if (priceLabel) {
+    const priceText = scene.add.text(box.x + box.w - 10, box.y + box.h / 2, priceLabel, {
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${Math.round(box.h * 0.24)}px`, color: UI.textAccent,
+    }).setOrigin(1, 0.5);
+    priceW = priceText.width + 12;
+  }
   const gemName = scene.add.text(textX, box.y + box.h / 2, gem.name, {
     fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${fontPx}px`, color: UI.text,
-    wordWrap: { width: Math.max(0, box.x + box.w - textX - 10) },
+    wordWrap: { width: Math.max(0, box.x + box.w - textX - 10 - priceW) },
   }).setOrigin(0, 0.5);
-  auditTextBlock(gemName, { name: 'Run reward gem name', maxWidth: Math.max(0, box.x + box.w - textX - 10), maxHeight: box.h - 8, minFontSize: 9 });
+  auditTextBlock(gemName, { name: 'Run reward gem name', maxWidth: Math.max(0, box.x + box.w - textX - 10 - priceW), maxHeight: box.h - 8, minFontSize: 9 });
 }
 
 /**
@@ -581,6 +595,44 @@ export function renderRunGemChoicePicker(
     const hit = scene.add.rectangle(cell.x + cell.w / 2, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(gemId); });
+    if (template.platform === 'desktop') {
+      attachHoverTip(scene, hit, box, [gemHoverEntry(gem)]);
+    }
+  });
+}
+
+/**
+ * The "PICK ONE TO SELL" pouch-gem picker — `sellGem`'s counterpart to
+ * `renderRunGemChoicePicker` above, reusing its EXACT shell (`renderPickHeader`
+ * + `layoutFeatureGrid` + `renderGemChip`) so a "gain a gem"/"sell a gem"
+ * picker read as visually related, not two unrelated overlays. The only real
+ * difference is `renderGemChip`'s new optional `priceLabel` (a "SELL Ng" tag
+ * per chip, since — unlike `gemChoicePick`'s freshly-rolled candidates, which
+ * are interchangeable until picked — each `SellGemOption` here can carry a
+ * DIFFERENT price, so the player needs to see it per-option before tapping)
+ * and addressing pick targets by `pouchIndex` (a specific pouch slot) rather
+ * than `gemId` (which the pouch can hold duplicates of).
+ */
+export function renderRunSellGemPicker(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  options: readonly SellGemOption[],
+  opts: { font: LayoutProfile['font']; eventTitle: string; onPick: (option: SellGemOption) => void },
+): void {
+  renderPickHeader(scene, template, choiceArtKey('sellGemPick'), 'PICK ONE TO SELL', opts.eventTitle, opts.font, 'Run reward sell-gem choice title');
+
+  const { feature } = template.contentSlots.reward;
+  const ideal = FEATURE_GEM_CHIP_SIZE[template.platform];
+  const cells = layoutFeatureGrid(feature, options.length, ideal.w, ideal.h, GRID_GAP[template.platform]);
+  options.forEach((option, i) => {
+    const cell = cells[i];
+    const gem = gemBook[option.gemId];
+    if (!cell || !gem) return;
+    const box: Box = { x: cell.x, y: cell.y, w: cell.w, h: cell.h };
+    renderGemChip(scene, box, gem, `SELL ${option.price}g`);
+    const hit = scene.add.rectangle(cell.x + cell.w / 2, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(option); });
     if (template.platform === 'desktop') {
       attachHoverTip(scene, hit, box, [gemHoverEntry(gem)]);
     }

@@ -80,6 +80,10 @@ export function choiceArtKey(kind: string): string {
     // guaranteed `grantGem` grant, same reasoning as `cardChoice` above.
     case 'gemChoice':
     case 'gemChoicePick':
+    // `sellGem`/`sellGemPick` (2026-08-20) sell a gem rather than granting
+    // one, but it's the same subject on the button/panel — same gem icon.
+    case 'sellGem':
+    case 'sellGemPick':
       return RUN_ART_KEYS.icon.choiceGem;
     case 'grantGold':
     case 'loseGold':

@@ -11,10 +11,11 @@ import { eventCatalog, eventCatalogIds, type EventChoiceDef, type EventDef, type
 import type { DraftCard } from './draft';
 import { skillBook } from '../data/skills';
 import { gemBook } from '../data/gems';
-import { cardMatchesFilter, gemMatchesFilter, pickWeightedGem, pickWeightedGems } from './shop';
+import { cardMatchesFilter, gemMatchesFilter, pickWeightedGem, pickWeightedGems, sellPriceOfGem } from './shop';
 import {
   currentEventNode,
   MAX_LEVEL,
+  sellRunGem,
   shopStockDepthForWave,
   tryInsertRunCard,
   type RunNode,
@@ -93,6 +94,22 @@ export interface UpgradeCardOption {
   to: SkillTier;
 }
 
+/** One sellable pouch gem offered by a `sellGem` outcome's deferred pick —
+ * enough to both DISPLAY the option (`gemId`/`price`) and unambiguously
+ * re-identify it later (`pouchIndex` into `RunState.gemInventory`, the same
+ * addressing `sellRunGem`/`sellCurrentRunGem` already use — NOT `gemId`
+ * alone, since the pouch can hold duplicate gem ids and only the index picks
+ * out one specific copy). `price` is `sellPriceOfGem(gemId)` (`shop.ts`) —
+ * the SAME half-of-shop-buy-price, floored, min-1-gold formula every other
+ * sell surface in the run (`sellRunGem`/`sellRunCard`) already uses; this
+ * outcome doesn't invent its own pricing, it only offers the existing one
+ * through an event choice instead of the Deck/Bag screen's SELL button. */
+export interface SellGemOption {
+  pouchIndex: number;
+  gemId: string;
+  price: number;
+}
+
 export type EventOutcome =
   | { kind: 'grantCard'; skillId: string; tier: SkillTier; fellBack?: boolean }
   | { kind: 'grantGem'; gemId: string }
@@ -124,6 +141,23 @@ export type EventOutcome =
   // out of this module's ownership; see the PR description for the exact
   // one-case patch needed to keep `outcomeHeadline` compiling.
   | { kind: 'gemChoicePick'; options: readonly string[] }
+  // `sellGem`'s deferred offer (2026-08-20, see `EventOutcomeSpec`'s doc
+  // comment in `data/events.ts`) — `options` is every pouch gem the player
+  // currently owns (deterministic inventory order, no `Rng` draw: unlike
+  // `gemChoice`'s freshly-rolled candidates, this is just a READ of
+  // `state.gemInventory`, so there is nothing to seed). `applySellGemPick`
+  // finalizes the tapped `pouchIndex` into the FINAL `sellGem` outcome below.
+  // Gating (the choice must not even be offered with an empty pouch) lives
+  // BEFORE resolve, in `isEventChoiceUsable` — see that function's doc
+  // comment — so `sellGemOutcome` reaching this with a non-empty
+  // `state.gemInventory` is the normal case, not something this member's
+  // consumer needs to defend against.
+  | { kind: 'sellGemPick'; options: readonly SellGemOption[] }
+  // The FINAL, resolved `sellGem` outcome — what `applySellGemPick` produces
+  // once the player taps one of `sellGemPick`'s options. `price` mirrors
+  // `SellGemOption.price` (the gold actually credited), kept on the resolved
+  // shape too so the reward screen's headline doesn't need to re-derive it.
+  | { kind: 'sellGem'; gemId: string; price: number }
   // `skillId`/`from`/`to` are omitted (not merely falsy) exactly when
   // `fellBack` is true — this DELIBERATELY differs from `grantCard`'s
   // fallback idiom (which swaps the whole outcome to `grantGold`): a
@@ -169,17 +203,40 @@ function toDraftCard(skillId: string): DraftCard {
 // ---------------------------------------------------------------------------
 
 /** Whether `choice` is payable right now — the SAME gate the UI should use to
- * dim an individual choice button (`choice.cost` omitted/0 always affords). */
+ * dim an individual choice button (`choice.cost` omitted/0 always affords).
+ * Gold-only: an outcome-specific "is there anything to act on" gate (today,
+ * `sellGem`'s "does the player own anything to sell") is a SEPARATE concern,
+ * see `isEventChoiceUsable` below — kept apart so this function's own
+ * contract ("cost <= gold, nothing else") stays simple and doesn't grow a
+ * special case per outcome kind. */
 export function isEventChoiceAffordable(state: RunState, choice: EventChoiceDef): boolean {
   return (choice.cost ?? 0) <= state.gold;
 }
 
-/** An event is eligible to be OFFERED at `state.gold` if at least one of its
- * choices is both affordable AND not the `nothing` no-op outcome — an event
- * whose only affordable option is the safe "walk away" exit is exactly the
- * dead-end case this guards against. */
+/** Whether `choice` is USABLE right now — `isEventChoiceAffordable` (the
+ * gold gate) PLUS any outcome-specific precondition. Today the only such
+ * precondition is `sellGem`: its picker has nothing to offer with an empty
+ * pouch, so a cost-0 `sellGem` choice at `state.gemInventory.length === 0`
+ * reads as affordable (cost 0 <= any gold) but is NOT usable — this is the
+ * gate that keeps `sellGemOutcome` from ever resolving to an empty picker
+ * (see that function's doc comment). Every other outcome kind has no such
+ * precondition and this reduces to `isEventChoiceAffordable` alone for them.
+ * This is the predicate the UI should call to dim an individual choice
+ * button (not `isEventChoiceAffordable` directly) and the one
+ * `hasAffordableChoice`/`rollEventForNode` use to decide whether an event is
+ * eligible to be offered at all. */
+export function isEventChoiceUsable(state: RunState, choice: EventChoiceDef): boolean {
+  if (!isEventChoiceAffordable(state, choice)) return false;
+  if (choice.outcome.kind === 'sellGem') return state.gemInventory.length > 0;
+  return true;
+}
+
+/** An event is eligible to be OFFERED at `state.gold` (and current inventory)
+ * if at least one of its choices is both usable AND not the `nothing` no-op
+ * outcome — an event whose only usable option is the safe "walk away" exit
+ * is exactly the dead-end case this guards against. */
 function hasAffordableChoice(state: RunState, event: EventDef): boolean {
-  return event.choices.some((c) => isEventChoiceAffordable(state, c) && c.outcome.kind !== 'nothing');
+  return event.choices.some((c) => isEventChoiceUsable(state, c) && c.outcome.kind !== 'nothing');
 }
 
 /** First id in `ids` (fixed order) eligible at `state.gold`, or -1. */
@@ -539,6 +596,38 @@ function gemChoiceOutcome(
   return { kind: 'gemChoicePick', options };
 }
 
+/**
+ * `sellGem` — offers every gem currently in the player's pouch
+ * (`state.gemInventory`, unsocketed only — a socketed gem lives on
+ * `BoardPiece.gem` and isn't touched here) as a deferred pick, priced via
+ * `sellPriceOfGem` (shop.ts's existing half-of-shop-buy-price, floored,
+ * min-1-gold sell formula — the SAME one `sellRunGem`/`sellCurrentRunGem`
+ * already use for the Deck/Bag screen's SELL button, so an event sale and a
+ * bag sale of the identical gem always pay the identical price). No `Rng`
+ * draw and no depth gate: unlike `gemChoice`'s freshly-rolled candidates,
+ * this is a pure READ of the player's own inventory in its existing order —
+ * nothing here is random, so nothing needs seeding (determinism invariant
+ * satisfied trivially).
+ *
+ * Throws if the pouch is empty — this should never happen in practice, since
+ * `isEventChoiceUsable` (the gate `rollEventForNode`'s `hasAffordableChoice`
+ * AND the UI both call) refuses to offer a `sellGem` choice as usable with an
+ * empty pouch; this is the same "should be gated before resolve, never
+ * silently resolve to an empty picker" posture `cardChoiceOutcome`/
+ * `gemChoiceOutcome`'s own too-small-pool throws take.
+ */
+function sellGemOutcome(state: RunState): EventOutcome {
+  if (state.gemInventory.length === 0) {
+    throw new Error('sellGem: pouch is empty (should be gated unusable before resolve — see isEventChoiceUsable)');
+  }
+  const options: SellGemOption[] = state.gemInventory.map((gemId, pouchIndex) => ({
+    pouchIndex,
+    gemId,
+    price: sellPriceOfGem(gemId),
+  }));
+  return { kind: 'sellGemPick', options };
+}
+
 /** Applies a single (already-rolled) outcome spec. `depth` is the
  * node's shop-stock-equivalent depth band (see `grantGemOutcome`'s doc
  * comment) — `grantGem` and `gemChoice` both consume it today. */
@@ -579,6 +668,8 @@ function applySpec(state: RunState, rng: Rng, spec: EventOutcomeSpec, depth: num
       return { state, outcome: gemChoiceOutcome(rng, spec, depth) };
     case 'upgradeCard':
       return upgradeCardOutcome(state);
+    case 'sellGem':
+      return { state, outcome: sellGemOutcome(state) };
     case 'nothing':
       return { state, outcome: { kind: 'nothing' } };
     default: {
@@ -711,4 +802,35 @@ export function applyGemChoicePick(state: RunState, gemId: string): { state: Run
     state: { ...state, gemInventory: [...state.gemInventory, gemId] },
     outcome: { kind: 'grantGem', gemId },
   };
+}
+
+/**
+ * Finalizes a `sellGem` outcome's deferred pick (the UI shows the pouch
+ * gems between `resolveEventChoice` returning `{kind:'sellGemPick', options}`
+ * and calling this) — removes the picked `pouchIndex` from `gemInventory` and
+ * credits its `sellPriceOfGem` gold, by delegating to the SAME `sellRunGem`
+ * (`runState.ts`) the Deck/Bag screen's SELL button already calls (via
+ * `sellCurrentRunGem`, `src/game/runStore.ts`) — one canonical "sell a pouch
+ * gem" implementation, not two that could drift. Addressed by `pouchIndex`
+ * (not `gemId`) because the pouch can hold duplicate gem ids and only the
+ * index picks out one specific copy — the same reasoning `SellGemOption`'s
+ * own doc comment gives.
+ *
+ * Throws if `pouchIndex` no longer resolves to a populated pouch slot —
+ * defensive only, since the picker only ever passes back one of the exact
+ * options `sellGemOutcome` just showed it and nothing else can touch `state`
+ * in between (same "shouldn't happen but never silently corrupt state"
+ * posture `applyGemChoicePick`/`applyUpgradeCardPick` take on their own
+ * defensive checks).
+ */
+export function applySellGemPick(state: RunState, pouchIndex: number): { state: RunState; outcome: EventOutcome } {
+  const gemId = state.gemInventory[pouchIndex];
+  if (!gemId) {
+    throw new Error(`applySellGemPick: no pouch gem at index ${pouchIndex}`);
+  }
+  const result = sellRunGem(state, pouchIndex);
+  if (!result.ok) {
+    throw new Error(`applySellGemPick: sellRunGem unexpectedly failed for pouch index ${pouchIndex}`);
+  }
+  return { state: result.state, outcome: { kind: 'sellGem', gemId, price: result.goldReceived } };
 }

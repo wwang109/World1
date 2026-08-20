@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { EventChoiceDef, EventDef } from '../../data/events';
 import type { DraftCard } from '../../run/draft';
-import type { EventOutcome, UpgradeCardOption } from '../../run/events';
+import { isEventChoiceUsable, type EventOutcome, type SellGemOption, type UpgradeCardOption } from '../../run/events';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
@@ -11,7 +11,7 @@ import { eventThemeArea } from '../ui/eventThemeBlurb';
 import { eventArtHeight, eventBodyMaxHeight, eventChoiceBlockHeight, eventStoryLimit } from '../ui/runEventStoryLayout';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
-import { renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunRewardPanel, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
+import { renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunRewardPanel, renderRunSellGemPicker, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
 import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { rebuildScene } from '../sceneRebuild';
@@ -25,6 +25,7 @@ import {
   leaveCurrentEvent,
   resolveCurrentEventChoice,
   retireActiveRun,
+  sellCurrentRunGem,
 } from '../runStore';
 
 const F = DESKTOP_PROFILE.font;
@@ -58,11 +59,12 @@ interface StoryLayout { px: number; pw: number; innerX: number; innerW: number; 
  * ?scene=desktop-runevent.
  */
 export class DesktopRunEventScene extends Phaser.Scene {
-  private phase: 'choosing' | 'bonusDraftPick' | 'upgradeCardPick' | 'gemChoicePick' | 'outcome' = 'choosing';
+  private phase: 'choosing' | 'bonusDraftPick' | 'upgradeCardPick' | 'gemChoicePick' | 'sellGemPick' | 'outcome' = 'choosing';
   private outcome: EventOutcome | null = null;
   private bonusDraftCards: DraftCard[] = [];
   private upgradeCardOptions: UpgradeCardOption[] = [];
   private gemChoiceOptions: string[] = [];
+  private sellGemOptions: SellGemOption[] = [];
   private retireConfirmOpen = false;
 
   constructor() { super('DesktopRunEvent'); }
@@ -73,6 +75,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
     this.bonusDraftCards = [];
     this.upgradeCardOptions = [];
     this.gemChoiceOptions = [];
+    this.sellGemOptions = [];
     this.retireConfirmOpen = false;
   }
 
@@ -135,9 +138,21 @@ export class DesktopRunEventScene extends Phaser.Scene {
           this.rerender();
         },
       });
+    } else if (this.phase === 'sellGemPick') {
+      renderRunSellGemPicker(this, TEMPLATE, this.sellGemOptions, {
+        font: F,
+        eventTitle: event.title,
+        onPick: (option) => {
+          const result = sellCurrentRunGem(option.pouchIndex);
+          if (!result.ok) return;
+          this.phase = 'outcome';
+          this.outcome = { kind: 'sellGem', gemId: option.gemId, price: result.goldReceived };
+          this.rerender();
+        },
+      });
     } else {
       const story = this.renderStory(event, event.choices.length);
-      this.renderChoicePanel(run.gold, event, story);
+      this.renderChoicePanel(run, event, story);
     }
     if (this.retireConfirmOpen) {
       // REVIEWED AND LEFT (audit 2026-08): no scene-level generic pointerdown/pointerup listener at all in this file — grep-confirmed.
@@ -275,7 +290,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
 
   // ---------- choosing ----------
 
-  private renderChoicePanel(gold: number, event: EventDef, story: StoryLayout): void {
+  private renderChoicePanel(run: NonNullable<ReturnType<typeof getActiveRun>>, event: EventDef, story: StoryLayout): void {
     const { innerX, innerW } = story;
     // ASK the panel how tall it needs to be; never guess. The old hand-picked
     // 84 was ~15px short of its own content and silently ate the REWARD hint.
@@ -285,7 +300,11 @@ export class DesktopRunEventScene extends Phaser.Scene {
 
     event.choices.forEach((choice: EventChoiceDef) => {
       const cost = choice.cost ?? 0;
-      const affordable = gold >= cost;
+      // `isEventChoiceUsable` (not the bare `gold >= cost` this used to be) —
+      // a `sellGem` choice also needs SOMETHING in the pouch to sell (see
+      // that function's doc comment, src/run/events.ts); every other outcome
+      // kind still reduces to the plain cost check.
+      const affordable = isEventChoiceUsable(run, choice);
       const costLabel = cost > 0 ? `COST ${cost} GOLD` : 'FREE';
       const model: RunChoiceViewModel = {
         nodeId: `event-${choice.id}`,
@@ -312,6 +331,9 @@ export class DesktopRunEventScene extends Phaser.Scene {
           } else if (outcome.kind === 'gemChoicePick') {
             this.phase = 'gemChoicePick';
             this.gemChoiceOptions = [...outcome.options];
+          } else if (outcome.kind === 'sellGemPick') {
+            this.phase = 'sellGemPick';
+            this.sellGemOptions = [...outcome.options];
           } else {
             this.phase = 'outcome';
             this.outcome = outcome;
