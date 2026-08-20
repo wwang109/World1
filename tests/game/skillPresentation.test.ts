@@ -245,29 +245,28 @@ describe('summarizeEffects — desktop composition mode', () => {
   });
 });
 
-// Sweep (2026-08-20): the rest of `summarizeEffectSegments`'s tokens audited
-// against "a first-time player can tell what the number is AND roughly who it
-// lands on" — three genuine inconsistencies fixed alongside the two rulings
-// above; everything else in the switch already passed (established
-// abbreviations, bare stack counts matching the battle log's own convention).
-describe('summarizeEffects — sweep fixes', () => {
-  it('SLOW carries the WT unit (was a bare number)', () => {
-    const skill = makeSkill({ effects: [{ kind: 'slow', weight: 6 }] });
-    expect(summarizeEffects(skill)).toBe('SLOW +6 WT');
-  });
-
+// User ruling (2026-08-20): splash's face unit is WT — "BAND" was internal
+// jargon. ONLY the two ruled tokens changed; a broader token sweep was
+// reverted on 2026-08-20 ("I didn't tell you to change other only the ones
+// i requested") — SLOW/CLEANSE/comboBonus keep their long-standing forms.
+describe('summarizeEffects — ruled token forms', () => {
   it('SPLASH uses the WT unit instead of the invented "BAND" noun', () => {
     const skill = makeSkill({ effects: [{ kind: 'splash', weight: 6 }] });
     expect(summarizeEffects(skill)).toBe('SPLASH +6 WT');
   });
 
-  it('CLEANSE marks its charge count with × like NEGATE/WARD do', () => {
-    const skill = makeSkill({ effects: [{ kind: 'cleanse', charges: 2 }] });
-    expect(summarizeEffects(skill)).toBe('CLEANSE ×2');
+  it('SLOW keeps its long-standing bare form (sweep reverted per user)', () => {
+    const skill = makeSkill({ effects: [{ kind: 'slow', weight: 6 }] });
+    expect(summarizeEffects(skill)).toBe('SLOW +6');
   });
 
-  it('comboBonus reads COMBO (its own keyword name), not the unrelated "SKILL", plus the DMG unit', () => {
+  it('CLEANSE keeps its long-standing bare count (sweep reverted per user)', () => {
+    const skill = makeSkill({ effects: [{ kind: 'cleanse', charges: 2 }] });
+    expect(summarizeEffects(skill)).toBe('CLEANSE 2');
+  });
+
+  it('comboBonus keeps its long-standing SKILL form (sweep reverted per user)', () => {
     const skill = makeSkill({ effects: [{ kind: 'comboBonus', amount: 20 }] });
-    expect(summarizeEffects(skill)).toBe('COMBO +20 DMG');
+    expect(summarizeEffects(skill)).toBe('SKILL +20');
   });
 });
