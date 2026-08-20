@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import type { SkillDef } from '../../engine/types';
+import type { Archetype, SkillDef } from '../../engine/types';
 import {
-  buildBattleTimeline, formatGuardBadge, shieldPoolsLabel,
+  buildBattleTimeline, formatGuardBadge, isComboLive, shieldPoolsLabel,
   type BattleTimelineInput,
-  type CombatSummary, type FoeModel, type GuardBadgeEntry, type GuardSnap, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
+  type ComboArchetypeSnap, type CombatSummary, type FoeModel, type GuardBadgeEntry, type GuardSnap, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
 } from '../battleTimeline';
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
@@ -110,6 +110,7 @@ export class MobileBattleScene extends Phaser.Scene {
   private exposePctByTurn = new Map<number, { player: number; enemy: number; enemyUnits?: number[] }>();
   private guardPctByTurn = new Map<number, GuardSnap>();
   private speedByTurn = new Map<number, SpeedSnap>();
+  private comboArchetypesByTurn = new Map<number, ComboArchetypeSnap>();
   /** Which board slot each side cast from, per turn — drives the gold cursor. */
   private playSlotByTurn = new Map<number, { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }>();
   private turns: number[] = [];
@@ -341,6 +342,7 @@ export class MobileBattleScene extends Phaser.Scene {
     this.exposePctByTurn = model.exposePctByTurn;
     this.guardPctByTurn = model.guardPctByTurn;
     this.speedByTurn = model.speedByTurn;
+    this.comboArchetypesByTurn = model.comboArchetypesByTurn;
     this.playSlotByTurn = model.playSlotByTurn;
     this.turns = model.turns;
     this.steps = model.steps;
@@ -624,20 +626,23 @@ export class MobileBattleScene extends Phaser.Scene {
     const deckX = 10; const gutterX = 10 + colW; const bagX = 10 + colW + gutterW;
     // Gold cursor on the card each side cast this turn (a size-N piece owns its span).
     const slots = this.playSlotByTurn.get(turn) ?? {};
-    const mark = (pieces: ColumnPiece[], slot?: number): ColumnPiece[] => pieces.map((p) => ({
+    const comboSnap = this.comboArchetypesByTurn.get(turn) ?? { player: [], enemy: [] };
+    const mark = (pieces: ColumnPiece[], lastCast: readonly Archetype[], slot?: number): ColumnPiece[] => pieces.map((p) => ({
       ...p,
       state: slot !== undefined && slot >= p.slot && slot < p.slot + Math.max(1, p.skill.size) ? 'cursor' as const : p.state,
+      comboLive: isComboLive(p.skill, lastCast),
     }));
-    const heroCol = new BoardColumn(this, { x: deckX, y: top, width: colW, height: colH, side: 'left', pieces: mark(this.heroPieces, slots.player), deck: this.heroSkills, stats: this.heroStats });
+    const heroCol = new BoardColumn(this, { x: deckX, y: top, width: colW, height: colH, side: 'left', pieces: mark(this.heroPieces, comboSnap.player, slots.player), deck: this.heroSkills, stats: this.heroStats });
     if (forwardStep && slots.player !== undefined) this.pulseTokenAt(heroCol, this.heroPieces, slots.player, this.castFxFor('player', 0));
     // Enemy boards: 1–2 foes stack vertically in the right column; 3+ foes
     // show only the FOCUSED foe's board (the tab strip covers the rest).
     const foeBoard = (u: number, boardTop: number, boardH: number): void => {
       const foeModel = this.foes[u]!;
       const foeSlot = slots.enemyUnits?.[u] ?? (u === 0 ? slots.enemy : undefined);
+      const foeLastCast = comboSnap.enemyUnits?.[u] ?? (u === 0 ? comboSnap.enemy : []);
       const foeCol = new BoardColumn(this, {
         x: bagX, y: boardTop, width: colW, height: boardH, side: 'right',
-        pieces: mark(foeModel.pieces, foeSlot), deck: foeModel.skills, stats: foeModel.stats,
+        pieces: mark(foeModel.pieces, foeLastCast, foeSlot), deck: foeModel.skills, stats: foeModel.stats,
       });
       if (forwardStep && foeSlot !== undefined) this.pulseTokenAt(foeCol, foeModel.pieces, foeSlot, this.castFxFor('enemy', u));
     };

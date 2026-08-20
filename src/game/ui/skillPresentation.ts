@@ -254,7 +254,15 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
       case 'taunt': extras.push({ text: 'TAUNT' }); break;
       case 'lifesteal': extras.push({ text: `LSTEAL ${action.pct}%`, keyword: 'lifesteal' }); break;
       case 'shieldBreak': extras.push({ text: `SHATTER ${action.amount}`, keyword: 'shatter' }); break;
-      case 'comboBonus': extras.push({ text: `SKILL +${action.amount}`, keyword: 'combo' }); break;
+      // User ruling (2026-08-20): the face token may say COMBO — the user's
+      // own word for this mechanic — ON THE CONDITION that battle playback
+      // greys it out whenever the combo isn't actually live (see CardToken's
+      // `comboLive` option and `battleTimeline.ts`'s `isComboLive`/
+      // `comboArchetypesByTurn`, which together supply that state). Outside
+      // a fight (draft/shop/deck build/wiki) there is no "previous cast" to
+      // be live against, so the token always renders in its normal
+      // `KEYWORD_TEXT_COLOR.combo` color there — see those call sites.
+      case 'comboBonus': extras.push({ text: `COMBO +${action.amount}`, keyword: 'combo' }); break;
       case 'slow': extras.push({ text: `SLOW +${action.weight}`, keyword: 'slow' }); break;
       // User ruling (2026-08-20): "I been seeing splash +6 band, what does
       // that even mean." SPLASH is `slow` at CARD scope, so its number is the

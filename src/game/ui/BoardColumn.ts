@@ -12,6 +12,9 @@ export interface ColumnPiece {
    * with no per-instance tier handy (battle/prep/deck-build's plain
    * `SkillDef` pieces) omit it and get today's generic-colored frame. */
   tier?: SkillTier;
+  /** Battle-playback-only COMBO live state — see `CardTokenOptions.comboLive`.
+   * Omitted by every non-battle caller (prep/shop/deck build/draft/wiki). */
+  comboLive?: boolean;
 }
 
 export interface BoardColumnOptions {
@@ -75,6 +78,7 @@ export class BoardColumn {
         this.tokens.push(new CardToken(scene, cx, cy, piece.skill, {
           width: opts.width, height: h, side, slotLabel: label, deck: opts.deck, state: piece.state, stats: opts.stats, faceMode: opts.faceMode,
           tier: piece.tier,
+          comboLive: piece.comboLive,
           onInspect: opts.onInspectSlot ? () => opts.onInspectSlot!(currentRow) : undefined,
         }));
         row += span;

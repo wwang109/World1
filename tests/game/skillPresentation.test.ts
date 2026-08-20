@@ -246,9 +246,13 @@ describe('summarizeEffects — desktop composition mode', () => {
 });
 
 // User ruling (2026-08-20): splash's face unit is WT — "BAND" was internal
-// jargon. ONLY the two ruled tokens changed; a broader token sweep was
-// reverted on 2026-08-20 ("I didn't tell you to change other only the ones
-// i requested") — SLOW/CLEANSE/comboBonus keep their long-standing forms.
+// jargon. A broader token sweep was reverted the same day ("I didn't tell
+// you to change other only the ones i requested") — SLOW/CLEANSE keep their
+// long-standing forms. comboBonus was RE-RULED later the same day: it may say
+// COMBO (the user's own word), but ONLY paired with battle playback greying
+// the token out when the combo isn't live (see CardToken's `comboLive` /
+// battleTimeline's `isComboLive` — tests in battleTimeline.test.ts pin that
+// half of the ruling).
 describe('summarizeEffects — ruled token forms', () => {
   it('SPLASH uses the WT unit instead of the invented "BAND" noun', () => {
     const skill = makeSkill({ effects: [{ kind: 'splash', weight: 6 }] });
@@ -265,8 +269,8 @@ describe('summarizeEffects — ruled token forms', () => {
     expect(summarizeEffects(skill)).toBe('CLEANSE 2');
   });
 
-  it('comboBonus keeps its long-standing SKILL form (sweep reverted per user)', () => {
+  it('comboBonus renders COMBO +N (user-ruled 2026-08-20, paired with battle-playback greying)', () => {
     const skill = makeSkill({ effects: [{ kind: 'comboBonus', amount: 20 }] });
-    expect(summarizeEffects(skill)).toBe('SKILL +20');
+    expect(summarizeEffects(skill)).toBe('COMBO +20');
   });
 });

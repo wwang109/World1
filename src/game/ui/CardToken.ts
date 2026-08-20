@@ -64,6 +64,24 @@ export interface CardTokenOptions {
    * for the reserved-strip geometry this relies on.
    */
   onInspect?: () => void;
+  /**
+   * Battle-playback-only live state for this token's COMBO segment (the
+   * `comboBonus` face token, `case 'comboBonus'` in `skillPresentation.ts`) —
+   * user-ruled 2026-08-20: the token may say COMBO only paired with this
+   * indicator. `false` greys the segment (`UI.textDisabled`, the same tone
+   * `textDisabled` already names for a disabled control) because the owner's
+   * most recent resolved cast does NOT share an archetype with this card (or
+   * nothing has been cast yet this fight — the engine's own initial
+   * `lastCastArchetypes: []`, combat/state.ts). `true` or omitted renders the
+   * segment in its normal `KEYWORD_TEXT_COLOR.combo` color — omitted is the
+   * ONLY value every non-battle caller (draft/shop/deck build/wiki/prep)
+   * ever passes, because outside a fight there is no "previous cast" to be
+   * live or not live against. Battle boards derive `true`/`false` from
+   * `battleTimeline.ts`'s `isComboLive` + `comboArchetypesByTurn`; a token
+   * with no `comboBonus` action simply ignores this (no 'combo' segment to
+   * tint).
+   */
+  comboLive?: boolean;
 }
 
 /** The active platform's default card-face number treatment — mobile keeps
@@ -81,11 +99,18 @@ function defaultFaceMode(): SkillFaceMode {
  * flavor-text markup renderer's keyword palette (FantasyCardTemplateV2) —
  * previously the two never shared a color at all. */
 function effectFaceSegments(
-  skill: SkillDef, stats: ScalingStats | undefined, mode: SkillFaceMode, fallbackColor = '#e8d8b0',
+  skill: SkillDef, stats: ScalingStats | undefined, mode: SkillFaceMode, fallbackColor = '#e8d8b0', comboLive?: boolean,
 ): { text: string; color: string }[] {
   return summarizeEffectSegments(skill, stats, mode).map((segment: EffectSegment) => ({
     text: segment.text,
-    color: (segment.keyword && keywordTextColor(segment.keyword)) ?? fallbackColor,
+    // The COMBO segment overrides its keyword color to the disabled tone
+    // when battle playback says it isn't live right now (see
+    // `CardTokenOptions.comboLive`'s doc comment for the full rule) — every
+    // other segment, and COMBO itself when `comboLive` is `true`/omitted,
+    // keeps the ordinary keyword-color lookup.
+    color: segment.keyword === 'combo' && comboLive === false
+      ? UI.textDisabled
+      : (segment.keyword && keywordTextColor(segment.keyword)) ?? fallbackColor,
   }));
 }
 
@@ -173,7 +198,7 @@ export class CardToken extends Phaser.GameObjects.Container {
       // DMG 16 +ATK / DMG 16 · PSN 5 — each token tinted to match its
       // KEYWORD_TEXT_COLOR (cardTextMarkup.ts) when it has one, so a keyword's
       // color reads the same here as it does in flavor text / the glossary.
-      this.segmentedLine(scene, spec, spec.effects, effectFaceSegments(skill, opts.stats, faceMode), '#e8d8b0');
+      this.segmentedLine(scene, spec, spec.effects, effectFaceSegments(skill, opts.stats, faceMode, '#e8d8b0', opts.comboLive), '#e8d8b0');
       line(spec.affinity, this.affinityLine(skill, type, opts.deck), '#9aa4b6');
     } else {
       // COMPACT (slim strips like TEMP HOLDING): one centered line, clamped to
@@ -181,7 +206,7 @@ export class CardToken extends Phaser.GameObjects.Container {
       // token stays cream; effect tokens tint the same as the regular variant.
       this.segmentedLine(scene, spec, spec.compactLine, [
         { text: skill.name, color: '#e8e0c8' },
-        ...effectFaceSegments(skill, opts.stats, faceMode, '#e8e0c8'),
+        ...effectFaceSegments(skill, opts.stats, faceMode, '#e8e0c8', opts.comboLive),
       ], '#e8e0c8');
     }
 

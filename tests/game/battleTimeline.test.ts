@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildBattleTimeline, formatDmg, type BattleTimeline, type BattleTimelineInput } from '../../src/game/battleTimeline';
+import { buildBattleTimeline, formatDmg, isComboLive, type BattleTimeline, type BattleTimelineInput } from '../../src/game/battleTimeline';
 import { battleRequestOf } from '../../src/game/battleApi';
 import { resolveBattle, type BattleLog } from '../../src/run/resolveBattle';
 import type { CombatEvent } from '../../src/engine/combat/events';
 import type { DamageCalculation } from '../../src/engine/combat/events';
+import { skillBook } from '../../src/data/skills';
 
 const BASE: BattleTimelineInput = {
   pieces: [
@@ -1554,6 +1555,82 @@ describe('game/battleTimeline', () => {
       const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
       const playLine = [...model.linesByTurn.values()].flat().find((l) => l.tag === 'PLAY')!;
       expect(playLine.text).not.toContain('· target');
+    });
+  });
+
+  // User ruling (2026-08-20): the COMBO face token (renamed from SKILL, see
+  // skillPresentation.test.ts) may render its new name ONLY paired with a
+  // live-state indicator in battle: greyed while the owner's most recent
+  // resolved cast does not share an archetype with the combo card, lit when
+  // it does. `comboArchetypesByTurn` is this file's playback-derived mirror
+  // of the engine's own `CombatantState.lastCastArchetypes` (combat/state.ts,
+  // read by the `comboBonus` arm in interpreter.ts); `isComboLive` is the
+  // exact same boolean check the engine makes, shared so the battle scenes
+  // and this test read one definition. `follow_through` (archetype
+  // `['offense']`, carries a real `comboBonus` action) is the card named in
+  // the task brief; `sword_slash` shares its `offense` archetype, `second_wind`
+  // (`['healing']`) does not.
+  describe('comboBonus face-token live state (comboArchetypesByTurn / isComboLive)', () => {
+    const followThrough = skillBook['follow_through']!;
+    const swordSlash = skillBook['sword_slash']!;
+    const secondWind = skillBook['second_wind']!;
+
+    it('nothing cast yet this fight is an empty archetype set, so the combo is never live', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'play', side: 'enemy', unit: 0, slot: 0, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
+      // The PLAYER never cast — its shadow state must read empty, not "undefined".
+      const playerLastCast = model.comboArchetypesByTurn.get(1)!.player;
+      expect(playerLastCast).toEqual([]);
+      expect(isComboLive(followThrough, playerLastCast)).toBe(false);
+    });
+
+    it('a prior cast that does NOT share an archetype with the combo card stays grey', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'second_wind', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 0, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 3 });
+      const playerLastCast = model.comboArchetypesByTurn.get(2)!.player;
+      expect(playerLastCast).toEqual(secondWind.archetypes);
+      expect(isComboLive(followThrough, playerLastCast)).toBe(false);
+    });
+
+    it('a prior cast that DOES share an archetype with the combo card goes lit', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 0, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 3 });
+      const playerLastCast = model.comboArchetypesByTurn.get(2)!.player;
+      expect(playerLastCast).toEqual(swordSlash.archetypes);
+      expect(isComboLive(followThrough, playerLastCast)).toBe(true);
+    });
+
+    it('flips turn by turn as the owner\'s own casts change, and carries forward through a turn the owner does not act', () => {
+      const events: CombatEvent[] = [
+        // T1: player casts second_wind (healing) — follow_through is NOT live.
+        { turn: 1, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'second_wind', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        // T2: player casts sword_slash (offense) — follow_through GOES live.
+        { turn: 2, kind: 'play', side: 'player', unit: 0, slot: 1, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        // T3: only the ENEMY acts — the player's own last cast is unchanged
+        // (still sword_slash), so the player-owned card's live state carries
+        // forward rather than resetting.
+        { turn: 3, kind: 'play', side: 'enemy', unit: 0, slot: 0, skillId: 'sword_slash', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        // T4: player casts second_wind again — follow_through goes NOT live again.
+        { turn: 4, kind: 'play', side: 'player', unit: 0, slot: 0, skillId: 'second_wind', weight: 6, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 5, kind: 'combatEnd', result: 'win', turns: 5 },
+      ];
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 5 });
+      const liveAt = (turn: number): boolean => isComboLive(followThrough, model.comboArchetypesByTurn.get(turn)!.player);
+      expect(liveAt(1)).toBe(false);
+      expect(liveAt(2)).toBe(true);
+      expect(liveAt(3)).toBe(true);
+      expect(liveAt(4)).toBe(false);
     });
   });
 });

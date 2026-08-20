@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import type { SkillDef } from '../../engine/types';
+import type { Archetype, SkillDef } from '../../engine/types';
 import {
-  buildBattleTimeline, formatGuardBadge, shieldPoolsLabel,
+  buildBattleTimeline, formatGuardBadge, isComboLive, shieldPoolsLabel,
   type BattleTimelineInput,
-  type CombatSummary, type FoeModel, type GuardBadgeEntry, type GuardSnap, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
+  type ComboArchetypeSnap, type CombatSummary, type FoeModel, type GuardBadgeEntry, type GuardSnap, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
 } from '../battleTimeline';
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
@@ -124,6 +124,7 @@ export class DesktopBattleScene extends Phaser.Scene {
   private exposePctByTurn = new Map<number, { player: number; enemy: number; enemyUnits?: number[] }>();
   private guardPctByTurn = new Map<number, GuardSnap>();
   private speedByTurn = new Map<number, SpeedSnap>();
+  private comboArchetypesByTurn = new Map<number, ComboArchetypeSnap>();
   private playSlotByTurn = new Map<number, { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }>();
   private turns: number[] = [];
   private steps: PlaybackStep[] = [];
@@ -196,6 +197,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.exposePctByTurn = new Map();
     this.guardPctByTurn = new Map();
     this.speedByTurn = new Map();
+    this.comboArchetypesByTurn = new Map();
     this.playSlotByTurn = new Map();
     this.turns = [];
     this.steps = [];
@@ -329,6 +331,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.exposePctByTurn = model.exposePctByTurn;
     this.guardPctByTurn = model.guardPctByTurn;
     this.speedByTurn = model.speedByTurn;
+    this.comboArchetypesByTurn = model.comboArchetypesByTurn;
     this.playSlotByTurn = model.playSlotByTurn;
     this.turns = model.turns;
     this.steps = model.steps;
@@ -414,9 +417,11 @@ export class DesktopBattleScene extends Phaser.Scene {
     // ---- HP blocks + boards. LEFT: the hero. RIGHT: one section per foe,
     // stacked vertically (a 1v1 fight is just the single full-height case).
     const slots = this.playSlotByTurn.get(turn) ?? {};
-    const mark = (pieces: ColumnPiece[], slot?: number): ColumnPiece[] => pieces.map((p) => ({
+    const comboSnap = this.comboArchetypesByTurn.get(turn) ?? { player: [], enemy: [] };
+    const mark = (pieces: ColumnPiece[], lastCast: readonly Archetype[], slot?: number): ColumnPiece[] => pieces.map((p) => ({
       ...p,
       state: slot !== undefined && slot >= p.slot && slot < p.slot + Math.max(1, p.skill.size) ? 'cursor' as const : p.state,
+      comboLive: isComboLive(p.skill, lastCast),
     }));
 
     const heroBar = this.hpBar(
@@ -430,7 +435,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     // be VISIBLE in battle, not only inferable from the D: math expansions.
     this.add.text(leftX, contentTop + 46, this.heroStatLine, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim });
     addHoverTipZone(this, { x: leftX, y: contentTop + 46, w: PANEL_W, h: F.small + 4 }, ALL_STAT_ENTRIES);
-    const heroCol = new BoardColumn(this, { x: leftX, y: boardTop, width: PANEL_W, height: boardH, side: 'left', pieces: mark(this.heroPieces, slots.player), deck: this.heroSkills, stats: this.heroStats });
+    const heroCol = new BoardColumn(this, { x: leftX, y: boardTop, width: PANEL_W, height: boardH, side: 'left', pieces: mark(this.heroPieces, comboSnap.player, slots.player), deck: this.heroSkills, stats: this.heroStats });
     if (forwardStep && slots.player !== undefined) this.pulseTokenAt(heroCol, this.heroPieces, slots.player, this.castFxFor('player', 0));
 
     const n = Math.max(1, this.foes.length);
@@ -471,9 +476,10 @@ export class DesktopBattleScene extends Phaser.Scene {
       this.add.text(rightX, top + 46, foeModel.statLine, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim });
       addHoverTipZone(this, { x: rightX, y: top + 46, w: PANEL_W, h: F.small + 4 }, ALL_STAT_ENTRIES);
       const foeSlot = slots.enemyUnits?.[u] ?? (u === 0 ? slots.enemy : undefined);
+      const foeLastCast = comboSnap.enemyUnits?.[u] ?? (u === 0 ? comboSnap.enemy : []);
       const foeCol = new BoardColumn(this, {
         x: rightX, y: top + HP_BLOCK_H, width: PANEL_W, height: height - HP_BLOCK_H, side: 'right',
-        pieces: mark(foeModel.pieces, foeSlot), deck: foeModel.skills, stats: foeModel.stats,
+        pieces: mark(foeModel.pieces, foeLastCast, foeSlot), deck: foeModel.skills, stats: foeModel.stats,
       });
       if (animate && foeSlot !== undefined) this.pulseTokenAt(foeCol, foeModel.pieces, foeSlot, this.castFxFor('enemy', u));
     };

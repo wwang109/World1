@@ -155,12 +155,49 @@ export interface FoeModel {
   statLine: string;
 }
 
+/**
+ * Each side's/unit's LAST RESOLVED cast's archetypes, AS OF a given turn —
+ * the playback-derived mirror of the engine's own `lastCastArchetypes`
+ * (`CombatantState`, combat/state.ts), which `comboBonus` reads to decide its
+ * bonus (`interpreter.ts`'s `comboBonus` arm). `[]` means no qualifying prior
+ * cast — either nothing has been cast yet this fight (the engine's own
+ * initial `lastCastArchetypes: []`) or (impossible today, but not assumed
+ * away) a cast carried no archetypes.
+ *
+ * DERIVATION: the `play` event names only `skillId` (not the resolved
+ * `SkillDef`, and NOT archetypes directly — see `CombatEvent`'s `play` case,
+ * combat/events.ts), so this reads `skillBook[e.skillId].archetypes`, the
+ * BASE definition's archetypes. That is byte-identical to what the engine
+ * actually used (`choice.skill.archetypes` in `simulate.ts`, where
+ * `choice.skill` is `resolveEffectiveSkill`'s tier/gem-folded output):
+ * `archetypes` is one of the fields `resolveEffectiveSkill`/`applyTier` never
+ * touch (types.ts's own note: "archetypes carries over from base" — no tier
+ * upgrade or gem action rewrites it), so base and effective always agree.
+ */
+export interface ComboArchetypeSnap { player: Archetype[]; enemy: Archetype[]; enemyUnits?: Archetype[][]; }
+
+/**
+ * Whether a comboBonus card's COMBO face token should render LIT (matches the
+ * engine's own `comboBonus` check, interpreter.ts: `caster.lastCastArchetypes
+ * .some((a) => skill.archetypes.includes(a))`) given the owner's
+ * `ComboArchetypeSnap` entry for the side/unit this card belongs to. Shared
+ * by both battle scenes (feeds `CardTokenOptions.comboLive`) and this file's
+ * own tests, so the "is it live" rule is defined exactly once.
+ */
+export function isComboLive(skill: SkillDef, lastCastArchetypes: readonly Archetype[]): boolean {
+  return skill.archetypes.some((a) => lastCastArchetypes.includes(a));
+}
+
 export interface BattleTimeline {
   linesByTurn: Map<number, LogLine[]>;
   hpByTurn: Map<number, HpSnap>;
   shieldByTurn: Map<number, ShieldSnap>;
   /** Active ailment keys per side per turn — drives the HP-bar ailment tint. */
   statusByTurn: Map<number, { player: string[]; enemy: string[] }>;
+  /** Per-side/unit last-resolved-cast archetypes, per turn — see
+   * `ComboArchetypeSnap`. Feeds the battle board's COMBO token grey/lit state
+   * (`isComboLive`); nothing else reads this. */
+  comboArchetypesByTurn: Map<number, ComboArchetypeSnap>;
   /** Current EFFECTIVE expose amplification (%) per side per turn — the
    * strongest standing pile's pct, mirroring the engine's own `strongestPct`
    * scan (interpreter.ts `dealDamage`), NOT the most recent application's pct.
@@ -526,6 +563,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const guardPctByTurn = new Map<number, GuardSnap>();
   const speedByTurn = new Map<number, SpeedSnap>();
   const playSlotByTurn = new Map<number, { player?: number; enemy?: number; enemyUnits?: Array<number | undefined> }>();
+  const comboArchetypesByTurn = new Map<number, ComboArchetypeSnap>();
 
   // Per-unit live state — enemy-side values are ARRAYS indexed by event `unit`.
   const playerMax = hero.stats.maxHp;
@@ -540,6 +578,13 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   let shieldPoolsPlayer: ShieldPools | undefined;
   const shieldPoolsEnemies: Array<ShieldPools | undefined> = foes.map(() => undefined);
   const speed: SpeedSnap = { player: '', enemy: '', enemyUnits: foes.map(() => '') };
+  // Shadow-mirror of the engine's `CombatantState.lastCastArchetypes`
+  // (combat/state.ts) — see `ComboArchetypeSnap`'s doc comment for the full
+  // derivation. Starts `[]` for every side/unit, exactly matching the
+  // engine's own `initCombatant` (nothing cast yet this fight = combo never
+  // live on the very first evaluation).
+  let lastCastArchetypesPlayer: Archetype[] = [];
+  const lastCastArchetypesEnemies: Archetype[][] = foes.map(() => []);
   const dotsPlayer = new Map<string, number>();
   const dotsEnemies = foes.map(() => new Map<string, number>());
   // Shadow-mirror of the engine's expose ANTICHAIN (interpreter.ts, "MAX, NOT
@@ -956,6 +1001,15 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         if (castSkill) {
           pendingCastFx.push({ side: e.side, kind: 'cast', amount: 0, unit: unitOf(e), cardName: skillName(e.skillId), ...fxIdentity(castSkill) });
         }
+        // Shadow-mirror of the engine's `c.lastCastArchetypes = choice.skill
+        // .archetypes` (simulate.ts) — see `ComboArchetypeSnap`'s doc comment
+        // for why the BASE definition's archetypes is byte-identical to the
+        // engine's resolved value. Every `play` event is one real resolved
+        // cast (a size-N card's busy turns emit `busy`/`wait`, never a second
+        // `play`), so this fires exactly once per cast, same as the engine.
+        const castArchetypes = castSkill?.archetypes ?? [];
+        if (e.side === 'player') lastCastArchetypesPlayer = castArchetypes;
+        else lastCastArchetypesEnemies[unitOf(e)] = castArchetypes;
         break;
       }
       // The readiness this very cast left banked, once its weight is paid —
@@ -1632,6 +1686,11 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       enemyUnits: guardPilesEnemies.map((_, u) => guardBadgeCurrent.get(guardBadgeKey('enemy', u)) ?? []),
     });
     speedByTurn.set(e.turn, { ...speed, enemyUnits: [...speed.enemyUnits!] });
+    comboArchetypesByTurn.set(e.turn, {
+      player: [...lastCastArchetypesPlayer],
+      enemy: [...(lastCastArchetypesEnemies[0] ?? [])],
+      enemyUnits: lastCastArchetypesEnemies.map((a) => [...a]),
+    });
   }
   // Defensive: every real log's last event is `combatEnd` (never `gain`), so
   // the in-loop flush above always fires before the loop ends. Flush any
@@ -1750,6 +1809,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     exposePctByTurn,
     guardPctByTurn,
     speedByTurn,
+    comboArchetypesByTurn,
     playSlotByTurn,
     turns,
     steps,
