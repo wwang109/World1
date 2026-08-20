@@ -4,8 +4,9 @@ import { ELEMENT_COLOR, FONT, PROPERTY_COLOR, TIER_COLOR, UI, WEAPON_COLOR } fro
 import { cardType, IDENTITY_THRESHOLD } from '../../engine/combat/typeIdentity';
 import { ACTIVE_PROFILE } from '../layoutProfile';
 import { fantasyTemplateCardArtKey } from './cardArtPresentation';
-import { summarizeEffects, type ScalingStats, type SkillFaceMode } from './skillPresentation';
-import { cardTokenSpec, chipBox, type CardTokenSpec, type TokenBox } from './cardTokenSpec';
+import { summarizeEffectSegments, type EffectSegment, type ScalingStats, type SkillFaceMode } from './skillPresentation';
+import { keywordTextColor } from './cardTextMarkup';
+import { cardTokenSpec, chipBox, type CardTokenSpec, type TokenBox, type TokenTextLine } from './cardTokenSpec';
 
 /** A small badge rendered into the token's reserved accessory rail
  *  (gem socket, tier plate, …). Purely visual — the caller owns meaning. */
@@ -71,6 +72,21 @@ export interface CardTokenOptions {
  * legible without a tooltip). See `CardTokenOptions.faceMode`. */
 function defaultFaceMode(): SkillFaceMode {
   return ACTIVE_PROFILE.id === 'desktop' ? 'composition' : 'summed';
+}
+
+/** A rendered effect segment: the token's text plus its RESOLVED color —
+ * `KEYWORD_TEXT_COLOR[keyword]` (cardTextMarkup.ts) when the token has one,
+ * `fallbackColor` otherwise (DMG/HEAL/AOE and any other un-keyworded token).
+ * This is what makes the card face's compact effects line match the
+ * flavor-text markup renderer's keyword palette (FantasyCardTemplateV2) —
+ * previously the two never shared a color at all. */
+function effectFaceSegments(
+  skill: SkillDef, stats: ScalingStats | undefined, mode: SkillFaceMode, fallbackColor = '#e8d8b0',
+): { text: string; color: string }[] {
+  return summarizeEffectSegments(skill, stats, mode).map((segment: EffectSegment) => ({
+    text: segment.text,
+    color: (segment.keyword && keywordTextColor(segment.keyword)) ?? fallbackColor,
+  }));
 }
 
 const GRADIENT_KEY = 'cardtoken-gradient';
@@ -154,12 +170,19 @@ export class CardToken extends Phaser.GameObjects.Container {
     const faceMode = opts.faceMode ?? defaultFaceMode();
     if (!spec.compact) {
       line(spec.name, skill.name, '#e8e0c8', true);
-      line(spec.effects, summarizeEffects(skill, opts.stats, faceMode), '#e8d8b0'); // DMG 16 +ATK / DMG 16 · PSN 5
+      // DMG 16 +ATK / DMG 16 · PSN 5 — each token tinted to match its
+      // KEYWORD_TEXT_COLOR (cardTextMarkup.ts) when it has one, so a keyword's
+      // color reads the same here as it does in flavor text / the glossary.
+      this.segmentedLine(scene, spec, spec.effects, effectFaceSegments(skill, opts.stats, faceMode), '#e8d8b0');
       line(spec.affinity, this.affinityLine(skill, type, opts.deck), '#9aa4b6');
     } else {
       // COMPACT (slim strips like TEMP HOLDING): one centered line, clamped to
-      // the token width so long names never overflow the strip.
-      line(spec.compactLine, `${skill.name} · ${summarizeEffects(skill, opts.stats, faceMode)}`, '#e8e0c8');
+      // the token width so long names never overflow the strip. The name
+      // token stays cream; effect tokens tint the same as the regular variant.
+      this.segmentedLine(scene, spec, spec.compactLine, [
+        { text: skill.name, color: '#e8e0c8' },
+        ...effectFaceSegments(skill, opts.stats, faceMode, '#e8e0c8'),
+      ], '#e8e0c8');
     }
 
     // small dark scrim so a corner label stays readable over bright art.
@@ -219,6 +242,89 @@ export class CardToken extends Phaser.GameObjects.Container {
     }
     this.setSize(w, h);
     scene.add.existing(this);
+  }
+
+  /**
+   * The segmented counterpart of the inline `line()` closure in the
+   * constructor — used for the effects/compactLine rows so each keyword
+   * token (PSN, SPLASH, …) can carry its own `KEYWORD_TEXT_COLOR` while plain
+   * separators and un-keyworded tokens (DMG, HEAL, AOE, …) stay in the line's
+   * neutral `fallbackColor` — matching the flavor-text markup renderer's
+   * keyword palette (`cardTextMarkup.ts`) instead of flattening it away like
+   * the old single flat-cream string did.
+   *
+   * Phaser has no multi-color rich text in one Text object, so this lays out
+   * a small row of Text objects with measured x-offsets — the single-line
+   * sibling of `FantasyCardTemplateV2.makeBody`'s word-by-word wrap.
+   *
+   * Truncation preserves `line()`'s guarantee that a too-wide line never
+   * overflows `entry.maxWidth`: it first drops WHOLE trailing segments (each
+   * drop marked with a "…" on the last kept one, so cut content is visible as
+   * cut rather than silently missing) and, only if even a single remaining
+   * segment alone is wider than the line, falls back to `line()`'s original
+   * per-character ellipsis clamp on that segment's own text.
+   */
+  private segmentedLine(
+    scene: Phaser.Scene,
+    spec: CardTokenSpec,
+    entry: TokenTextLine,
+    segments: { text: string; color: string }[],
+    fallbackColor: string,
+  ): void {
+    const SEP = ' · ';
+    const makeText = (text: string, color: string): Phaser.GameObjects.Text =>
+      scene.add.text(0, entry.dy, text, {
+        fontSize: `${entry.fontSize}px`, color, fontFamily: FONT.body, fontStyle: 'bold',
+      }).setOrigin(0, 0.5);
+    const totalWidth = (nodes: Phaser.GameObjects.Text[]): number => nodes.reduce((sum, n) => sum + n.width, 0);
+    const destroyAll = (nodes: Phaser.GameObjects.Text[]): void => nodes.forEach((n) => n.destroy());
+    const build = (working: { text: string; color: string }[]): Phaser.GameObjects.Text[] => {
+      const nodes: Phaser.GameObjects.Text[] = [];
+      working.forEach((seg, i) => {
+        if (i > 0) nodes.push(makeText(SEP, fallbackColor));
+        nodes.push(makeText(seg.text, seg.color));
+      });
+      return nodes;
+    };
+
+    let working = segments.length > 0 ? segments : [{ text: '', color: fallbackColor }];
+    let nodes = build(working);
+    let droppedSegments = false;
+    while (totalWidth(nodes) > entry.maxWidth && working.length > 1) {
+      destroyAll(nodes);
+      working = working.slice(0, -1);
+      droppedSegments = true;
+      nodes = build(working);
+    }
+    if (totalWidth(nodes) > entry.maxWidth) {
+      // A single remaining segment still doesn't fit — fall back to
+      // `line()`'s own character-by-character ellipsis clamp, applied to
+      // just that segment's text.
+      const only = nodes[nodes.length - 1]!;
+      let s = working[working.length - 1]!.text;
+      while (s.length > 1 && totalWidth(nodes) > entry.maxWidth) {
+        s = s.slice(0, -1);
+        only.setText(`${s}…`);
+      }
+    } else if (droppedSegments) {
+      // Fits now, but trailing segments were cut — mark it, re-clamping in
+      // case the added "…" itself pushes the line back over width.
+      const last = nodes[nodes.length - 1]!;
+      let s = working[working.length - 1]!.text;
+      last.setText(`${s}…`);
+      while (s.length > 1 && totalWidth(nodes) > entry.maxWidth) {
+        s = s.slice(0, -1);
+        last.setText(`${s}…`);
+      }
+    }
+
+    const width = totalWidth(nodes);
+    let cursor = spec.textOriginX === 0 ? spec.textX : spec.textX - width;
+    for (const node of nodes) {
+      node.setPosition(cursor, entry.dy);
+      cursor += node.width;
+      this.add(node);
+    }
   }
 
   private renderAccessories(scene: Phaser.Scene, spec: CardTokenSpec, accessories: TokenAccessory[]): void {

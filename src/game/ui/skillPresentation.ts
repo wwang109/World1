@@ -157,33 +157,55 @@ function effectLine(
  * magical → Magic Resist, TRUE → flat, no stat add) — see `cardGlossary.ts`'s
  * `true` entry.
  */
-export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed'): string {
+/**
+ * One token of the card face's compact effects line, tagged with the
+ * `KEYWORD_TEXT_COLOR` id (`cardTextMarkup.ts`) it corresponds to when one
+ * exists — e.g. `{ text: 'PSN 5', keyword: 'poison' }` — so a renderer can tint
+ * it to match the SAME keyword's color everywhere else (flavor-text markup,
+ * status bars). `keyword` is omitted for tokens with no 1:1 keyword mapping
+ * (AOE, DMG, HEAL, stat buffs/debuffs, TAUNT, the Echo gem's STRIKE/ECHO) —
+ * those render in the line's neutral fallback color, same as before this
+ * split existed.
+ */
+export interface EffectSegment {
+  text: string;
+  keyword?: string;
+}
+
+/**
+ * The structured form behind `summarizeEffects()` — same tokens, same order,
+ * each one tagged with its keyword id (see `EffectSegment`) instead of being
+ * pre-joined into one flat string. `summarizeEffects()` below is now a thin
+ * `.map(text).join(' · ')` over this; CardToken's segmented line renderer
+ * uses THIS form directly so it can color each token independently.
+ */
+export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed'): EffectSegment[] {
   // Reach is the load-bearing word: an all-board +5 and an adjacent +15 are
   // the same PL, and the face must not present them as the same kind of card.
   if (skill.aura) {
     const reach = skill.aura.affects === 'allBoard' ? 'ALL' : 'NEAR';
-    return `${reach} ${formatAuraModifiers(skill.aura.mods, true)}`;
+    return [{ text: `${reach} ${formatAuraModifiers(skill.aura.mods, true)}` }];
   }
 
-  const parts: string[] = [];
+  const segments: EffectSegment[] = [];
   // AoE is the OTHER load-bearing word (see the aura comment above): a card
   // that reaches every living foe must not present as the same kind of card
   // as an otherwise-identical single-target one. Led, like the aura reach
   // token, so it survives this line's own ellipsis clamp (CardToken.ts)
   // rather than being the first thing truncated off a crowded face.
-  if (isAoeSkill(skill)) parts.push('AOE');
+  if (isAoeSkill(skill)) segments.push({ text: 'AOE' });
   let damage = 0;
   let heal = 0;
   let shield = 0;
-  const extras: string[] = [];
+  const extras: EffectSegment[] = [];
   for (const action of skill.effects) {
     switch (action.kind) {
       case 'damage': damage += action.power; break;
       case 'heal': heal += action.power; break;
       case 'shield': shield += action.power; break;
-      case 'poison': extras.push(`PSN ${action.stacks}`); break;
-      case 'burn': extras.push(`BRN ${action.stacks}`); break;
-      case 'bleed': extras.push(`BLD ${action.stacks}`); break;
+      case 'poison': extras.push({ text: `PSN ${action.stacks}`, keyword: 'poison' }); break;
+      case 'burn': extras.push({ text: `BRN ${action.stacks}`, keyword: 'burn' }); break;
+      case 'bleed': extras.push({ text: `BLD ${action.stacks}`, keyword: 'bleed' }); break;
       // User ruling (2026-08-19): a stun denies the victim's next ACTION
       // whenever it happens — a pending stun survives untouched while
       // something else keeps the victim from acting (still building
@@ -195,30 +217,30 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: Sk
       // face phrasing at this width, so a multi-stun's exact count is left to
       // the tap-to-expand glossary (`cardGlossary.ts`), same as ward/negate's
       // charge counts already are for their own harder-to-summarize detail.
-      case 'stun': extras.push('STUN NEXT ACTION'); break;
-      case 'thorns': extras.push(`THORN ${action.stacks}`); break;
-      case 'buffStat': extras.push(`+${action.pct}% ${STAT_TOKEN[action.stat]}`); break;
-      case 'debuffStat': extras.push(`-${action.pct}% ${STAT_TOKEN[action.stat]}`); break;
-      case 'expose': extras.push(`EXPOSE ${action.pct}%`); break;
+      case 'stun': extras.push({ text: 'STUN NEXT ACTION', keyword: 'stun' }); break;
+      case 'thorns': extras.push({ text: `THORN ${action.stacks}`, keyword: 'thorns' }); break;
+      case 'buffStat': extras.push({ text: `+${action.pct}% ${STAT_TOKEN[action.stat]}` }); break;
+      case 'debuffStat': extras.push({ text: `-${action.pct}% ${STAT_TOKEN[action.stat]}` }); break;
+      case 'expose': extras.push({ text: `EXPOSE ${action.pct}%`, keyword: 'expose' }); break;
       // A guard covers ONE property, carried by the ACTION (not by the card —
       // a gem can graft a differently-typed guard onto any card), so the face
       // token names it: P.GUARD / M.GUARD / T.GUARD, mirroring the battle
       // log's P./M./T.SHIELD pool tokens. A bare "GUARD 20%" told the player
       // nothing about which damage it actually stops.
-      case 'guard': extras.push(`${action.property === 'physical' ? 'P' : action.property === 'magical' ? 'M' : 'T'}.GUARD ${action.pct}%`); break;
+      case 'guard': extras.push({ text: `${action.property === 'physical' ? 'P' : action.property === 'magical' ? 'M' : 'T'}.GUARD ${action.pct}%`, keyword: 'guard' }); break;
       // A negate covers ONE property, carried by the ACTION exactly like guard
       // above — same gap, same fix: P.NEGATE / M.NEGATE / T.NEGATE, mirroring
       // the battle log's negateToken (battleTimeline.ts).
-      case 'negate': extras.push(`${action.property === 'physical' ? 'P' : action.property === 'magical' ? 'M' : 'T'}.NEGATE ×${action.charges}`); break;
-      case 'cleanse': extras.push(`CLEANSE ${action.charges}`); break;
+      case 'negate': extras.push({ text: `${action.property === 'physical' ? 'P' : action.property === 'magical' ? 'M' : 'T'}.NEGATE ×${action.charges}`, keyword: 'negate' }); break;
+      case 'cleanse': extras.push({ text: `CLEANSE ${action.charges}`, keyword: 'cleanse' }); break;
       // A ward has NO property axis (unlike guard/negate above) — afflictions
       // carry no attacker property to match — so the face token is unqualified.
-      case 'ward': extras.push(`WARD ×${action.charges}`); break;
-      case 'taunt': extras.push('TAUNT'); break;
-      case 'lifesteal': extras.push(`LSTEAL ${action.pct}%`); break;
-      case 'shieldBreak': extras.push(`SHATTER ${action.amount}`); break;
-      case 'comboBonus': extras.push(`SKILL +${action.amount}`); break;
-      case 'slow': extras.push(`SLOW +${action.weight}`); break;
+      case 'ward': extras.push({ text: `WARD ×${action.charges}`, keyword: 'ward' }); break;
+      case 'taunt': extras.push({ text: 'TAUNT' }); break;
+      case 'lifesteal': extras.push({ text: `LSTEAL ${action.pct}%`, keyword: 'lifesteal' }); break;
+      case 'shieldBreak': extras.push({ text: `SHATTER ${action.amount}`, keyword: 'shatter' }); break;
+      case 'comboBonus': extras.push({ text: `SKILL +${action.amount}`, keyword: 'combo' }); break;
+      case 'slow': extras.push({ text: `SLOW +${action.weight}`, keyword: 'slow' }); break;
       // SPLASH is `slow` at CARD scope — BAND (not a fixed "×3") because the
       // band is the anchor slot plus its edge-to-edge neighbours: 3 pieces
       // mid-board, but only 2 on a 2-card board or at a board edge (the band
@@ -226,8 +248,8 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: Sk
       // combat/splash.ts), and 1 on a 1-card board. "×3" printed a count the
       // engine doesn't guarantee; "BAND" names the shape without promising a
       // number, and still reads distinctly from the unit-wide SLOW token above.
-      case 'splash': extras.push(`SPLASH +${action.weight} BAND`); break;
-      case 'disrupt': extras.push(`STAG ${action.amount}`); break;
+      case 'splash': extras.push({ text: `SPLASH +${action.weight} BAND`, keyword: 'splash' }); break;
+      case 'disrupt': extras.push({ text: `STAG ${action.amount}`, keyword: 'disrupt' }); break;
       // `statStrike` (the Resonant Echo gem's payload — see gems.ts) is an
       // EXTRA, self-contained hit with no `power` of its own (engine/types.ts):
       // it prints a SHARE of a stat instead of a flat number. This case was
@@ -242,7 +264,7 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: Sk
       // text already uses ("repeats at half strength").
       case 'statStrike': {
         const capNote = action.cap ? ` (cap ${action.cap})` : '';
-        extras.push(`${action.echoHostPower ? 'ECHO' : 'STRIKE'} 1/${action.shareOf}${capNote}`);
+        extras.push({ text: `${action.echoHostPower ? 'ECHO' : 'STRIKE'} 1/${action.shareOf}${capNote}` });
         break;
       }
     }
@@ -255,11 +277,18 @@ export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: Sk
   // token rendered the useless "DEF 96 +DEF". The label names the OUTPUT, the
   // token names the STAT; they must not be the same word.
   const shieldLabel = 'SHLD';
-  if (damage) parts.push(effectLine('DMG', damage, property, stats, true, mode, 'offense'));
-  if (heal) parts.push(effectLine('HEAL', heal, property, stats, property !== 'true', mode, 'defense'));
-  if (shield) parts.push(effectLine(shieldLabel, shield, property, stats, property !== 'true', mode, 'defense'));
-  parts.push(...extras);
-  return parts.join(' · ') || 'PASSIVE';
+  if (damage) segments.push({ text: effectLine('DMG', damage, property, stats, true, mode, 'offense') });
+  if (heal) segments.push({ text: effectLine('HEAL', heal, property, stats, property !== 'true', mode, 'defense') });
+  // Shield gets the 'shield' keyword color (KEYWORD_TEXT_COLOR) — unlike bare
+  // DMG/HEAL, a typed shield IS one of the markup keywords the flavor-text
+  // renderer already colors, so this token can actually match it.
+  if (shield) segments.push({ text: effectLine(shieldLabel, shield, property, stats, property !== 'true', mode, 'defense'), keyword: 'shield' });
+  segments.push(...extras);
+  return segments.length > 0 ? segments : [{ text: 'PASSIVE' }];
+}
+
+export function summarizeEffects(skill: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed'): string {
+  return summarizeEffectSegments(skill, stats, mode).map((segment) => segment.text).join(' · ');
 }
 
 export function describeAura(skill: SkillDef): string | null {
