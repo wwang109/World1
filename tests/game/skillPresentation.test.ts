@@ -89,15 +89,17 @@ describe('summarizeEffects — live stat scaling', () => {
 // 1-turn duration, and the number was the lie (every stun-carrying card in the
 // current data always applies exactly `turns: 1`; the face token drops the
 // number entirely rather than reintroduce a misleading count in a new shape).
-describe('summarizeEffects — stun reads "next action", not a turn count', () => {
-  it('names a 1-charge stun STUN NEXT ACTION, no number', () => {
+// User ruling (2026-08-20): drop the "NEXT ACTION" qualifier too — bare
+// "STUN" is enough on the card face.
+describe('summarizeEffects — stun is a bare token, not a turn count', () => {
+  it('names a 1-charge stun STUN, no number', () => {
     const skill = makeSkill({ effects: [{ kind: 'stun', turns: 1 }] });
-    expect(summarizeEffects(skill)).toBe('STUN NEXT ACTION');
+    expect(summarizeEffects(skill)).toBe('STUN');
   });
 
   it('keeps the same face token for a multi-charge stun (the count moves to the tap-to-expand glossary)', () => {
     const skill = makeSkill({ effects: [{ kind: 'stun', turns: 3 }] });
-    expect(summarizeEffects(skill)).toBe('STUN NEXT ACTION');
+    expect(summarizeEffects(skill)).toBe('STUN');
   });
 });
 

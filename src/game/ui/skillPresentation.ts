@@ -212,12 +212,14 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
       // readiness, on cooldown), it does not tick down on a real-time clock.
       // "STUN 1" used to read like a 1-TURN duration (the number was the lie);
       // this face token drops the number entirely rather than reintroduce it
-      // in a different shape. `action.turns` still exists on the action (how
-      // many performances a MULTI-stun denies) but has no honest one-line
-      // face phrasing at this width, so a multi-stun's exact count is left to
-      // the tap-to-expand glossary (`cardGlossary.ts`), same as ward/negate's
-      // charge counts already are for their own harder-to-summarize detail.
-      case 'stun': extras.push({ text: 'STUN NEXT ACTION', keyword: 'stun' }); break;
+      // in a different shape.
+      // User ruling (2026-08-20): drop the "NEXT ACTION" qualifier too — bare
+      // "STUN" is enough on the card face. `action.turns` still exists on the
+      // action (content is capped at 1 by `MAX_STUN_PER_CARD`, so it is never
+      // anything but a single performance in practice) and has no honest
+      // one-line face phrasing at this width anyway; the full rule text lives
+      // in the tap-to-expand glossary (`cardGlossary.ts`).
+      case 'stun': extras.push({ text: 'STUN', keyword: 'stun' }); break;
       case 'thorns': extras.push({ text: `THORN ${action.stacks}`, keyword: 'thorns' }); break;
       case 'buffStat': extras.push({ text: `+${action.pct}% ${STAT_TOKEN[action.stat]}` }); break;
       case 'debuffStat': extras.push({ text: `-${action.pct}% ${STAT_TOKEN[action.stat]}` }); break;

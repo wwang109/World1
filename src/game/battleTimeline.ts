@@ -297,12 +297,12 @@ function propertyWord(p: Property | undefined): string {
  * Plain-language explanation for a defensive/support status — surfaced as the
  * timeline row's expandable `detail` (tap/click to expand; no hover anywhere
  * for statuses — the mechanic itself, unlike the HIT `D:` math strip, doesn't
- * need a second hover affordance). DoT statuses (poison/burn/bleed/stun)
- * already print their stacks/duration in the main log line (the `stacksText`
- * building above this function's call site — stun's own turn count included,
- * 2026-08-17 fix: it used to be the one of the four left out, so a stun's
- * main line read as a bare "Stun" with no way to tell a 1-turn lockdown from
- * a 5-turn one), so they return `undefined` here and stay a single-line entry.
+ * need a second hover affordance). DoT statuses (poison/burn/bleed) already
+ * print their stacks in the main log line (the `stacksText` building above
+ * this function's call site), so they return `undefined` here and stay a
+ * single-line entry. Stun is bare "Stunned" on the main line (user ruling
+ * 2026-08-20) with no count anywhere — `MAX_STUN_PER_CARD` caps it at one
+ * performance, so there is nothing honest to count.
  */
 function explainStatus(e: Extract<CombatEvent, { kind: 'statusApplied' }>): string | undefined {
   const turnWord = (n: number): string => `${n} turn${n === 1 ? '' : 's'}`;
@@ -1322,7 +1322,16 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           ? guardToken(e.property)
           : e.status === 'negate'
             ? negateToken(e.property)
-            : e.status.charAt(0).toUpperCase() + e.status.slice(1);
+            // User ruling (2026-08-20): the log used to read "Stun — skips its
+            // next action" (or "...next N actions"); bare "Stunned" is enough.
+            // No count is shown because none would ever be honest here:
+            // `MAX_STUN_PER_CARD` caps every card's stun action at `turns: 1`
+            // (enforced by `capViolations`, audited for all content in
+            // `tests/data/contentSchema.test.ts`), so a plural phrasing would
+            // be dead code. If that cap is ever lifted, revisit this line.
+            : e.status === 'stun'
+              ? 'Stunned'
+              : e.status.charAt(0).toUpperCase() + e.status.slice(1);
         const bucket = e.side === 'player' ? dotsPlayer : dotsEnemies[unitOf(e)]!;
         // Stacking DoTs (poison/burn/bleed) MERGE onto ONE pile per victim —
         // a reapplication's `stacks` field is the pile's NEW TOTAL, never the
@@ -1348,19 +1357,6 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           // indistinguishable at a glance, so this one gets it on the row itself.
           const charges = e.charges ?? 1;
           stacksText = ` ${charges} charge${charges === 1 ? '' : 's'}`;
-        } else if (e.status === 'stun') {
-          // Stun's magnitude lives in `turns`, not `stacks` (it never sets
-          // `stacks` at all) — a bare "Stun" made a 1-turn stun and a 5-turn
-          // stun read identically, the one gap `explainStatus`'s doc comment
-          // (just above `push`, below) wrongly claimed didn't exist.
-          //
-          // User ruling (2026-08-19): "1 turn"/"N turns" was a LIE — a stun
-          // denies the victim's next action WHENEVER it happens, not on a
-          // real-time clock (a pending stun just waits while something else
-          // is already stopping the victim from acting; see `cardGlossary.ts`
-          // for the full semantics). Relabeled to name what it actually does.
-          const turns = e.turns;
-          stacksText = turns > 1 ? ` — skips its next ${turns} actions` : ' — skips its next action';
         } else if (e.stacks) {
           stacksText = ` ${e.stacks}`;
         }

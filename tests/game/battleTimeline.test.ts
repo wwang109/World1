@@ -1413,28 +1413,33 @@ describe('game/battleTimeline', () => {
   //
   // User ruling (2026-08-19): "N turn(s)" is a LIE — a stun denies the
   // victim's next action WHENEVER it happens, not on a real-time clock (see
-  // `cardGlossary.ts`'s stun entry for the full semantics). Relabeled to name
-  // what it actually does instead of a misleading duration.
-  describe('stun prints what it actually does on the log line, not a duration', () => {
-    it('a 2-charge stun reads "Stun — skips its next 2 actions"', () => {
+  // `cardGlossary.ts`'s stun entry for the full semantics).
+  // User ruling (2026-08-20): drop the "skips its next action" phrase too —
+  // bare "Stunned" is the whole log line now. No count is shown at all,
+  // because `MAX_STUN_PER_CARD` caps every card's stun action at `turns: 1`
+  // (audited across all content), so a plural phrasing would be dead code;
+  // the `turns: 2` case below only exists to prove the line ignores the
+  // count rather than resurrecting a misleading duration for it.
+  describe('stun prints a bare "Stunned" on the log line, not a duration', () => {
+    it('reads "Stunned" regardless of the (always-1-in-content) turns count', () => {
       const events: CombatEvent[] = [
         { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'stun', turns: 2 },
         { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
       ];
       const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
       const lines = [...model.linesByTurn.values()].flat();
-      const line = lines.find((l) => l.text.includes('Stun'));
-      expect(line!.text).toBe(`${model.foeName} · Stun — skips its next 2 actions`);
+      const line = lines.find((l) => l.text.includes('Stunned'));
+      expect(line!.text).toBe(`${model.foeName} · Stunned`);
     });
 
-    it('singular "action" for a 1-charge stun', () => {
+    it('reads "Stunned" for a 1-turn stun', () => {
       const events: CombatEvent[] = [
         { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'stun', turns: 1 },
         { turn: 2, kind: 'combatEnd', result: 'win', turns: 2 },
       ];
       const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 2 });
       const lines = [...model.linesByTurn.values()].flat();
-      expect(lines.find((l) => l.text.includes('Stun'))!.text).toBe(`${model.foeName} · Stun — skips its next action`);
+      expect(lines.find((l) => l.text.includes('Stunned'))!.text).toBe(`${model.foeName} · Stunned`);
     });
   });
 
