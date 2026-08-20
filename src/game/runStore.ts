@@ -8,6 +8,12 @@ import { battleStatsFromEvents } from '../run/logAnalysis';
 import { battleGoldReward, type BattleFoeSummary } from '../run/shop';
 import type { BattleLog } from '../run/resolveBattle';
 import { noteRunEnded, noteRunStarted } from './metaStore';
+import {
+  clearRun as clearRunSave,
+  loadRun as loadRunSave,
+  saveRun as saveRunSave,
+  type StorageDriver,
+} from '../meta/runSave';
 import type { BattleTimelineInput } from './battleTimeline';
 import {
   applyDraftResult,
@@ -49,9 +55,69 @@ import {
  * (+ `src/run/draft`) functions and replace the stored state. Scenes read/
  * write ONLY through this module. No logic beyond delegation — every
  * decision (map shape, encounter rolls, gold math) lives in `src/run`.
+ *
+ * PERSISTENCE (`src/meta/runSave.ts`): every write to `activeRun` funnels
+ * through `setActiveRun` below — the ONE place this module hands a new
+ * `RunState` to `src/meta`'s save (or clears it) — so there is no separate
+ * "remember to persist" step at each of the ~25 call sites that used to
+ * assign `activeRun` directly. Reads (`getActiveRun`, `currentNode`, etc.)
+ * are untouched; only the write path changed shape.
  */
 
-let activeRun: RunState | null = null;
+/** `StorageDriver` backed by the real browser `localStorage` — same
+ * catch-and-report idiom as `metaStore.ts`'s driver (never throws; `set`
+ * reports `false` on quota-exceeded/private-mode/unavailable storage so a
+ * failed save is surfaced, not silently pretended). Kept local rather than
+ * shared with `metaStore.ts` — trivial (~10 lines), and keeps this module's
+ * only `src/meta` dependency the pure `runSave` functions, not another
+ * `src/game` module's private plumbing. */
+const localStorageDriver: StorageDriver = {
+  get(key) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set(key, value) {
+    try {
+      window.localStorage.setItem(key, value);
+      return true;
+    } catch {
+      return false; // quota exceeded / private mode / no localStorage
+    }
+  },
+};
+
+/** Hydrate from whatever was persisted the LAST time this browser had a run
+ * in progress — runs at module load (import time), which for the Phaser
+ * bundle is before any scene's `create()` fires, so `StartScene`'s
+ * "RESUME RUN ›" vs. "START RUN ›" choice (driven by `getActiveRun()`) and
+ * every other scene's read of the active run are correct from the very first
+ * frame, including after a hard page refresh. `loadRun` never throws and
+ * returns `null` for "nothing to resume" (never-saved, cleared, corrupt, or
+ * a newer-schema blob) — this line is always safe to run unconditionally. */
+let activeRun: RunState | null = loadRunSave(localStorageDriver);
+
+/** The single write funnel for `activeRun`: every action in this module that
+ * used to assign `activeRun = ...` directly now calls this instead, so the
+ * persistence hook lives in exactly one place. `null` means "no active run"
+ * (a fresh module load, or an explicit `clearRun()`) and persists via
+ * `clearRunSave` (writes the explicit "cleared" marker) rather than
+ * `saveRunSave`, which only ever accepts a real `RunState`. A failed save is
+ * logged, not thrown — gameplay must never block on a storage write. */
+function setActiveRun(next: RunState | null): void {
+  activeRun = next;
+  if (next === null) {
+    clearRunSave(localStorageDriver);
+    return;
+  }
+  const outcome = saveRunSave(localStorageDriver, next);
+  if (!outcome.ok) {
+    // eslint-disable-next-line no-console -- best-effort dev/user visibility; non-fatal by design.
+    console.warn(`run not saved (${outcome.reason}) — a page refresh will not be able to resume it`);
+  }
+}
 
 /** The one active run, or null if none has been started yet this session. */
 export function getActiveRun(): RunState | null {
@@ -83,7 +149,7 @@ export function rerollPendingSeed(): void {
  * surfacing any node choices until `applyRunDraft` installs the real picks.
  */
 export function startRun(seed: number): void {
-  activeRun = createRun(seed);
+  setActiveRun(createRun(seed));
   noteRunStarted();
   // Consume-and-refresh: the NEXT run's pending seed differs even when the
   // player never touches the reroll button (StartScene commits directly).
@@ -96,7 +162,7 @@ export function startRun(seed: number): void {
  * run context (an active run sitting in `'drafting'` status). */
 export function applyRunDraft(picks: Partial<Record<DraftSetKey, string>>): void {
   if (!activeRun) return;
-  activeRun = applyDraftResult(activeRun, picks);
+  setActiveRun(applyDraftResult(activeRun, picks));
 }
 
 /** Whether the active run is still waiting on its start-of-run draft — the
@@ -108,7 +174,7 @@ export function isRunDrafting(): boolean {
 
 /** Abandon the active run entirely (returns to the START RUN panel). */
 export function clearRun(): void {
-  activeRun = null;
+  setActiveRun(null);
 }
 
 /** Voluntarily end the active run right now — the HUD's RETIRE action (see
@@ -119,8 +185,8 @@ export function clearRun(): void {
 export function retireActiveRun(): void {
   if (!activeRun) return;
   const before = activeRun;
-  activeRun = retireRun(activeRun);
-  if (activeRun !== before) noteRunEnded(activeRun);
+  setActiveRun(retireRun(activeRun));
+  if (activeRun !== before && activeRun) noteRunEnded(activeRun);
 }
 
 /** The 2-3 nodes the player may pick next (empty if no run, run over, or a
@@ -149,7 +215,7 @@ export function currentNode(): RunNode | undefined {
  */
 export function pickNode(nodeId: string): void {
   if (!activeRun) return;
-  activeRun = chooseNode(activeRun, nodeId);
+  setActiveRun(chooseNode(activeRun, nodeId));
 }
 
 /**
@@ -271,8 +337,8 @@ export function resolveRunBattleResult(input: BattleTimelineInput, log: BattleLo
   const won = log.result === 'win';
   const payout = won ? reward.base + reward.winBonus : 0;
   const battleStats = battleStatsFromEvents(log.events);
-  activeRun = recordBattleResult(activeRun, { won, goldEarned: payout, ...battleStats });
-  if (activeRun.status === 'defeat') noteRunEnded(activeRun);
+  setActiveRun(recordBattleResult(activeRun, { won, goldEarned: payout, ...battleStats }));
+  if (activeRun && activeRun.status === 'defeat') noteRunEnded(activeRun);
   return payout;
 }
 
@@ -287,7 +353,7 @@ export function resolveRunBattleResult(input: BattleTimelineInput, log: BattleLo
 export function ensureCurrentShopShelf(): void {
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return;
-  activeRun = ensureRunShopShelf(activeRun, node.id);
+  setActiveRun(ensureRunShopShelf(activeRun, node.id));
 }
 
 /** The current shop node's persisted shelf, or undefined before it's rolled. */
@@ -302,7 +368,7 @@ export function currentShopShelf(): RunShopShelf | undefined {
 export function rerollCurrentShop(): void {
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return;
-  activeRun = rerollRunShop(activeRun, node.id);
+  setActiveRun(rerollRunShop(activeRun, node.id));
 }
 
 /** The current shop node's NEXT reroll cost (1, 2, 3, 4…, escalating per
@@ -324,7 +390,7 @@ export function buyCurrentShopCard(index: number): ShopBuyResult {
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
   const result = buyRunCard(activeRun, node.id, index);
-  if (result.ok) { activeRun = result.state; return { ok: true }; }
+  if (result.ok) { setActiveRun(result.state); return { ok: true }; }
   return { ok: false, reason: result.reason };
 }
 
@@ -343,7 +409,7 @@ export function mergeCurrentShopCard(index: number): ShopMergeResult {
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
   const result = mergeRunCard(activeRun, node.id, index);
-  if (result.ok) { activeRun = result.state; return { ok: true }; }
+  if (result.ok) { setActiveRun(result.state); return { ok: true }; }
   return { ok: false, reason: result.reason };
 }
 
@@ -352,7 +418,7 @@ export function buyCurrentShopGem(index: number): ShopBuyResult {
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
   const result = buyRunGem(activeRun, node.id, index);
-  if (result.ok) { activeRun = result.state; return { ok: true }; }
+  if (result.ok) { setActiveRun(result.state); return { ok: true }; }
   return { ok: false, reason: result.reason };
 }
 
@@ -367,7 +433,7 @@ export function buyCurrentShopCardTo(index: number, dest: BuyDestination): ShopB
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'shop') return { ok: false, reason: 'gone' };
   const result = buyRunCardTo(activeRun, node.id, index, dest);
-  if (result.ok) { activeRun = result.state; return { ok: true }; }
+  if (result.ok) { setActiveRun(result.state); return { ok: true }; }
   return { ok: false, reason: result.reason };
 }
 
@@ -380,7 +446,7 @@ export function currentRunBagHasRoomFor(skillId: string): boolean {
  * scene's LEAVE SHOP button. */
 export function leaveCurrentShop(): void {
   if (!activeRun) return;
-  activeRun = leaveShop(activeRun);
+  setActiveRun(leaveShop(activeRun));
 }
 
 // ---------------------------------------------------------------------------
@@ -395,7 +461,7 @@ export function currentEventDef(): EventDef | undefined {
   const node = currentNode();
   if (!activeRun || !node || node.kind !== 'event') return undefined;
   const { state, event } = rollEventForNode(activeRun, node);
-  activeRun = state;
+  setActiveRun(state);
   return event;
 }
 
@@ -404,7 +470,7 @@ export function currentEventDef(): EventDef | undefined {
 export function resolveCurrentEventChoice(eventId: string, choiceId: string): EventOutcome | undefined {
   if (!activeRun) return undefined;
   const { state, outcome } = resolveEventChoice(activeRun, eventId, choiceId);
-  activeRun = state;
+  setActiveRun(state);
   return outcome;
 }
 
@@ -412,7 +478,7 @@ export function resolveCurrentEventChoice(eventId: string, choiceId: string): Ev
 export function applyCurrentBonusDraftPick(pick: DraftCard): EventOutcome | undefined {
   if (!activeRun) return undefined;
   const { state, outcome } = applyBonusDraftPick(activeRun, pick);
-  activeRun = state;
+  setActiveRun(state);
   return outcome;
 }
 
@@ -421,7 +487,7 @@ export function applyCurrentBonusDraftPick(pick: DraftCard): EventOutcome | unde
 export function applyCurrentUpgradeCardPick(instanceId: string): EventOutcome | undefined {
   if (!activeRun) return undefined;
   const { state, outcome } = applyUpgradeCardPick(activeRun, instanceId);
-  activeRun = state;
+  setActiveRun(state);
   return outcome;
 }
 
@@ -430,7 +496,7 @@ export function applyCurrentUpgradeCardPick(instanceId: string): EventOutcome | 
 export function applyCurrentGemChoicePick(gemId: string): EventOutcome | undefined {
   if (!activeRun) return undefined;
   const { state, outcome } = applyGemChoicePick(activeRun, gemId);
-  activeRun = state;
+  setActiveRun(state);
   return outcome;
 }
 
@@ -438,7 +504,7 @@ export function applyCurrentGemChoicePick(gemId: string): EventOutcome | undefin
  * event scene's CONTINUE › button. */
 export function leaveCurrentEvent(): void {
   if (!activeRun) return;
-  activeRun = leaveEvent(activeRun);
+  setActiveRun(leaveEvent(activeRun));
 }
 
 // ---------------------------------------------------------------------------
@@ -461,7 +527,7 @@ export function currentRunPieces(): RunBoardPiece[] {
 /** Replaces the run's board pieces wholesale. No-op with no active run. */
 export function setCurrentRunPieces(pieces: RunBoardPiece[]): void {
   if (!activeRun) return;
-  activeRun = { ...activeRun, pieces };
+  setActiveRun({ ...activeRun, pieces });
 }
 
 /** The run's current bag slots (empty array with no active run). */
@@ -472,7 +538,7 @@ export function currentRunBagSlots(): RunBagSlot[] {
 /** Replaces the run's bag slots wholesale. No-op with no active run. */
 export function setCurrentRunBagSlots(bagSlots: RunBagSlot[]): void {
   if (!activeRun) return;
-  activeRun = { ...activeRun, bagSlots };
+  setActiveRun({ ...activeRun, bagSlots });
 }
 
 /** The run's current gem pouch (ids, may repeat). Empty with no active run. */
@@ -483,7 +549,7 @@ export function currentRunGemInventory(): string[] {
 /** Replaces the run's gem pouch wholesale. No-op with no active run. */
 export function setCurrentRunGemInventory(gemInventory: string[]): void {
   if (!activeRun) return;
-  activeRun = { ...activeRun, gemInventory };
+  setActiveRun({ ...activeRun, gemInventory });
 }
 
 // ---------------------------------------------------------------------------
@@ -502,7 +568,7 @@ export function sellCurrentRunCard(location: 'board' | 'bag', index: number): Ru
   if (!activeRun) return { ok: false, reason: 'empty' };
   const result = sellRunCard(activeRun, location, index);
   if (!result.ok) return { ok: false, reason: result.reason };
-  activeRun = result.state;
+  setActiveRun(result.state);
   return { ok: true, goldReceived: result.goldReceived };
 }
 
@@ -511,7 +577,7 @@ export function sellCurrentRunGem(pouchIndex: number): RunSellResult {
   if (!activeRun) return { ok: false, reason: 'empty' };
   const result = sellRunGem(activeRun, pouchIndex);
   if (!result.ok) return { ok: false, reason: result.reason };
-  activeRun = result.state;
+  setActiveRun(result.state);
   return { ok: true, goldReceived: result.goldReceived };
 }
 
@@ -553,7 +619,7 @@ export function heroAllocationScratchCost(alloc: Allocation): number {
  * there's no active run. */
 export function commitHeroAllocation(next: Allocation): void {
   if (!activeRun) return;
-  activeRun = setHeroAllocation(activeRun, next);
+  setActiveRun(setHeroAllocation(activeRun, next));
 }
 
 export { WAVE_COUNT };
