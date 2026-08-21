@@ -86,7 +86,7 @@ allocation algorithm.
 | Toxic Druid (`toxic_druid`) | Basic | Nature poisoner — three poison hybrids, no pure-damage filler | 3 | element: nature | magicPower-dominant, light magicResist (its own heal card), no HP (glass) |
 | Reaver (`bleed_reaver`) | Basic | Axe bleed duelist — shieldBreak opens the guard, bleed piles on, armor shred softens the follow-up | 3 | weapon: axe | attack-dominant, light HP, no speed |
 | Warbreaker (`warbreaker`) | Basic | Axe tempo-denial brute — the roster's `splash` showcase, shieldBreak follow-up | 2 | weapon: axe | attack/speed balanced (tempo-first), light HP |
-| Thornback (`thorn_beast`) | Basic | Beast thorns+shield — punishes fast/multi-hit attackers, sits behind a big shield | 2 | weapon: beast | maxHp/armor-dominant, light attack |
+| Thornback (`thorn_beast`) | Basic | Beast thorns+shield — punishes fast/multi-hit attackers (unless they wear ARMOR, 2026-08-21), sits behind a big shield | 2 | weapon: beast | maxHp/armor-dominant, light attack |
 | Sentinel (`warded_sentinel`) | Elite (tag only) | Sword warded protector — ward+guard denial layered on a flat shield, the roster's hardest normal-pool pick | 3 | weapon: sword | armor-dominant (edges out maxHp), light attack |
 
 Source of truth for exact numbers is always `src/data/enemies.ts` (cards/
@@ -125,3 +125,42 @@ read the weights were built from) — none fall back to `DEFAULT_PROFILE` any
 more. `tests/run/leveling.test.ts` asserts every id in `src/data/enemies.ts`
 has an explicit profile entry, so a future enemy landing without one now
 fails loudly instead of silently inheriting the flat default.
+
+## Thornback vs ARMOR — the reflect is PHYSICAL now (2026-08-21)
+
+The user ruling that a thorns reflect is ordinary **physical** damage (armor
+first; see §9 of [`docs/combat-model-spec.md`](combat-model-spec.md)) lands
+squarely on Thornback, whose whole identity was an unanswerable counter-punch:
+its Bulwark Thicket pile stung for the raw stack count as TRUE damage — 20, then
+39, then 58 on the recast ladder — and no defensive stat on the hero's sheet
+could touch it.
+
+**Measured** on `npm run fight thorn_beast` (same board, same seed, hero armor
+varied, the only change being the reflect's property):
+
+| hero armor | OLD (TRUE reflect) | NEW (physical reflect) |
+|---|---|---|
+| 1 (base) | 117 reflect HP, loss T13 | 85 reflect HP, loss T14 |
+| 6 | 117 reflect HP, loss T13 | 60 reflect HP, **win T16** |
+| 12 | 117 reflect HP, loss T13 | 30 reflect HP, win T16 |
+| 20 | 117 reflect HP, loss T15 | **1** reflect HP, win T16 |
+| 40 | 117 reflect HP, loss T15 | 1 reflect HP, win T16 |
+
+Reflect damage was **literally invariant in armor** before (117 at every value,
+40 armor included); it now scales down with armor and the hero's own physical
+shield can absorb the remainder. **That is the point of the ruling** — armor is
+supposed to answer a spike-shirt.
+
+**Counter-play (updated):** wear ARMOR — a physical guard or physical shield
+works too, and all three used to do nothing here. DoT/poison decks still never
+trigger thorns at all (it only answers a landed DIRECT hit), and `shieldBreak`
+still strips the 56/57 shield before a big single hit.
+
+**Open, for a content/balance pass (NOT done here — engine change only):**
+Thornback is *not* gutted against an ordinary statline (base armor 1 still loses
+the fight on T14, and its shield+bite kit still fights), but its signature is now
+cheaply hard-countered: armor costs 1 PL per point (`LEVEL_STAT_COST`) at 3 PL
+per level, so ~5 PL of armor already flips this matchup and ~19 PL erases the
+reflect entirely. If Thornback is to keep punishing armored attackers it needs a
+content answer — a deeper pile, an armor-shred line (`debuffStat` armor /
+`shieldBreak`), or a non-physical punish — priced by `balance-designer`.

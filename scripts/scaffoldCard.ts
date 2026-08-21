@@ -221,7 +221,13 @@ function phrase(a: Action): string {
     case 'poison': return `{{Poison}} ${a.stacks}`;
     case 'burn': return `{{Burn}} ${a.stacks}`;
     case 'bleed': return `{{Bleed}} ${a.stacks}`;
-    case 'thorns': return `{{Thorns}} ${a.stacks} — attackers take the stack count as TRUE damage per hit`;
+    // PHYSICAL since 2026-08-21 (user ruling; see `reflectThorns` in
+    // src/engine/combat/interpreter.ts and §9 of docs/combat-model-spec.md) —
+    // the reflect hits the attacker's armor first. The 25 already-authored
+    // thorns cards + 2 gems still print the old "as TRUE damage" phrasing and
+    // need a content copy sweep (content-designer); this template is the source
+    // of the phrase, so it stops minting the false rule here.
+    case 'thorns': return `{{Thorns}} ${a.stacks} — attackers take the stack count as physical damage per hit (their DEF applies)`;
     case 'stun': return `{{Stun}} the enemy's next performance`;
     case 'buffStat': return `+${a.pct}% ${STAT_TOKEN[a.stat]} (${a.turns} turns)`;
     case 'debuffStat': return `-${a.pct}% enemy ${STAT_TOKEN[a.stat]} (${a.turns} turns)`;

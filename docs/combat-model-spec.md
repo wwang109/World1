@@ -290,3 +290,51 @@ This is deliberately `expose`'s domination vocabulary (the other two-axis
 changes at all, and nothing shipped reaches it: over 2400 random sweep boards
 the deepest same-property stack observed was 2, so the 400-case regression
 baseline is byte-identical. See `tests/engine/guardPileCap.test.ts`.
+
+---
+
+## 9. Thorns — the reflect is PHYSICAL (locked 2026-08-21)
+
+**User ruling, verbatim:** *"its just a reflect — if either side has the thorn
+buff and either side has armor it should hit armor first."*
+
+A thorns reflect had been TRUE damage since the keyword's first commit
+(`74d8463`) — an implementation default, never ratified, and the odd one out
+among the DoT ticks, which all carry a property. It is now an **ordinary
+physical hit**. The pipeline for one reflect (`reflectThorns` →
+`dealDamage`, `src/engine/combat/interpreter.ts`):
+
+1. `sting` = the pile's CURRENT stack count (unchanged; the pile then loses one
+   stack, `statusExpired` at 0).
+2. **The recipient's ARMOR is subtracted**, mirroring `applyStrike`'s physical
+   branch verbatim: `max(1, max(0, sting − armor))` — the same min-1 floor, so
+   an armored attacker always takes at least 1 per sting.
+3. Delivered as **`physical`** with `source: 'thorns'`, so downstream in
+   `dealDamage`: a matching **physical `guard`** reduces it (the guard loop runs
+   for every source), a **physical shield pool** absorbs it, and the **TRUE pool
+   no longer blocks it point-for-point** — as typed damage it drains that pool
+   at the usual 2:1 spill rate.
+4. **No matchup wheel and no sudden-death ramp.** Both live in `applyStrike`
+   (`cardMatchup(skill, …)` needs a `SkillDef` to read a weapon/element off);
+   thorns is a status with neither, and this path calls `dealDamage` directly, so
+   both are skipped structurally rather than by a special case.
+5. `negate` and `expose` still never see a reflect — both arms of `dealDamage`
+   are `source === 'skill'`-only.
+
+**Symmetry** is structural and unchanged: whoever holds the pile reflects at
+whoever hit them, so armor helps either side identically.
+
+**The reflect loop is gated by the CALL SITE, not by the property.**
+`reflectThorns` is called from exactly one place — `applyStrike`, i.e. a card
+strike — and `dealDamage` never calls it back. Going physical therefore cannot
+create thorns-on-thorns; `source: 'thorns'` only keeps the sting out of the
+`skill`-only arms and attributes it in the log.
+
+**Pricing is unchanged** (`thorns: stacks × PRICE.dotPerStack`) and more honest
+for it: that is a TYPED rate — TRUE `damage` pays double via
+`truePremiumPerPoint` — and the reflect is now typed and mitigable.
+
+Rules are pinned in `tests/engine/thorns.test.ts`. The 400-case outcome baseline
+is **byte-identical**: the frozen sweep pool
+(`tests/engine/fixtures/frozenSweepSkillIds.ts`, snapshotted 2026-08-08) carries
+no thorns card at all, measured 0/400 carriers and 0 reflects.

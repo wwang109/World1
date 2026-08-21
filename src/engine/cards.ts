@@ -306,11 +306,25 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
   debuffStat: 'post',
   expose: 'post',
   bleed: 'post',
-  // --- Runs AFTER; nothing inside one cast can read these back. ---
-  // (`guard`/`negate`/`ward`/`shield` only meet an INCOMING hit, and the only
-  // damage a caster can take mid-cast is a `thorns` reflect, which is TRUE —
-  // it never matches a typed guard/negate and only ever drains the `true`
-  // shield pool. So hoisting them would change nothing.)
+  // --- Runs AFTER, matching the convention (see the re-check below). ---
+  // `guard`/`negate`/`ward`/`shield` only meet an INCOMING hit, and the only
+  // damage a caster can take mid-cast is a `thorns` reflect. That reflect used
+  // to be TRUE, which made this block a proven no-op: TRUE matched no typed
+  // guard/negate and only drained the `true` pool. IT IS PHYSICAL SINCE
+  // 2026-08-21 (`reflectThorns`, combat/interpreter.ts), so that reasoning is
+  // DEAD: a gem `guard`/`shield` hoisted to `pre` WOULD now mitigate the host
+  // cast's own incoming reflects.
+  //
+  // THE PLACEMENT STILL STANDS, on the same ground as `buffStat`/`expose` below:
+  // changing WHEN a defensive gem comes up changes WHAT IT IS WORTH, which is a
+  // balance decision (balance-designer), not the ordering defect this table was
+  // built to close — and a gem should sit where a CARD would put the same line.
+  // Two notes for whoever prices that: (a) the authored guard+damage cards
+  // (`braced_pike`, `impaling_charge`, `barbed_rampart`) all guard FIRST, so the
+  // card convention actually argues for `pre` here and the case is real; (b)
+  // `negate` and `ward` are unaffected either way — `dealDamage`'s negate arm is
+  // `source === 'skill'`-only, so it can never answer a reflect, and `ward`
+  // answers afflictions, not damage.
   heal: 'post',
   shield: 'post',
   poison: 'post',

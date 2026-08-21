@@ -154,6 +154,13 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // Conditional-on-being-hit reflect pile: same linear per-stack rate as the
     // DoTs (max total reflected = N(N+1)/2, realised only if the holder keeps
     // getting hit — an upper bound, like bleed). Self buff => empower family.
+    // RATE UNCHANGED by the 2026-08-21 ruling that a reflect is PHYSICAL rather
+    // than TRUE (`reflectThorns`, combat/interpreter.ts) — and MORE honest for
+    // it: `dotPerStack` is a TYPED rate (TRUE `damage` pays double via
+    // `truePremiumPerPoint`), so thorns was already priced as if its reflect
+    // were mitigable. It now actually is: armor comes off every sting, a
+    // physical guard reduces it, a physical shield absorbs it. The upper bound
+    // above is therefore softer than the price assumes, never harder.
     thorns: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
     buffStat: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
     debuffStat: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },

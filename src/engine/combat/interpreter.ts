@@ -654,8 +654,11 @@ export function dealDamage(
   // At most `MAX_GUARD_PILES` piles of a property can ever be standing (capped
   // at apply time in `applyAction`'s `guard` arm), so this loop is bounded and
   // the mitigation it can reach is bounded with it.
-  // Runs AFTER the caller's flat-MR/matchup/SD math and BEFORE shields. True
-  // damage never matches a typed guard; matching-property DoTs are covered.
+  // Runs AFTER the caller's flat-MR/matchup/SD math and BEFORE shields, for
+  // EVERY source — not just `skill`. True damage never matches a typed guard;
+  // matching-property DoTs are covered, and so is a THORNS REFLECT, which is
+  // physical since 2026-08-21 (it used to be TRUE and therefore unguardable —
+  // see `reflectThorns`). Only `negate` and `expose` below are `skill`-only.
   let reduced = amount;
   let guarded = 0;
   for (const s of victim.statuses) {
@@ -911,26 +914,61 @@ function applyStrike(
 
 /**
  * THORNS REFLECT — fires after a DIRECT skill hit resolves on a thorned victim.
- * The attacker takes the pile's CURRENT stack count as TRUE damage, then the
- * pile loses one stack (statusExpired at 0). Non-reentrant by construction:
- * every damage path that can trigger this is a card strike (`applyStrike`),
- * and the reflect itself goes straight to `dealDamage` with source 'thorns' —
- * so a reflect can never trigger the attacker's own thorns, and DoT ticks /
- * fatigue / attrition (which never pass through applyStrike) never trigger it.
- * Fires per HIT, so a multi-hit card eats one reflect per instance — thorns
- * are deliberately strong into multi-hit.
+ * The attacker takes the pile's CURRENT stack count as PHYSICAL damage, ARMOR
+ * FIRST, then the pile loses one stack (statusExpired at 0). Fires per HIT, so a
+ * multi-hit card eats one reflect per instance — thorns are deliberately strong
+ * into multi-hit.
+ *
+ * PHYSICAL, NOT TRUE (user-locked 2026-08-21): "its just a reflect — if either
+ * side has the thorn buff and either side has armor it should hit armor first."
+ * TRUE-ness was an implementation default from the keyword's first commit
+ * (74d8463), never ratified, and inconsistent with the DoT ticks, which all carry
+ * a property. A reflect is now an ORDINARY PHYSICAL HIT for every downstream
+ * rule: the recipient's ARMOR is subtracted here, then a matching physical
+ * `guard` reduces it and a physical shield pool absorbs it inside `dealDamage`,
+ * exactly as they would for any physical hit (and the TRUE pool no longer eats
+ * reflects point-for-point — as typed damage it drains that pool 2:1 like every
+ * other typed hit). Pricing is unchanged and MORE honest for it: thorns still
+ * costs `dotPerStack` (10 deci/stack, the typed rate) and now delivers typed,
+ * mitigable damage, where TRUE damage elsewhere pays double.
+ *
+ * ARMOR ARITHMETIC IS MIRRORED, NOT REINVENTED — the two floors below are
+ * `applyStrike`'s `afterDefenseWithoutFloor`/`afterDefense` pair verbatim
+ * (`mitigation(...,'physical')` IS `effStat(...,'armor')`), so the strike path
+ * and the reflect path can never disagree about what armor does or where the
+ * min-1 floor sits.
+ *
+ * NO MATCHUP WHEEL: the element wheel / weapon triangle lives in `applyStrike`
+ * as `cardMatchup(skill, enemy)`, which needs a `SkillDef` to read a
+ * `weapon`/`element` off. Thorns is a status with neither, this path builds no
+ * skill and calls `dealDamage` directly, so the wheel is skipped structurally —
+ * there is no multiplier to accidentally apply. The sudden-death ramp (also
+ * `applyStrike`-only) is skipped the same way, exactly as before this change.
+ *
+ * NON-REENTRANT BY CONSTRUCTION — and it is the CALL SITE that guarantees it,
+ * not the damage property and not the `source` tag: `reflectThorns` is called
+ * from ONE place, `applyStrike` (a card strike), and `dealDamage` never calls it
+ * back. So a reflect cannot trigger the attacker's own thorns whatever property
+ * it carries, and DoT / fatigue / attrition ticks (which never pass through
+ * `applyStrike`) never trigger it either. The `source: 'thorns'` tag is what
+ * keeps a reflect out of the `skill`-only arms of `dealDamage` (`negate`,
+ * `expose`) and what attributes the sting in the log — it is NOT the loop gate.
+ * See `tests/engine/thorns.test.ts`.
  */
 function reflectThorns(ctx: Ctx, victim: CombatantState, attacker: CombatantState): void {
   if (!victim.alive) return; // a killing blow is not reflected: first to fall loses
   for (const status of victim.statuses) {
     if (status.kind !== 'thorns' || (status.stacks ?? 0) <= 0) continue;
     const sting = status.stacks ?? 0;
+    // ARMOR FIRST, mirroring `applyStrike`'s physical branch exactly.
+    const afterArmorWithoutFloor = Math.max(0, sting - mitigation(attacker, 'physical'));
+    const afterArmor = Math.max(1, afterArmorWithoutFloor);
     // Attribute the sting to the card that GRANTED the thorns, not to whatever
     // the attacker happens to be casting — same idiom as the DoT ticks. Restore
     // the attacker's source afterwards: we are mid-cast in their attribution.
     const prevSource = ctx.source;
     ctx.source = status.source;
-    dealDamage(ctx, attacker, sting, 'true', { source: 'thorns' });
+    dealDamage(ctx, attacker, afterArmor, 'physical', { source: 'thorns' });
     ctx.source = prevSource;
     status.stacks = sting - 1;
     status.turnsLeft = status.stacks;

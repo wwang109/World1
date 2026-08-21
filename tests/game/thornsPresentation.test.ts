@@ -72,20 +72,29 @@ describe('thorns presentation', () => {
     expect(woreOff[0]!.tag).toBe('BUFF');
   });
 
-  it('counts reflect damage in the holder side totals', () => {
+  it('counts reflect damage in the holder side totals — the HP it actually dealt', () => {
     const model = timeline(BASE);
     const log = resolveBattle(battleRequestOf(BASE));
-    const reflected = log.events
-      .filter((e): e is Extract<typeof e, { kind: 'damage' }> => e.kind === 'damage')
-      .filter((e) => e.source === 'thorns' && e.side === 'enemy')
-      .reduce((sum, e) => sum + e.amount, 0);
-    expect(reflected, 'the fight must actually reflect damage').toBeGreaterThan(0);
-    // playerDamage must include every sting the enemy took — proven by lower
-    // bound: totals with reflects >= totals of skill hits alone.
-    const skillOnly = log.events
-      .filter((e): e is Extract<typeof e, { kind: 'damage' }> => e.kind === 'damage')
+    const hits = log.events.filter((e): e is Extract<typeof e, { kind: 'damage' }> => e.kind === 'damage');
+    const stings = hits.filter((e) => e.source === 'thorns' && e.side === 'enemy');
+    expect(stings.length, 'the fight must actually reflect damage').toBeGreaterThan(0);
+    // A REFLECT IS PHYSICAL SINCE 2026-08-21, so this enemy's own physical shield
+    // (Bandit Duelist casts bramble_ward too) now ABSORBS part of it — which is
+    // the automatic, non-thorns-specific consequence the property change buys,
+    // and the reason this assertion reads HP DEALT rather than raw `amount`
+    // (`CardSummaryRow.dots` / the side ledgers have always credited
+    // `amount - blocked`; as TRUE damage nothing here ever blocked, so the two
+    // used to be the same number).
+    expect(stings.some((e) => e.blocked > 0), 'a physical shield must be able to eat a sting').toBe(true);
+    for (const s of stings) expect(s.property).toBe('physical');
+    const dealt = (e: Extract<typeof hits[number], { kind: 'damage' }>) => e.amount - e.blocked;
+    const reflected = stings.reduce((sum, e) => sum + dealt(e), 0);
+    expect(reflected, 'some sting must get through the plating').toBeGreaterThan(0);
+    // playerDamage must include every sting the enemy took, on top of the
+    // player's own skill damage.
+    const skillOnly = hits
       .filter((e) => e.source === 'skill' && e.side === 'enemy')
-      .reduce((sum, e) => sum + e.amount, 0);
+      .reduce((sum, e) => sum + dealt(e), 0);
     const finalSummary = model.summaryByStep[model.summaryByStep.length - 1]!;
     expect(finalSummary.playerDamage).toBe(skillOnly + reflected);
   });

@@ -287,11 +287,20 @@ type ActionKinds =
   /**
    * THORNS (self buff): grants `stacks` thorn stacks on the CASTER. Whenever a
    * DIRECT skill hit lands on the holder, the ATTACKER takes the current stack
-   * count as TRUE reflect damage and the pile loses one stack (expires at 0).
+   * count as PHYSICAL reflect damage and the pile loses one stack (expires at 0).
    * DoT ticks, fatigue and attrition never trigger it, and reflect damage can
    * never trigger the attacker's own thorns (depth-1, non-reentrant) — a
    * reflect loop is the cheapest way to hang the sim. Stacks persist until
    * consumed (no turn expiry) and are NOT cleansable (a buff, not an ailment).
+   *
+   * PHYSICAL, ARMOR FIRST (user-locked 2026-08-21: "its just a reflect — if
+   * either side has the thorn buff and either side has armor it should hit armor
+   * first"). The reflect is an ordinary physical hit: the recipient's ARMOR comes
+   * off it (min-1 floor), a matching physical `guard` reduces it and a physical
+   * shield absorbs it. It carries no weapon/element, so no matchup wheel applies.
+   * It was TRUE from the keyword's first commit until then — an unratified
+   * default, and the odd one out among the typed DoT ticks. See `reflectThorns`
+   * in combat/interpreter.ts.
    *
    * A HIT THAT DID NOT TAKE EFFECT DOES NOT REFLECT: a killing blow is not
    * reflected (first to fall loses), and a hit fully cancelled by a `negate`

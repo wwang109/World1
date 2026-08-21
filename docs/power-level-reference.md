@@ -34,7 +34,7 @@ immediately):
 | `shield` (TRUE, pure flat, no stat) | `power * flatTrueShieldPerPoint` | `PRICE.flatTrueShieldPerPoint` — typed parity; the TRUE premium is mechanical (typed damage drains the TRUE pool 2:1) |
 | TRUE damage premium | `+truePremiumPerPoint` per point, on top of the flat rate | `PRICE.truePremiumPerPoint` — half-effect rule (user-locked 2026-07-20): TRUE damage costs exactly double typed |
 | `poison` / `bleed` / `burn` | `stacks * dotPerStack` | `PRICE.dotPerStack` — LINEAR PER-STACK (user-locked 2026-07-23); tick gameplay unchanged (poison/bleed decay, burn halves — see `burnTotalDamage`) |
-| `thorns` | `stacks * dotPerStack` | `PRICE.dotPerStack` — the DoT rate, reused: a reflect pile's total is an upper bound realised only while the holder keeps being hit |
+| `thorns` | `stacks * dotPerStack` | `PRICE.dotPerStack` — the DoT rate, reused: a reflect pile's total is an upper bound realised only while the holder keeps being hit. Unchanged by the 2026-08-21 PHYSICAL-reflect ruling, and more honest for it: this is a TYPED rate (TRUE damage pays double), and a reflect is now typed/mitigable — armor off every sting, physical guard/shield apply |
 | `stun` | `turns * stunPerTurn` | `PRICE.stunPerTurn` — a consumed performance ≈ a whole Bronze card; sim re-tune deferred |
 | `buffStat` / `debuffStat` | `pct * turns * statPctTurn` | `PRICE.statPctTurn` |
 | `expose` (%amp) | `pct * turns * exposePerPctTurnNum/Den` | `PRICE.exposePerPctTurnNum/Den` — guard parity |
