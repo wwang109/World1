@@ -113,6 +113,35 @@ export interface GemAppended {
 }
 
 /**
+ * Afflictions an `exploit` rider may key off — EXACTLY the cleansable set
+ * (`isCleansable`, combat/interpreter.ts), i.e. the negative statuses a unit can
+ * be made to carry: poison / burn / bleed / stun / stat debuff / expose.
+ *
+ * DECLARED HERE, not imported from `StatusInstance['kind']`: `combat/state.ts`
+ * imports this module, so reading the status union back out of it would close an
+ * import cycle. It is the same duplicated-as-data tradeoff `OFFENSIVE_KINDS`
+ * (balance.ts) already accepts, with the same fix — a test pins this union
+ * against `isCleansable` so the two can never drift.
+ *
+ * `thorns`/`guard`/`negate`/`ward`/`buff` are deliberately ABSENT: those are
+ * BUFFS on their holder, and "the target is buffed, so hit it harder" is a
+ * different mechanic (a punish, not an exploit) that would need its own price.
+ */
+export type ExploitableStatus = 'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'expose';
+
+/**
+ * Statuses that carry a STACK COUNT a `stackBonus` can scale off — the three
+ * decaying/halving DoTs plus `thorns`. Every other status kind measures itself
+ * in turns, charges or a pct, so `stacks` would read 0 forever and the rider
+ * would be a silent no-op priced at full rate.
+ *
+ * `thorns` is in (and is the whole point of the caster-side form: it is the one
+ * stacking pile a unit accumulates ON ITSELF, so it is the only status
+ * `of: 'caster'` can ever find in shipped content).
+ */
+export type StackedStatus = 'poison' | 'burn' | 'bleed' | 'thorns';
+
+/**
  * Cast actions. Targets are implicit in 1v1: offensive actions hit the enemy,
  * supportive ones apply to the caster.
  *
@@ -382,6 +411,78 @@ type ActionKinds =
   | { kind: 'shieldBreak'; amount: number }
   /** +amount FLAT damage this cast if the previous cast shared an archetype (place first). */
   | { kind: 'comboBonus'; amount: number }
+  /**
+   * EXPLOIT — `comboBonus`'s sibling, gated on the VICTIM'S CONDITION instead of
+   * on the caster's own cast history: +`amount` FLAT damage this cast if the
+   * target ALREADY CARRIES the named affliction. Place it BEFORE the damage
+   * action it feeds (enforced by `validateSkillContent`); it arms the cast's
+   * per-target bonus, which the first non-gem `damage` action spends — exactly
+   * one bonus per cast, exactly like `comboBonus`.
+   *
+   * FLAT, NOT A MULTIPLIER (decided 2026-08-21, user asked for "2x this
+   * damage"). A `bonusMul` field would have to multiply SOMETHING, and every
+   * honest candidate is worse than a flat add:
+   *  • multiplying `power + effectiveStat` re-introduces the %-of-stat damage
+   *    model the engine deliberately left (docs/combat-model-spec.md, "FLAT
+   *    model"): output proportional to a hero stat with a card-authored
+   *    coefficient grows multiplicatively against linear HP, and — exactly like
+   *    an UNCAPPED `statStrike` — cannot be priced against a fixed PL band;
+   *  • multiplying the flat base alone is just `amount = power`, i.e. this
+   *    action with a number the card already prints;
+   *  • either form needs a new rounding rule and a new term in
+   *    `StrikeParts`/`DamageCalculation`, where a flat add telescopes through
+   *    `effectBonusDamage` with no new math at all.
+   * So "2x" is authored PER CARD as `amount === (the card's own damage power)`,
+   * which reads on the face as the number it actually adds and prices per point
+   * on the `comboBonus` conditional-discount precedent
+   * (`PRICE.comboPerPointNum/Den`; see `PRICE.conditionalBonusDen`).
+   *
+   * IT READS PRE-EXISTING STATUS ONLY — USER-LOCKED 2026-08-21 ("it should
+   * always activate this effect first before activating any poison debuff"). The
+   * rider resolves before the card's own DoT/status applications land (the
+   * catalog's standing convention: statuses go after the hit), so a card can
+   * NEVER self-trigger inside one cast. A card that both exploits poison and
+   * applies poison pays off ACROSS casts: cast 1 arms nothing and leaves a pile,
+   * cast 2 finds the pile and collects. `validateSkillContent` enforces the
+   * order so the rule is unrepresentable rather than merely conventional.
+   *
+   * OFFENSIVE (it reads the victim), so it resolves against the SAME target(s)
+   * the damage action does and is armed PER TARGET: under `scope: 'all'` each
+   * foe is checked on its own and only the afflicted ones take the bonus — which
+   * is also why it pays the AoE reach multiplier (`OFFENSIVE_KINDS`).
+   *
+   * Parameterised over the affliction, so bleed / burn / stun / debuff / expose
+   * variants are DATA, never new arms.
+   */
+  | { kind: 'exploit'; status: ExploitableStatus; amount: number }
+  /**
+   * STACK BONUS — flat bonus damage PROPORTIONAL to a stacking status's current
+   * stack count, hard-CAPPED: `bonus = min(per × stacks(status, of), cap)`.
+   *
+   * `of: 'caster'` reads the CASTER's own pile — the thorn-deck payoff ("spend
+   * the wall"): a card that turns the stacks it has been accumulating into
+   * damage. `of: 'target'` reads the VICTIM's pile — a DoT executioner that hits
+   * harder the deeper the poison. Either way it is a rider on the cast's own
+   * hit, NOT a separate instance (`isHit: false`): it takes no extra-hit
+   * premium, spends no second `negate` charge, and is spent by the first non-gem
+   * `damage` action exactly like `comboBonus`/`exploit`.
+   *
+   * THE `cap` IS REQUIRED, and the cap is WHAT IS PRICED — the `statStrike`
+   * lesson stated as a type instead of a footnote. `per × stacks` is unbounded
+   * in a resource the card does not control (piles merge; a thorns wall or a
+   * poison stack can be arbitrarily deep), and an unbounded effect has no honest
+   * fixed price — `statStrike` handles that by pricing an uncapped strike at 0
+   * so it fails every band loudly. Here the field is simply not optional: there
+   * is no uncapped form to price. A capped rider is worth at most `cap` damage
+   * at any stack depth, so it prices exactly like a conditional flat bonus of
+   * that size (`actionsPriceDeci`).
+   *
+   * SAME ORDERING RULE AS `exploit`, same reason: it reads the pile as it stands
+   * when the rider resolves, before this card's own thorns/DoT application lands
+   * (`validateSkillContent` enforces it), so the loop is cross-cast — grant now,
+   * spend next time.
+   */
+  | { kind: 'stackBonus'; status: StackedStatus; of: 'caster' | 'target'; per: number; cap: number }
   // ---- Property-generic defensive keywords ----
   /**
    * Magical Guard: while active, incoming damage of the matching `property` is

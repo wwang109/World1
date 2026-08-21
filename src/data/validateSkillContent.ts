@@ -1,4 +1,4 @@
-import { MAX_EXPOSE_PCT, MAX_GUARD_PCT } from '../engine/balance';
+import { MAX_EXPOSE_PCT, MAX_GUARD_PCT, statusAppliedBy } from '../engine/balance';
 import { MAX_NEGATE_CHARGES, MAX_WARD_CHARGES, type Action, type SkillDef } from '../engine/types';
 
 /**
@@ -58,6 +58,15 @@ const TIERS = ['bronze', 'silver', 'gold', 'diamond'] as readonly string[];
 const ELEMENTS = ['fire', 'frost', 'lightning', 'nature', 'holy', 'dark'] as readonly string[];
 const WEAPONS = ['sword', 'axe', 'lance', 'bow', 'beast'] as readonly string[];
 const BUFFABLE = ['attack', 'magicPower', 'armor', 'magicResist', 'speed'] as readonly string[];
+/**
+ * Runtime twins of `ExploitableStatus` / `StackedStatus` (engine/types.ts) — the
+ * status a conditional rider may key off. Kept as literal lists for the same
+ * reason every other enum here is: TypeScript widens JSON strings to `string`,
+ * so the compile-time union enforces nothing at the authoring surface. Pinned
+ * against the engine unions by `tests/engine/conditionalRiders.test.ts`.
+ */
+const EXPLOITABLE = ['poison', 'burn', 'bleed', 'stun', 'debuff', 'expose'] as readonly string[];
+const STACKED = ['poison', 'burn', 'bleed', 'thorns'] as readonly string[];
 
 /** Fields allowed inside a document's `def` payload. `id`/`version` are the KEY
  * and live on the envelope, so finding either in here is a mistake worth naming. */
@@ -127,6 +136,10 @@ const ACTION_FIELDS: Record<string, readonly string[]> = {
   lifesteal: ['pct'],
   shieldBreak: ['amount'],
   comboBonus: ['amount'],
+  exploit: ['status', 'amount'],
+  // `cap` is REQUIRED on stackBonus (engine/types.ts) — the payload is
+  // `min(per × stacks, cap)` and only the ceiling is priceable.
+  stackBonus: ['status', 'of', 'per', 'cap'],
   taunt: ['amount'],
   buffStat: ['stat', 'pct', 'turns'],
   debuffStat: ['stat', 'pct', 'turns'],
@@ -271,6 +284,25 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     case 'lifesteal': lifestealPct(); break;
     case 'shieldBreak': num('amount'); break;
     case 'comboBonus': num('amount'); break;
+    /**
+     * EXPLOIT / STACK BONUS — the two conditional bonus-damage riders.
+     *
+     * Magnitudes are floored at 0 for the reason `charges`/`slowWeight` state at
+     * length: a negative one REFUNDS budget (both price per point) while the
+     * engine's `armTargetBonus` drops any non-positive bonus outright, i.e. it
+     * would buy PL headroom for a rider that does nothing. `per` is floored at 1
+     * — a `per: 0` rider is priced for its `cap` and can never deliver a point.
+     */
+    case 'exploit':
+      req(raw, 'status', (v) => EXPLOITABLE.includes(v as string), EXPLOITABLE.join('|'), at, problems);
+      req(raw, 'amount', inRange(0, 999), 'an integer 0..999 (a negative bonus REFUNDS budget for a rider the engine drops outright)', at, problems);
+      break;
+    case 'stackBonus':
+      req(raw, 'status', (v) => STACKED.includes(v as string), STACKED.join('|'), at, problems);
+      req(raw, 'of', (v) => v === 'caster' || v === 'target', 'caster or target', at, problems);
+      req(raw, 'per', inRange(1, 999), 'an integer 1..999 (a per of 0 is priced for its cap and can never deliver a point)', at, problems);
+      req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, because per x stacks is unbounded', at, problems);
+      break;
     case 'taunt': num('amount'); break;
     case 'buffStat': stat(); pct('pct'); turns('turns'); break;
     case 'debuffStat': stat(); pct('pct'); turns('turns'); break;
@@ -278,6 +310,75 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
   }
 }
 
+
+/**
+ * THE RIDER ORDERING RULE (user-locked 2026-08-21, verbatim: "it should always
+ * activate this effect first before activating any poison debuff").
+ *
+ * `exploit` and `stackBonus` arm a bonus by READING a status that is already
+ * there (`cast.bonusByTarget`, combat/interpreter.ts), and only a non-gem
+ * `damage` action ever spends it. Two things must therefore hold on the authored
+ * effect list, and neither is expressible in the type:
+ *
+ *  1. THE RIDER MUST PRECEDE A DAMAGE ACTION. Behind one — or on a card with no
+ *     damage line at all — it arms a bonus nothing can read: a priced no-op,
+ *     the exact silent failure `GEM_ACTION_PHASE` (engine/cards.ts) was built to
+ *     close for the same keyword family on the gem path.
+ *
+ *  2. ANY APPLICATION OF THE RIDER'S OWN STATUS MUST COME AFTER THAT DAMAGE.
+ *     This is the user's ruling: a card may not satisfy its own condition
+ *     inside one cast. Placed before the damage, a poison+exploit card would
+ *     collect its own bonus on its FIRST cast and the cross-cast loop — the
+ *     mechanic the card is sold on — would never exist. Placed after, the pile
+ *     is left behind and the NEXT cast collects. It is also what makes the
+ *     self-synergy price honest (`selfSynergyPremiumDeci`, engine/balance.ts):
+ *     that premium is derived from "guaranteed from the second cast onward".
+ *
+ * SIDE-AWARE (rule 2): only an application that lands where the rider READS
+ * counts. A `stackBonus` with `of: 'caster'` is self-fed by a CASTER-side
+ * `thorns` line, never by the poison the same card puts on the enemy — so a
+ * poison-before-damage line on a thorns-spender is not a violation.
+ *
+ * Checked against the EFFECTIVE effect list at every tier, exactly like the
+ * AoE+splash rule beside it: a tier block that re-authors `effects` can reorder
+ * them, and one that authors none inherits the base list.
+ */
+function rejectRiderMisordering(effects: unknown, at: string, problems: ContentProblem[]): void {
+  if (!Array.isArray(effects)) return;
+  const actions = effects.filter(isObj);
+  for (let r = 0; r < actions.length; r += 1) {
+    const rider = actions[r]!;
+    if (rider.kind !== 'exploit' && rider.kind !== 'stackBonus') continue;
+    const status = typeof rider.status === 'string' ? rider.status : '';
+    const reads: 'caster' | 'target' = rider.kind === 'stackBonus' && rider.of === 'caster' ? 'caster' : 'target';
+    // Rule 1: the first own damage action AFTER the rider is the one it feeds.
+    let fed = -1;
+    for (let i = r + 1; i < actions.length; i += 1) {
+      if (actions[i]!.kind === 'damage') { fed = i; break; }
+    }
+    if (fed === -1) {
+      problems.push({
+        where: at,
+        message: 'a ' + String(rider.kind) + ' rider must be placed BEFORE a damage action — it arms this cast\'s bonus damage, '
+          + 'and only a damage action can spend it. Move it ahead of the card\'s damage line (or drop it).',
+      });
+      continue;
+    }
+    // Rule 2: nothing may apply the status this rider reads until after that hit.
+    for (let i = 0; i < actions.length; i += 1) {
+      if (i === r || i > fed) continue;
+      const applied = statusAppliedBy(actions[i]! as unknown as Action);
+      if (!applied || applied.status !== status || applied.on !== reads) continue;
+      problems.push({
+        where: at,
+        message: 'effects[' + String(i) + '] applies ' + applied.status + ', the same status the ' + String(rider.kind)
+          + ' rider reads, at or before the damage it feeds (effects[' + String(fed) + ']) — a card may never trigger its own '
+          + 'condition within one cast (user-locked 2026-08-21). Move the ' + applied.status + ' line AFTER the damage; '
+          + 'the payoff is meant to land on the NEXT cast.',
+      });
+    }
+  }
+}
 
 const AURA_FIELDS = new Set(['affects', 'reach', 'archetypeFilter', 'propertyFilter', 'mods']);
 const AURA_AFFECTS = ['adjacent', 'left', 'right', 'allBoard'] as readonly string[];
@@ -464,10 +565,12 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
     }
   };
   rejectAoeSplash(raw.scope, raw.effects, where);
+  rejectRiderMisordering(raw.effects, where, problems);
   if (isObj(raw.tierUpgrades)) {
     for (const [tier, up] of Object.entries(raw.tierUpgrades)) {
       if (!isObj(up)) continue;
       rejectAoeSplash(up.scope ?? raw.scope, up.effects ?? raw.effects, where + '.tierUpgrades.' + tier);
+      rejectRiderMisordering(up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
     }
   }
 

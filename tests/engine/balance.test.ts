@@ -72,6 +72,15 @@ import { PACK_VARIANT_WEIGHTS } from '../../src/run/encounter';
 // constants (`BOSS_EVERY`, `PACK_VARIANT_WEIGHTS` — see balance.ts for the full
 // arithmetic), not `MAX_FOES`. NO existing rate moved.
 //
+// 2026-08-21: conditionalBonusDen 2 ADDED — the CONDITIONAL-TRIGGER DISCOUNT of
+// the two new bonus-damage riders (`exploit`, `stackBonus`), expressed as a
+// denominator on the card's own flat-damage rate rather than a second copy of
+// comboBonus's 2.5/pt. On a typed card `strikeRate/2` IS 2.5/pt (the locked
+// comboBonus number); a TRUE card pays 5/pt, because a flat bonus bypasses
+// defense on a TRUE card exactly as its flat base does. A rider whose own kit
+// supplies the status it reads forfeits the discount and pays the full rate
+// (`selfSynergyPremiumDeci`). NO existing rate moved.
+//
 // 2026-08-18: tauntPerPoint 10 ADDED — closes the last KNOWN SILENT ZERO
 // (`taunt` had `price: []`, no rate at all). Priced at PARITY with
 // `dotPerStack` — the nearest structural comparable (self-only, permanent,
@@ -118,6 +127,7 @@ describe('PRICE structure lock', () => {
       shieldBreakPerPointDen: 4,
       comboPerPointNum: 5,
       comboPerPointDen: 2,
+      conditionalBonusDen: 2,
       guardPerPctTurnNum: 1,
       guardPerPctTurnDen: 1,
       exposePerPctTurnNum: 1,
@@ -694,6 +704,14 @@ describe('AoE reach pricing (scope: all)', () => {
     expect(OFFENSIVE_KINDS).toEqual(new Set([
       'damage', 'statStrike', 'poison', 'burn', 'bleed', 'stun',
       'debuffStat', 'expose', 'slow', 'splash', 'disrupt', 'shieldBreak',
+      // 2026-08-21: the two conditional bonus-damage riders. They only ARM a
+      // bonus, but they resolve against the VICTIM (exploit reads its
+      // afflictions; stackBonus reads a pile) and the bonus they arm is
+      // delivered once per foe under `scope: 'all'`, so both fan out and both
+      // pay the AoE reach multiplier. `isOffensiveAction` classifies them by
+      // KIND — including `stackBonus` with `of: 'caster'` — for exactly that
+      // reason, so this pin stays kind-for-kind.
+      'exploit', 'stackBonus',
     ]));
   });
 });

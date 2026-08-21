@@ -287,6 +287,17 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
   // --- Runs BEFORE the host's effects: it PREPARES the ground for them. ---
   /** Arms `cast.bonusFlat` so the host's damage arm can read it. */
   comboBonus: 'pre',
+  /**
+   * Arms `cast.bonusByTarget` — same seam as `comboBonus`, same failure mode if
+   * appended last (no damage action left to read the bonus, so the whole gem
+   * would be a no-op). ALSO the ordering the user locked for these two keywords
+   * on 2026-08-21: a rider reads PRE-EXISTING status, so it must resolve ahead
+   * of the host's own hit AND ahead of any status the host applies. `pre` gives
+   * both for free — the host's own poison/thorns line stays where the card
+   * authored it, behind its damage.
+   */
+  exploit: 'pre',
+  stackBonus: 'pre',
   /** Strips plating so the host's hit lands on HP, not on a shield. */
   shieldBreak: 'pre',
   // --- Runs AFTER, because it READS what the cast already did. ---

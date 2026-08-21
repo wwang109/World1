@@ -18,6 +18,21 @@ import { burnTotalDamage } from '../../engine/balance';
  * scope call): consolidating them was judged riskier than clearly marking
  * all three so the next reader finds every copy.
  */
+/**
+ * Plain-English names for the statuses a conditional rider (`exploit` /
+ * `stackBonus`) can key off — lower case, because they appear mid-sentence in
+ * the entries below ("if the target already has poison").
+ */
+const STATUS_NAME: Record<'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'expose' | 'thorns', string> = {
+  poison: 'poison',
+  burn: 'burn',
+  bleed: 'bleed',
+  stun: 'a stun',
+  debuff: 'a stat debuff',
+  expose: 'expose',
+  thorns: 'thorn',
+};
+
 function burnTickPreview(stacks: number): string {
   const ticks: number[] = [];
   for (let s = Math.max(0, Math.floor(stacks)); s > 0; s = Math.floor(s / 2)) ticks.push(2 * s);
@@ -271,6 +286,21 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
       return {
         title: 'Combo',
         body: 'Bonus triggers if your previous cast shared this card’s archetype.',
+      };
+    // The two conditional bonus-damage riders (engine/types.ts). Both entries
+    // state the ONE rule a player will otherwise get wrong: the condition is
+    // read BEFORE this card applies anything, so a card that also applies the
+    // status never triggers on its own first cast — the payoff lands on the
+    // next one (user-locked 2026-08-21).
+    case 'exploit':
+      return {
+        title: 'Exploit',
+        body: `+${action.amount} damage on this hit if the target already has ${STATUS_NAME[action.status]}. Checked before this card applies anything, so if this card is what applies it, the bonus starts on your NEXT cast.`,
+      };
+    case 'stackBonus':
+      return {
+        title: 'Stack bonus',
+        body: `+${action.per} damage per ${STATUS_NAME[action.status]} stack ${action.of === 'caster' ? 'you are holding' : 'on the target'}, up to +${action.cap}. Counted before this card applies anything — stacks added by this cast pay off on the NEXT one, and the stacks are not consumed.`,
       };
     case 'heal':
       return property === 'true'

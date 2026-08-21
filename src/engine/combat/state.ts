@@ -386,3 +386,24 @@ export function totalShield(c: CombatantState): number {
 export function hasStatus(c: CombatantState, kind: StatusInstance['kind']): boolean {
   return c.statuses.some((s) => s.kind === kind);
 }
+
+/**
+ * Total CURRENT stacks of one status kind on a unit — the quantity a
+ * `stackBonus` rider scales off (`applyAction`, combat/interpreter.ts).
+ *
+ * SUMMED ACROSS PILES even though every stacking kind (poison/burn/bleed via
+ * `applyDot`, thorns via its own arm) keeps exactly ONE pile per holder and
+ * merges into it: the sum is correct for one pile and stays correct if a future
+ * kind ever opens a second, where a `find`-the-first would silently under-read.
+ * Kinds that carry no `stacks` return 0.
+ *
+ * Indexed walk, integer-only, no RNG — safe to call mid-cast.
+ */
+export function statusStackCount(c: CombatantState, kind: StatusInstance['kind']): number {
+  let stacks = 0;
+  for (let i = 0; i < c.statuses.length; i += 1) {
+    const s = c.statuses[i]!;
+    if (s.kind === kind) stacks += s.stacks ?? 0;
+  }
+  return stacks;
+}

@@ -105,6 +105,7 @@ export interface PriceRates {
   shieldBreakPerPointDen: number;
   comboPerPointNum: number;
   comboPerPointDen: number;
+  conditionalBonusDen: number;
   guardPerPctTurnNum: number;
   guardPerPctTurnDen: number;
   exposePerPctTurnNum: number;
@@ -197,6 +198,35 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     lifesteal: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'pct', num: P.lifestealPerPctNum, den: P.lifestealPerPctDen }] },
     shieldBreak: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'amount', num: P.shieldBreakPerPointNum, den: P.shieldBreakPerPointDen }] },
     comboBonus: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'amount', num: P.comboPerPointNum, den: P.comboPerPointDen }] },
+
+    // EXPLOIT / STACK BONUS — conditional FLAT bonus damage on the cast's own
+    // hit, priced at the card's own damage rate over the conditional-trigger
+    // DISCOUNT denominator (`PRICE.conditionalBonusDen`, which reproduces
+    // comboBonus's locked 2.5 deci/pt on a typed card and charges a TRUE card
+    // the TRUE premium — a flat bonus bypasses defense on a TRUE card exactly
+    // as its flat base does). `stackBonus` prices its `cap`, never `per`: the
+    // payload is `min(per × stacks, cap)`, and only the ceiling is bounded —
+    // the `statStrike` lesson, made unrepresentable by `cap` being required.
+    //
+    // `isHit: false` — neither is a damage INSTANCE. They add to the hit the
+    // card already has, so no `extraHitPremium`, no second `negate` charge to
+    // spend, no second round of mitigation.
+    //
+    // FAMILY `empower`, deliberately NOT 'damage' — and this is a real trap
+    // worth naming: `capViolations` checks the damage family against
+    // `HIT_KINDS` (isHit), NOT against `family: 'damage'`, so a non-hit kind
+    // labelled 'damage' would count against NO cap at all — a silent
+    // cap escape. `empower` is also the honest home on the merits: it is where
+    // `comboBonus`, the keyword these two extend, already lives, and the
+    // 100/150/200-by-size empower ceiling is what bounds how much conditional
+    // bonus damage one card may carry (40 points of typed exploit at size 1).
+    //
+    // `offensive: true` — they resolve against the VICTIM (mirrors
+    // `isOffensiveAction`, which classifies both by KIND, including the
+    // caster-side `of: 'caster'` form, because the bonus they arm is delivered
+    // once per foe under `scope: 'all'`), so they pay the AoE reach multiplier.
+    exploit: { isHit: false, scalable: false, family: 'empower', offensive: true, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: P.conditionalBonusDen }] },
+    stackBonus: { isHit: false, scalable: false, family: 'empower', offensive: true, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
 
     // PRICED (balance-designer pass, 2026-08-18) — closes the last KNOWN
     // SILENT ZERO: `taunt` had an interpreter implementation and no rate.

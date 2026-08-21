@@ -6516,6 +6516,330 @@
      }
     }
    ]
+  },
+  {
+   "id": "blight_feast",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Blight Feast",
+      "text": "Deal 12 (+MATK) Nature damage \u00b7 +12 more if the target already carries {{Poison}} (checked before this card acts).",
+      "notes": [
+       "PURE EXPLOITER \u2014 the poison lane's payoff card: it applies no poison of",
+       "its own, so its bonus depends entirely on what the rest of the board (or",
+       "another card of yours) already put on the target. That is what earns the",
+       "CONDITIONAL-TRIGGER DISCOUNT: exploit prices at strikeRate/2 =",
+       "2.5 deci/pt (PRICE.conditionalBonusDen), the rate comboBonus is locked at.",
+       "At Bronze the bonus EQUALS the card's own damage \u2014 literally double",
+       "damage into a poisoned target \u2014 which is the shape the mechanic was asked",
+       "for, priced honestly rather than as a multiplier (see the `exploit` docs).",
+       "Weight 8 at EVERY tier (+10 deci, never a downgrade later):",
+       "Bronze:  exploit 12 (30) + damage 12 (60) + weight (10) = 100.",
+       "Silver:  exploit 16 (40) + damage 20 (100) + weight (10) = 150.",
+       "Gold:    exploit 20 (50) + damage 28 (140) + weight (10) = 200.",
+       "Diamond: exploit 24 (60) + damage 36 (180) + weight (10) = 250.",
+       "Hand-authored ladder: `autoScaleTier` freezes the exploit rider (it is not",
+       "a scalable sink) and would pour every tier's growth into damage alone,",
+       "leaving a Diamond card whose signature line never grew."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "speedWeight": 8,
+      "effects": [
+       {
+        "kind": "exploit",
+        "status": "poison",
+        "amount": 12
+       },
+       {
+        "kind": "damage",
+        "power": 12
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "exploit",
+          "status": "poison",
+          "amount": 16
+         },
+         {
+          "kind": "damage",
+          "power": 20
+         }
+        ],
+        "text": "Deal 20 (+MATK) Nature damage \u00b7 +16 more if the target already carries {{Poison}} (checked before this card acts)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "exploit",
+          "status": "poison",
+          "amount": 20
+         },
+         {
+          "kind": "damage",
+          "power": 28
+         }
+        ],
+        "text": "Deal 28 (+MATK) Nature damage \u00b7 +20 more if the target already carries {{Poison}} (checked before this card acts)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "exploit",
+          "status": "poison",
+          "amount": 24
+         },
+         {
+          "kind": "damage",
+          "power": 36
+         }
+        ],
+        "text": "Deal 36 (+MATK) Nature damage \u00b7 +24 more if the target already carries {{Poison}} (checked before this card acts)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "second_bite",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Second Bite",
+      "text": "Deal 8 (+ATK) Beast damage \u00b7 +4 more if the target was already poisoned \u00b7 {{Poison}} 4 (poison bypasses shields). The venom lands after the bite, so the bonus arrives on the next one.",
+      "notes": [
+       "SELF-SUFFICIENT EXPLOITER \u2014 it applies the poison it feeds on, so it",
+       "guarantees its own condition from its SECOND cast onward and pays the",
+       "FULL flat-damage rate (5 deci/pt) instead of the conditional discount:",
+       "`selfSynergyPremiumDeci` (engine/balance.ts) detects that statically from",
+       "the kit and charges the premium.",
+       "ORDER IS THE RULE, not a style choice (user-locked 2026-08-21): the",
+       "exploit rider is FIRST, the poison LAST, so the first bite can never",
+       "trigger itself \u2014 `validateSkillContent` rejects any other order.",
+       "Bronze:  exploit 4 (20) + damage 8 (40) + poison 4 (40) = 100.",
+       "Silver:  exploit 6 (30) + damage 12 (60) + poison 6 (60) = 150.",
+       "Gold:    exploit 8 (40) + damage 18 (90) + poison 7 (70) = 200.",
+       "Diamond: exploit 10 (50) + damage 24 (120) + poison 8 (80) = 250.",
+       "Hand-authored: the DoT-sink trap (venom_fang / poison_bloom / thorn_bite)",
+       "\u2014 `autoScaleTier` would grow poison to its family cap and crush the",
+       "damage line, and it never grows the frozen exploit rider at all."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "exploit",
+        "status": "poison",
+        "amount": 4
+       },
+       {
+        "kind": "damage",
+        "power": 8
+       },
+       {
+        "kind": "poison",
+        "stacks": 4
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "exploit",
+          "status": "poison",
+          "amount": 6
+         },
+         {
+          "kind": "damage",
+          "power": 12
+         },
+         {
+          "kind": "poison",
+          "stacks": 6
+         }
+        ],
+        "text": "Deal 12 (+ATK) Beast damage \u00b7 +6 more if the target was already poisoned \u00b7 {{Poison}} 6 (poison bypasses shields). The venom lands after the bite, so the bonus arrives on the next one."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "exploit",
+          "status": "poison",
+          "amount": 8
+         },
+         {
+          "kind": "damage",
+          "power": 18
+         },
+         {
+          "kind": "poison",
+          "stacks": 7
+         }
+        ],
+        "text": "Deal 18 (+ATK) Beast damage \u00b7 +8 more if the target was already poisoned \u00b7 {{Poison}} 7 (poison bypasses shields). The venom lands after the bite, so the bonus arrives on the next one."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "exploit",
+          "status": "poison",
+          "amount": 10
+         },
+         {
+          "kind": "damage",
+          "power": 24
+         },
+         {
+          "kind": "poison",
+          "stacks": 8
+         }
+        ],
+        "text": "Deal 24 (+ATK) Beast damage \u00b7 +10 more if the target was already poisoned \u00b7 {{Poison}} 8 (poison bypasses shields). The venom lands after the bite, so the bonus arrives on the next one."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "thorn_reckoning",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Thorn Reckoning",
+      "text": "Deal 20 (+ATK) Axe damage, +3 per {{Thorns}} stack you already hold (max +12) \u00b7 {{Thorns}} 8 \u2014 attackers take the stack count as physical damage per hit (their DEF applies). The fresh barbs feed your next swing.",
+      "notes": [
+       "THE WALL'S WIN CONDITION \u2014 a thorn deck accumulates a pile it can only",
+       "spend by being hit; this card cashes it in as damage WITHOUT consuming it.",
+       "Caster-side stackBonus: +3 per stack held, CAPPED at +12 (4 stacks). The",
+       "cap is what is priced (5 deci/pt at the full rate \u2014 the card supplies its",
+       "own thorns, so it forfeits the conditional discount exactly like",
+       "second_bite): 12 \u00d7 5 = 60 deci. `per` is unpriced BY DESIGN \u2014 the payload",
+       "is min(per \u00d7 stacks, cap), so the cap bounds it whatever `per` is; a very",
+       "large `per` merely turns the rider into an `exploit` of the same size,",
+       "which prices the same way.",
+       "ORDER (user-locked 2026-08-21): rider, then damage, then the thorns line \u2014",
+       "the pile it grants is read by the NEXT cast, never by this one.",
+       "Size 2, empower FROZEN at 140 deci (stackBonus 60 + thorns 80, under the",
+       "size-2 cap of 150) with damage as the only growing line:",
+       "Bronze:  60 + 80 + damage 20 (100) = 240 = 100 + size grant 140.",
+       "Silver:  60 + 80 + damage 36 (180) = 320 = 150 + grant 170.",
+       "Gold:    60 + 80 + damage 54 (270) = 410 = 200 + grant 210.",
+       "Diamond: 60 + 80 + damage 70 (350) = 490 = 250 + grant 240.",
+       "Hand-authored (the auto-scaler solves the same damage numbers, but its",
+       "generic retexter cannot rewrite prose carrying four magnitudes)."
+      ],
+      "archetypes": [
+       "offense",
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 2,
+      "rarity": "epic",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "stackBonus",
+        "status": "thorns",
+        "of": "caster",
+        "per": 3,
+        "cap": 12
+       },
+       {
+        "kind": "damage",
+        "power": 20
+       },
+       {
+        "kind": "thorns",
+        "stacks": 8
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "stackBonus",
+          "status": "thorns",
+          "of": "caster",
+          "per": 3,
+          "cap": 12
+         },
+         {
+          "kind": "damage",
+          "power": 36
+         },
+         {
+          "kind": "thorns",
+          "stacks": 8
+         }
+        ],
+        "text": "Deal 36 (+ATK) Axe damage, +3 per {{Thorns}} stack you already hold (max +12) \u00b7 {{Thorns}} 8 \u2014 attackers take the stack count as physical damage per hit (their DEF applies). The fresh barbs feed your next swing."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "stackBonus",
+          "status": "thorns",
+          "of": "caster",
+          "per": 3,
+          "cap": 12
+         },
+         {
+          "kind": "damage",
+          "power": 54
+         },
+         {
+          "kind": "thorns",
+          "stacks": 8
+         }
+        ],
+        "text": "Deal 54 (+ATK) Axe damage, +3 per {{Thorns}} stack you already hold (max +12) \u00b7 {{Thorns}} 8 \u2014 attackers take the stack count as physical damage per hit (their DEF applies). The fresh barbs feed your next swing."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "stackBonus",
+          "status": "thorns",
+          "of": "caster",
+          "per": 3,
+          "cap": 12
+         },
+         {
+          "kind": "damage",
+          "power": 70
+         },
+         {
+          "kind": "thorns",
+          "stacks": 8
+         }
+        ],
+        "text": "Deal 70 (+ATK) Axe damage, +3 per {{Thorns}} stack you already hold (max +12) \u00b7 {{Thorns}} 8 \u2014 attackers take the stack count as physical damage per hit (their DEF applies). The fresh barbs feed your next swing."
+       }
+      }
+     }
+    }
+   ]
   }
  ]
 }

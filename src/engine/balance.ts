@@ -12,7 +12,7 @@
 // hand-copy numbers elsewhere — read PRICE.
 
 import { BASELINE_COOLDOWN, isMultiTargetSkill, weightOf, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
-import { buildKeywordPricing, priceActionDeci, walkBrackets, type CapFamily } from './keywords/pricing';
+import { buildKeywordPricing, priceActionDeci, scalableRateDeci, walkBrackets, type CapFamily } from './keywords/pricing';
 
 export const TIER_BUDGET_DECI: Record<SkillTier, number> = {
   bronze: 100,
@@ -332,6 +332,38 @@ export const PRICE = {
    */
   comboPerPointNum: 5,
   comboPerPointDen: 2,
+
+  /**
+   * exploit / stackBonus: the CONDITIONAL-TRIGGER DISCOUNT as a DENOMINATOR on
+   * the card's own flat-damage rate, rather than a second hand-written per-point
+   * number. Both keywords add FLAT bonus damage to the cast's own hit behind a
+   * gate (the target carries an affliction / a pile of stacks exists), so their
+   * always-on equivalent is exactly `damage`: `strikeRate` (5 deci/pt typed,
+   * 10 for TRUE — a flat bonus bypasses defense on a TRUE card exactly as the
+   * card's flat base does, so it must pay the same TRUE premium).
+   *
+   * `2` REPRODUCES `comboBonus`'s locked rate on a typed card — `5/2` = 2.5
+   * deci/pt, the same number `comboPerPointNum/Den` spells — which is the point:
+   * this is the SAME principle that ruling established ("any future rider that
+   * only fires under a gate should price at a fraction of its always-on
+   * equivalent"), expressed so the fraction cannot drift away from the rate it
+   * is a fraction OF. It is written as a denominator, not copied as a rate, for
+   * the one place the two differ: comboBonus's 2.5 is property-blind, while
+   * these two divide the property-aware `strikeRate` and so charge a TRUE card
+   * 5 deci/pt.
+   *
+   * WHAT THE MAGNITUDE IS, per keyword: `exploit.amount` (the flat bonus) and
+   * `stackBonus.cap` (the ceiling on `per × stacks`). Pricing the CAP is the
+   * `statStrike` precedent exactly — the payload is unbounded in a resource the
+   * card does not control, so only its hard ceiling is priceable; `cap` is a
+   * REQUIRED field on the action, so there is no uncapped form to price at 0.
+   *
+   * SELF-SYNERGY FORFEITS THE DISCOUNT — see `selfSynergyPremiumDeci`. A card
+   * that itself applies the status it keys off guarantees its own gate from its
+   * second cast onward, so it pays the FULL `strikeRate`; the discount is for a
+   * rider that depends on something the card cannot supply.
+   */
+  conditionalBonusDen: 2,
 
   /**
    * guard: pct * turns * (guardPerPctTurnNum/Den) deci. Priced at PARITY with
@@ -788,7 +820,122 @@ export function auraModsDeci(mods: { damageFlat?: number; healFlat?: number; wei
  * single floor, which would break `powerLevelBreakdown`'s "parts sum exactly"
  * invariant — see its own `aoe reach` part for how it stays exact.
  */
-export function actionsPriceDeci(actions: readonly Action[], property: Property, scope: 'one' | 'all' = 'one'): number {
+/**
+ * The status one action APPLIES, and to WHOM — the lookup behind
+ * `selfSynergyPremiumDeci`. `null` for every action that applies no status.
+ *
+ * Mirrors the apply-time arms of `applyAction` (combat/interpreter.ts): the DoTs
+ * and the control/debuff keywords land on the VICTIM, `thorns` lands on the
+ * CASTER (it is a self buff). The names are the STATUS kinds
+ * (`StatusInstance['kind']`), which is why `debuffStat` maps to `'debuff'`.
+ *
+ * EXPORTED because `validateSkillContent.ts` enforces the RIDER ORDERING RULE
+ * off the same lookup (a status application matching a rider's own status must
+ * come after the damage the rider feeds). One definition, so the price and the
+ * authoring rule can never disagree about which keyword applies what.
+ */
+export function statusAppliedBy(action: Action): { status: string; on: 'caster' | 'target' } | null {
+  switch (action.kind) {
+    case 'poison': return { status: 'poison', on: 'target' };
+    case 'burn': return { status: 'burn', on: 'target' };
+    case 'bleed': return { status: 'bleed', on: 'target' };
+    case 'stun': return { status: 'stun', on: 'target' };
+    case 'debuffStat': return { status: 'debuff', on: 'target' };
+    case 'expose': return { status: 'expose', on: 'target' };
+    case 'thorns': return { status: 'thorns', on: 'caster' };
+    default: return null;
+  }
+}
+
+/**
+ * SELF-SYNERGY PREMIUM — the deci-PL an `exploit`/`stackBonus` rider owes ON TOP
+ * of its table price when the SAME KIT supplies the status it keys off.
+ *
+ * WHY IT EXISTS. Both keywords price at the CONDITIONAL-TRIGGER DISCOUNT (half
+ * the flat-damage rate, `PRICE.conditionalBonusDen`), and that discount buys one
+ * specific thing: the gate depends on something the card CANNOT GUARANTEE (a
+ * teammate's poison, another card's bleed, a debuff someone else landed). A card
+ * that applies the status it exploits guarantees its own gate from its SECOND
+ * cast onward — the ordering ruling (user-locked 2026-08-21) costs it exactly
+ * the first cast and nothing after — so the discount is no longer describing it.
+ * It pays the full always-on rate instead: `strikeRate`, the same rate the
+ * card's own `damage` line pays, TRUE premium included.
+ *
+ * CONSERVATIVE ON PURPOSE. The honest uptime of a self-synergy rider is
+ * `(casts − 1) / casts`, which on the frozen sweep's median 7-turn fight with a
+ * baseline cooldown is ~1/2 and only approaches 1 in long fights — i.e. the
+ * TRUE value sits BETWEEN the discounted and the full rate. Charging the full
+ * rate can therefore only ever OVER-price the effect, never under-price it,
+ * which is the only safe direction for a rate a designer will build content
+ * against (same stance `PRICE.aoeTargetsNum/Den` takes with its 1.32 ceiling).
+ * A measured rate for the middle ground is balance-designer's to set; this is
+ * the two-state form the engine can decide STATICALLY, from the kit alone.
+ *
+ * STATICALLY DECIDABLE is the whole reason it can be priced at all: whether a
+ * kit applies the status its own rider reads is a fact about the authored
+ * effect list, visible to the pricer with no simulation and no host knowledge.
+ * A rider never counts as supplying ITSELF, and the SIDE must match — a
+ * `stackBonus` with `of: 'caster'` is only self-supplied by a CASTER-side
+ * application (`thorns`), never by the poison it puts on the enemy.
+ *
+ * Returns 0 for every other action, so the whole rule is inert on the ~110-card
+ * catalog that predates it.
+ */
+export function selfSynergyPremiumDeci(action: Action, kit: readonly Action[], property: Property): number {
+  let status: string;
+  let side: 'caster' | 'target';
+  let magnitude: number;
+  if (action.kind === 'exploit') {
+    status = action.status;
+    side = 'target';
+    magnitude = action.amount;
+  } else if (action.kind === 'stackBonus') {
+    status = action.status;
+    side = action.of;
+    magnitude = action.cap;
+  } else {
+    return 0;
+  }
+  let supplied = false;
+  for (let i = 0; i < kit.length; i += 1) {
+    const other = kit[i]!;
+    if (other === action) continue; // a rider can never supply its own gate
+    const applied = statusAppliedBy(other);
+    if (applied && applied.status === status && applied.on === side) {
+      supplied = true;
+      break;
+    }
+  }
+  if (!supplied) return 0;
+  // FORFEIT THE DISCOUNT: pay `full − discounted`, where `discounted` is exactly
+  // what `priceActionDeci` charged through the table (floored the same way), so
+  // the two always add up to the full rate with no rounding drift.
+  const rate = scalableRateDeci('damage', property, KEYWORD_PRICING);
+  const full = Math.max(0, magnitude) * rate;
+  return full - Math.floor(full / PRICE.conditionalBonusDen);
+}
+
+export function actionsPriceDeci(
+  actions: readonly Action[],
+  property: Property,
+  scope: 'one' | 'all' = 'one',
+  /**
+   * The WHOLE kit the priced actions belong to, for the one rule that cannot be
+   * decided from a single action: the SELF-SYNERGY premium
+   * (`selfSynergyPremiumDeci`), which asks whether the card also APPLIES the
+   * status its `exploit`/`stackBonus` rider reads.
+   *
+   * Defaults to `actions`, so every existing call site is unchanged. It is
+   * passed explicitly by the two callers that price a SUBSET of a kit and would
+   * otherwise silently lose the premium: `capViolations` (which filters to one
+   * cap family — the poison that arms the rider is not an empower kind) and
+   * `powerLevelBreakdown` (which prices one action at a time, and whose parts
+   * must sum EXACTLY to `powerLevelDeci`). A gem is priced host-blind, so its
+   * own action list is the correct kit there — a gem cannot see the poison on
+   * the card it will be socketed into.
+   */
+  kit: readonly Action[] = actions,
+): number {
   let selfDeci = 0;
   let foeDeci = 0;
   // Multi-hit premium: damage INSTANCES beyond the first pay a flat surcharge
@@ -799,7 +946,14 @@ export function actionsPriceDeci(actions: readonly Action[], property: Property,
   // DATA-DRIVEN: every per-keyword rate lives in `keywords/pricing.ts`, so a
   // new keyword is a row there rather than a `case` here.
   for (const action of actions) {
-    const price = priceActionDeci(action, property, KEYWORD_PRICING);
+    // The table rate plus the ONE kit-aware term (0 for every kind but
+    // `exploit`/`stackBonus`, and 0 for those unless the kit supplies their
+    // gate). Added to the SAME action's price rather than summed separately so
+    // it lands in the right offensive/self bucket, pays the AoE multiplier with
+    // the rest of the offensive share, and telescopes exactly through
+    // `powerLevelBreakdown`'s per-action parts.
+    const price = priceActionDeci(action, property, KEYWORD_PRICING)
+      + selfSynergyPremiumDeci(action, kit, property);
     if (OFFENSIVE_KINDS.has(action.kind)) foeDeci += price;
     else selfDeci += price;
   }
@@ -848,7 +1002,11 @@ export function powerLevelBreakdown(skill: SkillDef): PlBreakdownPart[] {
   };
 
   for (const action of skill.effects) {
-    push(action.kind, actionsPriceDeci([action], skill.property));
+    // `skill.effects` as the KIT (not the single-action default): the
+    // self-synergy premium is a property of the whole kit, and pricing one
+    // action blind to its siblings would report a smaller part than
+    // `powerLevelDeci` charges — breaking the "parts sum exactly" invariant.
+    push(action.kind, actionsPriceDeci([action], skill.property, 'one', skill.effects));
   }
   // Multi-hit premium is count-based, so single-action pricing above misses
   // it — surface it as its own labeled part (keeps parts summing exactly).
@@ -1029,7 +1187,13 @@ export function effectCapDeci(family: keyof typeof EFFECT_CAPS_DECI, size: numbe
 export function capViolations(skill: SkillDef): string[] {
   const violations: string[] = [];
   const spent = (kinds: ReadonlySet<Action['kind']>): number =>
-    actionsPriceDeci(skill.effects.filter((a) => kinds.has(a.kind)), skill.property, skill.scope);
+    // The full kit is passed as the pricing CONTEXT even though only one
+    // family's actions are priced: an `exploit`/`stackBonus` rider's
+    // self-synergy premium (`selfSynergyPremiumDeci`) depends on an action of a
+    // DIFFERENT family (the poison/thorns line that arms it), so a filtered
+    // list alone would charge the discounted rate here and the full rate in
+    // `powerLevelDeci` — a cap check quietly softer than the budget check.
+    actionsPriceDeci(skill.effects.filter((a) => kinds.has(a.kind)), skill.property, skill.scope, skill.effects);
   const check = (family: keyof typeof EFFECT_CAPS_DECI, kinds: ReadonlySet<Action['kind']>): void => {
     const deci = spent(kinds);
     const cap = effectCapDeci(family, skill.size, skill.tier);

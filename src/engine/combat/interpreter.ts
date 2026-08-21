@@ -4,7 +4,7 @@ import { isMultiTargetSkill, MAX_NEGATE_CHARGES, MAX_WARD_CHARGES } from '../typ
 import type { AntiHealCategory, AntiHealReduction, CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
-import { anySideWiped, boardPowerLevel, effStat, foesOf, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
+import { anySideWiped, boardPowerLevel, effStat, foesOf, hasStatus, statusStackCount, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 import { splashBand } from './splash';
 
@@ -35,6 +35,18 @@ function isOffensiveAction(action: Action): boolean {
     case 'splash':
     case 'disrupt':
     case 'shieldBreak':
+    // EXPLOIT / STACK BONUS are offensive even though they only ARM a bonus:
+    // they resolve against the VICTIM (exploit reads its afflictions;
+    // stackBonus with `of: 'target'` reads its pile) and their bonus is armed
+    // PER TARGET, so they must walk the same fan-out — and the same chosen
+    // target — as the damage action they feed. `stackBonus` with
+    // `of: 'caster'` reads the caster's own pile but is still classified here
+    // by KIND, not by field: the bonus it arms lands on the victim's hit, so
+    // under `scope: 'all'` it is delivered once per foe and must pay the AoE
+    // reach multiplier exactly as the target-side form does (OFFENSIVE_KINDS,
+    // engine/balance.ts, mirrors this switch kind-for-kind).
+    case 'exploit':
+    case 'stackBonus':
       return true;
     default:
       // heal, shield, buffStat, cleanse, taunt, lifesteal, comboBonus, thorns,
@@ -592,16 +604,44 @@ interface CastCtx {
    * done exactly the same.
    */
   bonusFlat: number;
+  /**
+   * FLAT damage armed PER VICTIM by a CONDITIONAL rider this cast (`exploit`,
+   * `stackBonus`), indexed by the victim's lineup index. Sparse: only foes a
+   * rider actually armed appear, and a cast with no such rider never writes it,
+   * which is what keeps every existing card byte-identical.
+   *
+   * PER VICTIM, unlike `bonusFlat`, because the CONDITION is per victim: under
+   * `scope: 'all'` one foe may be poisoned and another not, and an exploit that
+   * paid out against the whole team because a single foe was afflicted would be
+   * team-wide damage bought at a single-target condition. (Offensive actions
+   * only ever resolve against foes — one side — so a lineup index identifies the
+   * victim uniquely.) Spent on exactly the same schedule as `bonusFlat`: the
+   * first non-gem `damage` action of the cast reads it and `applyCast` clears
+   * it, so one cast pays one bonus however many hits it splits into.
+   */
+  bonusByTarget: number[];
 }
 
 /**
- * Does this action READ (and therefore SPEND) the cast's combo bonus? Exactly
+ * ARM a conditional rider's flat bonus against ONE victim (see
+ * `CastCtx.bonusByTarget`). ACCUMULATES, so a card carrying two riders (exploit
+ * poison + exploit bleed, say) delivers both when both conditions hold — which
+ * is how they are priced, additively, one term each.
+ */
+function armTargetBonus(cast: CastCtx, victim: CombatantState, amount: number): void {
+  if (amount <= 0) return;
+  cast.bonusByTarget[victim.index] = (cast.bonusByTarget[victim.index] ?? 0) + amount;
+}
+
+/**
+ * Does this action READ (and therefore SPEND) the cast's armed bonuses — the
+ * `comboBonus` scalar AND the per-victim `exploit`/`stackBonus` bonuses? Exactly
  * the `damage` arm's own condition — a GEM-APPENDED hit is self-contained and
  * takes no attacker-side bonus (`GemAppended` in types.ts), and `statStrike`
- * explicitly takes none either — so the two can never disagree about what a
- * bonus was spent on.
+ * explicitly takes none either — so the arm and the clear-point can never
+ * disagree about what a bonus was spent on.
  */
-function readsComboBonus(action: Action): boolean {
+function readsCastBonus(action: Action): boolean {
   return action.kind === 'damage' && action.fromGem !== true;
 }
 
@@ -1031,7 +1071,11 @@ function applyAction(
         power: action.power,
         baseStat: flat ? 0 : statShare(caster.stats[scalingStatName(caster, property)], hit),
         effectiveStat: flat ? 0 : statShare(scaleStat(caster, property), hit),
-        flatBonus: flat ? 0 : mods.damageFlat + cast.bonusFlat,
+        // `bonusByTarget` is the CONDITIONAL half of the same idea `bonusFlat`
+        // holds unconditionally: an `exploit`/`stackBonus` rider armed earlier in
+        // this cast, against THIS victim (see `CastCtx.bonusByTarget`). A
+        // gem-appended hit takes neither, exactly as before.
+        flatBonus: flat ? 0 : mods.damageFlat + cast.bonusFlat + (cast.bonusByTarget[enemy.index] ?? 0),
       });
       break;
     }
@@ -1464,6 +1508,36 @@ function applyAction(
         cast.bonusFlat += action.amount;
       }
       break;
+    case 'exploit': {
+      // CONDITION READ AT RIDER TIME, ON PRE-EXISTING STATUS (user-locked
+      // 2026-08-21: "it should always activate this effect first before
+      // activating any poison debuff"). This arm runs BEFORE the card's own
+      // damage and — by the catalog convention `validateSkillContent` now
+      // enforces — before the card's own status applications, so a card can
+      // never satisfy its own condition within one cast. The payoff is
+      // cross-cast: leave the pile this cast, collect on the next one.
+      if (!enemy.alive) break;
+      if (!hasStatus(enemy, action.status)) break;
+      armTargetBonus(cast, enemy, action.amount);
+      break;
+    }
+    case 'stackBonus': {
+      // `per` per CURRENT stack of the named pile, CLAMPED at the authored
+      // `cap` — the whole payload is bounded, which is what makes it priceable
+      // (see the action's docs in types.ts). Integer-only: both terms are whole
+      // numbers and `Math.min` introduces no rounding.
+      //
+      // `of` picks WHOSE pile is read — the caster's own (the thorn-wall
+      // spender) or the victim's (the DoT executioner) — and, like `exploit`
+      // above, it reads the pile AS IT STANDS NOW, before this card's own
+      // thorns/DoT line lands later in the same cast.
+      if (!enemy.alive) break;
+      const holder = action.of === 'caster' ? caster : enemy;
+      const stacks = statusStackCount(holder, action.status);
+      if (stacks <= 0) break;
+      armTargetBonus(cast, enemy, Math.min(action.per * stacks, action.cap));
+      break;
+    }
     case 'thorns': {
       // Self buff: thorn stacks on the caster, consumed by the reflect hook in
       // applyStrike (one stack per direct hit taken; no turn expiry).
@@ -1624,7 +1698,7 @@ export function applyCast(
    * the old `anySideWiped` call, so every 1v1 log stays byte-identical.
    */
   const castCutShort = (): boolean => !caster.alive || anySideWiped(ctx.state);
-  const cast: CastCtx = { damageDealt: 0, bonusFlat: 0 };
+  const cast: CastCtx = { damageDealt: 0, bonusFlat: 0, bonusByTarget: [] };
   // MULTI-HIT STAT SPLIT: the denominator is fixed for the whole cast and counts
   // the CARD'S OWN damage actions only — a gem-appended hit neither joins the
   // split nor advances the ordinal, so socketing a gem cannot shrink the hits
@@ -1657,7 +1731,14 @@ export function applyCast(
     // alternative — dividing the bonus across the host's hits — was rejected
     // because the per-hit number would then depend on the host, and the printed
     // face cannot show that.
-    if (readsComboBonus(action)) cast.bonusFlat = 0;
+    // The per-victim conditional bonuses (`exploit`/`stackBonus`) are cleared on
+    // exactly the same schedule and for exactly the same reason: the face prints
+    // ONE number, so ONE cast delivers it once — to every foe of that one
+    // action, and to no later action of the same card.
+    if (readsCastBonus(action)) {
+      cast.bonusFlat = 0;
+      cast.bonusByTarget = [];
+    }
     // ...and between actions, so a killing blow (or a killed caster) drops every
     // remaining effect of the card. See `castCutShort`.
     if (castCutShort()) break;

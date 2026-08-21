@@ -173,6 +173,23 @@ export interface EffectSegment {
 }
 
 /**
+ * Compact face names for the statuses a CONDITIONAL RIDER (`exploit` /
+ * `stackBonus`) can key off. Deliberately the SAME abbreviations those statuses
+ * already use as their own face tokens above (PSN / BRN / BLD / THORN), so a
+ * player reads one word for one status wherever it appears; `stun` / `debuff` /
+ * `expose` are spelled the way their own tokens spell them too.
+ */
+const STATUS_TOKEN: Record<'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'expose' | 'thorns', string> = {
+  poison: 'PSN',
+  burn: 'BRN',
+  bleed: 'BLD',
+  stun: 'STUN',
+  debuff: 'DEBUFF',
+  expose: 'EXPOSE',
+  thorns: 'THORN',
+};
+
+/**
  * The structured form behind `summarizeEffects()` — same tokens, same order,
  * each one tagged with its keyword id (see `EffectSegment`) instead of being
  * pre-joined into one flat string. `summarizeEffects()` below is now a thin
@@ -263,6 +280,22 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
       // be live against, so the token always renders in its normal
       // `KEYWORD_TEXT_COLOR.combo` color there — see those call sites.
       case 'comboBonus': extras.push({ text: `COMBO +${action.amount}`, keyword: 'combo' }); break;
+      // The two CONDITIONAL BONUS-DAMAGE riders (engine/types.ts). Both print
+      // the flat number they actually add and the status they key off — no
+      // invented noun for the mechanic, and no "x2": the engine adds a FLAT
+      // bonus (a multiplier was rejected, see the `exploit` docs), so the face
+      // must not imply one. Each token borrows the COLOR of the status it reads
+      // (`KEYWORD_TEXT_COLOR.poison` etc.), which is the whole tell a player
+      // needs: this number lights up when that status is on the board.
+      case 'exploit': extras.push({ text: `+${action.amount} vs ${STATUS_TOKEN[action.status]}`, keyword: action.status === 'debuff' ? undefined : action.status }); break;
+      // `per` per stack, and the CAP, because the cap is what the effect is
+      // actually worth (and what it is priced on). `of` is spelled as the pile's
+      // owner — YOUR stacks vs the target's — since the two play completely
+      // differently.
+      case 'stackBonus': extras.push({
+        text: `+${action.per}/${STATUS_TOKEN[action.status]}${action.of === 'caster' ? '' : ' ON FOE'} (cap ${action.cap})`,
+        keyword: action.status,
+      }); break;
       case 'slow': extras.push({ text: `SLOW +${action.weight}`, keyword: 'slow' }); break;
       // User ruling (2026-08-20): "I been seeing splash +6 band, what does
       // that even mean." SPLASH is `slow` at CARD scope, so its number is the

@@ -154,8 +154,23 @@ field on an action is an error.
 | `cleanse` | `charges` |
 | `lifesteal` | `pct` |
 | `buffStat` `debuffStat` | `stat`, `pct`, `turns` |
+| `exploit` | `status`, `amount` |
+| `stackBonus` | `status`, `of`, `per`, `cap` (all four required) |
 
 `stat`: `attack` `magicPower` `armor` `magicResist` `speed`.
+
+`status`: `poison` `burn` `bleed` `stun` `debuff` `expose` for `exploit`;
+`poison` `burn` `bleed` `thorns` for `stackBonus` (it needs a pile with stacks).
+`of`: `caster` (read your own pile) or `target` (read the victim's).
+
+**Ordering rule for `exploit`/`stackBonus`** (user-locked 2026-08-21). Both riders
+read a status that is ALREADY there and hand a flat bonus to the cast's damage, so
+the authored effect list must run **rider → damage → any status this card
+applies**. The validator rejects anything else: a rider behind the damage arms a
+bonus nothing can spend, and this card's own poison/thorns line ahead of the
+damage would let the card trigger itself on its first cast — the payoff is meant
+to land on the NEXT one. (`stackBonus` with `of: 'caster'` is only ordered against
+CASTER-side applications, i.e. `thorns`.)
 
 This mirrors the `Action` union in `src/engine/types.ts`. The validator's switch
 ends in `assertNever`, so **adding an action kind to the engine fails `tsc` until

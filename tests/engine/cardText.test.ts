@@ -107,6 +107,21 @@ function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined):
       case 'statStrike':
         if (eff.cap !== undefined) expected.push(eff.cap);
         break;
+      // EXPLOIT: the flat bonus it adds is the whole magnitude, same shape as
+      // `comboBonus` above. The STATUS it keys off is a word, not a number, so
+      // there is nothing else to check numerically here (the prose naming it is
+      // covered by the style guide, not by this guard).
+      case 'exploit':
+        expected.push(eff.amount);
+        break;
+      // STACK BONUS: BOTH numbers are load-bearing and both must be printed —
+      // `per` is what a player counts per stack, and `cap` is the ceiling that
+      // decides what the effect is worth (it is also the number the card is
+      // PRICED on, `actionsPriceDeci`). A text that spelled one and not the
+      // other would hide exactly the half a player needs to plan around.
+      case 'stackBonus':
+        expected.push(eff.per, eff.cap);
+        break;
       default:
         assertNever(eff);
     }
