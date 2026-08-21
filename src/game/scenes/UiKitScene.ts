@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
-import { gemPowerLevel, powerLevel } from '../../engine/balance';
+import { gemPowerLevel, instancePowerLevelDeci, powerLevel } from '../../engine/balance';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
 import { gemCatalogOrder } from '../ui/gemGlossary';
@@ -343,7 +343,7 @@ export class UiKitScene extends Phaser.Scene {
       this.keep(this.add.text(px + 32, dy + 60, selected.text, {
         fontSize: '12px', color: UI.text, fontFamily: FONT.body, wordWrap: { width: pw - 80 },
       }));
-      this.keep(this.add.text(px + 32, dy + 108, `${host.name}: PL ${hostPl} → ${hostPl + gemPowerLevel(selected)}`, {
+      this.keep(this.add.text(px + 32, dy + 108, `${host.name}: PL ${hostPl} → ${instancePowerLevelDeci(host, { gem: selected }) / 10}`, {
         fontSize: '12px', color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold',
       }));
       this.button(px + pw / 2 - 110, dy + 136, 220, 40, `SOCKET ${selected.name.toUpperCase()}`, UI.chipDark, '#ffffff');
@@ -390,7 +390,7 @@ export class UiKitScene extends Phaser.Scene {
       this.keep(this.add.text(dx + 18, bodyY + 72, selected.text, {
         fontSize: '12px', color: UI.text, fontFamily: FONT.body, wordWrap: { width: dw - 36 }, lineSpacing: 4,
       }));
-      this.keep(this.add.text(dx + 18, bodyY + 180, `${host.name}\nPL ${hostPl} → ${hostPl + gemPowerLevel(selected)}`, {
+      this.keep(this.add.text(dx + 18, bodyY + 180, `${host.name}\nPL ${hostPl} → ${instancePowerLevelDeci(host, { gem: selected }) / 10}`, {
         fontSize: '12px', color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold', lineSpacing: 4,
       }));
       this.button(dx + 18, bodyY + 250, dw - 36, 40, 'SOCKET GEM', UI.chipDark, '#ffffff');
