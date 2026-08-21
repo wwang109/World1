@@ -371,13 +371,50 @@ export type CombatEvent =
   | { turn: number; kind: 'aggroChanged'; side: Side; unit: number; aggro: number }
   | { turn: number; kind: 'slowed'; side: Side; unit: number; weight: number }
   /**
-   * `splash` — the CARD-scope sibling of `slowed`. `weight` is the extra weight
-   * each banded piece now owes on its NEXT play; `slots` are the leftmost slots
-   * of the taxed pieces, ascending (1..3 of them — the band does not wrap at the
-   * board edges), and `anchorSlot` names the one the victim's cast cursor was
-   * on. Everything the UI needs to highlight the band is on the event.
+   * `burden` — the CARD-scope sibling of `slowed`. `weight` is the extra weight
+   * each targeted piece now owes on its NEXT play; `slots` are the leftmost
+   * slots of the taxed pieces, ascending, and `anchorSlot` names the one the
+   * victim's cast cursor was on. Everything the UI needs to highlight the effect
+   * is on the event.
+   *
+   * ONE EVENT SHAPE FOR BOTH REACHES (the deliberate call, 2026-08-21): `slots`
+   * is a SINGLE slot for a bare burden and 1..3 slots when the cast also carried
+   * a `splash` to spread it (the band does not wrap at the board edges). A
+   * replay does not need a second event kind to say "and it spread" — the slot
+   * list already says exactly how far it reached, and `anchorSlot` still names
+   * where it started.
+   *
+   * RENAMED FROM `splashed` (2026-08-21) with its shape unchanged: the keyword
+   * that writes this tax is now `burden`, and `splash` is the payload-less
+   * spreader. Nothing about the payload moved, which is what let the migration
+   * be proven by diffing logs with only this name normalised.
    */
-  | { turn: number; kind: 'splashed'; side: Side; unit: number; weight: number; anchorSlot: number; slots: number[] }
+  | { turn: number; kind: 'burdened'; side: Side; unit: number; weight: number; anchorSlot: number; slots: number[] }
+  /**
+   * `curse` — burden's sibling on the damage axis, same event shape plus the
+   * duration. Each named piece deals `amount` less damage for `turns` global
+   * turns; `slots` is one slot for a bare curse and the whole band when a
+   * `splash` spread it, `anchorSlot` names where it started.
+   *
+   * `turns` IS THE AUTHORED WINDOW, not a remaining count: a re-curse on an
+   * already-cursed piece keeps whichever expiry is LATER (`PieceState.curse`),
+   * so a replay that needs the exact standing window reads it the same way the
+   * engine does — max of what it has seen. What this event promises is what the
+   * card printed.
+   */
+  | { turn: number; kind: 'cursed'; side: Side; unit: number; amount: number; turns: number; anchorSlot: number; slots: number[] }
+  /**
+   * A `curse` window CLOSED on `slots` (ascending) at the end of this turn —
+   * the card-scope counterpart of `statusExpired`, and the reason playback can
+   * stop annotating those pieces.
+   *
+   * ONE EVENT PER UNIT PER TURN, listing every piece of that unit whose curse
+   * lapsed on the same tick (`expireCurses`, simulate.ts), because that is one
+   * observable moment rather than N. It NAMES NOTHING beyond the slots: every
+   * expiry is a natural one, so a replay tracking the window it saw open already
+   * knows what ended (exactly the contract `statusExpired` states).
+   */
+  | { turn: number; kind: 'curseExpired'; side: Side; unit: number; slots: number[] }
   | {
       turn: number;
       kind: 'disrupted';

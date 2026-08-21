@@ -74,6 +74,41 @@ describe('card glossary', () => {
   });
 
   // The Resonant Echo gem's `statStrike` action had no glossary entry at all.
+  // The card-targeting family (2026-08-21 split). The one thing a player must
+  // NOT read off these entries is "splash is a weight tax" — that was the
+  // pre-split misread, and the tap-to-expand body is where the SPREADER model is
+  // actually taught, since the compact face token is just `SPLASH`.
+  describe('burden / curse / splash', () => {
+    it('BURDEN names the tax and the one card it lands on', () => {
+      const entries = skillKeywordEntries({ ...skillBook.fireball!, effects: [{ kind: 'burden', weight: 6 }] });
+      const burden = entries.find((e) => e.title === 'Burden')!;
+      expect(burden.body).toContain('+6 weight');
+      expect(burden.body).toContain('card the enemy is about to play');
+    });
+
+    it('CURSE names the denial, the window, and the min-1 floor', () => {
+      const entries = skillKeywordEntries({ ...skillBook.fireball!, effects: [{ kind: 'curse', amount: 4, turns: 2 }] });
+      const curse = entries.find((e) => e.title === 'Curse')!;
+      expect(curse.body).toContain('4 less damage');
+      expect(curse.body).toContain('2 global turns');
+      expect(curse.body).toContain('never below 1');
+    });
+
+    it('SPLASH explains itself as a SPREADER, with no number of its own', () => {
+      const entries = skillKeywordEntries({
+        ...skillBook.fireball!,
+        effects: [{ kind: 'burden', weight: 6 }, { kind: 'splash' }],
+      });
+      const splash = entries.find((e) => e.title === 'Splash')!;
+      expect(splash.body).toContain('Spreads');
+      expect(splash.body).toContain('Burden');
+      expect(splash.body).toContain('Curse');
+      // NOT a tax: no weight number, no "+N weight" claim of its own.
+      expect(splash.body).not.toMatch(/\+\d+ weight/);
+      expect(splash.body).toContain('never wraps');
+    });
+  });
+
   describe('statStrike (Resonant Echo gem)', () => {
     it('explains an echoHostPower strike as a share of the whole attack', () => {
       const entries = skillKeywordEntries({

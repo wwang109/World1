@@ -255,3 +255,52 @@ Full rationale: the "Conditional-rider family pricing rationale" section of
 `keywords/pricing.ts` and `selfSynergyPremiumDeci`/`riderReadsResource` in
 `src/engine/balance.ts`, pinned by `tests/engine/conditionalRiders.test.ts`
 and `tests/engine/resourceRiders.test.ts`.
+
+## 2026-08-21 changelog: the splash split (`splashPerWeight` → `burdenPerWeight` × `splashBandFloor`, + `curse`)
+
+**Recorded here as it landed** (combat-engine-programmer pass, on the user's
+correction — verbatim: *"splash is an effect that spread other effect. It
+doesn't just spread wt."*). `splash` shipped 2026-08-18 as one action,
+`{ kind: 'splash', weight }`, that both chose a 3-piece band and taxed weight
+on it. That conflated a SPREADER with its first PAYLOAD, and the price
+inherited the conflation.
+
+| rate | before | after |
+|---|---|---|
+| the weight tax on ONE card | — | **`burdenPerWeightNum/Den` = 5/2** (`slow`'s own per-point rate) |
+| the spread | `splashPerWeightNum/Den` = 5/1 (per weight point) | **`splashBandFloorNum/Den` = ×2** (a COVERAGE MULTIPLIER on the cast's card-targeting effects, floored once, applied in `actionsPriceDeci` beside the AoE reach multiplier) |
+| the damage-axis payload | — | **`cursePerAmountNum/Den` = 5/2** (the near-certain first denial: the flat-damage rate at the conditional-trigger discount) **+ `cursePerAmountTurnNum/Den` = 5/(BASELINE_COOLDOWN+1)** (the repeats: one further firing per cooldown stride) |
+
+**NO SHIPPED PRICE MOVED — the old rate WAS the two new ones multiplied.**
+`floor(N × 5/2) × 2 == N × 5` for every even N, so `burden N + splash` costs
+exactly what `splash weight N` cost: `shockwave_slam` (burden 6), `arc_cascade`
+(burden 8) and `line_breaker` (slow 8 + burden 6) all still land on Bronze 100
+exactly, and `tremor_sliver` (burden 4) / `fracture_sliver` (burden 8) still land
+on Common 20 / Rare 40 exactly. On an ODD weight the split is 1 deci cheaper
+(weight 5: 24 vs 25) because the anchor's own price floors first; no shipped
+magnitude is odd, and whole-PL authoring wants even weights anyway.
+
+**Cap-family membership is unchanged and now covers the spread**: `burden`,
+`curse` and `splash` are all `control`, and because `capViolations` prices a
+family subset through the same `actionsPriceDeci`, the ×2 multiplier grows the
+control spend in lockstep with the budget spend — reach cannot be bought past the
+lockdown ceiling (a size-1 card affords `burden 40` alone, or `burden 20 + splash`).
+
+**Breakdown reporting**: `powerLevelBreakdown` prices a card-targeting line
+TOGETHER with the spreader (`"burden + splash" = 30`) rather than as a half plus a
+floating half, because rates are whole-PL per clean unit and half a spread burden
+is 1.5 PL. The parts still sum exactly.
+
+**Content**: two `curse` showcase cards landed with the pass — `dulling_hex`
+(curse 8 / 2 turns, anchor-only, 40 + damage 60 = Bronze) and `sapping_arc`
+(curse 4 / 2 turns + splash, 20 × 2 + damage 60 = Bronze) — both exact at all four
+tiers with damage as the sink.
+
+Full rationale: `PRICE.burdenPerWeightNum` / `PRICE.splashBandFloorNum` /
+`PRICE.cursePerAmountNum` in `src/engine/balance.ts` and §10 of
+`docs/combat-model-spec.md`. Pinned by `tests/engine/splash.test.ts` and the
+`PRICE` structure lock in `tests/engine/balance.test.ts`. The 400-case outcome
+baseline is byte-identical (no card of the family is in the frozen sweep pool),
+and the migration was additionally proven by diffing full event logs of all three
+cards and both gems on fixed seeds — 21/21 fights identical with only the
+band-application event's NAME normalised (`splashed` → `burdened`).

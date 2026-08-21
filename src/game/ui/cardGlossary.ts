@@ -271,10 +271,25 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
       };
     case 'slow':
       return { title: 'Slow', body: `Enemy’s next action costs +${action.weight} weight (comes out later).` };
+    case 'burden':
+      return {
+        title: 'Burden',
+        body: `The card the enemy is about to play costs +${action.weight} weight the next time it is played (once, then spent). It waits on that card however long it takes — unlike a Slow, it never expires unpaid.`,
+      };
+    case 'curse':
+      return {
+        title: 'Curse',
+        body: `The card the enemy is about to play deals ${action.amount} less damage for ${action.turns} global turns (never below 1 damage). Re-cursing keeps the stronger amount and the longer window, never both added.`,
+      };
+    // SPLASH — the SPREADER. Its entry describes what it does to the OTHER
+    // keywords on the card, because that is all it does: it has no number of its
+    // own (the pre-2026-08-21 entry read as a weight tax, which is the misread
+    // this split exists to undo). "Card-targeting" is not player language, so the
+    // body names the two keywords by their effect instead.
     case 'splash':
       return {
         title: 'Splash',
-        body: `Hits the card the enemy is about to play plus the ones either side of it: each costs +${action.weight} weight the next time it is played (once, then spent). Board-adjacent only — the band never wraps around the edge.`,
+        body: 'Spreads this card\'s Burden / Curse from the card the enemy is about to play to the cards beside it as well — up to three cards in one go. Board-adjacent only: the band never wraps around the edge, so a card at the end of the board catches fewer.',
       };
     case 'disrupt':
       return { title: 'Stagger', body: `Drains ${action.amount} banked readiness — delays their next play.` };
@@ -314,7 +329,7 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
     case 'taxBonus':
       return {
         title: 'Tempo toll',
-        body: `+${action.per} damage per weight-taxed card on the target — every card carrying a splash tax, plus one if the unit itself is slowed — up to +${action.cap}. Counted before this card taxes anything, and a slow only lasts the turn it landed on, so tax them FIRST, then collect.`,
+        body: `+${action.per} damage per weight-taxed card on the target — every Burdened card, plus one if the unit itself is Slowed — up to +${action.cap}. Counted before this card taxes anything, and a slow only lasts the turn it landed on, so tax them FIRST, then collect.`,
       };
     case 'heal':
       return property === 'true'

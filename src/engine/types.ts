@@ -359,50 +359,115 @@ type ActionKinds =
    */
   | { kind: 'slow'; weight: number }
   /**
-   * SPLASH — `slow` at CARD scope instead of unit scope (user-locked
-   * 2026-08-18: "we can add splash effect which affects cards across and the
-   * cards before and after — this doesn't affect aoe the same but only for
-   * target's current turn's card").
+   * BURDEN — `slow` at CARD scope instead of unit scope: the enemy's CURRENT
+   * CARD costs `weight` extra the next time it is played.
+   *
+   * ONE CARD, THE ANCHOR (see `splashAnchor`, combat/splash.ts): the piece the
+   * victim's `castCursor` sits in at the moment this resolves — "the target's
+   * current turn's card". Nothing about the anchor wraps (user-locked
+   * 2026-08-19, the board is a line): parked past the last card, the anchor is
+   * the LAST CARD PLAYED rather than the leftmost piece.
    *
    * SINGLE-TARGET AT THE UNIT LEVEL, like `slow`: it resolves against ONE enemy
-   * (whatever `resolveTargets` picks). What it spreads across is that victim's
-   * own BOARD, not their team — hence the deliberate non-interaction with AoE,
-   * closed on BOTH paths a card can acquire the pair: an AUTHORED
-   * `scope: 'all'` + splash card is rejected by `validateSkillContent`, and a
-   * GEM's splash is dropped at resolve time by the splash gate in
-   * `spliceGemActions` (cards.ts) on any host that already hits more than one
-   * target — or that already carries a splash of its own, so a socket can
-   * never double up the band tax.
+   * (whatever `resolveTargets` picks) and lands on ONE of that enemy's pieces.
    *
-   * THE BAND (see `splashBand`, combat/splash.ts): the ANCHOR — the piece the
-   * victim's `castCursor` sits in at the moment splash resolves, i.e. "the
-   * target's current turn's card" — plus the piece immediately BEFORE and the
-   * piece immediately AFTER it on the board. Adjacency is SPATIAL and does NOT
-   * wrap (a card at slot 0 has nothing to its left), measured edge-to-edge with
-   * the same footprint arithmetic the aura system uses (`footprintGaps`), so a
-   * multi-slot card is ONE piece however many slots it spans.
-   *
-   * NOTHING ABOUT THE KEYWORD WRAPS (user-locked 2026-08-19) — the board is a
-   * line. That includes the ANCHOR: when the cursor is parked past the last
-   * card, splash anchors on the LAST CARD PLAYED rather than jumping to the
-   * leftmost piece (`splashAnchor`, which also documents why it deliberately
-   * does not share `scanCast`'s cooling/played-this-turn skips).
-   *
-   * The band is therefore 1..3 pieces wide, decided by the VICTIM's board
-   * layout. It is priced against the 2-piece FLOOR that any board with two or
-   * more pieces guarantees (see `PRICE.splashPerWeightNum`), so a card's PL is
-   * holder-independent AND opponent-independent; the third piece is unpriced.
-   *
-   * WHAT IT DOES: each banded piece costs `weight` EXTRA the next time it is
+   * WHAT IT DOES: the burdened piece costs `weight` EXTRA the next time it is
    * played (`PieceState.nextWeightPenalty`, summed into the cast weight in
    * `castSelect.ts` and consumed when that piece actually performs). Weight,
    * not cooldown — cooldown is a deck-diversity dial in this codebase, not a
    * balance lever; weight only shifts WHEN a card fires.
    *
-   * NON-STACKING, exactly like `slow`: a re-splash takes `Math.max`, never a
+   * NON-STACKING, exactly like `slow`: a re-burden takes `Math.max`, never a
    * sum — an unbounded stack would permanently lock a card out.
+   *
+   * IT RIDES UNTIL IT IS PAID, unlike `slow` (which is dropped at end of the
+   * turn it landed on, paid or not): a burden waits however many turns it takes
+   * for that piece to be played, then is spent. That divergence is deliberate
+   * and priced (see `PRICE.burdenPerWeightNum`).
+   *
+   * PAIR IT WITH `splash` TO HIT THE WHOLE BAND. Burden alone taxes the anchor;
+   * a cast carrying `splash` spreads it over the anchor's neighbours too. The
+   * two together are exactly the effect the single old `splash weight N` action
+   * delivered before 2026-08-21 (see `splash` below).
    */
-  | { kind: 'splash'; weight: number }
+  | { kind: 'burden'; weight: number }
+  /**
+   * CURSE — the anchor card deals `amount` LESS damage for `turns` global turns.
+   *
+   * THE SECOND CARD-TARGETING EFFECT (user's design), and the mirror of
+   * `burden`: burden makes a card come out LATER, curse makes it hit SOFTER.
+   * Same target geometry (the anchor by default, the whole band when the cast
+   * also carries `splash`), same unit-level single-target identity.
+   *
+   * WHAT IT DOES: `PieceState.curse` (combat/state.ts) holds `{ amount,
+   * expiresAtTurn }`, and `resolveAuras` (combat/auras.ts) folds `-amount` into
+   * that piece's `mods.damageFlat` — the same attacker-side flat channel board
+   * auras and card-scope stat gems already ride, so every downstream rule
+   * (mitigation order, the min-1 damage floor, multi-hit) applies unchanged. A
+   * cursed card can never be reduced below 1 damage: the floor lives in
+   * `applyStrike`, not here.
+   *
+   * TIMED, IN GLOBAL TURNS, EXACTLY LIKE A TURN-DURATIONED STATUS: applied on
+   * turn T with `turns: N` it covers the rest of turn T and turns T+1..T+N, and
+   * is DELETED in the end-of-turn pass of turn T+N (`expireCurses`,
+   * simulate.ts). That is the same window `addStatus` + `expireStatuses` give a
+   * `fresh` status of N turns; it is stored as an absolute `expiresAtTurn`
+   * rather than a countdown so nothing has to walk the boards every turn to
+   * decrement it.
+   *
+   * NON-STACKING, THE `expose` RULE: a re-curse keeps the STRONGER `amount` and
+   * the LATER expiry (`Math.max` on both fields independently) — never a sum. A
+   * summed curse would compound a damage denial without bound on a resource the
+   * holder cannot see, and it is priced as one number, not as a stack.
+   *
+   * A 0-AMOUNT OR 0-TURN CURSE IS DROPPED OUTRIGHT (the `expose` precedent):
+   * it would otherwise be a free, priced-at-almost-nothing effect that still
+   * emitted an event and still occupied the anchor's non-stacking slot.
+   */
+  | { kind: 'curse'; amount: number; turns: number }
+  /**
+   * SPLASH — THE SPREADER. It carries no payload of its own (user-locked
+   * 2026-08-21, verbatim: "splash is an effect that spread other effect. It
+   * doesn't just spread wt"). Its ONE meaning: the other CARD-TARGETING effects
+   * of this cast — `burden`, `curse` — apply to the whole BAND instead of to the
+   * anchor alone.
+   *
+   * IT IS NOT A WEIGHT TAX. It was shipped as `{ kind: 'splash'; weight }` from
+   * 2026-08-18 to 2026-08-21, which conflated the spreader with its first
+   * payload; the weight tax is now `burden` and `burden + splash` reproduces the
+   * old action exactly (same band, same `Math.max`, same price).
+   *
+   * A SPREADER WITH NOTHING TO SPREAD IS REFUSED, not silently ignored: an
+   * authored card carrying `splash` and no card-targeting effect is a
+   * `validateSkillContent` failure, and a GEM `splash` spliced onto a host where
+   * neither the host nor the gem supplies one is dropped at the resolver seam
+   * (`spliceGemActions`, cards.ts — the `nothingToSpread` arm of THE SPLASH
+   * GATE).
+   *
+   * SINGLE-TARGET AT THE UNIT LEVEL: what it spreads across is ONE victim's
+   * BOARD, never their team. Both paths to the forbidden pair are closed — an
+   * AUTHORED `scope: 'all'` + splash card is rejected by
+   * `validateSkillContent`, and a GEM's splash is dropped by THE SPLASH GATE on
+   * any host that already hits more than one target, or that already splashes
+   * (a socket must not be able to double a band it cannot widen).
+   *
+   * THE BAND (see `splashBand`, combat/splash.ts): the ANCHOR plus the piece
+   * immediately BEFORE and the piece immediately AFTER it on the board.
+   * Adjacency is SPATIAL and does NOT wrap (a card at slot 0 has nothing to its
+   * left), measured edge-to-edge with the same footprint arithmetic the aura
+   * system uses (`footprintGaps`), so a multi-slot card is ONE piece however
+   * many slots it spans. The band is therefore 1..3 pieces wide, decided by the
+   * VICTIM's board layout, and it is priced against the 2-piece FLOOR any board
+   * with two or more pieces guarantees (`PRICE.splashBandFloorNum`) — so a
+   * card's PL stays holder- AND opponent-independent and the third piece is
+   * unpriced upside.
+   *
+   * CAST-SCOPED, NOT POSITIONAL: the flag is read once per cast from the
+   * effective effect list (`castSpreadsBand`, combat/interpreter.ts), so a gem
+   * splash spliced after the host's burden still spreads it. There is nothing
+   * for list order to decide, which is also why the keyword needs no phase.
+   */
+  | { kind: 'splash' }
   /** Drain the enemy's banked readiness (steal their built-up tempo). */
   | { kind: 'disrupt'; amount: number }
   /** Heal the caster for pct% of the damage this cast dealt (place after damage). */
@@ -524,7 +589,7 @@ type ActionKinds =
    * the victim's board, hard-CAPPED. `bonus = min(per × taxedCards(target), cap)`.
    *
    * WHAT COUNTS AS ONE TAXED CARD (`taxedCardCount`, combat/state.ts): every
-   * board piece carrying a pending `splash` tax (`PieceState.nextWeightPenalty`),
+   * board piece carrying a pending `burden` (`PieceState.nextWeightPenalty`),
    * PLUS ONE if the unit itself carries a pending `slow`
    * (`CombatantState.nextWeightPenalty`). Counting the unit-scope slow as one card
    * is deliberate — the fantasy is "punish the backlog", a slow IS part of the
@@ -532,10 +597,14 @@ type ActionKinds =
    * would make the reaper blind to half the tempo lane it exists to pay off.
    *
    * THE TIMING WRINKLE IS THE SYNERGY LOOP, not an accident. A `slow` lives only
-   * until the end of the turn it landed on, while a `splash` tax rides its piece
+   * until the end of the turn it landed on, while a `burden` rides its piece
    * until that piece is next played — so the reaper wants to fire AFTER your tempo
-   * cards, in the same turn for slow and any time later for splash. That is the
-   * designed pairing with Line Breaker / Shockwave Slam / the splash gems.
+   * cards, in the same turn for slow and any time later for burden. That is the
+   * designed pairing with Line Breaker / Shockwave Slam / the burden gems.
+   *
+   * A BURDEN SPREAD BY `splash` COUNTS ONCE PER PIECE, which is the whole
+   * combo: one `burden + splash` cast can leave 3 taxed cards on the victim's
+   * board for the reaper to collect on, where a bare burden leaves 1.
    *
    * THE `cap` IS REQUIRED and the cap is WHAT IS PRICED — the `stackBonus` rule,
    * for the same reason: `per × count` is bounded only by the VICTIM's board size
@@ -548,10 +617,10 @@ type ActionKinds =
    * AoE reach multiplier (`OFFENSIVE_KINDS`).
    *
    * SAME ORDERING RULE as its siblings: it reads taxes that were ALREADY there,
-   * so `validateSkillContent` requires this card's own `slow`/`splash` lines to
+   * so `validateSkillContent` requires this card's own `slow`/`burden` lines to
    * sit AFTER the damage the rider feeds. A slow+reaper card therefore cannot
    * self-feed within one cast — and, because a slow expires at end of turn, only
-   * a SECOND cast in the SAME turn collects on it, while a splash keeps paying
+   * a SECOND cast in the SAME turn collects on it, while a burden keeps paying
    * until the taxed piece is played.
    */
   | { kind: 'taxBonus'; per: number; cap: number }

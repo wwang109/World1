@@ -5995,32 +5995,38 @@
      "version": 1,
      "def": {
       "name": "Shockwave Slam",
-      "text": "Deal 14 (+ATK) Axe damage \u00b7 {{Splash}} +6 weight on the card the enemy is about to play and the ones either side of it.",
+      "text": "Deal 14 (+ATK) Axe damage \u00b7 {{Burden}} +6 weight on the card the enemy is about to play \u00b7 {{Splash}} \u2014 and on the cards either side of it.",
       "notes": [
-       "SHOWCASE CARD for the `splash` keyword (2026-08-18). splash is `slow`",
-       "at CARD scope: it taxes a BAND of the victim's board \u2014 the piece their",
-       "cast cursor sits on plus its immediate left/right neighbours, measured",
-       "edge-to-edge \u2014 with +weight on each piece's NEXT play, Math.max'd like",
-       "slow, then spent. NOTHING WRAPS (the board is a line): neither the band",
-       "nor the anchor, which falls back to the LAST CARD PLAYED when the cursor",
-       "is parked past the last card (2026-08-19 ruling).",
-       "PRICE: splash 6 = 30 deci at PRICE.splashPerWeightNum/Den (5 deci per",
-       "weight = 2x the slow rate: TWO pieces at slow's full rate, 2 being the",
-       "band's guaranteed FLOOR on any board holding more than one piece \u2014 the",
-       "third piece is unpriced upside, since band width is decided by the",
-       "VICTIM's board and not by the holder).",
+       "SHOWCASE CARD for the `burden + splash` pairing (2026-08-18; re-authored",
+       "2026-08-21 when `splash` became the payload-less SPREADER). `burden` is",
+       "`slow` at CARD scope: +weight on the anchor's NEXT play, Math.max'd like",
+       "slow, then spent. `splash` spreads that burden across the BAND \u2014 the anchor",
+       "plus its edge-to-edge neighbours. NOTHING WRAPS (the board is a line):",
+       "neither the band nor the anchor, which falls back to the LAST CARD PLAYED",
+       "when the cursor is parked past the last card (2026-08-19 ruling).",
+       "BEHAVIOUR IS UNCHANGED BY THE RE-AUTHORING: this card used to carry the",
+       "single action `splash weight 6`, which taxed exactly this band with exactly",
+       "this Math.max rule. `burden 6 + splash` is the same effect spelled honestly,",
+       "and the fight logs were diffed before/after on fixed seeds to prove it.",
+       "PRICE, AND IT DID NOT MOVE: burden 6 = 15 deci (PRICE.burdenPerWeightNum/Den,",
+       "5/2 \u2014 slow's own per-point rate, for slow's own currency on ONE card) x the",
+       "splash coverage multiplier (PRICE.splashBandFloorNum, x2 \u2014 the band's",
+       "guaranteed 2-piece FLOOR on any board holding more than one piece; the third",
+       "piece is unpriced upside, since band width is decided by the VICTIM's board",
+       "and not by the holder) = 30 deci. That is exactly what the old single",
+       "`splash weight 6` action cost at 5 deci/weight.",
        "damage 14 = 70. 30 + 70 = 100 = Bronze exactly, size 1 so no grant and",
-       "weight 10 is baseline (0 delta). Control-family spend is 30 deci,",
-       "well under the size-1 control cap (100).",
-       "WEIGHT 6, NOT MORE: a splash's tax lands on up to three cards at once,",
+       "weight 10 is baseline (0 delta). Control-family spend is 30 deci (the",
+       "multiplier is counted there too), well under the size-1 control cap (100).",
+       "WEIGHT 6, NOT MORE: a spread burden lands on up to three cards at once,",
        "so it buys stall breadth rather than depth \u2014 6 is a real half-turn of",
        "readiness on a baseline-weight card without ever locking one out",
-       "(nothing stacks; a re-splash takes the max).",
+       "(nothing stacks; a re-burden takes the max).",
        "SINGLE-TARGET, deliberately: `scope: all` + splash is rejected by",
-       "validateSkillContent \u2014 splash spreads across ONE victim's board, not",
+       "validateSkillContent \u2014 the spreader spreads across ONE victim's board, not",
        "across a team. No tierUpgrades: damage alone absorbs every higher",
-       "budget (silver 24, gold 34, diamond 44 \u2014 splash is control and stays",
-       "frozen at 6 at every tier, verified against `autoScaleTier`)."
+       "budget (silver 24, gold 34, diamond 44 \u2014 burden and splash are control and",
+       "stay frozen at every tier, verified against `autoScaleTier`)."
       ],
       "archetypes": [
        "offense",
@@ -6037,8 +6043,11 @@
         "power": 14
        },
        {
-        "kind": "splash",
+        "kind": "burden",
         "weight": 6
+       },
+       {
+        "kind": "splash"
        }
       ]
      }
@@ -6052,27 +6061,31 @@
      "version": 1,
      "def": {
       "name": "Arc Cascade",
-      "text": "Deal 12 (+MATK) Lightning damage \u00b7 {{Splash}} +8 weight on the card the enemy is about to play and the ones either side of it.",
+      "text": "Deal 12 (+MATK) Lightning damage \u00b7 {{Burden}} +8 weight on the card the enemy is about to play \u00b7 {{Splash}} \u2014 and on the cards either side of it.",
       "notes": [
-       "MAGICAL SPLASH (content-designer pass, 2026-08-19) \u2014 opens `splash` to",
-       "the MATK side. shockwave_slam was the only splash card in the book and",
-       "it is physical/axe; this card is magical/lightning with no weapon, and",
-       "trades a HEAVIER splash for a LIGHTER damage line than shockwave (8 vs",
-       "6 weight, 12 vs 14 damage) \u2014 same control-family shape, a different",
-       "point on the tax-vs-damage axis, so the two showcase cards read as",
-       "distinct builds (control-leaning vs damage-leaning) rather than a",
-       "recolor of the same card.",
-       "PRICE: splash 8 = 40 deci at PRICE.splashPerWeightNum/Den (5 deci per",
-       "weight). damage 12 = 60. 40 + 60 = 100 = Bronze exactly, size 1 so no",
-       "grant and weight 10 is baseline (0 delta). Control-family spend is 40",
-       "deci, under the size-1 control cap (100 \u2014 verified with",
-       "capViolations).",
+       "MAGICAL SPREAD (content-designer pass, 2026-08-19; re-authored 2026-08-21",
+       "for the spreader model) \u2014 opens the band tax to the MATK side.",
+       "shockwave_slam was the only such card in the book and it is physical/axe;",
+       "this card is magical/lightning with no weapon, and trades a HEAVIER burden",
+       "for a LIGHTER damage line than shockwave (8 vs 6 weight, 12 vs 14 damage) \u2014",
+       "same control-family shape, a different point on the tax-vs-damage axis, so",
+       "the two showcase cards read as distinct builds (control-leaning vs",
+       "damage-leaning) rather than a recolor of the same card.",
+       "BEHAVIOUR UNCHANGED BY THE RE-AUTHORING: `splash weight 8` became",
+       "`burden 8 + splash`, the same band and the same Math.max rule (fight logs",
+       "diffed before/after on fixed seeds).",
+       "PRICE, UNMOVED: burden 8 = 20 deci (PRICE.burdenPerWeightNum/Den) x2 for the",
+       "splash coverage multiplier (PRICE.splashBandFloorNum) = 40 deci, exactly what",
+       "the old `splash weight 8` cost. damage 12 = 60. 40 + 60 = 100 = Bronze",
+       "exactly, size 1 so no grant and weight 10 is baseline (0 delta).",
+       "Control-family spend is 40 deci, under the size-1 control cap (100 \u2014",
+       "verified with capViolations).",
        "No tierUpgrades: damage alone absorbs every higher budget (silver 22,",
-       "gold 32, diamond 42 \u2014 splash is control and stays frozen at 8 at every",
-       "tier, verified against `autoScaleTier`).",
-       "SINGLE-TARGET, deliberately, like every splash card: `scope: all` +",
-       "splash is rejected by validateSkillContent \u2014 splash spreads across ONE",
-       "victim's board, not across a team."
+       "gold 32, diamond 42 \u2014 control stays frozen at every tier, verified against",
+       "`autoScaleTier`).",
+       "SINGLE-TARGET, deliberately, like every spreader card: `scope: all` +",
+       "splash is rejected by validateSkillContent \u2014 the spread covers ONE",
+       "victim's board, not a team."
       ],
       "archetypes": [
        "offense",
@@ -6089,8 +6102,11 @@
         "power": 12
        },
        {
-        "kind": "splash",
+        "kind": "burden",
         "weight": 8
+       },
+       {
+        "kind": "splash"
        }
       ]
      }
@@ -6104,29 +6120,34 @@
      "version": 1,
      "def": {
       "name": "Line Breaker",
-      "text": "Deal 10 (+ATK) Lance damage \u00b7 {{Slow}} the enemy's next action by +8 weight \u00b7 {{Splash}} +6 weight on the card the enemy is about to play and the ones either side of it.",
+      "text": "Deal 10 (+ATK) Lance damage \u00b7 {{Slow}} the enemy's next action by +8 weight \u00b7 {{Burden}} +6 weight on the card they are about to play \u00b7 {{Splash}} \u2014 and on the cards either side of it.",
       "notes": [
-       "SPLASH + SLOW PAIRING (content-designer pass, 2026-08-19) \u2014 the double",
-       "tempo tax: `slow` taxes the UNIT (whatever the enemy plays for the rest",
-       "of this turn), `splash` taxes the BAND on the enemy's own board (the",
-       "piece their cast cursor sits on plus its neighbours, paid whenever each",
-       "is next played). `castSelect.ts` sums both onto one cast",
-       "(`weightOf(skill) + mods.weightDelta + c.nextWeightPenalty +",
-       "piece.nextWeightPenalty`), so when the two land on the same upcoming",
-       "piece within the turn this card double-taxes it rather than paying",
-       "just one tempo cost.",
-       "PRICE: slow 8 = 20 deci (PRICE.slowPerWeightNum/Den, 5/2). splash 6 =",
-       "30 deci (PRICE.splashPerWeightNum/Den, 5/1). Control-family spend",
-       "(slow+splash together) is 50 deci \u2014 HALF the size-1 control cap (100),",
-       "verified with capViolations; the cap stays nowhere near breached at",
-       "any tier, since control is frozen and only the damage sink grows.",
+       "SLOW + SPREAD BURDEN PAIRING (content-designer pass, 2026-08-19;",
+       "re-authored 2026-08-21 for the spreader model) \u2014 the double tempo tax:",
+       "`slow` taxes the UNIT (whatever the enemy plays for the rest of this turn),",
+       "`burden` taxes a CARD (paid whenever that piece is next played), and",
+       "`splash` spreads the burden across the band. `castSelect.ts` sums both",
+       "scopes onto one cast (`weightOf(skill) + mods.weightDelta +",
+       "c.nextWeightPenalty + piece.nextWeightPenalty`), so when the two land on",
+       "the same upcoming piece within the turn this card double-taxes it rather",
+       "than paying just one tempo cost.",
+       "BEHAVIOUR UNCHANGED BY THE RE-AUTHORING: `splash weight 6` became",
+       "`burden 6 + splash` (fight logs diffed before/after on fixed seeds).",
+       "PRICE, UNMOVED: slow 8 = 20 deci (PRICE.slowPerWeightNum/Den, 5/2).",
+       "burden 6 = 15 deci (PRICE.burdenPerWeightNum/Den, the same 5/2 for the same",
+       "currency on one card) x2 for the splash coverage multiplier",
+       "(PRICE.splashBandFloorNum) = 30 deci \u2014 exactly what the old",
+       "`splash weight 6` cost. Control-family spend (slow + spread burden) is 50",
+       "deci \u2014 HALF the size-1 control cap (100), verified with capViolations; the",
+       "cap stays nowhere near breached at any tier, since control is frozen and",
+       "only the damage sink grows.",
        "damage 10 = 50. 50 + 50 = 100 = Bronze exactly, size 1 so no grant and",
        "weight 10 is baseline (0 delta).",
        "No tierUpgrades: damage alone absorbs every higher budget (silver 20,",
-       "gold 30, diamond 40 \u2014 slow and splash both stay frozen at every tier,",
-       "verified against `autoScaleTier`).",
-       "WEAPON LANCE, NOT AXE (shockwave_slam's weapon), and a three-effect",
-       "kit rather than shockwave's two \u2014 differentiates from the existing",
+       "gold 30, diamond 40 \u2014 slow, burden and splash all stay frozen at every",
+       "tier, verified against `autoScaleTier`).",
+       "WEAPON LANCE, NOT AXE (shockwave_slam's weapon), and a four-line kit",
+       "rather than shockwave's three \u2014 differentiates from the existing",
        "showcase on both the weapon and the mechanic-pairing axis."
       ],
       "archetypes": [
@@ -6148,8 +6169,11 @@
         "weight": 8
        },
        {
-        "kind": "splash",
+        "kind": "burden",
         "weight": 6
+       },
+       {
+        "kind": "splash"
        }
       ]
      }
@@ -7442,6 +7466,127 @@
         "text": "Deal 36 (+ATK) Axe damage, +7 per weight-taxed card on the target (max +28) \u2014 each card carrying a {{Splash}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
        }
       }
+     }
+    }
+   ]
+  },
+  {
+   "id": "dulling_hex",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Dulling Hex",
+      "text": "Deal 12 (+MATK) Dark damage \u00b7 {{Curse}} the card the enemy is about to play deals 8 less damage for 2 turns.",
+      "notes": [
+       "SHOWCASE CARD for `curse` (2026-08-21) \u2014 the CARD-scope damage debuff, and",
+       "the anchor-only form of it. `burden` (Shockwave Slam, Line Breaker) makes the",
+       "enemy's current card come out LATER; curse makes it come out SOFTER. Same",
+       "target geometry as a bare burden: ONE piece, the anchor \u2014 the card their cast",
+       "cursor is on, or the last card played when the cursor is parked past the end of",
+       "the board (`splashAnchor`, no wrapping).",
+       "NO SPLASH, deliberately: this card is the keyword on its own, so a player meets",
+       "curse before meeting the spreader. Sapping Arc is the paired form.",
+       "PRICE: curse 8 for 2 turns = 40 deci \u2014 8 x 5/2 = 20 for the FIRST denial",
+       "(PRICE.cursePerAmountNum/Den: the flat-damage rate at the conditional-trigger",
+       "discount, because an anchor that is cooling can sit out the whole window) plus",
+       "8 x 2 x 5/4 = 20 for the repeats (PRICE.cursePerAmountTurnNum/Den: one further",
+       "firing per BASELINE_COOLDOWN+1 turns). damage 12 = 60. 40 + 60 = 100 = Bronze",
+       "exactly, size 1 so no grant and weight 10 is baseline (0 delta).",
+       "Control-family spend is 40 deci, under the size-1 control cap (100 - verified",
+       "with capViolations).",
+       "AMOUNT 8 AGAINST 2 TURNS, not 4 against 4: the same 40 deci either way, but a",
+       "DEEP short curse actually bites (8 off one hit is most of a bronze card's",
+       "damage line), where a shallow long one is a rounding error the victim never",
+       "notices. The window only has to outlive the anchor's next play, and 2 turns is",
+       "already generous against the 4-turn cooldown stride.",
+       "No tierUpgrades: damage alone absorbs every higher budget (silver 22, gold 32,",
+       "diamond 42 - curse is control and stays frozen at every tier, verified against",
+       "`autoScaleTier`)."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "dark",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 12
+       },
+       {
+        "kind": "curse",
+        "amount": 8,
+        "turns": 2
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "sapping_arc",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Sapping Arc",
+      "text": "Deal 12 (+ATK) Sword damage \u00b7 {{Curse}} the card the enemy is about to play deals 4 less damage for 2 turns \u00b7 {{Splash}} \u2014 and on the cards either side of it.",
+      "notes": [
+       "SHOWCASE CARD for `curse + splash` (2026-08-21) \u2014 the SPREADER doing its job",
+       "on the second card-targeting keyword. `splash` carries no payload: it widens",
+       "this card's curse from the anchor to the whole BAND (the anchor plus its",
+       "edge-to-edge neighbours, 1..3 pieces, never wrapping), exactly as it widens a",
+       "burden on Shockwave Slam. That is the whole point of splitting the keyword: one",
+       "spreader, any card-targeting payload.",
+       "PRICE: curse 4 for 2 turns = 20 deci (4 x 5/2 = 10 first denial +",
+       "4 x 2 x 5/4 = 10 repeats) x2 for the splash coverage multiplier",
+       "(PRICE.splashBandFloorNum \u2014 the band's guaranteed 2-piece floor on any board",
+       "holding more than one card; the third piece is unpriced upside, since band",
+       "width is the VICTIM's to decide) = 40 deci. damage 12 = 60. 40 + 60 = 100 =",
+       "Bronze exactly, size 1 so no grant and weight 10 is baseline (0 delta).",
+       "Control-family spend is 40 deci (the multiplier counts there too), under the",
+       "size-1 control cap (100 - verified with capViolations).",
+       "AMOUNT 4, NOT 8: the spread costs exactly what a second cursed card is worth,",
+       "so breadth is bought with depth. Dulling Hex is the same 40 deci spent the",
+       "other way (8 on one card), and the two read as a real choice rather than a",
+       "strict upgrade - which is also why they carry the same damage line.",
+       "SWORD/PHYSICAL, against Dulling Hex's dark/magical: curse now exists on both",
+       "sides of the damage split, and the spreader family covers axe (Shockwave),",
+       "lance (Line Breaker), lightning (Arc Cascade) and now sword.",
+       "SINGLE-TARGET, deliberately: `scope: all` + splash is rejected by",
+       "validateSkillContent \u2014 the spread covers ONE victim's board, not a team.",
+       "No tierUpgrades: damage alone absorbs every higher budget (silver 22, gold 32,",
+       "diamond 42 - curse and splash are control and stay frozen at every tier,",
+       "verified against `autoScaleTier`)."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 12
+       },
+       {
+        "kind": "curse",
+        "amount": 4,
+        "turns": 2
+       },
+       {
+        "kind": "splash"
+       }
+      ]
      }
     }
    ]

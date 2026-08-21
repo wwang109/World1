@@ -2,11 +2,20 @@ import { footprintGaps } from './auras';
 import type { CombatantState, PieceState } from './state';
 
 /**
+ * THE CARD-TARGETING GEOMETRY, in one module: which of a victim's board pieces
+ * a `burden` / `curse` lands on, with (`splashBand`) or without
+ * (`splashAnchor`) a `splash` spreading it.
+ *
+ * `splash` itself carries no payload (see its docs in types.ts) — it only
+ * chooses between the two functions below, via `cardTargetPieces`.
+ */
+
+/**
  * THE piece the cast cursor is standing in, and WHICH of its slots (1-based).
  * `null` when the cursor sits on an empty slot.
  *
  * Shared by the turn loop (`simulate.ts` — span progress / `busy` rows) and the
- * `splash` anchor below, so "the card whose turn it is" has exactly one
+ * card-targeting anchor below, so "the card whose turn it is" has exactly one
  * definition. Indexed walk over the slot-sorted `pieces` array; no Map/Set, no
  * RNG, integers only.
  */
@@ -21,7 +30,9 @@ export function cursorPiece(c: CombatantState): { piece: PieceState; slotIndex: 
 }
 
 /**
- * "The target's current turn's card" — the piece a `splash` anchors on.
+ * "The target's current turn's card" — THE ANCHOR: the one piece a
+ * card-targeting effect (`burden`, `curse`) lands on when nothing spreads it,
+ * and the centre of the band when a `splash` does.
  *
  * THE BOARD IS A LINE, NOT A RING (user-locked 2026-08-19). Three cases, in
  * order:
@@ -36,10 +47,10 @@ export function cursorPiece(c: CombatantState): { piece: PieceState; slotIndex: 
  * Case 3 is the ruling. Wrapping made the anchor the leftmost card, which by
  * definition has no left neighbour, so every rotation wrap deterministically
  * produced a 2-piece band while the price charged for more; and it made a
- * splash's band jump the length of the board for no reason a player can see.
+ * spread band jump the length of the board for no reason a player can see.
  * Anchoring on the last card played keeps the band where the action just was.
  * Edges genuinely give a smaller band — that is priced (see
- * `PRICE.splashPerWeightNum`, balance.ts, which charges the 2-piece FLOOR).
+ * `PRICE.splashBandFloorNum`, balance.ts, which charges the 2-piece FLOOR).
  *
  * DELIBERATELY NOT `scanCast` PARITY (corrected 2026-08-19 — this comment used
  * to claim it, and it was never true). `scanCast` additionally skips pieces
@@ -49,11 +60,13 @@ export function cursorPiece(c: CombatantState): { piece: PieceState; slotIndex: 
  *   • Case 3 REQUIRES it. "The last card played" is precisely a piece
  *     `scanCast` would refuse (it is in `excludedThisTurn`, and usually cooling
  *     too), so full parity is incompatible with the ruling above.
- *   • Cooling / already-played are TRANSIENT, but the tax is not: it rides the
- *     piece until that piece is next played, however many turns that takes. So
- *     taxing a momentarily-unavailable card is not a whiff — it is simply paid
- *     later. `scanCast`'s skips answer "what can fire RIGHT NOW", which is a
- *     different question from "which card is the cursor parked on".
+ *   • Cooling / already-played are TRANSIENT, but a `burden` is not: it rides
+ *     the piece until that piece is next played, however many turns that takes.
+ *     So burdening a momentarily-unavailable card is not a whiff — it is simply
+ *     paid later. `scanCast`'s skips answer "what can fire RIGHT NOW", which is
+ *     a different question from "which card is the cursor parked on". (A
+ *     `curse` DOES expire, so a case-3 anchor can outlast one — that is stated
+ *     and priced in `PRICE.cursePerAmountNum`, not papered over here.)
  *   • The anchor stays a pure function of (`pieces`, `castCursor`) — no turn
  *     number, no cooldown flag, no turn-loop-local `excludedThisTurn` set. That
  *     is what lets the interpreter, the event log and playback all reproduce
@@ -82,8 +95,8 @@ export function splashAnchor(c: CombatantState): PieceState | null {
 }
 
 /**
- * The 3-piece SPLASH BAND on `c`'s board: the anchor, plus the piece
- * immediately before and the piece immediately after it.
+ * The 3-piece BAND a `splash` SPREADS ACROSS on `c`'s board: the anchor, plus
+ * the piece immediately before and the piece immediately after it.
  *
  * MEASURED EDGE-TO-EDGE, PIECE-TO-PIECE (`footprintGaps`, combat/auras.ts — the
  * same rule aura coverage uses): the left neighbour is the piece with the
@@ -95,13 +108,13 @@ export function splashAnchor(c: CombatantState): PieceState | null {
  * IT DOES NOT WRAP, on purpose (user-locked 2026-08-18): a card at slot 0 has
  * nothing to its left, so an edge anchor yields a 2-piece band and a lone card
  * yields a 1-piece band. Neither does the ANCHOR (user-locked 2026-08-19, see
- * `splashAnchor` above) — the whole keyword now treats the board as a line.
+ * `splashAnchor` above) — the whole keyword treats the board as a line.
  *
  * The band is therefore 1..3 pieces wide depending on where on the VICTIM's
  * board the cursor happens to be — something the card's holder does not control
- * at all. So splash is priced against the 2-piece FLOOR that any board with two
- * or more pieces always delivers, holder-independently; the third piece is
- * unpriced upside. Full derivation on `PRICE.splashPerWeightNum` (balance.ts).
+ * at all. So the SPREAD is priced against the 2-piece FLOOR that any board with
+ * two or more pieces always delivers, holder-independently; the third piece is
+ * unpriced upside. Full derivation on `PRICE.splashBandFloorNum` (balance.ts).
  *
  * Returns `null` on an empty board. `band` is in ascending slot order and
  * always contains `anchor`.
@@ -133,4 +146,35 @@ export function splashBand(c: CombatantState): { anchor: PieceState; band: Piece
   band.push(anchor);
   if (right) band.push(right);
   return { anchor, band };
+}
+
+/**
+ * WHICH OF `c`'s PIECES ONE CARD-TARGETING EFFECT LANDS ON — the single seam
+ * `burden` and `curse` both call, and the ONLY place the `splash` spreader
+ * changes anything.
+ *
+ *   spread === false  →  the ANCHOR alone (1 piece)
+ *   spread === true   →  the whole BAND   (1..3 pieces, ascending slot order)
+ *
+ * Why one function rather than two `if`s in the interpreter: the spreader must
+ * mean exactly the same thing for every card-targeting keyword, present and
+ * future. A new one (say a card-scope stun) is written against this, gets the
+ * pairing for free, and cannot accidentally invent its own geometry.
+ *
+ * `anchor` is returned alongside `pieces` because the event log names it: a
+ * replay highlights the anchor differently from the pieces the spread reached,
+ * and with a 1-piece result the two coincide.
+ *
+ * `null` on an empty board (nothing to target). Pure, integer-only, no RNG.
+ */
+export function cardTargetPieces(
+  c: CombatantState,
+  spread: boolean,
+): { anchor: PieceState; pieces: PieceState[] } | null {
+  if (spread) {
+    const found = splashBand(c);
+    return found ? { anchor: found.anchor, pieces: found.band } : null;
+  }
+  const anchor = splashAnchor(c);
+  return anchor ? { anchor, pieces: [anchor] } : null;
 }

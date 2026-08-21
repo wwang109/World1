@@ -734,15 +734,21 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // not a combat decision.
   const pendingSlowByUnit = new Map<string, number>();
   const slowKey = (side: 'player' | 'enemy', unit: number): string => `${side}:${unit}`;
-  // The CARD-scope twin of `pendingSlowByUnit` above, for `splash`
+  // The CARD-scope twin of `pendingSlowByUnit` above, for `burden`
   // (`PieceState.nextWeightPenalty`, combat/state.ts). Keyed by side+unit+SLOT
-  // because a splash taxes individual board pieces, not the unit: the anchor
-  // the victim is about to play plus its two neighbours, each of which pays on
-  // ITS OWN next play. Same reconstructed-bookkeeping idiom and the same two
-  // engine rules mirrored exactly — Math.max per re-application, cleared when
-  // THAT piece plays (`simulate.ts`).
-  const pendingSplashBySlot = new Map<string, number>();
-  const splashKey = (side: 'player' | 'enemy', unit: number, slot: number): string => `${side}:${unit}:${slot}`;
+  // because a burden taxes individual board pieces, not the unit: the anchor the
+  // victim is about to play — plus its neighbours when a `splash` spread it —
+  // each of which pays on ITS OWN next play. Same reconstructed-bookkeeping idiom
+  // and the same two engine rules mirrored exactly — Math.max per
+  // re-application, cleared when THAT piece plays (`simulate.ts`).
+  const pendingBurdenBySlot = new Map<string, number>();
+  // The CURSE twin, one currency over (`PieceState.curse`): the amount of damage
+  // each cursed slot is losing while its window stands. Same per-slot keying and
+  // the same `Math.max` rule; the difference is HOW it ends — a burden is spent
+  // by a play, a curse EXPIRES, so this map is cleared by the engine's own
+  // `curseExpired` event rather than by the `play` row (see both cases below).
+  const cursedBySlot = new Map<string, number>();
+  const slotKey = (side: 'player' | 'enemy', unit: number, slot: number): string => `${side}:${unit}:${slot}`;
   const snapHp = (): HpSnap => ({
     player: curPlayer, enemy: curEnemies[0]!, playerMax, enemyMax: enemyMaxes[0]!,
     enemies: [...curEnemies], enemyMaxes: [...enemyMaxes],
@@ -941,13 +947,21 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const sk = slowKey(e.side, unitOf(e));
         const slowedBy = pendingSlowByUnit.get(sk);
         pendingSlowByUnit.delete(sk);
-        // A `splash` tax is per PIECE, so it clears when THIS slot plays (unlike
+        // A `burden` is per PIECE, so it clears when THIS slot plays (unlike
         // the unit-wide slow above) — and both are already baked into
         // `e.weight` by castSelect.ts, so both are named rather than added.
-        const spk = splashKey(e.side, unitOf(e), e.slot);
-        const splashedBy = pendingSplashBySlot.get(spk);
-        pendingSplashBySlot.delete(spk);
-        const slowNote = `${slowedBy ? ` (includes +${slowedBy} SLOWED)` : ''}${splashedBy ? ` (includes +${splashedBy} SPLASHED)` : ''}`;
+        const bk = slotKey(e.side, unitOf(e), e.slot);
+        const burdenedBy = pendingBurdenBySlot.get(bk);
+        pendingBurdenBySlot.delete(bk);
+        const slowNote = `${slowedBy ? ` (includes +${slowedBy} SLOWED)` : ''}${burdenedBy ? ` (includes +${burdenedBy} BURDENED)` : ''}`;
+        // A standing `curse` on THIS slot, named on the row of the very cast it
+        // weakens — the damage-axis counterpart of the two weight notes above,
+        // and the same reason they exist: the hit that follows will come out
+        // smaller than the card's face, with nothing else in the log to say why.
+        // NOT deleted here: a burden is spent by this play, a curse is not — it
+        // rides its window and is dropped by the engine's own `curseExpired`.
+        const cursedBy = cursedBySlot.get(bk);
+        const curseNote = cursedBy ? ` · CURSED −${cursedBy} damage` : '';
         // `e.aoe`/`e.targets` (engine/combat/events.ts's `TargetFields`) is
         // the one place the log can tell a cast that hit every living foe
         // from one that hit a single chosen target — surfaced here the same
@@ -969,7 +983,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const targetNote = !e.aoe && e.targetUnit !== undefined && sideRosterSize(targetSide) > 1
           ? ` · target ${sideUnitLabel(targetSide, e.targetUnit)}`
           : '';
-        const playLine = push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress}${aoeNote}${targetNote} · WEIGHT ${e.weight}${slowNote}`);
+        const playLine = push(e.turn, 'PLAY', `${label(e)} · ${skillName(e.skillId)}${progress}${aoeNote}${targetNote}${curseNote} · WEIGHT ${e.weight}${slowNote}`);
         // The matching `cost` event (readinessAfter = the bank left once this
         // weight is paid) hasn't been emitted yet — see the `pendingPlayLine`
         // comment above. Held here; filled in by the `cost` case below.
@@ -1319,21 +1333,55 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         push(e.turn, 'DEBUFF', `${label(e)} · Slow +${e.weight} weight`);
         break;
       }
-      // `splash` rider — `slow` one scope down: it taxes a BAND of the victim's
-      // board (the card their cursor is on, plus its neighbours) rather than
+      // `burden` rider — `slow` one scope down: it taxes a CARD (the one their
+      // cursor is on, plus its neighbours when a `splash` spread it) rather than
       // the unit's next action, so the row names the slots that were hit and
-      // the shadow tracker is per-slot. Without a row here a splashed card's
+      // the shadow tracker is per-slot. Without a row here a burdened card's
       // weight would silently inflate several turns later with nothing in the
       // log to explain it — the exact confusion the `slow` row above exists to
       // prevent.
-      case 'splashed': {
+      //
+      // THE SPREAD IS READ OFF THE SLOT LIST, not off a separate event: one slot
+      // means the bare burden, several mean a splash widened it (see the
+      // `burdened` event's docs in engine/combat/events.ts). The row says
+      // "Splash" only when it actually spread, so the player learns the spreader
+      // from the case where it did something.
+      case 'burdened': {
         for (let i = 0; i < e.slots.length; i += 1) {
           const slot = e.slots[i]!;
-          const key = splashKey(e.side, unitOf(e), slot);
-          pendingSplashBySlot.set(key, Math.max(pendingSplashBySlot.get(key) ?? 0, e.weight));
+          const key = slotKey(e.side, unitOf(e), slot);
+          pendingBurdenBySlot.set(key, Math.max(pendingBurdenBySlot.get(key) ?? 0, e.weight));
         }
         const where = e.slots.map((slot) => (slot === e.anchorSlot ? `[${slot + 1}]` : `${slot + 1}`)).join(' ');
-        push(e.turn, 'DEBUFF', `${label(e)} · Splash +${e.weight} weight on slot${e.slots.length === 1 ? '' : 's'} ${where}`);
+        const spread = e.slots.length > 1 ? ' (Splash)' : '';
+        push(e.turn, 'DEBUFF', `${label(e)} · Burden +${e.weight} weight on slot${e.slots.length === 1 ? '' : 's'} ${where}${spread}`);
+        break;
+      }
+      // `curse` rider — burden's twin on the DAMAGE axis, so it reads the same
+      // way: named slots, the anchor bracketed, "(Splash)" only when the band was
+      // actually widened. The shadow tracker lets the PLAY row of a cursed card
+      // say why its hit came out small.
+      case 'cursed': {
+        for (let i = 0; i < e.slots.length; i += 1) {
+          const slot = e.slots[i]!;
+          const key = slotKey(e.side, unitOf(e), slot);
+          cursedBySlot.set(key, Math.max(cursedBySlot.get(key) ?? 0, e.amount));
+        }
+        const where = e.slots.map((slot) => (slot === e.anchorSlot ? `[${slot + 1}]` : `${slot + 1}`)).join(' ');
+        const spread = e.slots.length > 1 ? ' (Splash)' : '';
+        push(e.turn, 'DEBUFF', `${label(e)} · Curse −${e.amount} damage for ${e.turns} turn${e.turns === 1 ? '' : 's'} on slot${e.slots.length === 1 ? '' : 's'} ${where}${spread}`);
+        break;
+      }
+      // A curse WINDOW CLOSED (engine's end-of-turn `expireCurses`). Mirrors the
+      // engine's own delete so a later PLAY row stops claiming a penalty that no
+      // longer applies — the card-scope counterpart of the `end` case's slow
+      // clear below, and the reason `cursedBySlot` needs no timer of its own.
+      case 'curseExpired': {
+        for (let i = 0; i < e.slots.length; i += 1) {
+          cursedBySlot.delete(slotKey(e.side, unitOf(e), e.slots[i]!));
+        }
+        const where = e.slots.map((slot) => String(slot + 1)).join(' ');
+        push(e.turn, 'DEBUFF', `${label(e)} · Curse wears off on slot${e.slots.length === 1 ? '' : 's'} ${where}`);
         break;
       }
       // `disrupt` rider — the sibling of `slow`: drains banked readiness right
@@ -1354,8 +1402,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       case 'wait': {
         if (e.reason === 'cantAfford') {
           const pending = pendingSlowByUnit.get(slowKey(e.side, unitOf(e)));
-          const pendingSplash = e.slot === undefined ? undefined : pendingSplashBySlot.get(splashKey(e.side, unitOf(e), e.slot));
-          const slowNote = `${pending ? ` (includes +${pending} SLOWED)` : ''}${pendingSplash ? ` (includes +${pendingSplash} SPLASHED)` : ''}`;
+          const pendingBurden = e.slot === undefined ? undefined : pendingBurdenBySlot.get(slotKey(e.side, unitOf(e), e.slot));
+          const slowNote = `${pending ? ` (includes +${pending} SLOWED)` : ''}${pendingBurden ? ` (includes +${pendingBurden} BURDENED)` : ''}`;
           push(e.turn, 'WAIT', `${label(e)} · ${skillName(e.skillId)} needs WEIGHT ${e.weight}${slowNote}, has ${e.readiness}`);
         } else if (e.reason === 'cooling') {
           push(e.turn, 'WAIT', `${label(e)} · ${skillName(e.skillId)} cooling down, ${e.turnsLeft} turn${e.turnsLeft === 1 ? '' : 's'} left`);
@@ -1590,9 +1638,13 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // regardless of whether the whole side's units all cost-cleared it via
       // a play this turn. No row of its own — this is bookkeeping over an
       // already-silent engine event, not something a player reads.
-      // Deliberately does NOT touch `pendingSplashBySlot`: splash's tax is
-      // per PIECE and rides until that piece is actually played, unchanged by
-      // this engine update — see the `pendingSplashBySlot` declaration above.
+      // Deliberately does NOT touch `pendingBurdenBySlot`: a burden is per PIECE
+      // and rides until that piece is actually played, unchanged by this engine
+      // update — see the `pendingBurdenBySlot` declaration above. Nor
+      // `cursedBySlot`: a curse's window is closed by the engine's own
+      // `curseExpired` event (handled above), which is emitted from the same
+      // end-of-turn pass but names exactly which slots lapsed — so mirroring it
+      // here would guess where the engine states.
       case 'end': pendingSlowByUnit.clear(); break;
       case 'combatEnd': {
         // combatEnd is the log's final event, so HP here is final state — a

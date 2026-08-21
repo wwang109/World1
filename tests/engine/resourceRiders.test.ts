@@ -8,8 +8,11 @@
 //     one member of the family that resolves on the caster, so it runs once per
 //     cast and arms the scalar `cast.bonusFlat` (the `comboBonus` seam).
 //   • `taxBonus` reads the VICTIM's TEMPO BACKLOG — every board piece carrying a
-//     `splash` weight tax, plus one if the unit itself carries a pending `slow` —
-//     and arms per victim, like `exploit`.
+//     `burden` weight tax, plus one if the unit itself carries a pending `slow` —
+//     and arms per victim, like `exploit`. (It reads the FIELD, not the keyword,
+//     so the 2026-08-21 splash split left it untouched: a `burden` writes the
+//     same `PieceState.nextWeightPenalty` the old `splash weight N` wrote,
+//     whether one card carries it or a `splash` spread it over three.)
 //
 // THE ORDERING RULING (user-locked 2026-08-21) applies to both, unchanged and
 // deliberately without exceptions: a rider reads what is ALREADY THERE, so a card
@@ -86,8 +89,12 @@ const aoeReaper = card('aoeReaper', [
   { kind: 'damage', power: 10 },
 ], { scope: 'all' });
 
-/** Taxers. `splash` bands the victim's board; `slow` taxes the unit itself. */
-const splasher = card('splasher', [{ kind: 'splash', weight: 6 }], { archetypes: ['debuff'] });
+/** Taxers. `burden + splash` bands the victim's board; `slow` taxes the unit
+ * itself. The spreader is what makes this a TWO-card backlog rather than one —
+ * exactly the shape the reaper is sold on punishing. */
+const splasher = card('splasher', [{ kind: 'burden', weight: 6 }, { kind: 'splash' }], { archetypes: ['debuff'] });
+/** The same tax with NO spreader: one burdened card, so one taxed card. */
+const burdener = card('burdener', [{ kind: 'burden', weight: 6 }], { archetypes: ['debuff'] });
 const slower = card('slower', [{ kind: 'slow', weight: 6 }], { archetypes: ['debuff'] });
 /** Same slow, but it only ever fires ONCE in a short fight (for the expiry test). */
 const onceSlower = card('onceSlower', [{ kind: 'slow', weight: 6 }], { archetypes: ['debuff'], cooldownTurns: 9 });
@@ -97,7 +104,7 @@ const filler = card('filler', [{ kind: 'heal', power: 1 }], { archetypes: ['heal
 const book: SkillBook = {
   ...skillBook,
   burster, twinBurster, selfBurster, plating, thinPlating, magePlating, truePlating,
-  reaper, aoeReaper, splasher, slower, onceSlower, filler,
+  reaper, aoeReaper, splasher, burdener, slower, onceSlower, filler,
 };
 
 function hero(skillIds: string[], speed = 20): CombatantSetup {
@@ -239,12 +246,20 @@ describe('taxBonus: damage per weight-taxed card on the target', () => {
     for (const cast of casts) expect(cast.hits.map((h) => h.amount)).toEqual([10]);
   });
 
-  it('counts the SPLASH-taxed pieces: two taxed cards, +4 each', () => {
+  it('counts the BURDENED pieces: a spread burden leaves two taxed cards, +4 each', () => {
     // The foe's cursor sits on its slot-0 piece, so the band is that piece plus
     // its right neighbour — 2 taxed cards (`splashBand` does not wrap). The
     // splasher fires first (lower slot), the reaper collects in the same turn.
     const { casts } = run(['splasher', 'reaper'], { enemy: [wall('w0', ['filler', 'filler', 'filler'])], maxTurns: 1 });
     expect(casts.find((c) => c.skillId === 'reaper')!.hits.map((h) => h.amount)).toEqual([18]); // 10 + 2×4
+  });
+
+  it('COUNTS THE FIELD, NOT THE SPREAD: a bare burden leaves exactly ONE taxed card', () => {
+    // The same 6 weight, no `splash` to spread it: one burdened piece, so the
+    // reaper collects one tax. This is the pair that proves the rider reads
+    // `PieceState.nextWeightPenalty` per PIECE rather than "was a band taxed".
+    const { casts } = run(['burdener', 'reaper'], { enemy: [wall('w0', ['filler', 'filler', 'filler'])], maxTurns: 1 });
+    expect(casts.find((c) => c.skillId === 'reaper')!.hits.map((h) => h.amount)).toEqual([14]); // 10 + 1×4
   });
 
   it('counts a pending unit-scope SLOW as one more taxed card', () => {
@@ -253,7 +268,7 @@ describe('taxBonus: damage per weight-taxed card on the target', () => {
     expect(casts.find((c) => c.skillId === 'reaper')!.hits.map((h) => h.amount)).toEqual([14]); // 10 + 1×4
   });
 
-  it('sums both scopes: two splashed pieces PLUS the slow = three taxed cards', () => {
+  it('sums both scopes: two burdened pieces PLUS the slow = three taxed cards', () => {
     // Speed 30 so all three cards fire in the SAME turn — which is the whole
     // point: a slow that landed on turn 1 is gone by turn 2, so a reaper that
     // wants to count it has to be the last card of the same turn.
@@ -364,10 +379,12 @@ describe('pricing: the same conditional discount, and the same self-synergy prem
     expect(selfSynergyPremiumDeci(burst, [burst], 'physical')).toBe(0);
     expect(actionsPriceDeci([burst], 'physical', 'one', burstKit)).toBe(20 * rate);
 
-    // BOTH taxes feed a reaper — `slow` (unit scope) and `splash` (card scope) —
+    // BOTH taxes feed a reaper — `slow` (unit scope) and `burden` (card scope) —
     // because `taxedCardCount` counts both and the rider cannot tell them apart.
+    // `splash` supplies NOTHING (it only widens a burden's reach), which is why
+    // the loop below names the payload keyword and not the spreader.
     const reap: Action = { kind: 'taxBonus', per: 4, cap: 20 };
-    for (const tax of [{ kind: 'slow', weight: 6 }, { kind: 'splash', weight: 6 }] as Action[]) {
+    for (const tax of [{ kind: 'slow', weight: 6 }, { kind: 'burden', weight: 6 }] as Action[]) {
       const kit: Action[] = [reap, { kind: 'damage', power: 10 }, tax];
       expect(actionsPriceDeci([reap], 'physical', 'one', kit), tax.kind).toBe(20 * rate);
     }
@@ -388,7 +405,10 @@ describe('pricing: the same conditional discount, and the same self-synergy prem
     expect(riderReadsResource({ kind: 'damage', power: 10 })).toBeNull();
     expect(resourceSuppliedBy({ kind: 'shield', power: 40 })).toEqual({ resource: 'shield', on: 'caster' });
     expect(resourceSuppliedBy({ kind: 'slow', weight: 6 })).toEqual({ resource: 'tax', on: 'target' });
-    expect(resourceSuppliedBy({ kind: 'splash', weight: 6 })).toEqual({ resource: 'tax', on: 'target' });
+    expect(resourceSuppliedBy({ kind: 'burden', weight: 6 })).toEqual({ resource: 'tax', on: 'target' });
+    // THE SPREADER SUPPLIES NOTHING: it widens a burden's reach, it does not put
+    // weight anywhere itself, so it can never be what feeds a reaper's gate.
+    expect(resourceSuppliedBy({ kind: 'splash' })).toBeNull();
     expect(resourceSuppliedBy({ kind: 'heal', power: 40 })).toBeNull();
     // The status half still answers through the same door (one definition).
     expect(resourceSuppliedBy({ kind: 'poison', stacks: 3 })).toEqual({ resource: 'poison', on: 'target' });
@@ -497,7 +517,8 @@ describe('validateSkillContent enforces the ordering rule for both new riders', 
       { kind: 'taxBonus', per: 4, cap: 16 },
       { kind: 'damage', power: 12 },
       { kind: 'slow', weight: 6 },
-      { kind: 'splash', weight: 6 },
+      { kind: 'burden', weight: 6 },
+      { kind: 'splash' },
     ])).toEqual([]);
   });
 
@@ -521,7 +542,7 @@ describe('validateSkillContent enforces the ordering rule for both new riders', 
   });
 
   it('rejects the self-trigger for BOTH taxes — slow gets no exception for expiring early', () => {
-    for (const tax of [{ kind: 'slow', weight: 6 }, { kind: 'splash', weight: 6 }]) {
+    for (const tax of [{ kind: 'slow', weight: 6 }, { kind: 'burden', weight: 6 }]) {
       expect(problemsOf([
         { kind: 'taxBonus', per: 4, cap: 16 },
         tax,
@@ -555,11 +576,18 @@ describe('validateSkillContent enforces the ordering rule for both new riders', 
       { kind: 'taxBonus', per: 4, cap: 16 },
       { kind: 'damage', power: 12 },
     ], { scope: 'all' })).toEqual([]);
-    // The splash rule it generalises still fires, with its own message.
+    // The splash rule it generalises still fires, with its own message — and it
+    // refuses the SPREADER, not its payload: an AoE card carrying a bare burden
+    // is legal (one taxed card per foe is `slow`'s own linear reach).
     expect(problemsOf([
       { kind: 'damage', power: 12 },
-      { kind: 'splash', weight: 6 },
+      { kind: 'burden', weight: 6 },
+      { kind: 'splash' },
     ], { scope: 'all' }).join(' ')).toContain('scope: all cannot be combined with a splash action');
+    expect(problemsOf([
+      { kind: 'damage', power: 12 },
+      { kind: 'burden', weight: 6 },
+    ], { scope: 'all' })).toEqual([]);
   });
 
   it('rejects a missing cap, a zero `per`, and an unknown field', () => {

@@ -235,18 +235,53 @@ export const PRICE = {
   slowPerWeightDen: 2,
 
   /**
-   * splash: weight * (splashPerWeightNum/Den) — 1 PL per +2 weight, i.e.
-   * EXACTLY 2x the `slow` rate above.
+   * burden: weight * (burdenPerWeightNum/Den) — `slow`'s OWN per-point rate,
+   * 1 PL per +4 weight, charged for ONE card.
    *
-   * THE UNIT IS `slow`, NOT AN INVENTED SCALE: splash owes the same currency
-   * (extra weight) as slow, just to board PIECES instead of to the unit's next
-   * action. So the whole price is "how many pieces do we charge for, times
-   * slow's own 5/2". The answer is TWO.
+   * THE UNIT IS `slow`, NOT AN INVENTED SCALE: burden owes the same currency
+   * (extra weight) as slow, to a board PIECE instead of to the unit's next
+   * action. One piece, so one card's worth: slow's 5/2 exactly.
    *
-   * WHY TWO — the geometry's FLOOR, not its maximum (re-derived 2026-08-19,
-   * after the anchor stopped wrapping; see `splashAnchor`, combat/splash.ts).
-   * The band runs 1..3 pieces wide: 3 when the anchor has a piece on each side,
-   * 2 at either end of the line, 1 on a lone card. Two facts pick the number:
+   * NO DEFERRAL DISCOUNT, AND NO DEFERRAL PREMIUM. A burden rides its piece
+   * until that piece is next played, with no turn limit, whereas a `slow` is
+   * dropped at end of turn whether or not it was ever paid (user-locked
+   * 2026-08-18). So a burden is not a probabilistic slow — it is a slow that
+   * always eventually gets collected. It lands later, which is worth less; it
+   * cannot expire unpaid, which is worth more. We call that a wash rather than
+   * pretend to measure it.
+   *
+   * COVERAGE IS PRICED SEPARATELY, and that is the 2026-08-21 split: this rate
+   * buys the tax on the ANCHOR, and a `splash` on the same cast multiplies it by
+   * the band floor (`splashBandFloorNum` below). The old single
+   * `splash weight N` action charged 5 deci/weight — exactly this rate times
+   * that multiplier — so every shipped magnitude kept its price to the deci (see
+   * `actionsPriceDeci`, and the migration note on the three cards).
+   *
+   * CONTROL family (see EFFECT_CAPS_DECI) so it cannot dodge the control cap: a
+   * size-1 card can carry at most `burden 40` alone (100 deci = the size-1
+   * control ceiling, and all of Bronze), or `burden 20 + splash` once the
+   * multiplier applies.
+   */
+  burdenPerWeightNum: 5,
+  burdenPerWeightDen: 2,
+
+  /**
+   * splash: the COVERAGE MULTIPLIER on a cast's card-targeting effects
+   * (`burden`, `curse`) — `x2`, the band's guaranteed FLOOR.
+   *
+   * IT IS NOT A PER-POINT RATE, because the spreader has no points: it has no
+   * fields at all (see the `splash` docs in types.ts). What it sells is REACH,
+   * so what it costs is a multiple of the thing whose reach it changes. The
+   * multiplier is applied once, to the summed price of the cast's card-targeting
+   * effects, in `actionsPriceDeci` — the same place and the same shape as the AoE
+   * reach multiplier (`aoeTargetsNum/Den`), for the same reason: only the pricer
+   * can see a whole kit at once.
+   *
+   * WHY TWO — the geometry's FLOOR, not its maximum (unchanged from the rate
+   * this replaces, re-derived 2026-08-19 after the anchor stopped wrapping; see
+   * `splashAnchor`, combat/splash.ts). The band runs 1..3 pieces wide: 3 when
+   * the anchor has a piece on each side, 2 at either end of the line, 1 on a
+   * lone card. Two facts pick the number:
    *   • ANY board holding two or more pieces gives at least 2 — every anchor on
    *     such a board has at least one neighbour. 2 is a guarantee, not an
    *     average, and it needs no assumption about board shape.
@@ -255,34 +290,77 @@ export const PRICE = {
    *     holder for coverage the opponent decides — strictly worse than the
    *     holder-independence rule `GEM_CANONICAL_PROPERTY` and AoE breadth
    *     already follow. The third piece is deliberately UNPRICED upside.
-   * Both charged pieces pay at slow's FULL rate, with no deferral discount:
-   * splash's tax rides its piece until that piece is next played, with no turn
-   * limit, whereas a `slow` is dropped at end of turn whether or not it was ever
-   * paid (user-locked 2026-08-18). A deferred splash piece is therefore not a
-   * probabilistic slow — it is a slow that always eventually gets collected. It
-   * lands later, which is worth less; it cannot expire unpaid, which is worth
-   * more. We call that a wash rather than pretend to measure it.
    *
-   * HONEST LABEL: 2 is CHOSEN, not computed. Real delivered value swings with
-   * the victim's board (1..3 pieces) and with how long the fight runs, and no
-   * single number is "the" value of a splash. 2 is a static anchor at the low
-   * end of that range — it under-charges a mid-board anchor and over-charges a
-   * lone card, and it errs toward under-charging on purpose, because the swing
-   * is the opponent's to decide. (The pre-2026-08-19 comment reached the same
-   * 2x by a different route — anchor 1x plus two neighbours at comboBonus's ½
-   * — which borrowed a fraction that measures UPTIME to describe neighbours
-   * that are deterministic-but-deferred. That was numerology; this is not, and
-   * the number happens to coincide, so no content moved.)
+   * HONEST LABEL: 2 is CHOSEN, not computed. Real delivered coverage swings with
+   * the victim's board (1..3 pieces) and no single number is "the" reach of a
+   * spread. 2 is a static anchor at the low end of that range — it under-charges
+   * a mid-board anchor and over-charges a lone card, and it errs toward
+   * under-charging on purpose, because the swing is the opponent's to decide.
    *
-   * Total 2 x 5/2 = 5 deci per weight. Whole-PL steps land on EVEN weights
-   * (weight 2 = 1 PL), so authored magnitudes stay whole-PL.
-   *
-   * CONTROL family (see EFFECT_CAPS_DECI) so it cannot dodge the control cap:
-   * at 5 deci/weight a size-1 card can carry at most `weight: 20` (100 deci =
-   * the size-1 control ceiling, and all of Bronze).
+   * ROUNDING: the multiplier floors ONCE over the summed card-targeting total
+   * (`actionsPriceDeci`), never per action. On even burden weights that is
+   * identical to the old 5-deci-per-weight rate to the deci (`floor(N*5/2)*2 ==
+   * N*5`); on an ODD weight the split is 1 deci cheaper (weight 5: 12*2 = 24 vs
+   * 25), because the anchor's own price floors first. All shipped magnitudes are
+   * even, so nothing moved — and whole-PL authoring still wants even weights
+   * anyway.
    */
-  splashPerWeightNum: 5,
-  splashPerWeightDen: 1,
+  splashBandFloorNum: 2,
+  splashBandFloorDen: 1,
+
+  /**
+   * curse: TWO TERMS, summed —
+   *   amount * (cursePerAmountNum/Den)                    the FIRST denial
+   *   amount * turns * (cursePerAmountTurnNum/Den)         the REPEATS
+   *
+   * WHAT IS BEING BOUGHT: the targeted card deals `amount` less damage every
+   * time it fires inside a `turns`-turn window. So the price is
+   * `amount × (deci per point of denied damage) × (firings inside the window)`,
+   * and the only honest question is the last factor.
+   *
+   * THE CURRENCY IS SETTLED ALREADY: one point of damage denied is worth one
+   * point of damage dealt — `flatPowerPerPoint` (5 deci). That is the same rate
+   * `negate` is derived from ("a fully cancelled direct hit ~ one Bronze card")
+   * and the same one an aura's `damageFlat` charges per covered card
+   * (`auraDamageFlat` is 10 = 5 × its 2-neighbour coverage). A curse changes the
+   * same number on the same channel (`mods.damageFlat`), one card at a time.
+   *
+   * FIRINGS, HONESTLY, IN TWO PARTS. A board card can fire at most once per
+   * `BASELINE_COOLDOWN + 1` turns (`cooldownRemaining`'s own stride — the same
+   * arithmetic `cooldownRefundStepDeci` derives its refunds from), so a
+   * `turns`-turn window is worth `turns / (BASELINE_COOLDOWN + 1)` further
+   * firings. But the ANCHOR is not a random card: it is the one the victim is
+   * about to play, so the FIRST firing is near-certain and a pure
+   * `turns/4` model would under-charge a 1-turn curse by ~4x. It is not
+   * CERTAIN either — a case-3 anchor is the card just played, which can cool out
+   * the entire window (`splashAnchor`) — so the first denial is priced at the
+   * CONDITIONAL-TRIGGER DISCOUNT (`conditionalBonusDen`, the ½ `comboBonus`
+   * established for "fires about half the time"), not at the full rate.
+   *   first  = amount × 5/2   = 2.5 deci/point
+   *   repeat = amount × turns × 5/4 = 1.25 deci per point-turn
+   *
+   * SANITY CHECKS at authorable magnitudes: curse 6 for 2 turns = 15 + 15 = 30
+   * deci; curse 8 for 3 = 20 + 30 = 50; curse 20 for 2 = 50 + 50 = 100, i.e. all
+   * of Bronze for denying one Bronze damage line's worth of output ~once — which
+   * lands just BELOW `stunPerTurn` (100 deci for denying a whole performance,
+   * guaranteed), where a curse of that size denies at most one card's damage and
+   * only if that card fires. Whole-PL steps land on `amount × turns` multiples
+   * of 8 with even amounts (curse 4/2t = 20 deci, curse 8/2t = 40).
+   *
+   * CONTROL family, so a curse cannot dodge the lockdown ceiling: at those rates
+   * a size-1 card can carry `curse 20 for 2 turns` and nothing more (100 deci),
+   * and `curse + splash` halves that again through the coverage multiplier.
+   *
+   * DERIVED, NOT MEASURED — flagged for a `npm run sim` re-tune once curse cards
+   * have play data, the same standing caveat `stunPerTurn` and `tauntPerPoint`
+   * carry. Both terms err toward OVER-charging (the safe direction): the repeat
+   * term assumes every stride yields a firing, which needs the victim to be able
+   * to afford the card every time.
+   */
+  cursePerAmountNum: 5,
+  cursePerAmountDen: 2,
+  cursePerAmountTurnNum: 5,
+  cursePerAmountTurnDen: BASELINE_COOLDOWN + 1,
 
   /**
    * disrupt: ESCALATING BRACKETED rate (user-locked 2026-07-25 — REPLACES the
@@ -895,9 +973,10 @@ export function riderReadsResource(
  * non-status resources are spelled here:
  *  • `shield` on the CASTER — `shield` is the only keyword that adds plating
  *    (`applyAction`'s `shield` arm; a heal is not plating);
- *  • `tax` on the TARGET — BOTH `slow` (unit scope) and `splash` (card scope),
+ *  • `tax` on the TARGET — BOTH `slow` (unit scope) and `burden` (card scope),
  *    because `taxedCardCount` counts both and a rider cannot tell which keyword
- *    put the weight there.
+ *    put the weight there. (`splash` supplies nothing: it only widens a
+ *    `burden`'s reach, and the burden is what a rider reads.)
  */
 export function resourceSuppliedBy(action: Action): { resource: string; on: 'caster' | 'target' } | null {
   const status = statusAppliedBy(action);
@@ -905,7 +984,7 @@ export function resourceSuppliedBy(action: Action): { resource: string; on: 'cas
   switch (action.kind) {
     case 'shield': return { resource: 'shield', on: 'caster' };
     case 'slow':
-    case 'splash':
+    case 'burden':
       return { resource: 'tax', on: 'target' };
     default: return null;
   }
@@ -920,7 +999,7 @@ export function resourceSuppliedBy(action: Action): { resource: string; on: 'cas
  * the flat-damage rate, `PRICE.conditionalBonusDen`), and that discount buys one
  * specific thing: the gate depends on something the card CANNOT GUARANTEE (a
  * teammate's poison, another card's bleed, the shield another card of yours
- * granted, the splash tax somebody else landed). A card that supplies the
+ * granted, the burden somebody else landed). A card that supplies the
  * resource it reads guarantees its own gate from its SECOND cast onward — the
  * ordering ruling (user-locked 2026-08-21) costs it exactly the first cast and
  * nothing after — so the discount is no longer describing it. It pays the full
@@ -930,7 +1009,7 @@ export function resourceSuppliedBy(action: Action): { resource: string; on: 'cas
  * THE FOUR RESOURCES ARE NOT EQUALLY SELF-SUPPLIABLE, and the rule is
  * deliberately blind to the difference (see CONSERVATIVE below): a `shield` line
  * feeds a `shieldBurst` from the next cast onward as reliably as a poison feeds an
- * exploit (plating persists), a `splash` feeds a `taxBonus` until the taxed piece
+ * exploit (plating persists), a `burden` feeds a `taxBonus` until the taxed piece
  * is played, but a `slow` expires at END OF TURN — so a slow+reaper card only
  * collects when it gets a SECOND cast inside the same turn. Charging all three the
  * same premium over-prices the slow case and never under-prices any of them.
@@ -952,7 +1031,7 @@ export function resourceSuppliedBy(action: Action): { resource: string; on: 'cas
  * `stackBonus` with `of: 'caster'` is only self-supplied by a CASTER-side
  * application (`thorns`), never by the poison it puts on the enemy, and by the
  * same token a `shieldBurst` is fed by the caster's own `shield` line while a
- * `taxBonus` is fed by a `slow`/`splash` aimed at the target.
+ * `taxBonus` is fed by a `slow`/`burden` aimed at the target.
  *
  * Returns 0 for every other action, so the whole rule is inert on the ~110-card
  * catalog that predates it.
@@ -1002,11 +1081,24 @@ export function actionsPriceDeci(
 ): number {
   let selfDeci = 0;
   let foeDeci = 0;
+  // THE CARD-TARGETING SLICE, kept separate only until the spread multiplier is
+  // applied to it (see `spreads` below), then folded into `foeDeci` with the rest
+  // of the offensive share. Every card-targeting kind is offensive, so nothing
+  // else about the buckets changes.
+  let cardTargetDeci = 0;
   // Multi-hit premium: damage INSTANCES beyond the first pay a flat surcharge
   // for being separately-blocked hits (see PRICE.extraHitPremium) — offensive,
   // see the doc comment above.
   const hits = actions.filter((a) => HIT_KINDS.has(a.kind)).length;
   if (hits > 1) foeDeci += (hits - 1) * PRICE.extraHitPremium;
+  // THE SPREADER (`splash`, payload-less): it prices as a COVERAGE MULTIPLIER on
+  // the card-targeting effects it widens, not per field of its own — see
+  // `PRICE.splashBandFloorNum`. Asked of THE LIST BEING PRICED, exactly like
+  // `hits` above: `capViolations` and `powerLevelBreakdown` hand this function
+  // subsets, and a subset that omits the splash must price un-multiplied (the
+  // breakdown then reports the whole multiplier as one telescoping delta part,
+  // the same trick it uses for `aoe reach`).
+  const spreads = actions.some((a) => a.kind === 'splash');
   // DATA-DRIVEN: every per-keyword rate lives in `keywords/pricing.ts`, so a
   // new keyword is a row there rather than a `case` here.
   for (const action of actions) {
@@ -1018,9 +1110,22 @@ export function actionsPriceDeci(
     // `powerLevelBreakdown`'s per-action parts.
     const price = priceActionDeci(action, property, KEYWORD_PRICING)
       + selfSynergyPremiumDeci(action, kit, property);
-    if (OFFENSIVE_KINDS.has(action.kind)) foeDeci += price;
+    if (CARD_TARGETING_KINDS.has(action.kind)) cardTargetDeci += price;
+    else if (OFFENSIVE_KINDS.has(action.kind)) foeDeci += price;
     else selfDeci += price;
   }
+  // FLOORED ONCE, over the whole card-targeting total — never per action, so two
+  // burdens on one card cannot round differently from one of twice the weight.
+  if (spreads) {
+    cardTargetDeci = Math.floor((cardTargetDeci * PRICE.splashBandFloorNum) / PRICE.splashBandFloorDen);
+  }
+  foeDeci += cardTargetDeci;
+  // The AoE multiplier then applies to the spread total as well, which is
+  // unreachable in practice and deliberately left that way: an AUTHORED
+  // `scope: 'all'` + splash card is refused by `validateSkillContent` and a GEM
+  // splash is dropped on a multi-target host (THE SPLASH GATE), so this
+  // composition prices a shape no content can have — loudly, rather than at a
+  // silent zero.
   if (scope === 'all') foeDeci = Math.floor((foeDeci * PRICE.aoeTargetsNum) / PRICE.aoeTargetsDen);
   return selfDeci + foeDeci;
 }
@@ -1055,6 +1160,14 @@ export interface PlBreakdownPart {
 }
 
 /**
+ * THE SPREADER, as a value — used by `powerLevelBreakdown` to price a
+ * card-targeting line together with the coverage multiplier it is actually
+ * delivered with. Payload-less by definition, so one shared literal is the whole
+ * keyword; frozen because it is handed to a pricer that must not mutate it.
+ */
+const SPREADER: Action = Object.freeze({ kind: 'splash' });
+
+/**
  * Itemized deci-PL breakdown of a card's kit — the same math as
  * powerLevelDeci, split into labeled parts for balance inspection UIs.
  * Invariant (tested): the parts sum exactly to powerLevelDeci(skill).
@@ -1065,12 +1178,32 @@ export function powerLevelBreakdown(skill: SkillDef): PlBreakdownPart[] {
     if (deci !== 0) parts.push({ label, deci });
   };
 
+  // Does this card carry the `splash` SPREADER? A card-targeting line's price
+  // INCLUDES the coverage multiplier when it does — see the loop below.
+  const spreadsBand = skill.effects.some((a) => a.kind === 'splash');
   for (const action of skill.effects) {
     // `skill.effects` as the KIT (not the single-action default): the
     // self-synergy premium is a property of the whole kit, and pricing one
     // action blind to its siblings would report a smaller part than
     // `powerLevelDeci` charges — breaking the "parts sum exactly" invariant.
-    push(action.kind, actionsPriceDeci([action], skill.property, 'one', skill.effects));
+    //
+    // A CARD-TARGETING LINE IS PRICED WITH THE SPREADER, not beside it. `splash`
+    // has no price of its own (it multiplies its siblings' coverage), so the
+    // honest unit of reporting is "burden 6 across the band = 30", not "burden
+    // 15" plus a floating "spread 15". Two reasons it matters beyond taste:
+    //  • WHOLE-PL PARTS. Rates are whole-PL per clean unit and every reported
+    //    part must land on one (a user-locked authoring invariant, pinned in
+    //    tests/engine/balance.test.ts). Half of a spread burden is 1.5 PL; the
+    //    delivered line is 3.
+    //  • It is what the designer actually chooses. Nobody authors a spread
+    //    without its payload — the validator refuses it — so the two are one
+    //    decision and one price.
+    // The `splash` action itself then prices at 0 and `push` drops it.
+    const priced = spreadsBand && CARD_TARGETING_KINDS.has(action.kind)
+      ? [action, SPREADER]
+      : [action];
+    const label = priced.length > 1 ? `${action.kind} + splash` : action.kind;
+    push(label, actionsPriceDeci(priced, skill.property, 'one', skill.effects));
   }
   // Multi-hit premium is count-based, so single-action pricing above misses
   // it — surface it as its own labeled part (keeps parts summing exactly).
@@ -1133,7 +1266,10 @@ export function isOnBudget(skill: SkillDef): boolean {
  * a card, run `npm test` and the audit names any rule it breaks.
  */
 export const EFFECT_CAPS_DECI = {
-  /** stun, slow, splash, disrupt, stat-down, expose, shieldBreak — one whole discrete effect */
+  /** stun, slow, burden, curse, splash's spread, disrupt, stat-down, expose,
+   * shieldBreak — one whole discrete effect. `splash` has no price of its own,
+   * but the coverage multiplier it puts on a burden/curse IS counted here, so a
+   * spread cannot buy reach past the control ceiling either. */
   control: { 1: 100, 2: 150, 3: 200 } as Record<number, number>,
   /** poison + burn + bleed combined (deci = stacks × 10 at 1 PL/stack) */
   dot: { 1: 200, 2: 300, 3: 400 } as Record<number, number>,
@@ -1227,6 +1363,20 @@ export const HIT_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_
  * always resolve once, on the caster, regardless of scope.
  */
 export const OFFENSIVE_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_PRICING[k].offensive);
+
+/**
+ * CARD-TARGETING kinds — the ones that land on one of the VICTIM'S BOARD CARDS
+ * (`burden`, `curse`) rather than on the victim as a unit, and therefore the
+ * exact set the `splash` SPREADER widens and the exact set its coverage
+ * multiplier is applied to (`actionsPriceDeci`, `PRICE.splashBandFloorNum`).
+ *
+ * Read from the keyword table's own `cardTargeting` facet, so the pricer, the
+ * content validator (which refuses a splash with nothing to spread) and the gem
+ * gate (`splashSuppressionOn`, cards.ts) all ask ONE source. The engine-side
+ * geometry that consumes the same decision is `cardTargetPieces`
+ * (combat/splash.ts).
+ */
+export const CARD_TARGETING_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_PRICING[k].cardTargeting);
 
 export const CONTROL_KINDS: ReadonlySet<Action['kind']> = kindsInFamily('control');
 export const DOT_KINDS: ReadonlySet<Action['kind']> = kindsInFamily('dot');
@@ -1478,16 +1628,27 @@ export function isGemOnBudget(gem: Gem): boolean {
  * regression test (`tests/engine/splash.test.ts`) pins this copy against
  * `splashSuppressionOn` in cards.ts so the two can never drift.
  *
- * Both gate arms, exactly as `splashSuppressionOn` states them: (a) a host
- * that already resolves against more than one unit, and (b) a host that
- * already carries its own (non-gem) splash.
+ * All THREE gate arms, exactly as `splashSuppressionOn` states them: (a) a host
+ * that already resolves against more than one unit, (b) a host that already
+ * carries its own (non-gem) splash, and (c) NOTHING TO SPREAD — neither the host
+ * nor the gem supplies a card-targeting effect for the spreader to widen.
+ *
+ * Arm (c) is why this takes the gem's actions: a `burden + splash` gem supplies
+ * its own payload, so it must NOT be suppressed on a plain damage host (the
+ * shipped rungs are exactly that shape).
  */
-function hostSuppressesSplash(host: SkillDef): boolean {
+function hostSuppressesSplash(host: SkillDef, gemActions: readonly Action[]): boolean {
   if (isMultiTargetSkill(host)) return true;
   for (const action of host.effects) {
     if (action.kind === 'splash' && !action.fromGem) return true;
   }
-  return false;
+  const hasPayload = (actions: readonly Action[]): boolean => {
+    for (let i = 0; i < actions.length; i += 1) {
+      if (CARD_TARGETING_KINDS.has(actions[i]!.kind)) return true;
+    }
+    return false;
+  };
+  return !hasPayload(host.effects) && !hasPayload(gemActions);
 }
 
 /**
@@ -1509,13 +1670,19 @@ function hostSuppressesSplash(host: SkillDef): boolean {
  * THE SPLASH GATE, PRICED (balance-designer pass, 2026-08-19 — closes a
  * flagged loose end from the splash-gem pass): `spliceGemActions` drops a
  * gem's `splash` action at cast-resolution time when THE SPLASH GATE fires
- * (host already multi-target, or host already splashes) — it never fires on
- * that host, so it must contribute ZERO instance PL there, not its full
- * uncapped price. Filters `gem.actions` down to what the gate would actually
- * keep (dropping every splash when suppressed, or every splash past the
+ * (host already multi-target, host already splashes, or nothing to spread) — it
+ * never fires on that host, so it must contribute ZERO instance PL there, not
+ * its full uncapped price. Filters `gem.actions` down to what the gate would
+ * actually keep (dropping every splash when suppressed, or every splash past the
  * gem's own first when it isn't — the same "keep only the first" rule
  * `spliceGemActions` applies) before pricing the rest of the gem normally;
  * every other gem shape is untouched, so nothing else moves.
+ *
+ * UNDER THE SPREADER MODEL THIS IS SHARPER, NOT WEAKER: dropping the splash from
+ * the priced list also drops the COVERAGE MULTIPLIER it would have put on the
+ * gem's own `burden`/`curse` (`actionsPriceDeci`), so a suppressed
+ * `burden + splash` gem prices at its bare anchor-only burden — exactly what it
+ * still delivers on that host — instead of at the doubled band price.
  */
 export function instancePowerLevelDeci(def: SkillDef, piece: { gem?: Gem | null }): number {
   const gem = piece.gem;
@@ -1523,7 +1690,7 @@ export function instancePowerLevelDeci(def: SkillDef, piece: { gem?: Gem | null 
   if (gem.kind !== 'effect' || !gem.actions.some((a) => a.kind === 'splash')) {
     return powerLevelDeci(def) + gemPowerLevelDeci(gem, def);
   }
-  const suppressed = hostSuppressesSplash(def);
+  const suppressed = hostSuppressesSplash(def, gem.actions);
   let splashSeen = false;
   const actions = gem.actions.filter((action) => {
     if (action.kind !== 'splash') return true;

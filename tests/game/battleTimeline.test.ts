@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBattleTimeline, formatDmg, isComboLive, type BattleTimeline, type BattleTimelineInput } from '../../src/game/battleTimeline';
+import { buildBattleTimeline, formatDmg, isComboLive, type BattleTimeline, type BattleTimelineInput, type LogLine } from '../../src/game/battleTimeline';
 import { battleRequestOf } from '../../src/game/battleApi';
 import { resolveBattle, type BattleLog } from '../../src/run/resolveBattle';
 import type { CombatEvent } from '../../src/engine/combat/events';
@@ -19,6 +19,16 @@ const BASE: BattleTimelineInput = {
   enemyRank: 2,
   seed: 7,
 };
+
+/**
+ * Every rendered line of a log, flattened in turn order — the shape most of the
+ * row assertions below want. `buildBattleTimeline` keys lines by turn; nothing
+ * here cares which bucket a row landed in, only that it exists and reads right.
+ */
+function model_lines(events: CombatEvent[]): LogLine[] {
+  const model = buildBattleTimeline(BASE, { events, result: 'win', turns: events[events.length - 1]?.turn ?? 1 });
+  return [...model.linesByTurn.values()].flat();
+}
 
 /** Stands in for the battle service: resolve the log, then fold it. */
 function timeline(input: BattleTimelineInput): BattleTimeline {
@@ -480,36 +490,100 @@ describe('game/battleTimeline', () => {
     });
   });
 
-  // ---- `splashed` (card-scope weight tax) ----
+  // ---- `burdened` (card-scope weight tax) + `cursed`/`curseExpired` ----
   // The renderer's event switch ends in `default: break;`, so a NEW engine event
-  // kind is silently dropped unless it is wired here — and a splashed card's
+  // kind is silently dropped unless it is wired here — and a burdened card's
   // weight inflates SEVERAL TURNS after the cast that caused it, which is
   // exactly the "reads as a bug" case the `slowed` row already exists to
-  // prevent. These pin both halves: the DEBUFF row naming the band, and the
-  // per-SLOT attribution on the card the tax actually lands on.
-  describe('splash (card-scope weight tax)', () => {
-    const splashLog = (): CombatEvent[] => [
+  // prevent. These pin both halves: the DEBUFF row naming the affected cards,
+  // and the per-SLOT attribution on the card the tax actually lands on.
+  describe('burden (card-scope weight tax) and its splash spread', () => {
+    const burdenLog = (slots: number[]): CombatEvent[] => [
       { turn: 1, kind: 'gain', side: 'player', unit: 0, baseSpeed: 10, speedModifier: 0, speed: 10, readinessBefore: 0, readinessAfter: 10 },
-      { turn: 1, kind: 'splashed', side: 'enemy', unit: 0, weight: 6, anchorSlot: 1, slots: [0, 1, 2] },
+      { turn: 1, kind: 'burdened', side: 'enemy', unit: 0, weight: 6, anchorSlot: 1, slots },
       { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 1, skillId: 'sword_slash', weight: 16, size: 1, slotIndex: 1, slotCount: 1 },
       { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 5, skillId: 'sword_slash', weight: 10, size: 1, slotIndex: 1, slotCount: 1 },
       { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
     ];
 
     it('renders a DEBUFF row naming the taxed slots, with the anchor bracketed', () => {
-      const model = buildBattleTimeline(BASE, { events: splashLog(), result: 'win', turns: 3 });
-      const line = [...model.linesByTurn.values()].flat().find((l) => l.text.includes('Splash'));
+      const model = buildBattleTimeline(BASE, { events: burdenLog([0, 1, 2]), result: 'win', turns: 3 });
+      const line = [...model.linesByTurn.values()].flat().find((l) => l.text.includes('Burden'));
       expect(line?.tag).toBe('DEBUFF');
-      expect(line?.text).toContain('Splash +6 weight on slots 1 [2] 3');
+      expect(line?.text).toContain('Burden +6 weight on slots 1 [2] 3');
     });
 
-    it('names the pending tax on the PLAY row of the SPLASHED SLOT only — and never twice', () => {
-      const model = buildBattleTimeline(BASE, { events: splashLog(), result: 'win', turns: 3 });
-      const plays = [...model.linesByTurn.values()].flat().filter((l) => l.tag === 'PLAY');
-      // Slot 1 was in the band: its inflated weight is attributed.
-      expect(plays[0]!.text).toContain('SPLASHED');
+    it('names the SPREAD only when the slot list actually widened — the spreader has no event of its own', () => {
+      const spread = [...model_lines(burdenLog([0, 1, 2]))].find((l) => l.text.includes('Burden'))!;
+      expect(spread.text).toContain('(Splash)');
+      // One slot = a bare burden on the anchor: no spreader was involved, so the
+      // row must not claim one.
+      const bare = [...model_lines(burdenLog([1]))].find((l) => l.text.includes('Burden'))!;
+      expect(bare.text).toContain('Burden +6 weight on slot [2]');
+      expect(bare.text).not.toContain('(Splash)');
+    });
+
+    it('names the pending tax on the PLAY row of the BURDENED SLOT only — and never twice', () => {
+      const plays = [...model_lines(burdenLog([0, 1, 2]))].filter((l) => l.tag === 'PLAY');
+      // Slot 1 was taxed: its inflated weight is attributed.
+      expect(plays[0]!.text).toContain('BURDENED');
       // Slot 5 was not: no attribution, and the slot-1 tax is already spent.
-      expect(plays[1]!.text).not.toContain('SPLASHED');
+      expect(plays[1]!.text).not.toContain('BURDENED');
+    });
+  });
+
+  // `curse` is burden's twin one currency over: it does not inflate a weight, it
+  // shrinks a hit — so without a row the player sees a card deal less than its
+  // face says for no visible reason. Three rows are pinned: the application (with
+  // the same anchor-bracketed slot list and the same spread note), the standing
+  // penalty named on the PLAY row of the cursed card, and the expiry.
+  describe('curse (card-scope damage penalty)', () => {
+    const curseLog = (): CombatEvent[] => [
+      { turn: 1, kind: 'cursed', side: 'enemy', unit: 0, amount: 4, turns: 2, anchorSlot: 1, slots: [0, 1, 2] },
+      { turn: 1, kind: 'end' },
+      { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 1, skillId: 'sword_slash', weight: 10, size: 1, slotIndex: 1, slotCount: 1 },
+      { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 5, skillId: 'sword_slash', weight: 10, size: 1, slotIndex: 1, slotCount: 1 },
+      { turn: 3, kind: 'curseExpired', side: 'enemy', unit: 0, slots: [0, 2] },
+      { turn: 4, kind: 'combatEnd', result: 'win', turns: 4 },
+    ];
+
+    it('renders the application as a DEBUFF row: amount, window, slots, anchor bracketed, spread named', () => {
+      const line = [...model_lines(curseLog())].find((l) => l.text.includes('Curse '))!;
+      expect(line.tag).toBe('DEBUFF');
+      expect(line.text).toContain('Curse \u22124 damage for 2 turns on slots 1 [2] 3 (Splash)');
+    });
+
+    it('names the standing penalty on the PLAY row of the CURSED slot only', () => {
+      const plays = [...model_lines(curseLog())].filter((l) => l.tag === 'PLAY');
+      expect(plays[0]!.text).toContain('CURSED \u22124 damage');
+      expect(plays[1]!.text).not.toContain('CURSED');
+    });
+
+    it('a curse is NOT spent by the play it weakens — only by its own expiry', () => {
+      // Slot 1 plays on turn 2 and its curse still stands afterwards (unlike a
+      // burden, which the play pays off). Proven by a SECOND play of the same
+      // slot still carrying the note.
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'cursed', side: 'enemy', unit: 0, amount: 4, turns: 3, anchorSlot: 1, slots: [1] },
+        { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 1, skillId: 'sword_slash', weight: 10, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 3, kind: 'play', side: 'enemy', unit: 0, slot: 1, skillId: 'sword_slash', weight: 10, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 4, kind: 'combatEnd', result: 'win', turns: 4 },
+      ];
+      const plays = [...model_lines(events)].filter((l) => l.tag === 'PLAY');
+      expect(plays[0]!.text).toContain('CURSED \u22124 damage');
+      expect(plays[1]!.text).toContain('CURSED \u22124 damage');
+    });
+
+    it('the expiry row names the slots, and the note stops appearing afterwards', () => {
+      const events: CombatEvent[] = [
+        { turn: 1, kind: 'cursed', side: 'enemy', unit: 0, amount: 4, turns: 1, anchorSlot: 1, slots: [1] },
+        { turn: 2, kind: 'curseExpired', side: 'enemy', unit: 0, slots: [1] },
+        { turn: 3, kind: 'play', side: 'enemy', unit: 0, slot: 1, skillId: 'sword_slash', weight: 10, size: 1, slotIndex: 1, slotCount: 1 },
+        { turn: 4, kind: 'combatEnd', result: 'win', turns: 4 },
+      ];
+      const lines = [...model_lines(events)];
+      expect(lines.find((l) => l.text.includes('Curse wears off'))!.text).toContain('Curse wears off on slot 2');
+      expect(lines.find((l) => l.tag === 'PLAY')!.text).not.toContain('CURSED');
     });
   });
 
@@ -551,19 +625,19 @@ describe('game/battleTimeline', () => {
       expect(playLine.text).toContain('includes +16 SLOWED');
     });
 
-    it('does NOT touch the splash per-slot tax on `end` — splash rides until that piece is played', () => {
+    it('does NOT touch the per-slot BURDEN on `end` — a burden rides until that piece is played', () => {
       const events: CombatEvent[] = [
-        { turn: 1, kind: 'splashed', side: 'enemy', unit: 0, weight: 6, anchorSlot: 0, slots: [0, 1] },
-        // Nobody plays the splashed slots this turn.
+        { turn: 1, kind: 'burdened', side: 'enemy', unit: 0, weight: 6, anchorSlot: 0, slots: [0, 1] },
+        // Nobody plays the burdened slots this turn.
         { turn: 1, kind: 'end' },
-        // Turn 2: slot 1 (one of the splashed slots) finally plays — the
-        // splash tax must STILL be attributed, unlike slow above.
+        // Turn 2: slot 1 (one of the burdened slots) finally plays — the
+        // burden must STILL be attributed, unlike slow above.
         { turn: 2, kind: 'play', side: 'enemy', unit: 0, slot: 1, skillId: 'sword_slash', weight: 16, size: 1, slotIndex: 1, slotCount: 1 },
         { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
       ];
       const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 3 });
       const playLine = [...model.linesByTurn.values()].flat().find((l) => l.tag === 'PLAY')!;
-      expect(playLine.text).toContain('includes +6 SPLASHED');
+      expect(playLine.text).toContain('includes +6 BURDENED');
     });
   });
 

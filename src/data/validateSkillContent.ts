@@ -1,4 +1,4 @@
-import { MAX_EXPOSE_PCT, MAX_GUARD_PCT, resourceSuppliedBy, riderReadsResource } from '../engine/balance';
+import { CARD_TARGETING_KINDS, MAX_EXPOSE_PCT, MAX_GUARD_PCT, resourceSuppliedBy, riderReadsResource } from '../engine/balance';
 import { MAX_NEGATE_CHARGES, MAX_WARD_CHARGES, type Action, type SkillDef } from '../engine/types';
 
 /**
@@ -123,7 +123,13 @@ const ACTION_FIELDS: Record<string, readonly string[]> = {
   bleed: ['stacks'],
   stun: ['turns'],
   slow: ['weight'],
-  splash: ['weight'],
+  burden: ['weight'],
+  curse: ['amount', 'turns'],
+  // THE SPREADER CARRIES NOTHING (see the `splash` docs in engine/types.ts): an
+  // EMPTY field list, so `{ kind: 'splash', weight: 6 }` — the pre-2026-08-21
+  // shape — is now a loud "unknown field weight on a splash action" rather than
+  // a silently ignored payload.
+  splash: [],
   disrupt: ['amount'],
   expose: ['pct', 'turns'],
   guard: ['property', 'pct', 'turns'],
@@ -240,14 +246,27 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
   const slowWeight = () => req(raw, 'weight', inRange(0, 999), 'an integer 0..999 (a negative weight prices as a refund for a rider the engine turns into a no-op — Math.max(pending, weight) never lowers the pending penalty)', at, problems);
 
   /**
-   * `splash`'s `weight` FLOORED AT 0 — the identical shape to `slowWeight`
-   * above, because splash applies the identical rule one scope down:
+   * `burden`'s `weight` FLOORED AT 0 — the identical shape to `slowWeight`
+   * above, because burden applies the identical rule one scope down:
    * `piece.nextWeightPenalty = Math.max(piece.nextWeightPenalty ?? 0, weight)`
-   * on each banded piece (`interpreter.ts`'s `splash` arm). A negative weight
+   * on each targeted piece (`interpreter.ts`'s `burden` arm). A negative weight
    * can only ever lose that `Math.max`, so it prices as a refund for a rider
    * the engine turns into a no-op.
    */
-  const splashWeight = () => req(raw, 'weight', inRange(0, 999), 'an integer 0..999 (a negative weight prices as a refund for a rider the engine turns into a no-op — Math.max(pending, weight) never lowers a piece\'s pending penalty)', at, problems);
+  const burdenWeight = () => req(raw, 'weight', inRange(0, 999), 'an integer 0..999 (a negative weight prices as a refund for a rider the engine turns into a no-op — Math.max(pending, weight) never lowers a piece\'s pending penalty)', at, problems);
+
+  /**
+   * `curse`'s `amount` AND `turns` MUST BOTH BE POSITIVE — the `expose` floors,
+   * mirroring the engine's own drop rule: `interpreter.ts`'s `curse` arm refuses
+   * an application that can never reduce a hit (`amount <= 0 || turns <= 0`
+   * breaks before anything is written). Authoring one would buy a priced,
+   * event-emitting no-op that also occupied the anchor's non-stacking slot; a
+   * NEGATIVE amount would additionally refund budget for an effect the engine
+   * drops and, were it ever applied, would BUFF the victim's card through
+   * `mods.damageFlat`.
+   */
+  const curseAmount = () => req(raw, 'amount', inRange(1, 999), 'an integer 1..999 (a 0 or negative amount is dropped outright by the engine — it curses nothing at all, and a negative one would REFUND budget)', at, problems);
+  const curseTurns = () => req(raw, 'turns', inRange(1, 99), 'an integer 1..99 turns (a 0-turn curse is dropped outright by the engine — it applies nothing at all)', at, problems);
 
   // UNKNOWN KEYS on the action itself (fix: `capp` typo used to pass clean).
   const known = ACTION_FIELDS[kind];
@@ -273,7 +292,13 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     case 'bleed': stacks('stacks'); break;
     case 'stun': turns('turns'); break;
     case 'slow': slowWeight(); break;
-    case 'splash': splashWeight(); break;
+    case 'burden': burdenWeight(); break;
+    case 'curse': curseAmount(); curseTurns(); break;
+    // THE SPREADER HAS NO FIELDS TO CHECK. Its one authoring rule is a
+    // whole-card one (it needs something to spread), enforced by
+    // `rejectSpreaderWithNothingToSpread` in `validateDef` rather than here,
+    // where a single action cannot see its siblings.
+    case 'splash': break;
     case 'disrupt': num('amount'); break;
     case 'expose': exposePct(); exposeTurns(); break;
     case 'guard': property(); clampedPct(MAX_GUARD_PCT); turns('turns'); break;
@@ -359,9 +384,9 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
  *     the resource lives — a rider reads what is already there, full stop — and
  *     carving out one keyword would make the rule un-teachable ("your poison
  *     doesn't count but your slow does") and the self-synergy premium
- *     unjustifiable. So slow/splash are ordered exactly like poison/thorns/shield:
+ *     unjustifiable. So slow/burden are ordered exactly like poison/thorns/shield:
  *     after the hit. A slow+reaper card still self-feeds a SECOND cast in the same
- *     turn, and a splash+reaper card feeds every later cast until the taxed piece
+ *     turn, and a burden+reaper card feeds every later cast until the taxed piece
  *     is played.
  *
  * SIDE-AWARE (rule 2): only an application that lands where the rider READS
@@ -369,12 +394,46 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
  * `thorns` line, never by the poison the same card puts on the enemy — so a
  * poison-before-damage line on a thorns-spender is not a violation. Likewise a
  * `shieldBurst` reads CASTER-side plating (fed by `shield`), a `taxBonus` reads
- * TARGET-side weight taxes (fed by `slow`/`splash`).
+ * TARGET-side weight taxes (fed by `slow`/`burden`).
  *
  * Checked against the EFFECTIVE effect list at every tier, exactly like the
  * AoE+splash rule beside it: a tier block that re-authors `effects` can reorder
  * them, and one that authors none inherits the base list.
  */
+/**
+ * A `splash` WITH NOTHING TO SPREAD IS REFUSED (user-locked 2026-08-21, with the
+ * spreader model: "splash is an effect that spread other effect").
+ *
+ * `splash` carries no payload of its own — it only widens the reach of the cast's
+ * CARD-TARGETING effects (`CARD_TARGETING_KINDS`: `burden`, `curse`) from the
+ * anchor to the whole band. On a card that carries none of them it is dead
+ * weight: it would print a keyword on the face, sit in the effect list, cost
+ * nothing (the coverage multiplier has nothing to multiply) and do nothing.
+ *
+ * REFUSED RATHER THAN PRICED OR IGNORED, the same call the AoE rule above makes:
+ * an authored no-op should be a build failure, not a shipped card that lies on
+ * its own face. The GEM path is closed separately, by THE SPLASH GATE's
+ * `nothingToSpread` arm (`spliceGemActions`, engine/cards.ts) — which this
+ * validator structurally cannot cover, since gem actions are spliced after
+ * authoring.
+ *
+ * Checked against the EFFECTIVE effect list at every tier, exactly like the two
+ * rules beside it: a tier block that re-authors `effects` could otherwise drop
+ * the burden and keep the splash.
+ */
+function rejectSpreaderWithNothingToSpread(effects: unknown, at: string, problems: ContentProblem[]): void {
+  if (!Array.isArray(effects)) return;
+  const actions = effects.filter(isObj);
+  if (!actions.some((a) => a.kind === 'splash')) return;
+  if (actions.some((a) => CARD_TARGETING_KINDS.has(a.kind as Action['kind']))) return;
+  problems.push({
+    where: at,
+    message: 'a splash action needs something to spread — it has no payload of its own, it only widens a '
+      + [...CARD_TARGETING_KINDS].join('/') + ' from the target\'s current card to the whole band. '
+      + 'Add one of those to this card, or drop the splash.',
+  });
+}
+
 function rejectRiderMisordering(effects: unknown, at: string, problems: ContentProblem[]): void {
   if (!Array.isArray(effects)) return;
   const actions = effects.filter(isObj);
@@ -558,11 +617,14 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
    * Splash is single-target AT THE UNIT LEVEL by design — what it spreads
    * across is ONE victim's board, not a team. It is nonetheless an `offensive`
    * keyword (`keywords/pricing.ts`, mirroring `isOffensiveAction`), so
-   * `resolveTargets` WOULD fan it out over every living foe under an AoE scope,
+   * `resolveTargets` WOULD fan the cast out over every living foe under an AoE
+   * scope and spread its card-targeting effects across each one's whole band —
    * quietly turning a board-band keyword into a team-wide one. Two ways to
    * close that: price the fan-out, or refuse it. Refused — the mechanic's
    * stated identity is single-target, and pricing a shape the design forbids
-   * would invite it to ship.
+   * would invite it to ship. (Note this refuses the SPREADER, not the payload:
+   * an AoE card carrying a bare `burden` is legal and pays the reach multiplier,
+   * exactly like an AoE `slow`.)
    *
    * WHAT THIS RULE DOES AND DOES NOT COVER (corrected 2026-08-18 — it used to
    * claim the combination was "rejected outright", full stop). This validator
@@ -572,15 +634,17 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
    * a splash after authoring. That path is closed separately, by THE SPLASH
    * GATE in `resolveEffectiveSkill`/`spliceGemActions` (src/engine/cards.ts),
    * which drops a gem `splash` on a multi-target host (and on a host that
-   * already splashes). Both rules stay: the engine gate makes the combination
+   * already splashes, and on one with nothing to spread). Both rules stay: the
+   * engine gate makes the combination
    * harmless at runtime, and THIS rule keeps it a loud build failure, so a
    * designer writing AoE + splash by hand is told rather than shipping an
    * effect the engine will silently drop.
    *
-   * NOT a silent zero either way: splash IS priced (5 deci/weight, control
-   * family), and because it is marked `offensive` an AoE splash would pay
-   * `PRICE.aoeTargetsNum/Den` on top if one were ever constructed in code —
-   * this rule stops one being AUTHORED.
+   * NOT a silent zero either way: the spread IS priced (it multiplies its
+   * card-targeting siblings by the band floor, `PRICE.splashBandFloorNum`,
+   * control family), and because it is marked `offensive` an AoE splash would pay
+   * `PRICE.aoeTargetsNum/Den` on top of that if one were ever constructed in
+   * code — this rule stops one being AUTHORED.
    *
    * Checked against the EFFECTIVE (scope, effects) pair at every tier: a tier
    * block inherits the base card's effects when it declares none, and the base
@@ -608,6 +672,10 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   // stable rather than object-key-order dependent.
   const UNIT_SCOPED_KINDS: readonly { kind: string; why: string }[] = [
     { kind: 'splash', why: 'splash is single-target at the UNIT level (it spreads across ONE victim\'s board, not across a team)' },
+    // NOTE which kind is listed: the SPREADER, not `burden`/`curse`. A bare
+    // card-targeting effect under AoE lands on one piece per foe — the same
+    // linear reach an AoE `slow` has, priced by the reach multiplier. It is
+    // band x foes that is refused.
     { kind: 'shieldBurst', why: 'a shieldBurst spends ONE wall ONCE, and an AoE hit would hand that same bonus to every foe at a single-target price' },
   ];
   const rejectAoeUnitScoped = (scope: unknown, effects: unknown, at: string): void => {
@@ -623,11 +691,13 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
     }
   };
   rejectAoeUnitScoped(raw.scope, raw.effects, where);
+  rejectSpreaderWithNothingToSpread(raw.effects, where, problems);
   rejectRiderMisordering(raw.effects, where, problems);
   if (isObj(raw.tierUpgrades)) {
     for (const [tier, up] of Object.entries(raw.tierUpgrades)) {
       if (!isObj(up)) continue;
       rejectAoeUnitScoped(up.scope ?? raw.scope, up.effects ?? raw.effects, where + '.tierUpgrades.' + tier);
+      rejectSpreaderWithNothingToSpread(up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
       rejectRiderMisordering(up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
     }
   }

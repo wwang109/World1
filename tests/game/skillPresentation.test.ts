@@ -254,9 +254,24 @@ describe('summarizeEffects — desktop composition mode', () => {
 // battleTimeline's `isComboLive` — tests in battleTimeline.test.ts pin that
 // half of the ruling).
 describe('summarizeEffects — ruled token forms', () => {
-  it('SPLASH uses the WT unit instead of the invented "BAND" noun', () => {
-    const skill = makeSkill({ effects: [{ kind: 'splash', weight: 6 }] });
-    expect(summarizeEffects(skill)).toBe('SPLASH +6 WT');
+  it('BURDEN carries the WT unit — the weight tax keeps the ruled form', () => {
+    // The 2026-08-20 ruling was about the UNIT ("BAND" was jargon, WT is the
+    // unit the tax is actually in). The 2026-08-21 keyword split moved that
+    // token from `splash` to `burden`, which is the keyword that owns the +N WT.
+    const skill = makeSkill({ effects: [{ kind: 'burden', weight: 6 }] });
+    expect(summarizeEffects(skill)).toBe('BURDEN +6 WT');
+  });
+
+  it('SPLASH prints NO number — the spreader has none', () => {
+    // A weight on this token is exactly the misread the keyword split undid:
+    // splash carries no payload, it widens the burden/curse beside it.
+    const skill = makeSkill({ effects: [{ kind: 'burden', weight: 6 }, { kind: 'splash' }] });
+    expect(summarizeEffects(skill)).toBe('BURDEN +6 WT · SPLASH');
+  });
+
+  it('CURSE prints the denial and its window, signed', () => {
+    const skill = makeSkill({ effects: [{ kind: 'curse', amount: 4, turns: 2 }] });
+    expect(summarizeEffects(skill)).toBe('CURSE -4 DMG 2t');
   });
 
   it('SLOW keeps its long-standing bare form (sweep reverted per user)', () => {

@@ -1,28 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import { simulate } from '../../src/engine/combat/simulate';
 import { initCombatState, type CombatState, type CombatantState } from '../../src/engine/combat/state';
-import { splashAnchor, splashBand } from '../../src/engine/combat/splash';
+import { cardTargetPieces, splashAnchor, splashBand } from '../../src/engine/combat/splash';
 import { scanCast } from '../../src/engine/combat/castSelect';
 import { applyCast, resolveTargets } from '../../src/engine/combat/interpreter';
 import { NO_MODS } from '../../src/engine/combat/auras';
 import { Rng } from '../../src/engine/rng';
-import { EFFECT_CAPS_DECI, PRICE, powerLevelDeci, capViolations } from '../../src/engine/balance';
+import { CARD_TARGETING_KINDS, EFFECT_CAPS_DECI, PRICE, powerLevelDeci, powerLevelBreakdown, capViolations } from '../../src/engine/balance';
 import { validateSkillDocument } from '../../src/data/validateSkillContent';
 import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
 import { resolveEffectiveSkill, splashSuppressionOn } from '../../src/engine/cards';
 import { gemPowerLevelDeci, instancePowerLevelDeci, isGemOnBudget, RARITY_PL_DECI } from '../../src/engine/balance';
 import { isMultiTargetSkill } from '../../src/engine/types';
-import type { BoardPiece, CombatConfig, Gem, SkillBook, SkillDef } from '../../src/engine/types';
+import type { Action, BoardPiece, CombatConfig, Gem, SkillBook, SkillDef } from '../../src/engine/types';
 import type { CombatEvent as Ev } from '../../src/engine/combat/events';
 import { cfg, tc, NO_ENDGAME } from '../helpers';
 
 /**
- * SPLASH — `slow` at CARD scope (user-locked 2026-08-18). These tests pin the
- * four things that make it a different keyword rather than a re-skinned slow:
- * the BAND (3 pieces, edge-to-edge, never wrapping), the NON-STACKING rule
- * (max, not sum), WHO consumes the tax (the piece that plays, exactly once —
- * never a speculative `scanCast`), and the fact that it is priced.
+ * THE CARD-TARGETING KEYWORDS AND THEIR SPREADER (user-locked 2026-08-21:
+ * "splash is an effect that spread other effect. It doesn't just spread wt").
+ *
+ * Three keywords, one geometry:
+ *   • `burden` — `slow` at CARD scope: +weight on the ANCHOR's next play.
+ *   • `curse`  — the damage axis: the ANCHOR deals less for N global turns.
+ *   • `splash` — PAYLOAD-LESS. It spreads whichever of the two the cast carries
+ *     from the anchor to the whole BAND. Nothing else.
+ *
+ * What this suite pins: the BAND (3 pieces, edge-to-edge, never wrapping), the
+ * ANCHOR-vs-BAND choice being the ONLY thing splash changes, the NON-STACKING
+ * rules (max, not sum), WHO ends each effect (a burden is spent by the piece
+ * that plays; a curse expires on a clock), the pairing/validation rules, and the
+ * prices — including that the split cost the three shipped cards and both gems
+ * exactly nothing.
  */
 
 const card = (id: string, over: Partial<SkillDef> = {}): SkillDef => ({
@@ -49,29 +59,49 @@ const BOOK: SkillBook = {
   // Multi-slot cards — ONE piece however many slots they cover.
   wide: card('wide', { size: 3, speedWeight: 30 }),
   wide2: card('wide2', { size: 2, speedWeight: 20 }),
-  // The keyword under test, with no damage line so nothing else moves.
-  splash6: card('splash6', { effects: [{ kind: 'splash', weight: 6 }], archetypes: ['debuff'] }),
-  splash2: card('splash2', { effects: [{ kind: 'splash', weight: 2 }], archetypes: ['debuff'] }),
+  // THE KEYWORDS UNDER TEST, with no damage line so nothing else moves. Each
+  // comes in an ANCHOR-ONLY form and a SPREAD form (`+ splash`), which is the
+  // pair every geometry assertion below is built on.
+  burden6: card('burden6', { effects: [{ kind: 'burden', weight: 6 }], archetypes: ['debuff'] }),
+  burden2: card('burden2', { effects: [{ kind: 'burden', weight: 2 }], archetypes: ['debuff'] }),
+  spread6: card('spread6', { effects: [{ kind: 'burden', weight: 6 }, { kind: 'splash' }], archetypes: ['debuff'] }),
+  spread2: card('spread2', { effects: [{ kind: 'burden', weight: 2 }, { kind: 'splash' }], archetypes: ['debuff'] }),
+  // SPLASH FIRST IN THE LIST: the spreader is cast-scoped, not positional, so
+  // this must behave identically to `spread6`.
+  spreadFirst6: card('spreadFirst6', { effects: [{ kind: 'splash' }, { kind: 'burden', weight: 6 }], archetypes: ['debuff'] }),
   // Fires ONCE per fight (cooldowns enabled) so a consumption test sees the
   // tax spent without the caster immediately re-applying it.
-  splashOnce: card('splashOnce', { effects: [{ kind: 'splash', weight: 6 }], archetypes: ['debuff'], cooldownTurns: 99 }),
+  spreadOnce: card('spreadOnce', { effects: [{ kind: 'burden', weight: 6 }, { kind: 'splash' }], archetypes: ['debuff'], cooldownTurns: 99 }),
+  burdenOnce: card('burdenOnce', { effects: [{ kind: 'burden', weight: 6 }], archetypes: ['debuff'], cooldownTurns: 99 }),
   // Heavy enough that the caster must bank four turns before it fires — long
   // enough for a 3-card victim to walk its whole board and park the cursor PAST
   // the last card, which is the no-wrap anchor case.
-  splashLate: card('splashLate', { effects: [{ kind: 'splash', weight: 6 }], archetypes: ['debuff'], speedWeight: 40, cooldownTurns: 99 }),
+  spreadLate: card('spreadLate', { effects: [{ kind: 'burden', weight: 6 }, { kind: 'splash' }], archetypes: ['debuff'], speedWeight: 40, cooldownTurns: 99 }),
   // Both taxes from one cast, so their SUM and their different lifetimes can be
   // watched on the same victim.
-  slowSplash: card('slowSplash', {
-    effects: [{ kind: 'slow', weight: 4 }, { kind: 'splash', weight: 6 }],
+  slowSpread: card('slowSpread', {
+    effects: [{ kind: 'slow', weight: 4 }, { kind: 'burden', weight: 6 }, { kind: 'splash' }],
     archetypes: ['debuff'],
     cooldownTurns: 99,
   }),
-  // GEM HOSTS. `splashless` is an ordinary single-target card with no splash of
-  // its own; `aoeJab` is the same card with the one multi-target mechanism the
-  // game has today. Both carry a damage line so the host still fires when its
+  // CURSE, in the same two forms. `curseOnce` lands exactly one application so a
+  // window can be watched opening and closing.
+  curse4: card('curse4', { effects: [{ kind: 'curse', amount: 4, turns: 2 }], archetypes: ['debuff'] }),
+  curse9: card('curse9', { effects: [{ kind: 'curse', amount: 9, turns: 9 }], archetypes: ['debuff'] }),
+  curseSpread4: card('curseSpread4', { effects: [{ kind: 'curse', amount: 4, turns: 2 }, { kind: 'splash' }], archetypes: ['debuff'] }),
+  curseOnce: card('curseOnce', { effects: [{ kind: 'curse', amount: 4, turns: 1 }], archetypes: ['debuff'], cooldownTurns: 99 }),
+  curseHuge: card('curseHuge', { effects: [{ kind: 'curse', amount: 99, turns: 5 }], archetypes: ['debuff'], cooldownTurns: 99 }),
+  // Degenerate applications the engine must DROP outright.
+  curseNoAmount: card('curseNoAmount', { effects: [{ kind: 'curse', amount: 0, turns: 3 }], archetypes: ['debuff'] }),
+  curseNoTurns: card('curseNoTurns', { effects: [{ kind: 'curse', amount: 4, turns: 0 }], archetypes: ['debuff'] }),
+  // GEM HOSTS. `splashless` is an ordinary single-target card with no
+  // card-targeting effect of its own; `aoeJab` is the same card with the one
+  // multi-target mechanism the game has today; `burdenHost` supplies a payload
+  // but no spreader. All carry a damage line so the host still fires when its
   // gem's splash is dropped.
   splashless: card('splashless'),
   aoeJab: card('aoeJab', { scope: 'all' }),
+  burdenHost: card('burdenHost', { effects: [{ kind: 'damage', power: 0 }, { kind: 'burden', weight: 6 }] }),
 };
 
 /** A combat state whose ENEMY board is exactly `pieces`, cursor parked at `cursor`. */
@@ -190,17 +220,48 @@ describe('splash band geometry', () => {
   });
 });
 
-/** Fire ONE `splash` cast from the hero onto the enemy, in isolation. */
-function castSplashOn(state: CombatState, skill: SkillDef): Ev[] {
+/**
+ * THE SEAM ITSELF (`cardTargetPieces`): the ONE function that decides how far a
+ * card-targeting effect reaches, and therefore the one place `splash` means
+ * anything at all. Every keyword arm calls it, so a future card-scope keyword
+ * inherits the pairing without inventing its own geometry.
+ */
+describe('cardTargetPieces: the anchor-vs-band seam', () => {
+  it('spread=false is the ANCHOR ALONE; spread=true is the whole band', () => {
+    const foe = enemyBoard(row(['jab', 'jab2', 'jab3', 'jab4']), 1);
+    const anchorOnly = cardTargetPieces(foe, false)!;
+    expect(anchorOnly.pieces.map((p) => p.slot)).toEqual([1]);
+    expect(anchorOnly.anchor.slot).toBe(1);
+    const banded = cardTargetPieces(foe, true)!;
+    expect(banded.pieces.map((p) => p.slot)).toEqual([0, 1, 2]);
+    expect(banded.anchor.slot).toBe(1);
+  });
+
+  it('the anchor is the SAME piece either way — spreading widens, it never moves the centre', () => {
+    for (const cursor of [0, 2, 4, 7]) {
+      const foe = enemyBoard(row(['jab', 'jab2', 'jab3', 'jab4', 'jab5']), cursor);
+      expect(cardTargetPieces(foe, true)!.anchor).toBe(cardTargetPieces(foe, false)!.anchor);
+    }
+  });
+
+  it('an empty board is null in BOTH modes — nothing to target is not a band of zero', () => {
+    const foe = enemyBoard([], 0);
+    expect(cardTargetPieces(foe, false)).toBeNull();
+    expect(cardTargetPieces(foe, true)).toBeNull();
+  });
+});
+
+/** Fire ONE cast from the hero onto the enemy, in isolation. */
+function castOn(state: CombatState, skill: SkillDef): Ev[] {
   const events: Ev[] = [];
   const ctx = { state, rng: new Rng(1), events };
   applyCast(ctx, state.player, skill, 0, { ...NO_MODS }, { before: 0, after: 1 });
   return events;
 }
 
-function splashState(pieces: BoardPiece[], cursor: number): CombatState {
+function boardState(pieces: BoardPiece[], cursor: number, heroCard = 'spread6'): CombatState {
   const config: CombatConfig = {
-    playerTeam: [tc('hero', ['splash6'], {}, { skillBook: BOOK })],
+    playerTeam: [tc('hero', [heroCard], {}, { skillBook: BOOK })],
     enemyTeam: [tc('foe', [], {}, { pieces, boardSize: 10, skillBook: BOOK })],
     skillBook: BOOK,
   };
@@ -209,79 +270,120 @@ function splashState(pieces: BoardPiece[], cursor: number): CombatState {
   return state;
 }
 
-describe('splash application', () => {
-  it('taxes every piece in the band and reports the band on the event', () => {
-    const state = splashState(row(['jab', 'jab2', 'jab3', 'jab4']), 1);
-    const events = castSplashOn(state, BOOK.splash6!);
-    const splashed = events.find((e) => e.kind === 'splashed');
-    expect(splashed).toMatchObject({ kind: 'splashed', side: 'enemy', unit: 0, weight: 6, anchorSlot: 1, slots: [0, 1, 2] });
+describe('burden application: the anchor alone, or the band when a splash spreads it', () => {
+  it('ALONE it taxes exactly ONE card — the anchor — and says so on the event', () => {
+    const state = boardState(row(['jab', 'jab2', 'jab3', 'jab4']), 1);
+    const events = castOn(state, BOOK.burden6!);
+    expect(events.find((e) => e.kind === 'burdened')).toMatchObject({
+      kind: 'burdened', side: 'enemy', unit: 0, weight: 6, anchorSlot: 1, slots: [1],
+    });
+    expect(state.enemy.pieces.map((p) => p.nextWeightPenalty)).toEqual([undefined, 6, undefined, undefined]);
+  });
+
+  it('WITH a splash it taxes the whole band, at the same weight, on ONE event', () => {
+    const state = boardState(row(['jab', 'jab2', 'jab3', 'jab4']), 1);
+    const events = castOn(state, BOOK.spread6!);
+    // ONE band-application event, not one per piece and not a second
+    // "spread" event: the slot list is what reports the reach.
+    expect(events.filter((e) => e.kind === 'burdened')).toHaveLength(1);
+    expect(events.find((e) => e.kind === 'burdened')).toMatchObject({
+      kind: 'burdened', side: 'enemy', unit: 0, weight: 6, anchorSlot: 1, slots: [0, 1, 2],
+    });
     expect(state.enemy.pieces.map((p) => p.nextWeightPenalty)).toEqual([6, 6, 6, undefined]);
   });
 
-  it('RE-SPLASH TAKES THE MAX, NEVER THE SUM (an unbounded stack would lock a card out)', () => {
-    const state = splashState(row(['jab', 'jab2', 'jab3']), 1);
-    castSplashOn(state, BOOK.splash6!);
-    castSplashOn(state, BOOK.splash2!); // weaker: loses
+  it('THE SPREADER IS CAST-SCOPED, NOT POSITIONAL: splash before the burden behaves identically', () => {
+    // This is what lets a gem splash (spliced AFTER the host's effects) spread a
+    // host's burden — the socket the gem exists for.
+    const banded = boardState(row(['jab', 'jab2', 'jab3']), 1);
+    const reversed = boardState(row(['jab', 'jab2', 'jab3']), 1);
+    const a = castOn(banded, BOOK.spread6!).filter((e) => e.kind === 'burdened');
+    const b = castOn(reversed, BOOK.spreadFirst6!).filter((e) => e.kind === 'burdened');
+    expect(JSON.stringify(b)).toBe(JSON.stringify(a));
+    expect(reversed.enemy.pieces.map((p) => p.nextWeightPenalty)).toEqual([6, 6, 6]);
+  });
+
+  it('RE-BURDEN TAKES THE MAX, NEVER THE SUM (an unbounded stack would lock a card out)', () => {
+    const state = boardState(row(['jab', 'jab2', 'jab3']), 1);
+    castOn(state, BOOK.spread6!);
+    castOn(state, BOOK.spread2!); // weaker: loses
     expect(state.enemy.pieces.map((p) => p.nextWeightPenalty)).toEqual([6, 6, 6]);
-    castSplashOn(state, BOOK.splash6!); // equal: still 6, not 12
+    castOn(state, BOOK.spread6!); // equal: still 6, not 12
+    expect(state.enemy.pieces.map((p) => p.nextWeightPenalty)).toEqual([6, 6, 6]);
+  });
+
+  it('the max applies ACROSS reaches too: a bare burden cannot lower a spread one', () => {
+    const state = boardState(row(['jab', 'jab2', 'jab3']), 1);
+    castOn(state, BOOK.spread6!);
+    castOn(state, BOOK.burden2!);
     expect(state.enemy.pieces.map((p) => p.nextWeightPenalty)).toEqual([6, 6, 6]);
   });
 
   it('is a NO-OP on a dead unit — no penalty, no event', () => {
-    const state = splashState(row(['jab', 'jab2', 'jab3']), 1);
+    const state = boardState(row(['jab', 'jab2', 'jab3']), 1);
     state.enemy.alive = false;
     state.enemy.stats.hp = 0;
-    const events = castSplashOn(state, BOOK.splash6!);
-    expect(events.find((e) => e.kind === 'splashed')).toBeUndefined();
+    const events = castOn(state, BOOK.spread6!);
+    expect(events.find((e) => e.kind === 'burdened')).toBeUndefined();
     expect(state.enemy.pieces.map((p) => p.nextWeightPenalty)).toEqual([undefined, undefined, undefined]);
   });
 
   it('is a NO-OP on an empty board — nothing to tax, so nothing is logged', () => {
-    const state = splashState([], 0);
-    expect(castSplashOn(state, BOOK.splash6!).find((e) => e.kind === 'splashed')).toBeUndefined();
+    expect(castOn(boardState([], 0), BOOK.spread6!).find((e) => e.kind === 'burdened')).toBeUndefined();
   });
 
   it('leaves the UNIT-scope penalty (`slow`) alone — the two scopes are independent', () => {
-    const state = splashState(row(['jab', 'jab2']), 0);
-    castSplashOn(state, BOOK.splash6!);
+    const state = boardState(row(['jab', 'jab2']), 0);
+    castOn(state, BOOK.spread6!);
     expect(state.enemy.nextWeightPenalty).toBe(0);
+  });
+
+  it('a lone splash with nothing to spread does nothing at all (and cannot be authored)', () => {
+    // Unreachable through content — `validateSkillContent` refuses it and the gem
+    // gate drops it — so this pins the ENGINE's behaviour if one is ever
+    // constructed in code: the arm is empty, so the cast is inert.
+    const bare = card('bareSplash', { effects: [{ kind: 'splash' }], archetypes: ['debuff'] });
+    const state = boardState(row(['jab', 'jab2', 'jab3']), 1);
+    const events = castOn(state, bare);
+    expect(events.filter((e) => e.kind === 'burdened' || e.kind === 'cursed')).toEqual([]);
+    expect(state.enemy.pieces.map((p) => p.nextWeightPenalty)).toEqual([undefined, undefined, undefined]);
   });
 });
 
-describe('splash penalty consumption', () => {
+describe('burden consumption', () => {
   const scanOpts = { currentTurn: 0, cooldownsEnabled: false };
 
   it('a SPECULATIVE scanCast READS the penalty but never consumes it', () => {
     // scanCast runs for units that will not cast at all this turn (the
     // performer search and the `wait`/cantAfford explanation pass both call
     // it), so consuming here would make the tax vanish without being paid.
-    const state = splashState(row(['jab', 'jab2', 'jab3']), 1);
-    castSplashOn(state, BOOK.splash6!);
+    const state = boardState(row(['jab', 'jab2', 'jab3']), 1);
+    castOn(state, BOOK.spread6!);
     for (let i = 0; i < 5; i += 1) {
       const scan = scanCast(state.enemy, BOOK, scanOpts);
       expect(scan.kind).toBe('choice');
       if (scan.kind !== 'choice') return;
-      expect(scan.choice.weight).toBe(16); // 10 base + 6 splash, every time
+      expect(scan.choice.weight).toBe(16); // 10 base + 6 burden, every time
     }
     expect(state.enemy.pieces[1]!.nextWeightPenalty).toBe(6);
   });
 
   it('is consumed EXACTLY ONCE, by the piece that plays — the next play is back to base weight', () => {
-    // Hero casts splash6 on turn 1 (speed 30 vs 10 so it lands first); the foe
-    // then plays its band cards. Each taxed piece pays +6 on ITS first play.
+    // Hero casts on turn 1 (speed 30 vs 10 so it lands first); the foe then
+    // plays its band cards. Each taxed piece pays +6 on ITS first play.
     const config: CombatConfig = {
       ...cfg(
-        tc('hero', ['splashOnce'], { speed: 30, maxHp: 500 }, { skillBook: BOOK }),
+        tc('hero', ['spreadOnce'], { speed: 30, maxHp: 500 }, { skillBook: BOOK }),
         tc('foe', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
-        // Cooldowns ON so the splash lands exactly ONCE (cooldownTurns 99):
-        // any later re-splash would re-arm the very tax this test watches being
-        // spent, and prove nothing.
+        // Cooldowns ON so the burden lands exactly ONCE (cooldownTurns 99):
+        // any later re-application would re-arm the very tax this test watches
+        // being spent, and prove nothing.
         { ...NO_ENDGAME, maxTurns: 14, cooldownsEnabled: true },
       ),
       skillBook: BOOK,
     };
     const { events } = simulate(config, 1);
-    expect(events.filter((e) => e.kind === 'splashed')).toHaveLength(1);
+    expect(events.filter((e) => e.kind === 'burdened')).toHaveLength(1);
     const plays = events.filter(
       (e): e is Extract<Ev, { kind: 'play' }> => e.kind === 'play' && e.side === 'enemy',
     );
@@ -293,7 +395,7 @@ describe('splash penalty consumption', () => {
       if (first.has(play.slot)) later.push(play.weight);
       else first.set(play.slot, play.weight);
     }
-    expect(first.get(0)).toBe(16); // 10 base + 6 splash
+    expect(first.get(0)).toBe(16); // 10 base + 6 burden
     expect(first.get(1)).toBe(16);
     expect(first.get(2)).toBe(10); // outside the band: never taxed
     // CONSUMED, not permanent: every REPLAY is back to base weight.
@@ -301,7 +403,25 @@ describe('splash penalty consumption', () => {
     expect(later.every((weight) => weight === 10)).toBe(true);
   });
 
-  it('a piece that was never splashed carries NO `nextWeightPenalty` key at all (baseline-hash safety)', () => {
+  it('a bare burden is consumed the same way, on the ONE card it landed on', () => {
+    const config: CombatConfig = {
+      ...cfg(
+        tc('hero', ['burdenOnce'], { speed: 30, maxHp: 500 }, { skillBook: BOOK }),
+        tc('foe', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
+        { ...NO_ENDGAME, maxTurns: 14, cooldownsEnabled: true },
+      ),
+      skillBook: BOOK,
+    };
+    const { events } = simulate(config, 1);
+    expect(events.filter((e) => e.kind === 'burdened')).toHaveLength(1);
+    const { first, later } = payments(enemyPlays(events));
+    expect(first.get(0)).toBe(16); // the anchor pays
+    expect(first.get(1)).toBe(10); // its neighbour never did — no splash, no spread
+    expect(first.get(2)).toBe(10);
+    expect(later.get(0)!.every((w) => w === 10)).toBe(true);
+  });
+
+  it('a piece that was never burdened carries NO `nextWeightPenalty` key at all (baseline-hash safety)', () => {
     // The field is LAZILY WRITTEN: `undefined` is dropped by JSON.stringify but
     // `0` is not, so eager init would re-bake all 400 outcome-baseline hashes.
     const { finalState } = simulate(cfg(
@@ -311,18 +431,19 @@ describe('splash penalty consumption', () => {
     ), 3);
     for (const piece of [...finalState.player.pieces, ...finalState.enemy.pieces]) {
       expect(Object.prototype.hasOwnProperty.call(piece, 'nextWeightPenalty')).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(piece, 'curse')).toBe(false);
     }
   });
 
-  it('a splashed-then-CONSUMED piece has the key DELETED, not left as undefined', () => {
+  it('a burdened-then-CONSUMED piece has the key DELETED, not left as undefined', () => {
     // The consumption site must `delete` (simulate.ts). `= undefined` also
     // hides from JSON.stringify, but leaves hasOwnProperty true — visible to
     // Object.keys, toStrictEqual and structured-clone, so a consumed piece
-    // would no longer be byte-equal to a never-splashed one.
+    // would no longer be byte-equal to a never-burdened one.
     const { events, finalState } = simulate(multicastFight(), 1);
     // Slots 0-1 were taxed and both played (see the multi-cast test below);
     // slot 2 was never in the band.
-    expect(events.some((e) => e.kind === 'splashed')).toBe(true);
+    expect(events.some((e) => e.kind === 'burdened')).toBe(true);
     const foe = finalState.enemyTeam[0]!;
     for (const piece of foe.pieces) {
       expect(Object.prototype.hasOwnProperty.call(piece, 'nextWeightPenalty')).toBe(false);
@@ -334,13 +455,169 @@ describe('splash penalty consumption', () => {
 });
 
 /**
+ * CURSE — the second card-targeting keyword. Same geometry, same spreader, same
+ * non-stacking rule; what differs is the payload (damage, not weight) and the
+ * ending (a clock, not a play).
+ */
+describe('curse application', () => {
+  it('ALONE it curses exactly ONE card — the anchor — and reports the window', () => {
+    const state = boardState(row(['jab', 'jab2', 'jab3', 'jab4']), 1, 'curse4');
+    const events = castOn(state, BOOK.curse4!);
+    expect(events.find((e) => e.kind === 'cursed')).toMatchObject({
+      kind: 'cursed', side: 'enemy', unit: 0, amount: 4, turns: 2, anchorSlot: 1, slots: [1],
+    });
+    expect(state.enemy.pieces.map((p) => p.curse)).toEqual([
+      undefined, { amount: 4, expiresAtTurn: state.turn + 2 }, undefined, undefined,
+    ]);
+  });
+
+  it('WITH a splash it curses the whole band — the spreader means the same thing for both keywords', () => {
+    const state = boardState(row(['jab', 'jab2', 'jab3', 'jab4']), 1, 'curseSpread4');
+    const events = castOn(state, BOOK.curseSpread4!);
+    expect(events.filter((e) => e.kind === 'cursed')).toHaveLength(1);
+    expect(events.find((e) => e.kind === 'cursed')).toMatchObject({ slots: [0, 1, 2], anchorSlot: 1 });
+    expect(state.enemy.pieces.map((p) => p.curse?.amount)).toEqual([4, 4, 4, undefined]);
+  });
+
+  it('NON-STACKING, the `expose` rule: the STRONGER amount AND the LATER expiry, independently', () => {
+    const state = boardState(row(['jab', 'jab2']), 0, 'curse4');
+    castOn(state, BOOK.curse9!); // amount 9, expires turn+9
+    castOn(state, BOOK.curse4!); // weaker amount, shorter window: both lose
+    expect(state.enemy.pieces[0]!.curse).toEqual({ amount: 9, expiresAtTurn: state.turn + 9 });
+    // A STRONGER-but-SHORTER application raises the amount and must NOT shorten
+    // the standing window; the two fields are maxed separately.
+    const other = boardState(row(['jab', 'jab2']), 0, 'curse4');
+    castOn(other, BOOK.curse4!); // amount 4, expires turn+2
+    castOn(other, card('big1', { effects: [{ kind: 'curse', amount: 20, turns: 1 }] }));
+    // amount 20 (the stronger) with the LONGER window of the two: turn + 2 from
+    // the first application, NOT the turn + 1 the second one asked for.
+    expect(other.enemy.pieces[0]!.curse).toEqual({ amount: 20, expiresAtTurn: other.turn + 2 });
+  });
+
+  it('a 0-amount or 0-turn curse is DROPPED OUTRIGHT — no state, no event (the `expose` rule)', () => {
+    for (const id of ['curseNoAmount', 'curseNoTurns'] as const) {
+      const state = boardState(row(['jab', 'jab2']), 0, 'curse4');
+      const events = castOn(state, BOOK[id]!);
+      expect(events.filter((e) => e.kind === 'cursed'), id).toEqual([]);
+      expect(state.enemy.pieces.map((p) => p.curse), id).toEqual([undefined, undefined]);
+    }
+  });
+
+  it('is a NO-OP on a dead unit and on an empty board', () => {
+    const dead = boardState(row(['jab']), 0, 'curse4');
+    dead.enemy.alive = false;
+    expect(castOn(dead, BOOK.curse4!).filter((e) => e.kind === 'cursed')).toEqual([]);
+    expect(castOn(boardState([], 0, 'curse4'), BOOK.curse4!).filter((e) => e.kind === 'cursed')).toEqual([]);
+  });
+});
+
+/**
+ * A fight where the hero curses ONCE inside the window under test and the foe's
+ * damage can be watched turn by turn.
+ *
+ * THE HERO IS DELIBERATELY SLOW (speed 3 against a weight-10 card): it banks
+ * four turns, casts on TURN 4, and cannot afford a second cast until turn 7. That
+ * is what makes the before/during/after pattern readable — cooldowns are OFF (so
+ * the foe plays every single turn) and a fast curser would simply re-apply its
+ * window every turn and prove nothing about expiry.
+ */
+function curseFight(hero: string, foeCards: string[], turns: number): CombatConfig {
+  return {
+    ...cfg(
+      tc('hero', [hero], { speed: 3, attack: 1, maxHp: 2000 }, { skillBook: BOOK }),
+      // `jab` has no flat base, so a foe hit IS the foe's Attack (10) — a curse
+      // of 4 must land it at exactly 6.
+      tc('foe', foeCards, { speed: 10, attack: 10, maxHp: 2000 }, { skillBook: BOOK }),
+      { ...NO_ENDGAME, maxTurns: turns, cooldownsEnabled: false },
+    ),
+    skillBook: BOOK,
+  };
+}
+
+/** Enemy skill-hit amounts, keyed by the turn they landed on. */
+function enemyHitsByTurn(events: Ev[]): Map<number, number[]> {
+  const byTurn = new Map<number, number[]>();
+  for (const e of events) {
+    if (e.kind !== 'damage' || e.side !== 'player' || e.source !== 'skill') continue;
+    byTurn.set(e.turn, [...(byTurn.get(e.turn) ?? []), e.amount]);
+  }
+  return byTurn;
+}
+
+describe('curse through the turn loop: the cursed card really hits softer, then recovers', () => {
+  it('reduces the cursed card\u2019s damage while the window stands, and it RECOVERS at expiry', () => {
+    // curseOnce: amount 4, turns 1. Cast on turn 4 → covers the REST of turn 4
+    // and all of turn 5, closed at the END of turn 5 (the same window a `fresh`
+    // 1-turn status gets from addStatus + expireStatuses).
+    const { events } = simulate(curseFight('curseOnce', ['jab'], 6), 1);
+    expect(events.find((e) => e.kind === 'cursed')).toMatchObject({ turn: 4, amount: 4, turns: 1, anchorSlot: 0, slots: [0] });
+    expect(events.find((e) => e.kind === 'curseExpired'))
+      .toMatchObject({ turn: 5, kind: 'curseExpired', side: 'enemy', unit: 0, slots: [0] });
+    const byTurn = enemyHitsByTurn(events);
+    // BEFORE: full damage. DURING: 10 − 4 = 6. AFTER: full damage again.
+    expect(byTurn.get(1)).toEqual([10]);
+    expect(byTurn.get(3)).toEqual([10]);
+    expect(byTurn.get(4)).toEqual([6]);
+    expect(byTurn.get(5)).toEqual([6]);
+    expect(byTurn.get(6)).toEqual([10]);
+    // The piece is structurally clean again — `delete`, not `= undefined`.
+    const foe = simulate(curseFight('curseOnce', ['jab'], 6), 1).finalState.enemyTeam[0]!;
+    expect(Object.prototype.hasOwnProperty.call(foe.pieces[0]!, 'curse')).toBe(false);
+  });
+
+  it('NEVER below 1 damage: a curse bigger than the whole hit floors, it does not heal', () => {
+    // curseHuge: amount 99 against a 10-damage jab. The min-1 floor lives
+    // downstream in `applyStrike`, which is exactly why the curse folds into
+    // `mods.damageFlat` instead of doing its own arithmetic.
+    const byTurn = enemyHitsByTurn(simulate(curseFight('curseHuge', ['jab'], 6), 1).events);
+    expect(byTurn.get(3)).toEqual([10]); // before the curse lands
+    for (const turn of [4, 5, 6]) expect(byTurn.get(turn), `turn ${turn}`).toEqual([1]);
+  });
+
+  it('lands PER CARD: a spread curse weakens the banded cards and leaves the rest alone', () => {
+    // The foe rotates three cards, so the curse's effect is visible as a
+    // per-piece thing rather than a per-unit one. On turn 4 the foe's cursor is
+    // parked past its last card, so the anchor is the LAST CARD PLAYED (slot 2)
+    // and the band is [1, 2] — slot 0 is outside it.
+    const { events } = simulate(curseFight('curseSpread4', ['jab', 'jab2', 'jab3'], 6), 1);
+    expect(events.find((e) => e.kind === 'cursed')).toMatchObject({ turn: 4, anchorSlot: 2, slots: [1, 2] });
+    const byTurn = enemyHitsByTurn(events);
+    // Turn 4 the foe plays slot 0 — outside the band, so full damage even though
+    // the curse just landed. Turns 5-6 it plays the banded slots: 6 each.
+    expect(byTurn.get(4)).toEqual([10]);
+    expect(byTurn.get(5)).toEqual([6]);
+    expect(byTurn.get(6)).toEqual([6]);
+  });
+
+  it('emits exactly ONE `curseExpired` per unit per turn, listing every slot that lapsed', () => {
+    // A spread curse opens its windows on one tick, so they close on one tick:
+    // one event, both slots, ascending.
+    const { events } = simulate(curseFight('curseSpread4', ['jab', 'jab2', 'jab3'], 7), 1);
+    const expiries = events.filter((e): e is Extract<Ev, { kind: 'curseExpired' }> => e.kind === 'curseExpired');
+    expect(expiries).toHaveLength(1);
+    expect(expiries[0]).toMatchObject({ turn: 6, slots: [1, 2] });
+  });
+
+  it('a curse is NOT spent by the cast it weakens — only by its clock', () => {
+    // Slot 2 is cursed on turn 4 and plays on turn 6; it is STILL weakened on
+    // turn 6 (a burden would have been paid off by that play). Proven by the
+    // expiry arriving at the end of turn 6 rather than the play ending it.
+    const { events } = simulate(curseFight('curseSpread4', ['jab', 'jab2', 'jab3'], 7), 1);
+    const plays = enemyPlays(events).filter((e) => e.turn >= 5 && e.turn <= 6);
+    expect(plays.map((e) => e.slot)).toEqual([1, 2]);
+    expect(enemyHitsByTurn(events).get(6)).toEqual([6]);
+    expect(events.find((e) => e.kind === 'curseExpired')!.turn).toBe(6);
+  });
+});
+
+/**
  * THROUGH `simulate()`, not `splashBand()` — the cases where the tax's LIFETIME
  * and the turn loop are the thing under test: who pays, when, how often, and
  * how it composes with the unit-scope `slow`.
  */
 
-/** Hero splashes once (cooldown 99) on turn 1, then the fight plays out. */
-function splashFight(
+/** Hero casts once (cooldown 99) on turn 1, then the fight plays out. */
+function spreadFight(
   hero: string,
   foe: ReturnType<typeof tc>,
   heroStats: Parameters<typeof tc>[2] = {},
@@ -370,32 +647,32 @@ function payments(plays: Extract<Ev, { kind: 'play' }>[]): { first: Map<number, 
   return { first, later };
 }
 
-/** A foe fast enough to resolve THREE casts inside one turn, splashed first. */
+/** A foe fast enough to resolve THREE casts inside one turn, burdened first. */
 const multicastFight = (): CombatConfig => ({
   ...cfg(
-    tc('hero', ['splashOnce'], { speed: 100, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
+    tc('hero', ['spreadOnce'], { speed: 100, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
     tc('foe', ['jab', 'jab2', 'jab3'], { speed: 60, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
     { ...NO_ENDGAME, maxTurns: 2, cooldownsEnabled: true },
   ),
   skillBook: BOOK,
 });
 
-describe('splash through the turn loop', () => {
-  it('THE NO-WRAP ANCHOR, END TO END: a splash landing after the victim walked its board taxes the LAST CARD PLAYED and its left neighbour', () => {
+describe('the spread burden through the turn loop', () => {
+  it('THE NO-WRAP ANCHOR, END TO END: a spread landing after the victim walked its board taxes the LAST CARD PLAYED and its left neighbour', () => {
     // The hero banks four turns (weight 40 vs speed 10) while the foe plays
     // slots 0, 1, 2 on turns 1-3. On turn 4 the foe's cursor is parked at 3 —
     // past the last card — and the hero fires.
-    const config = splashFight(
-      'splashLate',
+    const config = spreadFight(
+      'spreadLate',
       tc('foe', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
       { speed: 10 },
       { maxTurns: 6, cooldownsEnabled: false },
     );
     const { events } = simulate(config, 1);
-    const splashed = events.filter((e): e is Extract<Ev, { kind: 'splashed' }> => e.kind === 'splashed');
-    expect(splashed[0]).toMatchObject({ turn: 4, weight: 6, anchorSlot: 2, slots: [1, 2] });
+    const burdened = events.filter((e): e is Extract<Ev, { kind: 'burdened' }> => e.kind === 'burdened');
+    expect(burdened[0]).toMatchObject({ turn: 4, weight: 6, anchorSlot: 2, slots: [1, 2] });
     // WRAPPING WOULD HAVE SAID anchorSlot 0 / slots [0, 1] here.
-    expect(splashed[0]!.slots).not.toContain(0);
+    expect(burdened[0]!.slots).not.toContain(0);
     // And the untaxed slot 0, which the foe plays later that same turn, still
     // costs base weight — proof the band really is where the event says.
     const after = enemyPlays(events).filter((e) => e.turn === 4);
@@ -405,15 +682,15 @@ describe('splash through the turn loop', () => {
   it('a SIZE-2 and a SIZE-3 taxed piece each pay the tax exactly ONCE, on the cast that starts their span', () => {
     // wide2 (weight 20, slots 0-1) and wide (weight 30, slots 2-4). The anchor
     // is wide2; wide is its right neighbour edge-to-edge, so both are taxed.
-    const config = splashFight(
-      'splashOnce',
+    const config = spreadFight(
+      'spreadOnce',
       tc('foe', [], { speed: 20, attack: 1, maxHp: 500 }, {
         pieces: [{ skillId: 'wide2', slot: 0 }, { skillId: 'wide', slot: 2 }],
         skillBook: BOOK,
       }),
     );
     const { events } = simulate(config, 1);
-    expect(events.filter((e) => e.kind === 'splashed')).toHaveLength(1);
+    expect(events.filter((e) => e.kind === 'burdened')).toHaveLength(1);
     const { first, later } = payments(enemyPlays(events));
     expect(first.get(0)).toBe(26); // 20 base + 6
     expect(first.get(2)).toBe(36); // 30 base + 6
@@ -427,22 +704,22 @@ describe('splash through the turn loop', () => {
     expect(enemyPlays(events).every((e) => e.slotIndex === 1)).toBe(true);
   });
 
-  it('SLOW AND SPLASH ON ONE VICTIM: the two taxes SUM on the anchor, then diverge — slow dies with the turn, splash rides until the piece plays', () => {
-    const config = splashFight(
-      'slowSplash',
+  it('SLOW AND BURDEN ON ONE VICTIM: the two taxes SUM on the anchor, then diverge — slow dies with the turn, the burden rides until the piece plays', () => {
+    const config = spreadFight(
+      'slowSpread',
       tc('foe', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
       {},
       { maxTurns: 6 },
     );
     const { events } = simulate(config, 1);
-    // TURN 1 — both land, and castSelect sums them: 10 base + 4 slow + 6 splash
+    // TURN 1 — both land, and castSelect sums them: 10 base + 4 slow + 6 burden
     // = 20, which the foe (readiness 10) cannot afford. The `wait` reports the
     // taxed weight that actually stopped it.
     expect(events.find((e) => e.kind === 'wait' && e.side === 'enemy' && e.turn === 1))
       .toMatchObject({ reason: 'cantAfford', weight: 20, slot: 0 });
     const plays = enemyPlays(events);
     // TURN 2 — the slow is gone (dropped at end of turn 1, never paid), the
-    // splash is not: 10 + 6 = 16, not 20 and not 10.
+    // burden is not: 10 + 6 = 16, not 20 and not 10.
     expect(plays[0]).toMatchObject({ turn: 2, slot: 0, weight: 16 });
     const { first, later } = payments(plays);
     // The other banded piece pays its 6 whenever it finally plays — turns later,
@@ -452,7 +729,7 @@ describe('splash through the turn loop', () => {
     expect(later.get(0)!.every((w) => w === 10)).toBe(true);
     // Exactly one application of each, so nothing above is a re-cast artefact.
     expect(events.filter((e) => e.kind === 'slowed')).toHaveLength(1);
-    expect(events.filter((e) => e.kind === 'splashed')).toHaveLength(1);
+    expect(events.filter((e) => e.kind === 'burdened')).toHaveLength(1);
   });
 
   it('A MULTI-CASTING UNIT pays BOTH taxed pieces in the SAME turn, each exactly once', () => {
@@ -462,74 +739,107 @@ describe('splash through the turn loop', () => {
     const { events } = simulate(multicastFight(), 1);
     const turnOne = enemyPlays(events).filter((e) => e.turn === 1);
     expect(turnOne.map((e) => [e.slot, e.weight])).toEqual([[0, 16], [1, 16], [2, 10]]);
-    expect(events.filter((e) => e.kind === 'splashed')).toHaveLength(1);
+    expect(events.filter((e) => e.kind === 'burdened')).toHaveLength(1);
   });
 });
 
-describe('splash pricing', () => {
-  it('prices at 5 deci per weight — EXACTLY 2x the slow rate', () => {
-    expect(PRICE.splashPerWeightNum / PRICE.splashPerWeightDen).toBe(
-      2 * (PRICE.slowPerWeightNum / PRICE.slowPerWeightDen),
+describe('pricing: the honest split', () => {
+  it('CARD_TARGETING_KINDS is exactly the two payload keywords — the spreader is not one', () => {
+    expect([...CARD_TARGETING_KINDS].sort()).toEqual(['burden', 'curse']);
+    expect(CARD_TARGETING_KINDS.has('splash')).toBe(false);
+    expect(CARD_TARGETING_KINDS.has('slow')).toBe(false);
+  });
+
+  it('burden prices at SLOW’S OWN RATE — one card taxed, one card’s worth of tempo', () => {
+    expect(PRICE.burdenPerWeightNum / PRICE.burdenPerWeightDen).toBe(
+      PRICE.slowPerWeightNum / PRICE.slowPerWeightDen,
     );
-    const splash = card('x', { effects: [{ kind: 'splash', weight: 6 }] });
-    // 6 * 5 = 30 deci of effects; size 1 so no grant, weight 10 is baseline.
-    expect(powerLevelDeci(splash)).toBe(30);
+    // 6 * 5/2 = 15 deci; size 1 so no grant, weight 10 is baseline.
+    expect(powerLevelDeci(card('x', { effects: [{ kind: 'burden', weight: 6 }] }))).toBe(15);
+    // ...and the identical number a `slow` of the same weight costs.
+    expect(powerLevelDeci(card('y', { effects: [{ kind: 'slow', weight: 6 }] }))).toBe(15);
   });
 
-  it('counts against the CONTROL cap, so it cannot dodge lockdown limits', () => {
-    const overCap = card('x', {
-      // 21 * 5 = 105 deci > the size-1 control ceiling (100).
-      effects: [{ kind: 'splash', weight: 21 }],
-    });
+  it('splash prices as a COVERAGE MULTIPLIER on what it spreads, not per point of its own', () => {
+    expect(PRICE.splashBandFloorNum / PRICE.splashBandFloorDen).toBe(2);
+    const spread = card('x', { effects: [{ kind: 'burden', weight: 6 }, { kind: 'splash' }] });
+    expect(powerLevelDeci(spread)).toBe(30); // 15 x 2
+    // ...and it multiplies a CURSE exactly the same way, which is the whole
+    // point of pricing the spreader as coverage rather than as weight.
+    const curse = card('y', { effects: [{ kind: 'curse', amount: 4, turns: 2 }] });
+    const cursed = card('z', { effects: [{ kind: 'curse', amount: 4, turns: 2 }, { kind: 'splash' }] });
+    expect(powerLevelDeci(curse)).toBe(20);
+    expect(powerLevelDeci(cursed)).toBe(40);
+    // A splash with NOTHING to spread multiplies nothing — it cannot be authored
+    // (validateSkillContent) or spliced (the gem gate), and if it were it would
+    // be free BECAUSE it does nothing.
+    expect(powerLevelDeci(card('w', { effects: [{ kind: 'splash' }] }))).toBe(0);
+  });
+
+  it('THE SPLIT COST THE OLD RATE NOTHING: burden N + splash == the old `splash weight N`', () => {
+    // The retired rate was 5 deci per weight (`splashPerWeightNum/Den` = 5/1),
+    // which is exactly burden's 5/2 times the x2 band floor. Every even weight
+    // therefore prices to the deci as it did before the split.
+    const OLD_RATE_DECI_PER_WEIGHT = 5;
+    for (const weight of [2, 4, 6, 8, 10, 12, 16, 20]) {
+      const spread = card('x', { effects: [{ kind: 'burden', weight }, { kind: 'splash' }] });
+      expect(powerLevelDeci(spread), `weight ${weight}`).toBe(weight * OLD_RATE_DECI_PER_WEIGHT);
+    }
+  });
+
+  it('curse prices its FIRST denial plus its REPEATS, both derived from the flat-damage rate', () => {
+    // first  = amount x flatPowerPerPoint / conditionalBonusDen
+    // repeat = amount x turns x flatPowerPerPoint / (BASELINE_COOLDOWN + 1)
+    expect(PRICE.cursePerAmountNum / PRICE.cursePerAmountDen).toBe(PRICE.flatPowerPerPoint / PRICE.conditionalBonusDen);
+    expect(PRICE.cursePerAmountTurnNum).toBe(PRICE.flatPowerPerPoint);
+    expect(PRICE.cursePerAmountTurnDen).toBe(4); // BASELINE_COOLDOWN + 1
+    for (const [amount, turns, deci] of [[8, 2, 40], [4, 2, 20], [8, 3, 50], [20, 2, 100]] as const) {
+      expect(powerLevelDeci(card('x', { effects: [{ kind: 'curse', amount, turns }] })), `${amount}/${turns}`).toBe(deci);
+    }
+  });
+
+  it('both keywords count against the CONTROL cap, and the SPREAD counts too', () => {
     expect(EFFECT_CAPS_DECI.control[1]).toBe(100);
-    expect(capViolations(overCap).join(' ')).toContain('control');
-    // One weight under the cap is legal.
-    expect(capViolations(card('x', { effects: [{ kind: 'splash', weight: 20 }] }))).toEqual([]);
+    // 41 * 5/2 = 102 deci > the size-1 control ceiling (100); 40 is legal.
+    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 41 }] })).join(' ')).toContain('control');
+    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 40 }] }))).toEqual([]);
+    // With the spreader the same card only affords HALF the weight — the
+    // multiplier grows the cap-family spend in lockstep with the budget spend,
+    // so reach cannot be bought past the lockdown ceiling.
+    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 22 }, { kind: 'splash' }] })).join(' ')).toContain('control');
+    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 20 }, { kind: 'splash' }] }))).toEqual([]);
+    // Same for curse: 20 x 2 turns = 100 = the whole ceiling; spread, it halves.
+    expect(capViolations(card('x', { effects: [{ kind: 'curse', amount: 20, turns: 2 }] }))).toEqual([]);
+    expect(capViolations(card('x', { effects: [{ kind: 'curse', amount: 20, turns: 2 }, { kind: 'splash' }] })).join(' ')).toContain('control');
   });
 
-  it('the showcase card lands EXACTLY on its tier budget', () => {
-    const showcase = skillBook.shockwave_slam!;
-    expect(showcase.tier).toBe('bronze');
-    expect(powerLevelDeci(showcase)).toBe(100);
-    expect(capViolations(showcase)).toEqual([]);
+  it('the breakdown reports a spread line as ONE whole-PL part, not a half plus a half', () => {
+    const parts = powerLevelBreakdown(skillBook.shockwave_slam!);
+    expect(parts.map((p) => p.label)).toContain('burden + splash');
+    expect(parts.find((p) => p.label === 'burden + splash')!.deci).toBe(30);
+    // The invariant that matters (also pinned globally in balance.test.ts).
+    expect(parts.reduce((sum, p) => sum + p.deci, 0)).toBe(powerLevelDeci(skillBook.shockwave_slam!));
   });
 
-  it('scope: all + splash is REJECTED by the content validator (splash is single-target at the UNIT level)', () => {
-    const doc = {
-      schemaVersion: 1,
-      cards: [{
-        id: 'aoe_splash',
-        versions: [{
-          version: 1,
-          def: {
-            name: 'AoE Splash', text: 'Deal 10 damage · splash +6 weight.',
-            archetypes: ['offense'], property: 'physical', weapon: 'axe',
-            size: 1, rarity: 'common', tier: 'bronze', scope: 'all',
-            effects: [{ kind: 'damage', power: 10 }, { kind: 'splash', weight: 6 }],
-          },
-        }],
-      }],
-    };
-    const problems = validateSkillDocument(doc).map((p) => p.message).join('\n');
-    expect(problems).toContain('scope: all cannot be combined with a splash action');
+  it('EVERY SHIPPED CARD OF THE FAMILY still lands EXACTLY on its tier budget', () => {
+    for (const id of ['shockwave_slam', 'arc_cascade', 'line_breaker', 'dulling_hex', 'sapping_arc']) {
+      const skill = skillBook[id]!;
+      expect(skill.tier, id).toBe('bronze');
+      expect(powerLevelDeci(skill), id).toBe(100);
+      expect(capViolations(skill), id).toEqual([]);
+    }
   });
+});
 
-  /**
-   * The rule is checked against the EFFECTIVE (scope, effects) pair at EVERY
-   * tier, and a tier block inherits whichever half it does not declare
-   * (`up.scope ?? raw.scope`, `up.effects ?? raw.effects` in
-   * validateSkillContent). Both inheritance directions are live rules, so both
-   * get a test: a legal base card must not be able to become AoE+splash at
-   * diamond by declaring only one half of the pair.
-   */
-  const tieredDoc = (def: Record<string, unknown>) => ({
+describe('the pairing rule: a spreader needs something to spread', () => {
+  const doc = (def: Record<string, unknown>) => ({
     schemaVersion: 1,
     cards: [{
-      id: 'tiered_splash',
+      id: 'spread_probe',
       versions: [{
         version: 1,
         def: {
-          name: 'Tiered Splash', text: 'Deal 10 damage.',
+          name: 'Spread Probe', text: 'Deal 10 damage.',
           archetypes: ['offense'], property: 'physical', weapon: 'axe',
           size: 1, rarity: 'common', tier: 'bronze',
           ...def,
@@ -537,89 +847,112 @@ describe('splash pricing', () => {
       }],
     }],
   });
+  const problemsOf = (def: Record<string, unknown>): string =>
+    validateSkillDocument(doc(def)).map((p) => p.message).join('\n');
 
-  it('a tier that adds `scope: all` INHERITS the base effects — and is caught carrying the base splash', () => {
-    const problems = validateSkillDocument(tieredDoc({
-      effects: [{ kind: 'damage', power: 10 }, { kind: 'splash', weight: 6 }],
+  it('REJECTS a splash with no card-targeting effect on the card', () => {
+    expect(problemsOf({ effects: [{ kind: 'damage', power: 10 }, { kind: 'splash' }] }))
+      .toContain('a splash action needs something to spread');
+  });
+
+  it('ACCEPTS it paired with either payload', () => {
+    expect(problemsOf({
+      text: 'Deal 10 damage · burden +6 weight · splash.',
+      effects: [{ kind: 'damage', power: 10 }, { kind: 'burden', weight: 6 }, { kind: 'splash' }],
+    })).toBe('');
+    expect(problemsOf({
+      text: 'Deal 10 damage · curse 4 for 2 turns · splash.',
+      effects: [{ kind: 'damage', power: 10 }, { kind: 'curse', amount: 4, turns: 2 }, { kind: 'splash' }],
+    })).toBe('');
+  });
+
+  it('checks EVERY TIER: a tier that drops the payload and keeps the spreader is caught', () => {
+    expect(problemsOf({
+      text: 'Deal 10 damage · burden +6 weight · splash.',
+      effects: [{ kind: 'damage', power: 10 }, { kind: 'burden', weight: 6 }, { kind: 'splash' }],
+      tierUpgrades: { silver: { text: 'Deal 14 damage · splash.', effects: [{ kind: 'damage', power: 14 }, { kind: 'splash' }] } },
+    })).toContain('a splash action needs something to spread');
+  });
+
+  it('THE SPREADER CARRIES NO PAYLOAD: the pre-split `splash weight N` shape is now a loud failure', () => {
+    expect(problemsOf({ effects: [{ kind: 'damage', power: 10 }, { kind: 'splash', weight: 6 }] }))
+      .toContain('unknown field weight on a splash action');
+  });
+
+  it('a 0-amount or 0-turn curse is refused at authoring (the engine drops it)', () => {
+    expect(problemsOf({ effects: [{ kind: 'damage', power: 10 }, { kind: 'curse', amount: 0, turns: 2 }] }))
+      .toContain('amount must be an integer 1..999');
+    expect(problemsOf({ effects: [{ kind: 'damage', power: 10 }, { kind: 'curse', amount: 4, turns: 0 }] }))
+      .toContain('turns must be an integer 1..99 turns');
+  });
+
+  it('scope: all + splash is REJECTED — but an AoE card may still carry a bare payload', () => {
+    expect(problemsOf({
+      scope: 'all',
+      text: 'Deal 10 damage · burden +6 weight · splash.',
+      effects: [{ kind: 'damage', power: 10 }, { kind: 'burden', weight: 6 }, { kind: 'splash' }],
+    })).toContain('scope: all cannot be combined with a splash action');
+    // One taxed card per foe is `slow`'s own linear reach, priced by the AoE
+    // multiplier; it is band x foes that the rule refuses.
+    expect(problemsOf({
+      scope: 'all',
+      text: 'Deal 10 damage · burden +6 weight.',
+      effects: [{ kind: 'damage', power: 10 }, { kind: 'burden', weight: 6 }],
+    })).toBe('');
+  });
+
+  it('the AoE rule is checked at every tier, in both inheritance directions', () => {
+    // A tier that adds `scope: all` inherits the base effects (and their splash)…
+    expect(problemsOf({
+      text: 'Deal 10 damage · burden +6 weight · splash.',
+      effects: [{ kind: 'damage', power: 10 }, { kind: 'burden', weight: 6 }, { kind: 'splash' }],
       tierUpgrades: { silver: { scope: 'all' }, gold: { scope: 'all' }, diamond: { scope: 'all' } },
-    }));
-    // Bronze itself is clean (no scope); the three upgraded tiers are not.
-    const where = problems.filter((p) => p.message.includes('scope: all cannot be combined with a splash action'));
-    expect(where.map((p) => p.where.split('.tierUpgrades.')[1]).sort()).toEqual(['diamond', 'gold', 'silver']);
-  });
-
-  it('a tier that adds a splash INHERITS the base `scope: all` — and is caught too', () => {
-    const problems = validateSkillDocument(tieredDoc({
+    })).toContain('scope: all cannot be combined with a splash action');
+    // …and a tier that adds a splash inherits the base `scope: all`.
+    expect(problemsOf({
       scope: 'all',
       effects: [{ kind: 'damage', power: 10 }],
-      tierUpgrades: { silver: { effects: [{ kind: 'damage', power: 12 }, { kind: 'splash', weight: 6 }] } },
-    })).map((p) => p.message).join('\n');
-    expect(problems).toContain('scope: all cannot be combined with a splash action');
-  });
-
-  it('inheritance does not INVENT the pair: an AoE base with a splashless tier, and a splash base with a scopeless tier, both pass', () => {
-    expect(validateSkillDocument(tieredDoc({
-      scope: 'all',
-      effects: [{ kind: 'damage', power: 10 }],
-      tierUpgrades: { silver: { text: 'Deal 12 damage to all.', effects: [{ kind: 'damage', power: 12 }] } },
-    }))).toEqual([]);
-    expect(validateSkillDocument(tieredDoc({
-      effects: [{ kind: 'damage', power: 10 }, { kind: 'splash', weight: 6 }],
       tierUpgrades: {
         silver: {
-          text: 'Deal 12 damage · splash +6 weight.',
-          effects: [{ kind: 'damage', power: 12 }, { kind: 'splash', weight: 6 }],
+          text: 'Deal 12 damage · burden +6 weight · splash.',
+          effects: [{ kind: 'damage', power: 12 }, { kind: 'burden', weight: 6 }, { kind: 'splash' }],
         },
       },
-    }))).toEqual([]);
-  });
-
-  it('the same card WITHOUT the AoE scope validates clean', () => {
-    const doc = {
-      schemaVersion: 1,
-      cards: [{
-        id: 'solo_splash',
-        versions: [{
-          version: 1,
-          def: {
-            name: 'Solo Splash', text: 'Deal 10 damage · splash +6 weight.',
-            archetypes: ['offense'], property: 'physical', weapon: 'axe',
-            size: 1, rarity: 'common', tier: 'bronze',
-            effects: [{ kind: 'damage', power: 10 }, { kind: 'splash', weight: 6 }],
-          },
-        }],
-      }],
-    };
-    expect(validateSkillDocument(doc)).toEqual([]);
+    })).toContain('scope: all cannot be combined with a splash action');
   });
 });
 
 /**
- * SPLASH ON A GEM — the grant the keyword was built for, and the two gates that
- * keep it honest (user ruling, 2026-08-18: "splash is supposed to be on a gem
- * that allows giving other cards this effect in the first place").
+ * SPLASH ON A GEM — the grant the keyword was built for, and the three gates
+ * that keep it honest (user ruling, 2026-08-18: "splash is supposed to be on a
+ * gem that allows giving other cards this effect in the first place").
  *
- * The gem is the point: `shockwave_slam` shows the keyword off, the gem is how
+ * The gem is the point: `shockwave_slam` shows the pairing off, the gem is how
  * any card gets it. Because a gem is spliced onto its host AFTER authoring,
- * `validateSkillContent` cannot see it — so the two rules that protect splash's
- * identity live at the resolver seam (`spliceGemActions`, src/engine/cards.ts)
- * and are pinned here:
- *   (a) a host that already hits MORE THAN ONE target drops the gem's splash —
- *       otherwise the offensive fan-out taxes every living foe's whole board
- *       band at a single-target price;
- *   (b) a host that ALREADY SPLASHES drops it too, host's-own-splash-wins, so a
- *       socket can never double the band tax or rewrite an audited magnitude.
+ * `validateSkillContent` cannot see it — so the rules that protect the
+ * spreader's identity live at the resolver seam (`spliceGemActions`,
+ * src/engine/cards.ts) and are pinned here:
+ *   (a) a host that already hits MORE THAN ONE target drops the gem's SPREADER —
+ *       otherwise the fan-out spreads across every living foe's whole board at a
+ *       single-target price;
+ *   (b) a host that ALREADY SPLASHES drops it too (at most one spreader per
+ *       effective card, so a replay never shows a keyword that changed nothing);
+ *   (c) NOTHING TO SPREAD — neither host nor gem supplies a payload.
  */
 
-/** A gem carrying exactly one splash of `weight` (id/rarity are irrelevant to the gate). */
-const splashGem = (weight: number, id = 'test_splash_gem'): Gem =>
-  ({ kind: 'effect', id, rarity: 'common', actions: [{ kind: 'splash', weight }] });
+/** A gem carrying the shipped shape: a burden and the spreader that widens it. */
+const spreadGem = (weight: number, id = 'test_spread_gem'): Gem =>
+  ({ kind: 'effect', id, rarity: 'common', actions: [{ kind: 'burden', weight }, { kind: 'splash' }] });
+/** A gem carrying ONLY the spreader — nothing of its own to spread. */
+const bareSplashGem = (id = 'test_bare_splash'): Gem =>
+  ({ kind: 'effect', id, rarity: 'common', actions: [{ kind: 'splash' }] });
 
 describe('splash gems: the catalog', () => {
-  it('ships a Common and a Rare rung that land EXACTLY on their rarity bands', () => {
-    // splash prices at 5 deci per weight, so a gem's whole PL is 5 x weight:
+  it('ships a Common and a Rare rung that land EXACTLY on their rarity bands — unmoved by the split', () => {
+    // burden N x2 (the spread) is 5 deci per weight, the same number the retired
+    // `splash weight N` priced at:
     //   weight 4 -> 20 deci = Common (20)   ·   weight 8 -> 40 deci = Rare (40)
-    // (weight 3 -> 15 and weight 7 -> 35 are no band at all, which is what
+    // (weight 3 -> 14 and weight 7 -> 34 are no band at all, which is what
     // makes each shipped magnitude MINIMAL for its band.)
     const tremor = gemBook.tremor_sliver!;
     const fracture = gemBook.fracture_sliver!;
@@ -628,13 +961,18 @@ describe('splash gems: the catalog', () => {
     expect(gemPowerLevelDeci(tremor)).toBe(RARITY_PL_DECI.common);
     expect(gemPowerLevelDeci(fracture)).toBe(RARITY_PL_DECI.rare);
     expect(isGemOnBudget(tremor) && isGemOnBudget(fracture)).toBe(true);
-    expect(gemPowerLevelDeci(splashGem(4))).toBe(20);
-    expect(gemPowerLevelDeci(splashGem(8))).toBe(40);
+    expect(gemPowerLevelDeci(spreadGem(4))).toBe(20);
+    expect(gemPowerLevelDeci(spreadGem(8))).toBe(40);
+    // Both shipped rungs are TWO-ACTION gems now: the payload and its spreader.
+    for (const gem of [tremor, fracture]) {
+      if (gem.kind !== 'effect') continue;
+      expect(gem.actions.map((a) => a.kind)).toEqual(['burden', 'splash']);
+    }
   });
 
-  it('GRANTS splash to a host that has none — the whole point of the gem', () => {
-    // sword_slash carries no splash of its own. Socketed, the hero's cast taxes
-    // the foe's band; un-socketed the same board never emits a `splashed` event.
+  it('GRANTS the spread band to a host that has neither — the whole point of the gem', () => {
+    // sword_slash carries no card-targeting effect at all. Socketed, the hero's
+    // cast taxes the foe's whole band; un-socketed the same board emits nothing.
     const foeRow = tc('foe', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK });
     const run = (gem?: Gem) => simulate({
       ...cfg(
@@ -648,25 +986,39 @@ describe('splash gems: the catalog', () => {
       skillBook: BOOK,
     }, 1);
 
-    expect(run().events.some((e) => e.kind === 'splashed')).toBe(false);
+    expect(run().events.some((e) => e.kind === 'burdened')).toBe(false);
 
-    const splashed = run(gemBook.tremor_sliver!).events
-      .filter((e): e is Extract<Ev, { kind: 'splashed' }> => e.kind === 'splashed');
-    expect(splashed.length).toBeGreaterThan(0);
-    expect(splashed[0]).toMatchObject({ side: 'enemy', weight: 4, anchorSlot: 0, slots: [0, 1] });
+    const burdened = run(gemBook.tremor_sliver!).events
+      .filter((e): e is Extract<Ev, { kind: 'burdened' }> => e.kind === 'burdened');
+    expect(burdened.length).toBeGreaterThan(0);
+    expect(burdened[0]).toMatchObject({ side: 'enemy', weight: 4, anchorSlot: 0, slots: [0, 1] });
+  });
+
+  it('a gem SPLASH spreads the HOST’s own burden — the spreader is cast-scoped, so splice order cannot break it', () => {
+    // `burdenHost` carries a burden and no spreader; the gem carries only the
+    // spreader. Gem actions splice AFTER the host's, so a positional reading of
+    // the keyword would spread nothing here.
+    const eff = resolveEffectiveSkill(BOOK.burdenHost!, { skillId: 'burdenHost', slot: 0, gem: bareSplashGem() });
+    expect(eff.effects.map((a) => a.kind)).toEqual(['damage', 'burden', 'splash']);
+    const state = boardState(row(['jab', 'jab2', 'jab3']), 1);
+    const events = castOn(state, eff);
+    expect(events.find((e) => e.kind === 'burdened')).toMatchObject({ slots: [0, 1, 2], weight: 6 });
   });
 });
 
 describe('splash gems: GATE (a) — a host that hits more than one target', () => {
-  it('drops the gem splash on an AoE host, at the RESOLVER (no splash on the effective card)', () => {
+  it('drops the gem SPREADER on an AoE host, at the RESOLVER — while its payload still lands', () => {
     const aoe = BOOK.aoeJab!;
     expect(isMultiTargetSkill(aoe)).toBe(true);
-    const eff = resolveEffectiveSkill(aoe, { skillId: 'aoeJab', slot: 0, gem: splashGem(8) });
-    expect(eff.effects.some((a) => a.kind === 'splash')).toBe(false);
-    expect(splashSuppressionOn(aoe)).toBe('multiTarget');
+    const gem = spreadGem(8);
+    const eff = resolveEffectiveSkill(aoe, { skillId: 'aoeJab', slot: 0, gem });
+    // The BURDEN survives (one taxed card per foe is `slow`'s linear reach); the
+    // SPREADER — which would make it band x foes — does not.
+    expect(eff.effects.map((a) => a.kind)).toEqual(['damage', 'burden']);
+    expect(splashSuppressionOn(aoe, gem.kind === 'effect' ? gem.actions : [])).toBe('multiTarget');
   });
 
-  it('applies NOTHING at runtime: not one splashed event, on any foe', () => {
+  it('applies to ONE piece per foe at runtime, never a band', () => {
     const config: CombatConfig = {
       ...cfg(
         tc('hero', [], { speed: 30, maxHp: 500 }, {
@@ -678,7 +1030,7 @@ describe('splash gems: GATE (a) — a host that hits more than one target', () =
       ),
       skillBook: BOOK,
     };
-    // Three foes, so a fanned-out splash would be loudly visible (3 events/cast).
+    // Three foes, so a spread would be loudly visible (2-3 slots per foe).
     config.enemyTeam = [
       tc('foe1', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
       tc('foe2', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
@@ -686,19 +1038,19 @@ describe('splash gems: GATE (a) — a host that hits more than one target', () =
     ];
     const { events } = simulate(config, 1);
     expect(events.some((e) => e.kind === 'damage' && e.side === 'enemy')).toBe(true); // the host still fires
-    expect(events.some((e) => e.kind === 'splashed')).toBe(false);
-    for (const piece of simulate(config, 1).finalState.enemyTeam.flatMap((c) => c.pieces)) {
-      expect(piece.nextWeightPenalty ?? 0).toBe(0);
-    }
+    const burdened = events.filter((e): e is Extract<Ev, { kind: 'burdened' }> => e.kind === 'burdened');
+    expect(burdened.length).toBeGreaterThan(0);
+    // EVERY application is a single slot: the spreader was dropped.
+    expect(burdened.every((e) => e.slots.length === 1)).toBe(true);
   });
 
-  it('drops ONLY the splash — every other action the gem carries still lands', () => {
+  it('drops ONLY the spreader — every other action the gem carries still lands', () => {
     const mixed: Gem = {
       kind: 'effect', id: 'mixed', rarity: 'rare',
-      actions: [{ kind: 'splash', weight: 8 }, { kind: 'poison', stacks: 3 }],
+      actions: [{ kind: 'splash' }, { kind: 'poison', stacks: 3 }, { kind: 'burden', weight: 8 }],
     };
     const eff = resolveEffectiveSkill(BOOK.aoeJab!, { skillId: 'aoeJab', slot: 0, gem: mixed });
-    expect(eff.effects.map((a) => a.kind)).toEqual(['damage', 'poison']);
+    expect(eff.effects.map((a) => a.kind)).toEqual(['damage', 'poison', 'burden']);
     expect(eff.effects[1]).toMatchObject({ kind: 'poison', stacks: 3, fromGem: true });
   });
 });
@@ -714,48 +1066,117 @@ describe('splash gems: GATE (b) — a host that already splashes', () => {
     { ...NO_ENDGAME, maxTurns: 10 },
   );
 
-  it('the HOST’s splash wins: socketing a splash gem is BYTE-IDENTICAL to the bare card', () => {
-    const bare = simulate(shockwaveFight(), 7);
-    for (const gem of [gemBook.tremor_sliver!, gemBook.fracture_sliver!, splashGem(16)]) {
-      const gemmed = simulate(shockwaveFight(gem), 7);
-      expect(JSON.stringify(gemmed.events)).toBe(JSON.stringify(bare.events));
-      expect(JSON.stringify(gemmed.finalState)).toBe(JSON.stringify(bare.finalState));
-      expect(gemmed.result).toEqual(bare.result);
+  it('AT MOST ONE SPREADER on the effective card, whatever the gem brings', () => {
+    for (const gem of [gemBook.tremor_sliver!, gemBook.fracture_sliver!, spreadGem(16), bareSplashGem()]) {
+      const eff = resolveEffectiveSkill(showcase, { skillId: 'shockwave_slam', slot: 0, gem });
+      expect(eff.effects.filter((a) => a.kind === 'splash')).toHaveLength(1);
+      // ...and the one that survived is the HOST's (provenance, not position).
+      expect(eff.effects.find((a) => a.kind === 'splash')).not.toHaveProperty('fromGem');
     }
-    // ...and the card still splashes at ITS authored 6, exactly once per cast.
-    const splashes = bare.events.filter((e): e is Extract<Ev, { kind: 'splashed' }> => e.kind === 'splashed');
-    expect(splashes.length).toBeGreaterThan(0);
-    expect(splashes.every((e) => e.weight === 6)).toBe(true);
-  });
-
-  it('precedence is PROVENANCE, not magnitude and not list order', () => {
-    // A HEAVIER gem splash does not win (that would rewrite an audited card),
-    // and a gem whose splash sits first in its own action list does not either.
     expect(splashSuppressionOn(showcase)).toBe('hostAlreadySplashes');
-    const heavy = resolveEffectiveSkill(showcase, { skillId: 'shockwave_slam', slot: 0, gem: splashGem(16) });
-    const splashActions = heavy.effects.filter((a) => a.kind === 'splash');
-    expect(splashActions).toHaveLength(1);
-    expect(splashActions[0]).toMatchObject({ weight: 6 });
-    expect(splashActions[0]).not.toHaveProperty('fromGem');
   });
 
-  it('a gem carrying TWO splashes keeps exactly ONE (one band tax, one event per cast)', () => {
+  it('a WEAKER gem burden changes NO STATE (Math.max) — the band still owes the host\u2019s 6', () => {
+    // tremor_sliver's burden is 4 against the host's authored 6, so the socket
+    // cannot raise the tax. It DOES add a second application, and therefore a
+    // second `burdened` event — exactly what a `slow 4` gem on a `slow 6` card
+    // has always done. The log is honest about two applications; the STATE is
+    // what must be unchanged, and it is.
+    const bare = simulate(shockwaveFight(), 7);
+    const gemmed = simulate(shockwaveFight(gemBook.tremor_sliver!), 7);
+    const weightsOf = (r: typeof bare): number[] => r.events
+      .filter((e): e is Extract<Ev, { kind: 'burdened' }> => e.kind === 'burdened')
+      .map((e) => e.weight);
+    expect(weightsOf(bare).every((w) => w === 6)).toBe(true);
+    // The gem's weaker application is visible in the log...
+    expect(weightsOf(gemmed)).toContain(4);
+    // ...and changes nothing: every taxed piece still owes 6, and the fight ends
+    // the same way, on the same turn, with the same HP.
+    expect(gemmed.result).toBe(bare.result);
+    expect(gemmed.turns).toBe(bare.turns);
+    // Same final HP on both sides. (The resolved SKILL differs — it carries the
+    // gem's appended action, as every socket does — so the comparison is of the
+    // fight's outcome, not of the card definition.)
+    expect(gemmed.finalState.enemy.stats.hp).toBe(bare.finalState.enemy.stats.hp);
+    expect(gemmed.finalState.player.stats.hp).toBe(bare.finalState.player.stats.hp);
+    expect(gemmed.finalState.enemy.pieces.map((p) => p.nextWeightPenalty))
+      .toEqual(bare.finalState.enemy.pieces.map((p) => p.nextWeightPenalty));
+    const paid = (r: typeof bare): number[] => r.events
+      .filter((e): e is Extract<Ev, { kind: 'play' }> => e.kind === 'play' && e.side === 'enemy')
+      .map((e) => e.weight);
+    expect(paid(gemmed)).toEqual(paid(bare));
+  });
+
+  it('a STRONGER gem burden DOES raise the tax — the payload is an ordinary action, only the spreader is gated', () => {
+    // The one honest behaviour change of the split, and it is the same rule a
+    // `slow 8` gem on a `slow 4` card has always had: two non-stacking taxes on
+    // one victim resolve by `Math.max`. The gem does not rewrite the host's
+    // authored action — it adds its own, which happens to win.
+    const bare = simulate(shockwaveFight(), 7);
+    const gemmed = simulate(shockwaveFight(gemBook.fracture_sliver!), 7);
+    const weights = gemmed.events
+      .filter((e): e is Extract<Ev, { kind: 'burdened' }> => e.kind === 'burdened')
+      .map((e) => e.weight);
+    // The host's own 6 lands, then the gem's 8 maxes over it on the same band.
+    expect(weights).toContain(6);
+    expect(weights).toContain(8);
+    // And the victim really pays the higher number: some play costs 8 more than
+    // the same play did on the bare card.
+    const maxPaid = (r: typeof bare): number => Math.max(...r.events
+      .filter((e): e is Extract<Ev, { kind: 'play' }> => e.kind === 'play' && e.side === 'enemy')
+      .map((e) => e.weight));
+    expect(maxPaid(gemmed)).toBeGreaterThan(maxPaid(bare));
+  });
+});
+
+describe('splash gems: GATE (c) — nothing to spread', () => {
+  it('drops a BARE splash gem on a host with no card-targeting effect', () => {
+    const host = BOOK.splashless!;
+    const gem = bareSplashGem();
+    expect(splashSuppressionOn(host, gem.kind === 'effect' ? gem.actions : [])).toBe('nothingToSpread');
+    const eff = resolveEffectiveSkill(host, { skillId: 'splashless', slot: 0, gem });
+    expect(eff.effects.map((a) => a.kind)).toEqual(['damage']);
+  });
+
+  it('does NOT drop it when the GEM supplies the payload — the shipped rungs are exactly that shape', () => {
+    const host = BOOK.splashless!;
+    const gem = spreadGem(8);
+    expect(splashSuppressionOn(host, gem.kind === 'effect' ? gem.actions : [])).toBeNull();
+    const eff = resolveEffectiveSkill(host, { skillId: 'splashless', slot: 0, gem });
+    expect(eff.effects.map((a) => a.kind)).toEqual(['damage', 'burden', 'splash']);
+    expect(eff.effects[2]).toMatchObject({ kind: 'splash', fromGem: true });
+  });
+
+  it('does NOT drop it when the HOST supplies the payload', () => {
+    const host = BOOK.burdenHost!;
+    const gem = bareSplashGem();
+    expect(splashSuppressionOn(host, gem.kind === 'effect' ? gem.actions : [])).toBeNull();
+    expect(resolveEffectiveSkill(host, { skillId: 'burdenHost', slot: 0, gem }).effects.map((a) => a.kind))
+      .toEqual(['damage', 'burden', 'splash']);
+  });
+
+  it('a CURSE payload counts too — the gate asks the keyword FACET, not a hard-coded list', () => {
+    const curseHost = card('curseHost', { effects: [{ kind: 'damage', power: 0 }, { kind: 'curse', amount: 4, turns: 2 }] });
+    const gem = bareSplashGem();
+    expect(splashSuppressionOn(curseHost, gem.kind === 'effect' ? gem.actions : [])).toBeNull();
+  });
+
+  it('asked of a HOST ALONE it answers the narrower question, which is what a bare splash gem needs', () => {
+    // The default empty `gemActions` means "would this host alone give a
+    // spreader anything to spread" — `null` only when the host itself supplies a
+    // payload. That is the correct question for a socket UI holding a bare
+    // splash gem, and the reason the parameter is explicit.
+    expect(splashSuppressionOn(BOOK.splashless!)).toBe('nothingToSpread');
+    expect(splashSuppressionOn(BOOK.burdenHost!)).toBeNull();
+  });
+
+  it('a gem carrying TWO splashes keeps exactly ONE (one spread per cast)', () => {
     const doubled: Gem = {
       kind: 'effect', id: 'doubled', rarity: 'rare',
-      actions: [{ kind: 'splash', weight: 8 }, { kind: 'splash', weight: 2 }],
+      actions: [{ kind: 'burden', weight: 8 }, { kind: 'splash' }, { kind: 'splash' }],
     };
     const eff = resolveEffectiveSkill(BOOK.splashless!, { skillId: 'splashless', slot: 0, gem: doubled });
-    const kept = eff.effects.filter((a) => a.kind === 'splash');
-    expect(kept).toHaveLength(1);
-    expect(kept[0]).toMatchObject({ kind: 'splash', weight: 8, fromGem: true });
-  });
-
-  it('an ORDINARY single-target host with no splash is untouched by the gate', () => {
-    const host = BOOK.splashless!;
-    expect(splashSuppressionOn(host)).toBeNull();
-    const eff = resolveEffectiveSkill(host, { skillId: 'splashless', slot: 0, gem: gemBook.fracture_sliver! });
-    expect(eff.effects.map((a) => a.kind)).toEqual(['damage', 'splash']);
-    expect(eff.effects[1]).toMatchObject({ kind: 'splash', weight: 8, fromGem: true });
+    expect(eff.effects.filter((a) => a.kind === 'splash')).toHaveLength(1);
   });
 });
 
@@ -763,8 +1184,9 @@ describe('splash gates: the multi-target CONCEPT, not a scope literal', () => {
   it('the gate and the fan-out ask the SAME question (`isMultiTargetSkill`)', () => {
     // If a future mechanism makes a card multi-target without `scope: 'all'`,
     // this pairing is what forces both sides to move together: the fan-out
-    // reaches every living foe exactly when the gate suppresses splash.
+    // reaches every living foe exactly when the gate suppresses the spreader.
     const foes = ['a', 'b', 'c'].map((n) => tc('foe' + n, ['jab'], { speed: 1, maxHp: 500 }, { skillBook: BOOK }));
+    const payload: Action[] = [{ kind: 'burden', weight: 4 }, { kind: 'splash' }];
     for (const id of ['aoeJab', 'splashless'] as const) {
       const state = initCombatState({
         playerTeam: [tc('hero', [], { speed: 30, maxHp: 500 }, { pieces: [{ skillId: id, slot: 0 }], skillBook: BOOK })],
@@ -779,7 +1201,7 @@ describe('splash gates: the multi-target CONCEPT, not a scope literal', () => {
         { kind: 'damage', power: 1 },
       );
       expect(targets.length > 1).toBe(isMultiTargetSkill(skill));
-      expect(splashSuppressionOn(skill) === 'multiTarget').toBe(isMultiTargetSkill(skill));
+      expect(splashSuppressionOn(skill, payload) === 'multiTarget').toBe(isMultiTargetSkill(skill));
     }
   });
 });
@@ -787,66 +1209,53 @@ describe('splash gates: the multi-target CONCEPT, not a scope literal', () => {
 /**
  * INSTANCE PL, HOST-AWARE (balance-designer pass, 2026-08-19 — closes a
  * flagged loose end from the splash-gem pass). `instancePowerLevelDeci` is
- * the ONE gem-PL surface that knows the host (used for echo's measured
- * share); before this fix it still added a suppressed gem splash's FULL
- * uncapped price even on a host where THE SPLASH GATE drops it entirely —
- * paying PL for an effect that never fires. A suppressed action must
- * contribute ZERO instance PL. Covers both gate arms (`splashSuppressionOn`'s
- * two reasons) plus the unconditional "keep only the gem's first splash"
- * rule `spliceGemActions` applies even on an ORDINARY host.
+ * the ONE gem-PL surface that knows the host; a gem action THE SPLASH GATE
+ * drops must contribute ZERO instance PL there, and — under the spreader model —
+ * dropping the spreader must also drop the COVERAGE MULTIPLIER it would have put
+ * on the gem's own payload.
+ *
+ * It also re-derives the gate itself (`hostSuppressesSplash`, balance.ts, which
+ * cannot import cards.ts without closing a layering cycle), so these cases are
+ * the regression pin that the two copies agree.
  */
-describe('instancePowerLevelDeci: a gem splash SUPPRESSED by the gate prices at ZERO', () => {
-  it('GATE (a) multiTarget — a splash gem on an AoE host contributes nothing', () => {
+describe('instancePowerLevelDeci: a gem spreader SUPPRESSED by the gate prices at ZERO', () => {
+  it('GATE (a) multiTarget — the spread premium is gone, the payload still prices', () => {
     const aoe = BOOK.aoeJab!;
-    expect(splashSuppressionOn(aoe)).toBe('multiTarget');
-    const gem = splashGem(8);
+    const gem = spreadGem(8);
     const base = powerLevelDeci(aoe);
-    expect(instancePowerLevelDeci(aoe, { gem })).toBe(base);
-    // The naive (pre-fix) number would have added the gem's full, unsuppressed
-    // price — proving this isn't an accidental match.
+    // burden 8 alone = 20 deci (what it still delivers there), NOT the 40 the
+    // host-blind gem is worth with its own spreader.
+    expect(instancePowerLevelDeci(aoe, { gem })).toBe(base + 20);
     expect(instancePowerLevelDeci(aoe, { gem })).not.toBe(base + gemPowerLevelDeci(gem, aoe));
   });
 
-  it('GATE (b) hostAlreadySplashes — a splash gem on shockwave_slam contributes nothing', () => {
+  it('GATE (b) hostAlreadySplashes — same: the gem is priced for the anchor it still taxes', () => {
     const host = skillBook.shockwave_slam!;
-    expect(splashSuppressionOn(host)).toBe('hostAlreadySplashes');
-    const gem = splashGem(16);
-    const base = powerLevelDeci(host);
-    expect(instancePowerLevelDeci(host, { gem })).toBe(base);
-    expect(instancePowerLevelDeci(host, { gem })).not.toBe(base + gemPowerLevelDeci(gem, host));
+    const gem = spreadGem(16);
+    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + 40); // burden 16 alone
+    expect(instancePowerLevelDeci(host, { gem })).not.toBe(powerLevelDeci(host) + gemPowerLevelDeci(gem, host));
   });
 
-  it('suppression zeroes ONLY the splash — every other action on the same gem still prices', () => {
+  it('GATE (c) nothingToSpread — a BARE splash gem contributes exactly nothing', () => {
+    const host = BOOK.splashless!;
+    const gem = bareSplashGem();
+    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host));
+  });
+
+  it('suppression zeroes ONLY the spreader — every other action on the same gem still prices', () => {
     const mixed: Gem = {
       kind: 'effect', id: 'mixed', rarity: 'rare',
-      actions: [{ kind: 'splash', weight: 8 }, { kind: 'poison', stacks: 3 }],
+      actions: [{ kind: 'splash' }, { kind: 'poison', stacks: 3 }],
     };
     const aoe = BOOK.aoeJab!;
-    // poison 3 stacks * dotPerStack(10) = 30 deci; splash contributes 0 (suppressed).
+    // poison 3 stacks * dotPerStack(10) = 30 deci; the spreader contributes 0.
     expect(instancePowerLevelDeci(aoe, { gem: mixed })).toBe(powerLevelDeci(aoe) + 30);
-    expect(instancePowerLevelDeci(aoe, { gem: mixed })).not.toBe(powerLevelDeci(aoe) + gemPowerLevelDeci(mixed, aoe));
   });
 
-  it('an UNSUPPRESSED host still gets the gem\'s full splash price (the fix is host-aware, not a blanket zero)', () => {
+  it('an UNSUPPRESSED host still gets the gem’s full spread price (the fix is host-aware, not a blanket zero)', () => {
     const host = BOOK.splashless!;
-    expect(splashSuppressionOn(host)).toBeNull();
-    const gem = splashGem(8);
+    const gem = spreadGem(8);
     expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + gemPowerLevelDeci(gem, host));
-    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + 40); // 8 * 5
-  });
-
-  it('a gem carrying TWO splashes: instance PL keeps only the FIRST, even on an unsuppressed host', () => {
-    // Mirrors `spliceGemActions`'s "keep only the first" rule — the runtime
-    // never applies (or logs) the second splash on ANY host, gated or not, so
-    // pricing it would charge PL for an effect that can never fire.
-    const doubled: Gem = {
-      kind: 'effect', id: 'doubled', rarity: 'rare',
-      actions: [{ kind: 'splash', weight: 8 }, { kind: 'splash', weight: 2 }],
-    };
-    const host = BOOK.splashless!;
-    expect(splashSuppressionOn(host)).toBeNull();
-    // Naive (both splashes priced): 8*5 + 2*5 = 50. Correct (first only): 40.
-    expect(gemPowerLevelDeci(doubled, host)).toBe(50);
-    expect(instancePowerLevelDeci(host, { gem: doubled })).toBe(powerLevelDeci(host) + 40);
+    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + 40); // 20 x 2
   });
 });

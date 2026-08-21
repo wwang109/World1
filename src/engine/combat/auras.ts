@@ -169,12 +169,13 @@ export function auraAffectedTargetSlots(
 }
 
 /**
- * Single-pass resolution of the auras affecting `piece`: sum every aura on this
- * combatant's board that reaches it and whose filters match, then fold in the
- * piece's own card-scope stat-gem mods. Emits both the summed `mods` (the value
- * the core loop consumes) and the per-source `sources` breakdown (board auras
- * only) so the log never drifts from the applied mods. Recomputed at cast time
- * so board state changes are reflected.
+ * Single-pass resolution of everything that modifies `piece`'s cast: sum every
+ * aura on this combatant's board that reaches it and whose filters match, then
+ * fold in the piece's own card-scope stat-gem mods and any `curse` standing on
+ * it. Emits both the summed `mods` (the value the core loop consumes) and the
+ * per-source `sources` breakdown (board auras only) so the log never drifts from
+ * the applied mods. Recomputed at cast time so board state changes are
+ * reflected.
  */
 export function resolveAuras(c: CombatantState, piece: PieceState, skillBook: SkillBook): ResolvedAuras {
   const targetDef = skillBook[piece.skillId];
@@ -211,6 +212,25 @@ export function resolveAuras(c: CombatantState, piece: PieceState, skillBook: Sk
   mods.damageFlat += g.damageFlat ?? 0;
   mods.healFlat += g.healFlat ?? 0;
   mods.weightDelta += g.weightDelta ?? 0;
+  // A `curse` standing on THIS piece (PieceState.curse, combat/state.ts) is the
+  // NEGATIVE half of the same flat-damage channel, folded in at the same seam
+  // and for the same reason the gem mod above is: the core loop consumes only
+  // the resolved bundle, so a per-instance modifier is added HERE rather than
+  // as a branch in the damage arm. Everything downstream — mitigation order,
+  // the min-1 floor in `applyStrike`, the per-hit application on a multi-hit
+  // card — then applies to it unchanged, with no arithmetic duplicated.
+  //
+  // NOT RECORDED IN `sources` either, and for a sharper reason than gems: this
+  // is not a board aura at all. It is an effect the OPPONENT applied, already
+  // announced by its own `cursed` event and already visible in the resulting
+  // hit's `calculation.effectBonusDamage` (which simply goes negative).
+  //
+  // NO TURN CHECK HERE, deliberately: an expired curse does not exist. The
+  // end-of-turn pass (`expireCurses`, simulate.ts) deletes the field on the turn
+  // it lapses, so any curse this function can see is live — which is what keeps
+  // `resolveAuras` a pure function of board state, callable from the
+  // speculative `scanCast` with no turn number threaded through it.
+  if (piece.curse) mods.damageFlat -= piece.curse.amount;
   return { mods, sources };
 }
 

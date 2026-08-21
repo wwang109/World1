@@ -315,6 +315,42 @@ function expireStatuses(ctx: Ctx, c: CombatantState): void {
   c.statuses = remaining;
 }
 
+/**
+ * Close every `curse` window that lapses at the end of THIS turn (see
+ * `PieceState.curse`, combat/state.ts) — the card-scope counterpart of
+ * `expireStatuses` above, and the ONLY place a curse is ever removed.
+ *
+ * WHY IT LIVES BESIDE `expireStatuses` RATHER THAN IN THE CAST PATH: a curse is
+ * a GLOBAL-TURN duration like `expose`/`guard`, so the turn boundary is the
+ * only honest place to end it. It is also what keeps `resolveAuras` (which
+ * folds a live curse into `mods.damageFlat`) free of any turn argument: if the
+ * field exists, the curse is live, because a lapsed one was deleted here.
+ *
+ * `state.turn >= expiresAtTurn`, with `expiresAtTurn = applyTurn + turns`: a
+ * curse applied on turn T with `turns: 1` covers the rest of T and all of T+1
+ * and is gone at the start of T+2 — the same window a `fresh` 1-turn status
+ * gets from `addStatus` + `expireStatuses`.
+ *
+ * ONE EVENT PER UNIT, listing every slot that lapsed on this tick in ascending
+ * order (`pieces` is slot-sorted, so the index walk yields that for free), and
+ * NO event when nothing lapsed — so a board with no curse on it emits exactly
+ * what it emitted before this keyword existed. `delete`, never `= undefined`,
+ * for the reason `PieceState.curse` documents. Integer compares only, no RNG.
+ */
+function expireCurses(ctx: Ctx, c: CombatantState): void {
+  const lapsed: number[] = [];
+  for (let i = 0; i < c.pieces.length; i += 1) {
+    const piece = c.pieces[i]!;
+    if (piece.curse === undefined) continue;
+    if (ctx.state.turn < piece.curse.expiresAtTurn) continue;
+    delete piece.curse;
+    lapsed.push(piece.slot);
+  }
+  if (lapsed.length > 0) {
+    ctx.events.push({ turn: ctx.state.turn, kind: 'curseExpired', side: c.side, unit: c.index, slots: lapsed });
+  }
+}
+
 function emitCursor(ctx: Ctx, c: CombatantState, before: number): void {
   const at = cursorPiece(c);
   ctx.events.push({
@@ -579,19 +615,19 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         // slow can never outlive the turn it landed on, so nothing accumulates
         // and no clamp is needed.
         c.nextWeightPenalty = 0;
-        // CARD-scope sibling of the line above (`splash`): the tax rides ONE
+        // CARD-scope sibling of the line above (`burden`): the tax rides ONE
         // piece and is spent by THAT piece's next play — the `cost` event just
         // above paid it (castSelect folded it into `choice.weight`), so it is
         // consumed here, exactly once, at the one site where a cast really
         // resolves. Speculative `scanCast` calls only READ it.
         //
         // DELETED, not set to 0 and not set to `undefined`: the field is lazily
-        // written so an un-splashed piece carries no key at all (see
+        // written so an un-burdened piece carries no key at all (see
         // `PieceState`). A 0 would survive `JSON.stringify` and move every
         // outcome-baseline hash; assigning `undefined` leaves `hasOwnProperty`
         // true, which `JSON.stringify` hides but `toStrictEqual`, `Object.keys`
         // and structured-clone all see. `delete` restores the piece to the exact
-        // shape it had before it was ever splashed.
+        // shape it had before it was ever burdened.
         delete choice.piece.nextWeightPenalty;
         c.lastCastArchetypes = choice.skill.archetypes;
         playsThisTurn += 1;
@@ -716,6 +752,13 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
 
     // Durations decrement once per gameplay turn.
     for (const c of units) expireStatuses(ctx, c);
+    // CARD-SCOPE durations, same tick, same canonical unit order: a `curse`
+    // window that ends with this turn is closed here (`expireCurses`), which is
+    // the only place a curse is ever removed. It runs AFTER the resolve loop for
+    // the same reason the slow clear below does — a curse landed early in the
+    // turn still softens a victim that casts later in that same turn — and
+    // emits a `curseExpired` event only for units that actually had one lapse.
+    for (const c of units) expireCurses(ctx, c);
     // SLOW EXPIRES WITH THE TURN IT LANDED ON (user-locked 2026-08-18): "a slow
     // is only applied to that 1 card and doesn't stay — after the turn it was
     // applied on, the slow effect is removed". A slow applied during turn N can

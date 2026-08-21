@@ -6,7 +6,7 @@ import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
 import { anySideWiped, boardPowerLevel, effStat, foesOf, hasStatus, spendShieldsForBurst, statusStackCount, taxedCardCount, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
-import { splashBand } from './splash';
+import { cardTargetPieces } from './splash';
 
 export interface Ctx {
   state: CombatState;
@@ -32,6 +32,13 @@ function isOffensiveAction(action: Action): boolean {
     case 'debuffStat':
     case 'expose':
     case 'slow':
+    // The two CARD-TARGETING effects and their SPREADER. All three resolve
+    // against a foe: burden/curse land on one of the victim's board pieces, and
+    // `splash` — which applies nothing itself — is classified with them so the
+    // pricing table's `offensive` mirror (OFFENSIVE_KINDS, engine/balance.ts)
+    // stays kind-for-kind identical to this switch.
+    case 'burden':
+    case 'curse':
     case 'splash':
     case 'disrupt':
     case 'shieldBreak':
@@ -636,6 +643,35 @@ interface CastCtx {
    * it, so one cast pays one bonus however many hits it splits into.
    */
   bonusByTarget: number[];
+  /**
+   * DOES THIS CAST CARRY A `splash`? Read ONCE from the effective effect list
+   * when the cast opens (`castSpreadsBand`), and consulted by every
+   * CARD-TARGETING arm (`burden`, `curse`) to choose between the anchor alone
+   * and the whole band (`cardTargetPieces`, combat/splash.ts).
+   *
+   * CAST-SCOPED RATHER THAN POSITIONAL, deliberately. The alternative — letting
+   * a `splash` action flip a flag as the loop walks past it — would make the
+   * keyword's meaning depend on list order, and a GEM's actions are spliced
+   * AFTER the host's (`GEM_ACTION_PHASE`, cards.ts): a splash gem would then
+   * spread nothing on a burden host, which is precisely the socket the gem
+   * exists for. One flag, computed before anything resolves, makes the rule
+   * "this cast spreads" instead of "everything after this line spreads".
+   */
+  spreadsBand: boolean;
+}
+
+/**
+ * Does this effect list carry the `splash` SPREADER? Asked once per cast (see
+ * `CastCtx.spreadsBand`) against the EFFECTIVE list, so a gem-appended splash
+ * counts exactly like an authored one.
+ *
+ * Indexed walk, no Set: the answer must be a pure function of the array.
+ */
+function castSpreadsBand(effects: readonly Action[]): boolean {
+  for (let i = 0; i < effects.length; i += 1) {
+    if (effects[i]!.kind === 'splash') return true;
+  }
+  return false;
 }
 
 /**
@@ -1430,41 +1466,103 @@ function applyAction(
       enemy.nextWeightPenalty = Math.max(enemy.nextWeightPenalty, action.weight);
       ctx.events.push({ turn: ctx.state.turn, kind: 'slowed', side: enemy.side, unit: enemy.index, weight: action.weight });
       break;
-    case 'splash': {
-      // SPLASH — `slow` at CARD scope (see the `splash` docs in types.ts).
-      // Single-target at the UNIT level (it lands on the one resolved foe);
-      // what it spreads across is that foe's own BOARD: the anchor piece their
-      // cast cursor is on plus its immediate left/right neighbours, measured
-      // edge-to-edge and NOT wrapping at the board edges (`splashBand`).
+    case 'burden': {
+      // BURDEN — `slow` at CARD scope (see the `burden` docs in types.ts).
+      // Single-target at the UNIT level (it lands on the one resolved foe) and,
+      // on that foe, on ONE piece: the anchor their cast cursor is on. When the
+      // cast also carries `splash` the SAME write is spread over the anchor's
+      // edge-to-edge neighbours as well — `cardTargetPieces` is the one place
+      // that choice is made (combat/splash.ts), so the spreader means exactly
+      // the same thing here as it does for `curse` below.
       //
-      // Each banded piece costs `weight` extra the NEXT time it is played, then
-      // the tax is consumed (simulate.ts). SAME NON-STACKING RULE AS `slow`:
-      // `Math.max`, never a sum — an unbounded stack would permanently lock a
-      // card out, which is exactly the reason the `slow` arm above gives.
+      // Each targeted piece costs `weight` extra the NEXT time it is played,
+      // then the tax is consumed (simulate.ts). SAME NON-STACKING RULE AS
+      // `slow`: `Math.max`, never a sum — an unbounded stack would permanently
+      // lock a card out, which is exactly the reason the `slow` arm above gives.
       //
       // A dead unit is a no-op (its board never plays again), and so is an
       // empty board — neither emits an event, because nothing observable
       // happened.
       if (!enemy.alive) break;
-      const splashed = splashBand(enemy);
-      if (!splashed) break;
+      const hit = cardTargetPieces(enemy, cast.spreadsBand);
+      if (!hit) break;
       const slots: number[] = [];
-      for (let i = 0; i < splashed.band.length; i += 1) {
-        const piece = splashed.band[i]!;
+      for (let i = 0; i < hit.pieces.length; i += 1) {
+        const piece = hit.pieces[i]!;
         piece.nextWeightPenalty = Math.max(piece.nextWeightPenalty ?? 0, action.weight);
         slots.push(piece.slot);
       }
       ctx.events.push({
         turn: ctx.state.turn,
-        kind: 'splashed',
+        kind: 'burdened',
         side: enemy.side,
         unit: enemy.index,
         weight: action.weight,
-        anchorSlot: splashed.anchor.slot,
+        anchorSlot: hit.anchor.slot,
         slots,
       });
       break;
     }
+    case 'curse': {
+      // CURSE — burden's sibling, one currency over: the targeted card(s) deal
+      // `amount` LESS damage until `expiresAtTurn`. Same geometry, same
+      // spreader, same `Math.max` non-stacking rule — the difference is WHAT is
+      // written (`PieceState.curse`) and that it EXPIRES on a clock
+      // (`expireCurses`, simulate.ts) instead of being spent by a play.
+      //
+      // AN EMPTY CURSE IS DROPPED OUTRIGHT, the `expose` precedent: a 0 amount
+      // or 0 turns can never reduce a hit, so applying one would be a free
+      // effect that still emitted an event and still occupied the anchor's
+      // non-stacking slot (blocking nothing, but claiming to).
+      //
+      // THE WINDOW: `turn + turns`, cleared at the END of that turn — the same
+      // span a `fresh` turn-durationed status gets from `addStatus` +
+      // `expireStatuses`, so "for 2 turns" means the same thing on a curse as it
+      // does on an expose.
+      if (!enemy.alive) break;
+      if (action.amount <= 0 || action.turns <= 0) break;
+      const hit = cardTargetPieces(enemy, cast.spreadsBand);
+      if (!hit) break;
+      const expiresAtTurn = ctx.state.turn + action.turns;
+      const slots: number[] = [];
+      for (let i = 0; i < hit.pieces.length; i += 1) {
+        const piece = hit.pieces[i]!;
+        const standing = piece.curse;
+        // THE STRONGER AMOUNT **AND** THE LATER EXPIRY, taken independently
+        // (`expose`'s refresh rule). Independently, because the two fields
+        // answer different questions and a weaker-but-longer curse must not be
+        // able to shorten a stronger one, nor a shorter-but-stronger one to end
+        // a standing window early.
+        piece.curse = standing
+          ? { amount: Math.max(standing.amount, action.amount), expiresAtTurn: Math.max(standing.expiresAtTurn, expiresAtTurn) }
+          : { amount: action.amount, expiresAtTurn };
+        slots.push(piece.slot);
+      }
+      ctx.events.push({
+        turn: ctx.state.turn,
+        kind: 'cursed',
+        side: enemy.side,
+        unit: enemy.index,
+        amount: action.amount,
+        turns: action.turns,
+        anchorSlot: hit.anchor.slot,
+        slots,
+      });
+      break;
+    }
+    case 'splash':
+      // THE SPREADER APPLIES NOTHING ITSELF (see the `splash` docs in types.ts).
+      // It is read ONCE PER CAST, before any effect resolves
+      // (`castSpreadsBand` → `CastCtx.spreadsBand`), and the card-targeting arms
+      // above consult that flag. So this arm is deliberately empty, and the
+      // keyword's position in the effect list decides nothing: a gem splash
+      // spliced behind the host's burden still spreads it.
+      //
+      // A splash with nothing to spread cannot reach here as authored content
+      // (`validateSkillContent` refuses it) nor as a gem (THE SPLASH GATE's
+      // `nothingToSpread` arm drops it, engine/cards.ts) — and if one ever did,
+      // this arm is the reason it would be an inert no-op rather than a defect.
+      break;
     case 'disrupt': {
       if (!enemy.alive) break;
       const drained = Math.min(enemy.readiness, action.amount);
@@ -1587,11 +1685,11 @@ function applyAction(
     }
     case 'taxBonus': {
       // `per` per WEIGHT-TAXED card on the victim (`taxedCardCount`: every board
-      // piece carrying a splash tax, plus one for a pending unit-scope slow),
+      // piece carrying a `burden`, plus one for a pending unit-scope slow),
       // CLAMPED at the authored `cap` — the bounded payload is what makes it
       // priceable, exactly as with `stackBonus`.
       //
-      // Read AS IT STANDS NOW: taxes this card's own slow/splash lines apply land
+      // Read AS IT STANDS NOW: taxes this card's own slow/burden lines apply land
       // later in the cast (`validateSkillContent` enforces that order), so the
       // backlog it collects on is one somebody else — or an earlier cast — built.
       if (!enemy.alive) break;
@@ -1760,7 +1858,7 @@ export function applyCast(
    * the old `anySideWiped` call, so every 1v1 log stays byte-identical.
    */
   const castCutShort = (): boolean => !caster.alive || anySideWiped(ctx.state);
-  const cast: CastCtx = { damageDealt: 0, bonusFlat: 0, bonusByTarget: [] };
+  const cast: CastCtx = { damageDealt: 0, bonusFlat: 0, bonusByTarget: [], spreadsBand: castSpreadsBand(skill.effects) };
   // MULTI-HIT STAT SPLIT: the denominator is fixed for the whole cast and counts
   // the CARD'S OWN damage actions only — a gem-appended hit neither joins the
   // split nor advances the ordinal, so socketing a gem cannot shrink the hits

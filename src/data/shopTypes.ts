@@ -183,7 +183,8 @@ const defs: ShopTypeDef[] = [
       {
         // RETIRE: stunning_smash_echo, hamstring_echo removed (slow duplicates).
         // ADD (2026-08-19, reachability curation pass): tremor_sliver/
-        // fracture_sliver (splash) are a bind on the enemy's next few plays —
+        // fracture_sliver (a burden and the splash that spreads it) are a bind
+        // on the enemy's next few plays —
         // a control effect in the same family as the slow/poison hexes
         // already curated here, not a weapon mechanic.
         ids: [

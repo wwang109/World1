@@ -155,7 +155,8 @@ describe('run/content: catalog-wide acquisition-surface audit', () => {
   // Curation follow-up (2026-08-19): the original audit found the 9 new
   // gems reachable ONLY through Gemcutter's whole-book catch-all — no
   // curated per-theme `ids` list mentioned any of them, so a themed shop a
-  // player might expect to sell one (Alchemist for splash, Armory for the
+  // player might expect to sell one (Alchemist for the burden slivers, Armory
+  // for the
   // expose ladder, Bulwark for sanctuary_sliver/provoker_sliver, Sanctum for
   // renewal_sliver) never would. That gap is now closed in shopTypes.ts, so
   // this pins the BETTER state: every 2026-08-19 gem is shop-reachable

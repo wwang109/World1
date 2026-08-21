@@ -146,7 +146,9 @@ field on an action is an error.
 | `statStrike` | `shareOf`, optional `cap` |
 | `poison` `burn` `bleed` | `stacks` |
 | `stun` | `turns` |
-| `slow` | `weight` |
+| `slow` `burden` | `weight` |
+| `curse` | `amount`, `turns` (both required, both >= 1) |
+| `splash` | *(none — the spreader carries no payload)* |
 | `disrupt` `shieldBreak` `comboBonus` `taunt` | `amount` |
 | `expose` | `pct`, `turns` |
 | `guard` | `property`, `pct`, `turns` |
@@ -180,20 +182,50 @@ itself on its first cast — the payoff is meant to land on the NEXT one.
 
 What counts as "supplies", per rider: `poison`/`burn`/`bleed`/`stun`/`debuffStat`/
 `expose`/`thorns` for the status readers, `shield` for `shieldBurst` (caster-side),
-and BOTH `slow` and `splash` for `taxBonus` (it counts either tax). Side matters:
+and BOTH `slow` and `burden` for `taxBonus` (it counts either tax; `splash`
+supplies nothing — it only widens a burden's reach). Side matters:
 `stackBonus` with `of: 'caster'` is only ordered against CASTER-side applications
 (i.e. `thorns`), and a `shield` line is irrelevant to a `taxBonus` card.
 
 **`slow` gets no exception**, even though it expires at end of turn: the ruling is
 about self-triggering, not about how long the resource lasts. A `slow` + `taxBonus`
-card still pays off on a SECOND cast in the same turn; a `splash` + `taxBonus` card
+card still pays off on a SECOND cast in the same turn; a `burden` + `taxBonus` card
 pays off until the taxed piece is played.
 
 **`scope: 'all'` is refused with `splash` and with `shieldBurst`.** Splash is
 single-target at the unit level; a burst spends ONE wall ONCE and its bonus would
 otherwise be handed to every foe at a single-target price (it is a caster-side
 keyword, so it pays no AoE reach multiplier). An AoE `taxBonus` is fine — it is
-armed per victim and does pay reach.
+armed per victim and does pay reach. So is an AoE `burden`/`curse`: one card per
+foe is the same linear reach an AoE `slow` has, priced by the reach multiplier —
+it is band × foes that the splash rule refuses.
+
+### The card-targeting keywords and their spreader
+
+`burden` and `curse` land on ONE of the victim's board cards — the ANCHOR, the
+card their cast cursor is on (or the last card they played, when the cursor is
+parked past the end of the board; nothing about this wraps). `burden` makes that
+card cost +weight the next time it is played (paid once, then spent, however many
+turns it takes); `curse` makes it deal −amount damage for N global turns (never
+below 1 damage total, and the window is the same one a status of N turns gets).
+
+`splash` has **no payload of its own**. Its only meaning is that the cast's
+`burden`/`curse` apply to the whole BAND — the anchor plus the pieces
+immediately either side of it, 1 to 3 cards depending on the victim's board —
+instead of to the anchor alone. So:
+
+| authored | what lands |
+|---|---|
+| `burden 6` | +6 weight on ONE card |
+| `burden 6` + `splash` | +6 weight on up to THREE cards |
+| `curse 4/2t` | −4 damage on ONE card for 2 turns |
+| `curse 4/2t` + `splash` | −4 damage on up to THREE cards for 2 turns |
+| `splash` alone | **rejected** — a spreader with nothing to spread |
+
+Both re-applications take the **stronger** value, never a sum (`Math.max`), so a
+second cast can never lock a card out. Splash is priced as a COVERAGE MULTIPLIER
+on whatever it spreads (×2, the band's guaranteed floor), which is why a spread
+line costs exactly twice its anchor-only form.
 
 This mirrors the `Action` union in `src/engine/types.ts`. The validator's switch
 ends in `assertNever`, so **adding an action kind to the engine fails `tsc` until

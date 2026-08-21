@@ -349,12 +349,15 @@
           "version": 1,
           "def": {
             "name": "Fracture Sliver",
-            "text": "{{Splash}} +8 weight on the card the enemy is about to play and the ones either side of it.",
+            "text": "{{Burden}} +8 weight on the card the enemy is about to play · {{Splash}} — and on the cards either side of it.",
             "notes": [
-              "Upper rung (2026-08-18) - see tremor_sliver for the ladder note.",
-              "PRICE: 8 x 5 deci = 40 deci = Rare EXACTLY (weight 7 prices at 35, which is",
-              "no band). Double the Common rung, the same doubling step the slow gems use.",
-              "Pitched deliberately ABOVE shockwave_slam's own splash 6: the showcase card",
+              "Upper rung (2026-08-18; re-authored 2026-08-21 for the spreader model) - see",
+              "tremor_sliver for the ladder note and the two-action explanation.",
+              "PRICE, UNMOVED: burden 8 = 20 deci x2 for the splash coverage multiplier =",
+              "40 deci = Rare EXACTLY, the same number the old `splash weight 8` priced at",
+              "(burden 7 prices at floor(7*5/2)*2 = 34, which is no band).",
+              "Double the Common rung, the same doubling step the slow gems use.",
+              "Pitched deliberately ABOVE shockwave_slam's own burden 6: the showcase card",
               "spends most of its budget on damage, so the dedicated Rare gem is what a",
               "board built around board-tempo denial actually wants."
             ],
@@ -362,8 +365,11 @@
             "rarity": "rare",
             "actions": [
               {
-                "kind": "splash",
+                "kind": "burden",
                 "weight": 8
+              },
+              {
+                "kind": "splash"
               }
             ]
           }
@@ -911,34 +917,44 @@
           "version": 1,
           "def": {
             "name": "Tremor Sliver",
-            "text": "{{Splash}} +4 weight on the card the enemy is about to play and the ones either side of it.",
+            "text": "{{Burden}} +4 weight on the card the enemy is about to play · {{Splash}} — and on the cards either side of it.",
             "notes": [
-              "Entry rung (2026-08-18). PRICE: splash is 5 deci per weight",
-              "(PRICE.splashPerWeightNum/Den - 2x the slow rate: the tax lands on a",
-              "BAND of board pieces instead of on the unit's next action, and the band's",
-              "guaranteed floor is 2 pieces on any board holding more than one card.",
-              "Re-derived 2026-08-19 when the anchor stopped wrapping; the rate did not",
-              "move, so no weight here changed).",
-              "4 x 5 = 20 deci = Common EXACTLY. Minimal for its band: weight 3",
-              "prices at 15, which is no band at all.",
-              "Ladders with fracture_sliver (Rare, weight 8) on the same DOUBLING shape",
-              "the slow gems use (8 / 16 / 32) - at half the weights, since splash costs",
-              "twice as much per point. Epic and Legendary rungs would land exactly at",
-              "weight 12 (60) and weight 16 (80); deliberately NOT shipped yet - splash",
-              "has one card and no play data, and a +16 tax on up to three of a victim's",
-              "cards is the heaviest board disruption in the game. Those rungs are",
-              "balance-designer's to open.",
-              "NOT usable to make a splash AoE or to double an existing one: the splash",
-              "gate in resolveEffectiveSkill (src/engine/cards.ts) drops this action on a",
-              "host that already hits more than one target, and on a host that already",
-              "carries a splash of its own (the host's own splash always wins)."
+              "Entry rung (2026-08-18; re-authored 2026-08-21 for the spreader model, with",
+              "no change to what it does or costs). TWO ACTIONS now, because the effect",
+              "always was two things: `burden` is the weight tax on ONE card, `splash` is",
+              "the SPREADER that widens it to the band. It used to be spelled as the single",
+              "action `splash weight 4`, which conflated the two.",
+              "PRICE, UNMOVED: burden 4 = 10 deci (PRICE.burdenPerWeightNum/Den, 5/2 —",
+              "slow's own per-point rate for slow's own currency on one card) x2 for the",
+              "splash coverage multiplier (PRICE.splashBandFloorNum — the band's guaranteed",
+              "2-piece floor on any board holding more than one card; the third piece is",
+              "unpriced upside, since band width is the VICTIM's to decide) = 20 deci =",
+              "Common EXACTLY, the same number the old `splash weight 4` priced at.",
+              "Minimal for its band: burden 3 prices at floor(3*5/2)*2 = 14, and burden 2",
+              "at 10 — neither is a band at all.",
+              "Ladders with fracture_sliver (Rare, burden 8) on the same DOUBLING shape",
+              "the slow gems use (8 / 16 / 32) - at half the weights, since a SPREAD burden",
+              "costs twice as much per point as an anchor-only one. Epic and Legendary rungs",
+              "would land exactly at burden 12 (60) and burden 16 (80); deliberately NOT",
+              "shipped yet - the band tax has three cards and no play data, and a +16 tax on",
+              "up to three of a victim's cards is the heaviest board disruption in the game.",
+              "Those rungs are balance-designer's to open.",
+              "NOT usable to make an AoE spread or to double an existing one: THE SPLASH",
+              "GATE in resolveEffectiveSkill (src/engine/cards.ts) drops the `splash`",
+              "action on a host that already hits more than one target, and on a host that",
+              "already splashes of its own. The `burden` still lands there (anchor only) —",
+              "one taxed card per foe is the same linear reach an AoE `slow` has, and it is",
+              "band x foes that the gate refuses."
             ],
             "kind": "effect",
             "rarity": "common",
             "actions": [
               {
-                "kind": "splash",
+                "kind": "burden",
                 "weight": 4
+              },
+              {
+                "kind": "splash"
               }
             ]
           }

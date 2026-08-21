@@ -72,6 +72,24 @@ interface KeywordPricingBase {
    * on the caster, regardless of scope, and are unaffected by it.
    */
   offensive: boolean;
+  /**
+   * Does this keyword resolve against ONE OF THE VICTIM'S BOARD CARDS rather
+   * than against the victim as a unit? `burden` and `curse` do; everything else
+   * (including `slow`, their unit-scope sibling) does not.
+   *
+   * TWO CONSUMERS, ONE ANSWER. (1) THE ENGINE: `splash` — the payload-less
+   * SPREADER — widens exactly these keywords from the anchor to the whole band,
+   * and `validateSkillContent` refuses a `splash` on a card that carries none of
+   * them (a spreader with nothing to spread). (2) THE PRICER: `splash` has no
+   * field to price, so `actionsPriceDeci` prices it as a COVERAGE MULTIPLIER on
+   * the summed price of exactly these keywords.
+   *
+   * It is a declared FACET rather than an inferred one so that adding a
+   * card-targeting keyword is a `true` here — and so that forgetting to decide
+   * is a tsc error, not a silently un-spreadable, silently un-multiplied
+   * keyword.
+   */
+  cardTargeting: boolean;
 }
 
 /**
@@ -97,8 +115,12 @@ export interface PriceRates {
   wardPerCharge: number;
   slowPerWeightNum: number;
   slowPerWeightDen: number;
-  splashPerWeightNum: number;
-  splashPerWeightDen: number;
+  burdenPerWeightNum: number;
+  burdenPerWeightDen: number;
+  cursePerAmountNum: number;
+  cursePerAmountDen: number;
+  cursePerAmountTurnNum: number;
+  cursePerAmountTurnDen: number;
   lifestealPerPctNum: number;
   lifestealPerPctDen: number;
   shieldBreakPerPointNum: number;
@@ -137,21 +159,21 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     true: P.flatTrueShieldPerPoint,
   };
   return {
-    damage: { isHit: true, scalable: true, family: 'damage', offensive: true, price: [{ form: 'perUnitByProperty', field: 'power', num: strikeRate, den: 1 }] },
+    damage: { isHit: true, scalable: true, family: 'damage', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: strikeRate, den: 1 }] },
     // An UNCAPPED statStrike prices at 0 through the `cap` field being absent —
     // deliberate, so it misses every band loudly. The echo's host-proportional
     // price lives in `gemPowerLevelDeci`, not in this card-rate table.
-    statStrike: { isHit: true, scalable: false, family: 'damage', offensive: true, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: 1 }] },
-    heal: { isHit: false, scalable: true, family: 'heal', offensive: false, price: [{ form: 'perUnitByProperty', field: 'power', num: healRate, den: 1 }] },
-    shield: { isHit: false, scalable: true, family: 'shield', offensive: false, price: [{ form: 'perUnitByProperty', field: 'power', num: shieldRate, den: 1 }] },
+    statStrike: { isHit: true, scalable: false, family: 'damage', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: 1 }] },
+    heal: { isHit: false, scalable: true, family: 'heal', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: healRate, den: 1 }] },
+    shield: { isHit: false, scalable: true, family: 'shield', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: shieldRate, den: 1 }] },
 
     // LINEAR PER-STACK (user-locked 2026-07-23): priced on the authored stack
     // count, not the tick model's total. All three DoTs share the rate today.
-    poison: { isHit: false, scalable: false, family: 'dot', offensive: true, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
-    burn: { isHit: false, scalable: false, family: 'dot', offensive: true, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
-    bleed: { isHit: false, scalable: false, family: 'dot', offensive: true, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
+    poison: { isHit: false, scalable: false, family: 'dot', offensive: true, cardTargeting: false, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
+    burn: { isHit: false, scalable: false, family: 'dot', offensive: true, cardTargeting: false, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
+    bleed: { isHit: false, scalable: false, family: 'dot', offensive: true, cardTargeting: false, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
 
-    stun: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'turns', num: P.stunPerTurn, den: 1 }] },
+    stun: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'perUnit', field: 'turns', num: P.stunPerTurn, den: 1 }] },
     // Conditional-on-being-hit reflect pile: same linear per-stack rate as the
     // DoTs (max total reflected = N(N+1)/2, realised only if the holder keeps
     // getting hit — an upper bound, like bleed). Self buff => empower family.
@@ -162,42 +184,80 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // were mitigable. It now actually is: armor comes off every sting, a
     // physical guard reduces it, a physical shield absorbs it. The upper bound
     // above is therefore softer than the price assumes, never harder.
-    thorns: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
-    buffStat: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
-    debuffStat: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
-    expose: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.exposePerPctTurnNum, den: P.exposePerPctTurnDen }] },
-    guard: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.guardPerPctTurnNum, den: P.guardPerPctTurnDen }] },
-    negate: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'charges', num: P.negatePerCharge, den: 1 }] },
+    thorns: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'stacks', num: P.dotPerStack, den: 1 }] },
+    buffStat: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
+    debuffStat: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.statPctTurn, den: 1 }] },
+    expose: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.exposePerPctTurnNum, den: P.exposePerPctTurnDen }] },
+    guard: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'product', fields: ['pct', 'turns'], num: P.guardPerPctTurnNum, den: P.guardPerPctTurnDen }] },
+    negate: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'charges', num: P.negatePerCharge, den: 1 }] },
     // The affliction mirror of negate, at half its rate: a charge denies ONE
     // EFFECT of a card (afflictions are riders) rather than a card's whole damage
     // line. Sits between the two removal keywords by construction —
     // cleanse 25 < ward 50 < negate 100 — and 50 deci makes the whole-PL step
     // exactly one charge. Self buff => empower family; prevents, never hits.
-    ward: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'charges', num: P.wardPerCharge, den: 1 }] },
+    ward: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'charges', num: P.wardPerCharge, den: 1 }] },
     // SCALABLE (user-locked 2026-08-17) and its OWN cap family ('cleanse', not
     // 'empower') — the one keyword the tier-scaler is allowed to grow, because
     // cleanse is self-repair, the mirror of a heal, and heals already scale
     // freely with tier. Every other empower/control member stays frozen.
-    cleanse: { isHit: false, scalable: true, family: 'cleanse', offensive: false, price: [{ form: 'perUnit', field: 'charges', num: P.cleansePerCharge, den: 1 }] },
+    cleanse: { isHit: false, scalable: true, family: 'cleanse', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'charges', num: P.cleansePerCharge, den: 1 }] },
 
-    slow: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'weight', num: P.slowPerWeightNum, den: P.slowPerWeightDen }] },
-    // SPLASH — `slow`'s card-scope sibling, priced at exactly 2x its rate:
-    // TWO pieces at slow's full rate, 2 being the band's guaranteed FLOOR on any
-    // board with more than one piece (the band runs 1..3 wide on the VICTIM's
-    // board, which the holder does not control, so the third piece is unpriced
-    // upside). Full derivation on `PRICE.splashPerWeightNum` in balance.ts.
-    // `control` family so it cannot dodge the control cap; `offensive` because
-    // it resolves against a foe (mirrors `isOffensiveAction`) — note that
-    // makes `scope: 'all'` + splash pay the AoE reach multiplier rather than
-    // price at a silent zero. Nothing can reach that price in practice: splash
-    // is single-target at the UNIT level, so `validateSkillContent` refuses an
-    // AUTHORED AoE+splash card and the splash gate in `resolveEffectiveSkill`
-    // (cards.ts) drops a GEM's splash on a multi-target host.
-    splash: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'weight', num: P.splashPerWeightNum, den: P.splashPerWeightDen }] },
-    disrupt: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'bracketed', field: 'amount', brackets: P.disruptBrackets }] },
-    lifesteal: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'pct', num: P.lifestealPerPctNum, den: P.lifestealPerPctDen }] },
-    shieldBreak: { isHit: false, scalable: false, family: 'control', offensive: true, price: [{ form: 'perUnit', field: 'amount', num: P.shieldBreakPerPointNum, den: P.shieldBreakPerPointDen }] },
-    comboBonus: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'amount', num: P.comboPerPointNum, den: P.comboPerPointDen }] },
+    slow: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'perUnit', field: 'weight', num: P.slowPerWeightNum, den: P.slowPerWeightDen }] },
+    // BURDEN — `slow`'s CARD-scope sibling, priced at slow's OWN per-point rate:
+    // one card taxed, one card's worth of tempo. Full derivation on
+    // `PRICE.burdenPerWeightNum` in balance.ts (including why the lifetime
+    // divergence — a burden always eventually gets paid, a slow often expires
+    // unpaid — is called a wash rather than measured).
+    // `control` family so it cannot dodge the control cap; `cardTargeting` so
+    // `splash` can spread it and so the pricer knows what the spread multiplies.
+    burden: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: true, price: [{ form: 'perUnit', field: 'weight', num: P.burdenPerWeightNum, den: P.burdenPerWeightDen }] },
+    // CURSE — burden's sibling on the DAMAGE axis: the targeted card deals
+    // `amount` less for `turns` turns. TWO TERMS, because the delivery has two
+    // parts and one product term can only describe one of them (see
+    // `PRICE.cursePerAmountNum` in balance.ts for the full derivation):
+    //   • the FIRST denial — the anchor is the card the victim is about to play,
+    //     so one denial is near-certain but not certain (a case-3 anchor can cool
+    //     out the whole window), priced at the flat-damage rate over the
+    //     CONDITIONAL-TRIGGER DISCOUNT, exactly like `comboBonus`;
+    //   • the REPEATS — one further firing per cooldown stride, i.e. `amount`
+    //     more denied per `BASELINE_COOLDOWN + 1` turns of window.
+    // `control` family (a debuff that denies the victim's output, alongside
+    // slow/expose/debuffStat), `cardTargeting`, `offensive`.
+    curse: {
+      isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: true,
+      price: [
+        { form: 'perUnit', field: 'amount', num: P.cursePerAmountNum, den: P.cursePerAmountDen },
+        { form: 'product', fields: ['amount', 'turns'], num: P.cursePerAmountTurnNum, den: P.cursePerAmountTurnDen },
+      ],
+    },
+    // SPLASH — THE SPREADER, and the one keyword whose price is not a function of
+    // its own fields, because it HAS no fields: it multiplies the COVERAGE of the
+    // cast's card-targeting effects (`cardTargeting` above). That multiplier is
+    // applied in `actionsPriceDeci` (balance.ts), which is the only place that can
+    // see the siblings it multiplies — the same structural reason the AoE reach
+    // multiplier lives there rather than as a term on a row.
+    //
+    // `unpricedReason` is therefore a POINTER, not an exemption: a splash on a
+    // cast with a payload costs a full extra band-floor's worth of that payload,
+    // and a splash with NO payload cannot be authored at all
+    // (`validateSkillContent`) nor spliced by a gem (THE SPLASH GATE's
+    // `nothingToSpread` arm). There is no reachable state in which it is free.
+    //
+    // `control` family so the multiplied spend still counts against the control
+    // cap; `offensive` to mirror `isOffensiveAction` kind-for-kind.
+    splash: {
+      isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false,
+      price: [],
+      unpricedReason:
+        'the spreader has no field of its own: it is priced as a COVERAGE MULTIPLIER on the cast\'s '
+        + 'card-targeting effects (PRICE.splashBandFloorNum), applied in actionsPriceDeci where those '
+        + 'siblings are visible. A splash with nothing to spread is refused at authoring and dropped '
+        + 'at the resolver seam, so it is never free.',
+    },
+    disrupt: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'bracketed', field: 'amount', brackets: P.disruptBrackets }] },
+    lifesteal: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'pct', num: P.lifestealPerPctNum, den: P.lifestealPerPctDen }] },
+    shieldBreak: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'perUnit', field: 'amount', num: P.shieldBreakPerPointNum, den: P.shieldBreakPerPointDen }] },
+    comboBonus: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'amount', num: P.comboPerPointNum, den: P.comboPerPointDen }] },
 
     // EXPLOIT / STACK BONUS — conditional FLAT bonus damage on the cast's own
     // hit, priced at the card's own damage rate over the conditional-trigger
@@ -225,19 +285,19 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // `isOffensiveAction`, which classifies both by KIND, including the
     // caster-side `of: 'caster'` form, because the bonus they arm is delivered
     // once per foe under `scope: 'all'`), so they pay the AoE reach multiplier.
-    exploit: { isHit: false, scalable: false, family: 'empower', offensive: true, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: P.conditionalBonusDen }] },
-    stackBonus: { isHit: false, scalable: false, family: 'empower', offensive: true, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
+    exploit: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: P.conditionalBonusDen }] },
+    stackBonus: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
 
     // TAX BONUS — the third reader in the family, and priced identically: its
     // `cap` at the card's own damage rate over the conditional discount. What it
-    // reads is the victim's TEMPO BACKLOG (splash-taxed pieces + a pending slow,
+    // reads is the victim's TEMPO BACKLOG (burdened pieces + a pending slow,
     // `taxedCardCount`) rather than an affliction pile, but the shape is the
     // same — a bounded flat add behind a gate the card cannot supply on its own,
     // so `per` is unpriced and the ceiling is the priced thing (`stackBonus`'s
     // rule; a huge `per` merely degenerates the rider into "+cap if taxed at
     // all"). `offensive: true`, `family: 'empower'`, `isHit: false` for exactly
     // the reasons spelled out above.
-    taxBonus: { isHit: false, scalable: false, family: 'empower', offensive: true, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
+    taxBonus: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
 
     // SHIELD BURST — the family's SPENDER: it converts up to `cap` points of the
     // caster's OWN shield into flat bonus damage on this cast's hit, and the
@@ -256,15 +316,15 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // why an authored `scope: 'all'` + `shieldBurst` card is REFUSED by
     // `validateSkillContent` (one wall spent once must not be delivered five
     // times at a single-target price) — the same refuse-rather-than-price call
-    // `splash` makes just above.
-    shieldBurst: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
+    // `splash` makes just above (see its `unpricedReason`).
+    shieldBurst: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
 
     // PRICED (balance-designer pass, 2026-08-18) — closes the last KNOWN
     // SILENT ZERO: `taunt` had an interpreter implementation and no rate.
     // Empower family (self-only, no foe target) alongside its nearest
     // structural sibling `thorns` — see `PRICE.tauntPerPoint`'s doc comment
     // in balance.ts for the full "nearest priced comparable" derivation.
-    taunt: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnit', field: 'amount', num: P.tauntPerPoint, den: 1 }] },
+    taunt: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'amount', num: P.tauntPerPoint, den: 1 }] },
   };
 }
 

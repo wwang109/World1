@@ -60,8 +60,20 @@ function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined):
         expected.push(eff.charges);
         break;
       case 'slow':
-      case 'splash':
+      case 'burden':
         expected.push(eff.weight);
+        break;
+      // CURSE: both numbers, like `expose`/`debuffStat` — how much softer the
+      // card hits and for how long are equally load-bearing, and the pair is
+      // what the effect is priced on (`PRICE.cursePerAmountNum`).
+      case 'curse':
+        expected.push(eff.amount, eff.turns);
+        break;
+      // SPLASH: nothing to check — the SPREADER has no magnitude at all (see
+      // its docs in engine/types.ts). What it changes is the REACH of the
+      // burden/curse beside it, whose own numbers are audited above. Its
+      // presence in the prose is a style-guide matter, not a numeric one.
+      case 'splash':
         break;
       case 'disrupt':
       case 'shieldBreak':

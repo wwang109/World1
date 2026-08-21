@@ -301,11 +301,28 @@ for (const e of events) {
     case 'slowed':
       console.log(`${t} │  ${tag(e.side, e.unit)} next action +${e.weight} weight (slowed)`);
       break;
-    case 'splashed':
+    // BURDEN — the card-scope weight tax. One slot = the bare burden on the
+    // anchor; several = a `splash` spread it across the band, which the line says
+    // outright so the spreader is legible in the log.
+    case 'burdened':
       console.log(
-        `${t} │  ${tag(e.side, e.unit)} splash +${e.weight} weight on slot${e.slots.length === 1 ? '' : 's'} `
+        `${t} │  ${tag(e.side, e.unit)} burden +${e.weight} weight on slot${e.slots.length === 1 ? '' : 's'} `
         + `${e.slots.map((slot) => (slot === e.anchorSlot ? `[${slot + 1}]` : String(slot + 1))).join(' ')} `
-        + `(anchor in brackets)`,
+        + `(anchor in brackets)${e.slots.length > 1 ? ' [splash]' : ''}`,
+      );
+      break;
+    // CURSE — burden's twin on the damage axis, same line shape plus the window.
+    case 'cursed':
+      console.log(
+        `${t} │  ${tag(e.side, e.unit)} curse -${e.amount} damage for ${e.turns} turn${e.turns === 1 ? '' : 's'} on slot${e.slots.length === 1 ? '' : 's'} `
+        + `${e.slots.map((slot) => (slot === e.anchorSlot ? `[${slot + 1}]` : String(slot + 1))).join(' ')} `
+        + `(anchor in brackets)${e.slots.length > 1 ? ' [splash]' : ''}`,
+      );
+      break;
+    case 'curseExpired':
+      console.log(
+        `${t} │  ${tag(e.side, e.unit)} curse wears off on slot${e.slots.length === 1 ? '' : 's'} `
+        + `${e.slots.map((slot) => String(slot + 1)).join(' ')}`,
       );
       break;
     case 'disrupted':

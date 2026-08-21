@@ -100,7 +100,16 @@ function seedAction(kind: Action['kind']): Action {
     // "the solver grows it from nothing" is the rule, not a per-keyword judgement.
     case 'ward': return { kind, charges: 0 };
     case 'slow': return { kind, weight: 0 };
-    case 'splash': return { kind, weight: 0 };
+    case 'burden': return { kind, weight: 0 };
+    // CURSE grows on `amount`; `turns` is seeded at 1 (not 0) because a 0-turn
+    // curse is DROPPED by the engine and refused by the validator — the solver
+    // must start from something that can actually land.
+    case 'curse': return { kind, amount: 0, turns: 1 };
+    // THE SPREADER has no field to seed or grow (see its docs in
+    // engine/types.ts). Scaffolding it alone would produce a card the validator
+    // refuses ("a splash action needs something to spread"), so it is seeded as
+    // the bare action and expected to be paired by hand with a burden/curse.
+    case 'splash': return { kind };
     case 'disrupt': return { kind, amount: 0 };
     case 'lifesteal': return { kind, pct: 0 };
     case 'shieldBreak': return { kind, amount: 0 };
@@ -116,7 +125,7 @@ const GROW_FIELD: Partial<Record<Action['kind'], string>> = {
   damage: 'power', heal: 'power', shield: 'power',
   poison: 'stacks', burn: 'stacks', bleed: 'stacks', thorns: 'stacks',
   buffStat: 'pct', debuffStat: 'pct', expose: 'pct', guard: 'pct',
-  slow: 'weight', splash: 'weight', disrupt: 'amount', lifesteal: 'pct',
+  slow: 'weight', burden: 'weight', curse: 'amount', disrupt: 'amount', lifesteal: 'pct',
   shieldBreak: 'amount', comboBonus: 'amount',
   negate: 'charges', cleanse: 'charges', ward: 'charges',
 };
@@ -237,7 +246,9 @@ function phrase(a: Action): string {
     case 'cleanse': return `{{Cleanse}} ${a.charges} ailment${a.charges > 1 ? 's' : ''}`;
     case 'ward': return `{{Ward}} ${a.charges} — prevent the next ${a.charges > 1 ? `${a.charges} ailments` : 'ailment'} outright`;
     case 'slow': return `Enemy's next action is +${a.weight} heavier`;
-    case 'splash': return `{{Splash}} +${a.weight} weight on the enemy's current card and the ones either side of it`;
+    case 'burden': return `{{Burden}} +${a.weight} weight on the card the enemy is about to play`;
+    case 'curse': return `{{Curse}} the card the enemy is about to play deals ${a.amount} less damage for ${a.turns} turns`;
+    case 'splash': return `{{Splash}} — and on the cards either side of it`;
     case 'disrupt': return `{{Disrupt}} ${a.amount} banked readiness`;
     case 'lifesteal': return `{{Lifesteal}} ${a.pct}% of damage dealt`;
     case 'shieldBreak': return `{{Shatter}} ${a.amount} enemy shield`;

@@ -305,22 +305,33 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
       // TAX BONUS — `per` per taxed card and the CAP, the same two numbers
       // `stackBonus` prints and for the same reason (the cap is what it is worth
       // and what it is priced on). "TAXED" is the noun the tempo keywords already
-      // use on the face (SLOW +N / SPLASH +N WT are the taxes), so no new one is
+      // use on the face (SLOW +N / BURDEN +N WT are the taxes), so no new one is
       // invented; the token borrows `slow`'s color, the family both taxes share.
       case 'taxBonus': extras.push({ text: `+${action.per}/TAXED CARD (cap ${action.cap})`, keyword: 'slow' }); break;
       case 'slow': extras.push({ text: `SLOW +${action.weight}`, keyword: 'slow' }); break;
-      // User ruling (2026-08-20): "I been seeing splash +6 band, what does
-      // that even mean." SPLASH is `slow` at CARD scope, so its number is the
-      // SAME weight tax SLOW prints above — it now carries the same WT unit
-      // instead of the invented noun "BAND". The shape BAND used to name (the
-      // anchor slot plus its edge-to-edge neighbours: 3 pieces mid-board, but
-      // only 2 on a 2-card board or at a board edge — the band never wraps —
-      // and 1 on a 1-card board) is real and still explained in full, just not
-      // on the compact face: it lives in `cardGlossary.ts`'s `splash` entry
-      // (tap-to-expand) and `combat/splash.ts`. "×3" would still be wrong here
-      // for the reason the old comment gave — the engine doesn't guarantee a
-      // fixed count — so the fix is the established unit, not a corrected count.
-      case 'splash': extras.push({ text: `SPLASH +${action.weight} WT`, keyword: 'splash' }); break;
+      // BURDEN — the weight tax at CARD scope, so its number is the SAME weight
+      // SLOW prints above and it carries the same WT unit. (User ruling
+      // 2026-08-20, on the token this replaces: "I been seeing splash +6 band,
+      // what does that even mean." The unit was the fix then; the 2026-08-21
+      // split makes the KEYWORD honest too — the +N WT belongs to the tax, which
+      // is `burden`, not to the spreader.)
+      case 'burden': extras.push({ text: `BURDEN +${action.weight} WT`, keyword: 'burden' }); break;
+      // CURSE — the same shape one currency over: how much LESS the cursed card
+      // hits for, and for how long. `-N DMG` rather than a bare number because
+      // the sign is the whole point (every other DMG token on a face is damage
+      // dealt), and the `Nt` turn suffix is the form expose/guard already use.
+      case 'curse': extras.push({ text: `CURSE -${action.amount} DMG ${action.turns}t`, keyword: 'curse' }); break;
+      // SPLASH — NO NUMBER AT ALL, because the spreader has none (see its docs in
+      // engine/types.ts). A bare `SPLASH` token beside `BURDEN +6 WT` reads as
+      // "that burden, spread", which is exactly what the card does; printing a
+      // weight here is the misread the keyword split undid. The shape it names
+      // (the anchor plus its edge-to-edge neighbours: 3 pieces mid-board, 2 at a
+      // board edge, 1 on a lone card — it never wraps) is real and still
+      // explained in full, just not on the compact face: it lives in
+      // `cardGlossary.ts`'s `splash` entry (tap-to-expand) and
+      // `combat/splash.ts`. "×3" would be wrong here for the reason the old
+      // comment gave — the engine doesn't guarantee a fixed count.
+      case 'splash': extras.push({ text: 'SPLASH', keyword: 'splash' }); break;
       case 'disrupt': extras.push({ text: `STAG ${action.amount}`, keyword: 'disrupt' }); break;
       // `statStrike` (the Resonant Echo gem's payload — see gems.ts) is an
       // EXTRA, self-contained hit with no `power` of its own (engine/types.ts):

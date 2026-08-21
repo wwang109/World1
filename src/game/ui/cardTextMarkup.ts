@@ -87,16 +87,32 @@ export const KEYWORD_TEXT_COLOR: Record<string, string> = {
   lifesteal: '#e07a90',
   disrupt: '#e0b060',
   slow: '#d8c078',
-  // Splash is slow one scope down (card-scope band tax vs unit-wide) — kept
-  // in the same warm amber family as `slow` so the two read as related, but
-  // NOT the same shade: `slow`'s old sibling value here (`#c8b8a0`, HSL
-  // 36°/27%/71%) was so desaturated and close in lightness to the plain
-  // body-text color (`#f1efe8` in FantasyCardTemplateV2.ts) that it read as
-  // un-highlighted body text rather than a keyword — a genuine legibility
-  // defect, not a shade choice (2026-08-19 fix). This value is a real
-  // saturated hue (30°/54%/49%) — deeper and more than DOUBLE the saturation
-  // of the old one — so it pops the way every other keyword in this map does.
-  splash: '#c07c3a',
+  // BURDEN is slow one scope down (card-scope tax vs unit-wide), so it takes the
+  // shade the tax family already had — kept in the same warm amber family as
+  // `slow` so the two read as related, but NOT the same shade: `slow`'s old
+  // sibling value here (`#c8b8a0`, HSL 36°/27%/71%) was so desaturated and close
+  // in lightness to the plain body-text color (`#f1efe8` in
+  // FantasyCardTemplateV2.ts) that it read as un-highlighted body text rather
+  // than a keyword — a genuine legibility defect, not a shade choice (2026-08-19
+  // fix). This value is a real saturated hue (30°/54%/49%) — deeper and more than
+  // DOUBLE the saturation of the old one — so it pops the way every other keyword
+  // in this map does. (It was `splash`'s colour until 2026-08-21, when the weight
+  // tax was split out of the spreader; the colour followed the TAX, which is the
+  // thing a player was learning to recognise.)
+  burden: '#c07c3a',
+  // SPLASH is now the SPREADER — it has no payload of its own, it widens the
+  // reach of the burden/curse beside it. Deliberately NOT in the tax family's
+  // amber: it is not a tax, and colouring it like one is exactly the misread the
+  // 2026-08-21 split exists to undo. A cool neutral steel reads as "geometry"
+  // (the band) next to the warm burden/curse it modifies, and stays clear of
+  // every existing family (shield/guard blues are lighter and bluer).
+  splash: '#9aa6b4',
+  // CURSE is burden's sibling on the DAMAGE axis, so it borrows from the
+  // damage-denial end of the palette rather than the tax end: a desaturated
+  // violet, adjacent to `expose` (#a678d8, the other card-vs-damage debuff) but
+  // darker and greyer, so "they hit softer" and "they take more" are relatives
+  // without being confusable.
+  curse: '#8f76b0',
   combo: '#e8c060',
   shatter: '#d88f6a',
   thorns: '#3f9e7a',

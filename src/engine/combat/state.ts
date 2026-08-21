@@ -110,20 +110,21 @@ export interface PieceState {
    */
   lastCastTurn?: number;
   /**
-   * CARD-SCOPE weight tax pending on THIS piece (from an enemy `splash`): the
+   * CARD-SCOPE weight tax pending on THIS piece (from an enemy `burden`): the
    * next time this piece is played it costs this much extra weight, and the
    * penalty is then consumed (`simulate.ts`, beside `c.nextWeightPenalty = 0`).
    * The unit-scope sibling is `CombatantState.nextWeightPenalty`; both are
    * summed into the cast weight in `castSelect.ts` and both are `Math.max`ed
    * rather than summed on re-application.
    *
-   * LIFETIME DIVERGENCE, deliberate and pending a ruling: splash is still
-   * "until that piece is next played", with NO turn limit — it is the one
-   * remaining tax that can cross a turn boundary. `slow` was narrowed to a
-   * single turn on 2026-08-18; whether splash should follow has not been
-   * decided (it is a one-line change here plus a re-price, since a tax that can
-   * expire unpaid is worth strictly less than one that is always eventually
-   * paid). See `CombatantState.nextWeightPenalty`.
+   * LIFETIME DIVERGENCE, deliberate: a burden is "until that piece is next
+   * played", with NO turn limit — it is the one tax that can cross a turn
+   * boundary. `slow` was narrowed to a single turn on 2026-08-18; the card-scope
+   * tax deliberately did not follow, and its price says so
+   * (`PRICE.burdenPerWeightNum`: slow's full per-point rate, because a burden
+   * that lands later but can never expire unpaid is called a wash against a slow
+   * that lands now but often expires unpaid). See
+   * `CombatantState.nextWeightPenalty`.
    *
    * LAZILY WRITTEN, NEVER INITIALISED — the same idiom as `lastCastTurn` above,
    * and for a hard reason: `undefined` is dropped by `JSON.stringify` but `0` is
@@ -135,6 +136,36 @@ export interface PieceState {
    * Integer, so persisted state stays float-free and deterministic.
    */
   nextWeightPenalty?: number;
+  /**
+   * CARD-SCOPE damage penalty pending on THIS piece (from an enemy `curse`):
+   * while it stands, this piece's casts deal `amount` LESS damage.
+   *
+   * THE SIBLING OF `nextWeightPenalty` ABOVE, one currency over: burden taxes
+   * WHEN the card comes out, curse taxes HOW HARD it lands. Both are per-piece,
+   * both are written by the same two keywords' shared geometry
+   * (`cardTargetPieces`, combat/splash.ts), and both are `Math.max`ed rather
+   * than summed on re-application.
+   *
+   * IT IS APPLIED, NOT STORED, AS DAMAGE: `resolveAuras` (combat/auras.ts) folds
+   * `-amount` into the piece's `mods.damageFlat`, the same attacker-side flat
+   * channel board auras and card-scope stat gems ride, so the min-1 damage floor
+   * and every mitigation rule downstream apply unchanged and no arithmetic is
+   * duplicated.
+   *
+   * TIMED IN GLOBAL TURNS, as an ABSOLUTE `expiresAtTurn` rather than a
+   * countdown: `expiresAtTurn = turn + turns` at apply time, and the piece is
+   * cleared in the end-of-turn pass of that turn (`expireCurses`, simulate.ts).
+   * Absolute because a countdown would need every board's every piece walked
+   * every turn just to decrement; this way the pass only has to compare.
+   * A re-curse takes `Math.max` on BOTH fields independently — the stronger
+   * amount AND the later expiry, the `expose` refresh rule.
+   *
+   * LAZILY WRITTEN AND `delete`d ON EXPIRY, for exactly the reason spelled out
+   * on `nextWeightPenalty` above: an un-cursed piece must carry no key at all,
+   * or every hash in the outcome baseline moves for zero behaviour change. Both
+   * fields are integers, so persisted state stays float-free.
+   */
+  curse?: { amount: number; expiresAtTurn: number };
 }
 
 export interface CombatantState {
@@ -452,13 +483,19 @@ export function spendShieldsForBurst(c: CombatantState, cap: number): number {
  * HOW MANY WEIGHT-TAXED CARDS this unit is carrying — the quantity a `taxBonus`
  * rider scales off (`applyAction`, combat/interpreter.ts).
  *
- * Every board piece with a pending `splash` tax counts one
+ * Every board piece with a pending `burden` counts one
  * (`PieceState.nextWeightPenalty`), and a pending unit-scope `slow`
  * (`CombatantState.nextWeightPenalty`) counts ONE MORE — the slow taxes the very
  * next card this unit plays, so it is part of the same backlog the reaper is sold
  * on punishing (see the action's docs in types.ts).
  *
- * `> 0`, not `!== undefined`: the splash arm writes with `Math.max`, so a
+ * IT READS THE FIELD, NOT THE KEYWORD, so it survived the 2026-08-21 splash
+ * split untouched: `burden` writes the same `PieceState.nextWeightPenalty` the
+ * old `splash weight N` wrote, whether one piece carries it (burden alone) or
+ * three do (burden + splash). A `curse` is NOT counted — it is a damage
+ * penalty, not a weight tax, and the reaper is sold on tempo backlog.
+ *
+ * `> 0`, not `!== undefined`: the burden arm writes with `Math.max`, so a
  * zero-weight tax is representable and taxes nothing — a card that is not
  * actually slowed must not be counted. Indexed walk over the slot-sorted
  * `pieces` array; integers only, no RNG.

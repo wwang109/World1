@@ -337,3 +337,98 @@ Rules are pinned in `tests/engine/thorns.test.ts`. The 400-case outcome baseline
 is **byte-identical**: the frozen sweep pool
 (`tests/engine/fixtures/frozenSweepSkillIds.ts`, snapshotted 2026-08-08) carries
 no thorns card at all, measured 0/400 carriers and 0 reflects.
+
+---
+
+## 10. Card-targeting keywords: `burden`, `curse`, and the `splash` spreader (locked 2026-08-21)
+
+**User ruling, verbatim:** *"splash is an effect that spread other effect. It
+doesn't just spread wt."*
+
+`splash` shipped 2026-08-18 as `{ kind: 'splash', weight }` — one action that
+both chose a band and taxed weight on it. That conflated a SPREADER with its
+first PAYLOAD. The keyword is now three:
+
+| keyword | payload | reach |
+|---|---|---|
+| `burden` (`weight`) | +weight on that card's NEXT play, then spent | the ANCHOR |
+| `curse` (`amount`, `turns`) | −amount damage from that card for N global turns | the ANCHOR |
+| `splash` | **none** | turns either of the above into the whole BAND |
+
+### The anchor and the band
+
+Both are computed by `cardTargetPieces` (`src/engine/combat/splash.ts`), the one
+seam every card-targeting arm calls — which is why `splash` means exactly the same
+thing for both keywords, and will for the next one.
+
+- **THE ANCHOR** is "the target's current turn's card": the piece the victim's
+  `castCursor` sits in; else the nearest piece AHEAD of the cursor; else — parked
+  past the last card — the LAST CARD PLAYED. **Nothing wraps** (user-locked
+  2026-08-19): the board is a line.
+- **THE BAND** is the anchor plus the piece immediately before and immediately
+  after it, measured **edge-to-edge, piece-to-piece** (`footprintGaps`, the same
+  arithmetic aura coverage uses). A size-3 card is ONE neighbour, an empty slot
+  between two cards does not break adjacency, and the band does not wrap — so it
+  is **1 to 3 pieces wide**, decided by the VICTIM's board.
+
+### The rules that hold for both payloads
+
+- **Single-target at the UNIT level.** The cast resolves against one foe; what
+  spreads is across that foe's own BOARD, never their team. `scope: 'all'` +
+  `splash` is refused at authoring, and a gem `splash` is dropped on a
+  multi-target host. (An AoE card carrying a bare `burden`/`curse` is legal: one
+  card per foe is the linear reach an AoE `slow` already has, and it pays the
+  reach multiplier. It is band × foes that is refused.)
+- **Non-stacking.** A re-application takes the STRONGER value, never a sum
+  (`burden`: `max` on the weight; `curse`: `max` on the amount AND, separately,
+  on the expiry — the `expose` refresh rule). An unbounded stack would lock a
+  card out of the fight.
+- **A spreader with nothing to spread is refused**, not ignored:
+  `validateSkillContent` fails the card, and THE SPLASH GATE
+  (`spliceGemActions`, `src/engine/cards.ts`) drops a gem's splash when neither
+  the host nor the gem supplies a payload — alongside its two older arms
+  (multi-target host, host already splashes).
+- **The spreader is CAST-SCOPED, not positional** (`castSpreadsBand`): a gem
+  `splash`, which splices AFTER the host's effects, still spreads the host's own
+  burden. That independence is the socket the gem exists for.
+
+### How each one ENDS — the deliberate asymmetry
+
+- A **burden** rides its piece until that piece is next played, however many
+  turns that takes, and is then **spent** (`delete piece.nextWeightPenalty` at the
+  one site a cast really resolves). Unlike a `slow`, it never expires unpaid.
+- A **curse** ends on a **clock**: `expiresAtTurn = applyTurn + turns`, deleted in
+  the end-of-turn pass of that turn (`expireCurses`, `simulate.ts`) — the same
+  window a `fresh` N-turn status gets — and announced by a `curseExpired` event.
+  A play does NOT end it; a cursed card that fires twice inside its window is
+  weakened twice.
+
+A curse is applied by folding `−amount` into that piece's `mods.damageFlat`
+(`resolveAuras`), the same attacker-side flat channel board auras and card-scope
+stat gems ride. So every downstream rule — mitigation order, the **min-1 damage
+floor**, per-hit application on a multi-hit card — applies unchanged, and no
+arithmetic is duplicated. A curse deeper than the whole hit floors at 1; it never
+heals.
+
+### Pricing (the split is byte-honest)
+
+`burden` costs `slow`'s OWN per-point rate (one card taxed, one card's worth of
+tempo). `splash` has no field to price, so it prices as a **coverage multiplier**
+(×2, the band's guaranteed 2-piece floor) on the summed price of the cast's
+card-targeting effects — applied in `actionsPriceDeci`, exactly where the AoE
+reach multiplier is applied and for the same reason. The retired
+`splashPerWeightNum/Den` (5 deci/weight) WAS those two multiplied, so
+`burden N + splash` prices to the deci what `splash weight N` did: the three
+shipped cards (`shockwave_slam`, `arc_cascade`, `line_breaker`) and both gems
+(`tremor_sliver`, `fracture_sliver`) all kept their exact budgets and bands.
+`curse` prices its near-certain first denial (the flat-damage rate at the
+conditional-trigger discount) plus its repeats (one further firing per
+`BASELINE_COOLDOWN + 1` turns). Full derivations: `PRICE.burdenPerWeightNum`,
+`PRICE.splashBandFloorNum`, `PRICE.cursePerAmountNum` in `src/engine/balance.ts`.
+
+Rules are pinned in `tests/engine/splash.test.ts`. The 400-case outcome baseline
+is **byte-identical**: no card of this family is in the frozen sweep pool, and the
+migration was additionally proven by diffing full event logs of the three shipped
+cards and both gems on fixed seeds before and after the split (21/21 fights
+identical, with only the band-application event's NAME normalised — `splashed`
+became `burdened`).

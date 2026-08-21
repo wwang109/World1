@@ -71,7 +71,7 @@ export function scanCast(c: CombatantState, skillBook: SkillBook, opts: SelectOp
     const { mods, sources } = resolveAuras(c, piece, skillBook);
     // THE single place a cast's weight is summed: card base + auras/gems +
     // the UNIT-scope pending tax (`slow`) + the CARD-scope pending tax on this
-    // very piece (`splash`). Never below 1.
+    // very piece (`burden`). Never below 1.
     //
     // READ-ONLY, DELIBERATELY: `scanCast` also runs SPECULATIVELY — the
     // performer search and the `wait`/`cantAfford` explanation pass in
