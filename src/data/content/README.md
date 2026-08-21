@@ -160,6 +160,10 @@ field on an action is an error.
 | `stackBonus` | `status`, `of`, `per`, `cap` (all four required) |
 | `taxBonus` | `per`, `cap` (both required) |
 | `shieldBurst` | `cap` (required) |
+| `wardRelease` | `per`, `cap` (both required) |
+| `desperation` | `amount` |
+| `overhealShield` | `cap` (required) |
+| `cleanseConvert` | `per`, `cap` (both required) |
 
 `stat`: `attack` `magicPower` `armor` `magicResist` `speed`.
 
@@ -167,38 +171,66 @@ field on an action is an error.
 `poison` `burn` `bleed` `thorns` for `stackBonus` (it needs a pile with stacks).
 `of`: `caster` (read your own pile) or `target` (read the victim's).
 
-`cap` is REQUIRED on `stackBonus`/`taxBonus`/`shieldBurst` and is the only thing
-priced: the payload is `min(per × count, cap)` (or `min(your shield, cap)`), which
-is unbounded in a resource the card does not own, so only the ceiling can carry an
-honest price. A big `per` is free — it just makes the rider reach its cap sooner.
+`cap` is REQUIRED on `stackBonus`/`taxBonus`/`shieldBurst`/`wardRelease`/
+`overhealShield`/`cleanseConvert` and is the only thing priced: the payload is
+`min(per × count, cap)` (or `min(your shield, cap)`, or `min(this heal's overflow,
+cap)`), which is unbounded in a resource the card does not own, so only the ceiling
+can carry an honest price. A big `per` is free — it just makes the rider reach its
+cap sooner. `exploit` and `desperation` have no count to multiply, so their flat
+`amount` IS the priced magnitude.
 
-**Ordering rule for the four conditional riders** — `exploit`, `stackBonus`,
-`taxBonus`, `shieldBurst` (user-locked 2026-08-21). Every one of them reads a
-resource that is ALREADY there and hands a flat bonus to the cast's damage, so the
-authored effect list must run **rider → damage → anything this card supplies**.
-The validator rejects anything else: a rider behind the damage arms a bonus nothing
-can spend, and this card's own line ahead of the damage would let the card trigger
-itself on its first cast — the payoff is meant to land on the NEXT one.
+**Ordering rule for the eight conditional riders** — `exploit`, `stackBonus`,
+`taxBonus`, `shieldBurst`, `wardRelease`, `desperation`, `overhealShield`,
+`cleanseConvert` (user-locked 2026-08-21). Every one of them reads a resource that
+is ALREADY there and hands a flat bonus to the cast, so the authored effect list
+must run **rider → the action it feeds → anything this card supplies**. The
+validator rejects anything else: a rider behind what it feeds arms a bonus nothing
+can spend, and this card's own line ahead of it would let the card trigger itself
+on its first cast — the payoff is meant to land on the NEXT one.
+
+**WHAT EACH RIDER FEEDS.** Six of them arm bonus DAMAGE, so a `damage` action must
+follow. The two heal-side ones — `overhealShield` and `cleanseConvert` — arm the
+cast's own HEAL, so a **`heal`** action must follow instead; the validator names the
+right kind in the error, and a heal rider on a card with only a damage line is
+rejected as the priced no-op it is.
+
+**`cleanseConvert` is ordered BOTH WAYS**, and it is the only one: it converts the
+stacks its own cleanse actually removed, so a `cleanse` must sit **before** it and
+the `heal` **after** it — `cleanse → cleanseConvert → heal`. This is not an
+exception to the ruling: the rider still reads something that is already there when
+it runs. Its own cleanse is the conversion MECHANISM, not the gate (the gate is
+"somebody on your side is afflicted", which only the enemy supplies), which is why
+it keeps the discount despite carrying its own cleanse.
 
 What counts as "supplies", per rider: `poison`/`burn`/`bleed`/`stun`/`debuffStat`/
-`expose`/`thorns` for the status readers, `shield` for `shieldBurst` (caster-side),
-and BOTH `slow` and `burden` for `taxBonus` (it counts either tax; `splash`
-supplies nothing — it only widens a burden's reach). Side matters:
-`stackBonus` with `of: 'caster'` is only ordered against CASTER-side applications
-(i.e. `thorns`), and a `shield` line is irrelevant to a `taxBonus` card.
+`expose`/`thorns` for the status readers, `shield` (and `overhealShield`, which
+banks plating out of a heal) for `shieldBurst` (caster-side), `ward` for
+`wardRelease` (caster-side), and BOTH `slow` and `burden` for `taxBonus` (it counts
+either tax; `splash` supplies nothing — it only widens a burden's reach, and
+`curse` supplies nothing either, since a weight tax is not what it puts there).
+Side matters: `stackBonus` with `of: 'caster'` is only ordered against CASTER-side
+applications (i.e. `thorns`), and a `shield` line is irrelevant to a `taxBonus`
+card.
+
+**Three gates cannot be self-supplied at all**, so `desperation`, `overhealShield`
+and `cleanseConvert` always price at the discount and can never owe the
+self-synergy premium: no keyword can lower the caster's own HP fraction, raise an
+ally past full, or afflict your own side.
 
 **`slow` gets no exception**, even though it expires at end of turn: the ruling is
 about self-triggering, not about how long the resource lasts. A `slow` + `taxBonus`
 card still pays off on a SECOND cast in the same turn; a `burden` + `taxBonus` card
 pays off until the taxed piece is played.
 
-**`scope: 'all'` is refused with `splash` and with `shieldBurst`.** Splash is
-single-target at the unit level; a burst spends ONE wall ONCE and its bonus would
-otherwise be handed to every foe at a single-target price (it is a caster-side
-keyword, so it pays no AoE reach multiplier). An AoE `taxBonus` is fine — it is
-armed per victim and does pay reach. So is an AoE `burden`/`curse`: one card per
-foe is the same linear reach an AoE `slow` has, priced by the reach multiplier —
-it is band × foes that the splash rule refuses.
+**`scope: 'all'` is refused with `splash`, `shieldBurst` and `wardRelease`.** Splash
+is single-target at the unit level; a burst spends ONE wall ONCE and a release ONE
+pile of charges ONCE, and either bonus would otherwise be handed to every foe at a
+single-target price (both are caster-side keywords, so they pay no AoE reach
+multiplier). An AoE `taxBonus` or `desperation` is fine — both are armed per victim
+and do pay reach. So is an AoE `burden`/`curse`: one card per foe is the same linear
+reach an AoE `slow` has, priced by the reach multiplier — it is band × foes that the
+splash rule refuses. The two heal-side riders need no rule at all: a `heal` resolves
+once on the support target whatever the scope.
 
 ### The card-targeting keywords and their spreader
 

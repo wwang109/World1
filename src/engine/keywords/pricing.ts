@@ -319,6 +319,60 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // `splash` makes just above (see its `unpricedReason`).
     shieldBurst: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
 
+    // WARD RELEASE — `shieldBurst`'s twin one currency over, and priced by exactly
+    // the same three decisions for exactly the same reasons: its `cap` at
+    // `strikeRate` over the conditional discount (`per` is free, the ceiling is the
+    // priced thing), `family: 'empower'` so it shares the conditional-bonus
+    // ceiling, and `offensive: FALSE` because the resource is the caster's own
+    // ward pile, so it resolves ONCE on the caster and arms the scalar
+    // `bonusFlat`. That last one is again why an authored `scope: 'all'` +
+    // `wardRelease` card is REFUSED by `validateSkillContent` rather than priced.
+    //
+    // It is CONSERVATIVE on the same second count as the burst: it destroys the
+    // resource it reads (a spent charge is one affliction that will now land), so
+    // its true worth is strictly below a free conditional bonus of the same size.
+    // Over-, never under-priced.
+    wardRelease: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
+
+    // DESPERATION — `exploit`'s shape with the gate moved to the caster's own HP
+    // bar, so it prices IDENTICALLY: flat `amount` at `strikeRate` over the
+    // conditional discount, TRUE premium included (a flat bonus bypasses defense on
+    // a TRUE card exactly as its flat base does). `offensive: true` because the
+    // bonus is armed PER VICTIM — the same call `stackBonus` with `of: 'caster'`
+    // makes, and what makes an AoE desperation card pay the reach multiplier.
+    //
+    // THE DISCOUNT IS UNCONDITIONALLY SAFE HERE, uniquely in the family: no kit can
+    // supply "the caster is at half HP" (maxHp is not buffable and no keyword
+    // damages its own caster), so `selfSynergyPremiumDeci` is 0 for it by
+    // construction — there is no full-rate variant to escape to.
+    desperation: { isHit: false, scalable: false, family: 'empower', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: P.conditionalBonusDen }] },
+
+    // OVERHEAL SHIELD / CLEANSE CONVERT — the family's two HEAL-SIDE members. Same
+    // denominator (`conditionalBonusDen`), same "the required cap is the priced
+    // thing" rule, same `empower` family — but the NUMERATOR is the rate of what
+    // they actually deliver, not `strikeRate`:
+    //  • `overhealShield` banks PLATING, so it divides `shieldRate`. A converted
+    //    point of shield is worth exactly what a granted point of the same pool is
+    //    worth, which is the only reading under which the discount means the same
+    //    thing here as it does on the damage side. Note `shieldRate` charges TRUE
+    //    at `flatTrueShieldPerPoint` rather than a doubled typed rate: a TRUE
+    //    overheal wall costs what a TRUE `shield` line costs, no more.
+    //  • `cleanseConvert` delivers HEALING, so it divides `healRate` — including
+    //    TRUE heals' own cheaper flat rate. Pricing either at `strikeRate` would
+    //    charge a defensive payload at an offensive rate and, on TRUE, invent a
+    //    damage premium the payload never earns.
+    // BOTH ARE `offensive: false` and neither needs an AoE refusal: they feed a
+    // `heal`, which is a support action and resolves ONCE on the support target
+    // whatever the card's scope, so there is no fan-out to hand one conversion to
+    // five units (the hole `shieldBurst`/`wardRelease` are refused over).
+    //
+    // ALL FOUR RIDERS OF THIS PASS ARE `cardTargeting: false`: they read and arm
+    // quantities on UNITS (a ward pile, an HP bar, a heal's overflow, a cleanse's
+    // result), never a piece of the victim's board — so the `splash` spreader has
+    // nothing to widen about them and its coverage multiplier never applies.
+    overhealShield: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: shieldRate, den: P.conditionalBonusDen }] },
+    cleanseConvert: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: healRate, den: P.conditionalBonusDen }] },
+
     // PRICED (balance-designer pass, 2026-08-18) — closes the last KNOWN
     // SILENT ZERO: `taunt` had an interpreter implementation and no rate.
     // Empower family (self-only, no foe target) alongside its nearest

@@ -322,7 +322,24 @@ export type CombatEvent =
        * Optional in the type (not just by emitter) so hand-built fixtures and
        * previously captured logs stay assignable.
        */
-      calculation?: { power: number; statBonus: number; healFlat: number; property: Property };
+      calculation?: {
+        power: number; statBonus: number; healFlat: number; property: Property;
+        /**
+         * FLAT bonus healing armed by a rider on this same cast — today only
+         * `cleanseConvert` (heal per affliction stack its own cleanse stripped).
+         * Part of the REQUEST, so it is taxed by anti-heal and clamped by maxHp
+         * with everything else: the request is `power + statBonus + healFlat +
+         * bonus`, and the documented identity `amount + overheal +
+         * antiHeal.reduced = request` still holds with it included.
+         *
+         * OPTIONAL AND ONLY EVER `> 0` — omitted when no rider armed anything, so
+         * every heal event emitted before `cleanseConvert` existed stays
+         * byte-identical and assignable. A renderer that ignores it prints a
+         * breakdown that does not sum; one that reads it (see `formatHeal` in
+         * src/game/battleTimeline.ts) shows it as its own term.
+         */
+        bonus?: number;
+      };
     }
   | {
       turn: number;
@@ -353,6 +370,21 @@ export type CombatEvent =
        * remainder is reported as `wasted`.
        */
       calculation?: { power: number; statBonus: number };
+      /**
+       * `true` when this plating did NOT come from a `shield` action but from an
+       * `overhealShield` rider CONVERTING a heal's wasted remainder — the heal
+       * overflowed the recipient's maxHp and the overflow banked as shield instead
+       * of vanishing. One event either way, because playback needs exactly the same
+       * facts in both cases: which pool grew, by how much, and what the total is
+       * now. It carries NO `calculation`, on the same contract `lifesteal`'s heal
+       * follows — a conversion has no card base or stat term to split, and
+       * reporting `power = converted` would claim a base that does not exist.
+       *
+       * OPTIONAL AND ONLY EVER `true`: absent means the historical
+       * granted-by-a-card case, so every log captured before `overhealShield`
+       * existed stays byte-identical and assignable.
+       */
+      overheal?: true;
     }
   | { turn: number; kind: 'statusApplied'; side: Side; unit: number; status: StatusName; property?: Property; stat?: BuffableStat; pct?: number; amount?: number; stacks?: number; turns: number; charges?: number }
   /**
@@ -460,6 +492,21 @@ export type CombatEvent =
    * no stack/turn magnitude — what was denied is the whole application.
    */
   | { turn: number; kind: 'warded'; side: Side; unit: number; status: StatusName; chargesLeft: number }
+  /**
+   * A unit CASHED IN its own ward charges as damage (`wardRelease`) — the
+   * volunteered mirror of `warded`, which reports charges spent BY an affliction
+   * arriving. `charges` is how many left the unit in this one release (>= 1: the
+   * rider emits nothing when it releases nothing), `chargesLeft` the holder's
+   * remaining total afterwards. Every pile emptied by the release announces itself
+   * with a following `statusExpired` for `'ward'`, exactly as `consumeWard` does.
+   *
+   * A SEPARATE KIND rather than a flag on `warded`: that event's `status` names the
+   * affliction it PREVENTED and is deliberately non-optional, and a release
+   * prevents nothing — there is no honest subject to put there. (`shieldBurst`
+   * could reuse `shieldBroken` because "plating left the pools" was already the
+   * whole meaning of that event; "a ward stopped X" is not.)
+   */
+  | { turn: number; kind: 'wardReleased'; side: Side; unit: number; charges: number; chargesLeft: number }
   | { turn: number; kind: 'suddenDeathStart' }
   | { turn: number; kind: 'fatigueStart' }
   /**

@@ -87,18 +87,74 @@ const enemyDefs = enemyIds.map((id) => {
 
 // A plausible drafted starter board.
 const heroName = 'Hero';
+
+/**
+ * DEFAULT BOARD — the drafted-starter shape every plain `npm run fight` uses.
+ */
+const DEFAULT_HERO_PIECES = [
+  { skillId: 'war_banner', slot: 0 },
+  { skillId: 'sword_slash', slot: 1 },
+  { skillId: 'crushing_blow', slot: 2 },
+  { skillId: 'iron_bulwark', slot: 5 },
+  { skillId: 'second_wind', slot: 7 },
+];
+
+/**
+ * ...OVERRIDABLE, for eyeballing ONE card instead of the starter deck:
+ *
+ *   FIGHT_HERO_BOARD=aegis_of_the_unbroken,vow_broken npm run fight -- knight 7
+ *   FIGHT_HERO_HP=40 FIGHT_HERO_BOARD=cornered_beast npm run fight
+ *
+ * A comma-separated list of skill ids, laid out left to right from slot 0 with
+ * each card's own `size` advancing the cursor (the same packing `tests/helpers.ts`
+ * does). `FIGHT_HERO_HP` overrides starting HP only — maxHp is untouched, so it is
+ * the knob for "what does this look like at half health".
+ *
+ * ENV, not argv, deliberately: argv positions 2 and 3 are the documented
+ * enemy-spec/seed contract and adding a third positional would break every
+ * existing invocation in the docs. Absent env = byte-identical to before, which is
+ * what keeps this a debugging affordance rather than a behavior change.
+ */
+function heroPieces(): { skillId: string; slot: number }[] {
+  const spec = process.env['FIGHT_HERO_BOARD'];
+  if (spec === undefined || spec.trim() === '') return DEFAULT_HERO_PIECES;
+  const pieces: { skillId: string; slot: number }[] = [];
+  let slot = 0;
+  for (const raw of spec.split(',')) {
+    const skillId = raw.trim();
+    if (skillId === '') continue;
+    const def = skillBook[skillId];
+    if (!def) {
+      console.error(`FIGHT_HERO_BOARD: unknown skill '${skillId}'.`);
+      process.exit(1);
+    }
+    pieces.push({ skillId, slot });
+    slot += def.size;
+  }
+  if (pieces.length === 0) {
+    console.error('FIGHT_HERO_BOARD is empty.');
+    process.exit(1);
+  }
+  if (slot > HERO_BOARD_SLOTS) {
+    console.error(`FIGHT_HERO_BOARD needs ${slot} slots, board is ${HERO_BOARD_SLOTS}.`);
+    process.exit(1);
+  }
+  return pieces;
+}
+
+function heroStats(): typeof BASE_HERO_STATS {
+  const stats = { ...BASE_HERO_STATS };
+  const hp = process.env['FIGHT_HERO_HP'];
+  if (hp !== undefined && /^[0-9]+$/.test(hp)) stats.hp = Math.min(Number(hp), stats.maxHp);
+  return stats;
+}
+
 const playerTeam: CombatantSetup[] = [
   {
     name: heroName,
-    stats: { ...BASE_HERO_STATS },
+    stats: heroStats(),
     boardSize: HERO_BOARD_SLOTS,
-    pieces: [
-      { skillId: 'war_banner', slot: 0 },
-      { skillId: 'sword_slash', slot: 1 },
-      { skillId: 'crushing_blow', slot: 2 },
-      { skillId: 'iron_bulwark', slot: 5 },
-      { skillId: 'second_wind', slot: 7 },
-    ],
+    pieces: heroPieces(),
   },
 ];
 const enemyTeam: CombatantSetup[] = enemyDefs.map((enemy) => ({
@@ -258,6 +314,11 @@ for (const e of events) {
         };
         add(hc.property === 'physical' ? 'ARMOR' : 'MRES', hc.statBonus);
         add('AURA', hc.healFlat);
+        // A rider's flat contribution to the request (`cleanseConvert`). Part of
+        // the pre-tax request, so it sits ahead of the ANTIHEAL line. On a TRUE
+        // heal `hc.power` is the base alone and this term is what makes the sum
+        // add up.
+        add('RIDER', hc.bonus ?? 0);
         add('ANTIHEAL', -(e.antiHeal?.reduced ?? 0));
         add('OVERHEAL', -e.overheal);
         console.log(`${t} │  calc             ${terms.join(' ')} = ${e.amount} HP`);
@@ -265,7 +326,10 @@ for (const e of events) {
       break;
     }
     case 'shieldGain':
-      console.log(`${t} │  ${tag(e.side, e.unit)} +${e.amount} ${e.property} shield${e.wasted ? ` (${e.wasted} wasted)` : ''} -> ${e.totalAfter} total`);
+      // `overheal: true` = plating CONVERTED from a heal's wasted remainder
+      // (`overhealShield`), not granted by a `shield` line — worth naming, because
+      // the two are otherwise the same row.
+      console.log(`${t} │  ${tag(e.side, e.unit)} +${e.amount} ${e.property} shield${e.overheal ? ' from overheal' : ''}${e.wasted ? ` (${e.wasted} wasted)` : ''} -> ${e.totalAfter} total`);
       break;
     case 'statusApplied': {
       let detail = '';
@@ -340,6 +404,11 @@ for (const e of events) {
       break;
     case 'warded':
       console.log(`${t} │  ${tag(e.side, e.unit)} ward prevented ${e.status} -> ${e.chargesLeft} charge${e.chargesLeft === 1 ? '' : 's'} left`);
+      break;
+    case 'wardReleased':
+      // The volunteered mirror of `warded`: charges cashed in as damage
+      // (`wardRelease`) instead of spent stopping an affliction.
+      console.log(`${t} │  ${tag(e.side, e.unit)} releases ${e.charges} ward charge${e.charges === 1 ? '' : 's'} into the hit -> ${e.chargesLeft} left`);
       break;
     case 'suddenDeathStart':
       console.log(`${t} ⚡ SUDDEN DEATH — damage ramps each turn (+10% you, +30% foe)`);

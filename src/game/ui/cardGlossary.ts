@@ -331,6 +331,29 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
         title: 'Tempo toll',
         body: `+${action.per} damage per weight-taxed card on the target — every Burdened card, plus one if the unit itself is Slowed — up to +${action.cap}. Counted before this card taxes anything, and a slow only lasts the turn it landed on, so tax them FIRST, then collect.`,
       };
+    // The four riders of the third pass. The first two keep the family's rule
+    // verbatim (read before this card adds any of its own); the last two are the
+    // heal-side pair, whose rule is the opposite way round and has to say so.
+    case 'wardRelease':
+      return {
+        title: 'Ward release',
+        body: `Spends YOUR OWN ward charges for +${action.per} damage each, up to +${action.cap} — the charges are gone, so the next affliction aimed at you lands. Only charges you were already holding count: ward granted by this same cast pays off on your NEXT one.`,
+      };
+    case 'desperation':
+      return {
+        title: 'Desperation',
+        body: `+${action.amount} damage on this hit while YOU are at or below half your maximum HP. Nothing to set up and nothing to keep alive — it simply turns on when you are hurt, and off when you are healed past half.`,
+      };
+    case 'overhealShield':
+      return {
+        title: 'Overheal shield',
+        body: `Healing this card wastes on a full HP bar becomes shield instead of vanishing — up to ${action.cap} of it, in this card's own shield pool, on whoever was healed. Measured AFTER any anti-heal tax, and still bounded by the usual shield ceiling (max HP).`,
+      };
+    case 'cleanseConvert':
+      return {
+        title: 'Cleanse convert',
+        body: `+${action.per} healing for every affliction stack this card's own cleanse actually removes, up to +${action.cap}. It needs something to strip: cleanse nothing, heal nothing extra. The cleanse happens FIRST, so it can also lift the anti-heal tax off the heal that follows.`,
+      };
     case 'heal':
       return property === 'true'
         ? { title: 'TRUE heal', body: 'Flat — no stat added.' }

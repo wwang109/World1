@@ -460,7 +460,11 @@ export function formatDmg(c: NonNullable<Extract<CombatEvent, { kind: 'damage' }
 export function formatHeal(e: Extract<CombatEvent, { kind: 'heal' }>): string | undefined {
   const c = e.calculation;
   const reduced = e.antiHeal?.reduced ?? 0;
-  const buildUp = c ? c.statBonus + c.healFlat : 0;
+  // `calculation.bonus` is a rider's flat contribution to the REQUEST
+  // (`cleanseConvert` today), so it belongs in the build-up beside the stat and
+  // aura terms — otherwise a heal that is nothing BUT base + rider bonus would
+  // print no strip at all and the number would go unexplained.
+  const buildUp = c ? c.statBonus + c.healFlat + (c.bonus ?? 0) : 0;
   if (buildUp <= 0 && reduced <= 0 && e.overheal <= 0) return undefined;
   // `amount + overheal + antiHeal.reduced` is the pre-tax request (the identity
   // documented on the event); with a `calculation` we can open with its parts.
@@ -468,6 +472,9 @@ export function formatHeal(e: Extract<CombatEvent, { kind: 'heal' }>): string | 
   const terms = [c && !e.flat ? `base ${c.power}` : `${e.flat ? 'flat' : 'heal'} ${request}`];
   if (c && c.statBonus > 0) terms.push(`+ (${c.statBonus} ${defStatToken(c.property)})`);
   if (c && c.healFlat > 0) terms.push(`+ (${c.healFlat} SKILL)`);
+  // A TRUE heal opens with the whole `flat N` request, which already INCLUDES the
+  // bonus, so adding the term again would double-count it in the printed sum.
+  if (c && !e.flat && (c.bonus ?? 0) > 0) terms.push(`+ (${c.bonus} RIDER)`);
   if (reduced > 0) terms.push(`− (${reduced} ANTI-HEAL)`);
   if (e.overheal > 0) terms.push(`− (${e.overheal} OVERHEAL)`);
   return `H: ${terms.join(' ')} = ${e.amount}`;
@@ -1178,9 +1185,14 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         // scaling off defence (2026-08-04): right number, wrong label.
         const token = shieldToken(e.property);
         const calc = e.calculation;
+        // `overheal: true` marks plating that was CONVERTED from a heal's wasted
+        // remainder (`overhealShield`) rather than granted by a `shield` line. It
+        // carries no `calculation` by contract, so it can never reach the breakdown
+        // branch; naming the source is the whole point of the flag, since the same
+        // "+N SHLD" row would otherwise look like a shield the card printed.
         const text = calc && calc.statBonus > 0
           ? `${label(e)} +${e.amount} ${token} (${calc.power} + ${calc.statBonus} ${defStatToken(e.property)})`
-          : `${label(e)} +${e.amount} ${token}`;
+          : `${label(e)} +${e.amount} ${token}${e.overheal ? ' (from overheal)' : ''}`;
         push(e.turn, 'BUFF', text, formatShield(e));
         pushFx(e.side, 'shield', e.amount, u, undefined, e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined);
         break;
@@ -1216,6 +1228,14 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         push(e.turn, 'BUFF', `${label(e)} · Ward prevented ${denied} · ${e.chargesLeft} charge${e.chargesLeft === 1 ? '' : 's'} left`);
         break;
       }
+      // The VOLUNTEERED mirror of `warded`: the holder cashed its own charges in
+      // for damage (`wardRelease`). Tagged EFFECT rather than BUFF — the row is
+      // reporting a resource being SPENT on offense, not a defense coming up — and
+      // the bonus damage itself arrives folded into the following `damage` row, the
+      // same way a `shieldBurst`'s spent plating does.
+      case 'wardReleased':
+        push(e.turn, 'EFFECT', `${label(e)} · Released ${e.charges} ward charge${e.charges === 1 ? '' : 's'} into the hit · ${e.chargesLeft} left`);
+        break;
       // `cleanse` (interpreter.ts) previously rendered NOTHING: the switch had
       // no case for it at all, so a Purify curing 3 poison stacks left the
       // transcript saying the card did nothing — the exact shape the `warded`/

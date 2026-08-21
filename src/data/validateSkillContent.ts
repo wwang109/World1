@@ -1,4 +1,4 @@
-import { CARD_TARGETING_KINDS, MAX_EXPOSE_PCT, MAX_GUARD_PCT, resourceSuppliedBy, riderReadsResource } from '../engine/balance';
+import { CARD_TARGETING_KINDS, MAX_EXPOSE_PCT, MAX_GUARD_PCT, resourceSuppliedBy, riderFeedsKind, riderReadsResource } from '../engine/balance';
 import { MAX_NEGATE_CHARGES, MAX_WARD_CHARGES, type Action, type SkillDef } from '../engine/types';
 
 /**
@@ -149,6 +149,14 @@ const ACTION_FIELDS: Record<string, readonly string[]> = {
   stackBonus: ['status', 'of', 'per', 'cap'],
   taxBonus: ['per', 'cap'],
   shieldBurst: ['cap'],
+  wardRelease: ['per', 'cap'],
+  // `desperation` is `exploit`'s shape without a status: the gate is the caster's
+  // own HP bar, so there is nothing to name and a flat `amount` is the whole thing.
+  desperation: ['amount'],
+  // The two HEAL-SIDE riders, same required-`cap` rule: the payload is
+  // `min(this cast's heal overflow, cap)` / `min(per × stacks cleansed, cap)`.
+  overhealShield: ['cap'],
+  cleanseConvert: ['per', 'cap'],
   taunt: ['amount'],
   buffStat: ['stat', 'pct', 'turns'],
   debuffStat: ['stat', 'pct', 'turns'],
@@ -344,6 +352,33 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     case 'shieldBurst':
       req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, and it is also how much of your own shield is spent', at, problems);
       break;
+    /**
+     * THE THIRD RIDER PASS (2026-08-21) — same floors, same required cap, one line
+     * of reason each:
+     *  • `wardRelease`: `min(per x charges released, cap)`, and the cap also decides
+     *    HOW MANY charges are spent (`ceil(cap / per)`), so `per >= 1` is what keeps
+     *    that division safe as well as meaningful;
+     *  • `desperation`: a flat `amount`, `exploit`'s field verbatim — no cap,
+     *    because there is no count to multiply and nothing to bound;
+     *  • `overhealShield`: `min(this cast's heal overflow, cap)`, unbounded in how
+     *    healthy the recipient happens to be, so only the ceiling is priceable;
+     *  • `cleanseConvert`: `min(per x stacks cleansed, cap)`, unbounded in how
+     *    afflicted your side happens to be — same rule again.
+     */
+    case 'wardRelease':
+      req(raw, 'per', inRange(1, 999), 'an integer 1..999 (a per of 0 is priced for its cap and can never deliver a point)', at, problems);
+      req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, and it is also how many of your own ward charges are spent', at, problems);
+      break;
+    case 'desperation':
+      num('amount');
+      break;
+    case 'overhealShield':
+      req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, because the overflow of a heal is unbounded in the recipient\'s missing HP', at, problems);
+      break;
+    case 'cleanseConvert':
+      req(raw, 'per', inRange(1, 999), 'an integer 1..999 (a per of 0 is priced for its cap and can never deliver a point)', at, problems);
+      req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, because per x stacks cleansed is unbounded', at, problems);
+      break;
     case 'taunt': num('amount'); break;
     case 'buffStat': stat(); pct('pct'); turns('turns'); break;
     case 'debuffStat': stat(); pct('pct'); turns('turns'); break;
@@ -351,24 +386,29 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
   }
 }
 
-
 /**
  * THE RIDER ORDERING RULE (user-locked 2026-08-21, verbatim: "it should always
  * activate this effect first before activating any poison debuff").
  *
- * ALL FOUR conditional riders — `exploit`, `stackBonus`, `taxBonus`,
- * `shieldBurst` — arm a bonus by READING A RESOURCE THAT IS ALREADY THERE
- * (`cast.bonusByTarget` / `cast.bonusFlat`, combat/interpreter.ts), and only a
- * non-gem `damage` action ever spends it. Two things must therefore hold on the
- * authored effect list, and neither is expressible in the type:
+ * ALL EIGHT conditional riders — `exploit`, `stackBonus`, `taxBonus`,
+ * `shieldBurst`, `wardRelease`, `desperation`, `overhealShield`,
+ * `cleanseConvert` — arm a bonus by READING A RESOURCE THAT IS ALREADY THERE
+ * (`cast.bonusByTarget` / `cast.bonusFlat` / `cast.healBonusFlat` /
+ * `cast.overhealShieldCap`, combat/interpreter.ts), and only a non-gem action of
+ * the FED KIND ever spends it — `damage` for the six bonus-damage members, `heal`
+ * for the two heal-side ones (`riderFeedsKind`, engine/balance.ts). Two things
+ * must therefore hold on the authored effect list, and neither is expressible in
+ * the type (plus one extra arrow that only `cleanseConvert` needs, rule 0 below):
  *
- *  1. THE RIDER MUST PRECEDE A DAMAGE ACTION. Behind one — or on a card with no
- *     damage line at all — it arms a bonus nothing can read: a priced no-op,
- *     the exact silent failure `GEM_ACTION_PHASE` (engine/cards.ts) was built to
- *     close for the same keyword family on the gem path.
+ *  1. THE RIDER MUST PRECEDE AN ACTION OF THE KIND IT FEEDS. Behind one — or on a
+ *     card with no such line at all — it arms a bonus nothing can read: a priced
+ *     no-op, the exact silent failure `GEM_ACTION_PHASE` (engine/cards.ts) was
+ *     built to close for the same keyword family on the gem path. A heal-side
+ *     rider on a card whose only line is `damage` fails this rule as surely as an
+ *     `exploit` on a card whose only line is `heal`.
  *
- *  2. ANYTHING THAT SUPPLIES THE RIDER'S OWN RESOURCE MUST COME AFTER THAT
- *     DAMAGE. This is the user's ruling: a card may not satisfy its own condition
+ *  2. ANYTHING THAT SUPPLIES THE RIDER'S OWN RESOURCE MUST COME AFTER THAT FED
+ *     ACTION. This is the user's ruling: a card may not satisfy its own condition
  *     inside one cast. Placed before the damage, a poison+exploit card would
  *     collect its own bonus on its FIRST cast and the cross-cast loop — the
  *     mechanic the card is sold on — would never exist. Placed after, the pile
@@ -376,7 +416,7 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
  *     self-synergy price honest (`selfSynergyPremiumDeci`, engine/balance.ts):
  *     that premium is derived from "guaranteed from the second cast onward".
  *
- *     THE SAME ANSWER FOR ALL FOUR RESOURCES, deliberately — the alternative was
+ *     THE SAME ANSWER FOR EVERY SELF-SUPPLIABLE RESOURCE, deliberately — the alternative was
  *     considered and rejected (2026-08-21, second rider pass). A `slow`+`taxBonus`
  *     card is the tempting exception: a slow expires at end of turn, so letting it
  *     feed the reaper in the SAME cast would be the only way that pairing ever
@@ -393,13 +433,96 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
  * counts. A `stackBonus` with `of: 'caster'` is self-fed by a CASTER-side
  * `thorns` line, never by the poison the same card puts on the enemy — so a
  * poison-before-damage line on a thorns-spender is not a violation. Likewise a
- * `shieldBurst` reads CASTER-side plating (fed by `shield`), a `taxBonus` reads
- * TARGET-side weight taxes (fed by `slow`/`burden`).
+ * `shieldBurst` reads CASTER-side plating (fed by `shield`, and by an
+ * `overhealShield` that banks plating out of a heal), a `wardRelease` reads
+ * CASTER-side ward charges (fed by `ward`), a `taxBonus` reads TARGET-side weight
+ * taxes (fed by `slow`/`burden` — never by `splash`, which spreads a burden's
+ * reach but supplies no tax of its own).
+ *
+ * RULE 2 IS INERT FOR THREE OF THE EIGHT. Nothing supplies `'lowHp'`,
+ * `'overheal'` or `'cleansed'` (`resourceSuppliedBy`, engine/balance.ts), so
+ * `desperation`, `overhealShield` and `cleanseConvert` can never trip it — the
+ * same fact that makes their conditional discount unforfeitable
+ * (`selfSynergyPremiumDeci`).
  *
  * Checked against the EFFECTIVE effect list at every tier, exactly like the
- * AoE+splash rule beside it: a tier block that re-authors `effects` can reorder
- * them, and one that authors none inherits the base list.
+ * AoE+splash and spreader rules beside it: a tier block that re-authors `effects`
+ * can reorder them, and one that authors none inherits the base list.
  */
+function rejectRiderMisordering(effects: unknown, at: string, problems: ContentProblem[]): void {
+  if (!Array.isArray(effects)) return;
+  const actions = effects.filter(isObj);
+  for (let r = 0; r < actions.length; r += 1) {
+    const rider = actions[r]!;
+    // WHAT THIS RIDER READS, from the engine's own lookup — so the authoring rule
+    // and the price can never disagree about which keyword reads (or supplies)
+    // what. A raw JSON object is handed straight to it: the switch is driven by
+    // `kind`, and a malformed rider simply yields a resource nothing matches
+    // (its missing/invalid fields are already reported by `validateAction`).
+    const reads = riderReadsResource(rider as unknown as Action);
+    if (!reads) continue;
+    /**
+     * WHAT SPENDS THIS RIDER — `damage` for the six bonus-damage members, `heal`
+     * for the two heal-side ones (`riderFeedsKind`, engine/balance.ts). Read from
+     * the engine's own lookup for the same reason `reads` is: the authoring rule and
+     * the price must never disagree about which action a rider belongs in front of.
+     * The `?? 'damage'` is unreachable (`riderReadsResource` returned non-null, so
+     * `riderFeedsKind` does too) and is here only so the narrowing is local.
+     */
+    const feeds = riderFeedsKind(rider as unknown as Action) ?? 'damage';
+    /**
+     * RULE 0 (`cleanseConvert` only) — THE PREREQUISITE THAT MUST COME FIRST.
+     * Every other rider reads a resource that was already standing, so it goes at
+     * the front of the card; this one reads a RESULT ITS OWN CAST PRODUCES, so the
+     * `cleanse` that produces it has to be AHEAD of the rider. Behind it (or absent)
+     * the rider reads 0 stacks and converts nothing — the same priced no-op rule 1
+     * exists to prevent, one step earlier in the chain. The full authored shape is
+     * `cleanse -> cleanseConvert -> heal`, and rules 0 and 1 pin one arrow each.
+     */
+    if (rider.kind === 'cleanseConvert') {
+      let cleansed = false;
+      for (let i = 0; i < r; i += 1) if (actions[i]!.kind === 'cleanse') { cleansed = true; break; }
+      if (!cleansed) {
+        problems.push({
+          where: at,
+          message: 'a cleanseConvert rider must be placed AFTER a cleanse action — it converts the stacks that cleanse '
+            + 'actually removed, so with no cleanse ahead of it (effects[' + String(r) + ']) it reads 0 and can never pay out. '
+            + 'The authored order is cleanse -> cleanseConvert -> heal.',
+        });
+        continue;
+      }
+    }
+    // Rule 1: the first own action of the fed KIND after the rider is the one it feeds.
+    let fed = -1;
+    for (let i = r + 1; i < actions.length; i += 1) {
+      if (actions[i]!.kind === feeds) { fed = i; break; }
+    }
+    if (fed === -1) {
+      problems.push({
+        where: at,
+        message: 'a ' + String(rider.kind) + ' rider must be placed BEFORE a ' + feeds + ' action — it arms this cast\'s bonus '
+          + feeds + ', and only a ' + feeds + ' action can spend it. Move it ahead of the card\'s ' + feeds + ' line (or drop it).',
+      });
+      continue;
+    }
+    // Rule 2: nothing may supply the resource this rider reads until after the
+    // action it feeds. (Inert for `desperation`/`overhealShield`/`cleanseConvert`:
+    // no keyword supplies `lowHp`/`overheal`/`cleansed` — see `resourceSuppliedBy`.)
+    for (let i = 0; i < actions.length; i += 1) {
+      if (i === r || i > fed) continue;
+      const applied = resourceSuppliedBy(actions[i]! as unknown as Action);
+      if (!applied || applied.resource !== reads.resource || applied.on !== reads.on) continue;
+      problems.push({
+        where: at,
+        message: 'effects[' + String(i) + '] supplies ' + applied.resource + ', the same thing the ' + String(rider.kind)
+          + ' rider reads, at or before the ' + feeds + ' it feeds (effects[' + String(fed) + ']) — a card may never trigger its own '
+          + 'condition within one cast (user-locked 2026-08-21). Move the ' + String(actions[i]!.kind) + ' line AFTER the ' + feeds + '; '
+          + 'the payoff is meant to land on the NEXT cast.',
+      });
+    }
+  }
+}
+
 /**
  * A `splash` WITH NOTHING TO SPREAD IS REFUSED (user-locked 2026-08-21, with the
  * spreader model: "splash is an effect that spread other effect").
@@ -432,47 +555,6 @@ function rejectSpreaderWithNothingToSpread(effects: unknown, at: string, problem
       + [...CARD_TARGETING_KINDS].join('/') + ' from the target\'s current card to the whole band. '
       + 'Add one of those to this card, or drop the splash.',
   });
-}
-
-function rejectRiderMisordering(effects: unknown, at: string, problems: ContentProblem[]): void {
-  if (!Array.isArray(effects)) return;
-  const actions = effects.filter(isObj);
-  for (let r = 0; r < actions.length; r += 1) {
-    const rider = actions[r]!;
-    // WHAT THIS RIDER READS, from the engine's own lookup — so the authoring rule
-    // and the price can never disagree about which keyword reads (or supplies)
-    // what. A raw JSON object is handed straight to it: the switch is driven by
-    // `kind`, and a malformed rider simply yields a resource nothing matches
-    // (its missing/invalid fields are already reported by `validateAction`).
-    const reads = riderReadsResource(rider as unknown as Action);
-    if (!reads) continue;
-    // Rule 1: the first own damage action AFTER the rider is the one it feeds.
-    let fed = -1;
-    for (let i = r + 1; i < actions.length; i += 1) {
-      if (actions[i]!.kind === 'damage') { fed = i; break; }
-    }
-    if (fed === -1) {
-      problems.push({
-        where: at,
-        message: 'a ' + String(rider.kind) + ' rider must be placed BEFORE a damage action — it arms this cast\'s bonus damage, '
-          + 'and only a damage action can spend it. Move it ahead of the card\'s damage line (or drop it).',
-      });
-      continue;
-    }
-    // Rule 2: nothing may supply the resource this rider reads until after that hit.
-    for (let i = 0; i < actions.length; i += 1) {
-      if (i === r || i > fed) continue;
-      const applied = resourceSuppliedBy(actions[i]! as unknown as Action);
-      if (!applied || applied.resource !== reads.resource || applied.on !== reads.on) continue;
-      problems.push({
-        where: at,
-        message: 'effects[' + String(i) + '] supplies ' + applied.resource + ', the same thing the ' + String(rider.kind)
-          + ' rider reads, at or before the damage it feeds (effects[' + String(fed) + ']) — a card may never trigger its own '
-          + 'condition within one cast (user-locked 2026-08-21). Move the ' + String(actions[i]!.kind) + ' line AFTER the damage; '
-          + 'the payoff is meant to land on the NEXT cast.',
-      });
-    }
-  }
 }
 
 const AURA_FIELDS = new Set(['affects', 'reach', 'archetypeFilter', 'propertyFilter', 'mods']);
@@ -677,6 +759,10 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
     // linear reach an AoE `slow` has, priced by the reach multiplier. It is
     // band x foes that is refused.
     { kind: 'shieldBurst', why: 'a shieldBurst spends ONE wall ONCE, and an AoE hit would hand that same bonus to every foe at a single-target price' },
+    // `wardRelease` inherits the burst's refusal verbatim: same caster-side
+    // resource shape, same scalar `cast.bonusFlat`, same hole. Appended below it
+    // rather than folded in with it so each keyword still reports its own message.
+    { kind: 'wardRelease', why: 'a wardRelease spends ONE pile of charges ONCE, and an AoE hit would hand that same bonus to every foe at a single-target price' },
   ];
   const rejectAoeUnitScoped = (scope: unknown, effects: unknown, at: string): void => {
     if (scope !== 'all' || !Array.isArray(effects)) return;

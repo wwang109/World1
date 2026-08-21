@@ -624,6 +624,160 @@ type ActionKinds =
    * until the taxed piece is played.
    */
   | { kind: 'taxBonus'; per: number; cap: number }
+  /**
+   * WARD RELEASE — `shieldBurst`'s twin one currency over: spend the charges of
+   * the caster's OWN `ward` piles and arm `per` flat bonus damage per charge
+   * released, hard-CAPPED. `bonus = min(per × released, cap)`, and exactly
+   * `released` charges leave the caster.
+   *
+   * HOW MANY CHARGES IT SPENDS — only as many as the cap can pay for:
+   * `released = min(wardCharges(caster), ceil(cap / per))`, taken from the
+   * lowest-index ward pile first (`releaseWardCharges`, combat/state.ts).
+   * Spending exactly what pays is the `shieldBurst` rule (`spendShieldsForBurst`
+   * stops at `cap`, it does not empty the wall); the `ceil` makes the cap
+   * REACHABLE, at the cost of one partially-paying charge when `cap` is not a
+   * multiple of `per` — so authored content keeps `cap` an exact multiple of
+   * `per` (the same `cap/per` discipline `deadweight_toll` is pinned on).
+   *
+   * DRAIN ORDER IS TRIVIAL AND STILL FIXED: unlike a burst's three shield pools
+   * there is only ONE kind of ward charge, so the only ordering question is which
+   * PILE pays — and it is the same answer `consumeWard` gives, lowest index first,
+   * an index walk over `statuses` with no `Map`/`Set` and no RNG.
+   *
+   * WHY IT IS A REAL DECISION: a ward charge denies the NEXT affliction aimed at
+   * you (`consumeWard`). Cashing it in says "I would rather have the damage now
+   * than the immunity later" — the same keep-it-or-throw-it choice `shieldBurst`
+   * makes with plating, on the resource that answers afflictions rather than hits.
+   *
+   * SUPPORTIVE, LIKE `shieldBurst` (`offensive: false`): the resource is the
+   * caster's own, so it resolves ONCE on the caster and arms the cast's scalar
+   * `bonusFlat` rather than a per-victim bonus. That is exactly why an AUTHORED
+   * `scope: 'all'` + `wardRelease` card is REFUSED by `validateSkillContent`: one
+   * pile of charges, spent once, must not be delivered to five foes at a
+   * single-target price. No gem carries this kind, and a test pins that.
+   *
+   * IT READS PRE-EXISTING CHARGES ONLY — the ordering ruling (user-locked
+   * 2026-08-21) unchanged: a card that grants `ward` may not feed its own release
+   * inside one cast, so any `ward` line must sit AFTER the damage this feeds.
+   * Grant now, cash in next cast.
+   */
+  | { kind: 'wardRelease'; per: number; cap: number }
+  /**
+   * DESPERATION — flat bonus damage while the CASTER is at or below HALF its
+   * maximum HP. `exploit`'s sibling, reading the caster's own HP bar instead of an
+   * affliction on the victim: the last-stand payoff the low-HP archetype is sold
+   * on, and the one rider whose gate is a fact about the attacker.
+   *
+   * THE GATE IS INTEGER-EXACT: `hp * 2 <= maxHp`, never `hp <= maxHp / 2`. Half of
+   * an odd maxHp is not an integer, and the engine holds integers only — the
+   * multiply form is the SAME predicate with no float and no floor to argue about
+   * (`Math.floor(maxHp / 2)` would move the boundary on odd bars: at 50/101 it asks
+   * `50 <= 50` and answers yes, which is right, but at 51/101 a `ceil` reading
+   * would have answered yes too). It is written here so no caller re-derives it.
+   * `maxHp` is not a `BuffableStat`, so no buff can move the goalposts mid-fight.
+   *
+   * FLAT `amount`, NOT a cap over a `per` — there is nothing to count. It is
+   * `exploit`'s shape exactly, and it prices exactly like one.
+   *
+   * OFFENSIVE, and armed PER VICTIM, even though the condition is CASTER-side —
+   * the same call `stackBonus` with `of: 'caster'` already makes. The bonus is
+   * delivered once per foe under `scope: 'all'`, so classifying it as offensive is
+   * what makes an AoE desperation card pay the reach multiplier
+   * (`OFFENSIVE_KINDS`) instead of handing five foes a single-target bonus.
+   *
+   * NO SELF-SYNERGY VARIANT EXISTS, so it ALWAYS prices at the conditional
+   * discount: a card cannot raise the caster's `maxHp` (not a buffable stat) and
+   * cannot lower the caster's own HP (no keyword damages its own caster — a
+   * `thorns` reflect is the victim's doing, not the card's). There is therefore no
+   * kit that guarantees its own gate, which is precisely what the discount is for.
+   * `resourceSuppliedBy` returns `null` for every kind, so
+   * `selfSynergyPremiumDeci` is 0 for it by construction rather than by exception.
+   */
+  | { kind: 'desperation'; amount: number }
+  /**
+   * OVERHEAL SHIELD — healing past a full HP bar becomes PLATING instead of
+   * vanishing: when this cast's own `heal` overflows the recipient's `maxHp`, up to
+   * `cap` points of that overflow are converted into shield of the CARD'S OWN
+   * PROPERTY on the unit that overflowed.
+   *
+   * NOT A DAMAGE RIDER. It is the family's first member that modifies the cast's
+   * own HEAL resolution rather than arming bonus damage, so it feeds a `heal`
+   * action (`validateSkillContent` requires one AFTER it) and never touches
+   * `bonusFlat`/`bonusByTarget`.
+   *
+   * THE OVERFLOW IS MEASURED AFTER EVERY REDUCTION THE HEAL ALREADY PAYS — the
+   * ANTI-HEAL TAX IS APPLIED FIRST and the taxed heal IS the real heal. `restoreHp`
+   * receives the post-tax request, so the conversion reads
+   * `applied − healed` where `applied` is what anti-heal left. A heal taxed −60%
+   * therefore has 60% less to overflow WITH; the tax is not laundered into shield.
+   * (This falls out of the existing order rather than being re-implemented: the
+   * `heal` arm taxes, then clamps, and this rider reads the clamp's remainder.)
+   *
+   * THE CARD'S OWN PROPERTY POOL, TRUE only on a TRUE card — the same rule the
+   * `shield` keyword already obeys, which is what makes the price honest: a
+   * converted point is worth exactly what a granted point of the same pool is
+   * worth, so the conditional discount is applied to the SHIELD rate rather than
+   * the damage rate (see `keywords/pricing.ts`). A TRUE overheal shield is a wall
+   * against everything and prices at the TRUE shield rate accordingly.
+   *
+   * THE maxHp SHIELD CEILING STILL APPLIES. Converted plating goes through the
+   * same room check the `shield` arm uses (`maxHp − totalShield`), and the part
+   * that does not fit is reported as `wasted` on the emitted `shieldGain`. A rider
+   * cannot buy an escape from a global cap.
+   *
+   * WHO GETS THE PLATING: the unit whose bar overflowed, i.e. the heal's RECIPIENT.
+   * For every solo-hero cast (and every self-heal) that is the caster; in a pack
+   * the honest owner of wasted healing is the ally who could not use it. Sending it
+   * to the caster instead would make "heal a full-HP ally" a gate-free self-shield
+   * at rider prices, which is the one shape this keyword must not become.
+   *
+   * SUPPORTIVE (`offensive: false`) and SCOPE-BLIND by construction: `heal` is a
+   * support action, so it resolves once on the support target whatever the card's
+   * scope — there is no AoE fan-out to hand a single conversion to five units, and
+   * so no AoE refusal is needed (unlike `shieldBurst`/`wardRelease`).
+   *
+   * IT SUPPLIES `shield` on the caster for pricing purposes
+   * (`resourceSuppliedBy`), so a kit pairing it with a `shieldBurst` forfeits the
+   * burst's discount — conservative in the safe direction, since in the solo case
+   * the plating really does land where the burst will spend it.
+   */
+  | { kind: 'overhealShield'; cap: number }
+  /**
+   * CLEANSE CONVERT — bonus HEALING per affliction stack this cast's own `cleanse`
+   * ACTUALLY REMOVED: `bonus = min(per × removed, cap)`, added to the cast's own
+   * heal request.
+   *
+   * ACTUALLY REMOVED is the whole contract. It reads the `removed` count the
+   * `cleanse` arm reports (the same number the `cleansed` event carries — stacks,
+   * not piles), so a cleanse that found nothing to strip converts nothing. That is
+   * what makes the gate real: the resource is AFFLICTIONS ON YOUR SIDE, which the
+   * ENEMY supplies, never this card.
+   *
+   * THE ORDERING IS INVERTED FROM THE DAMAGE RIDERS, and deliberately so. The
+   * others read a resource that was already there, so they run FIRST; this one
+   * reads a result its own cast produced, so the `cleanse` must come BEFORE it and
+   * the `heal` it feeds must come AFTER — `cleanse → cleanseConvert → heal`.
+   * `validateSkillContent` enforces both halves; a rider with no cleanse ahead of
+   * it can never pay out, and one with no heal behind it arms a bonus nothing
+   * spends (the same priced-no-op the rest of the family is protected from).
+   *
+   * IT IS NOT SELF-SYNERGY, even though the card supplies its own `cleanse`. The
+   * cleanse is the CONVERSION MECHANISM, not the gate: what the rider is really
+   * betting on is that somebody on your side is afflicted when it fires, and no
+   * card can supply that. `resourceSuppliedBy` returns nothing matching
+   * `'cleansed'`, so the discount stands by construction.
+   *
+   * A LOVELY INTERACTION THAT FALLS OUT FOR FREE: the cleanse runs before the heal,
+   * so stripping the poison also strips the ANTI-HEAL CATEGORY it was imposing —
+   * the converted heal arrives into a lighter tax, or none.
+   *
+   * PRICED ON `cap` AT THE HEAL RATE over the conditional discount (`per` is free,
+   * the `stackBonus` rule): the payload is bounded only by how afflicted your side
+   * happens to be, which the card does not control, so only the ceiling is
+   * priceable. Supportive (`offensive: false`); like `overhealShield` it needs no
+   * AoE refusal, because a heal resolves once whatever the scope.
+   */
+  | { kind: 'cleanseConvert'; per: number; cap: number }
   // ---- Property-generic defensive keywords ----
   /**
    * Magical Guard: while active, incoming damage of the matching `property` is

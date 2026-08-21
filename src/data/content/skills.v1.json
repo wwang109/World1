@@ -7590,6 +7590,423 @@
      }
     }
    ]
+  },
+  {
+   "id": "sanctuary_overflow",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Sanctuary Overflow",
+      "text": "Heal 14 (+MDEF) Holy \u2014 up to 12 of whatever this heal wastes on a full HP bar becomes Holy {{Shield}} on the unit healed instead of vanishing. Measured after any anti-heal tax.",
+      "notes": [
+       "THE WASTE-NOTHING HEALER \u2014 the first card whose overheal is worth",
+       "something. A heal into a full (or nearly full) bar normally evaporates at",
+       "the maxHp clamp; overhealShield catches up to `cap` of that remainder and",
+       "banks it as plating of the card's own property, on the unit that",
+       "overflowed (restoreHp -> the heal arm, combat/interpreter.ts).",
+       "WHAT EARNS THE CONDITIONAL DISCOUNT: the gate is \"the recipient is healthy\",",
+       "which this card cannot arrange \u2014 a healer heals when the team is HURT, and",
+       "a hurt bar overflows nothing. So the rider prices at shieldRate/2 =",
+       "2.5 deci/pt of its cap (PRICE.conditionalBonusDen), the SHIELD rate rather",
+       "than the damage rate, because plating is what it actually delivers.",
+       "THE ANTI-HEAL TAX COMES FIRST and the taxed heal is the real heal: a heal",
+       "cut 60% by afflictions has 60% less to overflow with. The tax is never",
+       "laundered into shield.",
+       "STILL BOUNDED BY THE maxHp SHIELD CEILING \u2014 converted plating goes through",
+       "the same room check a `shield` line does, and the part that will not fit is",
+       "reported as wasted. A rider buys no escape from a global cap.",
+       "Bronze:  overflow cap 12 (30) + heal 14 (70) = 100.",
+       "Silver:  overflow cap 16 (40) + heal 22 (110) = 150.",
+       "Gold:    overflow cap 20 (50) + heal 30 (150) = 200.",
+       "Diamond: overflow cap 24 (60) + heal 38 (190) = 250.",
+       "Hand-authored ladder: `autoScaleTier` freezes the rider cap (it is not a",
+       "scalable sink) and would pour every tier's growth into the heal line,",
+       "leaving a Diamond card whose signature effect still only banks 12."
+      ],
+      "archetypes": [
+       "healing"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "overhealShield",
+        "cap": 12
+       },
+       {
+        "kind": "heal",
+        "power": 14
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "overhealShield",
+          "cap": 16
+         },
+         {
+          "kind": "heal",
+          "power": 22
+         }
+        ],
+        "text": "Heal 22 (+MDEF) Holy \u2014 up to 16 of whatever this heal wastes on a full HP bar becomes Holy {{Shield}} on the unit healed instead of vanishing. Measured after any anti-heal tax."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "overhealShield",
+          "cap": 20
+         },
+         {
+          "kind": "heal",
+          "power": 30
+         }
+        ],
+        "text": "Heal 30 (+MDEF) Holy \u2014 up to 20 of whatever this heal wastes on a full HP bar becomes Holy {{Shield}} on the unit healed instead of vanishing. Measured after any anti-heal tax."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "overhealShield",
+          "cap": 24
+         },
+         {
+          "kind": "heal",
+          "power": 38
+         }
+        ],
+        "text": "Heal 38 (+MDEF) Holy \u2014 up to 24 of whatever this heal wastes on a full HP bar becomes Holy {{Shield}} on the unit healed instead of vanishing. Measured after any anti-heal tax."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "penitent_mending",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Penitent Mending",
+      "text": "{{Cleanse}} 2 \u2014 then heal 4 (+MDEF) Holy, +4 more for every affliction stack that cleanse actually removed (max +12). Strip nothing, heal nothing extra.",
+      "notes": [
+       "THE PAYOFF FOR BEING AFFLICTED \u2014 a cleanse whose value scales with how",
+       "much there was to clean. cleanseConvert reads the STACKS the cast's own",
+       "cleanse actually removed (the same number the `cleansed` event reports) and",
+       "arms that many `per` as bonus healing, capped.",
+       "ITS ORDER IS THE INVERSE of the damage riders and the validator enforces",
+       "both arrows: cleanse -> cleanseConvert -> heal. The cleanse has to be AHEAD",
+       "of the rider (behind it the rider reads 0 and converts nothing) and the heal",
+       "BEHIND it (with no heal the bonus is a priced no-op).",
+       "NOT SELF-SYNERGY, even though the card supplies its own cleanse: the cleanse",
+       "is the CONVERSION MECHANISM, not the gate. What the rider bets on is that",
+       "somebody on your side is actually afflicted, and only the ENEMY supplies",
+       "that \u2014 so the conditional discount stands (healRate/2 = 2.5 deci/pt of",
+       "the cap, the HEAL rate, because healing is what it delivers).",
+       "THE FREE INTERACTION: the cleanse runs first, so stripping the poison also",
+       "strips the anti-heal CATEGORY it was imposing. The bigger heal then arrives",
+       "into a lighter tax \u2014 or none.",
+       "THE LADDER KEEPS THE REACH AT 3 STACKS at every tier (ceil(cap/per) = 3),",
+       "sized to the card's own 2\u20133 cleanse charges rather than drifting out of",
+       "reach while the numbers grow.",
+       "Bronze:  cleanse 2 (50) + convert cap 12 (30) + heal 4 (20) = 100.  (+4/stack)",
+       "Silver:  cleanse 2 (50) + convert cap 18 (45) + heal 11 (55) = 150. (+6/stack)",
+       "Gold:    cleanse 3 (75) + convert cap 24 (60) + heal 13 (65) = 200. (+8/stack)",
+       "Diamond: cleanse 3 (75) + convert cap 30 (75) + heal 20 (100) = 250. (+10/stack)",
+       "Hand-authored: the kit has TWO sinks at DIFFERENT rates (cleanse 25/charge,",
+       "heal 5/pt), so `autoScaleTier` refuses it as non-homogeneous and would leave",
+       "every tier identical to Bronze."
+      ],
+      "archetypes": [
+       "healing",
+       "support"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "cleanse",
+        "charges": 2
+       },
+       {
+        "kind": "cleanseConvert",
+        "per": 4,
+        "cap": 12
+       },
+       {
+        "kind": "heal",
+        "power": 4
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "cleanse",
+          "charges": 2
+         },
+         {
+          "kind": "cleanseConvert",
+          "per": 6,
+          "cap": 18
+         },
+         {
+          "kind": "heal",
+          "power": 11
+         }
+        ],
+        "text": "{{Cleanse}} 2 \u2014 then heal 11 (+MDEF) Holy, +6 more for every affliction stack that cleanse actually removed (max +18). Strip nothing, heal nothing extra."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "cleanse",
+          "charges": 3
+         },
+         {
+          "kind": "cleanseConvert",
+          "per": 8,
+          "cap": 24
+         },
+         {
+          "kind": "heal",
+          "power": 13
+         }
+        ],
+        "text": "{{Cleanse}} 3 \u2014 then heal 13 (+MDEF) Holy, +8 more for every affliction stack that cleanse actually removed (max +24). Strip nothing, heal nothing extra."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "cleanse",
+          "charges": 3
+         },
+         {
+          "kind": "cleanseConvert",
+          "per": 10,
+          "cap": 30
+         },
+         {
+          "kind": "heal",
+          "power": 20
+         }
+        ],
+        "text": "{{Cleanse}} 3 \u2014 then heal 20 (+MDEF) Holy, +10 more for every affliction stack that cleanse actually removed (max +30). Strip nothing, heal nothing extra."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "vow_broken",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Vow Broken",
+      "text": "Deal 8 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +8 damage each (max +24), and the charges are gone. Only charges you were already holding count.",
+      "notes": [
+       "THE SECOND SPENDER \u2014 Aegis Charge one currency over. Where a burst throws",
+       "your plating, this cashes in your WARD CHARGES: each one released is worth",
+       "`per` on the hit, and the affliction that charge would have denied now lands.",
+       "Keep the immunity or take the damage now \u2014 that is the whole card.",
+       "IT GRANTS NO WARD OF ITS OWN, so every charge it spends was banked by",
+       "another card, which is what earns the CONDITIONAL DISCOUNT: strikeRate/2 =",
+       "2.5 deci/pt of the cap (PRICE.conditionalBonusDen), and no self-synergy",
+       "premium (selfSynergyPremiumDeci). Doubly conservative, like the burst: it",
+       "also DESTROYS the resource it reads, so its real worth sits below a free",
+       "conditional bonus of the same size.",
+       "IT SPENDS ONLY WHAT THE CAP PAYS FOR \u2014 ceil(cap / per) charges, never the",
+       "whole pile for nothing (releaseWardCharges, combat/state.ts, lowest-index",
+       "pile first exactly as consumeWard spends them). The ladder keeps",
+       "ceil(cap/per) = 3 at every tier, which is MAX_WARD_CHARGES: the reach is",
+       "the whole pile a holder can legally carry, at every tier.",
+       "SINGLE-TARGET BY IDENTITY: one pile, spent once, into ONE hit \u2014 an authored",
+       "scope: all + wardRelease card is refused, the same call splash and",
+       "shieldBurst get.",
+       "Bronze:  release cap 24 (60) + damage 8 (40) = 100.  (+8 per charge)",
+       "Silver:  release cap 30 (75) + damage 15 (75) = 150. (+10 per charge)",
+       "Gold:    release cap 36 (90) + damage 22 (110) = 200. (+12 per charge)",
+       "Diamond: release cap 38 (95) + damage 31 (155) = 250. (+13 per charge)",
+       "Diamond's cap stops at 38 rather than 39 because the size-1 EMPOWER",
+       "ceiling is 100 deci and 39 would price at 97 with no whole-PL damage line",
+       "left to pair it with; 38 lands the kit exactly on 250.",
+       "Hand-authored: `autoScaleTier` freezes the whole rider (not a scalable",
+       "sink), so it would grow damage alone and never `per`/`cap`."
+      ],
+      "archetypes": [
+       "offense",
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "wardRelease",
+        "per": 8,
+        "cap": 24
+       },
+       {
+        "kind": "damage",
+        "power": 8
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "wardRelease",
+          "per": 10,
+          "cap": 30
+         },
+         {
+          "kind": "damage",
+          "power": 15
+         }
+        ],
+        "text": "Deal 15 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +10 damage each (max +30), and the charges are gone. Only charges you were already holding count."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "wardRelease",
+          "per": 12,
+          "cap": 36
+         },
+         {
+          "kind": "damage",
+          "power": 22
+         }
+        ],
+        "text": "Deal 22 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +12 damage each (max +36), and the charges are gone. Only charges you were already holding count."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "wardRelease",
+          "per": 13,
+          "cap": 38
+         },
+         {
+          "kind": "damage",
+          "power": 31
+         }
+        ],
+        "text": "Deal 31 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +13 damage each (max +38), and the charges are gone. Only charges you were already holding count."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "cornered_beast",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Cornered Beast",
+      "text": "Deal 14 (+ATK) Axe damage, +12 more while YOU are at or below half your maximum HP. Nothing to set up \u2014 it turns on when you are hurt.",
+      "notes": [
+       "THE LAST-STAND PAYOFF \u2014 Blight Feast with the gate moved onto YOUR OWN HP",
+       "bar. `desperation` adds its flat bonus while the caster sits at or below",
+       "half maxHp (hp * 2 <= maxHp, integer-exact, no division), which at Bronze is",
+       "literally double damage from a hero who is losing.",
+       "THE ONE RIDER WHOSE DISCOUNT CAN NEVER BE FORFEITED. Every other member of",
+       "the family has a self-synergy variant that pays full rate; this one has",
+       "none, because no kit can supply its gate \u2014 maxHp is not a buffable stat and",
+       "no keyword damages its own caster. So it always prices at strikeRate/2 =",
+       "2.5 deci/pt (PRICE.conditionalBonusDen), and selfSynergyPremiumDeci returns",
+       "0 for it by construction rather than by exception.",
+       "ARMED PER VICTIM despite the caster-side gate \u2014 the same call stackBonus",
+       "with of: caster gets. The bonus lands on the victim's hit, so an AoE",
+       "version would deliver it once per foe and must pay the reach multiplier;",
+       "classifying it as offensive is what makes that price honest (OFFENSIVE_KINDS).",
+       "NO {{Thorns}} OR SELF-DAMAGE PARTNER IS NEEDED to turn it on, and none is",
+       "authored: the fight turns it on. That is the point of the archetype.",
+       "Bronze:  desperation 12 (30) + damage 14 (70) = 100.",
+       "Silver:  desperation 16 (40) + damage 22 (110) = 150.",
+       "Gold:    desperation 20 (50) + damage 30 (150) = 200.",
+       "Diamond: desperation 24 (60) + damage 38 (190) = 250.",
+       "Hand-authored ladder: `autoScaleTier` freezes the rider (it is not a",
+       "scalable sink) and would pour every tier's growth into damage alone,",
+       "leaving a Diamond card whose signature line never grew."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "desperation",
+        "amount": 12
+       },
+       {
+        "kind": "damage",
+        "power": 14
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "desperation",
+          "amount": 16
+         },
+         {
+          "kind": "damage",
+          "power": 22
+         }
+        ],
+        "text": "Deal 22 (+ATK) Axe damage, +16 more while YOU are at or below half your maximum HP. Nothing to set up \u2014 it turns on when you are hurt."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "desperation",
+          "amount": 20
+         },
+         {
+          "kind": "damage",
+          "power": 30
+         }
+        ],
+        "text": "Deal 30 (+ATK) Axe damage, +20 more while YOU are at or below half your maximum HP. Nothing to set up \u2014 it turns on when you are hurt."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "desperation",
+          "amount": 24
+         },
+         {
+          "kind": "damage",
+          "power": 38
+         }
+        ],
+        "text": "Deal 38 (+ATK) Axe damage, +24 more while YOU are at or below half your maximum HP. Nothing to set up \u2014 it turns on when you are hurt."
+       }
+      }
+     }
+    }
+   ]
   }
  ]
 }

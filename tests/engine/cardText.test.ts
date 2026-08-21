@@ -146,6 +146,30 @@ function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined):
       case 'shieldBurst':
         expected.push(eff.cap);
         break;
+      // WARD RELEASE: `per` and `cap`, the `taxBonus` reading exactly — `per` is
+      // what a charge is worth, `cap` is both the ceiling AND (via `ceil(cap/per)`)
+      // how many charges the release actually spends. Hiding either would hide half
+      // the trade the card is asking the player to make.
+      case 'wardRelease':
+        expected.push(eff.per, eff.cap);
+        break;
+      // DESPERATION: the flat `amount` is the whole magnitude, `exploit`'s shape.
+      // The gate ("at or below half HP") is prose, not a printed number — the HALF
+      // is a rule, not a card-specific value, so there is nothing else to pin here.
+      case 'desperation':
+        expected.push(eff.amount);
+        break;
+      // OVERHEAL SHIELD: `cap` is the whole magnitude and the only number a player
+      // can plan around (how much overflow will actually bank), so the face must
+      // carry it — the `shieldBurst` reading.
+      case 'overhealShield':
+        expected.push(eff.cap);
+        break;
+      // CLEANSE CONVERT: both numbers, the `stackBonus`/`taxBonus` reading — `per`
+      // is what one cleansed stack is worth in HP, `cap` the ceiling it is priced on.
+      case 'cleanseConvert':
+        expected.push(eff.per, eff.cap);
+        break;
       default:
         assertNever(eff);
     }

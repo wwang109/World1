@@ -448,6 +448,22 @@ export const PRICE = {
    * reads, which makes it the one member the discount over-prices rather than
    * under-prices — the safe direction, and the reason it needs no rate of its own
    * (see its row in `keywords/pricing.ts`).
+   *
+   * FOUR MORE RIDERS SHARE THIS DENOMINATOR (2026-08-21, third rider pass) and it
+   * needed no new number for any of them — which is the whole case for having
+   * written it as a denominator in the first place:
+   *  • `wardRelease.cap` and `desperation.amount` divide the same `strikeRate`,
+   *    TRUE premium included, because they too add flat bonus DAMAGE (`wardRelease`
+   *    also destroying what it reads, so it inherits the burst's over-price note);
+   *  • `overhealShield.cap` divides `shieldRate` and `cleanseConvert.cap` divides
+   *    `healRate` — the family's first two HEAL-SIDE members. The denominator is
+   *    the same discount for the same reason (a gate the card cannot supply); only
+   *    the thing being discounted changes, because what they deliver is plating and
+   *    healing rather than damage. Dividing `strikeRate` there would have charged a
+   *    defensive payload at an offensive rate and, on TRUE, invented a damage
+   *    premium the payload never earns.
+   * `desperation` is the one member for which the discount can never be forfeited:
+   * no kit can supply "the caster is at half HP".
    */
   conditionalBonusDen: 2,
 
@@ -950,6 +966,24 @@ export function statusAppliedBy(action: Action): { status: string; on: 'caster' 
  * `magnitude` is the field the keyword is PRICED on — `exploit.amount`, and the
  * required `cap` for the other three — so a caller can compute the full-rate
  * price without re-deriving which field matters.
+ *
+ * THE THIRD RIDER PASS (2026-08-21) added four more and stretched "resource" once
+ * further, to quantities that are not piles at all: the caster's WARD CHARGES
+ * (`wardRelease`), the caster's own HP BAR (`desperation`), the OVERFLOW of this
+ * cast's heal (`overhealShield`) and what this cast's CLEANSE actually stripped
+ * (`cleanseConvert`). The last two are the family's first members whose read is
+ * produced by the cast itself rather than found lying around; they are listed here
+ * anyway because rule 1 of the ordering check (a rider must precede the action it
+ * feeds) is exactly as load-bearing for them — see `riderFeedsKind` for the half
+ * of that rule they do NOT share.
+ *
+ * THREE OF THE EIGHT RESOURCE NAMES CANNOT BE SUPPLIED BY ANY KEYWORD — `'lowHp'`,
+ * `'overheal'` and `'cleansed'` appear on no `resourceSuppliedBy` branch, so rule 2
+ * (nothing may supply the rider's own gate before the fed action) is inert for them
+ * and `selfSynergyPremiumDeci` is 0 by construction rather than by exception. That
+ * is a deliberate property, not an oversight: those three gates are facts about the
+ * world (how hurt you are, how healthy your ally is, how afflicted your side is)
+ * that no card can manufacture.
  */
 export function riderReadsResource(
   action: Action,
@@ -961,6 +995,66 @@ export function riderReadsResource(
     // caster's own shield pools.
     case 'shieldBurst': return { resource: 'shield', on: 'caster', magnitude: action.cap };
     case 'taxBonus': return { resource: 'tax', on: 'target', magnitude: action.cap };
+    // The SECOND resource-consuming member, on the charge pile that answers
+    // afflictions instead of hits. `'ward'` cannot collide with a status kind read
+    // by `exploit`/`stackBonus` (ward is neither exploitable nor stackable), and
+    // `resourceSuppliedBy` maps the `ward` keyword onto it — so a ward+release kit
+    // forfeits the discount exactly as a shield+burst kit does.
+    case 'wardRelease': return { resource: 'ward', on: 'caster', magnitude: action.cap };
+    case 'desperation': return { resource: 'lowHp', on: 'caster', magnitude: action.amount };
+    case 'overhealShield': return { resource: 'overheal', on: 'caster', magnitude: action.cap };
+    case 'cleanseConvert': return { resource: 'cleansed', on: 'caster', magnitude: action.cap };
+    default: return null;
+  }
+}
+
+/**
+ * A RIDER'S UNDISCOUNTED RATE, in deci-PL per unit of its priced magnitude — its
+ * own `perUnitByProperty` numerator out of `KEYWORD_PRICING`, i.e. what it would
+ * cost without `PRICE.conditionalBonusDen`. Used by `selfSynergyPremiumDeci` to
+ * compute the forfeit; see the note at its call site for why the rate is read back
+ * from the table instead of being named as a keyword.
+ *
+ * Throws for anything whose first price term is not `perUnitByProperty`, which no
+ * rider is — the throw is there so the day one is authored differently the failure
+ * is loud rather than a silent 0 premium.
+ */
+function riderFullRateDeci(action: Action, property: Property): number {
+  const term = KEYWORD_PRICING[action.kind].price[0];
+  if (term === undefined || term.form !== 'perUnitByProperty') {
+    throw new Error(`${action.kind} is a conditional rider but does not price perUnitByProperty`);
+  }
+  return term.num[property];
+}
+
+/**
+ * WHICH ACTION KIND A RIDER'S BONUS IS SPENT BY — the other half of ordering rule 1
+ * (`rejectRiderMisordering`, src/data/validateSkillContent.ts). `null` for every
+ * action that is not a rider.
+ *
+ * Six of the eight riders arm bonus DAMAGE, so a `damage` action is what has to
+ * follow them. The two heal-side members do not: `overhealShield` reshapes the
+ * cast's own heal overflow and `cleanseConvert` adds to the cast's own heal
+ * request, so the action that spends them is a `heal` — and a card carrying either
+ * with no heal line is the same priced no-op as an exploit with no damage line.
+ *
+ * A SEPARATE LOOKUP rather than a field on `riderReadsResource`, on purpose: WHAT a
+ * rider reads and WHAT SPENDS IT are independent facts (`cleanseConvert` reads a
+ * cleanse and feeds a heal), and keeping them apart means neither answer has to be
+ * widened when the next rider mixes them differently again.
+ */
+export function riderFeedsKind(action: Action): 'damage' | 'heal' | null {
+  switch (action.kind) {
+    case 'overhealShield':
+    case 'cleanseConvert':
+      return 'heal';
+    case 'exploit':
+    case 'stackBonus':
+    case 'shieldBurst':
+    case 'taxBonus':
+    case 'wardRelease':
+    case 'desperation':
+      return 'damage';
     default: return null;
   }
 }
@@ -969,50 +1063,79 @@ export function riderReadsResource(
  * THE SUPPLY SIDE of the same question: what resource does this action PUT THERE,
  * and on whom. `null` when it supplies nothing a rider can read.
  *
- * Statuses come from `statusAppliedBy` (one definition, see above); the two
+ * Statuses come from `statusAppliedBy` (one definition, see above); the three
  * non-status resources are spelled here:
- *  • `shield` on the CASTER — `shield` is the only keyword that adds plating
- *    (`applyAction`'s `shield` arm; a heal is not plating);
+ *  • `shield` on the CASTER — `shield` is the keyword that adds plating
+ *    (`applyAction`'s `shield` arm; a heal is not plating), joined by
+ *    `overhealShield`, which BANKS plating out of a heal's overflow. A heal alone
+ *    still supplies nothing;
  *  • `tax` on the TARGET — BOTH `slow` (unit scope) and `burden` (card scope),
  *    because `taxedCardCount` counts both and a rider cannot tell which keyword
  *    put the weight there. (`splash` supplies nothing: it only widens a
  *    `burden`'s reach, and the burden is what a rider reads.)
+ *  • `ward` on the CASTER — the `ward` keyword, the one thing that puts charges on
+ *    the pile `wardRelease` cashes in.
+ *
+ * `curse` SUPPLIES NOTHING EITHER, for a different reason than `splash`: it does
+ * put a real, readable thing on the anchor (a `-amount` damage debuff), but no
+ * rider reads it — `taxedCardCount` counts WEIGHT taxes only, so a curse is not a
+ * `'tax'`, and inventing a `'curse'` resource name here would gate nothing while
+ * silently charging the self-synergy premium on every burden+curse kit. The day a
+ * rider keys off a curse, it gets its row here and not before.
+ *
+ * WHAT IS DELIBERATELY ABSENT: nothing supplies `'lowHp'`, `'overheal'` or
+ * `'cleansed'`. Those are the three gates no card can manufacture (see
+ * `riderReadsResource`), and their absence here is what makes `desperation`,
+ * `overhealShield` and `cleanseConvert` price at the discount unconditionally.
+ * `cleanseConvert` is the interesting one: its own kit is REQUIRED to carry a
+ * `cleanse`, but a cleanse is the conversion MECHANISM, not the gate — the gate is
+ * "somebody on your side is actually afflicted", which the enemy supplies.
  */
 export function resourceSuppliedBy(action: Action): { resource: string; on: 'caster' | 'target' } | null {
   const status = statusAppliedBy(action);
   if (status) return { resource: status.status, on: status.on };
   switch (action.kind) {
-    case 'shield': return { resource: 'shield', on: 'caster' };
+    case 'shield':
+    case 'overhealShield':
+      return { resource: 'shield', on: 'caster' };
     case 'slow':
     case 'burden':
       return { resource: 'tax', on: 'target' };
+    case 'ward': return { resource: 'ward', on: 'caster' };
     default: return null;
   }
 }
 
 /**
  * SELF-SYNERGY PREMIUM — the deci-PL a conditional rider (`exploit`,
- * `stackBonus`, `shieldBurst`, `taxBonus`) owes ON TOP of its table price when the
+ * `stackBonus`, `shieldBurst`, `taxBonus`, `wardRelease`, `desperation`,
+ * `overhealShield`, `cleanseConvert`) owes ON TOP of its table price when the
  * SAME KIT supplies the resource it keys off.
  *
- * WHY IT EXISTS. All four keywords price at the CONDITIONAL-TRIGGER DISCOUNT (half
- * the flat-damage rate, `PRICE.conditionalBonusDen`), and that discount buys one
- * specific thing: the gate depends on something the card CANNOT GUARANTEE (a
+ * WHY IT EXISTS. Every one of those keywords prices at the CONDITIONAL-TRIGGER
+ * DISCOUNT (half its own rate, `PRICE.conditionalBonusDen`), and that discount buys
+ * one specific thing: the gate depends on something the card CANNOT GUARANTEE (a
  * teammate's poison, another card's bleed, the shield another card of yours
- * granted, the burden somebody else landed). A card that supplies the
- * resource it reads guarantees its own gate from its SECOND cast onward — the
- * ordering ruling (user-locked 2026-08-21) costs it exactly the first cast and
- * nothing after — so the discount is no longer describing it. It pays the full
- * always-on rate instead: `strikeRate`, the same rate the card's own `damage` line
- * pays, TRUE premium included.
+ * granted, the burden somebody else landed, the ward another card banked). A card
+ * that supplies the resource it reads guarantees its own gate from its SECOND cast
+ * onward — the ordering ruling (user-locked 2026-08-21) costs it exactly the first
+ * cast and nothing after — so the discount is no longer describing it. It pays the
+ * full always-on rate instead: the rider's OWN table numerator (see
+ * `riderFullRateDeci` at the forfeit below), TRUE premium included.
  *
- * THE FOUR RESOURCES ARE NOT EQUALLY SELF-SUPPLIABLE, and the rule is
+ * THREE OF THE EIGHT CAN NEVER OWE IT, by construction rather than by exception:
+ * nothing supplies `'lowHp'`, `'overheal'` or `'cleansed'` (see
+ * `resourceSuppliedBy`), so `desperation`, `overhealShield` and `cleanseConvert`
+ * keep the discount unconditionally.
+ *
+ * THE SELF-SUPPLIABLE RESOURCES ARE NOT EQUALLY SELF-SUPPLIABLE, and the rule is
  * deliberately blind to the difference (see CONSERVATIVE below): a `shield` line
  * feeds a `shieldBurst` from the next cast onward as reliably as a poison feeds an
- * exploit (plating persists), a `burden` feeds a `taxBonus` until the taxed piece
- * is played, but a `slow` expires at END OF TURN — so a slow+reaper card only
- * collects when it gets a SECOND cast inside the same turn. Charging all three the
- * same premium over-prices the slow case and never under-prices any of them.
+ * exploit (plating persists), a `ward` line feeds a `wardRelease` just as durably,
+ * a `burden` feeds a `taxBonus` until the taxed piece is played, but a `slow`
+ * expires at END OF TURN — so a slow+reaper card only collects when it gets a
+ * SECOND cast inside the same turn. Charging them all the same premium over-prices
+ * the slow case and never under-prices any of them.
  *
  * CONSERVATIVE ON PURPOSE. The honest uptime of a self-synergy rider is
  * `(casts − 1) / casts`, which on the frozen sweep's median 7-turn fight with a
@@ -1030,8 +1153,9 @@ export function resourceSuppliedBy(action: Action): { resource: string; on: 'cas
  * A rider never counts as supplying ITSELF, and the SIDE must match — a
  * `stackBonus` with `of: 'caster'` is only self-supplied by a CASTER-side
  * application (`thorns`), never by the poison it puts on the enemy, and by the
- * same token a `shieldBurst` is fed by the caster's own `shield` line while a
- * `taxBonus` is fed by a `slow`/`burden` aimed at the target.
+ * same token a `shieldBurst` is fed by the caster's own `shield` line (or by an
+ * `overhealShield` banking plating out of a heal) while a `taxBonus` is fed by a
+ * `slow`/`burden` aimed at the target.
  *
  * Returns 0 for every other action, so the whole rule is inert on the ~110-card
  * catalog that predates it.
@@ -1053,7 +1177,20 @@ export function selfSynergyPremiumDeci(action: Action, kit: readonly Action[], p
   // FORFEIT THE DISCOUNT: pay `full − discounted`, where `discounted` is exactly
   // what `priceActionDeci` charged through the table (floored the same way), so
   // the two always add up to the full rate with no rounding drift.
-  const rate = scalableRateDeci('damage', property, KEYWORD_PRICING);
+  //
+  // THE FULL RATE IS THIS RIDER'S OWN TABLE NUMERATOR, read back out of
+  // `KEYWORD_PRICING` rather than named as a literal keyword. Every rider prices
+  // `perUnitByProperty` over `conditionalBonusDen`, so its numerator IS its
+  // undiscounted rate by construction — `strikeRate` for the six damage-side
+  // members (byte-identical to the `scalableRateDeci('damage', …)` this line used
+  // to read: the `damage` row's numerator is the same `strikeRate` object), the
+  // shield rate for `overhealShield`, the heal rate for `cleanseConvert`.
+  //
+  // WHY NOT NAME THE KEYWORD: the rate a rider must forfeit to is the rate of what
+  // IT delivers, which is not always the rate of the action that spends it —
+  // `overhealShield` feeds a `heal` but pays out in PLATING. Reading the numerator
+  // back is the only form that cannot get that wrong for a rider added later.
+  const rate = riderFullRateDeci(action, property);
   const full = Math.max(0, reads.magnitude) * rate;
   return full - Math.floor(full / PRICE.conditionalBonusDen);
 }
@@ -1066,7 +1203,7 @@ export function actionsPriceDeci(
    * The WHOLE kit the priced actions belong to, for the one rule that cannot be
    * decided from a single action: the SELF-SYNERGY premium
    * (`selfSynergyPremiumDeci`), which asks whether the card also SUPPLIES the
-   * resource its `exploit`/`stackBonus`/`shieldBurst`/`taxBonus` rider reads.
+   * resource its conditional rider reads (`riderReadsResource`).
    *
    * Defaults to `actions`, so every existing call site is unchanged. It is
    * passed explicitly by the two callers that price a SUBSET of a kit and would
@@ -1102,7 +1239,7 @@ export function actionsPriceDeci(
   // DATA-DRIVEN: every per-keyword rate lives in `keywords/pricing.ts`, so a
   // new keyword is a row there rather than a `case` here.
   for (const action of actions) {
-    // The table rate plus the ONE kit-aware term (0 for every kind but the four
+    // The table rate plus the ONE kit-aware term (0 for every kind but the
     // conditional riders, and 0 for those unless the kit supplies their
     // gate). Added to the SAME action's price rather than summed separately so
     // it lands in the right offensive/self bucket, pays the AoE multiplier with

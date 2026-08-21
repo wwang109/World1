@@ -747,6 +747,16 @@ describe('AoE reach pricing (scope: all)', () => {
       // shieldBurst card is refused by `validateSkillContent` rather than priced
       // at a reach multiplier it would not pay.
       'taxBonus',
+      // 2026-08-21 (THIRD rider pass): `desperation` is the only one of the four
+      // new riders that joins. Its GATE is caster-side (own HP at or below half),
+      // but the bonus it arms is per victim, so under `scope: 'all'` it is
+      // delivered once per foe and must pay reach — the same call `stackBonus`
+      // with `of: 'caster'` already gets. The other three stay OUT, each for its
+      // own stated reason: `wardRelease` reads and SPENDS the caster's own charges
+      // (the `shieldBurst` case verbatim, AoE refused rather than priced), while
+      // `overhealShield`/`cleanseConvert` feed a `heal`, which is a support action
+      // that resolves once whatever the scope — there is no fan-out to price.
+      'desperation',
     ]));
   });
 });

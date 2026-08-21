@@ -508,3 +508,58 @@ export function taxedCardCount(c: CombatantState): number {
   if (c.nextWeightPenalty > 0) taxed += 1;
   return taxed;
 }
+
+/**
+ * HOW MANY `ward` CHARGES this unit is holding, across every pile — the quantity a
+ * `wardRelease` rider can cash in, and the same total the `ward` arm clamps against
+ * `MAX_WARD_CHARGES`. Index walk over `statuses`, integers only, no RNG.
+ */
+export function wardChargeCount(c: CombatantState): number {
+  let charges = 0;
+  for (let i = 0; i < c.statuses.length; i += 1) {
+    const s = c.statuses[i]!;
+    if (s.kind === 'ward') charges += Math.max(0, s.charges ?? 0);
+  }
+  return charges;
+}
+
+/**
+ * Spend up to `maxCharges` of a unit's OWN `ward` charges and report what was
+ * actually taken — the arithmetic behind the `wardRelease` rider (`applyAction`,
+ * combat/interpreter.ts), kept here beside the state it mutates and away from the
+ * event log, exactly like `spendShieldsForBurst` above.
+ *
+ * PILE ORDER IS LOWEST-INDEX-FIRST, the same order `consumeWard` spends them in
+ * (a recast opens a NEW ward pile rather than merging, so "which pile pays" is a
+ * real question and gets ONE answer everywhere). Walked by index; no `Map`/`Set`,
+ * no RNG, integer-only.
+ *
+ * Piles drained to zero are REMOVED from `statuses` here, and `pilesEmptied`
+ * reports how many — the caller emits one `statusExpired` per emptied pile, which
+ * is exactly what `consumeWard` does for the one pile it can drain. `maxCharges <=
+ * 0` (or no wards) spends nothing and returns zeros, so the caller can treat "no
+ * ward" and "no cap" identically.
+ */
+export function releaseWardCharges(c: CombatantState, maxCharges: number): { released: number; pilesEmptied: number } {
+  let remaining = Math.max(0, maxCharges);
+  let released = 0;
+  // THE PILES THIS CALL EMPTIED, by IDENTITY — not "every ward pile now at 0".
+  // The distinction matters: a filter on the predicate would also sweep away any
+  // pre-existing 0-charge pile this call never touched, which would be a silent
+  // state change nothing asked for (and no event would report it).
+  const emptied: StatusInstance[] = [];
+  for (let i = 0; i < c.statuses.length; i += 1) {
+    if (remaining <= 0) break;
+    const ward = c.statuses[i]!;
+    if (ward.kind !== 'ward') continue;
+    const have = Math.max(0, ward.charges ?? 0);
+    if (have <= 0) continue;
+    const take = Math.min(have, remaining);
+    ward.charges = have - take;
+    remaining -= take;
+    released += take;
+    if (ward.charges <= 0) emptied.push(ward);
+  }
+  if (emptied.length > 0) c.statuses = c.statuses.filter((s) => !emptied.includes(s));
+  return { released, pilesEmptied: emptied.length };
+}

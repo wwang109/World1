@@ -308,6 +308,28 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
       // use on the face (SLOW +N / BURDEN +N WT are the taxes), so no new one is
       // invented; the token borrows `slow`'s color, the family both taxes share.
       case 'taxBonus': extras.push({ text: `+${action.per}/TAXED CARD (cap ${action.cap})`, keyword: 'slow' }); break;
+      // WARD RELEASE — `shieldBurst`'s token one currency over, and worded the same
+      // way for the same reason: "WARD" alone on a face reads as charges GAINED, so
+      // `SPEND` names the direction. Both numbers print (`per` is what one charge is
+      // worth, the cap is what it is worth in total and what it is priced on), and
+      // the token borrows the existing `ward` color — same currency, no new palette
+      // entry.
+      case 'wardRelease': extras.push({ text: `SPEND WARD +${action.per}/CHG (cap ${action.cap})`, keyword: 'ward' }); break;
+      // DESPERATION — the flat bonus and the gate, in the shortest honest form.
+      // "HALF HP" is the whole condition and it is a RULE, not a card value, so it
+      // reads as words rather than a number the player might mistake for tunable.
+      // Borrows `bleed`'s red: the palette's one HP-colored entry, and the tell here
+      // is "this lights up when your own bar is low".
+      case 'desperation': extras.push({ text: `+${action.amount} BELOW HALF HP`, keyword: 'bleed' }); break;
+      // OVERHEAL SHIELD — the cap is the only plannable number (how much wasted
+      // healing actually banks). "OVERHEAL" is the noun the combat log already uses
+      // for the wasted remainder of a heal (`heal.overheal`), so nothing new is
+      // invented; borrows `shield`'s color, since plating is what it produces.
+      case 'overhealShield': extras.push({ text: `OVERHEAL -> SHLD ${action.cap}`, keyword: 'shield' }); break;
+      // CLEANSE CONVERT — `per` per stack cleansed and the cap, the `stackBonus`
+      // reading. "HP" rather than "damage" because this one pays out in healing, and
+      // it borrows `cleanse`'s color: the keyword it is strapped to is the tell.
+      case 'cleanseConvert': extras.push({ text: `+${action.per} HP/CLEANSED (cap ${action.cap})`, keyword: 'cleanse' }); break;
       case 'slow': extras.push({ text: `SLOW +${action.weight}`, keyword: 'slow' }); break;
       // BURDEN — the weight tax at CARD scope, so its number is the SAME weight
       // SLOW prints above and it carries the same WT unit. (User ruling

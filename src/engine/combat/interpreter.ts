@@ -4,7 +4,7 @@ import { isMultiTargetSkill, MAX_NEGATE_CHARGES, MAX_WARD_CHARGES } from '../typ
 import type { AntiHealCategory, AntiHealReduction, CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
-import { anySideWiped, boardPowerLevel, effStat, foesOf, hasStatus, spendShieldsForBurst, statusStackCount, taxedCardCount, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
+import { anySideWiped, boardPowerLevel, effStat, foesOf, hasStatus, releaseWardCharges, spendShieldsForBurst, statusStackCount, taxedCardCount, teamOf, totalShield, wardChargeCount, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 import { cardTargetPieces } from './splash';
 
@@ -58,17 +58,31 @@ function isOffensiveAction(action: Action): boolean {
     // (how many of its cards carry a weight tax) and arms its bonus PER VICTIM,
     // so under `scope: 'all'` each foe is judged on its own backlog.
     case 'taxBonus':
+    // DESPERATION reads the CASTER's own HP bar, so nothing about its condition
+    // needs the victim — and it is STILL offensive, by kind, exactly as
+    // `stackBonus` with `of: 'caster'` is. The reason is the same one stated
+    // above and it is about the BONUS, not the read: the bonus lands on the
+    // victim's hit, so under `scope: 'all'` it is delivered once per foe and has
+    // to pay the AoE reach multiplier. Arming it per victim (`bonusByTarget`)
+    // rather than as the scalar `bonusFlat` is what makes that price honest, and
+    // is why desperation needs no AoE refusal while `shieldBurst`/`wardRelease` do.
+    case 'desperation':
       return true;
     default:
       // heal, shield, buffStat, cleanse, taunt, lifesteal, comboBonus, thorns,
-      // guard, negate, ward — none of these resolve against a foe. Nor does
-      // `shieldBurst`: unlike its three rider siblings above, the resource it
-      // reads AND SPENDS is the CASTER'S OWN plating, so it must resolve on the
-      // caster and run EXACTLY ONCE per cast (a per-foe fan-out would drain the
-      // wall on the first foe and arm nothing for the rest). It therefore arms
-      // the cast's scalar `bonusFlat`, exactly like `comboBonus`, and an
-      // authored AoE + shieldBurst card is refused by `validateSkillContent`
-      // rather than priced.
+      // guard, negate, ward — none of these resolve against a foe. Nor do the
+      // four CASTER-SIDE riders:
+      //  • `shieldBurst` and `wardRelease` read AND SPEND a resource of the
+      //    caster's own (plating / ward charges), so they must resolve on the
+      //    caster and run EXACTLY ONCE per cast — a per-foe fan-out would drain
+      //    the wall (or the charges) on the first foe and arm nothing for the
+      //    rest. They therefore arm the cast's scalar `bonusFlat`, exactly like
+      //    `comboBonus`, and an authored AoE + burst/release card is refused by
+      //    `validateSkillContent` rather than priced.
+      //  • `overhealShield` and `cleanseConvert` feed the cast's own HEAL, which
+      //    is itself a support action — it already resolves once, on the support
+      //    target, whatever the card's scope. There is no fan-out for them to be
+      //    wrong about, hence no refusal needed either.
       return false;
   }
 }
@@ -621,15 +635,15 @@ interface CastCtx {
    * a base card authoring `comboBonus` alongside two damage actions would have
    * done exactly the same.
    *
-   * ALSO ARMED BY `shieldBurst` — the one rider whose resource is the CASTER's
-   * own (its shield pools), so it resolves once on the caster and has no victim
-   * to index by. Same field, same one-per-cast spend rule; the two accumulate if
-   * a card ever carries both.
+   * ALSO ARMED BY `shieldBurst` and `wardRelease` — the two riders whose resource
+   * is the CASTER's own (its shield pools / its ward charges), so they resolve once
+   * on the caster and have no victim to index by. Same field, same one-per-cast
+   * spend rule; they all accumulate if a card ever carries several.
    */
   bonusFlat: number;
   /**
    * FLAT damage armed PER VICTIM by a CONDITIONAL rider this cast (`exploit`,
-   * `stackBonus`, `taxBonus`), indexed by the victim's lineup index. Sparse: only
+   * `stackBonus`, `taxBonus`, `desperation`), indexed by the victim's lineup index. Sparse: only
    * foes a rider actually armed appear, and a cast with no such rider never writes
    * it, which is what keeps every existing card byte-identical.
    *
@@ -643,6 +657,47 @@ interface CastCtx {
    * it, so one cast pays one bonus however many hits it splits into.
    */
   bonusByTarget: number[];
+  /**
+   * THE HEAL-SIDE MIRROR OF `bonusFlat` — flat bonus HEALING armed by a rider this
+   * cast (today only `cleanseConvert`), SPENT by the first own `heal` action that
+   * reads it (`readsCastHealBonus`, cleared at the same place and on the same
+   * schedule `bonusFlat` is).
+   *
+   * A SEPARATE FIELD, deliberately, rather than routing a heal rider through
+   * `bonusFlat`: that field is read by the `damage` arm, and a heal bonus landing
+   * there would either be spent as damage by any hit on the same card or be a
+   * silent no-op on a card with no hit. The two currencies do not share a pocket.
+   * Everything else about it is `bonusFlat`'s contract verbatim — one number per
+   * cast, however many heals the card splits into, because the face prints one
+   * number.
+   *
+   * It joins the heal REQUEST (before anti-heal and before the maxHp clamp), so it
+   * is taxed and wasted exactly like the card's own base — see the `heal` arm.
+   */
+  healBonusFlat: number;
+  /**
+   * How much of this cast's HEAL OVERFLOW may bank as plating — armed by
+   * `overhealShield` (accumulating, if a card ever carries two) and spent by the
+   * first own `heal` action, cleared beside `healBonusFlat`.
+   *
+   * A CAP, NOT A PAYLOAD: the rider does not know how much will overflow, so what
+   * it arms is permission up to `cap`. The `heal` arm converts
+   * `min(applied − healed, this cap, shield room)`.
+   */
+  overhealShieldCap: number;
+  /**
+   * STACKS THIS CAST'S OWN `cleanse` ACTUALLY REMOVED — the same number the
+   * `cleansed` event reports, summed over every cleanse action of the cast. Read by
+   * `cleanseConvert`, which is why the validator requires a `cleanse` to sit ahead
+   * of that rider: a rider that runs first reads 0 and pays nothing.
+   *
+   * NOT CLEARED WHEN READ, unlike the bonus fields. A cleanse result is a FACT
+   * about the cast, not a one-shot allowance — two `cleanseConvert` riders on one
+   * card are two separately-priced conversions of the same fact, and each is
+   * capped on its own. (The bonuses they arm are still spent once each, by the
+   * heal, through `healBonusFlat`.)
+   */
+  cleansedStacks: number;
   /**
    * DOES THIS CAST CARRY A `splash`? Read ONCE from the effective effect list
    * when the cast opens (`castSpreadsBand`), and consulted by every
@@ -697,6 +752,18 @@ function armTargetBonus(cast: CastCtx, victim: CombatantState, amount: number): 
  */
 function readsCastBonus(action: Action): boolean {
   return action.kind === 'damage' && action.fromGem !== true;
+}
+
+/**
+ * The HEAL-side twin: does this action READ (and therefore SPEND) the cast's armed
+ * heal bonus and its overheal-shield allowance (`healBonusFlat` /
+ * `overhealShieldCap`)? Exactly the `heal` arm's own condition, and the `fromGem`
+ * exclusion is the same rule for the same reason — a gem heal delivers exactly its
+ * printed `power`, with no stat term, no aura term and so no host-side rider bonus
+ * either (`GemAppended` in types.ts).
+ */
+function readsCastHealBonus(action: Action): boolean {
+  return action.kind === 'heal' && action.fromGem !== true;
 }
 
 /**
@@ -1221,10 +1288,18 @@ function applyAction(
       // silently disagree with this line). Mirrors shieldGain.calculation.
       let statBonus = 0;
       let healFlat = 0;
+      // FLAT BONUS HEALING armed by a rider earlier in this cast (`cleanseConvert`
+      // — see `CastCtx.healBonusFlat`). It joins the REQUEST, on both branches, so
+      // it is taxed by anti-heal and wasted by the maxHp clamp exactly like the
+      // card's own base: a bonus heal is healing, not a separate exempt payload.
+      // Excluded for a gem heal on the same rule that zeroes `statBonus`/`healFlat`
+      // there — a gem's printed payload is its whole payload.
+      const bonus = fromGem ? 0 : cast.healBonusFlat;
       if (property === 'true') {
         // Flat by identity: no stat term, no aura term — both stay 0, exactly as
-        // a TRUE shield reports statBonus 0.
-        amount = action.power;
+        // a TRUE shield reports statBonus 0. The rider bonus is not a stat or aura
+        // term, so it DOES apply here; a TRUE heal is irreducible, not unbuffable.
+        amount = action.power + bonus;
         flat = true;
       } else {
         statBonus = fromGem ? 0 : scaleDefStat(caster, property);
@@ -1232,7 +1307,7 @@ function applyAction(
         // ANTI-HEAL WORLD RULE: a regular heal is taxed −20% per affliction
         // category active on the RECEIVER (cap −60%). TRUE heals skip this
         // branch entirely — irreducible by identity.
-        const taxed = applyAntiHeal(target, action.power + statBonus + healFlat);
+        const taxed = applyAntiHeal(target, action.power + statBonus + healFlat + bonus);
         amount = taxed.amount;
         antiHeal = taxed.antiHeal;
       }
@@ -1245,7 +1320,45 @@ function applyAction(
       // A clamped-away (<= 0) request attempted nothing and stays silent, exactly
       // as a 0 heal always has.
       if (applied > 0) {
-        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: applied - healed, flat, hpAfter: target.stats.hp, ...(antiHeal ? { antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}), calculation: { power: action.power, statBonus, healFlat, property } });
+        ctx.events.push({ turn: ctx.state.turn, kind: 'heal', side: target.side, unit: target.index, amount: healed, overheal: applied - healed, flat, hpAfter: target.stats.hp, ...(antiHeal ? { antiHeal } : {}), ...(ctx.source ? { sourceCard: ctx.source } : {}), calculation: { power: action.power, statBonus, healFlat, property, ...(bonus > 0 ? { bonus } : {}) } });
+      }
+      // OVERHEAL -> PLATING (`overhealShield`, armed earlier in this cast). The
+      // overflow is `applied − healed`, i.e. what the heal had left AFTER the
+      // anti-heal tax and BEFORE nothing else: the taxed heal is the real heal, so
+      // a heal taxed −60% simply has less to overflow with. Nothing here can
+      // manufacture overflow that the heal did not actually waste.
+      //
+      // ORDER: after the `heal` event, so the log reads "healed N (overheal M)"
+      // and then "banked M as plating" — the causal order a replay needs.
+      //
+      // THE maxHp SHIELD CEILING STILL BINDS, through the same room check the
+      // `shield` arm uses; the part that will not fit is reported as `wasted`, so a
+      // conversion that was capped away is visible rather than silently missing.
+      // The plating lands on the unit whose bar overflowed (`target`), which is the
+      // caster for every self-heal — see the keyword's docs in types.ts.
+      const overflowCap = fromGem ? 0 : cast.overhealShieldCap;
+      if (overflowCap > 0 && target.alive) {
+        const converted = Math.min(applied - healed, overflowCap);
+        if (converted > 0) {
+          const room = Math.max(0, target.stats.maxHp - totalShield(target));
+          const gain = Math.min(converted, room);
+          if (gain > 0) target.shields[property] += gain;
+          ctx.events.push({
+            turn: ctx.state.turn,
+            kind: 'shieldGain',
+            side: target.side,
+            unit: target.index,
+            property,
+            amount: gain,
+            wasted: converted - gain,
+            totalAfter: totalShield(target),
+            poolsAfter: { ...target.shields },
+            ...(ctx.source ? { sourceCard: ctx.source } : {}),
+            // NO `calculation`: a conversion has no card base and no stat term to
+            // split. Same contract `lifesteal`'s heal event follows.
+            overheal: true,
+          });
+        }
       }
       break;
     }
@@ -1446,6 +1559,12 @@ function applyAction(
         if (drained.size > 0) target.statuses = target.statuses.filter((s) => !drained.has(s));
         ctx.events.push({ turn: ctx.state.turn, kind: 'cleansed', side: target.side, unit: target.index, removed });
       }
+      // RECORDED FOR `cleanseConvert` (see `CastCtx.cleansedStacks`): the STACKS
+      // actually removed, the same number the event reports, accumulated across
+      // every cleanse action of this cast. Written unconditionally — `removed` is 0
+      // when there was nothing to strip, and 0 is exactly what a convert rider must
+      // read in that case.
+      cast.cleansedStacks += removed;
       break;
     }
     case 'taunt': {
@@ -1698,6 +1817,93 @@ function applyAction(
       armTargetBonus(cast, enemy, Math.min(action.per * taxed, action.cap));
       break;
     }
+    case 'wardRelease': {
+      // CASH IN YOUR OWN WARDS. `shieldBurst`'s twin, one currency over: charges
+      // leave the caster's ward piles (lowest index first, `releaseWardCharges` in
+      // combat/state.ts) and each one released is worth `per` flat bonus damage on
+      // this cast's hit, the whole thing clamped at `cap`.
+      //
+      // ONLY AS MANY CHARGES AS THE CAP CAN PAY FOR — `ceil(cap / per)` — so a
+      // release never throws away a charge it is not being paid for. `ceil` (not
+      // `floor`) is what keeps the priced cap REACHABLE; the cost is one
+      // partially-paying charge when `cap` is not a multiple of `per`, which is why
+      // authored content keeps it a multiple. `per >= 1` is a validator floor, so
+      // this division can never be by zero.
+      //
+      // SUPPORTIVE (`isOffensiveAction`), so `resolveTargets` hands this arm the
+      // CASTER as `enemy` and runs it ONCE — what a resource spend needs. The bonus
+      // therefore goes to the cast's SCALAR `bonusFlat`, exactly like the burst,
+      // and an authored AoE + wardRelease card is refused rather than priced.
+      //
+      // PRE-EXISTING CHARGES ONLY: the card's own `ward` line is required to sit
+      // after the damage this feeds, so a release can never top itself up first.
+      if (!caster.alive) break;
+      const { released, pilesEmptied } = releaseWardCharges(caster, Math.ceil(action.cap / action.per));
+      if (released <= 0) break;
+      cast.bonusFlat += Math.min(action.per * released, action.cap);
+      // THE SPEND IS EVENTED, because charges leaving a unit is observable state:
+      // the ward pips drop before the hit lands. `wardReleased` rather than
+      // `warded` — nothing was prevented, so there is no affliction to name.
+      ctx.events.push({ turn: ctx.state.turn, kind: 'wardReleased', side: caster.side, unit: caster.index, charges: released, chargesLeft: wardChargeCount(caster) });
+      // ...and each pile emptied announces its own end, exactly as `consumeWard`
+      // does for the one pile it can drain. A fixed count of identical events, in a
+      // fixed order: deterministic, no Map/Set, no RNG.
+      for (let i = 0; i < pilesEmptied; i += 1) {
+        ctx.events.push({ turn: ctx.state.turn, kind: 'statusExpired', side: caster.side, unit: caster.index, status: 'ward' });
+      }
+      break;
+    }
+    case 'desperation': {
+      // LAST STAND: flat bonus damage while the CASTER is at or below half its
+      // maximum HP. `exploit`'s shape with the gate on the attacker's own bar.
+      //
+      // INTEGER-EXACT GATE — `hp * 2 <= maxHp`, never a division (see the action's
+      // docs in types.ts). `maxHp` is not a `BuffableStat`, so `effStat` has nothing
+      // to contribute here and the raw stats are the honest read.
+      //
+      // ARMED PER VICTIM even though the condition is caster-side, the same call
+      // `stackBonus` with `of: 'caster'` makes: the bonus lands on the victim's hit,
+      // so under `scope: 'all'` it is delivered once per foe and pays AoE reach.
+      if (!enemy.alive) break;
+      if (caster.stats.hp * 2 > caster.stats.maxHp) break;
+      armTargetBonus(cast, enemy, action.amount);
+      break;
+    }
+    case 'overhealShield': {
+      // ARM ONLY — the conversion itself lives in the `heal` arm, which is the one
+      // place that knows how much a heal actually wasted. All this does is grant
+      // permission for up to `cap` points of THIS cast's heal overflow to bank as
+      // plating (see `CastCtx.overhealShieldCap`), which is why the validator
+      // requires a `heal` action to follow it: with no heal there is no overflow and
+      // the rider is a priced no-op.
+      //
+      // SUPPORTIVE, so `resolveTargets` runs it once with the CASTER as `enemy`; the
+      // recipient of the plating is decided in the heal arm (the unit whose bar
+      // overflowed), not here. Nothing is read at rider time — there is nothing to
+      // read yet — so unlike its siblings this arm has no condition and no state.
+      if (!caster.alive) break;
+      cast.overhealShieldCap += Math.max(0, action.cap);
+      break;
+    }
+    case 'cleanseConvert': {
+      // CONVERT WHAT THE CLEANSE ACTUALLY STRIPPED into bonus healing: `per` per
+      // STACK removed by this cast's own cleanse (`CastCtx.cleansedStacks`, written
+      // by the `cleanse` arm), clamped at `cap`, armed onto the heal-side seam
+      // `healBonusFlat` for the cast's own `heal` to spend.
+      //
+      // THE ORDER IS THE INVERSE OF THE DAMAGE RIDERS' and the validator enforces
+      // it: the `cleanse` must come BEFORE this arm (a rider that runs first reads 0)
+      // and the `heal` AFTER it (a bonus nothing spends is a priced no-op). It is
+      // still "read what is already there" — what is already there is this cast's
+      // own earlier result rather than a standing pile.
+      //
+      // SUPPORTIVE and never per-victim: what it arms is healing, so there is no
+      // foe involved at any point.
+      if (!caster.alive) break;
+      if (cast.cleansedStacks <= 0) break;
+      cast.healBonusFlat += Math.min(action.per * cast.cleansedStacks, action.cap);
+      break;
+    }
     case 'thorns': {
       // Self buff: thorn stacks on the caster, consumed by the reflect hook in
       // applyStrike (one stack per direct hit taken; no turn expiry).
@@ -1858,7 +2064,7 @@ export function applyCast(
    * the old `anySideWiped` call, so every 1v1 log stays byte-identical.
    */
   const castCutShort = (): boolean => !caster.alive || anySideWiped(ctx.state);
-  const cast: CastCtx = { damageDealt: 0, bonusFlat: 0, bonusByTarget: [], spreadsBand: castSpreadsBand(skill.effects) };
+  const cast: CastCtx = { damageDealt: 0, bonusFlat: 0, bonusByTarget: [], healBonusFlat: 0, overhealShieldCap: 0, cleansedStacks: 0, spreadsBand: castSpreadsBand(skill.effects) };
   // MULTI-HIT STAT SPLIT: the denominator is fixed for the whole cast and counts
   // the CARD'S OWN damage actions only — a gem-appended hit neither joins the
   // split nor advances the ordinal, so socketing a gem cannot shrink the hits
@@ -1898,6 +2104,15 @@ export function applyCast(
     if (readsCastBonus(action)) {
       cast.bonusFlat = 0;
       cast.bonusByTarget = [];
+    }
+    // THE HEAL-SIDE SEAM, cleared on exactly the same schedule and for exactly the
+    // same reason: the first own `heal` action spends the cast's armed heal bonus
+    // (`cleanseConvert`) and its overheal-shield allowance (`overhealShield`), and a
+    // later heal action on the same card gets neither. One face, one number, one
+    // conversion — however many heal lines the card splits into.
+    if (readsCastHealBonus(action)) {
+      cast.healBonusFlat = 0;
+      cast.overhealShieldCap = 0;
     }
     // ...and between actions, so a killing blow (or a killed caster) drops every
     // remaining effect of the card. See `castCutShort`.

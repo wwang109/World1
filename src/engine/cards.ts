@@ -315,6 +315,49 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
    * adding a row here.
    */
   shieldBurst: 'pre',
+  /**
+   * `shieldBurst`'s twin one currency over, and it inherits the row verbatim:
+   * `wardRelease` arms the SCALAR `cast.bonusFlat`, so appended last it would spend
+   * the caster's ward charges with no damage action left to spend them ON — strictly
+   * worse than doing nothing. `pre` also keeps the ordering ruling (it reads the
+   * charges that were already there, ahead of any `ward` line the host grants
+   * itself).
+   *
+   * NO SHIPPED GEM CARRIES IT (pinned by test), for the burst's reason exactly: on
+   * an AoE host it would deliver one spent pile of charges to every foe at a
+   * host-blind single-target price — the hole THE SPLASH GATE (`spliceGemActions`
+   * below) exists to close. Extend that gate before authoring one.
+   */
+  wardRelease: 'pre',
+  /**
+   * Arms `cast.bonusByTarget` off the CASTER's own HP bar. `pre` for the
+   * `exploit`/`stackBonus` reason (a bonus appended after the host's damage is a
+   * no-op), and `desperation` is the one member of the third rider pass that is
+   * genuinely GEM-SAFE: it is armed per victim, so an AoE host judges every foe on
+   * the same caster-side condition and pays the reach multiplier for it. Nothing
+   * host-blind about it, and nothing for the splash gate to close.
+   */
+  desperation: 'pre',
+  /**
+   * THE TWO HEAL-SIDE RIDERS. Both must be in place before the host's `heal`
+   * resolves — `overhealShield` grants the allowance the heal arm converts against,
+   * `cleanseConvert` arms `cast.healBonusFlat` for the heal to spend — so appended
+   * last they are pure no-ops, the same silent failure this table exists to close.
+   *
+   * `overhealShield` at `pre` is CORRECT on any host with a heal: prepended, it
+   * arms, then the host's own heal overflows into it.
+   *
+   * `cleanseConvert` at `pre` is the honest best-available, not a working
+   * placement, and NO SHIPPED GEM CARRIES IT (pinned by test). It is the one rider
+   * whose read must sit BETWEEN two of the host's own actions — after the host's
+   * `cleanse`, before the host's `heal` — and a two-phase append/prepend model
+   * cannot express that: prepended it reads 0 stacks, appended it arms a bonus the
+   * heal has already gone past. `pre` is recorded here because it is the phase a
+   * gem one would need if the splicer ever learns a third position; until then the
+   * test is the gate.
+   */
+  overhealShield: 'pre',
+  cleanseConvert: 'pre',
   /** Strips plating so the host's hit lands on HP, not on a shield. */
   shieldBreak: 'pre',
   // --- Runs AFTER, because it READS what the cast already did. ---
