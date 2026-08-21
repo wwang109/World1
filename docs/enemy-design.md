@@ -85,9 +85,13 @@ allocation algorithm.
 | Cleric (`cleric`) | Basic | Holy warden-healer | 3 | element: holy | magicPower/magicResist/HP balanced |
 | Toxic Druid (`toxic_druid`) | Basic | Nature poisoner — three poison hybrids, no pure-damage filler | 3 | element: nature | magicPower-dominant, light magicResist (its own heal card), no HP (glass) |
 | Reaver (`bleed_reaver`) | Basic | Axe bleed duelist — shieldBreak opens the guard, bleed piles on, armor shred softens the follow-up | 3 | weapon: axe | attack-dominant, light HP, no speed |
-| Warbreaker (`warbreaker`) | Basic | Axe tempo-denial brute — the roster's `splash` showcase, shieldBreak follow-up | 2 | weapon: axe | attack/speed balanced (tempo-first), light HP |
+| Warbreaker (`warbreaker`) | Basic | Axe tempo-denial brute — the roster's `burden + splash` showcase, shieldBreak follow-up | 2 | weapon: axe | attack/speed balanced (tempo-first), light HP |
 | Thornback (`thorn_beast`) | Basic | Beast thorns+shield — punishes fast/multi-hit attackers (unless they wear ARMOR, 2026-08-21), sits behind a big shield | 2 | weapon: beast | maxHp/armor-dominant, light attack |
 | Sentinel (`warded_sentinel`) | Elite (tag only) | Sword warded protector — ward+guard denial layered on a flat shield, the roster's hardest normal-pool pick | 3 | weapon: sword | armor-dominant (edges out maxHp), light attack |
+| Venom Stalker (`venom_stalker`) | Basic | Beast poison->exploit ambusher — Venom Fang applies, Second Bite exploits the poison it finds and re-applies | 2 | weapon: beast | attack-dominant, light HP |
+| Pyre Acolyte (`pyre_acolyte`) | Basic | Fire caster — two burn appliers feeding Burn Detonator's per-stack payoff | 3 | element: fire | magicPower-dominant, light speed/HP |
+| Shield Warden (`shield_warden`) | Basic | Sword shieldBurst tank — Iron Bulwark banks a shield, Aegis Charge spends it as bonus damage | 2 | weapon: sword | maxHp/armor-dominant, light attack |
+| Bloodletter (`blood_duelist`) | Basic | Axe bleed->stackBonus duelist — Rupturing Strike opens the wound, Bleed Executioner reads the stack | 2 | weapon: axe | attack-dominant, light speed/HP |
 
 Source of truth for exact numbers is always `src/data/enemies.ts` (cards/
 affinity) and `src/run/leveling.ts` (`MONSTER_PROFILES`, weights) — this
@@ -99,7 +103,8 @@ profile-lookup compatibility — only its display name and cards became
 ## Keyword-family roster expansion (2026-08-19)
 
 The 2026-08-19 card catalog growth (ward 3->8, thorns 6->10, bleed 4->7, new
-ward/shield/thorns hybrids, poison hybrids, the roster's first `splash` card)
+ward/shield/thorns hybrids, poison hybrids, the roster's first spread-burden
+card)
 predated any enemy fielding most of those families — a depth-1 player could
 draft a mechanic the roster never played back. The five enemies added above
 (`toxic_druid`, `bleed_reaver`, `warbreaker`, `thorn_beast`, `warded_sentinel`)
@@ -164,3 +169,52 @@ per level, so ~5 PL of armor already flips this matchup and ~19 PL erases the
 reflect entirely. If Thornback is to keep punishing armored attackers it needs a
 content answer — a deeper pile, an armor-shred line (`debuffStat` armor /
 `shieldBreak`), or a non-physical punish — priced by `balance-designer`.
+
+## Synergy-rider roster expansion (2026-08-21)
+
+The 2026-08-19/21 card batch landed 9 "carrier" cards that pay off a status
+the REST of a board already applies (`exploit`, `stackBonus`,
+`shieldBurst`, `taxBonus`) — `blight_feast`, `second_bite`,
+`thorn_reckoning`, `bleed_executioner`, `burn_detonator`,
+`control_opportunist`, `debuff_crusher`, `aegis_charge`, `deadweight_toll` —
+with no enemy fielding any of them, so a player could draft the exploit/
+per-stack/burst mechanic and never see it played back. Four monsters
+(`venom_stalker`, `pyre_acolyte`, `shield_warden`, `blood_duelist`) close
+that gap, one per rider family the brief called out: `exploit` on poison,
+`stackBonus` on burn, `shieldBurst` on your own shield, `stackBonus` on
+bleed. Every board below is real catalog cards only, Bronze floor, a small
+2-3 piece board, universal statline — same rule as every enemy above.
+
+`goldReward` was again chosen to seat each at a deliberate rung of the
+`FIGHT_POOL` depth ladder (`src/run/enemyDepth.ts`, now derived over 21
+non-boss enemies instead of 17): Venom Stalker (25) and Pyre Acolyte (26)
+land in tier-2 (`[9,16]`, next to Knight/Warbreaker/Berserker) — a two-card
+combo that rewards learning the counterplay rather than an end-game reveal.
+Shield Warden (29) and Bloodletter (33) land in tier-3 (`[13,∞)`,
+Bloodletter now the roster's single toughest fight-pool anchor, just above
+Warded Sentinel's 32) — these two combos hit hardest when fully assembled
+and are meant to show up once the player already has some tools to answer
+them.
+
+Per-monster counterplay (see each one's own comment in `src/data/enemies.ts`
+for the full reasoning):
+
+- **Venom Stalker** (`venom_fang` + `second_bite`): cleanse the poison stack
+  between casts and Second Bite's `exploit` bonus never fires — it checks
+  BEFORE the card acts, so a stack removed even one beat earlier denies it
+  outright. Poison bypasses shields, so a shield alone does not answer this.
+- **Pyre Acolyte** (`cinder_dart` + `ember_lash` + `burn_detonator`): burn
+  halves every turn on its own, so simply surviving a turn or two before
+  Burn Detonator lands shrinks its `stackBonus` for free; cleanse removes the
+  stacks outright, and a Ward charge denies burn from landing at all.
+- **Shield Warden** (`iron_bulwark` + `aegis_charge`): `shieldBreak` (or
+  simply not letting the shield bank) denies Aegis Charge's `shieldBurst` a
+  target before the Warden can spend its own wall back at you as damage.
+- **Bloodletter** (`rupturing_strike` + `bleed_executioner`): cleanse the
+  bleed stack (or out-heal/out-tank the opener) before Bleed Executioner
+  reads it and its `stackBonus` falls back to nothing; bleed is blocked by
+  shields, so a banked shield denies the opener's stack from landing in the
+  first place.
+
+Follow-up owed: `src/run/leveling.ts`'s `MONSTER_PROFILES` gained matching
+entries for all four (no `DEFAULT_PROFILE` fallthrough) in the same commit.

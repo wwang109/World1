@@ -310,7 +310,7 @@ export const enemies: Record<string, EnemyDef> = {
   // --- Keyword-family roster expansion (2026-08-19): the catalog grew a
   // batch of new keyword-family cards (ward 3->8, thorns 6->10, bleed 4->7,
   // ward+thorns/shield+thorns hybrids, poison hybrids, the roster's first
-  // `splash` card) with no enemy ever fielding most of them — a depth-1
+  // spread-burden card) with no enemy ever fielding most of them — a depth-1
   // player could draft any of these mechanics and never see them played
   // back. Every board below is real catalog cards only (the "an enemy is
   // just a replicable player build" rule), Bronze floor, small 2-3 piece
@@ -378,20 +378,19 @@ export const enemies: Record<string, EnemyDef> = {
     xpReward: 13,
   },
 
-  // WARBREAKER: showcase for the roster's first `splash` card (Shockwave
-  // Slam) — a tempo-denial axe brute rather than a raw damage race. Splash
-  // taxes weight on the band of cards around wherever the target's own cast
-  // cursor currently sits (up to 3 pieces at once), stalling its NEXT couple
-  // of plays; Shield Splitter then cracks whatever shield the target has
-  // banked while it is stalled. Distinct from both axe siblings above:
-  // Berserker locks a turn down outright (stun), Reaver races HP down
-  // (bleed); Warbreaker instead denies TEMPO — it wants the fight to run
+  // WARBREAKER: showcase for the roster's first `burden + splash` card
+  // (Shockwave Slam) — a tempo-denial axe brute rather than a raw damage race.
+  // `burden` taxes weight on the card the target is about to play and `splash`
+  // spreads that tax across the band around it (up to 3 pieces at once),
+  // stalling its NEXT couple of plays; Shield Splitter then cracks whatever
+  // shield the target has banked while it is stalled. Distinct from both axe
+  // siblings above: Berserker locks a turn down outright (stun), Reaver races HP
+  // down (bleed); Warbreaker instead denies TEMPO — it wants the fight to run
   // long enough for repeated weight taxes to matter. goldReward 22 seats it
   // in tier-2 (`[9,16]`), next to Knight. Counter-play: a board with few,
-  // cheap, low-weight pieces recovers from a splash tax fast (there is
-  // nothing to stack — a re-splash just takes the max, per its own design
-  // note), and not banking a shield leaves Shield Splitter's shatter with
-  // nothing to open.
+  // cheap, low-weight pieces recovers from a burden fast (there is nothing to
+  // stack — a re-burden just takes the max, per its own design note), and not
+  // banking a shield leaves Shield Splitter's shatter with nothing to open.
   warbreaker: {
     id: 'warbreaker',
     name: 'Warbreaker',
@@ -470,5 +469,131 @@ export const enemies: Record<string, EnemyDef> = {
     ],
     goldReward: 32,
     xpReward: 21,
+  },
+
+  // --- Synergy-rider roster expansion (2026-08-21): the 2026-08-19/21 card
+  // batch landed 9 "carrier" cards that pay off a status the REST of a board
+  // already applies (exploit/stackBonus/shieldBurst/taxBonus) — no enemy
+  // fielded any of them, so a player could draft the mechanic and never see
+  // it played back. The four monsters below are that fix, one per rider
+  // family the brief called out: exploit (poison), shieldBurst (own shield),
+  // stackBonus (burn), stackBonus (bleed). Every board is real catalog cards
+  // only, Bronze floor, small 2-card board — same rule as every enemy above.
+
+  // VENOM STALKER: the roster's poison->exploit loop. Venom Fang lands the
+  // poison; Second Bite checks `exploit poison` BEFORE it acts (+4 damage if
+  // the target is already poisoned) and then re-applies its own 4-stack
+  // poison, so the very next Venom Fang/Second Bite cycle re-primes the same
+  // bonus — a small, fully-visible 2-card combo, not a one-off. Reads as a
+  // patient ambusher: no burst, just a bite that gets meaner the longer its
+  // venom sits. Distinct from Toxic Druid (nature CASTER, poison+heal
+  // sustain, zero exploit) and from Wolf King (Venom Fang + Leeching Fang,
+  // lifesteal payoff, not exploit) — this is the roster's only `exploit`
+  // showcase. goldReward 25 seats it in tier-2 (`[9,16]`), next to Berserker.
+  // Counter-play: cleanse the poison stack between its two casts and Second
+  // Bite's exploit bonus never fires (it checks BEFORE the card acts, so a
+  // stack removed even one beat earlier denies it outright); poison also
+  // bypasses shields, so a shield alone does not answer this one.
+  venom_stalker: {
+    id: 'venom_stalker',
+    name: 'Venom Stalker',
+    baseDepth: 1,
+    weaponAffinity: 'beast',
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
+    boardSize: 2,
+    pieces: [
+      { skillId: 'venom_fang', slot: 0 },
+      { skillId: 'second_bite', slot: 1 },
+    ],
+    goldReward: 25,
+    xpReward: 17,
+  },
+
+  // PYRE ACOLYTE: the roster's burn->stackBonus loop. Cinder Dart and Ember
+  // Lash both ignite (3 and 5 stacks); Burn Detonator then reads whatever
+  // burn is STILL standing on the target and adds +4 damage per stack (cap
+  // +16) — since burn halves every turn, the detonator rewards following its
+  // own appliers quickly rather than banking a big pile and waiting. Distinct
+  // from Ember Imp (the roster's DoT-attrition caster — no payoff card, its
+  // burn is the whole point) — Pyre Acolyte is the same fire-caster shape
+  // with one more piece that turns "how much burn is on the target right
+  // now" into a third source of direct damage. goldReward 26 seats it in
+  // tier-2 (`[9,16]`), just above Venom Stalker. Counter-play: burn halves on
+  // its own each turn, so simply outlasting a turn or two before Burn
+  // Detonator lands shrinks its bonus for free; a cleanse removes the stacks
+  // outright and a Ward charge denies burn from landing in the first place.
+  pyre_acolyte: {
+    id: 'pyre_acolyte',
+    name: 'Pyre Acolyte',
+    baseDepth: 1,
+    elementAffinity: 'fire',
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
+    boardSize: 3,
+    pieces: [
+      { skillId: 'cinder_dart', slot: 0 },
+      { skillId: 'ember_lash', slot: 1 },
+      { skillId: 'burn_detonator', slot: 2 },
+    ],
+    goldReward: 26,
+    xpReward: 17,
+  },
+
+  // SHIELD WARDEN: the roster's shieldBurst showcase — teaches the
+  // shieldBreak counterplay the brief asked for. Iron Bulwark banks a flat 48
+  // physical shield; Aegis Charge then shatters up to 12 of ITS OWN shield
+  // and adds exactly that much to its swing, on top of its own 14 (+ATK) —
+  // "spend your wall on the way in" rather than sit behind it forever. If the
+  // wall is never cracked from outside, the Warden eventually cracks it
+  // itself and hits harder for it; if the player's own `shieldBreak` strips
+  // Iron Bulwark's shield FIRST, Aegis Charge has nothing left to burst and
+  // falls back to its bare 14 (+ATK). Distinct from every other shielded
+  // enemy on the roster (Stone Beetle, Knight, Berserker/Iron Maiden,
+  // Thornback, Sentinel) — none of them ever spend their own shield as
+  // damage; this is the only one that does. goldReward 29 seats it in
+  // tier-3 (`[13,∞)`), just below Thornback. Counter-play: shieldBreak (or
+  // simply not letting the shield bank in the first place) denies Aegis
+  // Charge's burst a target before it is ever spent back at you.
+  shield_warden: {
+    id: 'shield_warden',
+    name: 'Shield Warden',
+    baseDepth: 1,
+    weaponAffinity: 'sword',
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
+    boardSize: 3,
+    pieces: [
+      { skillId: 'iron_bulwark', slot: 0 },
+      { skillId: 'aegis_charge', slot: 2 },
+    ],
+    goldReward: 29,
+    xpReward: 19,
+  },
+
+  // BLOODLETTER: the roster's bleed->stackBonus duelist. Rupturing Strike
+  // opens a 5-stack bleed; Bleed Executioner then reads the target's own
+  // bleed stack and adds +3 damage per stack (cap +12) on top of its base 14
+  // (+ATK) — a single opener already books nearly the whole cap (5*3=15,
+  // clamped to +12), so the combo reads clean off just two cards. Distinct
+  // from Reaver (`bleed_reaver`, the roster's shieldBreak-then-bleed axe
+  // duelist — its payoff is opening the guard, not reading the stack) and
+  // from Bandit Duelist (sword tempo/parry, no bleed at all) — Bloodletter is
+  // the roster's only `stackBonus`-on-bleed showcase. goldReward 33 seats it
+  // in tier-3 (`[13,∞)`), the roster's new top rung above Warded Sentinel.
+  // Counter-play: cleanse the bleed stack (or simply out-heal/out-tank the
+  // opener) before Bleed Executioner reads it, and the follow-up falls back
+  // to its bare 14 (+ATK); bleed is explicitly blocked by shields, so a
+  // banked shield denies Rupturing Strike's stack from ever landing.
+  blood_duelist: {
+    id: 'blood_duelist',
+    name: 'Bloodletter',
+    baseDepth: 1,
+    weaponAffinity: 'axe',
+    stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
+    boardSize: 2,
+    pieces: [
+      { skillId: 'rupturing_strike', slot: 0 },
+      { skillId: 'bleed_executioner', slot: 1 },
+    ],
+    goldReward: 33,
+    xpReward: 22,
   },
 };

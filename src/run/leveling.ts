@@ -143,9 +143,9 @@ export const MONSTER_PROFILES: Record<string, StatProfile> = {
   bleed_reaver: profile({ attack: 4, maxHp: 2 }),
   // WARBREAKER: axe tempo-denial brute. Shockwave Slam/Shield Splitter both
   // scale damage off (+ATK), but the card the enemy comment calls out is
-  // the SPLASH tempo tax, not the raw damage sink — Warbreaker wants to
-  // keep landing hits (and therefore keep re-splashing) more than it wants
-  // to out-damage anyone in one swing. attack and speed are weighted
+  // the SPREAD BURDEN (its tempo tax), not the raw damage sink — Warbreaker
+  // wants to keep landing hits (and therefore keep re-taxing the band) more
+  // than it wants to out-damage anyone in one swing. attack and speed are weighted
   // evenly (unlike bandit_duelist's attack-led 3:2 split) to read as
   // "tempo-first" rather than "duelist with some speed"; a light maxHp
   // weight keeps it from being a pure glass burst piece, matching every
@@ -169,6 +169,39 @@ export const MONSTER_PROFILES: Record<string, StatProfile> = {
   // HP tank; Sword Slash is its only offense, so attack stays the same
   // small residual weight the other armored identities carry.
   warded_sentinel: profile({ armor: 4, maxHp: 3, attack: 1 }),
+
+  // --- 2026-08-21 synergy-rider roster expansion (docs/enemy-design.md) ---
+  // VENOM STALKER: beast poison->exploit ambusher. Both cards (venom_fang,
+  // second_bite) scale off (+ATK), so attack stays the dominant weight, same
+  // as the roster's other beast/axe attack-first identities; a little maxHp
+  // is folded in because the whole point of this kit is a two-cast LOOP
+  // (apply poison, exploit it, re-apply) — it needs to survive long enough
+  // for that loop to run more than once, unlike a single-swing glass piece.
+  venom_stalker: profile({ attack: 3, maxHp: 2, speed: 1 }),
+  // PYRE ACOLYTE: fire caster, burn->stackBonus. All three cards
+  // (cinder_dart, ember_lash, burn_detonator) scale off (+MATK), so
+  // magicPower stays dominant, same shape as Ember Imp/Mage/Toxic Druid; a
+  // speed weight (unlike Ember Imp's near-zero) is added because the combo's
+  // whole payoff depends on landing Burn Detonator BEFORE its own burn
+  // stacks halve away, so a faster Acolyte banks a bigger detonation more
+  // often. A light maxHp keeps it from being a total glass cannon, since
+  // this kit needs at least one extra turn of standing to sequence its own
+  // combo, unlike Ember Imp's simple DoT-and-wait attrition.
+  pyre_acolyte: profile({ magicPower: 4, speed: 2, maxHp: 1 }),
+  // SHIELD WARDEN: sword shieldBurst tank. Iron Bulwark's shield AND Aegis
+  // Charge's own burst both scale off (+DEF) (a bigger shield banked means a
+  // bigger burst spent), so armor/maxHp stay the dominant pair, same ratio
+  // as the roster's other armored-tank identities (Stone Beetle, Knight,
+  // Thornback) — attack is kept as the same small residual weight those
+  // three use for their own minor swing (Aegis Charge's flat 14 (+ATK) line).
+  shield_warden: profile({ maxHp: 3, armor: 3, attack: 1 }),
+  // BLOODLETTER: axe bleed->stackBonus duelist. Both cards (rupturing_strike,
+  // bleed_executioner) scale off (+ATK), so attack stays dominant, same as
+  // Reaver/Berserker/Rogue; a speed weight (unlike Reaver's zero) is added to
+  // read as a nimble duelist landing its opener quickly rather than a slow
+  // brute grinding it out, and a light maxHp keeps it standing for its own
+  // two-card sequence to land in full.
+  blood_duelist: profile({ attack: 3, speed: 2, maxHp: 1 }),
 };
 
 /** Profile lookup for an enemy id, falling back to DEFAULT_PROFILE. */
