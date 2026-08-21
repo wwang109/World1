@@ -7,12 +7,13 @@ import type { Action, Property } from '../types';
  * `actionsPriceDeci` in `balance.ts` walks this table instead of a switch, so
  * adding a keyword is a row here, not a new `case` in the pricer.
  *
- * Five term forms cover every keyword in the game:
+ * Six term forms cover every keyword in the game:
  *   perUnit           rate per unit of one field           (dot stacks, charges)
  *   perUnitByProperty rate varies with the card's property (the TRUE premium)
  *   product           rate per (fieldA x fieldB)           (pct x turns)
  *   bracketed         marginal brackets                    (disrupt)
- *   none              explicitly unpriced, with a reason   (taunt)
+ *   flat              one field-less price per action      (splash)
+ *   none              explicitly unpriced, with a reason
  *
  * RATES ARE INJECTED, never duplicated here: `buildKeywordPricing(PRICE)` is
  * called once from `balance.ts`. `PRICE` stays the single source of every
@@ -39,7 +40,12 @@ export type PriceTerm<K extends Action['kind'] = Action['kind']> =
   | { form: 'perUnit'; field: FieldOf<K>; num: number; den: number }
   | { form: 'perUnitByProperty'; field: FieldOf<K>; num: Record<Property, number>; den: number }
   | { form: 'product'; fields: readonly [FieldOf<K>, FieldOf<K>]; num: number; den: number }
-  | { form: 'bracketed'; field: FieldOf<K>; brackets: readonly { upTo: number; rateDeci: number }[] };
+  | { form: 'bracketed'; field: FieldOf<K>; brackets: readonly { upTo: number; rateDeci: number }[] }
+  // A FIELD-LESS flat price — for the one keyword with no numeric field at all
+  // (`splash`, whose whole payload is "the spread happens"). Kept rare on
+  // purpose: a keyword WITH a magnitude must price per unit of it, or a bigger
+  // magnitude would be free past the first.
+  | { form: 'flat'; deci: number };
 
 /** Cap family a keyword's spend counts against (`EFFECT_CAPS_DECI`). `cleanse`
  * is its own family (user-locked 2026-08-17), split out of `empower` so it
@@ -77,17 +83,17 @@ interface KeywordPricingBase {
    * than against the victim as a unit? `burden` and `curse` do; everything else
    * (including `slow`, their unit-scope sibling) does not.
    *
-   * TWO CONSUMERS, ONE ANSWER. (1) THE ENGINE: `splash` — the payload-less
-   * SPREADER — widens exactly these keywords from the anchor to the whole band,
-   * and `validateSkillContent` refuses a `splash` on a card that carries none of
-   * them (a spreader with nothing to spread). (2) THE PRICER: `splash` has no
-   * field to price, so `actionsPriceDeci` prices it as a COVERAGE MULTIPLIER on
-   * the summed price of exactly these keywords.
+   * ONE CONSUMER SIDE: THE ENGINE (and its validators). `splash` — the
+   * payload-less SPREADER — widens exactly these keywords from the anchor to
+   * the whole band, and `validateSkillContent` refuses a `splash` on a card
+   * that carries none of them (a spreader with nothing to spread). The PRICER
+   * no longer reads this facet: `splash` prices its own flat standalone rate
+   * (`PRICE.splashFlatDeci`, user-locked 2026-08-21), never a multiplier on
+   * these keywords' prices.
    *
    * It is a declared FACET rather than an inferred one so that adding a
    * card-targeting keyword is a `true` here — and so that forgetting to decide
-   * is a tsc error, not a silently un-spreadable, silently un-multiplied
-   * keyword.
+   * is a tsc error, not a silently un-spreadable keyword.
    */
   cardTargeting: boolean;
 }
@@ -133,6 +139,7 @@ export interface PriceRates {
   exposePerPctTurnNum: number;
   exposePerPctTurnDen: number;
   tauntPerPoint: number;
+  splashFlatDeci: number;
   disruptBrackets: readonly { upTo: number; rateDeci: number }[];
 }
 
@@ -209,7 +216,7 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // divergence — a burden always eventually gets paid, a slow often expires
     // unpaid — is called a wash rather than measured).
     // `control` family so it cannot dodge the control cap; `cardTargeting` so
-    // `splash` can spread it and so the pricer knows what the spread multiplies.
+    // `splash` can spread it (the spreader prices its own flat rate — see below).
     burden: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: true, price: [{ form: 'perUnit', field: 'weight', num: P.burdenPerWeightNum, den: P.burdenPerWeightDen }] },
     // CURSE — burden's sibling on the DAMAGE axis: the targeted card deals
     // `amount` less for `turns` turns. TWO TERMS, because the delivery has two
@@ -230,29 +237,29 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
         { form: 'product', fields: ['amount', 'turns'], num: P.cursePerAmountTurnNum, den: P.cursePerAmountTurnDen },
       ],
     },
-    // SPLASH — THE SPREADER, and the one keyword whose price is not a function of
-    // its own fields, because it HAS no fields: it multiplies the COVERAGE of the
-    // cast's card-targeting effects (`cardTargeting` above). That multiplier is
-    // applied in `actionsPriceDeci` (balance.ts), which is the only place that can
-    // see the siblings it multiplies — the same structural reason the AoE reach
-    // multiplier lives there rather than as a term on a row.
+    // SPLASH — THE SPREADER, priced FLAT and STANDALONE like every other
+    // keyword (user-locked 2026-08-21: "every gem pl is standalone" / "why did
+    // you make splash different"): one field-less `flat` term,
+    // `PRICE.splashFlatDeci` (20 deci = 2 PL) per cast, whatever the payload it
+    // spreads. The coverage-multiplier shape this row replaced (x2 on the
+    // summed price of the cast's card-targeting siblings, applied in
+    // `actionsPriceDeci`) made splash the one keyword priced off its siblings'
+    // magnitudes; that ruling reversed it. Full rate derivation (why 20 and
+    // not 10/15) on `PRICE.splashFlatDeci` in balance.ts.
     //
-    // `unpricedReason` is therefore a POINTER, not an exemption: a splash on a
-    // cast with a payload costs a full extra band-floor's worth of that payload,
-    // and a splash with NO payload cannot be authored at all
-    // (`validateSkillContent`) nor spliced by a gem (THE SPLASH GATE's
-    // `nothingToSpread` arm). There is no reachable state in which it is free.
+    // A splash with NOTHING to spread still cannot ship on a card
+    // (`validateSkillContent` refuses it) and is dropped at the resolver seam
+    // on a host with no card-targeting payload (THE SPLASH GATE's
+    // `nothingToSpread` arm, src/engine/cards.ts) — and that suppression
+    // subtracts the gem's splash contribution at the instance level
+    // (`instancePowerLevelDeci`), so a spreader that never fires is never paid
+    // for on the piece that suppresses it.
     //
-    // `control` family so the multiplied spend still counts against the control
-    // cap; `offensive` to mirror `isOffensiveAction` kind-for-kind.
+    // `control` family so the spend counts against the control cap;
+    // `offensive` to mirror `isOffensiveAction` kind-for-kind.
     splash: {
       isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false,
-      price: [],
-      unpricedReason:
-        'the spreader has no field of its own: it is priced as a COVERAGE MULTIPLIER on the cast\'s '
-        + 'card-targeting effects (PRICE.splashBandFloorNum), applied in actionsPriceDeci where those '
-        + 'siblings are visible. A splash with nothing to spread is refused at authoring and dropped '
-        + 'at the resolver seam, so it is never free.',
+      price: [{ form: 'flat', deci: P.splashFlatDeci }],
     },
     disrupt: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'bracketed', field: 'amount', brackets: P.disruptBrackets }] },
     lifesteal: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'pct', num: P.lifestealPerPctNum, den: P.lifestealPerPctDen }] },
@@ -440,6 +447,9 @@ export function priceActionDeci(
         break;
       case 'bracketed':
         deci += walkBrackets(fields[term.field] ?? 0, term.brackets);
+        break;
+      case 'flat':
+        deci += term.deci;
         break;
     }
   }

@@ -49,8 +49,9 @@ export function cursorPiece(c: CombatantState): { piece: PieceState; slotIndex: 
  * produced a 2-piece band while the price charged for more; and it made a
  * spread band jump the length of the board for no reason a player can see.
  * Anchoring on the last card played keeps the band where the action just was.
- * Edges genuinely give a smaller band — that is priced (see
- * `PRICE.splashBandFloorNum`, balance.ts, which charges the 2-piece FLOOR).
+ * Edges genuinely give a smaller band — the spreader's flat price
+ * (`PRICE.splashFlatDeci`, balance.ts) deliberately errs cheap for exactly
+ * this swing.
  *
  * DELIBERATELY NOT `scanCast` PARITY (corrected 2026-08-19 — this comment used
  * to claim it, and it was never true). `scanCast` additionally skips pieces
@@ -112,9 +113,9 @@ export function splashAnchor(c: CombatantState): PieceState | null {
  *
  * The band is therefore 1..3 pieces wide depending on where on the VICTIM's
  * board the cursor happens to be — something the card's holder does not control
- * at all. So the SPREAD is priced against the 2-piece FLOOR that any board with
- * two or more pieces always delivers, holder-independently; the third piece is
- * unpriced upside. Full derivation on `PRICE.splashBandFloorNum` (balance.ts).
+ * at all. So the SPREAD is priced at one flat, holder-independent rate
+ * (`PRICE.splashFlatDeci`, balance.ts — user-locked 2026-08-21) that errs
+ * cheap; band width beyond it is unpriced upside.
  *
  * Returns `null` on an empty board. `band` is in ascending slot order and
  * always contains `anchor`.

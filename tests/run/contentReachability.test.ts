@@ -124,7 +124,12 @@ describe('run/content: catalog-wide acquisition-surface audit', () => {
   ] as const;
 
   const NEW_GEMS_2026_08_19 = [
-    'fracture_sliver', 'tremor_sliver', 'vulnerability_sliver', 'weak_point_sliver',
+    // CONSOLIDATED (2026-08-21, user ruling "there should only be 1 gem to give
+    // splash"): fracture_sliver + tremor_sliver retired, replaced by
+    // ripple_sliver — THE splash gem, whose only action is the spreader. The
+    // pin moves with the catalog: the splash acquisition surface must stay
+    // reachable through the same curated Alchemist list the ladder used.
+    'ripple_sliver', 'vulnerability_sliver', 'weak_point_sliver',
     'exposed_nerve_sliver', 'raw_nerve_sliver', 'sanctuary_sliver', 'renewal_sliver',
     'provoker_sliver',
     // ADDED (content-designer, 2026-08-19 defect-fix pass): taunting_sliver,

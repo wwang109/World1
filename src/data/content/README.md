@@ -255,9 +255,10 @@ instead of to the anchor alone. So:
 | `splash` alone | **rejected** — a spreader with nothing to spread |
 
 Both re-applications take the **stronger** value, never a sum (`Math.max`), so a
-second cast can never lock a card out. Splash is priced as a COVERAGE MULTIPLIER
-on whatever it spreads (×2, the band's guaranteed floor), which is why a spread
-line costs exactly twice its anchor-only form.
+second cast can never lock a card out. Splash is priced FLAT and STANDALONE
+(`PRICE.splashFlatDeci`, 20 deci per cast — user-locked 2026-08-21, never a
+multiplier on its siblings), which is why a spread line costs its anchor-only
+form plus one fixed spreader price, whatever the payload's magnitude.
 
 This mirrors the `Action` union in `src/engine/types.ts`. The validator's switch
 ends in `assertNever`, so **adding an action kind to the engine fails `tsc` until

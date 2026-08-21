@@ -182,11 +182,12 @@ const defs: ShopTypeDef[] = [
     gemFilter: [
       {
         // RETIRE: stunning_smash_echo, hamstring_echo removed (slow duplicates).
-        // ADD (2026-08-19, reachability curation pass): tremor_sliver/
-        // fracture_sliver (a burden and the splash that spreads it) are a bind
-        // on the enemy's next few plays —
-        // a control effect in the same family as the slow/poison hexes
-        // already curated here, not a weapon mechanic.
+        // CONSOLIDATE (2026-08-21, user ruling "there should only be 1 gem to
+        // give splash"): tremor_sliver/fracture_sliver (the burden+splash
+        // ladder, curated here 2026-08-19) collapsed into ripple_sliver — THE
+        // splash gem, whose only action is the spreader. Still a bind on the
+        // enemy's next few plays, a control effect in the same family as the
+        // slow/poison hexes already curated here, not a weapon mechanic.
         ids: [
           'venom_sliver',
           'venom_fang_echo',
@@ -194,8 +195,7 @@ const defs: ShopTypeDef[] = [
           'concussive_shot_echo',
           'concussive_shard',
           'slow_hex_echo',
-          'tremor_sliver',
-          'fracture_sliver',
+          'ripple_sliver',
         ],
       },
     ],

@@ -304,3 +304,75 @@ baseline is byte-identical (no card of the family is in the frozen sweep pool),
 and the migration was additionally proven by diffing full event logs of all three
 cards and both gems on fixed seeds — 21/21 fights identical with only the
 band-application event's NAME normalised (`splashed` → `burdened`).
+
+## 2026-08-21 changelog: splash goes flat + standalone; instance PL goes plain-sum; ONE splash gem
+
+**Two user rulings, recorded verbatim and implemented together the same day
+they were made — both REVERSE parts of passes recorded above.**
+
+### Ruling A — splash prices flat and standalone; a pairing is the plain sum
+
+> "every gem pl is standalone" · "it doesnt make sense to increase cost
+> because of splash and host" · "why did you make splash different"
+
+| rate / rule | before (this morning's splash-split pass) | after |
+|---|---|---|
+| the spread | `splashBandFloorNum/Den` = ×2, a COVERAGE MULTIPLIER on the summed price of the cast's card-targeting effects | **`splashFlatDeci` = 20** — one flat, standalone price per cast, a normal keyword row in `keywords/pricing.ts` (new `flat` term form) |
+| a socketed pairing's instance PL | base + gem + the UNION-KIT SELF-SYNERGY DELTA (the cross-kit conditional-rider forfeit, added earlier on 2026-08-21) | **base + gem, exactly** — `unionKitSelfSynergyDeltaDeci` deleted; `selfSynergyPremiumDeci` remains a rule about AUTHORED kits only (a card judged against its own effects, a gem against its own actions) |
+
+The multiplier had made `splash` the ONE keyword whose price depended on its
+siblings' magnitudes, and the union delta had made a pairing cost more than the
+sum of its two audited prices — both are exactly what the ruling refuses. The
+one host-aware instance adjustment kept is THE SPLASH GATE's suppression,
+which only ever SUBTRACTS (a gem spreader the resolver drops contributes zero
+on that host). Pinned by `tests/engine/instancePlainSum.test.ts` (full catalog
+sweep: `instance <= base + gem`, equal except gate suppression);
+`tests/engine/instanceSelfSynergy.test.ts` deleted with the rule it pinned.
+
+**WHY 20 (candidates 10/15/20):** THE splash gem prices at exactly this rate
+and must land exactly on a rarity band — 20 = Common; 10 and 15 land on none
+(and 15 is not a whole PL, which every rate obeys). 20 also minimizes re-solve
+movement (below). 40, the next band, would price the spreader above both
+payloads it spreads.
+
+**Card re-solves (all four splash carriers, exact at all four tiers via
+`powerLevelDeci`/`capViolations`/`autoScaleTier`, zero tolerance):**
+
+| card | before | after |
+|---|---|---|
+| `shockwave_slam` | damage 14 + burden 6 + splash (15×2=30) | damage 14 + **burden 4** + splash 20 (70+10+20) — damage line and tier ladder (24/34/44) unchanged |
+| `arc_cascade` | damage 12 + burden 8 + splash (20×2=40) | **unchanged** — the multiplier happened to charge its spread exactly 20 |
+| `line_breaker` | damage 10 + slow 8 + burden 6 + splash (15×2=30) | damage 10 + slow 8 + **burden 4** + splash 20 — damage line and tier ladder (20/30/40) unchanged |
+| `sapping_arc` | damage 12 + curse 4/2t + splash (20×2=40) | **unchanged** |
+
+The burden moves (6 → 4) fall out of the whole-PL-parts invariant:
+`powerLevelBreakdown` now reports `splash` as its OWN whole-PL part (the
+combined "burden + splash" part died with the multiplier), so a burden part
+must itself land on a whole PL — pinning burden weights to multiples of 4.
+
+### Ruling B — exactly ONE splash gem
+
+> "there should only be 1 gem to give splash why is there 2 splash gem"
+
+`tremor_sliver` (burden 4 + splash, Common) and `fracture_sliver` (burden 8 +
+splash, Rare) RETIRED — the two-rung ladder was a fossil of the retired
+splash-as-weight-tax model: it laddered the BURDEN's magnitude, and splash has
+no magnitude to ladder. Replaced by **`ripple_sliver`** (Common, 20 deci
+exactly), whose ONLY action is `{ kind: 'splash' }` — it grants the spreader
+and nothing else. On a host with no card-targeting payload THE SPLASH GATE's
+`nothingToSpread` arm drops it (spreading nothing) and the suppression
+subtracts its contribution from that piece's instance PL. Alchemist's curated
+list carries it in the ladder's place; Gemcutter's `all` clause covers it as
+before. Deliberately NOT authored: standalone `burden` gems at the retired
+rungs' magnitudes — whether the bare weight tax deserves its own gem ladder is
+an open design question.
+
+The 400-case outcome baseline is untouched and byte-identical — no splash
+carrier or retired gem is in the frozen sweep pool (verified: the ids appear
+only in the baseline's prose note).
+
+Source of truth: `PRICE.splashFlatDeci` in `src/engine/balance.ts` and the
+`splash` row of `src/engine/keywords/pricing.ts`; instance rule at
+`instancePowerLevelDeci`. Pinned by `tests/engine/splash.test.ts`,
+`tests/engine/instancePlainSum.test.ts` and the `PRICE` structure lock in
+`tests/engine/balance.test.ts`.

@@ -10,7 +10,7 @@
 // was already absorbed.
 import { describe, expect, it } from 'vitest';
 import { simulate } from '../../src/engine/combat/simulate';
-import { resolveEffectiveSkill } from '../../src/engine/cards';
+import { resolveEffectiveSkill, splashSuppressionOn } from '../../src/engine/cards';
 import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
 import type { Action, Gem, SkillDef } from '../../src/engine/types';
@@ -75,7 +75,8 @@ describe("gem splice order: a card's OWN authored effect order is never rewritte
     for (const [id, gem] of Object.entries(gemBook)) {
       if (gem.kind !== 'effect' || gem.actions.length === 0) continue;
       for (const hostId of hosts) {
-        const base = skillBook[hostId]!.effects;
+        const host = skillBook[hostId]!;
+        const base = host.effects;
         const resolved = effectsOf(hostId, gem as Gem);
         const start = resolved.findIndex((a) => !a.fromGem);
         expect(resolved.slice(start, start + base.length), `${id} on ${hostId}`).toEqual(base);
@@ -84,7 +85,14 @@ describe("gem splice order: a card's OWN authored effect order is never rewritte
           resolved.slice(start, start + base.length).some((a) => a.fromGem),
           `${id} on ${hostId}`,
         ).toBe(false);
-        expect(resolved.length, `${id} on ${hostId}`).toBe(base.length + gem.actions.length);
+        // THE SPLASH GATE is the one legal drop: a gem `splash` never splices
+        // onto a host that suppresses it (all four hosts here carry no
+        // card-targeting payload, so a BARE spreader — ripple_sliver's shape —
+        // is dropped as `nothingToSpread`). Every other action must splice.
+        const spliced = splashSuppressionOn(host, gem.actions) !== null
+          ? gem.actions.filter((a) => a.kind !== 'splash').length
+          : gem.actions.length;
+        expect(resolved.length, `${id} on ${hostId}`).toBe(base.length + spliced);
       }
     }
   });

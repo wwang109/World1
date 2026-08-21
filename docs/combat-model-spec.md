@@ -410,25 +410,22 @@ floor**, per-hit application on a multi-hit card — applies unchanged, and no
 arithmetic is duplicated. A curse deeper than the whole hit floors at 1; it never
 heals.
 
-### Pricing (the split is byte-honest)
+### Pricing (every keyword standalone)
 
 `burden` costs `slow`'s OWN per-point rate (one card taxed, one card's worth of
-tempo). `splash` has no field to price, so it prices as a **coverage multiplier**
-(×2, the band's guaranteed 2-piece floor) on the summed price of the cast's
-card-targeting effects — applied in `actionsPriceDeci`, exactly where the AoE
-reach multiplier is applied and for the same reason. The retired
-`splashPerWeightNum/Den` (5 deci/weight) WAS those two multiplied, so
-`burden N + splash` prices to the deci what `splash weight N` did: the three
-shipped cards (`shockwave_slam`, `arc_cascade`, `line_breaker`) and both gems
-(`tremor_sliver`, `fracture_sliver`) all kept their exact budgets and bands.
+tempo). `splash` prices **flat and standalone** — `PRICE.splashFlatDeci`
+(20 deci per cast), a normal keyword row like any other (user-locked
+2026-08-21: "every gem pl is standalone" / "why did you make splash
+different"). A cast carrying `burden + splash` pays two independent line
+items; the payload's magnitude never changes what the spread costs. (The
+briefly-shipped coverage-multiplier model — ×2 on the summed card-targeting
+share — was reversed by that ruling; the four splash cards were re-solved to
+exact budgets under the flat rate, and the two-gem burden+splash ladder
+collapsed into ONE splash-only gem, `ripple_sliver`.)
 `curse` prices its near-certain first denial (the flat-damage rate at the
 conditional-trigger discount) plus its repeats (one further firing per
 `BASELINE_COOLDOWN + 1` turns). Full derivations: `PRICE.burdenPerWeightNum`,
-`PRICE.splashBandFloorNum`, `PRICE.cursePerAmountNum` in `src/engine/balance.ts`.
+`PRICE.splashFlatDeci`, `PRICE.cursePerAmountNum` in `src/engine/balance.ts`.
 
 Rules are pinned in `tests/engine/splash.test.ts`. The 400-case outcome baseline
-is **byte-identical**: no card of this family is in the frozen sweep pool, and the
-migration was additionally proven by diffing full event logs of the three shipped
-cards and both gems on fixed seeds before and after the split (21/21 fights
-identical, with only the band-application event's NAME normalised — `splashed`
-became `burdened`).
+is **byte-identical**: no card of this family is in the frozen sweep pool.

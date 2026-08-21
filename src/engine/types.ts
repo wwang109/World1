@@ -457,10 +457,10 @@ type ActionKinds =
    * left), measured edge-to-edge with the same footprint arithmetic the aura
    * system uses (`footprintGaps`), so a multi-slot card is ONE piece however
    * many slots it spans. The band is therefore 1..3 pieces wide, decided by the
-   * VICTIM's board layout, and it is priced against the 2-piece FLOOR any board
-   * with two or more pieces guarantees (`PRICE.splashBandFloorNum`) — so a
-   * card's PL stays holder- AND opponent-independent and the third piece is
-   * unpriced upside.
+   * VICTIM's board layout. The spreader is priced FLAT and STANDALONE
+   * (`PRICE.splashFlatDeci`, user-locked 2026-08-21 — never a multiplier on
+   * its siblings), so a card's PL stays holder- AND opponent-independent and
+   * band width beyond the price's assumptions is unpriced upside.
    *
    * CAST-SCOPED, NOT POSITIONAL: the flag is read once per cast from the
    * effective effect list (`castSpreadsBand`, combat/interpreter.ts), so a gem

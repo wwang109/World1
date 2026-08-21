@@ -452,7 +452,8 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
  *
  * `gemActions` is the GEM'S OWN action list, and it matters for exactly one arm:
  * `nothingToSpread`. A spreader needs a card-targeting effect to spread, and the
- * gem may be the thing supplying it (both shipped rungs are `burden + splash`).
+ * gem may be the thing supplying it (a `burden + splash` gem is a legal shape,
+ * though the one shipped splash gem, `ripple_sliver`, carries the spreader alone).
  * It defaults to empty, which answers the narrower question "would this HOST
  * alone give a splash anything to spread" — correct for a bare splash gem, and
  * the reason the parameter is explicit rather than inferred.
@@ -551,8 +552,10 @@ function spliceGemActions(host: SkillDef, gemActions: readonly Action[]): Action
   const pre: Action[] = [];
   const post: Action[] = [];
   // Asked WITH the gem's own actions, so arm (c) sees a `burden + splash` gem as
-  // carrying its own payload (the shipped rungs do) and only refuses a spreader
-  // that truly has nothing in reach.
+  // carrying its own payload and only refuses a spreader that truly has nothing
+  // in reach. (The shipped splash gem, `ripple_sliver`, is a BARE spreader — it
+  // relies on the HOST's payload and is exactly what this arm suppresses on a
+  // host with none.)
   const splashBlocked = splashSuppressionOn(host, gemActions) !== null;
   let splashTaken = false;
   for (let i = 0; i < gemActions.length; i += 1) {

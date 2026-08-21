@@ -722,9 +722,9 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
    * designer writing AoE + splash by hand is told rather than shipping an
    * effect the engine will silently drop.
    *
-   * NOT a silent zero either way: the spread IS priced (it multiplies its
-   * card-targeting siblings by the band floor, `PRICE.splashBandFloorNum`,
-   * control family), and because it is marked `offensive` an AoE splash would pay
+   * NOT a silent zero either way: the spread IS priced (its own flat
+   * standalone rate, `PRICE.splashFlatDeci`, control family), and because it
+   * is marked `offensive` an AoE splash would pay
    * `PRICE.aoeTargetsNum/Den` on top of that if one were ever constructed in
    * code — this rule stops one being AUTHORED.
    *

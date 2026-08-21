@@ -31,8 +31,9 @@ import { cfg, tc, NO_ENDGAME } from '../helpers';
  * ANCHOR-vs-BAND choice being the ONLY thing splash changes, the NON-STACKING
  * rules (max, not sum), WHO ends each effect (a burden is spent by the piece
  * that plays; a curse expires on a clock), the pairing/validation rules, and the
- * prices — including that the split cost the three shipped cards and both gems
- * exactly nothing.
+ * prices — splash FLAT and STANDALONE (`PRICE.splashFlatDeci`, user-locked
+ * 2026-08-21: never a multiplier on its siblings), with THE splash gem
+ * (`ripple_sliver`, splash-only) landing exactly on Common.
  */
 
 const card = (id: string, over: Partial<SkillDef> = {}): SkillDef => ({
@@ -760,31 +761,25 @@ describe('pricing: the honest split', () => {
     expect(powerLevelDeci(card('y', { effects: [{ kind: 'slow', weight: 6 }] }))).toBe(15);
   });
 
-  it('splash prices as a COVERAGE MULTIPLIER on what it spreads, not per point of its own', () => {
-    expect(PRICE.splashBandFloorNum / PRICE.splashBandFloorDen).toBe(2);
+  it('splash prices FLAT and STANDALONE — its own 20-deci rate, never a multiplier on its siblings', () => {
+    // User-locked 2026-08-21 ("every gem pl is standalone" / "why did you make
+    // splash different"): the spreader is a normal keyword with a normal flat
+    // price, so a cast pays burden + splash as two independent line items.
+    expect(PRICE.splashFlatDeci).toBe(20);
     const spread = card('x', { effects: [{ kind: 'burden', weight: 6 }, { kind: 'splash' }] });
-    expect(powerLevelDeci(spread)).toBe(30); // 15 x 2
-    // ...and it multiplies a CURSE exactly the same way, which is the whole
-    // point of pricing the spreader as coverage rather than as weight.
+    expect(powerLevelDeci(spread)).toBe(15 + 20);
+    // ...and the SAME flat price beside a curse — the spread costs the same
+    // whatever it spreads, which is the point of the flat rate.
     const curse = card('y', { effects: [{ kind: 'curse', amount: 4, turns: 2 }] });
     const cursed = card('z', { effects: [{ kind: 'curse', amount: 4, turns: 2 }, { kind: 'splash' }] });
     expect(powerLevelDeci(curse)).toBe(20);
-    expect(powerLevelDeci(cursed)).toBe(40);
-    // A splash with NOTHING to spread multiplies nothing — it cannot be authored
-    // (validateSkillContent) or spliced (the gem gate), and if it were it would
-    // be free BECAUSE it does nothing.
-    expect(powerLevelDeci(card('w', { effects: [{ kind: 'splash' }] }))).toBe(0);
-  });
-
-  it('THE SPLIT COST THE OLD RATE NOTHING: burden N + splash == the old `splash weight N`', () => {
-    // The retired rate was 5 deci per weight (`splashPerWeightNum/Den` = 5/1),
-    // which is exactly burden's 5/2 times the x2 band floor. Every even weight
-    // therefore prices to the deci as it did before the split.
-    const OLD_RATE_DECI_PER_WEIGHT = 5;
-    for (const weight of [2, 4, 6, 8, 10, 12, 16, 20]) {
-      const spread = card('x', { effects: [{ kind: 'burden', weight }, { kind: 'splash' }] });
-      expect(powerLevelDeci(spread), `weight ${weight}`).toBe(weight * OLD_RATE_DECI_PER_WEIGHT);
-    }
+    expect(powerLevelDeci(cursed)).toBe(20 + 20);
+    // The payload's magnitude never changes what the spread costs.
+    const heavy = card('v', { effects: [{ kind: 'burden', weight: 20 }, { kind: 'splash' }] });
+    expect(powerLevelDeci(heavy) - powerLevelDeci(card('u', { effects: [{ kind: 'burden', weight: 20 }] }))).toBe(20);
+    // Even a bare splash prices its flat rate — unauthorable on a card
+    // (validateSkillContent refuses it) but exactly what THE splash gem is.
+    expect(powerLevelDeci(card('w', { effects: [{ kind: 'splash' }] }))).toBe(20);
   });
 
   it('curse prices its FIRST denial plus its REPEATS, both derived from the flat-damage rate', () => {
@@ -798,25 +793,29 @@ describe('pricing: the honest split', () => {
     }
   });
 
-  it('both keywords count against the CONTROL cap, and the SPREAD counts too', () => {
+  it('both keywords count against the CONTROL cap, and the SPREADER’s own price counts too', () => {
     expect(EFFECT_CAPS_DECI.control[1]).toBe(100);
     // 41 * 5/2 = 102 deci > the size-1 control ceiling (100); 40 is legal.
     expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 41 }] })).join(' ')).toContain('control');
     expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 40 }] }))).toEqual([]);
-    // With the spreader the same card only affords HALF the weight — the
-    // multiplier grows the cap-family spend in lockstep with the budget spend,
-    // so reach cannot be bought past the lockdown ceiling.
-    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 22 }, { kind: 'splash' }] })).join(' ')).toContain('control');
-    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 20 }, { kind: 'splash' }] }))).toEqual([]);
-    // Same for curse: 20 x 2 turns = 100 = the whole ceiling; spread, it halves.
+    // With the spreader the cap must also hold splash's own flat 20 deci:
+    // burden 32 (80) + splash (20) = 100 sits exactly on the ceiling; weight 33
+    // (82) tips it over. Reach still cannot be bought past the lockdown cap.
+    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 33 }, { kind: 'splash' }] })).join(' ')).toContain('control');
+    expect(capViolations(card('x', { effects: [{ kind: 'burden', weight: 32 }, { kind: 'splash' }] }))).toEqual([]);
+    // Same for curse: 20 x 2 turns = 100 = the whole ceiling alone; with the
+    // spreader the curse may spend at most 80 (16 x 2 turns).
     expect(capViolations(card('x', { effects: [{ kind: 'curse', amount: 20, turns: 2 }] }))).toEqual([]);
     expect(capViolations(card('x', { effects: [{ kind: 'curse', amount: 20, turns: 2 }, { kind: 'splash' }] })).join(' ')).toContain('control');
+    expect(capViolations(card('x', { effects: [{ kind: 'curse', amount: 16, turns: 2 }, { kind: 'splash' }] }))).toEqual([]);
   });
 
-  it('the breakdown reports a spread line as ONE whole-PL part, not a half plus a half', () => {
+  it('the breakdown reports splash as its OWN whole-PL part beside its payload', () => {
     const parts = powerLevelBreakdown(skillBook.shockwave_slam!);
-    expect(parts.map((p) => p.label)).toContain('burden + splash');
-    expect(parts.find((p) => p.label === 'burden + splash')!.deci).toBe(30);
+    expect(parts.find((p) => p.label === 'burden')!.deci).toBe(10); // burden 4 x 5/2
+    expect(parts.find((p) => p.label === 'splash')!.deci).toBe(PRICE.splashFlatDeci);
+    // The combined "burden + splash" part died with the coverage multiplier.
+    expect(parts.map((p) => p.label)).not.toContain('burden + splash');
     // The invariant that matters (also pinned globally in balance.test.ts).
     expect(parts.reduce((sum, p) => sum + p.deci, 0)).toBe(powerLevelDeci(skillBook.shockwave_slam!));
   });
@@ -940,7 +939,8 @@ describe('the pairing rule: a spreader needs something to spread', () => {
  *   (c) NOTHING TO SPREAD — neither host nor gem supplies a payload.
  */
 
-/** A gem carrying the shipped shape: a burden and the spreader that widens it. */
+/** A TEST gem pairing a burden with the spreader (the retired ladder's shape —
+ * the shipped splash gem, ripple_sliver, carries the spreader alone). */
 const spreadGem = (weight: number, id = 'test_spread_gem'): Gem =>
   ({ kind: 'effect', id, rarity: 'common', actions: [{ kind: 'burden', weight }, { kind: 'splash' }] });
 /** A gem carrying ONLY the spreader — nothing of its own to spread. */
@@ -948,36 +948,38 @@ const bareSplashGem = (id = 'test_bare_splash'): Gem =>
   ({ kind: 'effect', id, rarity: 'common', actions: [{ kind: 'splash' }] });
 
 describe('splash gems: the catalog', () => {
-  it('ships a Common and a Rare rung that land EXACTLY on their rarity bands — unmoved by the split', () => {
-    // burden N x2 (the spread) is 5 deci per weight, the same number the retired
-    // `splash weight N` priced at:
-    //   weight 4 -> 20 deci = Common (20)   ·   weight 8 -> 40 deci = Rare (40)
-    // (weight 3 -> 14 and weight 7 -> 34 are no band at all, which is what
-    // makes each shipped magnitude MINIMAL for its band.)
-    const tremor = gemBook.tremor_sliver!;
-    const fracture = gemBook.fracture_sliver!;
-    expect(tremor.kind).toBe('effect');
-    expect(fracture.kind).toBe('effect');
-    expect(gemPowerLevelDeci(tremor)).toBe(RARITY_PL_DECI.common);
-    expect(gemPowerLevelDeci(fracture)).toBe(RARITY_PL_DECI.rare);
-    expect(isGemOnBudget(tremor) && isGemOnBudget(fracture)).toBe(true);
-    expect(gemPowerLevelDeci(spreadGem(4))).toBe(20);
-    expect(gemPowerLevelDeci(spreadGem(8))).toBe(40);
-    // Both shipped rungs are TWO-ACTION gems now: the payload and its spreader.
-    for (const gem of [tremor, fracture]) {
-      if (gem.kind !== 'effect') continue;
-      expect(gem.actions.map((a) => a.kind)).toEqual(['burden', 'splash']);
-    }
+  it('ships EXACTLY ONE splash gem — ripple_sliver, whose sole action is the spreader, on Common exactly', () => {
+    // User ruling 2026-08-21: "there should only be 1 gem to give splash why is
+    // there 2 splash gem". The old two-rung ladder (tremor_sliver burden 4 +
+    // splash, fracture_sliver burden 8 + splash) laddered the BURDEN's
+    // magnitude; splash itself has none, so one gem is the whole keyword.
+    const ripple = gemBook.ripple_sliver!;
+    expect(ripple.kind).toBe('effect');
+    if (ripple.kind !== 'effect') return;
+    expect(ripple.actions.map((a) => a.kind)).toEqual(['splash']);
+    // Priced at the keyword's own flat standalone rate: 20 deci = Common.
+    expect(gemPowerLevelDeci(ripple)).toBe(PRICE.splashFlatDeci);
+    expect(gemPowerLevelDeci(ripple)).toBe(RARITY_PL_DECI.common);
+    expect(isGemOnBudget(ripple)).toBe(true);
+    // The retired ladder is really gone.
+    expect(gemBook.tremor_sliver).toBeUndefined();
+    expect(gemBook.fracture_sliver).toBeUndefined();
+    // ...and no OTHER gem carries a splash action.
+    const carriers = Object.values(gemBook)
+      .filter((g) => g.kind === 'effect' && g.actions.some((a) => a.kind === 'splash'))
+      .map((g) => g.id);
+    expect(carriers).toEqual(['ripple_sliver']);
   });
 
-  it('GRANTS the spread band to a host that has neither — the whole point of the gem', () => {
-    // sword_slash carries no card-targeting effect at all. Socketed, the hero's
-    // cast taxes the foe's whole band; un-socketed the same board emits nothing.
+  it('GRANTS the spread to a host with a payload and no spreader — the whole point of the gem', () => {
+    // burdenHost carries a burden and no splash. Socketed with ripple_sliver,
+    // the hero's cast taxes the foe's whole band; un-socketed the same board
+    // taxes the anchor alone.
     const foeRow = tc('foe', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK });
     const run = (gem?: Gem) => simulate({
       ...cfg(
         tc('hero', [], { speed: 30, maxHp: 500 }, {
-          pieces: [{ skillId: 'splashless', slot: 0, ...(gem ? { gem } : {}) }],
+          pieces: [{ skillId: 'burdenHost', slot: 0, ...(gem ? { gem } : {}) }],
           skillBook: BOOK,
         }),
         foeRow,
@@ -986,12 +988,15 @@ describe('splash gems: the catalog', () => {
       skillBook: BOOK,
     }, 1);
 
-    expect(run().events.some((e) => e.kind === 'burdened')).toBe(false);
-
-    const burdened = run(gemBook.tremor_sliver!).events
+    const bare = run().events
       .filter((e): e is Extract<Ev, { kind: 'burdened' }> => e.kind === 'burdened');
-    expect(burdened.length).toBeGreaterThan(0);
-    expect(burdened[0]).toMatchObject({ side: 'enemy', weight: 4, anchorSlot: 0, slots: [0, 1] });
+    expect(bare.length).toBeGreaterThan(0);
+    expect(bare[0]!.slots).toEqual([0]); // anchor only, no spreader
+
+    const banded = run(gemBook.ripple_sliver!).events
+      .filter((e): e is Extract<Ev, { kind: 'burdened' }> => e.kind === 'burdened');
+    expect(banded.length).toBeGreaterThan(0);
+    expect(banded[0]).toMatchObject({ side: 'enemy', weight: 6, anchorSlot: 0, slots: [0, 1] });
   });
 
   it('a gem SPLASH spreads the HOST’s own burden — the spreader is cast-scoped, so splice order cannot break it', () => {
@@ -1022,7 +1027,7 @@ describe('splash gems: GATE (a) — a host that hits more than one target', () =
     const config: CombatConfig = {
       ...cfg(
         tc('hero', [], { speed: 30, maxHp: 500 }, {
-          pieces: [{ skillId: 'aoeJab', slot: 0, gem: gemBook.fracture_sliver! }],
+          pieces: [{ skillId: 'aoeJab', slot: 0, gem: spreadGem(8) }],
           skillBook: BOOK,
         }),
         tc('foe', ['jab', 'jab2', 'jab3'], { speed: 10, attack: 1, maxHp: 500 }, { skillBook: BOOK }),
@@ -1067,7 +1072,7 @@ describe('splash gems: GATE (b) — a host that already splashes', () => {
   );
 
   it('AT MOST ONE SPREADER on the effective card, whatever the gem brings', () => {
-    for (const gem of [gemBook.tremor_sliver!, gemBook.fracture_sliver!, spreadGem(16), bareSplashGem()]) {
+    for (const gem of [gemBook.ripple_sliver!, spreadGem(4), spreadGem(8), spreadGem(16), bareSplashGem()]) {
       const eff = resolveEffectiveSkill(showcase, { skillId: 'shockwave_slam', slot: 0, gem });
       expect(eff.effects.filter((a) => a.kind === 'splash')).toHaveLength(1);
       // ...and the one that survived is the HOST's (provenance, not position).
@@ -1077,20 +1082,20 @@ describe('splash gems: GATE (b) — a host that already splashes', () => {
   });
 
   it('a WEAKER gem burden changes NO STATE (Math.max) — the band still owes the host\u2019s 6', () => {
-    // tremor_sliver's burden is 4 against the host's authored 6, so the socket
+    // The test gem's burden is 2 against the host's authored 4, so the socket
     // cannot raise the tax. It DOES add a second application, and therefore a
-    // second `burdened` event — exactly what a `slow 4` gem on a `slow 6` card
+    // second `burdened` event — exactly what a `slow 2` gem on a `slow 4` card
     // has always done. The log is honest about two applications; the STATE is
     // what must be unchanged, and it is.
     const bare = simulate(shockwaveFight(), 7);
-    const gemmed = simulate(shockwaveFight(gemBook.tremor_sliver!), 7);
+    const gemmed = simulate(shockwaveFight(spreadGem(2)), 7);
     const weightsOf = (r: typeof bare): number[] => r.events
       .filter((e): e is Extract<Ev, { kind: 'burdened' }> => e.kind === 'burdened')
       .map((e) => e.weight);
-    expect(weightsOf(bare).every((w) => w === 6)).toBe(true);
+    expect(weightsOf(bare).every((w) => w === 4)).toBe(true);
     // The gem's weaker application is visible in the log...
-    expect(weightsOf(gemmed)).toContain(4);
-    // ...and changes nothing: every taxed piece still owes 6, and the fight ends
+    expect(weightsOf(gemmed)).toContain(2);
+    // ...and changes nothing: every taxed piece still owes 4, and the fight ends
     // the same way, on the same turn, with the same HP.
     expect(gemmed.result).toBe(bare.result);
     expect(gemmed.turns).toBe(bare.turns);
@@ -1113,12 +1118,12 @@ describe('splash gems: GATE (b) — a host that already splashes', () => {
     // one victim resolve by `Math.max`. The gem does not rewrite the host's
     // authored action — it adds its own, which happens to win.
     const bare = simulate(shockwaveFight(), 7);
-    const gemmed = simulate(shockwaveFight(gemBook.fracture_sliver!), 7);
+    const gemmed = simulate(shockwaveFight(spreadGem(8)), 7);
     const weights = gemmed.events
       .filter((e): e is Extract<Ev, { kind: 'burdened' }> => e.kind === 'burdened')
       .map((e) => e.weight);
-    // The host's own 6 lands, then the gem's 8 maxes over it on the same band.
-    expect(weights).toContain(6);
+    // The host's own 4 lands, then the gem's 8 maxes over it on the same band.
+    expect(weights).toContain(4);
     expect(weights).toContain(8);
     // And the victim really pays the higher number: some play costs 8 more than
     // the same play did on the bare card.
@@ -1138,7 +1143,7 @@ describe('splash gems: GATE (c) — nothing to spread', () => {
     expect(eff.effects.map((a) => a.kind)).toEqual(['damage']);
   });
 
-  it('does NOT drop it when the GEM supplies the payload — the shipped rungs are exactly that shape', () => {
+  it('does NOT drop it when the GEM supplies the payload (a burden + splash gem is still legal to construct)', () => {
     const host = BOOK.splashless!;
     const gem = spreadGem(8);
     expect(splashSuppressionOn(host, gem.kind === 'effect' ? gem.actions : [])).toBeNull();
@@ -1210,9 +1215,9 @@ describe('splash gates: the multi-target CONCEPT, not a scope literal', () => {
  * INSTANCE PL, HOST-AWARE (balance-designer pass, 2026-08-19 — closes a
  * flagged loose end from the splash-gem pass). `instancePowerLevelDeci` is
  * the ONE gem-PL surface that knows the host; a gem action THE SPLASH GATE
- * drops must contribute ZERO instance PL there, and — under the spreader model —
- * dropping the spreader must also drop the COVERAGE MULTIPLIER it would have put
- * on the gem's own payload.
+ * drops must contribute ZERO instance PL there — under the flat standalone
+ * rate, dropping the spreader subtracts exactly its own `PRICE.splashFlatDeci`
+ * and nothing else (the gem's payload keeps its ordinary price).
  *
  * It also re-derives the gate itself (`hostSuppressesSplash`, balance.ts, which
  * cannot import cards.ts without closing a layering cycle), so these cases are
@@ -1232,14 +1237,17 @@ describe('instancePowerLevelDeci: a gem spreader SUPPRESSED by the gate prices a
   it('GATE (b) hostAlreadySplashes — same: the gem is priced for the anchor it still taxes', () => {
     const host = skillBook.shockwave_slam!;
     const gem = spreadGem(16);
-    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + 40); // burden 16 alone
+    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + 40); // burden 16 alone; the dropped spreader's flat 20 is not charged
     expect(instancePowerLevelDeci(host, { gem })).not.toBe(powerLevelDeci(host) + gemPowerLevelDeci(gem, host));
   });
 
   it('GATE (c) nothingToSpread — a BARE splash gem contributes exactly nothing', () => {
+    // This is now the SHIPPED gem's own shape: ripple_sliver on a payload-less
+    // host is worth (and charges) nothing on that piece.
     const host = BOOK.splashless!;
-    const gem = bareSplashGem();
-    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host));
+    for (const gem of [bareSplashGem(), gemBook.ripple_sliver!]) {
+      expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host));
+    }
   });
 
   it('suppression zeroes ONLY the spreader — every other action on the same gem still prices', () => {
@@ -1256,6 +1264,6 @@ describe('instancePowerLevelDeci: a gem spreader SUPPRESSED by the gate prices a
     const host = BOOK.splashless!;
     const gem = spreadGem(8);
     expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + gemPowerLevelDeci(gem, host));
-    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + 40); // 20 x 2
+    expect(instancePowerLevelDeci(host, { gem })).toBe(powerLevelDeci(host) + 40); // burden 20 + splash 20, two standalone line items
   });
 });

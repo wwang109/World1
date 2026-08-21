@@ -250,63 +250,59 @@ export const PRICE = {
    * cannot expire unpaid, which is worth more. We call that a wash rather than
    * pretend to measure it.
    *
-   * COVERAGE IS PRICED SEPARATELY, and that is the 2026-08-21 split: this rate
-   * buys the tax on the ANCHOR, and a `splash` on the same cast multiplies it by
-   * the band floor (`splashBandFloorNum` below). The old single
-   * `splash weight N` action charged 5 deci/weight — exactly this rate times
-   * that multiplier — so every shipped magnitude kept its price to the deci (see
-   * `actionsPriceDeci`, and the migration note on the three cards).
+   * COVERAGE IS PRICED SEPARATELY: this rate buys the tax on the ANCHOR, and a
+   * `splash` on the same cast pays its OWN flat, standalone price
+   * (`splashFlatDeci` below) for spreading it — never a multiplier on this
+   * rate (user-locked 2026-08-21).
    *
    * CONTROL family (see EFFECT_CAPS_DECI) so it cannot dodge the control cap: a
    * size-1 card can carry at most `burden 40` alone (100 deci = the size-1
-   * control ceiling, and all of Bronze), or `burden 20 + splash` once the
-   * multiplier applies.
+   * control ceiling, and all of Bronze), or `burden 32 + splash` once the
+   * spreader's own 20 deci joins the family spend.
    */
   burdenPerWeightNum: 5,
   burdenPerWeightDen: 2,
 
   /**
-   * splash: the COVERAGE MULTIPLIER on a cast's card-targeting effects
-   * (`burden`, `curse`) — `x2`, the band's guaranteed FLOOR.
+   * splash: FLAT, STANDALONE price for the payload-less SPREADER — 20 deci
+   * (2 PL) per cast, like every other keyword's own rate (user-locked
+   * 2026-08-21, verbatim: "every gem pl is standalone" / "it doesnt make sense
+   * to increase cost because of splash and host" / "why did you make splash
+   * different").
    *
-   * IT IS NOT A PER-POINT RATE, because the spreader has no points: it has no
-   * fields at all (see the `splash` docs in types.ts). What it sells is REACH,
-   * so what it costs is a multiple of the thing whose reach it changes. The
-   * multiplier is applied once, to the summed price of the cast's card-targeting
-   * effects, in `actionsPriceDeci` — the same place and the same shape as the AoE
-   * reach multiplier (`aoeTargetsNum/Den`), for the same reason: only the pricer
-   * can see a whole kit at once.
+   * REPLACES the coverage-multiplier model (`splashBandFloorNum/Den`, x2 on the
+   * summed price of the cast's card-targeting siblings, 2026-08-21 morning).
+   * That shape made splash the ONE keyword whose price depended on its
+   * siblings' magnitudes — a `burden 8 + splash` cast paid more for the same
+   * spread than a `burden 4 + splash` cast did — which the ruling above
+   * reverses: what the spreader does (widen the anchor to the band) is the
+   * same act at any payload size, so it costs the same flat rate at any
+   * payload size. The keyword row lives in `keywords/pricing.ts` like every
+   * other flat price; `actionsPriceDeci` no longer special-cases it.
    *
-   * WHY TWO — the geometry's FLOOR, not its maximum (unchanged from the rate
-   * this replaces, re-derived 2026-08-19 after the anchor stopped wrapping; see
-   * `splashAnchor`, combat/splash.ts). The band runs 1..3 pieces wide: 3 when
-   * the anchor has a piece on each side, 2 at either end of the line, 1 on a
-   * lone card. Two facts pick the number:
-   *   • ANY board holding two or more pieces gives at least 2 — every anchor on
-   *     such a board has at least one neighbour. 2 is a guarantee, not an
-   *     average, and it needs no assumption about board shape.
-   *   • The shape in question is the VICTIM's board, which the card's holder
-   *     does not control at all. Pricing the 3-piece case would charge every
-   *     holder for coverage the opponent decides — strictly worse than the
-   *     holder-independence rule `GEM_CANONICAL_PROPERTY` and AoE breadth
-   *     already follow. The third piece is deliberately UNPRICED upside.
+   * WHY 20 AND NOT 10 OR 15 (the candidate rates weighed): two constraints,
+   * both hard.
+   *   • THE splash gem (the one gem whose ONLY action is `splash` — see
+   *     gems.v1.json) prices at exactly this rate, and a gem must land EXACTLY
+   *     on a rarity band (RARITY_PL_DECI: 20/40/60/80). 20 = Common exactly;
+   *     10 and 15 land on no band at all. (15 also breaks the whole-PL-parts
+   *     invariant every rate in this table obeys.)
+   *   • Re-solve movement across the four shipped splash cards is minimal at
+   *     20: `arc_cascade` and `sapping_arc` (whose spread cost the multiplier
+   *     already priced at 20) keep every magnitude, and `shockwave_slam` /
+   *     `line_breaker` drop only their burden weight 6 -> 4 (a burden part
+   *     must itself be a whole PL once splash is its own part, pinning burden
+   *     weights to multiples of 4 — their damage lines and tier ladders keep
+   *     the pre-split numbers). 10 would have moved all four; 40 (the next
+   *     band up) would price the spreader above both payloads it spreads.
    *
-   * HONEST LABEL: 2 is CHOSEN, not computed. Real delivered coverage swings with
-   * the victim's board (1..3 pieces) and no single number is "the" reach of a
-   * spread. 2 is a static anchor at the low end of that range — it under-charges
-   * a mid-board anchor and over-charges a lone card, and it errs toward
-   * under-charging on purpose, because the swing is the opponent's to decide.
-   *
-   * ROUNDING: the multiplier floors ONCE over the summed card-targeting total
-   * (`actionsPriceDeci`), never per action. On even burden weights that is
-   * identical to the old 5-deci-per-weight rate to the deci (`floor(N*5/2)*2 ==
-   * N*5`); on an ODD weight the split is 1 deci cheaper (weight 5: 12*2 = 24 vs
-   * 25), because the anchor's own price floors first. All shipped magnitudes are
-   * even, so nothing moved — and whole-PL authoring still wants even weights
-   * anyway.
+   * WHAT 20 DECI SAYS: a spread is worth about one extra small payload — the
+   * band's guaranteed second piece carrying a modest tax — priced once,
+   * host-blind and payload-blind, erring cheap for the same reason the old
+   * floor-of-2 did: band width (1..3 pieces) is the VICTIM's board's to
+   * decide, never the holder's.
    */
-  splashBandFloorNum: 2,
-  splashBandFloorDen: 1,
+  splashFlatDeci: 20,
 
   /**
    * curse: TWO TERMS, summed —
@@ -1147,6 +1143,14 @@ export function resourceSuppliedBy(action: Action): { resource: string; on: 'cas
  * A measured rate for the middle ground is balance-designer's to set; this is
  * the two-state form the engine can decide STATICALLY, from the kit alone.
  *
+ * THE BOUNDARY (user-locked 2026-08-21): this premium prices AUTHORED KITS
+ * ONLY — a card's own effect list, or a gem's own action list, each judged
+ * against itself. A SOCKETED PAIRING is priced as the PLAIN SUM of the two
+ * standalone prices (`instancePowerLevelDeci` = base card PL + gem PL, no
+ * cross-kit term): "every gem pl is standalone" / "it doesnt make sense to
+ * increase cost because of splash and host". A union-kit delta that briefly
+ * charged the forfeit across the card+gem seam was deleted by that ruling.
+ *
  * STATICALLY DECIDABLE is the whole reason it can be priced at all: whether a
  * kit supplies the resource its own rider reads is a fact about the authored
  * effect list, visible to the pricer with no simulation and no host knowledge.
@@ -1218,26 +1222,17 @@ export function actionsPriceDeci(
 ): number {
   let selfDeci = 0;
   let foeDeci = 0;
-  // THE CARD-TARGETING SLICE, kept separate only until the spread multiplier is
-  // applied to it (see `spreads` below), then folded into `foeDeci` with the rest
-  // of the offensive share. Every card-targeting kind is offensive, so nothing
-  // else about the buckets changes.
-  let cardTargetDeci = 0;
   // Multi-hit premium: damage INSTANCES beyond the first pay a flat surcharge
   // for being separately-blocked hits (see PRICE.extraHitPremium) — offensive,
   // see the doc comment above.
   const hits = actions.filter((a) => HIT_KINDS.has(a.kind)).length;
   if (hits > 1) foeDeci += (hits - 1) * PRICE.extraHitPremium;
-  // THE SPREADER (`splash`, payload-less): it prices as a COVERAGE MULTIPLIER on
-  // the card-targeting effects it widens, not per field of its own — see
-  // `PRICE.splashBandFloorNum`. Asked of THE LIST BEING PRICED, exactly like
-  // `hits` above: `capViolations` and `powerLevelBreakdown` hand this function
-  // subsets, and a subset that omits the splash must price un-multiplied (the
-  // breakdown then reports the whole multiplier as one telescoping delta part,
-  // the same trick it uses for `aoe reach`).
-  const spreads = actions.some((a) => a.kind === 'splash');
   // DATA-DRIVEN: every per-keyword rate lives in `keywords/pricing.ts`, so a
-  // new keyword is a row there rather than a `case` here.
+  // new keyword is a row there rather than a `case` here. That includes the
+  // SPREADER: `splash` prices at its own flat standalone rate
+  // (`PRICE.splashFlatDeci`) like any other keyword — the coverage-multiplier
+  // shape this function used to apply was reversed by user ruling 2026-08-21
+  // ("every gem pl is standalone").
   for (const action of actions) {
     // The table rate plus the ONE kit-aware term (0 for every kind but the
     // conditional riders, and 0 for those unless the kit supplies their
@@ -1247,22 +1242,13 @@ export function actionsPriceDeci(
     // `powerLevelBreakdown`'s per-action parts.
     const price = priceActionDeci(action, property, KEYWORD_PRICING)
       + selfSynergyPremiumDeci(action, kit, property);
-    if (CARD_TARGETING_KINDS.has(action.kind)) cardTargetDeci += price;
-    else if (OFFENSIVE_KINDS.has(action.kind)) foeDeci += price;
+    if (OFFENSIVE_KINDS.has(action.kind)) foeDeci += price;
     else selfDeci += price;
   }
-  // FLOORED ONCE, over the whole card-targeting total — never per action, so two
-  // burdens on one card cannot round differently from one of twice the weight.
-  if (spreads) {
-    cardTargetDeci = Math.floor((cardTargetDeci * PRICE.splashBandFloorNum) / PRICE.splashBandFloorDen);
-  }
-  foeDeci += cardTargetDeci;
-  // The AoE multiplier then applies to the spread total as well, which is
-  // unreachable in practice and deliberately left that way: an AUTHORED
-  // `scope: 'all'` + splash card is refused by `validateSkillContent` and a GEM
-  // splash is dropped on a multi-target host (THE SPLASH GATE), so this
-  // composition prices a shape no content can have — loudly, rather than at a
-  // silent zero.
+  // An AUTHORED `scope: 'all'` + splash card is refused by
+  // `validateSkillContent` and a GEM splash is dropped on a multi-target host
+  // (THE SPLASH GATE), so a spreader under this multiplier prices a shape no
+  // content can have — loudly, rather than at a silent zero.
   if (scope === 'all') foeDeci = Math.floor((foeDeci * PRICE.aoeTargetsNum) / PRICE.aoeTargetsDen);
   return selfDeci + foeDeci;
 }
@@ -1297,14 +1283,6 @@ export interface PlBreakdownPart {
 }
 
 /**
- * THE SPREADER, as a value — used by `powerLevelBreakdown` to price a
- * card-targeting line together with the coverage multiplier it is actually
- * delivered with. Payload-less by definition, so one shared literal is the whole
- * keyword; frozen because it is handed to a pricer that must not mutate it.
- */
-const SPREADER: Action = Object.freeze({ kind: 'splash' });
-
-/**
  * Itemized deci-PL breakdown of a card's kit — the same math as
  * powerLevelDeci, split into labeled parts for balance inspection UIs.
  * Invariant (tested): the parts sum exactly to powerLevelDeci(skill).
@@ -1315,32 +1293,16 @@ export function powerLevelBreakdown(skill: SkillDef): PlBreakdownPart[] {
     if (deci !== 0) parts.push({ label, deci });
   };
 
-  // Does this card carry the `splash` SPREADER? A card-targeting line's price
-  // INCLUDES the coverage multiplier when it does — see the loop below.
-  const spreadsBand = skill.effects.some((a) => a.kind === 'splash');
   for (const action of skill.effects) {
     // `skill.effects` as the KIT (not the single-action default): the
     // self-synergy premium is a property of the whole kit, and pricing one
     // action blind to its siblings would report a smaller part than
     // `powerLevelDeci` charges — breaking the "parts sum exactly" invariant.
     //
-    // A CARD-TARGETING LINE IS PRICED WITH THE SPREADER, not beside it. `splash`
-    // has no price of its own (it multiplies its siblings' coverage), so the
-    // honest unit of reporting is "burden 6 across the band = 30", not "burden
-    // 15" plus a floating "spread 15". Two reasons it matters beyond taste:
-    //  • WHOLE-PL PARTS. Rates are whole-PL per clean unit and every reported
-    //    part must land on one (a user-locked authoring invariant, pinned in
-    //    tests/engine/balance.test.ts). Half of a spread burden is 1.5 PL; the
-    //    delivered line is 3.
-    //  • It is what the designer actually chooses. Nobody authors a spread
-    //    without its payload — the validator refuses it — so the two are one
-    //    decision and one price.
-    // The `splash` action itself then prices at 0 and `push` drops it.
-    const priced = spreadsBand && CARD_TARGETING_KINDS.has(action.kind)
-      ? [action, SPREADER]
-      : [action];
-    const label = priced.length > 1 ? `${action.kind} + splash` : action.kind;
-    push(label, actionsPriceDeci(priced, skill.property, 'one', skill.effects));
+    // `splash` is an ordinary flat-priced part here (its own whole-PL row,
+    // `PRICE.splashFlatDeci`) — the combined "burden + splash" part died with
+    // the coverage-multiplier model it reported (user ruling 2026-08-21).
+    push(action.kind, actionsPriceDeci([action], skill.property, 'one', skill.effects));
   }
   // Multi-hit premium is count-based, so single-action pricing above misses
   // it — surface it as its own labeled part (keeps parts summing exactly).
@@ -1403,10 +1365,10 @@ export function isOnBudget(skill: SkillDef): boolean {
  * a card, run `npm test` and the audit names any rule it breaks.
  */
 export const EFFECT_CAPS_DECI = {
-  /** stun, slow, burden, curse, splash's spread, disrupt, stat-down, expose,
-   * shieldBreak — one whole discrete effect. `splash` has no price of its own,
-   * but the coverage multiplier it puts on a burden/curse IS counted here, so a
-   * spread cannot buy reach past the control ceiling either. */
+  /** stun, slow, burden, curse, splash, disrupt, stat-down, expose,
+   * shieldBreak — one whole discrete effect. `splash` counts its own flat
+   * price (`PRICE.splashFlatDeci`) here, so a spread cannot buy reach past
+   * the control ceiling either. */
   control: { 1: 100, 2: 150, 3: 200 } as Record<number, number>,
   /** poison + burn + bleed combined (deci = stacks × 10 at 1 PL/stack) */
   dot: { 1: 200, 2: 300, 3: 400 } as Record<number, number>,
@@ -1504,14 +1466,14 @@ export const OFFENSIVE_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KE
 /**
  * CARD-TARGETING kinds — the ones that land on one of the VICTIM'S BOARD CARDS
  * (`burden`, `curse`) rather than on the victim as a unit, and therefore the
- * exact set the `splash` SPREADER widens and the exact set its coverage
- * multiplier is applied to (`actionsPriceDeci`, `PRICE.splashBandFloorNum`).
+ * exact set the `splash` SPREADER widens. (Pricing no longer reads this set:
+ * `splash` prices at its own flat standalone rate, `PRICE.splashFlatDeci`,
+ * user-locked 2026-08-21.)
  *
- * Read from the keyword table's own `cardTargeting` facet, so the pricer, the
- * content validator (which refuses a splash with nothing to spread) and the gem
- * gate (`splashSuppressionOn`, cards.ts) all ask ONE source. The engine-side
- * geometry that consumes the same decision is `cardTargetPieces`
- * (combat/splash.ts).
+ * Read from the keyword table's own `cardTargeting` facet, so the content
+ * validator (which refuses a splash with nothing to spread) and the gem gate
+ * (`splashSuppressionOn`, cards.ts) ask ONE source. The engine-side geometry
+ * that consumes the same decision is `cardTargetPieces` (combat/splash.ts).
  */
 export const CARD_TARGETING_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_PRICING[k].cardTargeting);
 
@@ -1771,8 +1733,9 @@ export function isGemOnBudget(gem: Gem): boolean {
  * nor the gem supplies a card-targeting effect for the spreader to widen.
  *
  * Arm (c) is why this takes the gem's actions: a `burden + splash` gem supplies
- * its own payload, so it must NOT be suppressed on a plain damage host (the
- * shipped rungs are exactly that shape).
+ * its own payload, so it must NOT be suppressed on a plain damage host — while
+ * the shipped BARE splash gem (`ripple_sliver`) has no payload of its own and
+ * IS suppressed there, subtracting its contribution from the instance PL.
  */
 function hostSuppressesSplash(host: SkillDef, gemActions: readonly Action[]): boolean {
   if (isMultiTargetSkill(host)) return true;
@@ -1795,9 +1758,6 @@ function hostSuppressesSplash(host: SkillDef, gemActions: readonly Action[]): bo
  * gem's own first. Returns the SAME array reference when nothing is filtered, so
  * the no-splash case is provably untouched.
  *
- * References are preserved (`filter`, never a copy), which
- * `unionKitSelfSynergyDeltaDeci` depends on: `selfSynergyPremiumDeci` excludes a
- * rider from its own kit by REFERENCE identity (`other === action`).
  */
 function gatedGemActions(host: SkillDef, gemActions: Action[]): Action[] {
   let hasSplash = false;
@@ -1816,96 +1776,15 @@ function gatedGemActions(host: SkillDef, gemActions: Action[]): Action[] {
 }
 
 /**
- * THE UNION-KIT SELF-SYNERGY DELTA — the deci-PL a socketed PAIRING owes on top
- * of `base card PL + gem PL`, because the two sides together supply a gate that
- * neither side supplied alone.
- *
- * THE HOLE THIS CLOSES (balance-designer/audit pass, 2026-08-21). The
- * self-synergy forfeit (`selfSynergyPremiumDeci`) asks "does THIS KIT supply the
- * resource its own conditional rider reads", and it is asked TWICE against two
- * different, incomplete kits: `powerLevelDeci` asks it of the card's authored
- * effects, `gemPowerLevelDeci` asks it of the gem's own actions. Neither ever
- * asks it of the kit `resolveEffectiveSkill` actually PLAYS — the union of the
- * two. So `deadweight_toll` (a pure `taxBonus` reader, discounted because it
- * taxes nothing itself) + `tremor_sliver` (a `burden` gem, which supplies
- * exactly the tax it reads) played as a guaranteed self-synergy kit from the
- * second cast onward while paying the conditional discount on both sides: 40
- * deci of premium owed, 0 charged. `blight_feast` + `venom_sliver` was the same
- * hole for 30. EVERY rider resource has a shipped gem that supplies it, so this
- * was systemic rather than two unlucky pairs.
- *
- * WHY IT LIVES AT THE INSTANCE LEVEL AND NOWHERE ELSE — the definition/game-info
- * split. A card's PL and a gem's band price the DEFINITION: what the designer
- * authored, auditable against a tier budget / rarity band with no knowledge of
- * what it might be paired with. The PAIRING is not a definition, it is an
- * instance — so it is priced here, on the one gem surface that already knows the
- * host (precedent: this function already zeroes a gate-suppressed gem splash).
- * Base card PL and gem band PL are deliberately UNMOVED by this rule; every
- * shipped card stays exact on its budget and every gem exact on its band.
- *
- * WHY A DELTA, AND WHY VIA `actionsPriceDeci`'s `kit` PARAMETER. Each side is
- * priced twice — once with its own kit (what its side already charged) and once
- * with the UNION kit — and only the difference is added. `kit` feeds nothing but
- * `selfSynergyPremiumDeci`, so everything else in those two calls cancels
- * EXACTLY, and the surviving premium rides the same offensive/self bucketing and
- * the same AoE / spread multipliers its side's own price rode. No bucket logic is
- * duplicated here and no rounding can drift.
- *
- * EACH SIDE KEEPS ITS OWN PROPERTY RATE: the host's premium is charged at the
- * card's property, the gem's at `GEM_CANONICAL_PROPERTY`, exactly as each side's
- * base price is. A gem is holder-independent by that constant's rule, and the
- * forfeit is not the place to break it.
- *
- * ORDER IS IMMATERIAL, which is why this does NOT replicate `GEM_ACTION_PHASE`'s
- * pre/post splice (that table lives in cards.ts, downstream of this file — see
- * `hostSuppressesSplash` for the same layering tradeoff). `selfSynergyPremiumDeci`
- * asks a pure MEMBERSHIP question of the kit — "is there some OTHER action here
- * supplying this resource on this side" — so `[...host, ...gem]` and the real
- * `[...gemPre, ...host, ...gemPost]` are indistinguishable to it. A test pins the
- * two against `resolveEffectiveSkill`'s actual kit so they cannot drift.
- *
- * THE SPLASH-GATE CORNER, PINNED: `gemActions` is the GATED list, so a
- * suppressed gem spreader is absent from the union — correctly, and harmlessly,
- * since `splash` supplies nothing (`resourceSuppliedBy`). What is NOT absent is
- * the same gem's `burden`: the gate drops only the spreader, the tax still lands
- * on the anchor, and it still supplies `'tax'` on the target. So a `taxBonus`
- * host + a SUPPRESSED `burden + splash` gem pays the full forfeit even though the
- * gem's own priced payload shrank to its bare anchor-only burden. Both halves are
- * the honest reading of what that socket delivers.
- *
- * UNTIERED, matching this function's existing contract: `def` is the AUTHORED
- * definition, so a piece's `tier` scales neither the base PL nor this premium
- * here. (A tiered rider's magnitude is larger, so the forfeit on a Diamond piece
- * is larger too — the same understatement `powerLevelDeci(def)` already makes.)
- */
-function unionKitSelfSynergyDeltaDeci(host: SkillDef, gemActions: readonly Action[]): number {
-  if (gemActions.length === 0) return 0;
-  // FAST PATH, provably equivalent: `selfSynergyPremiumDeci` is 0 for every
-  // action that is not a conditional rider, so a pairing with no rider anywhere
-  // in the union has a 0 delta and can skip four price walks (this function is on
-  // the card-face render path).
-  const union = [...host.effects, ...gemActions];
-  let hasRider = false;
-  for (let i = 0; i < union.length; i += 1) {
-    if (riderReadsResource(union[i]!)) { hasRider = true; break; }
-  }
-  if (!hasRider) return 0;
-  const hostDelta = actionsPriceDeci(host.effects, host.property, host.scope, union)
-    - actionsPriceDeci(host.effects, host.property, host.scope, host.effects);
-  const gemDelta = actionsPriceDeci(gemActions, GEM_CANONICAL_PROPERTY, 'one', union)
-    - actionsPriceDeci(gemActions, GEM_CANONICAL_PROPERTY, 'one', gemActions);
-  return hostDelta + gemDelta;
-}
-
-/**
- * Display/run-power readout for a socketed piece: base card PL (audited,
- * tier-budgeted) plus the gem's own uncapped bonus PL, plus the one term that
- * belongs to neither side alone — THE UNION-KIT SELF-SYNERGY DELTA
- * (`unionKitSelfSynergyDeltaDeci`), which charges the conditional-rider forfeit
- * when host and gem TOGETHER supply a gate that neither supplied alone. A socket
- * that triggers it makes the instance cost MORE than the sum of its parts; that
- * is the point, and it never blocks the socket. Never fed back into `isOnBudget`
- * — the base-tier audit must stay gem-blind.
+ * Display/run-power readout for a socketed piece: the PLAIN SUM of the base
+ * card PL (audited, tier-budgeted) and the gem's own uncapped bonus PL —
+ * user-locked 2026-08-21 ("every gem pl is standalone" / "it doesnt make sense
+ * to increase cost because of splash and host"): a card+gem pairing's instance
+ * PL is `base + gem`, never more. The union-kit self-synergy delta that
+ * briefly lived here (charging the conditional-rider forfeit when host and gem
+ * TOGETHER supplied a gate) was deleted by that ruling; the forfeit remains a
+ * rule about AUTHORED kits only (`selfSynergyPremiumDeci`). Never fed back
+ * into `isOnBudget` — the base-tier audit must stay gem-blind.
  *
  * This is the one gem-PL surface that KNOWS the host, so it is the one that gets
  * the honest number for a host-proportional payload: `def` is handed to
@@ -1918,34 +1797,27 @@ function unionKitSelfSynergyDeltaDeci(host: SkillDef, gemActions: readonly Actio
  * gem-resolved skill. A piece's `tier` therefore does not scale the echo term
  * here, exactly as it does not scale `powerLevelDeci(def)` here.
  *
- * THE SPLASH GATE, PRICED (balance-designer pass, 2026-08-19 — closes a
- * flagged loose end from the splash-gem pass): `spliceGemActions` drops a
- * gem's `splash` action at cast-resolution time when THE SPLASH GATE fires
- * (host already multi-target, host already splashes, or nothing to spread) — it
- * never fires on that host, so it must contribute ZERO instance PL there, not
- * its full uncapped price. Filters `gem.actions` down to what the gate would
- * actually keep (dropping every splash when suppressed, or every splash past the
- * gem's own first when it isn't — the same "keep only the first" rule
- * `spliceGemActions` applies) before pricing the rest of the gem normally;
- * every other gem shape is untouched, so nothing else moves.
- *
- * UNDER THE SPREADER MODEL THIS IS SHARPER, NOT WEAKER: dropping the splash from
- * the priced list also drops the COVERAGE MULTIPLIER it would have put on the
- * gem's own `burden`/`curse` (`actionsPriceDeci`), so a suppressed
- * `burden + splash` gem prices at its bare anchor-only burden — exactly what it
- * still delivers on that host — instead of at the doubled band price.
+ * THE SPLASH GATE, PRICED (balance-designer pass, 2026-08-19 — the ONE
+ * host-aware adjustment this function makes, and it only ever SUBTRACTS):
+ * `spliceGemActions` drops a gem's `splash` action at cast-resolution time
+ * when THE SPLASH GATE fires (host already multi-target, host already
+ * splashes, or nothing to spread) — it never fires on that host, so it must
+ * contribute ZERO instance PL there, not its flat `PRICE.splashFlatDeci`.
+ * Filters `gem.actions` down to what the gate would actually keep (dropping
+ * every splash when suppressed, or every splash past the gem's own first when
+ * it isn't — the same "keep only the first" rule `spliceGemActions` applies)
+ * before pricing the rest of the gem normally; every other gem shape is
+ * untouched, so nothing else moves.
  */
 export function instancePowerLevelDeci(def: SkillDef, piece: { gem?: Gem | null }): number {
   const gem = piece.gem;
   if (!gem) return powerLevelDeci(def);
-  // A STAT gem appends no actions, so it can neither supply nor read a gate: its
-  // instance PL is the plain sum, unchanged.
+  // A STAT gem appends no actions, so there is nothing for the gate to drop:
+  // its instance PL is the plain sum, unchanged.
   if (gem.kind !== 'effect') return powerLevelDeci(def) + gemPowerLevelDeci(gem, def);
   const actions = gatedGemActions(def, gem.actions);
   // Same reference back from the gate = nothing was filtered, so the gem is
   // priced through its own object exactly as before.
   const gated = actions === gem.actions ? gem : { ...gem, actions };
-  return powerLevelDeci(def)
-    + gemPowerLevelDeci(gated, def)
-    + unionKitSelfSynergyDeltaDeci(def, actions);
+  return powerLevelDeci(def) + gemPowerLevelDeci(gated, def);
 }

@@ -96,17 +96,26 @@ import { PACK_VARIANT_WEIGHTS } from '../../src/run/encounter';
 // UNCHANGED and now prices the SHORT (cost) side only. NO shipped card moved
 // (0/74 override `cooldownTurns`).
 // 2026-08-21: THE SPLASH SPLIT. `splashPerWeightNum/Den` (5/1) REMOVED and
-// replaced by two honest halves, with NO shipped price moving a deci:
-// `burdenPerWeightNum/Den` (5/2 — slow's own per-point rate, for the weight tax
-// on ONE card) and `splashBandFloorNum/Den` (x2 — the COVERAGE MULTIPLIER the
-// payload-less spreader puts on its card-targeting siblings, the band's
-// guaranteed 2-piece floor). The old rate WAS those two multiplied together, so
-// `burden N + splash` prices exactly what `splash weight N` used to for every
-// even N (the three shipped cards and both gems all re-derive to the deci — see
-// their own notes). `cursePerAmountNum/Den` (5/2) and `cursePerAmountTurnNum/Den`
+// replaced by `burdenPerWeightNum/Den` (5/2 — slow's own per-point rate, for
+// the weight tax on ONE card) plus a spreader price (below).
+// `cursePerAmountNum/Den` (5/2) and `cursePerAmountTurnNum/Den`
 // (5/(BASELINE_COOLDOWN+1)) ADDED for the second card-targeting keyword: the
 // flat-damage rate at the conditional-trigger discount for the near-certain
 // first denial, plus one further firing per cooldown stride for the window.
+//
+// 2026-08-21 (later the same day): `splashBandFloorNum/Den` (x2, the coverage
+// MULTIPLIER on the spreader's card-targeting siblings) REMOVED and replaced by
+// `splashFlatDeci` (20 — one flat, standalone price per cast). USER RULING,
+// verbatim: "every gem pl is standalone" / "it doesnt make sense to increase
+// cost because of splash and host" / "why did you make splash different" —
+// splash is a normal keyword with a normal flat rate, never a multiplier on
+// its siblings. 20 is the only candidate rate (of 10/15/20) that lands THE
+// splash gem exactly on a rarity band (Common) while moving the fewest shipped
+// cards (arc_cascade and sapping_arc kept every magnitude; shockwave_slam and
+// line_breaker dropped their burden 6 -> 4 — a burden part must itself be a
+// whole PL once splash is its own part, pinning burden weights to multiples of
+// 4 — keeping their damage lines and tier ladders at the pre-split numbers).
+// See PRICE.splashFlatDeci.
 describe('PRICE structure lock', () => {
   it('every PRICE rate matches its locked value', () => {
     expect(PRICE).toEqual({
@@ -127,8 +136,7 @@ describe('PRICE structure lock', () => {
       slowPerWeightDen: 2,
       burdenPerWeightNum: 5,
       burdenPerWeightDen: 2,
-      splashBandFloorNum: 2,
-      splashBandFloorDen: 1,
+      splashFlatDeci: 20,
       cursePerAmountNum: 5,
       cursePerAmountDen: 2,
       cursePerAmountTurnNum: 5,
@@ -727,9 +735,9 @@ describe('AoE reach pricing (scope: all)', () => {
       // they plainly resolve against a foe. `splash` applies nothing itself, but
       // it is classified with them anyway — `isOffensiveAction` answers by KIND
       // and this pin is kind-for-kind, so the spreader must appear here or the
-      // mirror is broken. Its own price is 0 (it is a multiplier, see
-      // `PRICE.splashBandFloorNum`), so membership costs nothing at any scope —
-      // and an AoE spreader is refused by `validateSkillContent` regardless.
+      // mirror is broken. Its flat price (`PRICE.splashFlatDeci`) would pay the
+      // reach multiplier under `scope: 'all'`, but an AoE spreader is refused by
+      // `validateSkillContent` regardless, so no content can compose the two.
       'burden', 'curse', 'splash',
       // 2026-08-21: the two conditional bonus-damage riders. They only ARM a
       // bonus, but they resolve against the VICTIM (exploit reads its

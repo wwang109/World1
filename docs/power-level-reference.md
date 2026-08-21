@@ -42,7 +42,7 @@ immediately):
 | `slow` | `weight * slowPerWeightNum/Den` | `PRICE.slowPerWeightNum/Den` |
 | `burden` | `weight * burdenPerWeightNum/Den` | `PRICE.burdenPerWeightNum/Den` — `slow`'s CARD-scope sibling at `slow`'s OWN per-point rate: one card taxed, one card's worth of tempo. The lifetime divergence (a burden always eventually gets paid; a slow often expires unpaid) is called a wash rather than measured |
 | `curse` | `amount * cursePerAmountNum/Den` + `amount * turns * cursePerAmountTurnNum/Den` | `PRICE.cursePerAmountNum/Den` (the near-certain FIRST denial, at the flat-damage rate over the conditional-trigger discount — the anchor may be a card that cools out the whole window) + `PRICE.cursePerAmountTurnNum/Den` (the REPEATS: one further firing per `BASELINE_COOLDOWN + 1` turns). Derived, not measured — flagged for an `npm run sim` re-tune, like `stunPerTurn` |
-| `splash` (the SPREADER) | `cardTargetingShare * splashBandFloorNum/Den`, floored once over the whole card-targeting share | `PRICE.splashBandFloorNum/Den` — NOT a per-point rate: the spreader has no fields. It multiplies the COVERAGE of the cast's card-targeting effects (`CARD_TARGETING_KINDS`: `burden`, `curse`) by the band's guaranteed 2-piece FLOOR, applied in `actionsPriceDeci` exactly like the AoE reach multiplier. Replaced the pre-2026-08-21 `splashPerWeightNum/Den` (5/1), which conflated the spreader with its first payload: `burden N + splash` costs exactly what `splash weight N` did |
+| `splash` (the SPREADER) | `splashFlatDeci` — one flat price per cast | `PRICE.splashFlatDeci` — FLAT and STANDALONE like every other keyword (user-locked 2026-08-21: "every gem pl is standalone" / "why did you make splash different"). The spreader has no fields, and what it does — widen the cast's card-targeting effects (`burden`, `curse`) from the anchor to the band — is the same act at any payload size, so it costs the same at any payload size. 20 deci is CHOSEN with two constraints: THE splash gem (`ripple_sliver`, splash-only) must land exactly on a rarity band (20 = Common; the other candidates, 10 and 15, land on none), and re-solve movement across the four shipped splash cards is minimal (two kept every magnitude, two dropped burden 6 → 4 with damage lines untouched). Replaced the coverage-multiplier model (`splashBandFloorNum/Den`, ×2 on the card-targeting share), which had made splash the one keyword priced off its siblings' magnitudes — see `docs/history/pl-changelog.md` |
 | `disrupt` | escalating brackets, marginal per point | `PRICE.disruptBrackets` via `disruptCostDeci` — user-locked 2026-07-25; hard tempo denial must cost disproportionately more at large magnitudes |
 | `lifesteal` | `pct * lifestealPerPctNum/Den` | `PRICE.lifestealPerPctNum/Den` |
 | `shieldBreak` | `amount * shieldBreakPerPointNum/Den` | `PRICE.shieldBreakPerPointNum/Den` |
@@ -51,7 +51,7 @@ immediately):
 | `stackBonus` (flat bonus scaling with a stacking pile, hard-capped) | `cap * strikeRate(property) / conditionalBonusDen` (`per` unpriced) | `PRICE.conditionalBonusDen` — prices the required `cap` ceiling only; see below |
 | `shieldBurst` (spend the caster's OWN shield as bonus damage) | `cap * strikeRate(property) / conditionalBonusDen` | `PRICE.conditionalBonusDen` — same discount despite also destroying the resource it reads; see below |
 | `taxBonus` (flat bonus per weight-taxed card on the victim's board, hard-capped) | `cap * strikeRate(property) / conditionalBonusDen` (`per` unpriced) | `PRICE.conditionalBonusDen` — reads the victim's tempo backlog rather than an affliction pile; see below |
-| self-synergy premium (on any of the four rows above) | forfeits the discount entirely: charges `magnitude * strikeRate(property)` in place of the discounted term | `selfSynergyPremiumDeci` — added when the SAME KIT also supplies the resource the rider reads. The kit is the UNION of card effects AND socketed gem actions, so the card+gem case is charged by `instancePowerLevelDeci`; see below |
+| self-synergy premium (on any of the four rows above) | forfeits the discount entirely: charges `magnitude * strikeRate(property)` in place of the discounted term | `selfSynergyPremiumDeci` — added when the SAME AUTHORED KIT also supplies the resource the rider reads (a card judged against its own effects; a gem against its own actions). A card+gem PAIRING is never charged: instance PL is the plain sum of the two standalone prices (user-locked 2026-08-21); see below |
 | `guard` (%DR) | `pct * turns * guardPerPctTurnNum/Den` | `PRICE.guardPerPctTurnNum/Den` — parity with `statPctTurn`; see rationale below |
 | `negate` (charges) | `charges * negatePerCharge` | `PRICE.negatePerCharge` — flat per-charge; see rationale below |
 | `ward` (charges) | `charges * wardPerCharge` | `PRICE.wardPerCharge` — half a negate charge: a charge denies one whole affliction APPLICATION (poison / burn / bleed / debuffStat / expose — not stun) rather than a card's whole damage line, and 50 deci is the median price of an application of a covered kind across the shipped book |
@@ -186,27 +186,21 @@ on caster or target (`stackBonus`), the caster is holding shield to spend
   ceiling. `shieldBurst` pays this same discount rate even without
   self-synergy triggering it, and deliberately over-prices for a second,
   independent reason below.
-- **The kit is the UNION of card AND gem (audit fix, 2026-08-21).** A socketed
-  gem action is indistinguishable in play from an authored line — the effective
-  card the loop casts is one list — so the forfeit is judged against the UNION
-  kit and priced accordingly AT THE INSTANCE LEVEL. `powerLevelDeci` (card
-  effects) and `gemPowerLevelDeci` (gem actions) each see only one side, so a
-  pure-reader card plus a gem supplying exactly what it reads used to play a
-  guaranteed self-synergy kit while paying the conditional discount on both
-  sides (`deadweight_toll` + `tremor_sliver`: 40 deci owed, 0 charged;
-  `blight_feast` + `venom_sliver`: 30). `instancePowerLevelDeci` — the one gem
-  surface that knows the host — now adds the DELTA between what the union kit
-  owes and what each side already charged, each side at its own property rate
-  and inside its own AoE/coverage multiplier. **Base card PL and gem band PL do
-  not move**: they price the DEFINITION (auditable against a tier budget /
-  rarity band with no knowledge of the pairing), while the pairing is an
-  INSTANCE — the same definition/game-info split that lets a gate-suppressed
-  gem `splash` price at zero on the host that suppresses it. A pairing that
-  triggers the forfeit is never refused; the instance simply costs more than the
-  sum of its parts, which is what the socket delivers. One corner is worth
-  naming: THE SPLASH GATE drops a suppressed gem spreader from the instance
-  price, but the same gem's `burden` still lands — so it still supplies `'tax'`
-  and still triggers a `taxBonus` host's forfeit.
+- **The forfeit prices AUTHORED KITS ONLY — a pairing is the plain sum
+  (user-locked 2026-08-21).** The forfeit is judged twice, each side against
+  its own authored effect list: `powerLevelDeci` asks it of the card's
+  effects, `gemPowerLevelDeci` of the gem's own actions. A socketed PAIRING is
+  priced as the plain sum of those two standalone prices —
+  `instancePowerLevelDeci` = base card PL + gem PL, with no cross-kit term.
+  The ruling, verbatim: "every gem pl is standalone" / "it doesnt make sense
+  to increase cost because of splash and host". A union-kit delta that briefly
+  charged the forfeit across the card+gem seam (when host and gem together
+  supplied a gate neither supplied alone) was deleted by that ruling the same
+  day it landed. The one host-aware adjustment left at the instance level only
+  ever SUBTRACTS: a gem `splash` THE SPLASH GATE would drop contributes zero
+  on the host that suppresses it. Pinned by
+  `tests/engine/instancePlainSum.test.ts` (a full catalog sweep asserts
+  `instance <= base + gem`, equal except gate suppression).
 - **`shieldBurst`'s caster-scoped, no-AoE stance.** Unlike the other three,
   `shieldBurst` resolves on the CASTER (`offensive: false` in
   `keywords/pricing.ts`) — it spends the caster's own shield, not something
@@ -347,8 +341,9 @@ A gem's OWN PL (not the card's) must land exactly on its rarity's band —
 Legendary 8 PL, checked by `isGemOnBudget(gem)` with the same **exact**
 (zero) tolerance as the card audit. The audit that iterates the real gem
 catalog against these bands is **built**: `tests/engine/gemAudit.test.ts`
-covers every gem in `src/data/gems.ts` (35 gems as of 2026-08-09, after the
-gem ruleset v1 §10 migration — was 46).
+covers every gem in `src/data/gems.ts` (47 gems as of 2026-08-21, after the
+splash-gem consolidation — the 2026-08-09 ruleset v1 §10 migration had cut
+46 → 35, later passes grew the book again).
 
 ### `actionsPriceDeci`: the pricing switch, decoupled from `SkillDef`
 

@@ -343,40 +343,6 @@
       ]
     },
     {
-      "id": "fracture_sliver",
-      "versions": [
-        {
-          "version": 1,
-          "def": {
-            "name": "Fracture Sliver",
-            "text": "{{Burden}} +8 weight on the card the enemy is about to play · {{Splash}} — and on the cards either side of it.",
-            "notes": [
-              "Upper rung (2026-08-18; re-authored 2026-08-21 for the spreader model) - see",
-              "tremor_sliver for the ladder note and the two-action explanation.",
-              "PRICE, UNMOVED: burden 8 = 20 deci x2 for the splash coverage multiplier =",
-              "40 deci = Rare EXACTLY, the same number the old `splash weight 8` priced at",
-              "(burden 7 prices at floor(7*5/2)*2 = 34, which is no band).",
-              "Double the Common rung, the same doubling step the slow gems use.",
-              "Pitched deliberately ABOVE shockwave_slam's own burden 6: the showcase card",
-              "spends most of its budget on damage, so the dedicated Rare gem is what a",
-              "board built around board-tempo denial actually wants."
-            ],
-            "kind": "effect",
-            "rarity": "rare",
-            "actions": [
-              {
-                "kind": "burden",
-                "weight": 8
-              },
-              {
-                "kind": "splash"
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
       "id": "frost_ward_echo",
       "versions": [
         {
@@ -911,48 +877,41 @@
       ]
     },
     {
-      "id": "tremor_sliver",
+      "id": "ripple_sliver",
       "versions": [
         {
           "version": 1,
           "def": {
-            "name": "Tremor Sliver",
-            "text": "{{Burden}} +4 weight on the card the enemy is about to play · {{Splash}} — and on the cards either side of it.",
+            "name": "Ripple Sliver",
+            "text": "{{Splash}} \u2014 this card's {{Burden}} or {{Curse}} also lands on the cards either side of the one it targets.",
             "notes": [
-              "Entry rung (2026-08-18; re-authored 2026-08-21 for the spreader model, with",
-              "no change to what it does or costs). TWO ACTIONS now, because the effect",
-              "always was two things: `burden` is the weight tax on ONE card, `splash` is",
-              "the SPREADER that widens it to the band. It used to be spelled as the single",
-              "action `splash weight 4`, which conflated the two.",
-              "PRICE, UNMOVED: burden 4 = 10 deci (PRICE.burdenPerWeightNum/Den, 5/2 —",
-              "slow's own per-point rate for slow's own currency on one card) x2 for the",
-              "splash coverage multiplier (PRICE.splashBandFloorNum — the band's guaranteed",
-              "2-piece floor on any board holding more than one card; the third piece is",
-              "unpriced upside, since band width is the VICTIM's to decide) = 20 deci =",
-              "Common EXACTLY, the same number the old `splash weight 4` priced at.",
-              "Minimal for its band: burden 3 prices at floor(3*5/2)*2 = 14, and burden 2",
-              "at 10 — neither is a band at all.",
-              "Ladders with fracture_sliver (Rare, burden 8) on the same DOUBLING shape",
-              "the slow gems use (8 / 16 / 32) - at half the weights, since a SPREAD burden",
-              "costs twice as much per point as an anchor-only one. Epic and Legendary rungs",
-              "would land exactly at burden 12 (60) and burden 16 (80); deliberately NOT",
-              "shipped yet - the band tax has three cards and no play data, and a +16 tax on",
-              "up to three of a victim's cards is the heaviest board disruption in the game.",
-              "Those rungs are balance-designer's to open.",
-              "NOT usable to make an AoE spread or to double an existing one: THE SPLASH",
-              "GATE in resolveEffectiveSkill (src/engine/cards.ts) drops the `splash`",
-              "action on a host that already hits more than one target, and on a host that",
-              "already splashes of its own. The `burden` still lands there (anchor only) —",
-              "one taxed card per foe is the same linear reach an AoE `slow` has, and it is",
-              "band x foes that the gate refuses."
+              "THE splash gem \u2014 the only one (user ruling 2026-08-21, verbatim: \"there",
+              "should only be 1 gem to give splash why is there 2 splash gem\"). Its SOLE",
+              "action is `splash`: it grants the SPREADER and nothing else, widening the",
+              "host's own card-targeting payload (`burden` or `curse`) from the anchor to",
+              "the whole band. It replaces tremor_sliver (burden 4 + splash, Common) and",
+              "fracture_sliver (burden 8 + splash, Rare): that two-rung ladder was a",
+              "fossil of the retired splash-as-weight-tax model \u2014 the ladder laddered the",
+              "BURDEN's magnitude, and splash itself has no magnitude to ladder.",
+              "PRICE: splash = 20 deci flat (PRICE.splashFlatDeci, the keyword's own",
+              "standalone rate \u2014 user ruling 2026-08-21: \"every gem pl is standalone\") =",
+              "Common EXACTLY. No other field, so nothing else to price.",
+              "ONLY USEFUL ON A CARD-TARGETING HOST, by design: THE SPLASH GATE in",
+              "resolveEffectiveSkill (src/engine/cards.ts) drops the spreader on a host",
+              "with no `burden`/`curse` to spread (`nothingToSpread`), on a host that",
+              "already splashes, and on a multi-target host \u2014 and that suppression",
+              "subtracts the gem's contribution from the piece's instance PL",
+              "(instancePowerLevelDeci), so a spreader that never fires is never paid",
+              "for. Socket it into Shockwave Slam-shaped cards' anchor-only siblings \u2014",
+              "Dulling Hex is the shipped showcase host.",
+              "DELIBERATELY NOT REPLACED: standalone `burden` gems at the retired rungs'",
+              "magnitudes (4/8). Whether the bare weight tax deserves its own gem ladder",
+              "is an open design question for balance-designer/game-director; this",
+              "consolidation only settles the spreader."
             ],
             "kind": "effect",
             "rarity": "common",
             "actions": [
-              {
-                "kind": "burden",
-                "weight": 4
-              },
               {
                 "kind": "splash"
               }
