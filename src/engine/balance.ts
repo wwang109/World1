@@ -1789,9 +1789,123 @@ function hostSuppressesSplash(host: SkillDef, gemActions: readonly Action[]): bo
 }
 
 /**
+ * The gem actions the EFFECTIVE card would actually carry, i.e. `gem.actions`
+ * with THE SPLASH GATE applied exactly as `spliceGemActions` applies it: every
+ * `splash` dropped when the host suppresses it, else every `splash` past the
+ * gem's own first. Returns the SAME array reference when nothing is filtered, so
+ * the no-splash case is provably untouched.
+ *
+ * References are preserved (`filter`, never a copy), which
+ * `unionKitSelfSynergyDeltaDeci` depends on: `selfSynergyPremiumDeci` excludes a
+ * rider from its own kit by REFERENCE identity (`other === action`).
+ */
+function gatedGemActions(host: SkillDef, gemActions: Action[]): Action[] {
+  let hasSplash = false;
+  for (let i = 0; i < gemActions.length; i += 1) {
+    if (gemActions[i]!.kind === 'splash') { hasSplash = true; break; }
+  }
+  if (!hasSplash) return gemActions;
+  const suppressed = hostSuppressesSplash(host, gemActions);
+  let splashSeen = false;
+  return gemActions.filter((action) => {
+    if (action.kind !== 'splash') return true;
+    if (suppressed || splashSeen) return false;
+    splashSeen = true;
+    return true;
+  });
+}
+
+/**
+ * THE UNION-KIT SELF-SYNERGY DELTA — the deci-PL a socketed PAIRING owes on top
+ * of `base card PL + gem PL`, because the two sides together supply a gate that
+ * neither side supplied alone.
+ *
+ * THE HOLE THIS CLOSES (balance-designer/audit pass, 2026-08-21). The
+ * self-synergy forfeit (`selfSynergyPremiumDeci`) asks "does THIS KIT supply the
+ * resource its own conditional rider reads", and it is asked TWICE against two
+ * different, incomplete kits: `powerLevelDeci` asks it of the card's authored
+ * effects, `gemPowerLevelDeci` asks it of the gem's own actions. Neither ever
+ * asks it of the kit `resolveEffectiveSkill` actually PLAYS — the union of the
+ * two. So `deadweight_toll` (a pure `taxBonus` reader, discounted because it
+ * taxes nothing itself) + `tremor_sliver` (a `burden` gem, which supplies
+ * exactly the tax it reads) played as a guaranteed self-synergy kit from the
+ * second cast onward while paying the conditional discount on both sides: 40
+ * deci of premium owed, 0 charged. `blight_feast` + `venom_sliver` was the same
+ * hole for 30. EVERY rider resource has a shipped gem that supplies it, so this
+ * was systemic rather than two unlucky pairs.
+ *
+ * WHY IT LIVES AT THE INSTANCE LEVEL AND NOWHERE ELSE — the definition/game-info
+ * split. A card's PL and a gem's band price the DEFINITION: what the designer
+ * authored, auditable against a tier budget / rarity band with no knowledge of
+ * what it might be paired with. The PAIRING is not a definition, it is an
+ * instance — so it is priced here, on the one gem surface that already knows the
+ * host (precedent: this function already zeroes a gate-suppressed gem splash).
+ * Base card PL and gem band PL are deliberately UNMOVED by this rule; every
+ * shipped card stays exact on its budget and every gem exact on its band.
+ *
+ * WHY A DELTA, AND WHY VIA `actionsPriceDeci`'s `kit` PARAMETER. Each side is
+ * priced twice — once with its own kit (what its side already charged) and once
+ * with the UNION kit — and only the difference is added. `kit` feeds nothing but
+ * `selfSynergyPremiumDeci`, so everything else in those two calls cancels
+ * EXACTLY, and the surviving premium rides the same offensive/self bucketing and
+ * the same AoE / spread multipliers its side's own price rode. No bucket logic is
+ * duplicated here and no rounding can drift.
+ *
+ * EACH SIDE KEEPS ITS OWN PROPERTY RATE: the host's premium is charged at the
+ * card's property, the gem's at `GEM_CANONICAL_PROPERTY`, exactly as each side's
+ * base price is. A gem is holder-independent by that constant's rule, and the
+ * forfeit is not the place to break it.
+ *
+ * ORDER IS IMMATERIAL, which is why this does NOT replicate `GEM_ACTION_PHASE`'s
+ * pre/post splice (that table lives in cards.ts, downstream of this file — see
+ * `hostSuppressesSplash` for the same layering tradeoff). `selfSynergyPremiumDeci`
+ * asks a pure MEMBERSHIP question of the kit — "is there some OTHER action here
+ * supplying this resource on this side" — so `[...host, ...gem]` and the real
+ * `[...gemPre, ...host, ...gemPost]` are indistinguishable to it. A test pins the
+ * two against `resolveEffectiveSkill`'s actual kit so they cannot drift.
+ *
+ * THE SPLASH-GATE CORNER, PINNED: `gemActions` is the GATED list, so a
+ * suppressed gem spreader is absent from the union — correctly, and harmlessly,
+ * since `splash` supplies nothing (`resourceSuppliedBy`). What is NOT absent is
+ * the same gem's `burden`: the gate drops only the spreader, the tax still lands
+ * on the anchor, and it still supplies `'tax'` on the target. So a `taxBonus`
+ * host + a SUPPRESSED `burden + splash` gem pays the full forfeit even though the
+ * gem's own priced payload shrank to its bare anchor-only burden. Both halves are
+ * the honest reading of what that socket delivers.
+ *
+ * UNTIERED, matching this function's existing contract: `def` is the AUTHORED
+ * definition, so a piece's `tier` scales neither the base PL nor this premium
+ * here. (A tiered rider's magnitude is larger, so the forfeit on a Diamond piece
+ * is larger too — the same understatement `powerLevelDeci(def)` already makes.)
+ */
+function unionKitSelfSynergyDeltaDeci(host: SkillDef, gemActions: readonly Action[]): number {
+  if (gemActions.length === 0) return 0;
+  // FAST PATH, provably equivalent: `selfSynergyPremiumDeci` is 0 for every
+  // action that is not a conditional rider, so a pairing with no rider anywhere
+  // in the union has a 0 delta and can skip four price walks (this function is on
+  // the card-face render path).
+  const union = [...host.effects, ...gemActions];
+  let hasRider = false;
+  for (let i = 0; i < union.length; i += 1) {
+    if (riderReadsResource(union[i]!)) { hasRider = true; break; }
+  }
+  if (!hasRider) return 0;
+  const hostDelta = actionsPriceDeci(host.effects, host.property, host.scope, union)
+    - actionsPriceDeci(host.effects, host.property, host.scope, host.effects);
+  const gemDelta = actionsPriceDeci(gemActions, GEM_CANONICAL_PROPERTY, 'one', union)
+    - actionsPriceDeci(gemActions, GEM_CANONICAL_PROPERTY, 'one', gemActions);
+  return hostDelta + gemDelta;
+}
+
+/**
  * Display/run-power readout for a socketed piece: base card PL (audited,
- * tier-budgeted) plus the gem's own uncapped bonus PL. Never fed back into
- * `isOnBudget` — the base-tier audit must stay gem-blind.
+ * tier-budgeted) plus the gem's own uncapped bonus PL, plus the one term that
+ * belongs to neither side alone — THE UNION-KIT SELF-SYNERGY DELTA
+ * (`unionKitSelfSynergyDeltaDeci`), which charges the conditional-rider forfeit
+ * when host and gem TOGETHER supply a gate that neither supplied alone. A socket
+ * that triggers it makes the instance cost MORE than the sum of its parts; that
+ * is the point, and it never blocks the socket. Never fed back into `isOnBudget`
+ * — the base-tier audit must stay gem-blind.
  *
  * This is the one gem-PL surface that KNOWS the host, so it is the one that gets
  * the honest number for a host-proportional payload: `def` is handed to
@@ -1824,16 +1938,14 @@ function hostSuppressesSplash(host: SkillDef, gemActions: readonly Action[]): bo
 export function instancePowerLevelDeci(def: SkillDef, piece: { gem?: Gem | null }): number {
   const gem = piece.gem;
   if (!gem) return powerLevelDeci(def);
-  if (gem.kind !== 'effect' || !gem.actions.some((a) => a.kind === 'splash')) {
-    return powerLevelDeci(def) + gemPowerLevelDeci(gem, def);
-  }
-  const suppressed = hostSuppressesSplash(def, gem.actions);
-  let splashSeen = false;
-  const actions = gem.actions.filter((action) => {
-    if (action.kind !== 'splash') return true;
-    if (suppressed || splashSeen) return false;
-    splashSeen = true;
-    return true;
-  });
-  return powerLevelDeci(def) + gemPowerLevelDeci({ ...gem, actions }, def);
+  // A STAT gem appends no actions, so it can neither supply nor read a gate: its
+  // instance PL is the plain sum, unchanged.
+  if (gem.kind !== 'effect') return powerLevelDeci(def) + gemPowerLevelDeci(gem, def);
+  const actions = gatedGemActions(def, gem.actions);
+  // Same reference back from the gate = nothing was filtered, so the gem is
+  // priced through its own object exactly as before.
+  const gated = actions === gem.actions ? gem : { ...gem, actions };
+  return powerLevelDeci(def)
+    + gemPowerLevelDeci(gated, def)
+    + unionKitSelfSynergyDeltaDeci(def, actions);
 }

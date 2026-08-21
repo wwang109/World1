@@ -51,7 +51,7 @@ immediately):
 | `stackBonus` (flat bonus scaling with a stacking pile, hard-capped) | `cap * strikeRate(property) / conditionalBonusDen` (`per` unpriced) | `PRICE.conditionalBonusDen` — prices the required `cap` ceiling only; see below |
 | `shieldBurst` (spend the caster's OWN shield as bonus damage) | `cap * strikeRate(property) / conditionalBonusDen` | `PRICE.conditionalBonusDen` — same discount despite also destroying the resource it reads; see below |
 | `taxBonus` (flat bonus per weight-taxed card on the victim's board, hard-capped) | `cap * strikeRate(property) / conditionalBonusDen` (`per` unpriced) | `PRICE.conditionalBonusDen` — reads the victim's tempo backlog rather than an affliction pile; see below |
-| self-synergy premium (on any of the four rows above) | forfeits the discount entirely: charges `magnitude * strikeRate(property)` in place of the discounted term | `selfSynergyPremiumDeci` — added when the SAME KIT also supplies the resource the rider reads; see below |
+| self-synergy premium (on any of the four rows above) | forfeits the discount entirely: charges `magnitude * strikeRate(property)` in place of the discounted term | `selfSynergyPremiumDeci` — added when the SAME KIT also supplies the resource the rider reads. The kit is the UNION of card effects AND socketed gem actions, so the card+gem case is charged by `instancePowerLevelDeci`; see below |
 | `guard` (%DR) | `pct * turns * guardPerPctTurnNum/Den` | `PRICE.guardPerPctTurnNum/Den` — parity with `statPctTurn`; see rationale below |
 | `negate` (charges) | `charges * negatePerCharge` | `PRICE.negatePerCharge` — flat per-charge; see rationale below |
 | `ward` (charges) | `charges * wardPerCharge` | `PRICE.wardPerCharge` — half a negate charge: a charge denies one whole affliction APPLICATION (poison / burn / bleed / debuffStat / expose — not stun) rather than a card's whole damage line, and 50 deci is the median price of an application of a covered kind across the shipped book |
@@ -186,6 +186,27 @@ on caster or target (`stackBonus`), the caster is holding shield to spend
   ceiling. `shieldBurst` pays this same discount rate even without
   self-synergy triggering it, and deliberately over-prices for a second,
   independent reason below.
+- **The kit is the UNION of card AND gem (audit fix, 2026-08-21).** A socketed
+  gem action is indistinguishable in play from an authored line — the effective
+  card the loop casts is one list — so the forfeit is judged against the UNION
+  kit and priced accordingly AT THE INSTANCE LEVEL. `powerLevelDeci` (card
+  effects) and `gemPowerLevelDeci` (gem actions) each see only one side, so a
+  pure-reader card plus a gem supplying exactly what it reads used to play a
+  guaranteed self-synergy kit while paying the conditional discount on both
+  sides (`deadweight_toll` + `tremor_sliver`: 40 deci owed, 0 charged;
+  `blight_feast` + `venom_sliver`: 30). `instancePowerLevelDeci` — the one gem
+  surface that knows the host — now adds the DELTA between what the union kit
+  owes and what each side already charged, each side at its own property rate
+  and inside its own AoE/coverage multiplier. **Base card PL and gem band PL do
+  not move**: they price the DEFINITION (auditable against a tier budget /
+  rarity band with no knowledge of the pairing), while the pairing is an
+  INSTANCE — the same definition/game-info split that lets a gate-suppressed
+  gem `splash` price at zero on the host that suppresses it. A pairing that
+  triggers the forfeit is never refused; the instance simply costs more than the
+  sum of its parts, which is what the socket delivers. One corner is worth
+  naming: THE SPLASH GATE drops a suppressed gem spreader from the instance
+  price, but the same gem's `burden` still lands — so it still supplies `'tax'`
+  and still triggers a `taxBonus` host's forfeit.
 - **`shieldBurst`'s caster-scoped, no-AoE stance.** Unlike the other three,
   `shieldBurst` resolves on the CASTER (`offensive: false` in
   `keywords/pricing.ts`) — it spends the caster's own shield, not something
