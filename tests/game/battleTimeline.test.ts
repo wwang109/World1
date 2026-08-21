@@ -1148,109 +1148,57 @@ describe('game/battleTimeline', () => {
       expect(model.guardPctByTurn.get(2)?.enemy).toEqual([{ property: 'magical', pct: 45 }]);
       expect((model.guardPctByTurn.get(2) as { enemyUnits?: unknown[] })?.enemyUnits?.[1]).toEqual([{ property: 'true', pct: 10 }]);
     });
-  });
 
-  // ---- MAX_GUARD_PILES cap eviction (src/engine/combat/interpreter.ts,
-  // "three coats of armour is the wall's limit") — at the 3-pile cap, a
-  // strictly-dominating application evicts the weakest dominated pile,
-  // emitting a NAMED `statusExpired` (`property` + `pct` set) BEFORE the new
-  // `statusApplied`. Unlike a natural expiry, the evicted pile's own
-  // `expiresAtTurn` is still in the future, so the badge's shadow list must
-  // splice it out by name rather than let `expiresAtTurn` filtering keep
-  // compounding it forever.
-  describe('guard badge — MAX_GUARD_PILES cap eviction (named statusExpired)', () => {
-    /** Mirrors `dominating_fourth` in tests/engine/guardPileCap.test.ts:
-     * three piles stand (10%/1t, 60%/3t, 60%/3t), then a dominating 40%/2t
-     * application replaces the 10%/1t pile — expiry-then-application, in
-     * that order, all on turn 1. */
-    const capEvents: CombatEvent[] = [
-      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 10, turns: 1 },
-      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 60, turns: 3 },
-      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 60, turns: 3 },
-      { turn: 1, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 10 },
-      { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 40, turns: 2 },
-      { turn: 4, kind: 'combatEnd', result: 'win', turns: 4 },
-    ];
-
-    it('splices the evicted pile out — badge compounds the surviving 3, not the phantom 4th', () => {
-      const model = buildBattleTimeline(BASE, { events: capEvents, result: 'win', turns: 4 });
-      // 60%, 60%, 40% compounded (application order, the evicted 10% gone):
-      // 100 -> 40 -> 16 -> 9 (min-1-remaining each step) = 91% effective.
-      // Left un-spliced, the evicted 10% pile would still be read (its
-      // expiresAtTurn is turn 2, still in the future at turn 1) and the
-      // compound would read 92%, one pile's worth too much.
-      expect(model.guardPctByTurn.get(1)?.enemy).toEqual([{ property: 'physical', pct: 91 }]);
-    });
-
-    it('a later NATURAL expiry (no property/pct) is unaffected by the splice logic and still recomputes normally', () => {
+    // A DEEP stack is legal: guard's pile count is uncapped by design
+    // (user-locked 2026-08-20 — "leave guard alone let player build what they
+    // want"; the 2026-08-19 `MAX_GUARD_PILES = 3` cap was reverted), so the
+    // badge must keep compounding past three piles. The compound math is
+    // count-agnostic — `effectiveGuardByProperty` folds the whole array — and
+    // these pin that for 4 and for a stack deep enough to hit the min-1 floor.
+    it('FOUR same-property piles compound past the reverted 3-pile cap (50% x4 = 94%)', () => {
       const events: CombatEvent[] = [
-        ...capEvents,
-        // The winning 40%/2t pile (applied turn 1, turns: 2) is the one to
-        // naturally run out — expiresAtTurn 3 — while the surviving 60%/3t
-        // piles (expiresAtTurn 4) are still standing.
-        { turn: 3, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard' },
-        { turn: 5, kind: 'combatEnd', result: 'win', turns: 5 },
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 50, turns: 4 },
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 50, turns: 4 },
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 50, turns: 4 },
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 50, turns: 4 },
+        { turn: 6, kind: 'combatEnd', result: 'win', turns: 6 },
       ];
-      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 5 });
-      // 60% x 60% compounded (100 -> 40 -> 16) = 84% effective; the
-      // unnamed natural-expiry event must recompute off the plain
-      // expiresAtTurn filter, untouched by the eviction-splice codepath.
-      expect(model.guardPctByTurn.get(3)?.enemy).toEqual([{ property: 'physical', pct: 84 }]);
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 6 });
+      // 100 -> 50 -> 25 -> 12 -> 6 (floored, min-1-remaining each step) = 94%.
+      // Three piles alone would read 88%.
+      expect(model.guardPctByTurn.get(1)?.enemy).toEqual([{ property: 'physical', pct: 94 }]);
+      expect(model.statusByTurn.get(1)?.enemy).toContain('guard');
     });
 
-    it('transcript: an eviction reads "Guard replaced", not "Guard wore off" (it is immediately followed by a new pile)', () => {
-      const model = buildBattleTimeline(BASE, { events: capEvents, result: 'win', turns: 4 });
-      const lines = [...model.linesByTurn.values()].flat();
-      expect(lines.some((l) => l.text === `${model.foeName} · Guard replaced (at the 3-pile cap)`)).toBe(true);
-      expect(lines.some((l) => l.text === `${model.foeName} · Guard wore off`)).toBe(false);
-    });
-
-    it('transcript: a natural expiry still reads "Guard wore off", unaffected by the eviction wording', () => {
+    it('one of FOUR piles expiring naturally recomputes down to the surviving three', () => {
       const events: CombatEvent[] = [
-        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 30, turns: 1 },
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 50, turns: 1 }, // expires end of turn 2
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 50, turns: 6 },
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 50, turns: 6 },
+        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 50, turns: 6 },
         { turn: 2, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard' },
-        { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+        { turn: 8, kind: 'combatEnd', result: 'win', turns: 8 },
       ];
-      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 3 });
-      const lines = [...model.linesByTurn.values()].flat();
-      expect(lines.some((l) => l.text === `${model.foeName} · Guard wore off`)).toBe(true);
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 8 });
+      // 100 -> 50 -> 25 -> 12 = 88%, the three survivors. The expiry event
+      // names nothing (every guard expiry is natural now); the shadow list's
+      // own `expiresAtTurn` filter is what drops the short pile.
+      expect(model.guardPctByTurn.get(2)?.enemy).toEqual([{ property: 'physical', pct: 88 }]);
     });
 
-    // Regression: the eviction event names only (property, pct) — it cannot
-    // say WHICH pile, and interpreter.ts's own tie-break for a same-pct pair
-    // is "soonest-expiring", never "first applied". A(10%, expires turn 11)
-    // is applied before C(10%, expires turn 3) — same pct as A, much shorter
-    // duration — with B(20%, expires turn 7) as an unrelated third pile
-    // filling the MAX_GUARD_PILES=3 cap. The dominating D(25%, expires turn
-    // 15) then evicts the 10%-tied pair's SOONER-expiring member, C, per the
-    // engine's own rule — so A survives. The old first-match-in-array-order
-    // code spliced A instead (it happened to sit earlier in application
-    // order) and kept the already-nearly-dead C, so its badge dropped
-    // straight to "D alone" (25%) at turn 7 — four turns before the engine's
-    // real drop at turn 11 — skipping the 33% (A+D) state entirely.
-    it('splices the SOONEST-EXPIRING same-pct pile on eviction, not the first one in application order', () => {
+    it('a six-pile 60% wall reads 99%, the min-1 floor the engine itself enforces', () => {
       const events: CombatEvent[] = [
-        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 10, turns: 10 }, // A, expires turn 11
-        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 20, turns: 6 },  // B, expires turn 7
-        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 10, turns: 2 },  // C, expires turn 3
-        { turn: 1, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 10 }, // engine evicts C (10%-tie, sooner-expiring)
-        { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 25, turns: 14 }, // D, dominates all three, expires turn 15
-        { turn: 7, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard' }, // B's natural expiry
-        { turn: 11, kind: 'statusExpired', side: 'enemy', unit: 0, status: 'guard' }, // A's natural expiry
-        { turn: 12, kind: 'combatEnd', result: 'win', turns: 12 },
+        ...Array.from({ length: 6 }, (): CombatEvent => (
+          { turn: 1, kind: 'statusApplied', side: 'enemy', unit: 0, status: 'guard', property: 'physical', pct: 60, turns: 5 }
+        )),
+        { turn: 7, kind: 'combatEnd', result: 'win', turns: 7 },
       ];
-      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 12 });
-      // Turn 1: A, B, D all standing — 100 -> 90 -> 72 -> 54 = 46% effective.
-      // (Same number the old bug also produced here, by coincidence: A and C
-      // share the same pct, so which one is kept doesn't matter YET.)
-      expect(model.guardPctByTurn.get(1)?.enemy).toEqual([{ property: 'physical', pct: 46 }]);
-      // Turn 7: B has worn off; A survives (real expiry isn't until turn 11)
-      // alongside D — 100 -> 90 -> 67 = 33% effective. The old bug, having
-      // kept C (already expired at turn 3) instead of A, showed D-alone
-      // (25%) here already.
-      expect(model.guardPctByTurn.get(7)?.enemy).toEqual([{ property: 'physical', pct: 33 }]);
-      // Turn 11: A has now genuinely expired too — D alone, 25%.
-      expect(model.guardPctByTurn.get(11)?.enemy).toEqual([{ property: 'physical', pct: 25 }]);
+      const model = buildBattleTimeline(BASE, { events, result: 'win', turns: 7 });
+      // 100 -> 40 -> 16 -> 6 -> 2 -> 1 -> 1 = 99%, matching
+      // tests/engine/guardStacking.test.ts's real six-pile hit exactly. Guard
+      // mitigates without bound but the min-1 remaining floor means a hit
+      // always lands for at least 1.
+      expect(model.guardPctByTurn.get(1)?.enemy).toEqual([{ property: 'physical', pct: 99 }]);
     });
   });
 

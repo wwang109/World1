@@ -356,21 +356,16 @@ export type CombatEvent =
     }
   | { turn: number; kind: 'statusApplied'; side: Side; unit: number; status: StatusName; property?: Property; stat?: BuffableStat; pct?: number; amount?: number; stacks?: number; turns: number; charges?: number }
   /**
-   * A status left the unit. `property`/`pct` are OMITTED for every natural
-   * (duration/charge/stack) expiry — a replay tracks those windows itself, so
-   * naming the pile would be redundant and would move every captured log.
+   * A status left the unit. It NAMES NOTHING beyond the kind: every expiry is a
+   * natural (duration/charge/stack) one, so a replay that tracked the window
+   * when the matching `statusApplied` landed already knows which pile ended.
    *
-   * They are populated for exactly ONE case: the `MAX_GUARD_PILES` cap
-   * REPLACING a dominated guard pile (interpreter.ts, the `guard` arm), where a
-   * pile leaves EARLY, before the duration a replay computed for it. Without
-   * the pile's identity the log would not be a sufficient source of truth for
-   * playback — a consumer reconstructing guard piles (src/game/battleTimeline.ts)
-   * cannot otherwise tell WHICH of several standing piles just left. Guard
-   * compounding depends only on the MULTISET of pcts per property, so dropping
-   * any one active pile matching (`property`, `pct`) reproduces the engine's
-   * state exactly.
+   * (An optional `property`/`pct` pair lived here from 2026-08-19 to 2026-08-21
+   * to identify a guard pile evicted EARLY at the `MAX_GUARD_PILES` cap. The cap
+   * was reverted — guard stacking is unbounded by design — so no event can ever
+   * report an early departure again, and the fields went with it.)
    */
-  | { turn: number; kind: 'statusExpired'; side: Side; unit: number; status: StatusName; property?: Property; pct?: number }
+  | { turn: number; kind: 'statusExpired'; side: Side; unit: number; status: StatusName }
   | { turn: number; kind: 'cleansed'; side: Side; unit: number; removed: number }
   /** A unit's threat changed (e.g. taunt); `aggro` is the new total. */
   | { turn: number; kind: 'aggroChanged'; side: Side; unit: number; aggro: number }

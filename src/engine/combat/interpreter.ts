@@ -1,6 +1,6 @@
 import type { Rng } from '../rng';
 import type { Action, EffectSourceRef, Property, SkillDef } from '../types';
-import { isMultiTargetSkill, MAX_GUARD_PILES, MAX_NEGATE_CHARGES, MAX_WARD_CHARGES } from '../types';
+import { isMultiTargetSkill, MAX_NEGATE_CHARGES, MAX_WARD_CHARGES } from '../types';
 import type { AntiHealCategory, AntiHealReduction, CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
@@ -651,9 +651,11 @@ export function dealDamage(
 
   // Magical Guard: multiplicative %-reduction per matching-property guard,
   // applied in statuses-array order (deterministic), floored, min 1 each.
-  // At most `MAX_GUARD_PILES` piles of a property can ever be standing (capped
-  // at apply time in `applyAction`'s `guard` arm), so this loop is bounded and
-  // the mitigation it can reach is bounded with it.
+  // THIS LOOP IS NOT BOUNDED: nothing caps the number of same-property piles a
+  // unit may hold (user-locked 2026-08-20 — see `applyAction`'s `guard` arm),
+  // so mitigation approaches, but by the min-1 floor below never reaches, 100%.
+  // Deep stacks are a legal build, not a bug; attrition's TRUE damage is what
+  // stops a wall from being unkillable.
   // Runs AFTER the caller's flat-MR/matchup/SD math and BEFORE shields, for
   // EVERY source — not just `skill`. True damage never matches a typed guard;
   // matching-property DoTs are covered, and so is a THORNS REFLECT, which is
@@ -1481,94 +1483,20 @@ function applyAction(
       break;
     }
     case 'guard': {
-      // Defensive: applies to the caster. Single-instance pct clamped to <=60,
-      // and the COUNT of same-property piles clamped to `MAX_GUARD_PILES`.
+      // Defensive: applies to the caster. Single-instance pct clamped to <=60.
       //
-      // PILES COEXIST AND COMPOUND — a recast opens a SECOND pile rather than
-      // merging (`dealDamage`'s "Magical Guard" loop multiplies every
-      // matching-property pile in array order), which is what made the count
-      // the exploitable axis: pct is bounded at 60 per pile, but 12 piles
-      // measured 85-98% mitigation on a legal gem board. See `MAX_GUARD_PILES`
-      // (src/engine/types.ts) for the probe's numbers and why 3.
-      //
-      // THE AT-CAP RULE, and why it is not a blind refusal. `negate`/`ward`
-      // simply clamp to 0 at their cap and that is correct THERE because their
-      // charges are FUNGIBLE — one charge is exactly as good as another, so a
-      // refused application can never have been better than what it bounced
-      // off. A guard pile is a (pct, turns) PAIR, so it CAN be strictly better,
-      // and a blind refusal would let three scrap piles (say 5%/1t) lock out
-      // the holder's 60%/4t card. So, at cap, per property:
-      //   • if the incoming application STRICTLY DOMINATES a standing pile
-      //     (>= pct AND >= turnsLeft, and strictly greater in at least one of
-      //     them), it REPLACES the WEAKEST such pile — dropped with its
-      //     own `statusExpired` BEFORE the new `statusApplied`, so a log
-      //     replay's status set never desyncs from the sim's. Nothing is lost
-      //     by construction: the dropped pile was no stronger and no longer, so
-      //     the holder's mitigation envelope never gets worse, and the card
-      //     delivers the full effect it was priced for;
-      //   • otherwise it is ABSORBED: no pile, no event, nothing spent —
-      //     the same "at the cap, a further application does nothing" the
-      //     negate/ward clamps already ship. Absorbing (rather than evicting a
-      //     non-dominated pile) is the only direction that cannot make the
-      //     holder WORSE off than before it cast: evicting a 60%/5t pile for an
-      //     incoming 60%/1t would be a self-inflicted downgrade.
-      // This is deliberately the SAME domination vocabulary `expose` already
-      // uses for its antichain (the other two-axis (pct, turns) status), down
-      // to comparing the RAW `turnsLeft` and to ABSORBING THE EQUAL CASE: an
-      // application no better than a pile already standing (>= pct AND >=
-      // turnsLeft in the pile's favour) changes nothing and is absorbed WITHOUT
-      // refreshing anything, which is what stops a card whose cadence is no
-      // longer than its own duration from holding its piles forever — the exact
-      // hole the expose regen closed. Only a STRICT improvement is worth an
-      // eviction, and only then does anything reach the event log.
-      //
-      // NO WARD INTERACTION: guard is a self-buff, not a wardable affliction,
-      // so an absorbed application spends no charge and cannot be taxed.
-      //
-      // Deterministic: two indexed walks over `statuses` (application order),
-      // no sort, no RNG, integer-only.
+      // PILES COEXIST AND COMPOUND, WITHOUT BOUND — a recast opens a SECOND
+      // pile rather than merging (`dealDamage`'s "Magical Guard" loop
+      // multiplies every matching-property pile in array order), and the COUNT
+      // of same-property piles is deliberately UNCAPPED. USER-LOCKED
+      // 2026-08-20: "leave guard alone let player build what they want." A
+      // count cap (`MAX_GUARD_PILES = 3`, with an at-cap dominance/eviction
+      // rule) shipped 2026-08-19 and was rejected the next day; player freedom
+      // to build a wall wins over the bound. Attrition (simulate.ts) remains
+      // the backstop against a pure turtle — it deals TRUE damage, which no
+      // typed guard pile can touch. See docs/combat-model-spec.md §8.
       if (!caster.alive) break;
       const pct = Math.max(0, Math.min(60, action.pct));
-      let piles = 0;
-      for (let i = 0; i < caster.statuses.length; i += 1) {
-        const st = caster.statuses[i]!;
-        if (st.kind === 'guard' && st.property === action.property) piles += 1;
-      }
-      if (piles >= MAX_GUARD_PILES) {
-        // Weakest DOMINATED pile: lowest pct first (keep the biggest standing
-        // mitigation, which is what every hit actually reads), ties to the
-        // soonest-expiring, ties to the earliest-applied (lowest index).
-        let dropIndex = -1;
-        let dropPct = 0;
-        let dropTurns = 0;
-        for (let i = 0; i < caster.statuses.length; i += 1) {
-          const st = caster.statuses[i]!;
-          if (st.kind !== 'guard' || st.property !== action.property) continue;
-          const stPct = st.pct ?? 0;
-          if (pct < stPct || action.turns < st.turnsLeft) continue; // not dominated: leave it alone
-          if (pct === stPct && action.turns === st.turnsLeft) continue; // no improvement: absorb, never refresh
-          if (dropIndex < 0 || stPct < dropPct || (stPct === dropPct && st.turnsLeft < dropTurns)) {
-            dropIndex = i;
-            dropPct = stPct;
-            dropTurns = st.turnsLeft;
-          }
-        }
-        if (dropIndex < 0) break; // ABSORBED — nothing observable happened
-        const dropped = caster.statuses[dropIndex]!;
-        ctx.events.push({
-          turn: ctx.state.turn,
-          kind: 'statusExpired',
-          side: caster.side,
-          unit: caster.index,
-          status: 'guard',
-          // Names the pile that left EARLY so playback can drop the right one
-          // (see the `statusExpired` docs in combat/events.ts). Natural expiry
-          // stays unnamed.
-          property: action.property,
-          pct: dropPct,
-        });
-        caster.statuses = caster.statuses.filter((s) => s !== dropped);
-      }
       addStatus(ctx, caster, { kind: 'guard', property: action.property, pct, turnsLeft: action.turns, fresh: true });
       break;
     }

@@ -1492,48 +1492,13 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           // carrying a standing pile (of ITS OWN, unaffected by another
           // property's pile ending) keeps its own compounded number untouched.
           //
-          // A NATURAL expiry carries no `property`/`pct` and needs nothing
-          // more than that recompute — `expiresAtTurn` filtering alone drops
-          // it. An early MAX_GUARD_PILES CAP EVICTION (interpreter.ts's
-          // `guard` arm, "three coats of armour is the wall's limit") is
-          // different: the evicted pile's `expiresAtTurn` is still in the
-          // future (it was cut short, not run out), so the turn-filter alone
-          // would keep compounding it forever — the badge would show one more
-          // pile than the engine is actually carrying. Unlike expose's own
-          // domination-replace (which is provably safe to leave in a MAX-rule
-          // shadow list — see the doc comment above `exposePilesPlayer`),
-          // guard COMPOUNDS every active pile, so a phantom extra pile is not
-          // harmless here. The eviction event names WHAT it dropped by
-          // (`property` + `pct`) only — NOT which of possibly several
-          // same-pct piles, because a pct tie is exactly the case
-          // interpreter.ts's own drop-selection breaks on `turnsLeft`
-          // (soonest-expiring), never on array/application order. Two piles
-          // CAN share (property, pct) while differing in remaining duration
-          // — two different cards both granting the same pct, or the steady
-          // state of recasting one card at the pile cap — and splicing the
-          // wrong one desyncs the badge from the engine's own standing set
-          // for every turn between the two piles' expiries (either
-          // under-reporting, if the kept shadow pile expires before the
-          // engine's real survivor, or over-reporting, if it outlives it).
-          // So splice the SOONEST-EXPIRING shadow pile matching
-          // (property, pct) that hasn't naturally expired yet — mirroring
-          // interpreter.ts's own cap tie-break (lowest pct first, ties to
-          // soonest `turnsLeft`) — rather than the first one found in
-          // application order, which has no relationship to that rule.
+          // The recompute is ALL that is needed because every guard expiry is
+          // NATURAL: the engine has no early-eviction path (guard stacking is
+          // uncapped by design, user-locked 2026-08-20), so `expiresAtTurn`
+          // filtering alone always drops exactly the pile(s) that ended and the
+          // event needs to name nothing. A 2026-08-19 pile cap DID evict piles
+          // early and forced a splice-by-name here; both are gone.
           const piles = guardPilesFor(e.side, unitOf(e));
-          if (e.property !== undefined && e.pct !== undefined) {
-            let idx = -1;
-            let idxExpiresAtTurn = Infinity;
-            for (let i = 0; i < piles.length; i += 1) {
-              const p = piles[i]!;
-              if (p.property !== e.property || p.pct !== e.pct || p.expiresAtTurn < e.turn) continue;
-              if (idx === -1 || p.expiresAtTurn < idxExpiresAtTurn) {
-                idx = i;
-                idxExpiresAtTurn = p.expiresAtTurn;
-              }
-            }
-            if (idx !== -1) piles.splice(idx, 1);
-          }
           const entries = effectiveGuardByProperty(piles, e.turn, true);
           guardBadgeCurrent.set(guardBadgeKey(e.side, unitOf(e)), entries);
           if (entries.length > 0) bucket.set('guard', 1);
@@ -1575,14 +1540,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         if (e.status === 'buff' || e.status === 'debuff' || e.status === 'guard' || e.status === 'expose' || e.status === 'thorns' || e.status === 'ward') {
           const buff = e.status === 'buff' || e.status === 'guard' || e.status === 'thorns' || e.status === 'ward';
           const cap = e.status.charAt(0).toUpperCase() + e.status.slice(1);
-          // A MAX_GUARD_PILES cap eviction is a `statusExpired` immediately
-          // followed by the `statusApplied` that replaced it (same turn, no
-          // gap) — "Guard wore off" there reads like a dropped buff, not the
-          // deliberate swap it is. Named evictions (property+pct present) get
-          // their own wording so the transcript doesn't look like a bug.
-          const evicted = e.status === 'guard' && e.property !== undefined && e.pct !== undefined;
-          const verb = evicted ? 'replaced (at the 3-pile cap)' : 'wore off';
-          push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap} ${verb}`);
+          push(e.turn, buff ? 'BUFF' : 'DEBUFF', `${label(e)} · ${cap} wore off`);
         }
         break;
       }
