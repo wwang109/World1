@@ -6840,6 +6840,410 @@
      }
     }
    ]
+  },
+  {
+   "id": "bleed_executioner",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Bleed Executioner",
+      "text": "Deal 14 (+ATK) Axe damage, +3 per {{Bleed}} stack already on the target (max +12).",
+      "notes": [
+       "THE BLEED LANE'S PAYOFF CARD, `stackBonus`-shaped (the DoT-executioner",
+       "form balance.ts names, `of: 'target'`) rather than `exploit`: the bonus",
+       "scales with HOW MUCH bleed is standing, not merely whether any is \u2014 the",
+       "right shape for a decaying pile, and the reward for landing this the",
+       "instant gutting_cleave/hemorrhage put a fresh stack down before it ticks",
+       "away. It applies NO bleed of its own \u2014 axe already carries two bleed",
+       "appliers, so this is the pure payoff, earning the CONDITIONAL-TRIGGER",
+       "DISCOUNT (stackBonus prices its `cap` at strikeRate/2 = 2.5 deci/pt,",
+       "PRICE.conditionalBonusDen, same as exploit and comboBonus).",
+       "`per` (3) is unpriced by design (balance.ts) \u2014 only `cap` bounds the",
+       "payload. Hand-authored so BOTH the rider and the damage line grow every",
+       "tier (the un-hand-authored form freezes cap and pours all growth into",
+       "damage alone, same trap blight_feast's notes call out):",
+       "Bronze:  stackBonus cap 12 (30) + damage 14 (70) = 100.",
+       "Silver:  stackBonus cap 16 (40) + damage 22 (110) = 150.",
+       "Gold:    stackBonus cap 20 (50) + damage 30 (150) = 200.",
+       "Diamond: stackBonus cap 24 (60) + damage 38 (190) = 250.",
+       "No own bleed line means `selfSynergyPremiumDeci` finds nothing to",
+       "forfeit the discount over \u2014 the kit stays at the discounted rate at",
+       "every tier, unlike second_bite/thorn_reckoning."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "stackBonus",
+        "status": "bleed",
+        "of": "target",
+        "per": 3,
+        "cap": 12
+       },
+       {
+        "kind": "damage",
+        "power": 14
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "stackBonus",
+          "status": "bleed",
+          "of": "target",
+          "per": 3,
+          "cap": 16
+         },
+         {
+          "kind": "damage",
+          "power": 22
+         }
+        ],
+        "text": "Deal 22 (+ATK) Axe damage, +3 per {{Bleed}} stack already on the target (max +16)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "stackBonus",
+          "status": "bleed",
+          "of": "target",
+          "per": 3,
+          "cap": 20
+         },
+         {
+          "kind": "damage",
+          "power": 30
+         }
+        ],
+        "text": "Deal 30 (+ATK) Axe damage, +3 per {{Bleed}} stack already on the target (max +20)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "stackBonus",
+          "status": "bleed",
+          "of": "target",
+          "per": 3,
+          "cap": 24
+         },
+         {
+          "kind": "damage",
+          "power": 38
+         }
+        ],
+        "text": "Deal 38 (+ATK) Axe damage, +3 per {{Bleed}} stack already on the target (max +24)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "burn_detonator",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Burn Detonator",
+      "text": "Deal 12 (+MATK) Fire damage, +4 per {{Burn}} stack already on the target (max +16). Burn halves fast, so the sooner you follow the ignition, the more stacks are still standing.",
+      "notes": [
+       "BURN'S PAYOFF CARD \u2014 `stackBonus` (`of: 'target'`) reads whatever",
+       "{{Burn}} pile cinder_dart/ember_lash/inferno_eruption/scorching_brand/",
+       "wildfire_surge already put down. Burn's tick HALVES the pile every turn",
+       "(front-loaded, `burnTotalDamage`), so unlike a decaying poison/bleed the",
+       "window is narrow and shrinking fast \u2014 'strike while it's hot' is",
+       "mechanically true here, not just flavor: the LATER this lands after the",
+       "ignition, the smaller the read. Applies no burn of its own \u2014 the fire",
+       "lane already has five appliers \u2014 so it is the pure payoff and keeps the",
+       "CONDITIONAL-TRIGGER DISCOUNT (cap priced at strikeRate/2, magical: no",
+       "TRUE premium). `per` (4) is unpriced; only `cap` bounds the payload.",
+       "Hand-authored so both lines grow every tier:",
+       "Bronze:  stackBonus cap 16 (40) + damage 12 (60) = 100.",
+       "Silver:  stackBonus cap 20 (50) + damage 20 (100) = 150.",
+       "Gold:    stackBonus cap 24 (60) + damage 28 (140) = 200.",
+       "Diamond: stackBonus cap 28 (70) + damage 36 (180) = 250.",
+       "No own burn line \u2014 the self-synergy premium never arms, so the",
+       "discount holds at every tier."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "fire",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "stackBonus",
+        "status": "burn",
+        "of": "target",
+        "per": 4,
+        "cap": 16
+       },
+       {
+        "kind": "damage",
+        "power": 12
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "stackBonus",
+          "status": "burn",
+          "of": "target",
+          "per": 4,
+          "cap": 20
+         },
+         {
+          "kind": "damage",
+          "power": 20
+         }
+        ],
+        "text": "Deal 20 (+MATK) Fire damage, +4 per {{Burn}} stack already on the target (max +20). Burn halves fast, so the sooner you follow the ignition, the more stacks are still standing."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "stackBonus",
+          "status": "burn",
+          "of": "target",
+          "per": 4,
+          "cap": 24
+         },
+         {
+          "kind": "damage",
+          "power": 28
+         }
+        ],
+        "text": "Deal 28 (+MATK) Fire damage, +4 per {{Burn}} stack already on the target (max +24). Burn halves fast, so the sooner you follow the ignition, the more stacks are still standing."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "stackBonus",
+          "status": "burn",
+          "of": "target",
+          "per": 4,
+          "cap": 28
+         },
+         {
+          "kind": "damage",
+          "power": 36
+         }
+        ],
+        "text": "Deal 36 (+MATK) Fire damage, +4 per {{Burn}} stack already on the target (max +28). Burn halves fast, so the sooner you follow the ignition, the more stacks are still standing."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "control_opportunist",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Control Opportunist",
+      "text": "Deal 16 (+ATK) Bow damage \u00b7 +8 more if the target already carries {{Stun}} (checked before this card acts).",
+      "notes": [
+       "PURE EXPLOITER on `stun` \u2014 stun already has three appliers in the book",
+       "(the two lance cards, stunning_smash), so this card supplies none of its",
+       "own; it punishes whatever CC the rest of the board already landed. Legal",
+       "because `stun` IS in `ExploitableStatus` (the cleansable set) even though",
+       "it is NOT in `StackedStatus` \u2014 `stackBonus` has no stack count to read on",
+       "a stun, so `exploit`'s flat-bonus form is the only shape available here.",
+       "'Sits until it collects' (combat/simulate.ts) means the window is real:",
+       "a stunned unit keeps the status until its OWN turn consumes it, so any",
+       "ally casting in between sees it standing \u2014 not a one-turn coincidence.",
+       "Chose PURE over self-applying on purpose: a card that both stuns and",
+       "exploits its own stun would self-feed cross-cast exactly like",
+       "second_bite (and would have to pay the full strikeRate, forfeiting the",
+       "discount, under `selfSynergyPremiumDeci`) \u2014 with three stunners already",
+       "shipped, the opportunist reading someone else's lockdown is the more",
+       "useful card, and it keeps the CONDITIONAL-TRIGGER DISCOUNT.",
+       "Hand-authored so both lines grow every tier:",
+       "Bronze:  exploit amount 8 (20) + damage 16 (80) = 100.",
+       "Silver:  exploit amount 12 (30) + damage 24 (120) = 150.",
+       "Gold:    exploit amount 16 (40) + damage 32 (160) = 200.",
+       "Diamond: exploit amount 20 (50) + damage 40 (200) = 250."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "exploit",
+        "status": "stun",
+        "amount": 8
+       },
+       {
+        "kind": "damage",
+        "power": 16
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "exploit",
+          "status": "stun",
+          "amount": 12
+         },
+         {
+          "kind": "damage",
+          "power": 24
+         }
+        ],
+        "text": "Deal 24 (+ATK) Bow damage \u00b7 +12 more if the target already carries {{Stun}} (checked before this card acts)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "exploit",
+          "status": "stun",
+          "amount": 16
+         },
+         {
+          "kind": "damage",
+          "power": 32
+         }
+        ],
+        "text": "Deal 32 (+ATK) Bow damage \u00b7 +16 more if the target already carries {{Stun}} (checked before this card acts)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "exploit",
+          "status": "stun",
+          "amount": 20
+         },
+         {
+          "kind": "damage",
+          "power": 40
+         }
+        ],
+        "text": "Deal 40 (+ATK) Bow damage \u00b7 +20 more if the target already carries {{Stun}} (checked before this card acts)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "debuff_crusher",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Debuff Crusher",
+      "text": "Deal 18 (+MATK) Lightning damage \u00b7 +4 more if the target already carries a stat debuff (checked before this card acts).",
+      "notes": [
+       "THE GENERALIST \u2014 `exploit` keyed to `debuff`, which is ONE status kind",
+       "covering all four `debuffStat` targets (attack/magicPower/armor/",
+       "magicResist all land as the same `{ kind: 'debuff' }` status,",
+       "combat/interpreter.ts's `debuffStat` arm), not four separate checks \u2014",
+       "so this card fires off ANY stat-down the board already applied",
+       "(armor_break, hex_of_frailty, scorching_brand, slow_hex, ...), which is",
+       "what makes it the generalist rather than a lane-specific payoff.",
+       "`debuff` is in `ExploitableStatus` but NOT `StackedStatus` (it carries",
+       "no stack count, only a pct+turns pair), so `exploit`'s flat form is the",
+       "only shape available \u2014 same structural reason as control_opportunist's",
+       "stun. PURE exploiter (no debuffStat of its own): it stays the",
+       "conditional-trigger discount rather than forfeiting it, and reads as a",
+       "true generalist rather than one more debuff-applying card competing for",
+       "the same board slot as the appliers it punishes-for.",
+       "`amount` is a MULTIPLE OF 4 at every tier \u2014 not a style choice: exploit",
+       "prices at strikeRate/2 = 2.5 deci/pt, and `powerLevelBreakdown`'s",
+       "every-part-is-a-whole-PL rule (tests/engine/balance.test.ts) rejects any",
+       "amount whose price lands on a half-PL (e.g. 10 \u2192 25 deci = 2.5 PL).",
+       "Hand-authored so both lines grow every tier:",
+       "Bronze:  exploit amount 4 (10) + damage 18 (90) = 100.",
+       "Silver:  exploit amount 8 (20) + damage 26 (130) = 150.",
+       "Gold:    exploit amount 12 (30) + damage 34 (170) = 200.",
+       "Diamond: exploit amount 16 (40) + damage 42 (210) = 250."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "lightning",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "exploit",
+        "status": "debuff",
+        "amount": 4
+       },
+       {
+        "kind": "damage",
+        "power": 18
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "exploit",
+          "status": "debuff",
+          "amount": 8
+         },
+         {
+          "kind": "damage",
+          "power": 26
+         }
+        ],
+        "text": "Deal 26 (+MATK) Lightning damage \u00b7 +8 more if the target already carries a stat debuff (checked before this card acts)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "exploit",
+          "status": "debuff",
+          "amount": 12
+         },
+         {
+          "kind": "damage",
+          "power": 34
+         }
+        ],
+        "text": "Deal 34 (+MATK) Lightning damage \u00b7 +12 more if the target already carries a stat debuff (checked before this card acts)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "exploit",
+          "status": "debuff",
+          "amount": 16
+         },
+         {
+          "kind": "damage",
+          "power": 42
+         }
+        ],
+        "text": "Deal 42 (+MATK) Lightning damage \u00b7 +16 more if the target already carries a stat debuff (checked before this card acts)."
+       }
+      }
+     }
+    }
+   ]
   }
  ]
 }
