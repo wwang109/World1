@@ -156,6 +156,8 @@ field on an action is an error.
 | `buffStat` `debuffStat` | `stat`, `pct`, `turns` |
 | `exploit` | `status`, `amount` |
 | `stackBonus` | `status`, `of`, `per`, `cap` (all four required) |
+| `taxBonus` | `per`, `cap` (both required) |
+| `shieldBurst` | `cap` (required) |
 
 `stat`: `attack` `magicPower` `armor` `magicResist` `speed`.
 
@@ -163,14 +165,35 @@ field on an action is an error.
 `poison` `burn` `bleed` `thorns` for `stackBonus` (it needs a pile with stacks).
 `of`: `caster` (read your own pile) or `target` (read the victim's).
 
-**Ordering rule for `exploit`/`stackBonus`** (user-locked 2026-08-21). Both riders
-read a status that is ALREADY there and hand a flat bonus to the cast's damage, so
-the authored effect list must run **rider → damage → any status this card
-applies**. The validator rejects anything else: a rider behind the damage arms a
-bonus nothing can spend, and this card's own poison/thorns line ahead of the
-damage would let the card trigger itself on its first cast — the payoff is meant
-to land on the NEXT one. (`stackBonus` with `of: 'caster'` is only ordered against
-CASTER-side applications, i.e. `thorns`.)
+`cap` is REQUIRED on `stackBonus`/`taxBonus`/`shieldBurst` and is the only thing
+priced: the payload is `min(per × count, cap)` (or `min(your shield, cap)`), which
+is unbounded in a resource the card does not own, so only the ceiling can carry an
+honest price. A big `per` is free — it just makes the rider reach its cap sooner.
+
+**Ordering rule for the four conditional riders** — `exploit`, `stackBonus`,
+`taxBonus`, `shieldBurst` (user-locked 2026-08-21). Every one of them reads a
+resource that is ALREADY there and hands a flat bonus to the cast's damage, so the
+authored effect list must run **rider → damage → anything this card supplies**.
+The validator rejects anything else: a rider behind the damage arms a bonus nothing
+can spend, and this card's own line ahead of the damage would let the card trigger
+itself on its first cast — the payoff is meant to land on the NEXT one.
+
+What counts as "supplies", per rider: `poison`/`burn`/`bleed`/`stun`/`debuffStat`/
+`expose`/`thorns` for the status readers, `shield` for `shieldBurst` (caster-side),
+and BOTH `slow` and `splash` for `taxBonus` (it counts either tax). Side matters:
+`stackBonus` with `of: 'caster'` is only ordered against CASTER-side applications
+(i.e. `thorns`), and a `shield` line is irrelevant to a `taxBonus` card.
+
+**`slow` gets no exception**, even though it expires at end of turn: the ruling is
+about self-triggering, not about how long the resource lasts. A `slow` + `taxBonus`
+card still pays off on a SECOND cast in the same turn; a `splash` + `taxBonus` card
+pays off until the taxed piece is played.
+
+**`scope: 'all'` is refused with `splash` and with `shieldBurst`.** Splash is
+single-target at the unit level; a burst spends ONE wall ONCE and its bonus would
+otherwise be handed to every foe at a single-target price (it is a caster-side
+keyword, so it pays no AoE reach multiplier). An AoE `taxBonus` is fine — it is
+armed per victim and does pay reach.
 
 This mirrors the `Action` union in `src/engine/types.ts`. The validator's switch
 ends in `assertNever`, so **adding an action kind to the engine fails `tsc` until

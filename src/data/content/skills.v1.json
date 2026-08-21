@@ -7244,6 +7244,207 @@
      }
     }
    ]
+  },
+  {
+   "id": "aegis_charge",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Aegis Charge",
+      "text": "Deal 14 (+ATK) Sword damage \u00b7 Shatter up to 12 of your own {{Shield}} and add exactly that much to the hit \u2014 physical pool first, then magical, then TRUE. Only plating you were already holding counts.",
+      "notes": [
+       "THE PURE SPENDER \u2014 the shield lane's payoff card, and the first keyword",
+       "that turns plating into damage. It grants NO shield of its own, so every",
+       "point it throws was banked by another card (Iron Bulwark's 48 physical,",
+       "Prism Barrier's 92 TRUE, a guard-lane hero's armor scaling). That is what",
+       "earns the CONDITIONAL-TRIGGER DISCOUNT: shieldBurst prices at",
+       "strikeRate/2 = 2.5 deci/pt of its cap (PRICE.conditionalBonusDen), the same",
+       "rate comboBonus and exploit are locked at.",
+       "THE DECISION IS THE CARD: the wall you keep and the wall you spend are the",
+       "same wall. Drain order is FIXED physical -> magical -> TRUE, so a partial",
+       "burst spends the cheapest plating and leaves the pool that blocks",
+       "everything standing (spendShieldsForBurst, combat/state.ts).",
+       "ORDER (user-locked 2026-08-21, same rule as exploit/stackBonus): the rider",
+       "reads PRE-EXISTING shield, so a `shield` line may never sit at or before",
+       "the damage it feeds \u2014 validateSkillContent rejects it. This kit has no",
+       "shield line at all, so it also pays no self-synergy premium.",
+       "SINGLE-TARGET BY IDENTITY: one wall, spent once, into ONE hit \u2014 an",
+       "authored scope: all + shieldBurst card is refused (the bonus would land on",
+       "every foe at a single-target price).",
+       "Bronze:  burst cap 12 (30) + damage 14 (70) = 100.",
+       "Silver:  burst cap 16 (40) + damage 22 (110) = 150.",
+       "Gold:    burst cap 20 (50) + damage 30 (150) = 200.",
+       "Diamond: burst cap 24 (60) + damage 38 (190) = 250.",
+       "Hand-authored ladder: `autoScaleTier` freezes the burst cap (it is not a",
+       "scalable sink) and would pour every tier's growth into the damage line,",
+       "leaving a Diamond card whose signature effect still only spends 12."
+      ],
+      "archetypes": [
+       "offense",
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "shieldBurst",
+        "cap": 12
+       },
+       {
+        "kind": "damage",
+        "power": 14
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "shieldBurst",
+          "cap": 16
+         },
+         {
+          "kind": "damage",
+          "power": 22
+         }
+        ],
+        "text": "Deal 22 (+ATK) Sword damage \u00b7 Shatter up to 16 of your own {{Shield}} and add exactly that much to the hit \u2014 physical pool first, then magical, then TRUE. Only plating you were already holding counts."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "shieldBurst",
+          "cap": 20
+         },
+         {
+          "kind": "damage",
+          "power": 30
+         }
+        ],
+        "text": "Deal 30 (+ATK) Sword damage \u00b7 Shatter up to 20 of your own {{Shield}} and add exactly that much to the hit \u2014 physical pool first, then magical, then TRUE. Only plating you were already holding counts."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "shieldBurst",
+          "cap": 24
+         },
+         {
+          "kind": "damage",
+          "power": 38
+         }
+        ],
+        "text": "Deal 38 (+ATK) Sword damage \u00b7 Shatter up to 24 of your own {{Shield}} and add exactly that much to the hit \u2014 physical pool first, then magical, then TRUE. Only plating you were already holding counts."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "deadweight_toll",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Deadweight Toll",
+      "text": "Deal 12 (+ATK) Axe damage, +4 per weight-taxed card on the target (max +16) \u2014 each card carrying a {{Splash}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count.",
+      "notes": [
+       "THE TEMPO PUNISHER \u2014 the payoff card of the slow/splash lane: it counts",
+       "the backlog somebody else built (every board piece carrying a splash tax,",
+       "plus one if the unit itself is slowed \u2014 taxedCardCount, combat/state.ts)",
+       "and bills for it. It taxes nothing itself, so the discount is honest:",
+       "taxBonus prices at strikeRate/2 = 2.5 deci/pt of its CAP, exactly like",
+       "exploit and stackBonus (PRICE.conditionalBonusDen).",
+       "PURE READER ON PURPOSE. A slow/splash line of its own would forfeit the",
+       "discount (selfSynergyPremiumDeci) AND barely pay off: the ordering rule",
+       "puts the tax after the damage, and a slow expires at end of turn, so a",
+       "self-taxing reaper only collects if it gets a SECOND cast in the same",
+       "turn. The lane it belongs to \u2014 Line Breaker, Shockwave Slam, Arc Cascade,",
+       "Hamstring \u2014 does the taxing; this card cashes it.",
+       "CAST IT AFTER THEM, in that order, and the count is the whole point: a",
+       "splash band taxes up to 3 pieces (1..3 by the victim's board, and the tax",
+       "rides each piece until it is played), a slow adds the 4th until end of",
+       "turn. `per` is UNPRICED by construction and grows with tier while the CAP",
+       "is what is paid for \u2014 the stackBonus rule \u2014 so the reachable ceiling",
+       "stays ~4 taxed cards at every tier instead of drifting out of reach.",
+       "Bronze:  reap cap 16 (40) + damage 12 (60) = 100.  (+4 per card)",
+       "Silver:  reap cap 20 (50) + damage 20 (100) = 150. (+5 per card)",
+       "Gold:    reap cap 24 (60) + damage 28 (140) = 200. (+6 per card)",
+       "Diamond: reap cap 28 (70) + damage 36 (180) = 250. (+7 per card)",
+       "Hand-authored: `autoScaleTier` freezes the whole rider (not a scalable",
+       "sink), so it would grow damage alone and never `per`/`cap`."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "taxBonus",
+        "per": 4,
+        "cap": 16
+       },
+       {
+        "kind": "damage",
+        "power": 12
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "taxBonus",
+          "per": 5,
+          "cap": 20
+         },
+         {
+          "kind": "damage",
+          "power": 20
+         }
+        ],
+        "text": "Deal 20 (+ATK) Axe damage, +5 per weight-taxed card on the target (max +20) \u2014 each card carrying a {{Splash}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "taxBonus",
+          "per": 6,
+          "cap": 24
+         },
+         {
+          "kind": "damage",
+          "power": 28
+         }
+        ],
+        "text": "Deal 28 (+ATK) Axe damage, +6 per weight-taxed card on the target (max +24) \u2014 each card carrying a {{Splash}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "taxBonus",
+          "per": 7,
+          "cap": 28
+         },
+         {
+          "kind": "damage",
+          "power": 36
+         }
+        ],
+        "text": "Deal 36 (+ATK) Axe damage, +7 per weight-taxed card on the target (max +28) \u2014 each card carrying a {{Splash}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
+       }
+      }
+     }
+    }
+   ]
   }
  ]
 }

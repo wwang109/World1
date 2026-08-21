@@ -122,6 +122,18 @@ function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined):
       case 'stackBonus':
         expected.push(eff.per, eff.cap);
         break;
+      // TAX BONUS: both numbers, for the identical reason — `per` is what a
+      // player counts per taxed card, `cap` is the ceiling that decides what the
+      // rider is worth (and the number it is PRICED on).
+      case 'taxBonus':
+        expected.push(eff.per, eff.cap);
+        break;
+      // SHIELD BURST: the `cap` is the whole magnitude and it is doubly
+      // load-bearing — it is the most damage the rider can add AND the most of
+      // your own shield it will spend. A face that hid it would hide the cost.
+      case 'shieldBurst':
+        expected.push(eff.cap);
+        break;
       default:
         assertNever(eff);
     }

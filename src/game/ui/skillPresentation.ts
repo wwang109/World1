@@ -296,6 +296,18 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
         text: `+${action.per}/${STATUS_TOKEN[action.status]}${action.of === 'caster' ? '' : ' ON FOE'} (cap ${action.cap})`,
         keyword: action.status,
       }); break;
+      // SHIELD BURST — the number it can spend, and WHOSE shield it is, because
+      // "SHLD" on a face otherwise reads as plating GAINED. `SPEND` names the
+      // direction in a word the player already understands from the glossary
+      // entry, and the token borrows the existing `shield` color (no new palette
+      // entry for a keyword that trades in the same currency).
+      case 'shieldBurst': extras.push({ text: `SPEND SHLD ${action.cap}`, keyword: 'shield' }); break;
+      // TAX BONUS — `per` per taxed card and the CAP, the same two numbers
+      // `stackBonus` prints and for the same reason (the cap is what it is worth
+      // and what it is priced on). "TAXED" is the noun the tempo keywords already
+      // use on the face (SLOW +N / SPLASH +N WT are the taxes), so no new one is
+      // invented; the token borrows `slow`'s color, the family both taxes share.
+      case 'taxBonus': extras.push({ text: `+${action.per}/TAXED CARD (cap ${action.cap})`, keyword: 'slow' }); break;
       case 'slow': extras.push({ text: `SLOW +${action.weight}`, keyword: 'slow' }); break;
       // User ruling (2026-08-20): "I been seeing splash +6 band, what does
       // that even mean." SPLASH is `slow` at CARD scope, so its number is the

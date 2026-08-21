@@ -483,6 +483,78 @@ type ActionKinds =
    * spend next time.
    */
   | { kind: 'stackBonus'; status: StackedStatus; of: 'caster' | 'target'; per: number; cap: number }
+  /**
+   * SHIELD BURST — shatter YOUR OWN plating and throw it: up to `cap` points are
+   * drained from the caster's own shield pools and armed as flat bonus damage on
+   * this cast's hit. `bonus = min(totalShield(caster), cap)`, and exactly that
+   * many points leave the pools.
+   *
+   * THE DECISION IS THE POINT: a wall you are keeping and a wall you are spending
+   * are different cards, and this one makes the shield lane choose. It is the
+   * mirror image of `shieldBreak` (which strips the VICTIM's plating): same
+   * currency, opposite owner, opposite direction.
+   *
+   * DRAIN ORDER IS FIXED: physical → magical → true, stopping when `cap` is paid
+   * or the pools are dry (`spendShieldsForBurst`, combat/state.ts). Deterministic
+   * (a literal order, not object-key iteration), and it spends the CHEAPEST
+   * plating first: the `true` pool is the only one that blocks every property, so
+   * it is drained last and a partial burst leaves the best wall standing.
+   *
+   * ONE POINT OF SHIELD BECOMES ONE POINT OF DAMAGE, whatever pool it came from.
+   * The 2:1 rule typed damage pays to spill into a `true` shield (`consumeShields`)
+   * is a rule about BLOCKING an incoming hit; nothing is being blocked here, and
+   * the payload is bounded by `cap` regardless, which is the number that is priced.
+   *
+   * IT READS PRE-EXISTING SHIELD ONLY — the same ordering ruling `exploit` and
+   * `stackBonus` carry (user-locked 2026-08-21): a card that grants shield may not
+   * feed its own burst inside one cast, so `validateSkillContent` requires any
+   * `shield` line to sit AFTER the damage the burst feeds. Grant now, spend next
+   * cast.
+   *
+   * SUPPORTIVE, LIKE `comboBonus` — it resolves on the CASTER (it is the caster's
+   * own resource it spends), so it runs ONCE per cast and arms the cast's scalar
+   * `bonusFlat`. That is also why an AUTHORED `scope: 'all'` + `shieldBurst` card
+   * is rejected (`validateSkillContent`): one wall spent once must not be
+   * delivered to five foes at a single-target price. No gem carries this kind, and
+   * a test pins that — a gem one would need the splash gate's treatment.
+   */
+  | { kind: 'shieldBurst'; cap: number }
+  /**
+   * TAX BONUS — the tempo punisher: flat bonus damage per WEIGHT-TAXED card on
+   * the victim's board, hard-CAPPED. `bonus = min(per × taxedCards(target), cap)`.
+   *
+   * WHAT COUNTS AS ONE TAXED CARD (`taxedCardCount`, combat/state.ts): every
+   * board piece carrying a pending `splash` tax (`PieceState.nextWeightPenalty`),
+   * PLUS ONE if the unit itself carries a pending `slow`
+   * (`CombatantState.nextWeightPenalty`). Counting the unit-scope slow as one card
+   * is deliberate — the fantasy is "punish the backlog", a slow IS part of the
+   * backlog (it taxes the very next card that unit plays), and the alternative
+   * would make the reaper blind to half the tempo lane it exists to pay off.
+   *
+   * THE TIMING WRINKLE IS THE SYNERGY LOOP, not an accident. A `slow` lives only
+   * until the end of the turn it landed on, while a `splash` tax rides its piece
+   * until that piece is next played — so the reaper wants to fire AFTER your tempo
+   * cards, in the same turn for slow and any time later for splash. That is the
+   * designed pairing with Line Breaker / Shockwave Slam / the splash gems.
+   *
+   * THE `cap` IS REQUIRED and the cap is WHAT IS PRICED — the `stackBonus` rule,
+   * for the same reason: `per × count` is bounded only by the VICTIM's board size
+   * (a resource the card's holder does not control), so only the ceiling is
+   * priceable. `per` is unpriced by construction; a huge `per` merely turns the
+   * rider into "+cap if they are taxed at all".
+   *
+   * OFFENSIVE (it reads the victim's board), so it is armed PER VICTIM: under
+   * `scope: 'all'` each foe is judged on its own backlog, and the card pays the
+   * AoE reach multiplier (`OFFENSIVE_KINDS`).
+   *
+   * SAME ORDERING RULE as its siblings: it reads taxes that were ALREADY there,
+   * so `validateSkillContent` requires this card's own `slow`/`splash` lines to
+   * sit AFTER the damage the rider feeds. A slow+reaper card therefore cannot
+   * self-feed within one cast — and, because a slow expires at end of turn, only
+   * a SECOND cast in the SAME turn collects on it, while a splash keeps paying
+   * until the taxed piece is played.
+   */
+  | { kind: 'taxBonus'; per: number; cap: number }
   // ---- Property-generic defensive keywords ----
   /**
    * Magical Guard: while active, incoming damage of the matching `property` is

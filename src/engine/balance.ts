@@ -334,10 +334,12 @@ export const PRICE = {
   comboPerPointDen: 2,
 
   /**
-   * exploit / stackBonus: the CONDITIONAL-TRIGGER DISCOUNT as a DENOMINATOR on
+   * exploit / stackBonus / shieldBurst / taxBonus: the CONDITIONAL-TRIGGER
+   * DISCOUNT as a DENOMINATOR on
    * the card's own flat-damage rate, rather than a second hand-written per-point
-   * number. Both keywords add FLAT bonus damage to the cast's own hit behind a
-   * gate (the target carries an affliction / a pile of stacks exists), so their
+   * number. All four keywords add FLAT bonus damage to the cast's own hit behind a
+   * gate (the target carries an affliction / a pile of stacks exists / you are
+   * holding plating to spend / their board is carrying weight taxes), so their
    * always-on equivalent is exactly `damage`: `strikeRate` (5 deci/pt typed,
    * 10 for TRUE — a flat bonus bypasses defense on a TRUE card exactly as the
    * card's flat base does, so it must pay the same TRUE premium).
@@ -349,19 +351,25 @@ export const PRICE = {
    * equivalent"), expressed so the fraction cannot drift away from the rate it
    * is a fraction OF. It is written as a denominator, not copied as a rate, for
    * the one place the two differ: comboBonus's 2.5 is property-blind, while
-   * these two divide the property-aware `strikeRate` and so charge a TRUE card
+   * these four divide the property-aware `strikeRate` and so charge a TRUE card
    * 5 deci/pt.
    *
-   * WHAT THE MAGNITUDE IS, per keyword: `exploit.amount` (the flat bonus) and
-   * `stackBonus.cap` (the ceiling on `per × stacks`). Pricing the CAP is the
-   * `statStrike` precedent exactly — the payload is unbounded in a resource the
-   * card does not control, so only its hard ceiling is priceable; `cap` is a
-   * REQUIRED field on the action, so there is no uncapped form to price at 0.
+   * WHAT THE MAGNITUDE IS, per keyword: `exploit.amount` (the flat bonus) and the
+   * REQUIRED `cap` on the other three (the ceiling on `per × stacks`, on the
+   * plating spent, on `per × taxed cards`). Pricing the CAP is the `statStrike`
+   * precedent exactly — the payload is unbounded in a resource the card does not
+   * control, so only its hard ceiling is priceable; `cap` is a REQUIRED field on
+   * all three, so there is no uncapped form to price at 0.
    *
    * SELF-SYNERGY FORFEITS THE DISCOUNT — see `selfSynergyPremiumDeci`. A card
-   * that itself applies the status it keys off guarantees its own gate from its
+   * that itself supplies the resource it keys off guarantees its own gate from its
    * second cast onward, so it pays the FULL `strikeRate`; the discount is for a
    * rider that depends on something the card cannot supply.
+   *
+   * `shieldBurst` pays the same rate even though it also DESTROYS the resource it
+   * reads, which makes it the one member the discount over-prices rather than
+   * under-prices — the safe direction, and the reason it needs no rate of its own
+   * (see its row in `keywords/pricing.ts`).
    */
   conditionalBonusDen: 2,
 
@@ -829,10 +837,10 @@ export function auraModsDeci(mods: { damageFlat?: number; healFlat?: number; wei
  * CASTER (it is a self buff). The names are the STATUS kinds
  * (`StatusInstance['kind']`), which is why `debuffStat` maps to `'debuff'`.
  *
- * EXPORTED because `validateSkillContent.ts` enforces the RIDER ORDERING RULE
- * off the same lookup (a status application matching a rider's own status must
- * come after the damage the rider feeds). One definition, so the price and the
- * authoring rule can never disagree about which keyword applies what.
+ * EXPORTED because `resourceSuppliedBy` (and through it the RIDER ORDERING RULE
+ * in `validateSkillContent.ts`) is built on the same lookup. One definition, so
+ * the price and the authoring rule can never disagree about which keyword
+ * applies what.
  */
 export function statusAppliedBy(action: Action): { status: string; on: 'caster' | 'target' } | null {
   switch (action.kind) {
@@ -848,18 +856,84 @@ export function statusAppliedBy(action: Action): { status: string; on: 'caster' 
 }
 
 /**
- * SELF-SYNERGY PREMIUM — the deci-PL an `exploit`/`stackBonus` rider owes ON TOP
- * of its table price when the SAME KIT supplies the status it keys off.
+ * WHAT A CONDITIONAL RIDER READS — the RESOURCE name, WHOSE it is, and the most
+ * the rider can ever pay out. `null` for every action that is not a rider.
  *
- * WHY IT EXISTS. Both keywords price at the CONDITIONAL-TRIGGER DISCOUNT (half
+ * "RESOURCE" is the generalisation of "status" (2026-08-21, second rider pass):
+ * the family now reads three different kinds of thing — an affliction pile
+ * (`exploit`, `stackBonus`), the caster's own PLATING (`shieldBurst`) and the
+ * victim's TEMPO BACKLOG (`taxBonus`) — but every one of them is "some quantity
+ * that is ALREADY THERE, gating a bounded flat add". Naming the read as a
+ * (resource, side) pair is what lets ONE ordering rule and ONE self-synergy rule
+ * cover all four keywords instead of four special cases. The names are the status
+ * kinds where a status is what is read, plus two that cannot collide with a
+ * status kind: `'shield'` and `'tax'`.
+ *
+ * `magnitude` is the field the keyword is PRICED on — `exploit.amount`, and the
+ * required `cap` for the other three — so a caller can compute the full-rate
+ * price without re-deriving which field matters.
+ */
+export function riderReadsResource(
+  action: Action,
+): { resource: string; on: 'caster' | 'target'; magnitude: number } | null {
+  switch (action.kind) {
+    case 'exploit': return { resource: action.status, on: 'target', magnitude: action.amount };
+    case 'stackBonus': return { resource: action.status, on: action.of, magnitude: action.cap };
+    // The one CASTER-side, RESOURCE-CONSUMING member: it reads (and spends) the
+    // caster's own shield pools.
+    case 'shieldBurst': return { resource: 'shield', on: 'caster', magnitude: action.cap };
+    case 'taxBonus': return { resource: 'tax', on: 'target', magnitude: action.cap };
+    default: return null;
+  }
+}
+
+/**
+ * THE SUPPLY SIDE of the same question: what resource does this action PUT THERE,
+ * and on whom. `null` when it supplies nothing a rider can read.
+ *
+ * Statuses come from `statusAppliedBy` (one definition, see above); the two
+ * non-status resources are spelled here:
+ *  • `shield` on the CASTER — `shield` is the only keyword that adds plating
+ *    (`applyAction`'s `shield` arm; a heal is not plating);
+ *  • `tax` on the TARGET — BOTH `slow` (unit scope) and `splash` (card scope),
+ *    because `taxedCardCount` counts both and a rider cannot tell which keyword
+ *    put the weight there.
+ */
+export function resourceSuppliedBy(action: Action): { resource: string; on: 'caster' | 'target' } | null {
+  const status = statusAppliedBy(action);
+  if (status) return { resource: status.status, on: status.on };
+  switch (action.kind) {
+    case 'shield': return { resource: 'shield', on: 'caster' };
+    case 'slow':
+    case 'splash':
+      return { resource: 'tax', on: 'target' };
+    default: return null;
+  }
+}
+
+/**
+ * SELF-SYNERGY PREMIUM — the deci-PL a conditional rider (`exploit`,
+ * `stackBonus`, `shieldBurst`, `taxBonus`) owes ON TOP of its table price when the
+ * SAME KIT supplies the resource it keys off.
+ *
+ * WHY IT EXISTS. All four keywords price at the CONDITIONAL-TRIGGER DISCOUNT (half
  * the flat-damage rate, `PRICE.conditionalBonusDen`), and that discount buys one
  * specific thing: the gate depends on something the card CANNOT GUARANTEE (a
- * teammate's poison, another card's bleed, a debuff someone else landed). A card
- * that applies the status it exploits guarantees its own gate from its SECOND
- * cast onward — the ordering ruling (user-locked 2026-08-21) costs it exactly
- * the first cast and nothing after — so the discount is no longer describing it.
- * It pays the full always-on rate instead: `strikeRate`, the same rate the
- * card's own `damage` line pays, TRUE premium included.
+ * teammate's poison, another card's bleed, the shield another card of yours
+ * granted, the splash tax somebody else landed). A card that supplies the
+ * resource it reads guarantees its own gate from its SECOND cast onward — the
+ * ordering ruling (user-locked 2026-08-21) costs it exactly the first cast and
+ * nothing after — so the discount is no longer describing it. It pays the full
+ * always-on rate instead: `strikeRate`, the same rate the card's own `damage` line
+ * pays, TRUE premium included.
+ *
+ * THE FOUR RESOURCES ARE NOT EQUALLY SELF-SUPPLIABLE, and the rule is
+ * deliberately blind to the difference (see CONSERVATIVE below): a `shield` line
+ * feeds a `shieldBurst` from the next cast onward as reliably as a poison feeds an
+ * exploit (plating persists), a `splash` feeds a `taxBonus` until the taxed piece
+ * is played, but a `slow` expires at END OF TURN — so a slow+reaper card only
+ * collects when it gets a SECOND cast inside the same turn. Charging all three the
+ * same premium over-prices the slow case and never under-prices any of them.
  *
  * CONSERVATIVE ON PURPOSE. The honest uptime of a self-synergy rider is
  * `(casts − 1) / casts`, which on the frozen sweep's median 7-turn fight with a
@@ -872,36 +946,26 @@ export function statusAppliedBy(action: Action): { status: string; on: 'caster' 
  * the two-state form the engine can decide STATICALLY, from the kit alone.
  *
  * STATICALLY DECIDABLE is the whole reason it can be priced at all: whether a
- * kit applies the status its own rider reads is a fact about the authored
+ * kit supplies the resource its own rider reads is a fact about the authored
  * effect list, visible to the pricer with no simulation and no host knowledge.
  * A rider never counts as supplying ITSELF, and the SIDE must match — a
  * `stackBonus` with `of: 'caster'` is only self-supplied by a CASTER-side
- * application (`thorns`), never by the poison it puts on the enemy.
+ * application (`thorns`), never by the poison it puts on the enemy, and by the
+ * same token a `shieldBurst` is fed by the caster's own `shield` line while a
+ * `taxBonus` is fed by a `slow`/`splash` aimed at the target.
  *
  * Returns 0 for every other action, so the whole rule is inert on the ~110-card
  * catalog that predates it.
  */
 export function selfSynergyPremiumDeci(action: Action, kit: readonly Action[], property: Property): number {
-  let status: string;
-  let side: 'caster' | 'target';
-  let magnitude: number;
-  if (action.kind === 'exploit') {
-    status = action.status;
-    side = 'target';
-    magnitude = action.amount;
-  } else if (action.kind === 'stackBonus') {
-    status = action.status;
-    side = action.of;
-    magnitude = action.cap;
-  } else {
-    return 0;
-  }
+  const reads = riderReadsResource(action);
+  if (!reads) return 0;
   let supplied = false;
   for (let i = 0; i < kit.length; i += 1) {
     const other = kit[i]!;
     if (other === action) continue; // a rider can never supply its own gate
-    const applied = statusAppliedBy(other);
-    if (applied && applied.status === status && applied.on === side) {
+    const applied = resourceSuppliedBy(other);
+    if (applied && applied.resource === reads.resource && applied.on === reads.on) {
       supplied = true;
       break;
     }
@@ -911,7 +975,7 @@ export function selfSynergyPremiumDeci(action: Action, kit: readonly Action[], p
   // what `priceActionDeci` charged through the table (floored the same way), so
   // the two always add up to the full rate with no rounding drift.
   const rate = scalableRateDeci('damage', property, KEYWORD_PRICING);
-  const full = Math.max(0, magnitude) * rate;
+  const full = Math.max(0, reads.magnitude) * rate;
   return full - Math.floor(full / PRICE.conditionalBonusDen);
 }
 
@@ -922,8 +986,8 @@ export function actionsPriceDeci(
   /**
    * The WHOLE kit the priced actions belong to, for the one rule that cannot be
    * decided from a single action: the SELF-SYNERGY premium
-   * (`selfSynergyPremiumDeci`), which asks whether the card also APPLIES the
-   * status its `exploit`/`stackBonus` rider reads.
+   * (`selfSynergyPremiumDeci`), which asks whether the card also SUPPLIES the
+   * resource its `exploit`/`stackBonus`/`shieldBurst`/`taxBonus` rider reads.
    *
    * Defaults to `actions`, so every existing call site is unchanged. It is
    * passed explicitly by the two callers that price a SUBSET of a kit and would
@@ -946,8 +1010,8 @@ export function actionsPriceDeci(
   // DATA-DRIVEN: every per-keyword rate lives in `keywords/pricing.ts`, so a
   // new keyword is a row there rather than a `case` here.
   for (const action of actions) {
-    // The table rate plus the ONE kit-aware term (0 for every kind but
-    // `exploit`/`stackBonus`, and 0 for those unless the kit supplies their
+    // The table rate plus the ONE kit-aware term (0 for every kind but the four
+    // conditional riders, and 0 for those unless the kit supplies their
     // gate). Added to the SAME action's price rather than summed separately so
     // it lands in the right offensive/self bucket, pays the AoE multiplier with
     // the rest of the offensive share, and telescopes exactly through

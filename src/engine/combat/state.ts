@@ -407,3 +407,67 @@ export function statusStackCount(c: CombatantState, kind: StatusInstance['kind']
   }
   return stacks;
 }
+
+/**
+ * THE POOL ORDER A `shieldBurst` DRAINS — physical, then magical, then true.
+ *
+ * A LITERAL ARRAY, walked by index, never `Object.keys(shields)`: the drain must
+ * be reproducible from the event log, so the order is source-fixed rather than
+ * object-key-order-fixed. `true` is LAST on purpose — it is the only pool that
+ * blocks every property (`consumeShields`), so a burst that cannot pay its whole
+ * cap spends the cheapest plating and leaves the best wall standing.
+ */
+export const SHIELD_BURST_POOL_ORDER: readonly (keyof ShieldPools)[] = ['physical', 'magical', 'true'];
+
+/**
+ * Spend up to `cap` points of a unit's OWN shield pools and report what was
+ * actually taken — the arithmetic behind the `shieldBurst` rider
+ * (`applyAction`, combat/interpreter.ts), kept here beside the pools it mutates
+ * and away from the event log.
+ *
+ * ONE POINT SPENT IS ONE POINT RETURNED, from whichever pool paid it. The 2:1
+ * penalty typed damage pays to spill into a `true` shield is a rule about
+ * BLOCKING an incoming hit; a burst blocks nothing, and its payload is bounded by
+ * `cap` either way (see the action's docs in types.ts).
+ *
+ * Integer-only, no RNG, no float: `Math.min` over integers in a fixed order.
+ * `cap <= 0` (or an empty wall) spends nothing and returns 0, so the caller can
+ * treat "no shield" and "no cap" identically.
+ */
+export function spendShieldsForBurst(c: CombatantState, cap: number): number {
+  let remaining = Math.max(0, cap);
+  let spent = 0;
+  for (let i = 0; i < SHIELD_BURST_POOL_ORDER.length; i += 1) {
+    if (remaining <= 0) break;
+    const pool = SHIELD_BURST_POOL_ORDER[i]!;
+    const take = Math.min(c.shields[pool], remaining);
+    c.shields[pool] -= take;
+    remaining -= take;
+    spent += take;
+  }
+  return spent;
+}
+
+/**
+ * HOW MANY WEIGHT-TAXED CARDS this unit is carrying — the quantity a `taxBonus`
+ * rider scales off (`applyAction`, combat/interpreter.ts).
+ *
+ * Every board piece with a pending `splash` tax counts one
+ * (`PieceState.nextWeightPenalty`), and a pending unit-scope `slow`
+ * (`CombatantState.nextWeightPenalty`) counts ONE MORE — the slow taxes the very
+ * next card this unit plays, so it is part of the same backlog the reaper is sold
+ * on punishing (see the action's docs in types.ts).
+ *
+ * `> 0`, not `!== undefined`: the splash arm writes with `Math.max`, so a
+ * zero-weight tax is representable and taxes nothing — a card that is not
+ * actually slowed must not be counted. Indexed walk over the slot-sorted
+ * `pieces` array; integers only, no RNG.
+ */
+export function taxedCardCount(c: CombatantState): number {
+  let taxed = 0;
+  for (let i = 0; i < c.pieces.length; i += 1) {
+    if ((c.pieces[i]!.nextWeightPenalty ?? 0) > 0) taxed += 1;
+  }
+  if (c.nextWeightPenalty > 0) taxed += 1;
+  return taxed;
+}

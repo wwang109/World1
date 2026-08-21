@@ -4,7 +4,7 @@ import { isMultiTargetSkill, MAX_NEGATE_CHARGES, MAX_WARD_CHARGES } from '../typ
 import type { AntiHealCategory, AntiHealReduction, CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
 import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elements';
-import { anySideWiped, boardPowerLevel, effStat, foesOf, hasStatus, statusStackCount, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
+import { anySideWiped, boardPowerLevel, effStat, foesOf, hasStatus, spendShieldsForBurst, statusStackCount, taxedCardCount, teamOf, totalShield, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 import { splashBand } from './splash';
 
@@ -47,10 +47,21 @@ function isOffensiveAction(action: Action): boolean {
     // engine/balance.ts, mirrors this switch kind-for-kind).
     case 'exploit':
     case 'stackBonus':
+    // TAX BONUS is offensive for the same reason: it reads the VICTIM's board
+    // (how many of its cards carry a weight tax) and arms its bonus PER VICTIM,
+    // so under `scope: 'all'` each foe is judged on its own backlog.
+    case 'taxBonus':
       return true;
     default:
       // heal, shield, buffStat, cleanse, taunt, lifesteal, comboBonus, thorns,
-      // guard, negate, ward — none of these resolve against a foe.
+      // guard, negate, ward — none of these resolve against a foe. Nor does
+      // `shieldBurst`: unlike its three rider siblings above, the resource it
+      // reads AND SPENDS is the CASTER'S OWN plating, so it must resolve on the
+      // caster and run EXACTLY ONCE per cast (a per-foe fan-out would drain the
+      // wall on the first foe and arm nothing for the rest). It therefore arms
+      // the cast's scalar `bonusFlat`, exactly like `comboBonus`, and an
+      // authored AoE + shieldBurst card is refused by `validateSkillContent`
+      // rather than priced.
       return false;
   }
 }
@@ -602,13 +613,18 @@ interface CastCtx {
    * Twin Slash's hits (+32 delivered for a 16-priced, "+16"-printed effect), and
    * a base card authoring `comboBonus` alongside two damage actions would have
    * done exactly the same.
+   *
+   * ALSO ARMED BY `shieldBurst` — the one rider whose resource is the CASTER's
+   * own (its shield pools), so it resolves once on the caster and has no victim
+   * to index by. Same field, same one-per-cast spend rule; the two accumulate if
+   * a card ever carries both.
    */
   bonusFlat: number;
   /**
    * FLAT damage armed PER VICTIM by a CONDITIONAL rider this cast (`exploit`,
-   * `stackBonus`), indexed by the victim's lineup index. Sparse: only foes a
-   * rider actually armed appear, and a cast with no such rider never writes it,
-   * which is what keeps every existing card byte-identical.
+   * `stackBonus`, `taxBonus`), indexed by the victim's lineup index. Sparse: only
+   * foes a rider actually armed appear, and a cast with no such rider never writes
+   * it, which is what keeps every existing card byte-identical.
    *
    * PER VICTIM, unlike `bonusFlat`, because the CONDITION is per victim: under
    * `scope: 'all'` one foe may be poisoned and another not, and an exploit that
@@ -626,7 +642,9 @@ interface CastCtx {
  * ARM a conditional rider's flat bonus against ONE victim (see
  * `CastCtx.bonusByTarget`). ACCUMULATES, so a card carrying two riders (exploit
  * poison + exploit bleed, say) delivers both when both conditions hold — which
- * is how they are priced, additively, one term each.
+ * is how they are priced, additively, one term each. (`shieldBurst` does not come
+ * through here: its resource is the caster's own, so it arms the scalar
+ * `bonusFlat` — see its arm in `applyAction`.)
  */
 function armTargetBonus(cast: CastCtx, victim: CombatantState, amount: number): void {
   if (amount <= 0) return;
@@ -1536,6 +1554,50 @@ function applyAction(
       const stacks = statusStackCount(holder, action.status);
       if (stacks <= 0) break;
       armTargetBonus(cast, enemy, Math.min(action.per * stacks, action.cap));
+      break;
+    }
+    case 'shieldBurst': {
+      // SHATTER YOUR OWN WALL AND THROW IT. `min(totalShield(caster), cap)`
+      // points leave the caster's pools in the fixed order physical → magical →
+      // true (`spendShieldsForBurst`, combat/state.ts) and become flat bonus
+      // damage on this cast's hit.
+      //
+      // SUPPORTIVE (`isOffensiveAction`), so `resolveTargets` hands this arm the
+      // CASTER as `enemy` and runs it ONCE — which is exactly what a resource
+      // spend needs. The bonus therefore goes to the cast's SCALAR `bonusFlat`,
+      // the `comboBonus` seam, not to `bonusByTarget`: there is one wall and one
+      // number, and the single foe of a (non-AoE, validator-enforced) burst card
+      // is the one that takes it.
+      //
+      // PRE-EXISTING SHIELD ONLY, like every rider in this family: the card's own
+      // `shield` line is required to sit after the damage this feeds
+      // (`validateSkillContent`), so a burst can never inflate itself inside one
+      // cast.
+      if (!caster.alive) break;
+      const spent = spendShieldsForBurst(caster, action.cap);
+      if (spent <= 0) break;
+      cast.bonusFlat += spent;
+      // THE DRAIN IS EVENTED, because it is observable state leaving a unit: the
+      // shield bar drops before the hit lands. Same event `shieldBreak` emits
+      // (same two facts — how much left, what remains), marked `burst` so
+      // playback can say "spent" rather than "shattered" and can read the
+      // side/unit as the CASTER.
+      ctx.events.push({ turn: ctx.state.turn, kind: 'shieldBroken', side: caster.side, unit: caster.index, amount: spent, totalAfter: totalShield(caster), burst: true });
+      break;
+    }
+    case 'taxBonus': {
+      // `per` per WEIGHT-TAXED card on the victim (`taxedCardCount`: every board
+      // piece carrying a splash tax, plus one for a pending unit-scope slow),
+      // CLAMPED at the authored `cap` — the bounded payload is what makes it
+      // priceable, exactly as with `stackBonus`.
+      //
+      // Read AS IT STANDS NOW: taxes this card's own slow/splash lines apply land
+      // later in the cast (`validateSkillContent` enforces that order), so the
+      // backlog it collects on is one somebody else — or an earlier cast — built.
+      if (!enemy.alive) break;
+      const taxed = taxedCardCount(enemy);
+      if (taxed <= 0) break;
+      armTargetBonus(cast, enemy, Math.min(action.per * taxed, action.cap));
       break;
     }
     case 'thorns': {

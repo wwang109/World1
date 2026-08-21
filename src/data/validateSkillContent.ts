@@ -1,4 +1,4 @@
-import { MAX_EXPOSE_PCT, MAX_GUARD_PCT, statusAppliedBy } from '../engine/balance';
+import { MAX_EXPOSE_PCT, MAX_GUARD_PCT, resourceSuppliedBy, riderReadsResource } from '../engine/balance';
 import { MAX_NEGATE_CHARGES, MAX_WARD_CHARGES, type Action, type SkillDef } from '../engine/types';
 
 /**
@@ -138,8 +138,11 @@ const ACTION_FIELDS: Record<string, readonly string[]> = {
   comboBonus: ['amount'],
   exploit: ['status', 'amount'],
   // `cap` is REQUIRED on stackBonus (engine/types.ts) — the payload is
-  // `min(per × stacks, cap)` and only the ceiling is priceable.
+  // `min(per × stacks, cap)` and only the ceiling is priceable. Same for the
+  // other two capped riders below.
   stackBonus: ['status', 'of', 'per', 'cap'],
+  taxBonus: ['per', 'cap'],
+  shieldBurst: ['cap'],
   taunt: ['amount'],
   buffStat: ['stat', 'pct', 'turns'],
   debuffStat: ['stat', 'pct', 'turns'],
@@ -303,6 +306,19 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
       req(raw, 'per', inRange(1, 999), 'an integer 1..999 (a per of 0 is priced for its cap and can never deliver a point)', at, problems);
       req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, because per x stacks is unbounded', at, problems);
       break;
+    /**
+     * TAX BONUS / SHIELD BURST — the other two conditional riders, same floors and
+     * the same REQUIRED cap for the same reason: the payload is
+     * `min(per x taxed cards, cap)` / `min(your shield, cap)`, unbounded in a
+     * resource the card does not own, so only the ceiling is priceable.
+     */
+    case 'taxBonus':
+      req(raw, 'per', inRange(1, 999), 'an integer 1..999 (a per of 0 is priced for its cap and can never deliver a point)', at, problems);
+      req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, because per x taxed cards is unbounded', at, problems);
+      break;
+    case 'shieldBurst':
+      req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, and it is also how much of your own shield is spent', at, problems);
+      break;
     case 'taunt': num('amount'); break;
     case 'buffStat': stat(); pct('pct'); turns('turns'); break;
     case 'debuffStat': stat(); pct('pct'); turns('turns'); break;
@@ -315,18 +331,19 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
  * THE RIDER ORDERING RULE (user-locked 2026-08-21, verbatim: "it should always
  * activate this effect first before activating any poison debuff").
  *
- * `exploit` and `stackBonus` arm a bonus by READING a status that is already
- * there (`cast.bonusByTarget`, combat/interpreter.ts), and only a non-gem
- * `damage` action ever spends it. Two things must therefore hold on the authored
- * effect list, and neither is expressible in the type:
+ * ALL FOUR conditional riders — `exploit`, `stackBonus`, `taxBonus`,
+ * `shieldBurst` — arm a bonus by READING A RESOURCE THAT IS ALREADY THERE
+ * (`cast.bonusByTarget` / `cast.bonusFlat`, combat/interpreter.ts), and only a
+ * non-gem `damage` action ever spends it. Two things must therefore hold on the
+ * authored effect list, and neither is expressible in the type:
  *
  *  1. THE RIDER MUST PRECEDE A DAMAGE ACTION. Behind one — or on a card with no
  *     damage line at all — it arms a bonus nothing can read: a priced no-op,
  *     the exact silent failure `GEM_ACTION_PHASE` (engine/cards.ts) was built to
  *     close for the same keyword family on the gem path.
  *
- *  2. ANY APPLICATION OF THE RIDER'S OWN STATUS MUST COME AFTER THAT DAMAGE.
- *     This is the user's ruling: a card may not satisfy its own condition
+ *  2. ANYTHING THAT SUPPLIES THE RIDER'S OWN RESOURCE MUST COME AFTER THAT
+ *     DAMAGE. This is the user's ruling: a card may not satisfy its own condition
  *     inside one cast. Placed before the damage, a poison+exploit card would
  *     collect its own bonus on its FIRST cast and the cross-cast loop — the
  *     mechanic the card is sold on — would never exist. Placed after, the pile
@@ -334,10 +351,25 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
  *     self-synergy price honest (`selfSynergyPremiumDeci`, engine/balance.ts):
  *     that premium is derived from "guaranteed from the second cast onward".
  *
+ *     THE SAME ANSWER FOR ALL FOUR RESOURCES, deliberately — the alternative was
+ *     considered and rejected (2026-08-21, second rider pass). A `slow`+`taxBonus`
+ *     card is the tempting exception: a slow expires at end of turn, so letting it
+ *     feed the reaper in the SAME cast would be the only way that pairing ever
+ *     reliably pays. But the ruling is about SELF-TRIGGERING, not about how long
+ *     the resource lives — a rider reads what is already there, full stop — and
+ *     carving out one keyword would make the rule un-teachable ("your poison
+ *     doesn't count but your slow does") and the self-synergy premium
+ *     unjustifiable. So slow/splash are ordered exactly like poison/thorns/shield:
+ *     after the hit. A slow+reaper card still self-feeds a SECOND cast in the same
+ *     turn, and a splash+reaper card feeds every later cast until the taxed piece
+ *     is played.
+ *
  * SIDE-AWARE (rule 2): only an application that lands where the rider READS
  * counts. A `stackBonus` with `of: 'caster'` is self-fed by a CASTER-side
  * `thorns` line, never by the poison the same card puts on the enemy — so a
- * poison-before-damage line on a thorns-spender is not a violation.
+ * poison-before-damage line on a thorns-spender is not a violation. Likewise a
+ * `shieldBurst` reads CASTER-side plating (fed by `shield`), a `taxBonus` reads
+ * TARGET-side weight taxes (fed by `slow`/`splash`).
  *
  * Checked against the EFFECTIVE effect list at every tier, exactly like the
  * AoE+splash rule beside it: a tier block that re-authors `effects` can reorder
@@ -348,9 +380,13 @@ function rejectRiderMisordering(effects: unknown, at: string, problems: ContentP
   const actions = effects.filter(isObj);
   for (let r = 0; r < actions.length; r += 1) {
     const rider = actions[r]!;
-    if (rider.kind !== 'exploit' && rider.kind !== 'stackBonus') continue;
-    const status = typeof rider.status === 'string' ? rider.status : '';
-    const reads: 'caster' | 'target' = rider.kind === 'stackBonus' && rider.of === 'caster' ? 'caster' : 'target';
+    // WHAT THIS RIDER READS, from the engine's own lookup — so the authoring rule
+    // and the price can never disagree about which keyword reads (or supplies)
+    // what. A raw JSON object is handed straight to it: the switch is driven by
+    // `kind`, and a malformed rider simply yields a resource nothing matches
+    // (its missing/invalid fields are already reported by `validateAction`).
+    const reads = riderReadsResource(rider as unknown as Action);
+    if (!reads) continue;
     // Rule 1: the first own damage action AFTER the rider is the one it feeds.
     let fed = -1;
     for (let i = r + 1; i < actions.length; i += 1) {
@@ -364,16 +400,16 @@ function rejectRiderMisordering(effects: unknown, at: string, problems: ContentP
       });
       continue;
     }
-    // Rule 2: nothing may apply the status this rider reads until after that hit.
+    // Rule 2: nothing may supply the resource this rider reads until after that hit.
     for (let i = 0; i < actions.length; i += 1) {
       if (i === r || i > fed) continue;
-      const applied = statusAppliedBy(actions[i]! as unknown as Action);
-      if (!applied || applied.status !== status || applied.on !== reads) continue;
+      const applied = resourceSuppliedBy(actions[i]! as unknown as Action);
+      if (!applied || applied.resource !== reads.resource || applied.on !== reads.on) continue;
       problems.push({
         where: at,
-        message: 'effects[' + String(i) + '] applies ' + applied.status + ', the same status the ' + String(rider.kind)
+        message: 'effects[' + String(i) + '] supplies ' + applied.resource + ', the same thing the ' + String(rider.kind)
           + ' rider reads, at or before the damage it feeds (effects[' + String(fed) + ']) — a card may never trigger its own '
-          + 'condition within one cast (user-locked 2026-08-21). Move the ' + applied.status + ' line AFTER the damage; '
+          + 'condition within one cast (user-locked 2026-08-21). Move the ' + String(actions[i]!.kind) + ' line AFTER the damage; '
           + 'the payoff is meant to land on the NEXT cast.',
       });
     }
@@ -553,23 +589,45 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
    * upward (see below), so this cannot be dodged by leaving a higher tier
    * unstated.
    */
-  const carriesSplash = (effects: unknown): boolean =>
-    Array.isArray(effects) && effects.some((a) => isObj(a) && a.kind === 'splash');
-  const rejectAoeSplash = (scope: unknown, effects: unknown, at: string): void => {
-    if (scope === 'all' && carriesSplash(effects)) {
+  /**
+   * ...AND THE SAME REFUSAL FOR `shieldBurst` (2026-08-21), on the same grounds
+   * one scope down. A burst spends the caster's OWN wall, so it resolves on the
+   * caster and runs ONCE per cast (`isOffensiveAction`) — but the flat bonus it
+   * arms is `cast.bonusFlat`, which EVERY foe of an AoE damage action reads. One
+   * wall, spent once, delivered five times, priced once (a supportive keyword pays
+   * no `PRICE.aoeTargetsNum/Den` reach multiplier). Refused rather than priced,
+   * exactly like splash: the keyword's identity is "convert your plating into THE
+   * hit", and pricing a shape the design forbids would invite it to ship.
+   *
+   * (The gem path is closed differently for this one: no gem carries `shieldBurst`
+   * and a test pins that, because a gem one would need THE SPLASH GATE's
+   * treatment in `spliceGemActions` — see `GEM_ACTION_PHASE`'s entry in cards.ts.)
+   */
+  // A LIST, walked by index — one problem message per offending kind, in a
+  // source-fixed order, so the reported problems of a card carrying both are
+  // stable rather than object-key-order dependent.
+  const UNIT_SCOPED_KINDS: readonly { kind: string; why: string }[] = [
+    { kind: 'splash', why: 'splash is single-target at the UNIT level (it spreads across ONE victim\'s board, not across a team)' },
+    { kind: 'shieldBurst', why: 'a shieldBurst spends ONE wall ONCE, and an AoE hit would hand that same bonus to every foe at a single-target price' },
+  ];
+  const rejectAoeUnitScoped = (scope: unknown, effects: unknown, at: string): void => {
+    if (scope !== 'all' || !Array.isArray(effects)) return;
+    for (let i = 0; i < UNIT_SCOPED_KINDS.length; i += 1) {
+      const { kind, why } = UNIT_SCOPED_KINDS[i]!;
+      if (!effects.some((a) => isObj(a) && a.kind === kind)) continue;
       problems.push({
         where: at,
-        message: 'scope: all cannot be combined with a splash action — splash is single-target at the UNIT level '
-          + '(it spreads across ONE victim\'s board, not across a team). Drop the splash, or drop the AoE scope.',
+        message: 'scope: all cannot be combined with a ' + kind + ' action — ' + why
+          + '. Drop the ' + kind + ', or drop the AoE scope.',
       });
     }
   };
-  rejectAoeSplash(raw.scope, raw.effects, where);
+  rejectAoeUnitScoped(raw.scope, raw.effects, where);
   rejectRiderMisordering(raw.effects, where, problems);
   if (isObj(raw.tierUpgrades)) {
     for (const [tier, up] of Object.entries(raw.tierUpgrades)) {
       if (!isObj(up)) continue;
-      rejectAoeSplash(up.scope ?? raw.scope, up.effects ?? raw.effects, where + '.tierUpgrades.' + tier);
+      rejectAoeUnitScoped(up.scope ?? raw.scope, up.effects ?? raw.effects, where + '.tierUpgrades.' + tier);
       rejectRiderMisordering(up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
     }
   }

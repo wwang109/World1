@@ -228,6 +228,37 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     exploit: { isHit: false, scalable: false, family: 'empower', offensive: true, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: P.conditionalBonusDen }] },
     stackBonus: { isHit: false, scalable: false, family: 'empower', offensive: true, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
 
+    // TAX BONUS — the third reader in the family, and priced identically: its
+    // `cap` at the card's own damage rate over the conditional discount. What it
+    // reads is the victim's TEMPO BACKLOG (splash-taxed pieces + a pending slow,
+    // `taxedCardCount`) rather than an affliction pile, but the shape is the
+    // same — a bounded flat add behind a gate the card cannot supply on its own,
+    // so `per` is unpriced and the ceiling is the priced thing (`stackBonus`'s
+    // rule; a huge `per` merely degenerates the rider into "+cap if taxed at
+    // all"). `offensive: true`, `family: 'empower'`, `isHit: false` for exactly
+    // the reasons spelled out above.
+    taxBonus: { isHit: false, scalable: false, family: 'empower', offensive: true, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
+
+    // SHIELD BURST — the family's SPENDER: it converts up to `cap` points of the
+    // caster's OWN shield into flat bonus damage on this cast's hit, and the
+    // points are gone. Priced at the same conditional discount on `cap`, which is
+    // deliberately CONSERVATIVE (over-, never under-priced) on two counts:
+    //  • the gate is "you are holding plating", which — like an exploit's poison
+    //    — another card has to supply (and a kit that supplies it itself forfeits
+    //    the discount, `selfSynergyPremiumDeci`);
+    //  • unlike every other rider here it also COSTS the holder the wall it
+    //    reads, so its true worth is strictly below a free conditional bonus of
+    //    the same size. Charging the same rate is the safe direction (the stance
+    //    `PRICE.aoeTargetsNum/Den` takes with its own ceiling).
+    // `offensive: FALSE` — the odd one out in this block, mirroring
+    // `isOffensiveAction`: the resource is the caster's own, so it resolves on the
+    // caster and runs once. That means no AoE reach multiplier, which is exactly
+    // why an authored `scope: 'all'` + `shieldBurst` card is REFUSED by
+    // `validateSkillContent` (one wall spent once must not be delivered five
+    // times at a single-target price) — the same refuse-rather-than-price call
+    // `splash` makes just above.
+    shieldBurst: { isHit: false, scalable: false, family: 'empower', offensive: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: P.conditionalBonusDen }] },
+
     // PRICED (balance-designer pass, 2026-08-18) — closes the last KNOWN
     // SILENT ZERO: `taunt` had an interpreter implementation and no rate.
     // Empower family (self-only, no foe target) alongside its nearest

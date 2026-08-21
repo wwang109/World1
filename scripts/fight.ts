@@ -312,7 +312,14 @@ for (const e of events) {
       console.log(`${t} │  ${tag(e.side, e.unit)} disrupted −${e.amount} bank -> ${e.bankAfter}`);
       break;
     case 'shieldBroken':
-      console.log(`${t} │  ${tag(e.side, e.unit)} shield shattered −${e.amount} -> ${e.totalAfter}`);
+      // `burst: true` means the unit SPENT ITS OWN plating as damage
+      // (`shieldBurst`) rather than having it shattered by a foe's `shieldBreak`
+      // — same two numbers, opposite owner, so the line says which.
+      console.log(
+        e.burst
+          ? `${t} │  ${tag(e.side, e.unit)} spends its own shield −${e.amount} -> ${e.totalAfter} (burst into the hit)`
+          : `${t} │  ${tag(e.side, e.unit)} shield shattered −${e.amount} -> ${e.totalAfter}`,
+      );
       break;
     case 'warded':
       console.log(`${t} │  ${tag(e.side, e.unit)} ward prevented ${e.status} -> ${e.chargesLeft} charge${e.chargesLeft === 1 ? '' : 's'} left`);

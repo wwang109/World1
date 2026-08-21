@@ -298,6 +298,22 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
    */
   exploit: 'pre',
   stackBonus: 'pre',
+  taxBonus: 'pre',
+  /**
+   * Same seam, same reason, one extra wrinkle: `shieldBurst` arms the SCALAR
+   * `cast.bonusFlat` (it spends the caster's own wall, so it resolves once on the
+   * caster) and would be a pure no-op appended last — it would drain the shield
+   * with no damage action left to spend it on, i.e. strictly WORSE than doing
+   * nothing. `pre` also keeps the ordering ruling: it reads the plating that was
+   * already there, ahead of any `shield` line the host card grants itself.
+   *
+   * NO SHIPPED GEM CARRIES IT (pinned by test): a gem `shieldBurst` on an AoE
+   * host would deliver one spent wall to every foe at a host-blind single-target
+   * price, which is the same hole THE SPLASH GATE (`spliceGemActions` below)
+   * exists to close — so authoring one means extending that gate, not just
+   * adding a row here.
+   */
+  shieldBurst: 'pre',
   /** Strips plating so the host's hit lands on HP, not on a shield. */
   shieldBreak: 'pre',
   // --- Runs AFTER, because it READS what the cast already did. ---

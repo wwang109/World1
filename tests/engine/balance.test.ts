@@ -712,6 +712,14 @@ describe('AoE reach pricing (scope: all)', () => {
       // KIND — including `stackBonus` with `of: 'caster'` — for exactly that
       // reason, so this pin stays kind-for-kind.
       'exploit', 'stackBonus',
+      // 2026-08-21 (second rider pass): `taxBonus` reads the VICTIM's board (how
+      // many of its cards carry a weight tax) and arms per victim, so it joins
+      // them. `shieldBurst` deliberately does NOT: the resource it reads and
+      // SPENDS is the caster's own plating, so it resolves on the caster and runs
+      // once — `isOffensiveAction` returns false for it, and an authored AoE +
+      // shieldBurst card is refused by `validateSkillContent` rather than priced
+      // at a reach multiplier it would not pay.
+      'taxBonus',
     ]));
   });
 });

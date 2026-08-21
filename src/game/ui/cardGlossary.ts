@@ -302,6 +302,20 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
         title: 'Stack bonus',
         body: `+${action.per} damage per ${STATUS_NAME[action.status]} stack ${action.of === 'caster' ? 'you are holding' : 'on the target'}, up to +${action.cap}. Counted before this card applies anything — stacks added by this cast pay off on the NEXT one, and the stacks are not consumed.`,
       };
+    // The other two riders of the same family. Same rule stated the same way (the
+    // resource is read BEFORE this card adds any of its own), plus the one fact
+    // each that is unique: a burst SPENDS the shield it reads, and a tax bonus
+    // counts a backlog that partly expires at end of turn.
+    case 'shieldBurst':
+      return {
+        title: 'Shield burst',
+        body: `Shatters up to ${action.cap} of YOUR OWN shield and adds exactly that much damage to this hit — the shield is gone, physical pool first, then magical, then TRUE. Counted before this card grants anything, so shield from this same cast pays off on your NEXT one.`,
+      };
+    case 'taxBonus':
+      return {
+        title: 'Tempo toll',
+        body: `+${action.per} damage per weight-taxed card on the target — every card carrying a splash tax, plus one if the unit itself is slowed — up to +${action.cap}. Counted before this card taxes anything, and a slow only lasts the turn it landed on, so tax them FIRST, then collect.`,
+      };
     case 'heal':
       return property === 'true'
         ? { title: 'TRUE heal', body: 'Flat — no stat added.' }

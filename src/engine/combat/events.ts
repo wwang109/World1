@@ -388,7 +388,20 @@ export type CombatEvent =
       /** @deprecated compatibility alias for the pre-readiness UI. */
       bankAfter: number;
     }
-  | { turn: number; kind: 'shieldBroken'; side: Side; unit: number; amount: number; totalAfter: number }
+  /**
+   * Plating LEFT a unit outside of blocking a hit: an enemy `shieldBreak` stripped
+   * it, or — with `burst: true` — the unit SPENT ITS OWN as damage
+   * (`shieldBurst`). One event either way, because playback needs exactly the same
+   * two facts in both cases: how much left the pools, and what the total is now.
+   *
+   * `burst` is OPTIONAL AND ONLY EVER `true`: absent means the historical
+   * shattered-by-a-foe case, so every log captured before `shieldBurst` existed
+   * stays byte-identical and assignable. Renderers that ignore it still show the
+   * right number on the right unit; ones that read it can say "spent" instead of
+   * "shattered" (and note the `side`/`unit` is the CASTER on a burst, not a
+   * victim).
+   */
+  | { turn: number; kind: 'shieldBroken'; side: Side; unit: number; amount: number; totalAfter: number; burst?: true }
   /** A Magical Negate charge nullified a direct skill hit on `side`. */
   | { turn: number; kind: 'negated'; side: Side; unit: number; property: Property }
   /**
