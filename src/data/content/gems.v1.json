@@ -96,7 +96,7 @@
           "version": 1,
           "def": {
             "name": "Bramble Sliver",
-            "text": "Apply {{Thorns}} 2 — attackers take the stack count as TRUE damage per hit.",
+            "text": "Apply {{Thorns}} 2 — attackers take the stack count as physical damage per hit (their DEF applies).",
             "notes": [
               "The Thorn Garden gem tier-in: thorns shares poison/burn/bleed's rate",
               "(10 deci/stack via `dotPerStack`), so 2 stacks × 10 deci = 20 deci =",
@@ -863,7 +863,7 @@
           "version": 1,
           "def": {
             "name": "Thornmail Sliver",
-            "text": "Apply {{Thorns}} 4 — attackers take the stack count as TRUE damage per hit.",
+            "text": "Apply {{Thorns}} 4 — attackers take the stack count as physical damage per hit (their DEF applies).",
             "notes": [
               "The Thorn Garden gem, one rarity up from bramble_sliver: 4 stacks × 10",
               "deci = 40 deci = Rare exactly."

@@ -410,8 +410,9 @@ export const enemies: Record<string, EnemyDef> = {
   // THORNBACK: the roster's thorns+shield beast — "punishes fast
   // attackers" because thorns fires once per LANDED DIRECT HIT, so a
   // multi-hit/fast-swinging board pays its stack count back over and over
-  // in TRUE damage while Thornback just sits behind Bulwark Thicket's 56
-  // shield. Savage Bite is the only offense on the board — this monster's
+  // in physical damage (their own armor applies) while Thornback just sits
+  // behind Bulwark Thicket's 56 shield. Savage Bite is the only offense on
+  // the board — this monster's
   // real damage is the counter-punch, not its own swing. Distinct from
   // Stone Beetle (shield, but zero thorns) and from Iron Maiden/Bulwark
   // Thicket's other card-level owners (Berserker, none currently on this

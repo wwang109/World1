@@ -183,7 +183,7 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
     case 'thorns':
       return {
         title: 'Thorns',
-        body: `Grants ${action.stacks} thorn stacks. Each direct hit you take stings the attacker for the current stack count as TRUE damage, then the pile shrinks by 1. DoT ticks don't trigger it.`,
+        body: `Grants ${action.stacks} thorn stacks. Each direct hit you take stings the attacker for the current stack count as physical damage — their armor reduces it (min 1), and their physical guards/shields apply — then the pile shrinks by 1. DoT ticks don't trigger it.`,
       };
     case 'poison':
       // Re-derives the poison decaying-total triangular sum (`N(N+1)/2` — the

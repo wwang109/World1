@@ -491,7 +491,7 @@
      "version": 1,
      "def": {
       "name": "Bramble Ward",
-      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Gain 10 (+DEF) physical shield.",
+      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 10 (+DEF) physical shield.",
       "archetypes": [
        "defensive"
       ],
@@ -521,7 +521,7 @@
      "version": 1,
      "def": {
       "name": "Bramblewrath",
-      "text": "{{Thorns}} 20 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Deal 56 (+ATK) Lance damage.",
+      "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Deal 56 (+ATK) Lance damage.",
       "notes": [
        "thorns AT the size-3 empower cap (200 deci = 20 stacks) + damage sink",
        "56 (280 raw = 56*5): 200 + 280 = 480 raw - 380 (size-3 grant) = 100 =",
@@ -575,7 +575,7 @@
           "turns": 1
          }
         ],
-        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Deal 94 (+ATK) Lance damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
+        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Deal 94 (+ATK) Lance damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
        },
        "diamond": {
         "effects": [
@@ -592,7 +592,7 @@
           "turns": 1
          }
         ],
-        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Deal 122 (+ATK) Lance damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
+        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Deal 122 (+ATK) Lance damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
        }
       }
      }
@@ -760,7 +760,7 @@
      "version": 1,
      "def": {
       "name": "Cinder Skin",
-      "text": "{{Thorns}} 6 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -20% incoming magical damage (2 turns).",
+      "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming magical damage (2 turns).",
       "notes": [
        "Same CAP-HIT shape as Retaliation Stance (thorns + guard, both frozen",
        "empower, 60 + 40 = 100 = Bronze exactly) \\u2014 magical/Fire twin, magical",
@@ -804,7 +804,7 @@
           "power": 10
          }
         ],
-        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -20% incoming magical damage (2 turns) \u00b7 Gain 10 (+MDEF) magical shield."
+        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming magical damage (2 turns) \u00b7 Gain 10 (+MDEF) magical shield."
        },
        "gold": {
         "effects": [
@@ -823,7 +823,7 @@
           "power": 20
          }
         ],
-        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -20% incoming magical damage (2 turns) \u00b7 Gain 20 (+MDEF) magical shield."
+        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming magical damage (2 turns) \u00b7 Gain 20 (+MDEF) magical shield."
        },
        "diamond": {
         "effects": [
@@ -842,7 +842,7 @@
           "power": 30
          }
         ],
-        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -20% incoming magical damage (2 turns) \u00b7 Gain 30 (+MDEF) magical shield."
+        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming magical damage (2 turns) \u00b7 Gain 30 (+MDEF) magical shield."
        }
       }
      }
@@ -1966,7 +1966,7 @@
      "version": 1,
      "def": {
       "name": "Iron Maiden",
-      "text": "{{Thorns}} 15 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Gain 18 (+DEF) physical shield.",
+      "text": "{{Thorns}} 15 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 18 (+DEF) physical shield.",
       "notes": [
        "thorns AT the size-2 empower cap (150 deci = 15 stacks, 10 deci/stack)",
        "+ shield sink 18 (90 raw = 18*5): 150 + 90 = 240 raw - 140 (size-2",
@@ -2328,7 +2328,7 @@
      "version": 1,
      "def": {
       "name": "Nettle Lash",
-      "text": "Deal 10 (+ATK) Beast damage \u00b7 {{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit.",
+      "text": "Deal 10 (+ATK) Beast damage \u00b7 {{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies).",
       "archetypes": [
        "offense",
        "defensive"
@@ -2793,7 +2793,7 @@
      "version": 1,
      "def": {
       "name": "Retaliation Stance",
-      "text": "{{Thorns}} 6 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -20% incoming physical damage (2 turns).",
+      "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming physical damage (2 turns).",
       "notes": [
        "thorns + guard are BOTH frozen empower members with no scalable sink",
        "between them \\u2014 combined they exactly fill the size-1 empower cap (60 +",
@@ -2841,7 +2841,7 @@
           "power": 10
          }
         ],
-        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 10 (+DEF) physical shield."
+        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 10 (+DEF) physical shield."
        },
        "gold": {
         "effects": [
@@ -2860,7 +2860,7 @@
           "power": 20
          }
         ],
-        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 20 (+DEF) physical shield."
+        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 20 (+DEF) physical shield."
        },
        "diamond": {
         "effects": [
@@ -2879,7 +2879,7 @@
           "power": 30
          }
         ],
-        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 30 (+DEF) physical shield."
+        "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 30 (+DEF) physical shield."
        }
       }
      }
@@ -4944,7 +4944,7 @@
      "version": 1,
      "def": {
       "name": "Sanctum Thorn",
-      "text": "{{Ward}} 2 \u2014 prevent the next 2 ailments outright \u00b7 {{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Restore 18 (+DEF) HP.",
+      "text": "{{Ward}} 2 \u2014 prevent the next 2 ailments outright \u00b7 {{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Restore 18 (+DEF) HP.",
       "notes": [
        "THE heal -> ward -> thorns CHAIN CARD (2026-08-18 hybrid pass): all three keywords",
        "of the requested chain on one card. ward 2 (100) + thorns 5 (50) = 150 =",
@@ -4991,7 +4991,7 @@
      "version": 1,
      "def": {
       "name": "Bramblemend",
-      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Restore 10 (+DEF) HP.",
+      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Restore 10 (+DEF) HP.",
       "notes": [
        "heal+thorns hybrid (2026-08-18): \"you soak, you heal back, they bleed",
        "on you\" without ward yet. thorns 5 (50, frozen) + heal 10 (50) = 100 =",
@@ -5041,7 +5041,7 @@
           "power": 20
          }
         ],
-        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 {{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Restore 20 (+DEF) HP."
+        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 {{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Restore 20 (+DEF) HP."
        },
        "diamond": {
         "effects": [
@@ -5058,7 +5058,7 @@
           "power": 30
          }
         ],
-        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 {{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Restore 30 (+DEF) HP."
+        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 {{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Restore 30 (+DEF) HP."
        }
       }
      }
@@ -5110,7 +5110,7 @@
      "version": 1,
      "def": {
       "name": "Bulwark Thicket",
-      "text": "{{Thorns}} 20 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Gain 56 (+DEF) physical shield.",
+      "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 56 (+DEF) physical shield.",
       "notes": [
        "shield+thorns deepening, SIZE-3 (the heavy slot): `reflectThorns` fires",
        "on a hit REGARDLESS of whether a shield absorbed it, so this is a",
@@ -5162,7 +5162,7 @@
           "power": 94
          }
         ],
-        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Remove up to 4 of your ailments \u00b7 Gain 94 (+DEF) physical shield."
+        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Remove up to 4 of your ailments \u00b7 Gain 94 (+DEF) physical shield."
        },
        "diamond": {
         "effects": [
@@ -5179,7 +5179,7 @@
           "power": 112
          }
         ],
-        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 Remove up to 6 of your ailments \u00b7 Gain 112 (+DEF) physical shield."
+        "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Remove up to 6 of your ailments \u00b7 Gain 112 (+DEF) physical shield."
        }
       }
      }
@@ -5391,7 +5391,7 @@
      "version": 1,
      "def": {
       "name": "Thorn Shackle",
-      "text": "{{Thorns}} 14 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -50% enemy DEF (2 turns).",
+      "text": "{{Thorns}} 14 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -50% enemy DEF (2 turns).",
       "notes": [
        "thorns+debuffStat: a new pairing for the Thorn Garden (every other",
        "thorns card pairs with shield/guard/damage). Both frozen (empower +",
@@ -5441,7 +5441,7 @@
           "power": 16
          }
         ],
-        "text": "{{Thorns}} 14 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 16 (+DEF) physical shield."
+        "text": "{{Thorns}} 14 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 16 (+DEF) physical shield."
        },
        "gold": {
         "effects": [
@@ -5460,7 +5460,7 @@
           "power": 34
          }
         ],
-        "text": "{{Thorns}} 14 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 34 (+DEF) physical shield."
+        "text": "{{Thorns}} 14 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 34 (+DEF) physical shield."
        },
        "diamond": {
         "effects": [
@@ -5479,7 +5479,7 @@
           "power": 50
          }
         ],
-        "text": "{{Thorns}} 14 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 50 (+DEF) physical shield."
+        "text": "{{Thorns}} 14 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 50 (+DEF) physical shield."
        }
       }
      }
@@ -6435,7 +6435,7 @@
      "version": 1,
      "def": {
       "name": "Nettle Ward",
-      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 {{Poison}} 5 (poison bypasses shields).",
+      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 {{Poison}} 5 (poison bypasses shields).",
       "notes": [
        "poison lane depth pass (2026-08-19, issue #51): the second genuinely NEW",
        "pairing \u2014 poison+thorns, contact venom that lashes back at attackers.",
@@ -6484,7 +6484,7 @@
           "stacks": 10
          }
         ],
-        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 {{Poison}} 10 (poison bypasses shields)."
+        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 {{Poison}} 10 (poison bypasses shields)."
        },
        "gold": {
         "effects": [
@@ -6497,7 +6497,7 @@
           "stacks": 15
          }
         ],
-        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 {{Poison}} 15 (poison bypasses shields)."
+        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 {{Poison}} 15 (poison bypasses shields)."
        },
        "diamond": {
         "effects": [
@@ -6510,7 +6510,7 @@
           "stacks": 20
          }
         ],
-        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as TRUE damage per hit \u00b7 {{Poison}} 20 (poison bypasses shields)."
+        "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 {{Poison}} 20 (poison bypasses shields)."
        }
       }
      }
