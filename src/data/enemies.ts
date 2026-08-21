@@ -22,6 +22,25 @@ import type { EnemyDef } from '../engine/types';
 // floor still has a small 2-3 card board and the universal statline; its
 // intended extra difficulty comes from Title + depth-scaling, not from
 // hand-inflated numbers here.
+//
+// LEGACY ROSTER REFRESH (2026-08-21, content-designer): the pre-2026-08-19
+// roster (`giant_rat` through `cleric`) predates that date's ~35-card
+// keyword-family/rider batch (ward/thorns/bleed/poison hybrids, heavy stat
+// debuffs, the burden+splash family, the dulling_hex/sapping_arc curse pair,
+// the 8 rider payoff cards) and had never fielded any of it. This pass
+// enhances 8 of the 13 legacy kits with a genuinely-fitting new card each —
+// SWAPS on any board already at 3 pieces (the roster-wide worst-case deck
+// size, `REFERENCE_ENEMY_DECK_SIZE` in `src/run/encounter.ts` — an ADD there
+// would silently raise that pack-budget constant), plain ADDS on the two
+// boards still at 2 pieces (`stone_beetle`, `necromancer`) since that only
+// brings them up TO the existing worst case, never past it. `giant_rat`,
+// `ember_imp`, `seraph`, `knight` and `mage` are DELIBERATELY untouched — see
+// their own standing comments: each has an established identity (thief
+// minimalism, DoT-forward glass caster, the roster's only negate/support
+// caster, block-buff-parry, pure MATK glass cannon) that no unused catalog
+// card improves without cannibalizing a documented trait. See each edited
+// enemy's own "LEGACY REFRESH" comment below for its specific rationale, and
+// docs/enemy-design.md for the goldReward before/after table.
 export const enemies: Record<string, EnemyDef> = {
   // --- Basic floor: 2-3 Bronze cards, one mechanic each. ---
   // THIEF read (2026-08-18 theme pass): the roster's fastest, lightest board
@@ -52,19 +71,33 @@ export const enemies: Record<string, EnemyDef> = {
   // Mage, Necromancer, Cleric) already uses, just without a weapon leg. No
   // pieces changed: still the roster's armored tank (shield + a bite), now
   // read as a Warden rather than a mislabeled Beast-weapon user.
+  //
+  // LEGACY REFRESH (2026-08-21, content-designer): adds Barbed Rampart — a
+  // beast bleed+guard+chip hybrid (`weapon: 'beast'`, matching Savage Bite's
+  // own leg) that layers a SECOND defensive tool (-20% incoming physical, 2
+  // turns) on top of Iron Bulwark's flat shield, and opens the roster's
+  // FIRST bleed application on an armored tank — the beetle now punishes a
+  // slow grind (bleed ticks on the attacker's own turn) as well as simply
+  // absorbing hits. `pieces.length` goes 2 -> 3, still at the roster-wide
+  // worst-case deck size (3, see `REFERENCE_ENEMY_DECK_SIZE` in
+  // `src/run/encounter.ts`) so the pack-budget model is untouched. Bronze
+  // card added at its own audited budget, no hand-tuning; goldReward bumped
+  // 15 -> 17 for the added board strength (see docs/enemy-design.md's
+  // before/after table).
   stone_beetle: {
     id: 'stone_beetle',
     name: 'Stone Beetle',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     elementAffinity: 'nature',
-    boardSize: 3,
+    boardSize: 4,
     pieces: [
       { skillId: 'iron_bulwark', slot: 0 },
       { skillId: 'savage_bite', slot: 2 },
+      { skillId: 'barbed_rampart', slot: 3 },
     ],
-    goldReward: 15,
-    xpReward: 10,
+    goldReward: 17,
+    xpReward: 11,
   },
   // DoT-forward re-kit (2026-08-18): every card on this board applies burn
   // alongside modest direct damage — no pure-damage filler at all (the old
@@ -94,6 +127,25 @@ export const enemies: Record<string, EnemyDef> = {
   // Adds Bramble Ward (thorns + a small physical shield) — a duelist who
   // parries as well as swings, and the roster's 3rd shielded enemy (up from
   // 2), widening the `shieldBreak` / bleed-through-shield target set.
+  //
+  // LEGACY REFRESH (2026-08-21, content-designer): CONSIDERED AND REJECTED a
+  // Sword Slash -> Twin Slash swap (same weapon/size, would have primed
+  // Follow Through's own "+20 if previous cast was Offense" bonus every
+  // cast). Measured first: Twin Slash's audited Bronze price banks its
+  // budget in the `extraHitPremium` (2 hits x 6 base + premium + a lighter
+  // weight), not in flat power — its total FLAT base is 12 against Sword
+  // Slash's 20, a real (not just armor-mitigation) damage cut the "total
+  // stat contribution is hit-count-invariant" rule does NOT offset (ATK is
+  // 1 at the floor, so the stat term is negligible either way). Against the
+  // default drafted-starter hero board this specific matchup is a genuine
+  // knife-edge (the ONLY legacy fight that board loses at all), and the
+  // swap flipped it from loss to win on EVERY ONE of 300 sampled seeds — not
+  // emergent noise (CLAUDE.md's "PL is the balance unit, not winrate" is
+  // about not chasing a winrate on an honestly-priced kit; this is the
+  // opposite case, a real flat-damage cut this fight cannot absorb). Left
+  // UNCHANGED rather than risk it: no other unused sword card both fits
+  // "parries as well as swings" and preserves Sword Slash's flat 20. See
+  // docs/enemy-design.md for the measured before/after.
   bandit_duelist: {
     id: 'bandit_duelist',
     name: 'Bandit Duelist',
@@ -115,6 +167,17 @@ export const enemies: Record<string, EnemyDef> = {
   // wall — a bow counter-pick is the intended way in via the weapon
   // triangle. Its "boss" difficulty is future depth-scaling, not baked in
   // here. ---
+  //
+  // LEGACY REFRESH (2026-08-21, content-designer): SWAPS Savage Bite for
+  // Nettle Lash — same weapon (beast), same size-1 Bronze slot,
+  // `pieces.length` untouched (3). The Wolf King already carried poison
+  // (Venom Fang) and lifesteal (Leeching Fang); Nettle Lash's Thorns 5 adds a
+  // THIRD distinct mechanic — a counter-punch — so the alpha now punishes
+  // whoever keeps swinging on it, not just whoever it swings on. Trades a
+  // flat 20 (+ATK) hit for a smaller 10 (+ATK) hit plus a standing thorns
+  // stack: roughly power-neutral (both Bronze), shifted from all-offense to
+  // offense-plus-a-passive-punish — goldReward unchanged (60, the roster's
+  // top rung; see docs/enemy-design.md's before/after table).
   wolf_king: {
     id: 'wolf_king',
     name: 'The Wolf King',
@@ -124,7 +187,7 @@ export const enemies: Record<string, EnemyDef> = {
     weaponAffinity: 'beast',
     boardSize: 3,
     pieces: [
-      { skillId: 'savage_bite', slot: 0 },
+      { skillId: 'nettle_lash', slot: 0 },
       { skillId: 'venom_fang', slot: 1 },
       { skillId: 'leeching_fang', slot: 2 },
     ],
@@ -209,6 +272,18 @@ export const enemies: Record<string, EnemyDef> = {
   // Adds Piercing Arrow — a bow card carrying `expose` (+damage from all
   // direct hits), rounding Hunter out into a marksman who softens armor
   // ahead of its follow-up shots.
+  //
+  // LEGACY REFRESH (2026-08-21, content-designer): SWAPS Hunter's Shot for
+  // Rapid Volley — same weapon (bow), same size-1 Bronze slot,
+  // `pieces.length` untouched (3). Hunter's Shot's "Strong vs Beasts" line
+  // was flavor text only (no coded weapon-triangle bonus on the card itself
+  // — checked against its resolved effects, a flat `damage` action), so
+  // nothing mechanical is lost. Rapid Volley (10 (+ATK) Bow damage, twice)
+  // reads as the marksman finally unloading after debilitating its target —
+  // Concussive Shot disrupts, Piercing Arrow exposes armor, Rapid Volley
+  // perforates it. Multi-hit eats mitigation once per hit, so this is a
+  // slightly worse matchup into armor than the flat single shot it replaces
+  // — goldReward unchanged (see docs/enemy-design.md's before/after table).
   hunter: {
     id: 'hunter',
     name: 'Hunter',
@@ -217,7 +292,7 @@ export const enemies: Record<string, EnemyDef> = {
     weaponAffinity: 'bow',
     boardSize: 3,
     pieces: [
-      { skillId: 'hunter_shot', slot: 0 },
+      { skillId: 'rapid_volley', slot: 0 },
       { skillId: 'concussive_shot', slot: 1 },
       { skillId: 'piercing_arrow', slot: 2 },
     ],
@@ -235,6 +310,20 @@ export const enemies: Record<string, EnemyDef> = {
   // Strike cripples the follow-up, Hamstring holds the enemy at bay with
   // `slow` — the id stays `rogue` (referenced by MONSTER_PROFILES/save data),
   // only the display name and kit change.
+  //
+  // LEGACY REFRESH (2026-08-21, content-designer): SWAPS Lance Thrust for
+  // Piercing Reach — same weapon (lance), same size-1 Bronze slot,
+  // `pieces.length` untouched (3). "Reach and thrust" was previously carried
+  // entirely by the NAME (Lance Thrust was a plain hit, no reach mechanic on
+  // it); Piercing Reach (`shieldBreak` 16, then 16 (+ATK) Lance damage) makes
+  // the reach LITERAL — it cracks a banked shield at range before the thrust
+  // ever lands, then Crippling Strike cripples the follow-up and Hamstring's
+  // `slow` holds the target at bay. Distinct from Warbreaker (axe,
+  // `shieldBreak` as a tempo-denial FOLLOW-UP after a burden) and Bleed
+  // Reaver (axe, `shieldBreak` opening a bleed) — Lancer's is the roster's
+  // only LANCE `shieldBreak`, and its own opener rather than a combo payoff.
+  // Against a shieldless target this is a smaller hit (16 vs 20, +ATK) —
+  // goldReward unchanged (see docs/enemy-design.md's before/after table).
   rogue: {
     id: 'rogue',
     name: 'Lancer',
@@ -243,7 +332,7 @@ export const enemies: Record<string, EnemyDef> = {
     weaponAffinity: 'lance',
     boardSize: 4,
     pieces: [
-      { skillId: 'lance_thrust', slot: 0 },
+      { skillId: 'piercing_reach', slot: 0 },
       { skillId: 'crippling_strike', slot: 1 },
       { skillId: 'hamstring', slot: 3 },
     ],
@@ -258,6 +347,19 @@ export const enemies: Record<string, EnemyDef> = {
   // Maiden is itself a size-2, naturally-heavy card; zero speed-weighted
   // profile spend, see MONSTER_PROFILES) — and picks up the roster's 4th
   // shielded enemy, the slot Knight's Iron Bulwark vacated above.
+  //
+  // LEGACY REFRESH (2026-08-21, content-designer): SWAPS Stunning Smash for
+  // Cornered Beast — same weapon (axe), same size-1 Bronze slot,
+  // `pieces.length` untouched (3, boardSize unchanged at 6 since both are
+  // size-1). "Hits harder when hurt" is the literal berserker mechanic
+  // (Deal 14 (+ATK) Axe damage, +12 more at or below half HP) — a much
+  // tighter fit for "heavy, slow, hits hard" than a generic stun was, and it
+  // reads as the brute's own rage: the LOWER it gets, the HARDER its axe
+  // swings, on top of Crushing Blow's flat 96 (+ATK) and Iron Maiden's
+  // thorns+shield. Trades the roster's only pure `stun` on this board for a
+  // desperation payoff — Berserker no longer denies a turn outright, but
+  // punishes anyone who lets the fight run long. goldReward unchanged (see
+  // docs/enemy-design.md's before/after table).
   berserker: {
     id: 'berserker',
     name: 'Berserker',
@@ -268,29 +370,56 @@ export const enemies: Record<string, EnemyDef> = {
     pieces: [
       { skillId: 'crushing_blow', slot: 0 },
       { skillId: 'iron_maiden', slot: 3 },
-      { skillId: 'stunning_smash', slot: 5 },
+      { skillId: 'cornered_beast', slot: 5 },
     ],
     goldReward: 24,
     xpReward: 16,
   },
+  // LEGACY REFRESH (2026-08-21, content-designer): ADDS Dulling Hex as a 3rd
+  // piece — a dark curse+damage hybrid (12 (+MATK) Dark damage, then
+  // `Curse`: the enemy's next queued card deals 8 less damage for 2 turns).
+  // Necromancer already debuffs (Hex of Frailty's -50% MDEF) and burns
+  // (Shadow Bolt); Dulling Hex adds the roster's `curse` mechanic — a THIRD,
+  // distinct debuff family — making Necromancer the legacy roster's curse
+  // showcase (the "curse pair" the 2026-08-18b card batch introduced,
+  // Dulling Hex/Sapping Arc, finally gets a caster home for its dark half).
+  // `pieces.length` goes 2 -> 3, still at the roster-wide worst-case deck
+  // size (see `stone_beetle`'s note above and `REFERENCE_ENEMY_DECK_SIZE` in
+  // `src/run/encounter.ts`). Bronze card added at its own audited budget;
+  // goldReward bumped 20 -> 22 for the added board strength (see
+  // docs/enemy-design.md's before/after table).
   necromancer: {
     id: 'necromancer',
     name: 'Necromancer',
     baseDepth: 1,
     stats: { maxHp: 100, hp: 100, attack: 1, magicPower: 1, armor: 1, magicResist: 1, speed: 10 },
     elementAffinity: 'dark',
-    boardSize: 2,
+    boardSize: 3,
     pieces: [
       { skillId: 'hex_of_frailty', slot: 0 },
       { skillId: 'shadow_bolt', slot: 1 },
+      { skillId: 'dulling_hex', slot: 2 },
     ],
-    goldReward: 20,
-    xpReward: 13,
+    goldReward: 22,
+    xpReward: 15,
   },
   // Second Wind (a second, redundant heal alongside Mending Light) swapped
   // for Sanctified Bulwark — `guard` + a small magical shield, the roster's
   // 4th shielded enemy (up from 2) and its only `guard` source. Cleric keeps
   // its Mending Light heal, so the healing archetype identity is unchanged.
+  //
+  // LEGACY REFRESH (2026-08-21, content-designer): SWAPS Purging Strike for
+  // Penitent Mending — same element (holy), same size-1 Bronze slot,
+  // `pieces.length` untouched (3). Purging Strike was a token TRUE-damage
+  // finisher on an otherwise all-support board; Penitent Mending
+  // (`Cleanse` 2, then heal 4 (+MDEF) Holy, +4 more per affliction stack it
+  // actually removed, max +12) is instead the roster's first cleanse card
+  // that scales its OWN payoff with what it strips — a genuine "warden-
+  // healer" answer to the DoT/debuff families rather than a stray attack.
+  // Cleric now has zero direct damage, reading as a pure support/denial
+  // caster alongside Sanctified Bulwark's guard+shield and Mending Light's
+  // heal — goldReward unchanged (see docs/enemy-design.md's before/after
+  // table; the roster still has plenty of other damage-dealing casters).
   cleric: {
     id: 'cleric',
     name: 'Cleric',
@@ -301,7 +430,7 @@ export const enemies: Record<string, EnemyDef> = {
     pieces: [
       { skillId: 'mending_light', slot: 0 },
       { skillId: 'sanctified_bulwark', slot: 2 },
-      { skillId: 'purging_strike', slot: 3 },
+      { skillId: 'penitent_mending', slot: 3 },
     ],
     goldReward: 18,
     xpReward: 12,

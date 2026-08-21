@@ -83,6 +83,17 @@ export const DEFAULT_PROFILE: StatProfile = profile({
  * from the engine 2026-07-23) and are fixed below; every other profile was
  * checked against its declared theme and left unchanged (see
  * docs/enemy-design.md for the per-monster reasoning).
+ *
+ * Legacy refresh check (2026-08-21): `stone_beetle`, `necromancer`,
+ * `berserker`, `wolf_king`, `hunter`, `rogue` and `cleric` each gained or
+ * swapped in a new catalog card (content-designer's same-date pass) — every
+ * one of those cards scales off a stat its enemy's profile ALREADY weights
+ * (physical -> attack for the five weapon-carrying swaps/adds, magical dark
+ * -> magicPower for `necromancer`'s Dulling Hex, holy heal -> magicResist for
+ * `cleric`'s Penitent Mending), so no weight below needed to change. See
+ * docs/enemy-design.md's "Legacy roster refresh" section for the full
+ * per-card reasoning, including the one swap (`bandit_duelist`) that was
+ * measured and reverted rather than shipped.
  */
 export const MONSTER_PROFILES: Record<string, StatProfile> = {
   // --- Basic floor ---
