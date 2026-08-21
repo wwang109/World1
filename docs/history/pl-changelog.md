@@ -220,3 +220,38 @@ without closing the cards.ts→balance.ts import cycle, same tradeoff
 what the gate would actually keep before pricing. Covered for both
 suppression reasons, plus the gate's "keep only the gem's first splash"
 rule on an ordinary host, in `tests/engine/splash.test.ts`.
+
+## 2026-08-21 changelog: the conditional-rider family priced in (`exploit` / `stackBonus` / `shieldBurst` / `taxBonus`)
+
+**Recorded here after landing** (combat-engine-programmer's implementation
+pass; this pass documents it): four new keywords add flat bonus damage to a
+cast's own hit behind a gate — the target already carries a named affliction
+(`exploit`), a stacking pile exists on caster or target (`stackBonus`), the
+caster is holding shield to spend (`shieldBurst`), or the target's board
+carries a weight-tax backlog (`taxBonus`). All four price at the card's own
+`strikeRate` (property-aware flat-damage rate, TRUE premium included) over
+`PRICE.conditionalBonusDen` (2) — the same CONDITIONAL-TRIGGER DISCOUNT
+`comboBonus` established, reproducing its locked 2.5 deci/pt on a typed card.
+`stackBonus`/`shieldBurst`/`taxBonus` price their required `cap` only (`per`
+free, the `statStrike` precedent); `exploit` prices its flat `amount`
+directly. All four sit in the `empower` cap family.
+
+**New rule landing alongside the prices:** `selfSynergyPremiumDeci` forfeits
+the discount (charges the full `strikeRate` instead) when the same kit also
+supplies the resource its own rider reads, matched by resource name AND side.
+This pairs with the **never-self-trigger-in-one-cast ordering ruling**
+(user-locked 2026-08-21, verbatim: "it should always activate this effect
+first before activating any poison debuff") — every rider reads
+PRE-EXISTING state only, so `validateSkillContent` requires the rider before
+the damage it feeds and the card's own resource-supplying action after that
+damage, making a same-cast self-trigger unrepresentable. `shieldBurst`
+additionally pays this same rate as a deliberate OVER-price (it also destroys
+the resource it reads, and its gate is caster-scoped — no AoE reach
+multiplier, and `scope: 'all'` + `shieldBurst` is refused outright rather
+than priced).
+
+Full rationale: the "Conditional-rider family pricing rationale" section of
+`docs/power-level-reference.md`. Source of truth for the rates themselves:
+`keywords/pricing.ts` and `selfSynergyPremiumDeci`/`riderReadsResource` in
+`src/engine/balance.ts`, pinned by `tests/engine/conditionalRiders.test.ts`
+and `tests/engine/resourceRiders.test.ts`.
