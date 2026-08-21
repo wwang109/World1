@@ -250,46 +250,45 @@ tiebreak, drawn from the seeded `Rng` in a fixed call order; canonical iteration
 
 ---
 
-## 8. Typed guard — the pile cap (locked 2026-08-19)
+## 8. Typed guard — stacking is UNBOUNDED (user-locked 2026-08-20)
+
+**User ruling, verbatim:** *"leave guard alone let player build what they want."*
 
 Guard piles COEXIST and compound: a recast opens a second pile, and every
 matching-`property` pile reduces an incoming hit multiplicatively in
 statuses-array order (`dealDamage`, `interpreter.ts`). `MAX_GUARD_PCT` (60,
-`balance.ts`) bounds ONE pile; **`MAX_GUARD_PILES` (3, `src/engine/types.ts`)
-bounds the COUNT of piles of one property on one unit**, enforced at apply time
-in the `guard` arm of `applyAction` — the same kind of hard rules bound as
-`MAX_NEGATE_CHARGES` / `MAX_WARD_CHARGES`, and priced like them: not at all.
+`balance.ts`) bounds ONE pile. **Nothing bounds the COUNT** — not per property,
+not in total. Guard is deliberately unlike `MAX_NEGATE_CHARGES` /
+`MAX_WARD_CHARGES` here: a deep wall is a legal build, and the player is allowed
+to build it. Regression guard: `tests/engine/guardStacking.test.ts`.
 
-**Why:** the count was the free axis. A legal board — 6 physical-guard cards,
-each socketing a `ward_of_silence_echo` gem (a gem's guard splices into the
-host's cast: two piles per cast, zero extra slots, and gem inventory is
-uncapped) — stood **12 simultaneous physical piles** and measured **85–98%
+A `MAX_GUARD_PILES = 3` apply-time cap shipped on 2026-08-19 (commit `7ad0664`,
+with an at-cap strict-dominance replace/absorb rule and a `statusExpired` that
+named the evicted pile) and was **rejected on 2026-08-20**. It, the named-expiry
+event fields, and playback's eviction handling are all gone; `statusExpired`
+again names nothing beyond the status kind, because every guard expiry is now
+natural.
+
+**The measurement that motivated the cap stands as recorded fact** — it was
+true, and it is what an uncapped guard buys. A legal board of 6 physical-guard
+cards, each socketing a `ward_of_silence_echo` gem (a gem's guard splices into
+the host's cast: two piles per cast, zero extra slots, and gem inventory is
+uncapped), stood **12 simultaneous physical piles** and measured **85–98%
 physical mitigation**, winning vs berserker / Sentinel / Wolf King in 5–9 turns;
 the same board without gems (6 piles) loses the Sentinel matchup, so the
-stacking itself was the deciding variable. Three 60% piles still leave a hard
-floor of 6.4% damage through (100 → 40 → 16 → 6): guard mitigates, it never
-grants immunity.
+stacking itself was the deciding variable. Two backstops remain and are the
+reason the ruling is safe enough to live with:
 
-**At the cap** (per unit, per property), an incoming application:
+- the guard loop's **min-1 remaining per pile** floor: however deep the stack, a
+  matching hit always lands for at least 1;
+- **attrition** (`ATTRITION_START_TURN`, `simulate.ts`) deals **TRUE** damage,
+  which no typed guard pile can touch — a pure turtle still dies on the clock.
 
-- **replaces** the WEAKEST pile it STRICTLY dominates (`pct ≥` and `turnsLeft ≥`,
-  strictly greater in at least one) — weakest = lowest pct, ties to
-  soonest-expiring, ties to earliest-applied. The dropped pile emits its own
-  `statusExpired` (carrying `property` + `pct`, the only case where that event
-  names a pile) BEFORE the new `statusApplied`, so a replay never holds four
-  piles. Nothing is lost: the evicted pile was no stronger and no longer, so a
-  full-price card still delivers and the holder's mitigation never gets worse;
-- otherwise is **absorbed**: no pile, no event, nothing spent. That covers both
-  a weaker application (which must not evict a better pile — a self-inflicted
-  downgrade) and an application EQUAL to a standing pile (which must not evict a
-  clone and re-arm the window, or a card whose cadence matches its own duration
-  would hold its piles forever — the hole the expose antichain closed).
-
-This is deliberately `expose`'s domination vocabulary (the other two-axis
-`(pct, turns)` status), compared on raw `turnsLeft`. Below the cap nothing
-changes at all, and nothing shipped reaches it: over 2400 random sweep boards
-the deepest same-property stack observed was 2, so the 400-case regression
-baseline is byte-identical. See `tests/engine/guardPileCap.test.ts`.
+Shipped content does not approach any of this on its own: over 2400 random sweep
+boards the deepest same-property stack observed was 2 (which is also why both
+the introduction and the removal of the cap left the 400-case regression
+baseline byte-identical). The exploitable tail is the gem/multi-copy build, and
+the user chose **freedom over the bound**.
 
 ---
 
