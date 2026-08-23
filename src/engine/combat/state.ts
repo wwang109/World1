@@ -204,6 +204,20 @@ export interface CombatantState {
   nextWeightPenalty: number;
   /** Archetypes of the last card this side cast (for Combo riders). */
   lastCastArchetypes: Archetype[];
+  /**
+   * THE TYPE of this combatant's PREVIOUS resolved cast — its `element ?? weapon`
+   * (`cardType`, ./typeIdentity), the one notion of a card's type the game already
+   * uses for deck affinity. Read by the `chainBonus` keyword, which pays a flat
+   * bonus when the previous cast was of a named type (an axe card after a sword, a
+   * frost card after a fire).
+   *
+   * LAZILY WRITTEN, like `PieceState.lastCastTurn`/`nextWeightPenalty`: a
+   * combatant that has not yet cast, and one whose cards carry no type at all
+   * (only reachable through a bespoke test book), holds no key. `undefined` is
+   * dropped by `JSON.stringify`, which is what keeps an un-cast combatant's shape
+   * identical to what it was before this field existed.
+   */
+  lastCastType?: Element | WeaponType;
   elementAffinity?: Element;
   weaponAffinity?: WeaponType;
   /**

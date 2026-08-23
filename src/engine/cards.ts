@@ -288,6 +288,9 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
   // --- Runs BEFORE the host's effects: it PREPARES the ground for them. ---
   /** Arms `cast.bonusFlat` so the host's damage arm can read it. */
   comboBonus: 'pre',
+  // Same reason as comboBonus: it ARMS the cast's bonus scalar, which only the
+  // host's own `damage` action reads, so it must land ahead of the card.
+  chainBonus: 'pre',
   /**
    * Arms `cast.bonusByTarget` — same seam as `comboBonus`, same failure mode if
    * appended last (no damage action left to read the bonus, so the whole gem

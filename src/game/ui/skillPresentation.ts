@@ -280,6 +280,14 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
       // be live against, so the token always renders in its normal
       // `KEYWORD_TEXT_COLOR.combo` color there — see those call sites.
       case 'comboBonus': extras.push({ text: `COMBO +${action.amount}`, keyword: 'combo' }); break;
+      // CHAIN — the type-axis twin. The badge names the PARTNER TYPE, because
+      // that (not the number) is the thing the player has to plan the board
+      // around: "CHAIN +8 AFTER SWORD" is actionable, a bare "CHAIN +8" is not.
+      // NOT wired to the combo badge's live/greyed-out treatment (CardToken's
+      // `comboLive`, fed by battleTimeline's `isComboLive`): that machinery reads
+      // ARCHETYPES per turn and would need a parallel last-cast-TYPE feed. The
+      // badge is honest as static text meanwhile; the live state is a follow-up.
+      case 'chainBonus': extras.push({ text: `CHAIN +${action.amount} AFTER ${action.after.toUpperCase()}`, keyword: 'chain' }); break;
       // The two CONDITIONAL BONUS-DAMAGE riders (engine/types.ts). Both print
       // the flat number they actually add and the status they key off — no
       // invented noun for the mechanic, and no "x2": the engine adds a FLAT

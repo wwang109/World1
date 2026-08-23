@@ -103,6 +103,10 @@ const defs: ShopTypeDef[] = [
           'weak_point_sliver',
           'exposed_nerve_sliver',
           'raw_nerve_sliver',
+          // ADD (2026-08-21, debuff-affinity pass): opening_sliver READS expose
+          // rather than applying it — the finisher for the very ladder above,
+          // which had four appliers and nothing that cashed them.
+          'opening_sliver',
         ],
       },
     ],
@@ -205,6 +209,9 @@ const defs: ShopTypeDef[] = [
           'millstone_sliver',
           'blunting_sliver',
           'festering_sliver',
+          // ADD (2026-08-21, debuff-affinity pass): the bleed reader, beside the
+          // poison reader it shares a shape with.
+          'bloodscent_sliver',
         ],
       },
     ],

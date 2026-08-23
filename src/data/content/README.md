@@ -150,6 +150,7 @@ field on an action is an error.
 | `curse` | `amount`, `turns` (both required, both >= 1) |
 | `splash` | *(none — the spreader carries no payload)* |
 | `disrupt` `shieldBreak` `comboBonus` `taunt` | `amount` |
+| `chainBonus` | `after` + `amount` |
 | `expose` | `pct`, `turns` |
 | `guard` | `property`, `pct`, `turns` |
 | `negate` | `property`, `charges` |

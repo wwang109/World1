@@ -9,6 +9,7 @@ import { applyCast, dealDamage, targetInfoForCast, type Ctx } from './interprete
 // by the turn loop and the splash keyword. Behaviour is identical to the local
 // copy it replaces.
 import { cursorPiece } from './splash';
+import { cardType } from './typeIdentity';
 
 export interface CombatResult {
   result: CombatOutcome;
@@ -630,6 +631,14 @@ export function simulate(cfg: CombatConfig, seed: number): CombatResult {
         // shape it had before it was ever burdened.
         delete choice.piece.nextWeightPenalty;
         c.lastCastArchetypes = choice.skill.archetypes;
+        // THE PREVIOUS CAST'S TYPE, for `chainBonus` — stamped beside the
+        // archetypes it is the type-axis twin of, from the same resolved skill, so
+        // the two can never disagree about what "the previous cast" was. Only
+        // assigned when the card HAS a type (`cardType` returns undefined for an
+        // untyped card, reachable only via a bespoke test book), which keeps the
+        // key absent rather than set to undefined in that case.
+        const castType = cardType(choice.skill);
+        if (castType !== undefined) c.lastCastType = castType.type;
         playsThisTurn += 1;
         played.add(c);
         const pieces = playedPieces.get(c) ?? new Set<CombatantState['pieces'][number]>();

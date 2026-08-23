@@ -1743,6 +1743,22 @@ function applyAction(
         cast.bonusFlat += action.amount;
       }
       break;
+    // CHAIN BONUS — comboBonus's twin, one field different: it compares the
+    // caster's PREVIOUS cast TYPE (`lastCastType`, stamped from `cardType` in
+    // simulate.ts) against the type this card names, instead of intersecting
+    // archetypes. Same scalar (`cast.bonusFlat`), so the same one-bonus-per-cast
+    // spend rule applies and a card carrying both keywords accumulates them
+    // exactly as two comboBonuses would.
+    //
+    // A caster that has not cast yet holds no `lastCastType`, so the FIRST cast
+    // of a fight never pays out — the same cold start comboBonus has (an empty
+    // `lastCastArchetypes` intersects nothing), and what makes the rider's
+    // conditional discount honest at the front of a fight.
+    case 'chainBonus':
+      if (caster.lastCastType === action.after) {
+        cast.bonusFlat += action.amount;
+      }
+      break;
     case 'exploit': {
       // CONDITION READ AT RIDER TIME, ON PRE-EXISTING STATUS (user-locked
       // 2026-08-21: "it should always activate this effect first before

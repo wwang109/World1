@@ -1428,6 +1428,81 @@
           }
         }
       ]
+    },
+    {
+      "id": "bloodscent_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Bloodscent Sliver",
+            "text": "+8 damage if the target is already {{Bleed}}ing (checked before the card acts).",
+            "notes": [
+              "THE BLEED READER, socketable \u2014 the debuff-affinity family's second gem after",
+              "festering_sliver (poison). Bleed already had a payoff CARD",
+              "(bleed_executioner, a stackBonus that scales with the pile) but nothing that",
+              "could be socketed onto a card of your choosing; this is the flat-bonus form,",
+              "so any damage card can be made to punish a bleeding target.",
+              "FLAT, NOT PER-STACK, deliberately: bleed_executioner already occupies the",
+              "scaling shape (+3/stack, cap 12). A flat +8 reads the same affliction with a",
+              "different curve \u2014 it pays the same on a 1-stack target as on a 9-stack one,",
+              "which makes it the better socket for a deck that applies bleed lightly.",
+              "PRICE: exploit 8 = 20 deci (8 x strikeRate/conditionalBonusDen at",
+              "GEM_CANONICAL_PROPERTY) = Common EXACTLY. Minimal for its band (7 -> 17).",
+              "NOT A TWIN of festering_sliver despite the identical shape and band: the",
+              "fingerprint includes the `status` field, so reading bleed rather than poison is",
+              "a different payload \u2014 and mechanically it keys off a different lane entirely.",
+              "SPLICES `pre` (GEM_ACTION_PHASE), so the bonus is armed before the host's",
+              "damage reads it; inert on a host with no damage line, the shape",
+              "follow_through_echo already has."
+            ],
+            "kind": "effect",
+            "rarity": "common",
+            "actions": [
+              {
+                "kind": "exploit",
+                "status": "bleed",
+                "amount": 8
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "opening_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Opening Sliver",
+            "text": "+8 damage if the target is already {{Expose}}d (checked before the card acts).",
+            "notes": [
+              "THE EXPOSE READER, socketable \u2014 the companion to breach_strike, which is the",
+              "card form. Expose was the ONE affliction in `EXPLOITABLE` with no payoff",
+              "content at all: four gems/cards apply it, nothing cashed it.",
+              "PAYS TWICE ON A PREPARED TARGET, which is why 8 is the right size rather than",
+              "a bigger number: the standing expose is already multiplying the host's hit, so",
+              "this flat rider is the second helping, not the first.",
+              "NATURAL SOCKET is a card in a deck that already runs the expose ladder",
+              "(vulnerability / weak_point / exposed_nerve / raw_nerve all APPLY expose) \u2014",
+              "one gem turns any hitter into that ladder's finisher.",
+              "PRICE: exploit 8 = 20 deci = Common EXACTLY. Minimal for its band (7 -> 17).",
+              "Distinct payload from festering_sliver/bloodscent_sliver by `status`, so the",
+              "R8.1 twin rule is satisfied on the field that actually decides behaviour."
+            ],
+            "kind": "effect",
+            "rarity": "common",
+            "actions": [
+              {
+                "kind": "exploit",
+                "status": "expose",
+                "amount": 8
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

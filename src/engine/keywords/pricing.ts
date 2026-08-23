@@ -266,6 +266,33 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     shieldBreak: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'perUnit', field: 'amount', num: P.shieldBreakPerPointNum, den: P.shieldBreakPerPointDen }] },
     comboBonus: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'amount', num: P.comboPerPointNum, den: P.comboPerPointDen }] },
 
+    // CHAIN BONUS — `comboBonus` on the TYPE axis (the caster's previous cast was
+    // of the named weapon/element) instead of the archetype axis. Priced through
+    // the SAME conditional-trigger discount denominator the rider family shares
+    // (`PRICE.conditionalBonusDen` over the property-aware `strikeRate`), so it
+    // needs NO NEW RATE — which is the whole case for having written that
+    // discount as a denominator rather than as a copied number.
+    //
+    // WHY THAT DENOMINATOR IS THE HONEST-AND-SAFE CHOICE: on a typed card it
+    // reproduces comboBonus's own user-locked 2.5 deci/pt, and comboBonus's rate
+    // was derived from an assumed ~50% archetype-match uptime. A gate naming ONE
+    // specific type out of eleven (5 weapons + 6 elements) opens LESS often than
+    // an archetype match in any comparable board, so this rate can only
+    // OVER-price the keyword — the safe direction every derived rate in this
+    // table takes (see `PRICE.aoeTargetsNum`'s ceiling, `shieldBurst`'s double
+    // conservatism). A measured rate is balance-designer's to set once the lane
+    // has play data; inventing a cheaper number now would be false precision.
+    //
+    // `offensive: FALSE` and `family: 'empower'` MIRROR comboBonus exactly, and
+    // deliberately: the gate is a fact about the CASTER's own cast history, not
+    // about any victim, so it resolves once on the caster and arms the scalar
+    // `cast.bonusFlat` (never the per-victim `bonusByTarget`). It therefore
+    // inherits comboBonus's known AoE gap verbatim — under `scope: 'all'` the
+    // armed bonus rides every hit while paying no reach multiplier — rather than
+    // inventing a divergence from its own closest sibling. No shipped card is
+    // AoE + comboBonus or AoE + chainBonus today.
+    chainBonus: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'amount', num: strikeRate, den: P.conditionalBonusDen }] },
+
     // EXPLOIT / STACK BONUS — conditional FLAT bonus damage on the cast's own
     // hit, priced at the card's own damage rate over the conditional-trigger
     // DISCOUNT denominator (`PRICE.conditionalBonusDen`, which reproduces

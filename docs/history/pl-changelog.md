@@ -445,3 +445,67 @@ emits `BURDENED weight 8 slots [0,1]`. `leaden_bite + ripple_sliver` goes from
 only: `effectBonusDamage 0` with no poison, `8` once a poison line lands, back
 to `0` when the pile decays out. Every new pairing's instance PL is the plain
 sum of its two standalone prices.
+
+## 2026-08-21: the `chainBonus` keyword, and the debuff-affinity gaps closed
+
+**NO EXISTING RATE MOVED.** One new keyword, priced entirely through the
+denominator the conditional-rider family already shares.
+
+### `chainBonus` — `comboBonus` on the TYPE axis
+
+User request, verbatim: *"we should make other combo type card like if previous
+card is sword card and this card is an axe card deal even more damage for
+combos"*, generalised by the same user a moment later: *"it doesnt have to just
+be weapon it could be magic too like if previous was fire magic or water etc"*.
+
+`{ kind: 'chainBonus'; after: Element | WeaponType; amount: number }` — flat
+bonus damage on this cast's hit when the caster's PREVIOUS resolved cast was of
+the named type. **One keyword covers both axes** because the game already has
+exactly one notion of a card's type: `cardType` = `element ?? weapon`
+(`combat/typeIdentity.ts`, the same derivation deck affinity uses). So
+`after: 'sword'` on an axe card and `after: 'fire'` on a frost card are the same
+rule reading the same field.
+
+| decision | choice | why |
+|---|---|---|
+| rate | `amount × strikeRate(property) / conditionalBonusDen` | **No new number.** The discount is written as a denominator so a new rider can divide the same `strikeRate`; on a typed card it reproduces comboBonus's own locked 2.5 deci/pt |
+| honesty direction | over-priced, deliberately | comboBonus's rate assumes ~50% archetype-match uptime; a gate naming ONE type of eleven opens *less* often, so this rate can only over-charge — the safe direction every derived rate here takes |
+| family / offensive | `empower`, `offensive: false` | Mirrors comboBonus exactly: the gate is a fact about the caster's own history, not any victim, so it resolves once and arms the scalar `cast.bonusFlat` (never the per-victim `bonusByTarget`). It inherits comboBonus's known AoE gap verbatim rather than inventing a divergence from its own sibling |
+| self-gate | **refused at authoring** | A sword card gated `after: 'sword'` satisfies its own gate from cast 2, which the conditional discount does not describe. `rejectSelfChain` refuses it at every tier — the same refuse-rather-than-price call `splash`-with-nothing-to-spread gets. (A mono-type BOARD still raises real uptime; that is a deck choice, exactly as it is for comboBonus, and is not refusable.) |
+| self-synergy premium | 0 by construction | `lastCastType` joins `'lowHp'`/`'overheal'`/`'cleansed'` — resources no keyword can manufacture — so no action can ever supply it |
+
+**Engine cost: one new lazily-written `CombatantState` field**, `lastCastType`,
+stamped in `simulate.ts` beside the `lastCastArchetypes` it is the twin of. That
+moved all 400 outcome-baseline hashes, so the fixture was regenerated with an
+exhaustive containment proof (recorded in its `note`): across 400 raw
+before/after dumps, **0 event logs moved, 0 result/turns moved**, and all 2546
+`finalState` leaf differences are the same thing — an ADDED `lastCastType` key.
+Zero value changes, zero removed keys, no other field name anywhere in the diff.
+
+**Content (2 cards, both Bronze 100 exactly at all four tiers):**
+`finishing_cleave` (axe, `after: 'sword'`, chain 8 + damage 16 — the reliable
+half) and `thermal_shock` (frost, `after: 'fire'`, chain 16 + damage 12 — the
+swingy half, 40 of its 100 deci spent on the rider). Sequenced right the frost
+card out-damages the axe; led cold it is the weakest Bronze hit in its lane.
+Behaviour pinned by `tests/engine/chainBonus.test.ts`; verified by combat log on
+both axes, including that a lance or a fire never opens the sword gate.
+
+### Debuff-affinity gaps (existing rates, no pricing change)
+
+The "extra damage if they are already afflicted" family (`exploit` flat,
+`stackBonus` scaling) covered poison/stun/debuff as cards and bleed/burn as
+scaling cards — but **`expose` had no payoff content at all**, despite four
+gems/cards that APPLY it, and only poison had a socketable reader.
+
+- `breach_strike` (card, lance) — `exploit expose 8` + damage 16 = Bronze 100.
+  The expose ladder's first finisher. It collects twice on a prepared target
+  (the standing expose amplifies the hit, this rider adds to it), which is why
+  the rider is 8 and not larger.
+- `bloodscent_sliver` (gem, Common 20) — `exploit bleed 8`. The flat form of
+  what `bleed_executioner` does by scaling, socketable onto any hitter.
+- `opening_sliver` (gem, Common 20) — `exploit expose 8`, curated into Armory
+  beside the expose ladder it finishes.
+
+All three are band/budget exact and minimal for their band. Distinct payloads
+from `festering_sliver` by the `status` field, so the R8.1 twin rule is
+satisfied on the field that actually decides behaviour.

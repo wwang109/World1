@@ -23,6 +23,21 @@ import { burnTotalDamage } from '../../engine/balance';
  * `stackBonus`) can key off — lower case, because they appear mid-sentence in
  * the entries below ("if the target already has poison").
  */
+/**
+ * Player-facing names for the CARD TYPES a `chainBonus` can name — the weapon
+ * and element vocabularies `cardType` (engine/combat/typeIdentity.ts) draws
+ * from. Kept as display data here, beside `STATUS_NAME`, because the engine's
+ * own identifiers are lowercase and a card face should not print them raw.
+ */
+const TYPE_NAME: Record<string, string> = {
+  sword: 'Sword', axe: 'Axe', lance: 'Lance', bow: 'Bow', beast: 'Beast',
+  fire: 'Fire', frost: 'Frost', lightning: 'Lightning', nature: 'Nature', holy: 'Holy', dark: 'Dark',
+};
+/** "a Sword" but "an Axe" — the article belongs with the name, not the sentence. */
+const TYPE_ARTICLE: Record<string, string> = {
+  sword: 'a', axe: 'an', lance: 'a', bow: 'a', beast: 'a',
+  fire: 'a', frost: 'a', lightning: 'a', nature: 'a', holy: 'a', dark: 'a',
+};
 const STATUS_NAME: Record<'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'expose' | 'thorns', string> = {
   poison: 'poison',
   burn: 'burn',
@@ -301,6 +316,15 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
       return {
         title: 'Combo',
         body: 'Bonus triggers if your previous cast shared this card’s archetype.',
+      };
+    // CHAIN — Combo's twin on the TYPE axis. The entry names the partner type
+    // explicitly (that is the whole decision the player makes) and states the
+    // cold start, which is the one thing they will otherwise get wrong: the
+    // FIRST cast of a fight has no previous cast, so it never pays.
+    case 'chainBonus':
+      return {
+        title: 'Chain',
+        body: `+${action.amount} damage on this hit if your previous cast was ${TYPE_ARTICLE[action.after] ?? 'a'} ${TYPE_NAME[action.after] ?? action.after} card. Your first cast of a fight has no previous cast, so it never triggers there.`,
       };
     // The two conditional bonus-damage riders (engine/types.ts). Both entries
     // state the ONE rule a player will otherwise get wrong: the condition is

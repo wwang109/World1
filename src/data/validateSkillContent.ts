@@ -142,6 +142,10 @@ const ACTION_FIELDS: Record<string, readonly string[]> = {
   lifesteal: ['pct'],
   shieldBreak: ['amount'],
   comboBonus: ['amount'],
+  // CHAIN BONUS — the type-axis sibling of comboBonus. `after` names ONE card
+  // type (a weapon OR an element: `cardType` reads `element ?? weapon`), so one
+  // keyword covers both the sword->axe and the fire->frost pairing.
+  chainBonus: ['after', 'amount'],
   exploit: ['status', 'amount'],
   // `cap` is REQUIRED on stackBonus (engine/types.ts) — the payload is
   // `min(per × stacks, cap)` and only the ceiling is priceable. Same for the
@@ -320,6 +324,14 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     case 'lifesteal': lifestealPct(); break;
     case 'shieldBreak': num('amount'); break;
     case 'comboBonus': num('amount'); break;
+    case 'chainBonus':
+      // ONE NAME, EITHER NAMESPACE: the weapon and element vocabularies are
+      // disjoint, so a bare name is unambiguous — but it must be a REAL type, or
+      // the gate could never open and the card would be a priced no-op.
+      req(raw, 'after', (v) => WEAPONS.includes(v as string) || ELEMENTS.includes(v as string),
+        'one card type — a weapon (' + WEAPONS.join('|') + ') or an element (' + ELEMENTS.join('|') + ')', at, problems);
+      num('amount');
+      break;
     /**
      * EXPLOIT / STACK BONUS — the two conditional bonus-damage riders.
      *
@@ -449,6 +461,40 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
  * AoE+splash and spreader rules beside it: a tier block that re-authors `effects`
  * can reorder them, and one that authors none inherits the base list.
  */
+/**
+ * A `chainBonus` MAY NOT NAME ITS OWN CARD'S TYPE (user design, 2026-08-21).
+ *
+ * The keyword's gate is "the caster's PREVIOUS resolved cast was of type X", and
+ * it prices at the CONDITIONAL-TRIGGER DISCOUNT — which buys exactly one thing: a
+ * gate the card cannot guarantee. A sword card gated on `after: 'sword'`
+ * guarantees its own gate from its SECOND cast onward (it is itself the previous
+ * cast), so the discount stops describing it — the same reasoning
+ * `selfSynergyPremiumDeci` applies to a kit that supplies its own rider's
+ * resource, and the same reasoning behind the never-self-trigger ordering ruling.
+ *
+ * REFUSED RATHER THAN PRICED, deliberately: the self-gated form is not a
+ * different-magnitude card, it is a card whose printed condition is a formality.
+ * The same refuse-rather-than-price call `splash`-with-nothing-to-spread and
+ * `scope: all` + `shieldBurst` already get. (A MONO-TYPE BOARD still raises the
+ * gate's real uptime, exactly as a narrow-archetype board does for `comboBonus`
+ * — that is a deck choice, not an authoring defect, and is not refusable here.)
+ *
+ * `ownType` is the card's `element ?? weapon`, mirroring `cardType`
+ * (combat/typeIdentity.ts) — the one definition of a card's type.
+ */
+function rejectSelfChain(ownType: unknown, effects: unknown, at: string, problems: ContentProblem[]): void {
+  if (typeof ownType !== 'string' || !Array.isArray(effects)) return;
+  for (const action of effects) {
+    if (!isObj(action) || action.kind !== 'chainBonus' || action.after !== ownType) continue;
+    problems.push({
+      where: at,
+      message: 'a chainBonus cannot name its own card type (' + ownType + ') — the card would satisfy its own gate '
+        + 'from its second cast onward, which is not what the conditional-trigger discount prices. Name a DIFFERENT '
+        + 'type (the sword -> axe / fire -> frost pairing the keyword exists for), or drop the rider.',
+    });
+  }
+}
+
 function rejectRiderMisordering(effects: unknown, at: string, problems: ContentProblem[]): void {
   if (!Array.isArray(effects)) return;
   const actions = effects.filter(isObj);
@@ -779,12 +825,14 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   rejectAoeUnitScoped(raw.scope, raw.effects, where);
   rejectSpreaderWithNothingToSpread(raw.effects, where, problems);
   rejectRiderMisordering(raw.effects, where, problems);
+  rejectSelfChain(raw.element ?? raw.weapon, raw.effects, where, problems);
   if (isObj(raw.tierUpgrades)) {
     for (const [tier, up] of Object.entries(raw.tierUpgrades)) {
       if (!isObj(up)) continue;
       rejectAoeUnitScoped(up.scope ?? raw.scope, up.effects ?? raw.effects, where + '.tierUpgrades.' + tier);
       rejectSpreaderWithNothingToSpread(up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
       rejectRiderMisordering(up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
+      rejectSelfChain(up.element ?? raw.element ?? up.weapon ?? raw.weapon, up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
     }
   }
 

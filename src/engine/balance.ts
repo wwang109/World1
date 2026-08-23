@@ -998,6 +998,13 @@ export function riderReadsResource(
     // forfeits the discount exactly as a shield+burst kit does.
     case 'wardRelease': return { resource: 'ward', on: 'caster', magnitude: action.cap };
     case 'desperation': return { resource: 'lowHp', on: 'caster', magnitude: action.amount };
+    // THE CASTER'S OWN CAST HISTORY — a fourth resource no keyword can supply
+    // (alongside 'lowHp'/'overheal'/'cleansed'): nothing an action DOES puts a
+    // type in the caster's previous-cast slot, only the act of having cast. So
+    // `selfSynergyPremiumDeci` is 0 for it by construction, and the one way the
+    // gate could be self-guaranteed — a card naming its OWN type — is refused at
+    // authoring (`rejectSelfChain`, validateSkillContent.ts) rather than priced.
+    case 'chainBonus': return { resource: 'lastCastType', on: 'caster', magnitude: action.amount };
     case 'overhealShield': return { resource: 'overheal', on: 'caster', magnitude: action.cap };
     case 'cleanseConvert': return { resource: 'cleansed', on: 'caster', magnitude: action.cap };
     default: return null;
@@ -1045,6 +1052,7 @@ export function riderFeedsKind(action: Action): 'damage' | 'heal' | null {
     case 'cleanseConvert':
       return 'heal';
     case 'exploit':
+    case 'chainBonus':
     case 'stackBonus':
     case 'shieldBurst':
     case 'taxBonus':

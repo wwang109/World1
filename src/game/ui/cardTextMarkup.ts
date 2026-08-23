@@ -114,6 +114,15 @@ export const KEYWORD_TEXT_COLOR: Record<string, string> = {
   // without being confusable.
   curse: '#8f76b0',
   combo: '#e8c060',
+  // CHAIN is `combo` one axis over — same "your previous cast decides whether
+  // this pays" promise, gated on the previous cast's TYPE (a weapon or an
+  // element) instead of its archetype. Deliberately a NEAR-SIBLING of combo's
+  // warm gold rather than a new family: a player who has learned that gold means
+  // "sequence-dependent bonus" should read this the same way at a glance. Shifted
+  // warmer and slightly deeper (36 deg -> 28 deg, a touch more saturation) so the
+  // two are still tellable apart side by side on one card face, which is a real
+  // case — nothing stops a card carrying both riders.
+  chain: '#e8a850',
   shatter: '#d88f6a',
   thorns: '#3f9e7a',
   true: '#e8d5a0',

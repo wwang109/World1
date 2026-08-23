@@ -170,6 +170,11 @@ function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined):
       case 'cleanseConvert':
         expected.push(eff.per, eff.cap);
         break;
+      // CHAIN BONUS: `amount` is the bonus; `after` is a TYPE NAME, not a number,
+      // so it carries no numeral for the face to print.
+      case 'chainBonus':
+        expected.push(eff.amount);
+        break;
       default:
         assertNever(eff);
     }

@@ -8086,6 +8086,171 @@
      }
     }
    ]
+  },
+  {
+   "id": "finishing_cleave",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Finishing Cleave",
+      "text": "{{Chain}} +8 damage if your previous cast was a Sword card \u00b7 deal 16 (+ATK) Axe damage.",
+      "notes": [
+       "SHOWCASE CARD for `chainBonus` on the WEAPON axis (2026-08-21) \u2014 the",
+       "keyword's founding example: a sword opens, the axe finishes. The gate reads",
+       "the caster's PREVIOUS resolved cast type (`lastCastType`, stamped from",
+       "`cardType` = element ?? weapon), so it is the same keyword that pairs",
+       "fire -> frost on the magical side (see thermal_shock).",
+       "ORDER IS PART OF THE CARD: the rider is authored FIRST, ahead of the damage",
+       "it feeds (rejectRiderMisordering enforces it) \u2014 it arms the cast's one",
+       "bonus, which the first non-gem damage action spends.",
+       "PRICE: chainBonus 8 = 20 deci (8 x strikeRate/conditionalBonusDen = 8 x 5/2,",
+       "the conditional-trigger discount the whole rider family shares \u2014 no new",
+       "rate) + damage 16 = 80. 20 + 80 = 100 = Bronze exactly, size 1 so no grant",
+       "and weight 10 is baseline (0 delta). empower-family spend is 20 deci, far",
+       "under the size-1 empower cap (100 \u2014 verified with capViolations).",
+       "AMOUNT 8: chainBonus prices at 2.5 deci/pt, so whole-PL parts want multiples",
+       "of 4. 8 is half a Bronze damage line as the payoff for sequencing correctly \u2014",
+       "big enough to build for, and it cannot be the whole card.",
+       "AXE AFTER SWORD, NOT SWORD AFTER SWORD: naming its own type is refused",
+       "outright (rejectSelfChain) \u2014 that gate would be self-satisfied from the",
+       "second cast on, which the conditional discount does not price.",
+       "THE FIRST CAST OF A FIGHT NEVER PAYS (no previous cast), the same cold start",
+       "comboBonus has \u2014 which is part of why the discounted rate is honest.",
+       "No tierUpgrades: damage alone absorbs every higher budget (silver 26, gold",
+       "36, diamond 46 \u2014 the rider is frozen empower at every tier, verified",
+       "against `autoScaleTier`)."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "chainBonus",
+        "after": "sword",
+        "amount": 8
+       },
+       {
+        "kind": "damage",
+        "power": 16
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "thermal_shock",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Thermal Shock",
+      "text": "{{Chain}} +16 damage if your previous cast was a Fire card \u00b7 deal 12 (+MATK) Frost damage.",
+      "notes": [
+       "THE ELEMENT AXIS of `chainBonus` (2026-08-21) \u2014 the same keyword, the magical",
+       "half of it: `cardType` reads `element ?? weapon`, so a card type is a WEAPON",
+       "on a physical card and an ELEMENT on a magical one, and one gate covers both.",
+       "Fire then frost is the pairing with real-world teeth (thermal shock cracks",
+       "what was just heated), and it is the readable example that this keyword is",
+       "not a weapon mechanic.",
+       "DELIBERATELY THE SWINGY HALF, against finishing_cleave's reliable one: this",
+       "card spends 40 of its 100 deci on the rider and only 60 on its base line,",
+       "where the axe spends 20/80. Sequence it right and it out-damages the axe;",
+       "lead with it cold and it is the weakest Bronze hit in its lane. Same keyword,",
+       "opposite risk posture \u2014 so the two read as a real choice, not a recolor.",
+       "PRICE: chainBonus 16 = 40 deci (16 x 5/2 at the shared conditional discount) +",
+       "damage 12 = 60. 40 + 60 = 100 = Bronze exactly, size 1, weight 10 baseline.",
+       "empower-family spend is 40 deci, under the size-1 empower cap (100).",
+       "FROST AFTER FIRE: naming its own element (frost) is refused by",
+       "rejectSelfChain, exactly as the axe card may not name axe.",
+       "No tierUpgrades: damage alone absorbs every higher budget (silver 22, gold",
+       "32, diamond 42 \u2014 the rider is frozen empower at every tier)."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "chainBonus",
+        "after": "fire",
+        "amount": 16
+       },
+       {
+        "kind": "damage",
+        "power": 12
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "breach_strike",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Breach Strike",
+      "text": "+8 damage if the target is already {{Expose}}d \u00b7 deal 16 (+ATK) Lance damage.",
+      "notes": [
+       "THE EXPOSE PAYOFF (content-designer pass, 2026-08-21) \u2014 closes the last hole",
+       "in the debuff-affinity family. `EXPLOITABLE` (validateSkillContent) lists six",
+       "readable afflictions: poison, burn, bleed, stun, debuff and expose. Five had a",
+       "payoff card; EXPOSE HAD NONE \u2014 the catalog shipped four cards/gems that APPLY",
+       "expose (vulnerability_sliver, weak_point_sliver, exposed_nerve_sliver,",
+       "raw_nerve_sliver) and nothing that CASHES it, so the whole expose ladder had no",
+       "native follow-up.",
+       "READS, NEVER APPLIES: expose already multiplies incoming damage, so this card",
+       "collects twice over on a prepared target \u2014 once through the standing expose",
+       "amplifying its hit, once through this flat rider. That is why the rider is 8",
+       "and not larger: the multiplicative half is free.",
+       "PRICE: exploit 8 = 20 deci (8 x strikeRate/conditionalBonusDen = 8 x 5/2, the",
+       "shared conditional-trigger discount) + damage 16 = 80. 20 + 80 = 100 = Bronze",
+       "exactly, size 1 so no grant and weight 10 is baseline (0 delta). empower-family",
+       "spend is 20 deci, far under the size-1 empower cap (100).",
+       "THE DISCOUNT IS HONEST: this card applies no expose of its own, so",
+       "`selfSynergyPremiumDeci` is 0 and somebody else's expose has to be standing \u2014",
+       "the gate another card must supply, which is exactly what the discount buys.",
+       "The rider is authored FIRST, ahead of the damage it feeds (the ordering rule).",
+       "LANCE/PHYSICAL: the expose APPLIERS are all gems, so the reader is a card, and",
+       "lance keeps it clear of the axe-heavy exploit lane (blight_feast is nature,",
+       "control_opportunist and debuff_crusher sit elsewhere).",
+       "No tierUpgrades: damage alone absorbs every higher budget (silver 26, gold 36,",
+       "diamond 46 \u2014 the rider is frozen empower at every tier)."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "exploit",
+        "status": "expose",
+        "amount": 8
+       },
+       {
+        "kind": "damage",
+        "power": 16
+       }
+      ]
+     }
+    }
+   ]
   }
  ]
 }

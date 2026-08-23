@@ -47,6 +47,7 @@ immediately):
 | `lifesteal` | `pct * lifestealPerPctNum/Den` | `PRICE.lifestealPerPctNum/Den` |
 | `shieldBreak` | `amount * shieldBreakPerPointNum/Den` | `PRICE.shieldBreakPerPointNum/Den` |
 | `comboBonus` | `amount * comboPerPointNum/Den` | `PRICE.comboPerPointNum/Den` — CONDITIONAL-TRIGGER DISCOUNT (user-locked 2026-07-23): gated riders price at a fraction of their always-on equivalent |
+| `chainBonus` (flat bonus if the caster's PREVIOUS cast was of a named card type) | `amount * strikeRate(property) / conditionalBonusDen` | `PRICE.conditionalBonusDen` — `comboBonus` on the TYPE axis instead of the archetype axis, and it needed NO NEW RATE: the discount is written as a denominator precisely so a new rider can divide the same `strikeRate`. "Type" is the game's one notion of it — `cardType` = `element ?? weapon` — so one keyword gates both `after: 'sword'` on an axe card and `after: 'fire'` on a frost card. A gate naming ONE type of eleven opens less often than an archetype match, so this rate can only OVER-price it (the safe direction). A card naming its OWN type is refused at authoring, not priced |
 | `exploit` (flat bonus if the target already carries a named status) | `amount * strikeRate(property) / conditionalBonusDen` | `PRICE.conditionalBonusDen` — see the conditional-rider family section below |
 | `stackBonus` (flat bonus scaling with a stacking pile, hard-capped) | `cap * strikeRate(property) / conditionalBonusDen` (`per` unpriced) | `PRICE.conditionalBonusDen` — prices the required `cap` ceiling only; see below |
 | `shieldBurst` (spend the caster's OWN shield as bonus damage) | `cap * strikeRate(property) / conditionalBonusDen` | `PRICE.conditionalBonusDen` — same discount despite also destroying the resource it reads; see below |
@@ -341,7 +342,7 @@ A gem's OWN PL (not the card's) must land exactly on its rarity's band —
 Legendary 8 PL, checked by `isGemOnBudget(gem)` with the same **exact**
 (zero) tolerance as the card audit. The audit that iterates the real gem
 catalog against these bands is **built**: `tests/engine/gemAudit.test.ts`
-covers every gem in `src/data/gems.ts` (51 gems as of 2026-08-21, after the
+covers every gem in `src/data/gems.ts` (53 gems as of 2026-08-21, after the
 splash-gem consolidation and the card-targeting/rider gem pass — the
 2026-08-09 ruleset v1 §10 migration had cut 46 → 35, later passes grew the
 book again).

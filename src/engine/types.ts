@@ -477,6 +477,36 @@ type ActionKinds =
   /** +amount FLAT damage this cast if the previous cast shared an archetype (place first). */
   | { kind: 'comboBonus'; amount: number }
   /**
+   * CHAIN BONUS — `comboBonus`'s sibling on the TYPE axis instead of the
+   * archetype axis: +`amount` FLAT damage this cast if the caster's PREVIOUS
+   * resolved cast was of the named type. Place it BEFORE the damage action it
+   * feeds (enforced by `validateSkillContent`); it arms the cast's one
+   * caster-side bonus, spent by the first non-gem `damage` action, exactly like
+   * `comboBonus`.
+   *
+   * `after` NAMES ONE CARD TYPE, and "type" is the notion the game already has:
+   * `cardType` (combat/typeIdentity.ts) reads `element ?? weapon`, so every card
+   * carries exactly one — a WEAPON (sword/axe/lance/bow/beast) for physical
+   * cards, an ELEMENT (fire/frost/lightning/nature/holy/dark) for magical ones.
+   * One keyword therefore covers both axes with no second variant: an axe card
+   * can pay off after a sword, and a frost card after a fire, and the engine
+   * compares the same field either way. The two namespaces do not overlap, so a
+   * bare name is unambiguous (the validator checks membership in both lists).
+   *
+   * WHY A NAMED PARTNER rather than "any different type": a named gate is a
+   * DECK-BUILDING instruction ("run swords beside this axe") rather than a
+   * passive reward for variety, and it is the shape that makes cast ORDER worth
+   * engineering. It is also the narrower, cheaper-to-be-honest gate — see the
+   * pricing note in `keywords/pricing.ts`.
+   *
+   * A CARD MAY NOT NAME ITS OWN TYPE (`validateSkillContent`): a sword card
+   * gated on `after: 'sword'` satisfies its own gate from its second cast
+   * onward, which is exactly the guaranteed-uptime case the conditional-trigger
+   * discount does not describe. Refused at authoring rather than priced, the
+   * same call `splash`-with-nothing-to-spread gets.
+   */
+  | { kind: 'chainBonus'; after: Element | WeaponType; amount: number }
+  /**
    * EXPLOIT — `comboBonus`'s sibling, gated on the VICTIM'S CONDITION instead of
    * on the caster's own cast history: +`amount` FLAT damage this cast if the
    * target ALREADY CARRIES the named affliction. Place it BEFORE the damage
