@@ -7381,7 +7381,7 @@
      "version": 1,
      "def": {
       "name": "Deadweight Toll",
-      "text": "Deal 12 (+ATK) Axe damage, +4 per weight-taxed card on the target (max +16) \u2014 each card carrying a {{Splash}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count.",
+      "text": "Deal 12 (+ATK) Axe damage, +4 per weight-taxed card on the target (max +16) \u2014 each card carrying a {{Burden}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count.",
       "notes": [
        "THE TEMPO PUNISHER \u2014 the payoff card of the slow/splash lane: it counts",
        "the backlog somebody else built (every board piece carrying a splash tax,",
@@ -7406,7 +7406,13 @@
        "Gold:    reap cap 24 (60) + damage 28 (140) = 200. (+6 per card)",
        "Diamond: reap cap 28 (70) + damage 36 (180) = 250. (+7 per card)",
        "Hand-authored: `autoScaleTier` freezes the whole rider (not a scalable",
-       "sink), so it would grow damage alone and never `per`/`cap`."
+       "sink), so it would grow damage alone and never `per`/`cap`.",
+       "TEXT FIX (2026-08-21): the reader line said \"each card carrying a {{Splash}}",
+       "tax counts\", which was true only under the retired splash-as-weight-tax",
+       "model. `splash` carries NO payload \u2014 it only widens reach; the weight tax a",
+       "taxed card carries is `burden` (taxedCardCount, combat/state.ts, counts",
+       "pieces whose `nextWeightPenalty` > 0, which is what the burden arm writes).",
+       "Now reads {{Burden}}. Behaviour and price are unchanged \u2014 display only."
       ],
       "archetypes": [
        "offense",
@@ -7441,7 +7447,7 @@
           "power": 20
          }
         ],
-        "text": "Deal 20 (+ATK) Axe damage, +5 per weight-taxed card on the target (max +20) \u2014 each card carrying a {{Splash}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
+        "text": "Deal 20 (+ATK) Axe damage, +5 per weight-taxed card on the target (max +20) \u2014 each card carrying a {{Burden}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
        },
        "gold": {
         "effects": [
@@ -7455,7 +7461,7 @@
           "power": 28
          }
         ],
-        "text": "Deal 28 (+ATK) Axe damage, +6 per weight-taxed card on the target (max +24) \u2014 each card carrying a {{Splash}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
+        "text": "Deal 28 (+ATK) Axe damage, +6 per weight-taxed card on the target (max +24) \u2014 each card carrying a {{Burden}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
        },
        "diamond": {
         "effects": [
@@ -7469,7 +7475,7 @@
           "power": 36
          }
         ],
-        "text": "Deal 36 (+ATK) Axe damage, +7 per weight-taxed card on the target (max +28) \u2014 each card carrying a {{Splash}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
+        "text": "Deal 36 (+ATK) Axe damage, +7 per weight-taxed card on the target (max +28) \u2014 each card carrying a {{Burden}} tax counts, and a pending {{Slow}} counts one more. Only taxes already there count."
        }
       }
      }
@@ -8012,6 +8018,71 @@
         "text": "Deal 38 (+ATK) Axe damage, +24 more while YOU are at or below half your maximum HP. Nothing to set up \u2014 it turns on when you are hurt."
        }
       }
+     }
+    }
+   ]
+  },
+  {
+   "id": "leaden_bite",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Leaden Bite",
+      "text": "Deal 16 (+ATK) Beast damage \u00b7 {{Burden}} +8 weight on the card the enemy is about to play.",
+      "notes": [
+       "THE ANCHOR-ONLY BURDEN CARD (content-designer pass, 2026-08-21) \u2014 closes two",
+       "gaps at once, both left by the splash consolidation earlier the same day.",
+       "GAP 1, THE KEYWORD'S MISSING FORM: `curse` ships in BOTH forms \u2014 anchor-only",
+       "(dulling_hex) and spread (sapping_arc) \u2014 but `burden` existed ONLY in spread",
+       "form (shockwave_slam, arc_cascade and line_breaker all carry splash), so a",
+       "player could never meet the weight tax on its own. That is dulling_hex's own",
+       "stated rationale, applied to the other card-targeting keyword.",
+       "GAP 2, THE SPREADER HAD ALMOST NO HOST: `ripple_sliver` (THE splash gem) is a",
+       "BARE spreader, so THE SPLASH GATE's `nothingToSpread` arm drops it on any host",
+       "with no card-targeting payload and its `hostAlreadySplashes` arm drops it on",
+       "the four cards that already splash \u2014 leaving dulling_hex the ONLY legal host",
+       "in a 125-card book. This is the second, and the first on the burden axis:",
+       "socket the spreader here and the +8 tax covers the whole band.",
+       "PRICE: damage 16 = 80 deci + burden 8 = 20 deci (PRICE.burdenPerWeightNum/Den,",
+       "5/2) = 100 = Bronze exactly, size 1 so no grant and weight 10 is baseline",
+       "(0 delta). Control-family spend is 20 deci, far under the size-1 control cap",
+       "(100 \u2014 verified with capViolations).",
+       "WEIGHT 8, NOT 4 OR 16: the anchor-only form goes DEEP where the spread form",
+       "goes BROAD \u2014 the same trade dulling_hex (curse 8 on one card) makes against",
+       "sapping_arc (curse 4 across the band). 8 is double shockwave_slam's spread tax",
+       "and lands the burden part on a whole PL (weight x 5/2, so multiples of 4).",
+       "Deliberately NOT 16: socketed with ripple_sliver that would put the heaviest",
+       "board disruption in the game behind one Common gem \u2014 the very reason the",
+       "retired ladder's Epic/Legendary rungs were never shipped.",
+       "BEAST/PHYSICAL, against the spreader family's axe (Shockwave Slam), lance",
+       "(Line Breaker), sword (Sapping Arc) and lightning (Arc Cascade): the burden",
+       "lane now reaches the natural-weapon class. beast+debuff is a 3-card pool that",
+       "no fixture pins \u2014 the narrow-pool fixture in tests/run/events.test.ts pins",
+       "bow+debuff at exactly 2, deliberately avoided here.",
+       "No tierUpgrades: damage alone absorbs every higher budget (silver 26, gold 36,",
+       "diamond 46 \u2014 burden is control and stays frozen at every tier, verified",
+       "against `autoScaleTier`)."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 16
+       },
+       {
+        "kind": "burden",
+        "weight": 8
+       }
+      ]
      }
     }
    ]

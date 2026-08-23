@@ -376,3 +376,72 @@ Source of truth: `PRICE.splashFlatDeci` in `src/engine/balance.ts` and the
 `instancePowerLevelDeci`. Pinned by `tests/engine/splash.test.ts`,
 `tests/engine/instancePlainSum.test.ts` and the `PRICE` structure lock in
 `tests/engine/balance.test.ts`.
+
+## 2026-08-21 content pass: the card-targeting gem gap, and the rider family's first gem
+
+**No rate moved** — every price below is an existing rate applied to new
+content. Recorded here because it ANSWERS the open design question the
+splash-consolidation entry above deliberately left standing, and because it
+fixes a defect that consolidation created.
+
+### The defect: THE splash gem had almost no host
+
+`ripple_sliver` is a BARE spreader, so THE SPLASH GATE drops it on any host
+with no card-targeting payload (`nothingToSpread`) and on any host that
+already splashes (`hostAlreadySplashes`). Measured against the shipped book
+that left **exactly one legal host in 125 cards** (`dulling_hex`) — 120
+suppressed for nothing to spread, 4 for already splashing. A gem that can
+only ever be socketed into one card is not a gem.
+
+### New gems (4) — all band-exact, all minimal for their band
+
+| gem | payload | price | band |
+|---|---|---|---|
+| `ballast_sliver` | `burden 8` | 20 deci | Common |
+| `millstone_sliver` | `burden 16` | 40 deci | Rare |
+| `blunting_sliver` | `curse 4 / 2 turns` | 20 deci | Common |
+| `festering_sliver` | `exploit poison 8` | 20 deci | Common |
+
+**The burden ladder ANSWERS the open question** (the consolidation entry asked
+whether the bare weight tax deserved its own gem ladder — it does, and unlike
+splash it is a ladder on a MAGNITUDE). `burden` and `curse` had no gem at all
+after the consolidation: the catalog carried a gem for the SPREADER and none
+for either PAYLOAD it spreads. Note `ballast_sliver` is NOT a twin of
+`quickening_sliver` (`slow 8`, also Common 20) — burden and slow share one
+rate for one currency so the numbers coincide, but a slow taxes the UNIT and
+is dropped at end of turn paid or not, while a burden taxes a CARD and rides
+it until played. Epic/Legendary burden rungs (24 → 60, 32 → 80) are priced
+and deliberately unshipped.
+
+`festering_sliver` opens the **conditional-rider family**, which had zero gem
+representation across all eight keywords. Its discount is honest by
+construction: the gem supplies no poison itself, so `selfSynergyPremiumDeci`
+is 0 — and a gem cannot forfeit the discount on its own anyway, since it is
+priced host-blind and a pairing is the plain sum (user-locked 2026-08-21).
+
+### New card (1)
+
+`leaden_bite` — beast/physical, `damage 16 + burden 8` = Bronze 100 exactly
+(exact at all four tiers, damage as the sink). It closes both halves of the
+defect above: `curse` shipped in anchor-only (`dulling_hex`) AND spread
+(`sapping_arc`) form while `burden` existed ONLY spread, so a player could
+never meet the weight tax alone — and it doubles `ripple_sliver`'s host pool
+(1 → 2) with the first host on the burden axis.
+
+### Text fix
+
+`deadweight_toll` read "each card carrying a **{{Splash}}** tax counts" — true
+only under the retired splash-as-weight-tax model. `splash` carries no
+payload; the tax `taxedCardCount` (combat/state.ts) counts is `burden`'s
+`nextWeightPenalty`. Now reads `{{Burden}}`, in the base text and all three
+tier blocks. Display only — no price or behaviour moved.
+
+### Verified by combat log, not by assertion alone
+
+The spreader is CAST-SCOPED, so a burden/curse GEM on a spreader HOST is
+widened by the host's own splash — logged: `shockwave_slam + ballast_sliver`
+emits `BURDENED weight 8 slots [0,1]`. `leaden_bite + ripple_sliver` goes from
+`slots [0]` to `slots [0,1]`. `festering_sliver` reads pre-existing poison
+only: `effectBonusDamage 0` with no poison, `8` once a poison line lands, back
+to `0` when the pile decays out. Every new pairing's instance PL is the plain
+sum of its two standalone prices.

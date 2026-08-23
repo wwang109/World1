@@ -1275,6 +1275,159 @@
           }
         }
       ]
+    },
+    {
+      "id": "ballast_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Ballast Sliver",
+            "text": "{{Burden}} +8 weight on the card the enemy is about to play (paid once, whenever that card is next played).",
+            "notes": [
+              "THE BURDEN GEM, entry rung \u2014 closes the gap the splash consolidation left:",
+              "with tremor_sliver/fracture_sliver retired (2026-08-21, one-splash-gem ruling)",
+              "the catalog had a gem for the SPREADER and none for the PAYLOAD it spreads.",
+              "This is the payload alone: a weight tax on the ANCHOR (the card the victim is",
+              "about to play), Math.max'd against any standing tax and spent by that card's",
+              "next play.",
+              "This ANSWERS the question that consolidation deliberately left open \u2014 whether",
+              "the bare weight tax deserves its own gem ladder. It does, and it is a ladder on",
+              "the MAGNITUDE, which is exactly what splash could never have: burden has a",
+              "number, the spreader does not.",
+              "PRICE: burden 8 = 20 deci (PRICE.burdenPerWeightNum/Den, 5/2) = Common EXACTLY.",
+              "MINIMAL for its band: burden 7 prices at floor(7*5/2) = 17, no band.",
+              "NOT A TWIN of quickening_sliver (slow 8, also Common 20): burden and slow share",
+              "one rate for one currency, so the numbers coincide \u2014 the EFFECTS do not. A slow",
+              "taxes the UNIT and is dropped at end of turn whether or not it was ever paid; a",
+              "burden taxes a CARD and rides that piece until it is played. Same price, a",
+              "deferred-but-certain tax against an immediate-but-perishable one.",
+              "ITS BEST HOST IS A SPREADER CARD: the spreader is CAST-SCOPED",
+              "(castSpreadsBand, combat/interpreter.ts), so on shockwave_slam / arc_cascade /",
+              "line_breaker / sapping_arc the HOST's own splash widens THIS GEM's burden across",
+              "the band \u2014 and it needs no gate of its own to do it."
+            ],
+            "kind": "effect",
+            "rarity": "common",
+            "actions": [
+              {
+                "kind": "burden",
+                "weight": 8
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "millstone_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Millstone Sliver",
+            "text": "{{Burden}} +16 weight on the card the enemy is about to play (paid once, whenever that card is next played).",
+            "notes": [
+              "Upper rung of the burden ladder \u2014 see ballast_sliver for the keyword, the",
+              "slow-vs-burden distinction and the spreader-host note.",
+              "PRICE: burden 16 = 40 deci = Rare EXACTLY. Minimal for its band (burden 15",
+              "prices at floor(15*5/2) = 37, no band). Double the Common rung \u2014 the same",
+              "doubling step the slow gems use (8 / 16 / 32).",
+              "Epic and Legendary rungs would land exactly at burden 24 (60) and burden 32",
+              "(80), deliberately NOT shipped: +24 or +32 is most of a turn's banking on the",
+              "anchor, and on a spreader host it is that across the whole band. Those rungs",
+              "are balance-designer's to open once the lane has play data."
+            ],
+            "kind": "effect",
+            "rarity": "rare",
+            "actions": [
+              {
+                "kind": "burden",
+                "weight": 16
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "blunting_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Blunting Sliver",
+            "text": "{{Curse}} the card the enemy is about to play deals 4 less damage for 2 turns.",
+            "notes": [
+              "THE CURSE GEM \u2014 the other half of the card-targeting gap the splash",
+              "consolidation left (ballast_sliver is the first). `curse` is burden's sibling on",
+              "the DAMAGE axis: a burden makes the anchor come out LATER, a curse makes it come",
+              "out SOFTER. Same anchor geometry and the same non-stacking rule (stronger amount",
+              "AND later expiry, maxed independently), but it ends on a CLOCK instead of being",
+              "spent by a play.",
+              "PRICE: curse 4 for 2 turns = 20 deci = Common EXACTLY \u2014 4 x 5/2 = 10 for the",
+              "first denial (PRICE.cursePerAmountNum/Den) plus 4 x 2 x 5/4 = 10 for the repeats",
+              "(PRICE.cursePerAmountTurnNum/Den). MINIMAL for its band: no smaller amount or",
+              "shorter window reaches 20 (curse 3/2t = 14, curse 4/1t = 15).",
+              "SAME MAGNITUDE AS sapping_arc's curse line, deliberately \u2014 that card spends 20",
+              "deci on the curse and 20 on the spreader, so this gem is the socketable half of",
+              "it. On a spreader host the host's own splash widens this curse to the band,",
+              "exactly as it does a burden."
+            ],
+            "kind": "effect",
+            "rarity": "common",
+            "actions": [
+              {
+                "kind": "curse",
+                "amount": 4,
+                "turns": 2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "festering_sliver",
+      "versions": [
+        {
+          "version": 1,
+          "def": {
+            "name": "Festering Sliver",
+            "text": "+8 damage if the target already carries {{Poison}} (checked before the card acts).",
+            "notes": [
+              "THE CONDITIONAL-RIDER FAMILY'S FIRST GEM. Eight rider keywords (exploit,",
+              "stackBonus, taxBonus, shieldBurst, wardRelease, desperation, overhealShield,",
+              "cleanseConvert) had ZERO gem representation; this opens the family with its",
+              "plainest member, `exploit` \u2014 flat bonus damage on the host's own hit when the",
+              "target already carries a named affliction.",
+              "PRICE: exploit 8 = 20 deci = Common EXACTLY (8 x strikeRate / conditionalBonusDen",
+              "= 8 x 5/2 at GEM_CANONICAL_PROPERTY). Minimal for its band: exploit 7 = 17.",
+              "THE DISCOUNT IS HONEST HERE BY CONSTRUCTION: the gem supplies no poison of its",
+              "own, so `selfSynergyPremiumDeci` is 0 and the conditional rate is the right one \u2014",
+              "somebody else's poison has to be on the target. A gem cannot forfeit the discount",
+              "on its own anyway: it is priced host-blind, and a pairing is the plain sum of the",
+              "two standalone prices (user-locked 2026-08-21).",
+              "SPLICES `pre` (GEM_ACTION_PHASE, src/engine/cards.ts), so the bonus is armed",
+              "BEFORE the host's damage reads it \u2014 the same phase comboBonus uses, and the",
+              "reason follow_through_echo works. On a host with no damage line it is inert,",
+              "which is the shape follow_through_echo already has.",
+              "READS POISON, the catalog's widest affliction (venom_sliver, venom_fang_echo and",
+              "the whole poison card lane supply it). burn/bleed/expose variants price",
+              "identically and are open rungs, not shipped."
+            ],
+            "kind": "effect",
+            "rarity": "common",
+            "actions": [
+              {
+                "kind": "exploit",
+                "status": "poison",
+                "amount": 8
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

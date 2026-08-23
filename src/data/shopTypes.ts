@@ -196,6 +196,15 @@ const defs: ShopTypeDef[] = [
           'concussive_shard',
           'slow_hex_echo',
           'ripple_sliver',
+          // ADD (2026-08-21, card-targeting gem pass): the burden ladder
+          // (ballast/millstone) and the curse gem are the PAYLOADS ripple_sliver
+          // spreads, and festering_sliver is the poison payoff that pairs with
+          // venom_sliver's lane — all four are binds/hexes on the enemy's next
+          // plays, the same control family already curated here.
+          'ballast_sliver',
+          'millstone_sliver',
+          'blunting_sliver',
+          'festering_sliver',
         ],
       },
     ],
@@ -211,7 +220,7 @@ const defs: ShopTypeDef[] = [
     gemFilter: [{ all: true }],
     // Kept at 6 (not the standard 5-gem target, 2026-08-04) on purpose —
     // Gemcutter's whole identity is "the biggest gem shelf in the game" (it
-    // rolls off the FULL 35-gem book via the `all` clause — 46 -> 35, gem
+    // rolls off the FULL gem book via the `all` clause — 46 -> 35, gem
     // ruleset v1 §10 migration, 2026-08-09), and 6 is exactly the
     // desktop/mobile gem grid's row capacity.
     shelf: { cards: 0, gems: 6 },

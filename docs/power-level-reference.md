@@ -341,9 +341,10 @@ A gem's OWN PL (not the card's) must land exactly on its rarity's band —
 Legendary 8 PL, checked by `isGemOnBudget(gem)` with the same **exact**
 (zero) tolerance as the card audit. The audit that iterates the real gem
 catalog against these bands is **built**: `tests/engine/gemAudit.test.ts`
-covers every gem in `src/data/gems.ts` (47 gems as of 2026-08-21, after the
-splash-gem consolidation — the 2026-08-09 ruleset v1 §10 migration had cut
-46 → 35, later passes grew the book again).
+covers every gem in `src/data/gems.ts` (51 gems as of 2026-08-21, after the
+splash-gem consolidation and the card-targeting/rider gem pass — the
+2026-08-09 ruleset v1 §10 migration had cut 46 → 35, later passes grew the
+book again).
 
 ### `actionsPriceDeci`: the pricing switch, decoupled from `SkillDef`
 
