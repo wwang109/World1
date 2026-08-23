@@ -28,6 +28,7 @@ import {
   type RunNode,
   type RunNodeKind,
 } from '../runStore';
+import { attachButtonFeel } from '../ui/motion';
 
 const F = DESKTOP_PROFILE.font;
 // LIVE reference: every `TEMPLATE.*` read below resolves against the
@@ -374,9 +375,16 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const gridH = renderRunStatsGrid(this, cx - gridW / 2, gridTop, gridW, runStatsPairs(run), { compact: false });
     const btnY = gridTop + gridH + 40;
     const btn = this.add.rectangle(cx, btnY, 220, 48, UI.chip, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    this.add.text(cx, btnY + 24, 'MAIN MENU ›', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textOnChip }).setOrigin(0.5);
+    const btnLabel = this.add.text(cx, btnY + 24, 'MAIN MENU ›', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.textOnChip }).setOrigin(0.5);
     // Every run ends back at the ONE front door (Start scene), never a
     // map-local start panel — flow consistency per user direction 2026-08-04.
-    btn.on('pointerdown', () => { clearRun(); this.scene.start('Start'); });
+    // Shared feel (ui/motion) — this button had neither hover nor press
+    // feedback. Wired on BOTH platforms in the same change (both-platforms rule).
+    attachButtonFeel(this, btn, {
+      fill: UI.chip,
+      hover: UI.chipDark,
+      follow: [btnLabel],
+      onPress: () => { clearRun(); this.scene.start('Start'); },
+    });
   }
 }

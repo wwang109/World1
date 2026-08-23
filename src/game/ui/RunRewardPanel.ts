@@ -18,6 +18,7 @@ import { addRunArt, choiceArtKey } from './runArt';
 import { centeredBox, FEATURE_CARD_SIZE, layoutFeatureGrid, type Box } from './runRewardGeometry';
 import type { RunRewardFeature, RunRewardViewModel } from './runRewardViewModel';
 import type { Rect, RunScreenTemplate, RunTemplatePlatform } from './runScreenTemplate';
+import { attachButtonFeel } from './motion';
 
 /**
  * Ideal (never-exceeded) feature-visual sizes per platform — the renderer
@@ -265,9 +266,15 @@ function renderContinueButton(scene: Phaser.Scene, rect: Rect, font: LayoutProfi
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${font.name + 1}px`, color: UI.textOnChip,
   }).setOrigin(0.5);
   auditControlLabel(btn, label, { name: 'Run reward continue', horizontalPadding: 12, verticalPadding: 8, minFontSize: 10 });
-  btn.on('pointerover', () => btn.setFillStyle(UI.chipDark));
-  btn.on('pointerout', () => btn.setFillStyle(UI.chip));
-  btn.on('pointerdown', () => { playSfx('uiClick'); onContinue(); });
+  // Shared feel (./motion): tweened hover, immediate darken-and-sink on press.
+  // This is the most-pressed button in a run, so it is the one where a dead
+  // click was most noticeable.
+  attachButtonFeel(scene, btn, {
+    fill: UI.chip,
+    hover: UI.chipDark,
+    follow: [label],
+    onPress: () => { playSfx('uiClick'); onContinue(); },
+  });
 }
 
 /** The reward panel's background plate — identical on the resolved-outcome

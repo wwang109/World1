@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { FONT, UI } from '../theme';
 import { auditControlLabel } from './controlLayoutAudit';
+import { attachButtonFeel, pressedFill } from './motion';
 
 /** One button in the shared bottom action bar. `flex` sets its share of the
  * width (default 1); `primary` paints it gold. */
@@ -49,10 +50,22 @@ export function renderActionBar(
     const color = b.primary || b.highlight ? '#1a1208' : '#e8e0c8';
     const r = scene.add.rectangle(cx, y, w, FOOTER_HEIGHT, fill)
       .setOrigin(0, 0).setStrokeStyle(b.highlight ? 2 : 1, b.highlight ? 0xffe2a0 : UI.border, b.highlight ? 1 : 0.7).setInteractive({ useHandCursor: true });
-    r.on('pointerdown', b.onPress);
     const label = scene.add.text(cx + w / 2, y + FOOTER_HEIGHT / 2, b.label, {
       fontSize: '13px', color, fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(0.5);
+    // MOBILE's primary controls had NO feedback at all — not even a hover
+    // handler (there is no cursor on a phone), so a tap was visually silent.
+    // Press feel matters MORE here than on desktop for that exact reason: the
+    // press is the only visual channel a touch UI has. Hover == fill (a no-op
+    // without a cursor); the press colour is the shared derived darken, and the
+    // label rides the plate.
+    attachButtonFeel(scene, r, {
+      fill,
+      hover: fill,
+      press: pressedFill(fill),
+      follow: [label],
+      onPress: b.onPress,
+    });
     // Shrink-then-ellipsize (shared layout-audit policy — same helper/options
     // shape RunProgressStrip's own footer-style buttons already use) so a
     // narrow button never bleeds its label into its neighbor. Before this the

@@ -343,7 +343,7 @@ export class MobileRunEventScene extends Phaser.Scene {
     // (see `runChoicePanelMinHeight`) — same bug as desktop's 84.
     const rowH = runChoicePanelMinHeight(F, true);
     const gap = 8;
-    event.choices.forEach((choice: EventChoiceDef) => {
+    event.choices.forEach((choice: EventChoiceDef, choiceIndex: number) => {
       const cost = choice.cost ?? 0;
       // `isEventChoiceUsable` (not the bare `gold >= cost` this used to be) —
       // a `sellGem` choice also needs SOMETHING in the pouch to sell (see
@@ -364,6 +364,10 @@ export class MobileRunEventScene extends Phaser.Scene {
       renderRunChoicePanel(this, { x: 10, y, w: this.W - 20, h: rowH }, model, {
         font: F,
         sfx: cost > 0 ? 'purchase' : 'uiClick',
+        // Staggered fade-and-rise, so the options assemble down the screen
+        // instead of all snapping in at once. BOTH platforms opt in — the
+        // both-platforms rule; the shared panel does the actual animating.
+        appearIndex: choiceIndex,
         onSelect: () => {
           const outcome = resolveCurrentEventChoice(event.id, choice.id);
           if (!outcome) return;

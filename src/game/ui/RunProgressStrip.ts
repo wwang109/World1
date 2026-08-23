@@ -6,6 +6,7 @@ import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { renderBankedPlBadge } from './RunStatPanel';
 import type { Rect, RunActionRole, RunScreenTemplate } from './runScreenTemplate';
 import { runScreenLayout } from './runScreenLayout';
+import { attachButtonFeel, hoverFillFor } from './motion';
 
 /**
  * THE run HUD — one identical header drawn on EVERY Run Mode screen (map,
@@ -132,9 +133,18 @@ function drawSlotButton(
   auditControlLabel(btn, label, { name: `Run HUD ${role} (${spec.label})`, horizontalPadding: 6, verticalPadding: 4, minFontSize: 7 });
   if (!disabled) {
     btn.setInteractive({ useHandCursor: true });
-    btn.on('pointerover', () => btn.setFillStyle(role === 'primary' ? UI.chipDark : UI.slotHover));
-    btn.on('pointerout', () => btn.setFillStyle(fill));
-    btn.on('pointerdown', spec.onPress);
+    // FEEL comes from the shared module (./motion) rather than the three
+    // hand-rolled instant `setFillStyle` handlers this replaced: hover fades in,
+    // the press darkens and sinks the plate immediately, release settles it back.
+    // The LABEL rides along via `follow`, or it would sit still while its plate
+    // moved. One attach here covers the 7 desktop + 7 mobile scenes that draw
+    // this HUD.
+    attachButtonFeel(scene, btn, {
+      fill,
+      hover: hoverFillFor(role === 'primary' ? 'primary' : 'default', UI),
+      follow: [label],
+      onPress: spec.onPress,
+    });
   }
 }
 

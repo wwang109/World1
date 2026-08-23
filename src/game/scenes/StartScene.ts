@@ -5,6 +5,7 @@ import { getLifetimeStats } from '../metaStore';
 import { FONT, SCREEN, UI } from '../theme';
 import { brandMarkCenterY, renderBrandMark } from '../ui/brandMark';
 import { getActiveRun, getPendingSeed, rerollPendingSeed, startRun } from '../runStore';
+import { attachButtonFeel } from '../ui/motion';
 
 /**
  * Start screen — the game's front door on BOTH platforms (BootScene's
@@ -85,17 +86,28 @@ export class StartScene extends Phaser.Scene {
   }
 
   private button(cx: number, y: number, w: number, h: number, label: string, sub: string, primary: boolean, onPress: () => void): void {
-    const r = this.add.rectangle(cx, y, w, h, primary ? 0xb78a46 : 0x131f32)
+    const fill = primary ? 0xb78a46 : 0x131f32;
+    const r = this.add.rectangle(cx, y, w, h, fill)
       .setStrokeStyle(2, primary ? 0xe8b446 : UI.border, 0.9)
       .setInteractive({ useHandCursor: true });
-    r.on('pointerdown', () => { playSfx('uiClick'); onPress(); });
-    this.add.text(cx, y - 8, label, {
+    const labelText = this.add.text(cx, y - 8, label, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${ACTIVE_PROFILE.font.title}px`,
       color: primary ? UI.textOnChip : UI.textBright,
     }).setOrigin(0.5);
-    this.add.text(cx, y + 14, sub, {
+    const subText = this.add.text(cx, y + 14, sub, {
       fontFamily: FONT.body, fontSize: `${ACTIVE_PROFILE.font.tiny}px`,
       color: primary ? '#3a2a10' : UI.textMuted,
     }).setOrigin(0.5);
+    // THE FIRST SCREEN A PLAYER TOUCHES, and it had neither hover nor press
+    // feedback — a click produced a sound and a scene change with no
+    // acknowledgement from the button. One factory serves every Start button on
+    // BOTH platforms (this scene branches on `mobile` internally), so wiring it
+    // here covers them all. Both labels ride the plate.
+    attachButtonFeel(this, r, {
+      fill,
+      hover: primary ? 0xc79b52 : 0x1d3950,
+      follow: [labelText, subText],
+      onPress: () => { playSfx('uiClick'); onPress(); },
+    });
   }
 }

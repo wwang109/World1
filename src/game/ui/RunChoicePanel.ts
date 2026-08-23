@@ -6,6 +6,7 @@ import type { RunNodeKind } from '../runStore';
 import { FONT, UI } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { addRunArt } from './runArt';
+import { appearPanel, attachButtonFeel, flashConfirm } from './motion';
 
 export interface RunChoiceImage {
   textureKey: string;
@@ -55,7 +56,20 @@ export function renderRunChoicePanel(
   scene: Phaser.Scene,
   bounds: { x: number; y: number; w: number; h: number },
   model: RunChoiceViewModel,
-  opts: { font: LayoutProfile['font']; onSelect: () => void; track?: Phaser.GameObjects.GameObject[]; sfx?: SfxKey },
+  opts: {
+    font: LayoutProfile['font'];
+    onSelect: () => void;
+    track?: Phaser.GameObjects.GameObject[];
+    sfx?: SfxKey;
+    /**
+     * This panel's position in the list it belongs to. When set, the panel FADES
+     * AND RISES into place, staggered by its index, so a screen of options
+     * assembles instead of appearing all at once — the "new panel appearing" feel
+     * (user, 2026-08-21). Omit it and the panel is drawn statically exactly as
+     * before, so any caller that has not opted in is untouched.
+     */
+    appearIndex?: number;
+  },
 ): void {
   const railW = 6;
   const inset = Math.max(14, opts.font.small + 6);
@@ -131,9 +145,33 @@ export function renderRunChoicePanel(
   auditTextBlock(detail, { name: `${model.nodeId} detail`, maxWidth: contentW, maxHeight: detailMaxH, minFontSize: 8 });
   if (footer) auditTextBlock(footer, { name: `${model.nodeId} footer`, maxWidth: contentW, maxHeight: opts.font.tiny * 2, minFontSize: 8 });
 
+  // FADE-AND-RISE, opt-in per caller (see `appearIndex`). Runs AFTER every
+  // layout audit above has measured the final geometry — `appearPanel` only
+  // touches `y`/`alpha` at runtime, so the audits still see the authored
+  // positions and nothing about layout verification changes.
+  if (opts.appearIndex !== undefined) {
+    const parts = [panel, rail, title, action, detail, ...(image ? [image] : []), ...(footer ? [footer] : [])];
+    appearPanel(scene, parts, { delay: opts.appearIndex * 45, stagger: 0 });
+  }
+
   if (!model.enabled) return;
   panel.setInteractive({ useHandCursor: true });
-  panel.on('pointerover', () => panel.setFillStyle(UI.slotHover, 0.95));
-  panel.on('pointerout', () => panel.setFillStyle(fill, alpha));
-  panel.on('pointerdown', () => { playSfx(opts.sfx ?? 'uiClick'); opts.onSelect(); });
+  // An OPTION, not a button: the same hover/press feel, plus a confirmation
+  // pulse on the panel that was actually chosen — several options look alike, so
+  // the pulse is what tells the player which one the game took. `lift: 0`
+  // because these panels are laid out from their own origin and a translate
+  // would fight the row alignment; the colour and the pulse carry the feedback.
+  attachButtonFeel(scene, panel, {
+    fill,
+    hover: UI.slotHover,
+    alpha,
+    lift: 0,
+    onPress: () => {
+      playSfx(opts.sfx ?? 'uiClick');
+      // The RAIL flashes, not the whole plate: it is the panel's accent
+      // element, so the confirmation reads without the plate itself blinking.
+      flashConfirm(scene, rail);
+      opts.onSelect();
+    },
+  });
 }

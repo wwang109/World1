@@ -3,6 +3,7 @@ import { playSfx } from '../audio/sfxSynth';
 import { FONT, SCREEN, UI } from '../theme';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { setDeckBuildContext } from '../deckBuildContext';
+import { attachButtonFeel } from './motion';
 
 export type DesktopPage = 'prep' | 'deck' | 'wiki' | 'shop' | 'draft';
 
@@ -34,12 +35,17 @@ export function renderDesktopHeader(scene: Phaser.Scene, title: string, active: 
   const menuW = 96;
   const menu = scene.add.rectangle(SCREEN.width - gx - menuW, 24, menuW, 34, UI.panelAlt)
     .setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
-  scene.add.text(SCREEN.width - gx - menuW / 2, 41, 'MENU', {
+  const menuLabel = scene.add.text(SCREEN.width - gx - menuW / 2, 41, 'MENU', {
     fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textDim,
   }).setOrigin(0.5);
-  menu.on('pointerover', () => menu.setFillStyle(UI.slotHover));
-  menu.on('pointerout', () => menu.setFillStyle(UI.panelAlt));
-  menu.on('pointerdown', () => { playSfx('uiBack'); scene.scene.start('Start'); });
+  // Shared feel (./motion) — the desktop twin of ActionBar's mobile footer, so
+  // both platforms' primary chrome responds the same way.
+  attachButtonFeel(scene, menu, {
+    fill: UI.panelAlt,
+    hover: UI.slotHover,
+    follow: [menuLabel],
+    onPress: () => { playSfx('uiBack'); scene.scene.start('Start'); },
+  });
 
   const tabs: Array<[string, DesktopPage]> = [
     ['PREP', 'prep'], ['DECK BUILD', 'deck'], ['WIKI', 'wiki'], ['SHOP', 'shop'], ['DRAFT', 'draft'],
@@ -51,22 +57,25 @@ export function renderDesktopHeader(scene: Phaser.Scene, title: string, active: 
     const width = 44 + label.length * 9;
     const button = scene.add.rectangle(x, tabY, width, DESKTOP_LAYOUT.tabH, activeTab ? UI.chip : UI.panelAlt)
       .setOrigin(0, 0).setStrokeStyle(1, UI.border, activeTab ? 1 : 0.6).setInteractive({ useHandCursor: true });
-    scene.add.text(x + width / 2, tabY + DESKTOP_LAYOUT.tabH / 2, label, {
+    const tabLabel = scene.add.text(x + width / 2, tabY + DESKTOP_LAYOUT.tabH / 2, label, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`,
       color: activeTab ? UI.textOnChip : UI.textDim,
     }).setOrigin(0.5);
     if (!activeTab) {
-      button.on('pointerover', () => button.setFillStyle(UI.slotHover));
-      button.on('pointerout', () => button.setFillStyle(UI.panelAlt));
-      button.on('pointerdown', () => {
-        playSfx('uiClick');
-        if (page === 'deck') setDeckBuildContext('demo');
-        const target = page === 'prep' ? 'DesktopPrep'
-          : page === 'deck' ? 'DesktopDeck'
-          : page === 'wiki' ? 'DesktopWiki'
-          : page === 'shop' ? 'DesktopShop'
-          : 'DesktopDraft';
-        scene.scene.start(target);
+      attachButtonFeel(scene, button, {
+        fill: UI.panelAlt,
+        hover: UI.slotHover,
+        follow: [tabLabel],
+        onPress: () => {
+          playSfx('uiClick');
+          if (page === 'deck') setDeckBuildContext('demo');
+          const target = page === 'prep' ? 'DesktopPrep'
+            : page === 'deck' ? 'DesktopDeck'
+            : page === 'wiki' ? 'DesktopWiki'
+            : page === 'shop' ? 'DesktopShop'
+            : 'DesktopDraft';
+          scene.scene.start(target);
+        },
       });
     }
     x += width + DESKTOP_LAYOUT.gap;

@@ -298,7 +298,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
     const rowGap = 10;
     let cursor = story.contentTop;
 
-    event.choices.forEach((choice: EventChoiceDef) => {
+    event.choices.forEach((choice: EventChoiceDef, choiceIndex: number) => {
       const cost = choice.cost ?? 0;
       // `isEventChoiceUsable` (not the bare `gold >= cost` this used to be) —
       // a `sellGem` choice also needs SOMETHING in the pouch to sell (see
@@ -319,6 +319,10 @@ export class DesktopRunEventScene extends Phaser.Scene {
       renderRunChoicePanel(this, { x: innerX, y: cursor, w: innerW, h: rowH }, model, {
         font: F,
         sfx: cost > 0 ? 'purchase' : 'uiClick',
+        // Staggered fade-and-rise, so the options assemble down the screen
+        // instead of all snapping in at once. BOTH platforms opt in — the
+        // both-platforms rule; the shared panel does the actual animating.
+        appearIndex: choiceIndex,
         onSelect: () => {
           const outcome = resolveCurrentEventChoice(event.id, choice.id);
           if (!outcome) return;
