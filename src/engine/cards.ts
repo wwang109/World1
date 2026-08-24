@@ -223,6 +223,26 @@ function retextScaledNumbers(text: string, before: readonly Action[], after: rea
     ];
     for (const [oldValue, newValue] of numericPairs) {
       if (oldValue === undefined || newValue === undefined || oldValue === newValue) continue;
+      const numeral = new RegExp(`(?<!\\d)${oldValue}(?!\\d|%)`, 'g');
+      // AMBIGUITY GUARD (bug fix, 2026-08-21): only rewrite when the old value
+      // appears EXACTLY ONCE as a standalone numeral. With two or more
+      // occurrences there is no way to know which one belongs to THIS action, and
+      // guessing "the first" silently prints the wrong number on the card face.
+      //
+      // THE BUG THIS CLOSES, verbatim from the catalog: `piercing_reach` authored
+      // `shieldBreak 16` + `damage 16` with the text "{{Shatter}} 16 enemy shield,
+      // then deal 16 (+ATK) Lance damage." Only `damage` scales, so at Silver the
+      // engine shattered 16 and hit for 26 — but this rewrite replaced the FIRST
+      // "16", producing "Shatter 26 ... deal 16": both numbers wrong, and swapped.
+      // (`shieldBreak`'s magnitude is `amount`, which this function does not track
+      // at all, so nothing marked that numeral as already spoken for.)
+      //
+      // REFUSING TO GUESS IS THE POINT. An un-rewritten number is still wrong, but
+      // it is wrong LOUDLY: `tests/engine/tierTextDrift.test.ts` audits every card
+      // x tier and fails, and the fix is to author an explicit `tierUpgrades` text
+      // for that tier (which wins verbatim over this whole path). A wrong number
+      // printed confidently is the failure mode with no detector.
+      if ((out.match(numeral) ?? []).length !== 1) continue;
       out = out.replace(new RegExp(`(?<!\\d)${oldValue}(?!\\d|%)`), String(newValue));
     }
   });

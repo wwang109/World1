@@ -2472,7 +2472,66 @@
         "kind": "damage",
         "power": 16
        }
-      ]
+      ],
+      "notes": [
+       "AUTHORED TIER TEXT (bug fix, 2026-08-21) \u2014 this card had NO tierUpgrades and",
+       "relied on `autoScaleTier`'s generic text rewrite, which was WRONG here at every",
+       "tier above bronze. Both authored actions are 16 (shieldBreak 16 + damage 16) and",
+       "only `damage` scales, so the rewrite \u2014 which replaced the FIRST standalone",
+       "\"16\" \u2014 printed the scaled damage as the SHATTER number: at Silver the face read",
+       "\"Shatter 26 ... deal 16\" while the engine actually shattered 16 and hit for 26.",
+       "Both numbers wrong, and swapped. (shieldBreak's magnitude is `amount`, a field",
+       "that rewrite does not track at all, so nothing marked its numeral as taken.)",
+       "`retextScaledNumbers` now REFUSES to rewrite an ambiguous numeral and",
+       "tests/engine/tierTextDrift.test.ts audits every card x tier, so the class is",
+       "caught rather than shipped. This card supplies explicit text per tier, which",
+       "wins verbatim over that path.",
+       "PRICE unchanged and exact at every tier: shieldBreak 16 = 20 deci",
+       "(PRICE.shieldBreakPerPointNum/Den, 5/4, frozen control) + damage 16/26/36/46 =",
+       "80/130/180/230 -> 100/150/200/250. The MAGNITUDES are identical to what the",
+       "auto-scaler already produced; only the TEXT is corrected."
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "shieldBreak",
+          "amount": 16
+         },
+         {
+          "kind": "damage",
+          "power": 26
+         }
+        ],
+        "text": "{{Shatter}} 16 enemy shield, then deal 26 (+ATK) Lance damage."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "shieldBreak",
+          "amount": 16
+         },
+         {
+          "kind": "damage",
+          "power": 36
+         }
+        ],
+        "text": "{{Shatter}} 16 enemy shield, then deal 36 (+ATK) Lance damage."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "shieldBreak",
+          "amount": 16
+         },
+         {
+          "kind": "damage",
+          "power": 46
+         }
+        ],
+        "text": "{{Shatter}} 16 enemy shield, then deal 46 (+ATK) Lance damage."
+       }
+      }
      }
     }
    ]
