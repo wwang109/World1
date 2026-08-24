@@ -12,7 +12,7 @@
 // the victim's `side` + `unit`) — this script previously discarded the unit
 // index, so in a pack fight the reader could not tell which foe was hit.
 import { simulate } from '../src/engine/combat/simulate';
-import type { DamageCalculation } from '../src/engine/combat/events';
+import { fmtDamage } from './logFormat';
 import type { CombatantSetup, Side } from '../src/engine/types';
 import { hashSeed } from '../src/engine/rng';
 import { skillBook } from '../src/data/skills';
@@ -207,23 +207,6 @@ const targetSuffix = (e: {
   const why =
     e.targetPolicy === undefined ? '' : ` (${e.targetPolicy}${e.targetValue === undefined ? '' : ` ${e.targetValue}`})`;
   return ` · target ${label(foeSide, e.targetUnit)}${why}`;
-};
-
-const fmtDamage = (c: DamageCalculation): string => {
-  const terms = [`${c.baseDamage}`];
-  const add = (label: string, value: number): void => {
-    if (value !== 0) terms.push(`${value > 0 ? '+' : '-'}${label}${Math.abs(value)}`);
-  };
-  add('STAT', c.statBonusDamage);
-  add('BONUS', c.effectBonusDamage);
-  add('DEF', -c.defense);
-  add('MIN', c.minimumDamageBonus);
-  add('AFFINITY', c.matchupBonusDamage);
-  add('RAMP', c.suddenDeathBonusDamage);
-  add('GUARD', -c.guardReduction);
-  add('BLOCK', -c.shieldBlocked);
-  const bonusLabel = `+${c.effectBonusDamage} aura/combo`;
-  return `${terms.join(' ')} = ${c.hpDamage} HP (${c.scalingStat} ${c.baseStat}->${c.effectiveStat}, ${bonusLabel})`;
 };
 
 // Lineup legend, so `#n` is never a guess.

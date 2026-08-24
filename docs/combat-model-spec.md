@@ -240,6 +240,26 @@ Checks:
 - **Turn end:** a turn ends (`end`) only when no combatant is eligible.
 - **Determinism:** same seed → byte-identical event stream.
 
+**What it does NOT check: the damage arithmetic.** Every rule above is about
+*scheduling* — who acted, when, at what cost. The auditor never opens a `damage`
+event's `calculation`, so the numbers a player actually reads off a hit were
+unguarded until `tests/engine/damageLedger.test.ts`. That suite is the arithmetic
+half of this gate: it sweeps a matrix built so every optional term is non-zero
+somewhere (guard, expose, shield, the min-1 floor, both signs of the triangle,
+the sudden-death ramp, a buffed stat, a paying rider), and asserts the reported
+parts sum to `hpDamage`, that `amount = shieldBlocked + hpDamage`, that a landed
+hit is never worth less than 1, and that the stat add and triangle multiplier
+match §5's flat model rather than merely being self-consistent. It also drives
+**both** renderers of the ledger — `formatDmg` (the in-game math strip) and
+`fmtDamage` (the `npm run fight` log) — parsing each grammar back and re-summing
+it, because a closed ledger printed with a term missing is the defect this found:
+the CLI log had no `EXPOSE` term, so on any hit amplified by an active expose the
+printed terms summed to less than the printed total (206 of 2208 audited hits).
+A new stage in the damage pipeline has to appear in both renderers or that suite
+fails. The suite also asserts its own **non-vacuity** — every term must actually
+occur in the sweep — which is what keeps it from decaying into the blind spot it
+was written to close.
+
 ---
 
 ## 7. Determinism
