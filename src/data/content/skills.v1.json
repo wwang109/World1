@@ -8444,6 +8444,326 @@
      }
     }
    ]
+  },
+  {
+   "id": "warband_cleave",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Warband Cleave",
+      "text": "Deal 18 (+ATK) Axe damage \u00b7 {{Affinity}} Axe \u2014 hit again for 30.",
+      "notes": [
+       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
+       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
+       "weaker than a plain single attack even on its best board. The size-2 grant",
+       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
+       "PAYOFF-HEAVY (18 base, 30 affinity) \u2014 the most lopsided split in the family.",
+       "Axes are the catalog's heaviest swing already (8 damage cards), so this one",
+       "leans all the way into the commitment: nearly useless off-type, the best",
+       "affinity hit in the set on-type. The family needs one card at each end of",
+       "the dial or the keyword reads as a single fixed template."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 18
+       },
+       {
+        "kind": "affinityStrike",
+        "power": 30
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "phalanx_thrust",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Phalanx Thrust",
+      "text": "Deal 30 (+ATK) Lance damage \u00b7 {{Affinity}} Lance \u2014 hit again for 15.",
+      "notes": [
+       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
+       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
+       "weaker than a plain single attack even on its best board. The size-2 grant",
+       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
+       "BASE-HEAVY (30 base, 15 affinity): a lance line holds regardless, so the",
+       "guaranteed half carries the card and the affinity hit is the reward rather",
+       "than the point. The mirror of Warband Cleave at the other end of the dial."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 30
+       },
+       {
+        "kind": "affinityStrike",
+        "power": 15
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "massed_volley",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Massed Volley",
+      "text": "Deal 34 (+ATK) Bow damage \u00b7 {{Affinity}} Bow \u2014 hit again for 10.",
+      "notes": [
+       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
+       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
+       "weaker than a plain single attack even on its best board. The size-2 grant",
+       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
+       "The most base-heavy split (34/10). Bow sits OUTSIDE the weapon triangle",
+       "(WEAPON_BEATS: bow beats beast only), so a bow board's triangle upside is",
+       "the narrowest of any weapon \u2014 its guaranteed half is weighted up to",
+       "compensate, exactly as communion_light is for Holy. Same reasoning, same",
+       "rate: nothing about the affinity price changes per type."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 34
+       },
+       {
+        "kind": "affinityStrike",
+        "power": 10
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pack_instinct",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Pack Instinct",
+      "text": "Deal 22 (+ATK) Beast damage \u00b7 {{Affinity}} Beast \u2014 hit again for 25.",
+      "notes": [
+       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
+       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
+       "weaker than a plain single attack even on its best board. The size-2 grant",
+       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
+       "22/25 \u2014 the affinity hit edges out the base, which is the whole read on a",
+       "pack: one beast is a bite, three is a hunt. Beast is also outside the",
+       "triangle but, unlike bow, is BEATEN by it (bow beats beast), so it takes",
+       "the payoff-leaning split rather than the defensive one."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 22
+       },
+       {
+        "kind": "affinityStrike",
+        "power": 25
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grove_lash",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Grove Lash",
+      "text": "Deal 26 (+MATK) Nature damage \u00b7 {{Affinity}} Nature \u2014 hit again for 20.",
+      "notes": [
+       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
+       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
+       "weaker than a plain single attack even on its best board. The size-2 grant",
+       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
+       "The balanced split (26/20), the same shape as sworn_edge: a real attack for",
+       "any board and a clear reward for three. Nature is on the elemental wheel",
+       "(fire -> nature -> lightning), so it needs no compensation either way."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 26
+       },
+       {
+        "kind": "affinityStrike",
+        "power": 20
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "deepening_frost",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Deepening Frost",
+      "text": "Deal 30 (+MATK) Frost damage \u00b7 {{Affinity}} Frost \u2014 hit again for 15.",
+      "notes": [
+       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
+       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
+       "weaker than a plain single attack even on its best board. The size-2 grant",
+       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
+       "BASE-HEAVY (30/15). Frost already carries the catalog's control load",
+       "(slow/freeze), so a frost board is usually built for tempo rather than for",
+       "burst \u2014 the half that always fires is the half that fits that board."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 30
+       },
+       {
+        "kind": "affinityStrike",
+        "power": 15
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "gathering_storm",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Gathering Storm",
+      "text": "Deal 22 (+MATK) Lightning damage \u00b7 {{Affinity}} Lightning \u2014 hit again for 25.",
+      "notes": [
+       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
+       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
+       "weaker than a plain single attack even on its best board. The size-2 grant",
+       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
+       "22/25, payoff-leaning. Lightning is the widest element in the catalog (7",
+       "damage cards), so reaching IDENTITY_THRESHOLD on it is the easiest of any",
+       "type \u2014 the split leans toward the gate precisely because the gate is cheap",
+       "to open here, and the card should still cost something to run off-type."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "lightning",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 22
+       },
+       {
+        "kind": "affinityStrike",
+        "power": 25
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "umbral_choir",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Umbral Choir",
+      "text": "Deal 30 (+MATK) Dark damage \u00b7 {{Affinity}} Dark \u2014 hit again for 15.",
+      "notes": [
+       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
+       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
+       "weaker than a plain single attack even on its best board. The size-2 grant",
+       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
+       "BASE-HEAVY (30/15), the Dark mirror of communion_light's 30/15 on Holy.",
+       "Holy and Dark sit OUTSIDE the elemental wheel and only ever meet each",
+       "other, so both have the narrowest triangle upside of any element and both",
+       "weight their guaranteed half up by the same amount. Dark also had only 3",
+       "damage cards, so a Dark board could barely reach the threshold at all."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "dark",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 30
+       },
+       {
+        "kind": "affinityStrike",
+        "power": 15
+       }
+      ]
+     }
+    }
+   ]
   }
  ]
 }
