@@ -134,6 +134,8 @@ export interface PriceRates {
   comboPerPointNum: number;
   comboPerPointDen: number;
   conditionalBonusDen: number;
+  affinityPayoffNum: number;
+  affinityPayoffDen: number;
   guardPerPctTurnNum: number;
   guardPerPctTurnDen: number;
   exposePerPctTurnNum: number;
@@ -153,6 +155,17 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     magical: P.flatPowerPerPoint,
     true: P.flatPowerPerPoint + P.truePremiumPerPoint,
   };
+  /**
+   * An affinity payoff hit: the strike rate scaled by `affinityPayoffNum/Den`
+   * (4/5). Written as a pre-multiplied numerator over the shared denominator so
+   * the division stays exact — 20/5 = 4 deci per point physical or magical,
+   * 40/5 = 8 on TRUE, integers at every power.
+   */
+  const affinityStrikeRate: Record<Property, number> = {
+    physical: strikeRate.physical * P.affinityPayoffNum,
+    magical: strikeRate.magical * P.affinityPayoffNum,
+    true: strikeRate.true * P.affinityPayoffNum,
+  };
   /** TRUE heals are pure flat at their own rate; typed heals add the caster's stat. */
   const healRate: Record<Property, number> = {
     physical: P.flatPowerPerPoint,
@@ -171,6 +184,18 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // deliberate, so it misses every band loudly. The echo's host-proportional
     // price lives in `gemPowerLevelDeci`, not in this card-rate table.
     statStrike: { isHit: true, scalable: false, family: 'damage', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: 1 }] },
+    // An EXTRA HIT gated on the caster's own board affinity. `isHit: true` and
+    // `family: 'damage'` so it counts toward the multi-hit premium and is capped
+    // with the rest of the card's damage — the conservative side of both, since
+    // a gated hit is worth no more than an ungated one.
+    //
+    // `scalable: false`, following `statStrike` rather than `damage`: the tier
+    // solver drives every sink action to the SAME per-action magnitude, so a
+    // scalable secondary hit would be dragged up to equal the card's primary one
+    // at Silver and change the card's character. Frozen here, the card still
+    // tiers on its own `damage` line, and an authored `tierUpgrades` can move
+    // the affinity hit deliberately when a card wants that.
+    affinityStrike: { isHit: true, scalable: false, family: 'damage', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: affinityStrikeRate, den: P.affinityPayoffDen }] },
     heal: { isHit: false, scalable: true, family: 'heal', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: healRate, den: 1 }] },
     shield: { isHit: false, scalable: true, family: 'shield', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: shieldRate, den: 1 }] },
 

@@ -507,6 +507,38 @@ type ActionKinds =
    */
   | { kind: 'chainBonus'; after: Element | WeaponType; amount: number }
   /**
+   * AFFINITY STRIKE — an EXTRA HIT that exists only for a board committed to
+   * this card's own type: `power` FLAT damage, delivered as its own hit, if and
+   * only if the caster carries the affinity matching `cardType(this card)` (its
+   * `element` if it has one, else its `weapon`).
+   *
+   * THE GATE IS THE BOARD, NOT THE FIGHT. A hero's affinity comes from Board
+   * Type Identity — `IDENTITY_THRESHOLD` (3) cards of one UNIQUE top type,
+   * counting this card itself, so it asks for two more of its own type and no
+   * tie at the top (`boardTypeIdentity`). That makes it the first OFFENSIVE
+   * payoff for a committed board; until now an identity bought only the
+   * defensive attunement that feeds the weapon/element triangle. It is also,
+   * unlike every member of the conditional-rider family, a gate that is either
+   * open for the WHOLE fight or shut for the whole fight: a board cannot change
+   * mid-combat. That is why it is priced on its own terms (`affinityPayoffNum`
+   * / `affinityPayoffDen`) rather than at the ½ conditional-trigger discount,
+   * which describes a gate that is only sometimes open.
+   *
+   * STRICTLY ADDITIVE, LIKE `statStrike`. Only `kind: 'damage'` actions enter
+   * the multi-hit divisor (`countDamageActions`), so this hit never carves a
+   * share out of the host card's own hit — turning the gate ON can only ever
+   * add damage, never redistribute it. It is FLAT for the same reason a
+   * gem-appended hit is: it takes no stat share, no `mods.damageFlat`, and no
+   * rider bonus, so the card's printed base hit reads identically whether the
+   * board opens the gate or not.
+   *
+   * A CARD MUST HAVE A TYPE to carry one (`validateSkillContent`): a typeless
+   * card can never satisfy the gate, so the payload would be unreachable —
+   * refused at authoring rather than priced, the same call
+   * `splash`-with-nothing-to-spread and self-naming `chainBonus` get.
+   */
+  | { kind: 'affinityStrike'; power: number }
+  /**
    * EXPLOIT — `comboBonus`'s sibling, gated on the VICTIM'S CONDITION instead of
    * on the caster's own cast history: +`amount` FLAT damage this cast if the
    * target ALREADY CARRIES the named affliction. Place it BEFORE the damage

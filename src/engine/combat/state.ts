@@ -285,7 +285,8 @@ function initCombatant(side: Side, index: number, setup: CombatantSetup, skillBo
   // Board Type Identity, computed once from the placed cards (element/weapon is
   // unaffected by tier/gem resolution, so the effective skills are fine to use).
   const boardIdentity = boardTypeIdentity(pieces.map((p) => p.skill));
-  // Effect 1 — defensive attunement: an identity fills the matching affinity
+  // Effect 1 — defensive attunement (Effect 2, the opt-in `affinityStrike`
+  // payoff, reads these same two fields at cast time via `affinityOpen`): an identity fills the matching affinity
   // ONLY where no affinity was authored. Authored (enemy) affinities always win;
   // heroes have none, so this is their first source of affinity.
   let elementAffinity = setup.elementAffinity;

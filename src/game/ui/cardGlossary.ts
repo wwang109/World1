@@ -1,6 +1,7 @@
 import type { Action, Archetype, Element, Property, SkillDef, SkillTier, WeaponType } from '../../engine/types';
 import { MAX_WARD_CHARGES, weightOf } from '../../engine/types';
 import { burnTotalDamage } from '../../engine/balance';
+import { IDENTITY_THRESHOLD } from '../../engine/combat/typeIdentity';
 
 /**
  * "10 → 4 → 2" — the tick sequence of a halving burn pile.
@@ -203,7 +204,12 @@ export function slotEntry(skill: SkillDef): GlossaryEntry {
   };
 }
 
-function keywordEntry(action: Action, property: Property): GlossaryEntry | undefined {
+/**
+ * `ownType` is the card's own `element ?? weapon` (mirroring `cardType`), needed
+ * only by `affinityStrike`, whose gate is stated in terms of the card's own type
+ * rather than a field on the action.
+ */
+function keywordEntry(action: Action, property: Property, ownType?: Element | WeaponType): GlossaryEntry | undefined {
   switch (action.kind) {
     case 'shield':
       return {
@@ -317,6 +323,22 @@ function keywordEntry(action: Action, property: Property): GlossaryEntry | undef
         title: 'Combo',
         body: 'Bonus triggers if your previous cast shared this card’s archetype.',
       };
+    // AFFINITY — the board's own payoff, and the one keyword whose condition is
+    // about the player's DECK rather than the fight. The body has to state the
+    // threshold in plain terms, because "3 cards of one type, counting this one,
+    // with no tie at the top" is the entire decision and nothing else on the card
+    // hints at it.
+    case 'affinityStrike': {
+      const name = ownType === undefined ? 'this card\u2019s' : `${TYPE_NAME[ownType] ?? ownType}`;
+      return {
+        title: 'Affinity',
+        body: ownType === undefined
+          ? `Hits again for ${action.power} when your board matches this card\u2019s type.`
+          : `Hits again for ${action.power} — but only while your board has ${TYPE_NAME[ownType] ?? ownType} affinity. `
+            + `You get that by running ${IDENTITY_THRESHOLD} ${name} cards (this one counts) with no other type tied for the most. `
+            + `Two is not enough, and the extra hit is simply absent until you get there.`,
+      };
+    }
     // CHAIN — Combo's twin on the TYPE axis. The entry names the partner type
     // explicitly (that is the whole decision the player makes) and states the
     // cold start, which is the one thing they will otherwise get wrong: the
@@ -405,7 +427,7 @@ export function skillKeywordEntries(skill: SkillDef): GlossaryEntry[] {
   const entries: GlossaryEntry[] = [];
   const seen = new Set<string>();
   for (const action of skill.effects) {
-    const entry = keywordEntry(action, skill.property);
+    const entry = keywordEntry(action, skill.property, skill.element ?? skill.weapon);
     if (entry && !seen.has(entry.title)) {
       seen.add(entry.title);
       entries.push(entry);

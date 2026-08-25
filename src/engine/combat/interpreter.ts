@@ -7,6 +7,7 @@ import { elementMatchup, matchupPct, weaponMatchup, type Matchup } from '../elem
 import { anySideWiped, boardPowerLevel, effStat, foesOf, hasStatus, releaseWardCharges, spendShieldsForBurst, statusStackCount, taxedCardCount, teamOf, totalShield, wardChargeCount, type CombatState, type CombatantState, type StatusInstance } from './state';
 import { getSpecial } from './specials';
 import { cardTargetPieces } from './splash';
+import { cardType } from './typeIdentity';
 
 export interface Ctx {
   state: CombatState;
@@ -25,6 +26,9 @@ function isOffensiveAction(action: Action): boolean {
   switch (action.kind) {
     case 'damage':
     case 'statStrike':
+    // AFFINITY STRIKE lands its own hit on the victim, so it fans out with the
+    // rest of the cast and pays the AoE reach multiplier under `scope: 'all'`.
+    case 'affinityStrike':
     case 'poison':
     case 'burn':
     case 'bleed':
@@ -898,6 +902,24 @@ export function dealDamage(
   return true;
 }
 
+/**
+ * Does the CASTER carry the affinity matching this card's own type?
+ *
+ * The gate for `affinityStrike`. `cardType` is the one notion of a card's type
+ * the rest of the system uses (element if present, else weapon), and a
+ * combatant's affinity is either authored (enemies) or derived from Board Type
+ * Identity (heroes) — see `initCombatant`. A typeless card can never open the
+ * gate; `validateSkillContent` refuses to author one, and returning false here
+ * makes the engine safe against a bespoke test book that does.
+ */
+function affinityOpen(caster: CombatantState, skill: SkillDef): boolean {
+  const type = cardType(skill);
+  if (type === undefined) return false;
+  return type.kind === 'element'
+    ? caster.elementAffinity === type.type
+    : caster.weaponAffinity === type.type;
+}
+
 /** Element wheel (magical) / weapon triangle (physical) result for a card vs a defender. */
 export function cardMatchup(skill: SkillDef, defender: CombatantState): Matchup {
   if (skill.property === 'magical') return elementMatchup(skill.element, defender.elementAffinity);
@@ -1197,6 +1219,28 @@ function applyAction(
         // this cast, against THIS victim (see `CastCtx.bonusByTarget`). A
         // gem-appended hit takes neither, exactly as before.
         flatBonus: flat ? 0 : mods.damageFlat + cast.bonusFlat + (cast.bonusByTarget[enemy.index] ?? 0),
+      });
+      break;
+    }
+    case 'affinityStrike': {
+      // THE BOARD'S OWN PAYOFF. Fires only when the caster carries the affinity
+      // matching this card's type — for a hero that means Board Type Identity
+      // (`IDENTITY_THRESHOLD` cards of one unique top type, this card included),
+      // which is fixed for the whole fight because a board cannot change
+      // mid-combat. See the `affinityStrike` docs in types.ts.
+      //
+      // FLAT AND ADDITIVE, exactly like a gem-appended hit: no stat share, no
+      // `mods.damageFlat`, no rider bonus. It is not in the multi-hit divisor
+      // (`countDamageActions` counts only `kind: 'damage'`), so opening the gate
+      // ADDS a hit and never shrinks the card's own — the printed base hit reads
+      // the same on an on-type board and an off-type one.
+      if (!enemy.alive) break;
+      if (!affinityOpen(caster, skill)) break;
+      applyStrike(ctx, caster, skill, cast, enemy, {
+        power: action.power,
+        baseStat: 0,
+        effectiveStat: 0,
+        flatBonus: 0,
       });
       break;
     }

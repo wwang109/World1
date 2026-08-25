@@ -288,6 +288,13 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
       // ARCHETYPES per turn and would need a parallel last-cast-TYPE feed. The
       // badge is honest as static text meanwhile; the live state is a follow-up.
       case 'chainBonus': extras.push({ text: `CHAIN +${action.amount} AFTER ${action.after.toUpperCase()}`, keyword: 'chain' }); break;
+      // The chip names the TYPE the board must match, taken from the card itself
+      // — the action carries no type of its own.
+      case 'affinityStrike': {
+        const ownType = skill.element ?? skill.weapon;
+        extras.push({ text: `AFFINITY +${action.power} HIT${ownType === undefined ? '' : ` (${ownType.toUpperCase()})`}`, keyword: 'affinity' });
+        break;
+      }
       // The two CONDITIONAL BONUS-DAMAGE riders (engine/types.ts). Both print
       // the flat number they actually add and the status they key off — no
       // invented noun for the mechanic, and no "x2": the engine adds a FLAT

@@ -311,6 +311,9 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
   // Same reason as comboBonus: it ARMS the cast's bonus scalar, which only the
   // host's own `damage` action reads, so it must land ahead of the card.
   chainBonus: 'pre',
+  // An EXTRA HIT, so it follows the host's own damage rather than preceding it —
+  // "hit again" reads as a second blow, not a first.
+  affinityStrike: 'post',
   /**
    * Arms `cast.bonusByTarget` — same seam as `comboBonus`, same failure mode if
    * appended last (no damage action left to read the bonus, so the whole gem

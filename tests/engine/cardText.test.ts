@@ -175,6 +175,11 @@ function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined):
       case 'chainBonus':
         expected.push(eff.amount);
         break;
+      // AFFINITY STRIKE: `power` is the extra hit's damage, and the face must
+      // print it — the whole point of the card is that the number exists.
+      case 'affinityStrike':
+        expected.push(eff.power);
+        break;
       default:
         assertNever(eff);
     }

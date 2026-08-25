@@ -154,6 +154,10 @@ describe('PRICE structure lock', () => {
       comboPerPointNum: 5,
       comboPerPointDen: 2,
       conditionalBonusDen: 2,
+    // The affinity payoff discount: 4/5 of the strike rate. Derived from
+    // IDENTITY_THRESHOLD - 1 slots dictated out of HERO_BOARD_SLOTS (2/10).
+    affinityPayoffNum: 4,
+    affinityPayoffDen: 5,
       guardPerPctTurnNum: 1,
       guardPerPctTurnDen: 1,
       exposePerPctTurnNum: 1,
@@ -728,7 +732,7 @@ describe('AoE reach pricing (scope: all)', () => {
     // regression guard for that drift, since balance.ts cannot import the
     // interpreter's private classification directly (layering cycle).
     expect(OFFENSIVE_KINDS).toEqual(new Set([
-      'damage', 'statStrike', 'poison', 'burn', 'bleed', 'stun',
+      'damage', 'statStrike', 'affinityStrike', 'poison', 'burn', 'bleed', 'stun',
       'debuffStat', 'expose', 'slow', 'disrupt', 'shieldBreak',
       // 2026-08-21 (the splash split): the two CARD-TARGETING keywords and their
       // SPREADER. `burden`/`curse` land on one of the victim's board cards, so

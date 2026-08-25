@@ -8310,6 +8310,140 @@
      }
     }
    ]
+  },
+  {
+   "id": "sworn_edge",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Sworn Edge",
+      "text": "Deal 26 (+ATK) Sword damage \u00b7 {{Affinity}} Sword \u2014 hit again for 20.",
+      "notes": [
+       "SIZE 2, and deliberately so. A two-hit card pays the multi-hit premium (30",
+       "deci = 3 PL), which at size 1 is 3 of only 10 PL and leaves the pair of hits",
+       "weaker than a plain single attack even WITH the affinity live \u2014 the mechanic",
+       "would be strictly worse than sword_slash on its best board. The size-2 grant",
+       "(140 deci) is what buys the premium room, so an affinity double-hit is a",
+       "size-2 effect by construction, not by preference.",
+       "damage 26 (130) + affinityStrike 20 (80) + multi-hit (30) - size (140)",
+       "= 100 exact. The affinity hit prices at 4 deci/point (4/5 of the strike",
+       "rate, PRICE.affinityPayoffNum/Den), so 20 points cost 80 rather than 100.",
+       "THE SPLIT: base 26 and payoff 20 keeps the card honest in both decks \u2014",
+       "26 alone is a real attack for any board, and 46 on a sword board is the",
+       "reward for the two other sword cards the gate demands."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 26
+       },
+       {
+        "kind": "affinityStrike",
+        "power": 20
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "kindred_flame",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Kindred Flame",
+      "text": "Deal 22 (+MATK) Fire damage \u00b7 {{Affinity}} Fire \u2014 hit again for 25.",
+      "notes": [
+       "SIZE 2, and deliberately so. A two-hit card pays the multi-hit premium (30",
+       "deci = 3 PL), which at size 1 is 3 of only 10 PL and leaves the pair of hits",
+       "weaker than a plain single attack even WITH the affinity live \u2014 the mechanic",
+       "would be strictly worse than sword_slash on its best board. The size-2 grant",
+       "(140 deci) is what buys the premium room, so an affinity double-hit is a",
+       "size-2 effect by construction, not by preference.",
+       "damage 22 (110) + affinityStrike 25 (100) + multi-hit (30) - size (140)",
+       "= 100 exact.",
+       "PAYOFF-HEAVY, deliberately the mirror of Sworn Edge: the affinity hit is",
+       "the BIGGER half (25 vs 22), so a fire board turns a modest bolt into the",
+       "card's real form. One of each shape exists so the keyword reads as a",
+       "dial rather than a single fixed template."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "fire",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 22
+       },
+       {
+        "kind": "affinityStrike",
+        "power": 25
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "communion_light",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Communion Light",
+      "text": "Deal 30 (+MATK) Holy damage \u00b7 {{Affinity}} Holy \u2014 hit again for 15.",
+      "notes": [
+       "SIZE 2, and deliberately so. A two-hit card pays the multi-hit premium (30",
+       "deci = 3 PL), which at size 1 is 3 of only 10 PL and leaves the pair of hits",
+       "weaker than a plain single attack even WITH the affinity live \u2014 the mechanic",
+       "would be strictly worse than sword_slash on its best board. The size-2 grant",
+       "(140 deci) is what buys the premium room, so an affinity double-hit is a",
+       "size-2 effect by construction, not by preference.",
+       "damage 30 (150) + affinityStrike 15 (60) + multi-hit (30) - size (140)",
+       "= 100 exact.",
+       "HOLY, which had only two damage cards \u2014 the thinnest element in the",
+       "catalog, so a Holy board could not reach IDENTITY_THRESHOLD without this.",
+       "BASE-HEAVY (30 vs 15): Holy/Dark sit outside the elemental wheel and only",
+       "ever meet each other, so a Holy card's triangle upside is rarer than a",
+       "wheel element's. Weighting its guaranteed half up compensates without",
+       "touching the affinity rate."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 30
+       },
+       {
+        "kind": "affinityStrike",
+        "power": 15
+       }
+      ]
+     }
+    }
+   ]
   }
  ]
 }

@@ -9,8 +9,15 @@
 // through an existing seam: the defensive affinity fold in `state.ts` (combatant
 // setup) — a board of 3+ one type gains that type's affinity, which unlocks the
 // weapon/element triangle (advantage +50% / disadvantage −25%) via `cardMatchup`
-// in the interpreter. There is no flat same-type damage bonus. The core combat
-// loop stays feature-agnostic.
+// in the interpreter. There is no flat same-type damage bonus, and an identity
+// still grants nothing offensive by itself.
+//
+// Since 2026-08-25 there is a SECOND, OPT-IN effect: a card may carry an
+// `affinityStrike` action — an extra flat hit that resolves only when the caster
+// holds the affinity matching that card's own type (`affinityOpen` in the
+// interpreter). It is per-card and paid for per-card, so this module's output
+// still only DERIVES the identity; nothing here decides what an identity is
+// worth. The core combat loop stays feature-agnostic.
 
 import type { Element, SkillDef, WeaponType } from '../types';
 

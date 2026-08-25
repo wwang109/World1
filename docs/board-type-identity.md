@@ -30,10 +30,35 @@ ways: your attacks deal **+50%** into the type your affinity beats, and take
 **−25%** from that type; attacks of the type that beats your affinity deal
 **+50%** into you.
 
-That is the whole effect. There is **no flat same-type damage bonus** — the old
-v1 "+20% on matching cards" was removed 2026-07-22. (A distinct same-type
-reward mechanic may be revisited later; if added, it must be named and priced
-on its own.)
+There is still **no flat same-type damage bonus** — the old v1 "+20% on matching
+cards" was removed 2026-07-22, and nothing about an identity multiplies a card's
+damage.
+
+**Effect 2 — the affinity payoff (`affinityStrike`, 2026-08-25).** This is the
+"distinct same-type reward mechanic" the paragraph above reserved, on the terms
+it set: named and priced on its own rather than folded into the identity as a
+blanket bonus. A card may carry an `affinityStrike` action, an EXTRA HIT of flat
+`power` that resolves only when the caster carries the affinity matching that
+card's own type. It is opt-in per card, so an identity by itself still grants
+nothing offensive; only cards that were authored and paid for it benefit.
+
+Three properties keep it from disturbing anything above:
+
+- **Additive, never redistributive.** Only `kind: 'damage'` actions enter the
+  multi-hit divisor (`countDamageActions`), so the extra hit never carves a share
+  out of the card's own hit. Opening the gate can only add damage. The printed
+  base hit reads identically on an on-type board and an off-type one.
+- **Flat.** It takes no stat share, no `mods.damageFlat` and no rider bonus —
+  the same self-contained shape a gem-appended hit has.
+- **Fixed for the fight.** A board cannot change mid-combat, so the gate is open
+  for the whole fight or shut for the whole fight. That is *why* it is priced on
+  its own terms (`PRICE.affinityPayoffNum/Den`, 4/5 of the strike rate) instead of
+  at the ½ conditional-trigger discount, which prices a gate that is only
+  sometimes open. Derivation: `IDENTITY_THRESHOLD − 1` further slots are dictated
+  by the card's demand out of `HERO_BOARD_SLOTS`, i.e. one fifth of the board.
+
+A card with an `affinityStrike` must HAVE a type; `validateSkillContent` refuses
+a typeless one, since its gate could never open on any board.
 
 ## Balance stance
 

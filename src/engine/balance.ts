@@ -464,6 +464,45 @@ export const PRICE = {
   conditionalBonusDen: 2,
 
   /**
+   * AFFINITY PAYOFF (`affinityStrike`) — pay `affinityPayoffNum/affinityPayoffDen`
+   * of the ordinary strike rate: 4/5, so 4 deci per point of power instead of 5
+   * (8 instead of 10 on TRUE). Both are exact integers at every power, so no
+   * rounding enters the budget.
+   *
+   * WHY NOT THE ½ CONDITIONAL DISCOUNT. `conditionalBonusDen` prices a gate the
+   * card cannot supply AND that is only SOMETIMES open — the target happens to
+   * be poisoned, the previous cast happened to be a sword, the caster happens to
+   * be at half HP. An affinity gate is categorically different: a board cannot
+   * change mid-combat, so the gate is open for the WHOLE fight or shut for the
+   * whole fight, and which one is the player's choice at build time. For the deck
+   * that meets it the payload has 100% uptime, so charging it the same ½ as a
+   * genuinely uncertain rider would make a committed board strictly the best
+   * board — the exact failure the PL system exists to prevent.
+   *
+   * WHY NOT FULL PRICE EITHER. At 1x the card is simply worse than its plain
+   * equivalent — identical value to an on-type board, dead weight to any other —
+   * so nothing would ever run it and the mechanic would not exist. A discount is
+   * what makes the commitment worth making; the only honest question is its size.
+   *
+   * THE DERIVATION uses two constants already in the game rather than a new
+   * judgement. Opening the gate costs BOARD FREEDOM: `IDENTITY_THRESHOLD` (3)
+   * cards must share this card's type, of which the card itself is one, so it
+   * dictates the contents of 2 further slots out of the hero's
+   * `HERO_BOARD_SLOTS` (10) — one fifth of the board is spoken for by this
+   * card's demand. So the payload is discounted by exactly that fifth: pay 4/5.
+   * That lands strictly below the ½ conditional discount, as it must, since this
+   * gate never closes once met.
+   *
+   * MOVABLE, DELIBERATELY. This is the one number here whose derivation is an
+   * analogy rather than an identity; if committed boards prove too strong the
+   * numerator rises toward 5 (full price) and if the mechanic goes unplayed it
+   * falls toward 3. Content re-solves against it automatically because every
+   * affinity card is authored to a tier budget.
+   */
+  affinityPayoffNum: 4,
+  affinityPayoffDen: 5,
+
+  /**
    * guard: pct * turns * (guardPerPctTurnNum/Den) deci. Priced at PARITY with
    * the plain stat-buff rate (statPctTurn = 1x) — user-locked 2026-07-19, the
    * old 1.25x premium removed. Throughput rationale

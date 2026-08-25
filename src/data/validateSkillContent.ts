@@ -146,6 +146,7 @@ const ACTION_FIELDS: Record<string, readonly string[]> = {
   // type (a weapon OR an element: `cardType` reads `element ?? weapon`), so one
   // keyword covers both the sword->axe and the fire->frost pairing.
   chainBonus: ['after', 'amount'],
+  affinityStrike: ['power'],
   exploit: ['status', 'amount'],
   // `cap` is REQUIRED on stackBonus (engine/types.ts) — the payload is
   // `min(per × stacks, cap)` and only the ceiling is priceable. Same for the
@@ -391,6 +392,9 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
       req(raw, 'per', inRange(1, 999), 'an integer 1..999 (a per of 0 is priced for its cap and can never deliver a point)', at, problems);
       req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, because per x stacks cleansed is unbounded', at, problems);
       break;
+    case 'affinityStrike':
+      req(raw, 'power', inRange(1, 999), 'an integer 1..999 (a power of 0 is a hit that deals nothing, and a negative one would HEAL the target while refunding budget)', at, problems);
+      break;
     case 'taunt': num('amount'); break;
     case 'buffStat': stat(); pct('pct'); turns('turns'); break;
     case 'debuffStat': stat(); pct('pct'); turns('turns'); break;
@@ -491,6 +495,31 @@ function rejectSelfChain(ownType: unknown, effects: unknown, at: string, problem
       message: 'a chainBonus cannot name its own card type (' + ownType + ') — the card would satisfy its own gate '
         + 'from its second cast onward, which is not what the conditional-trigger discount prices. Name a DIFFERENT '
         + 'type (the sword -> axe / fire -> frost pairing the keyword exists for), or drop the rider.',
+    });
+  }
+}
+
+/**
+ * AN AFFINITY PAYLOAD NEEDS A TYPE TO KEY OFF. `affinityStrike` fires when the
+ * caster carries the affinity matching THIS card's own type (`cardType` =
+ * `element ?? weapon`). A card with neither has no type to match, so the payload
+ * is unreachable for every board in the game — dead budget on the face and a
+ * promise the engine can never keep.
+ *
+ * Refused at authoring rather than priced, the same call `splash` with nothing to
+ * spread and a self-naming `chainBonus` get: an effect that cannot fire is an
+ * authoring mistake, not a cheap effect.
+ */
+function rejectTypelessAffinity(ownType: unknown, effects: unknown, at: string, problems: ContentProblem[]): void {
+  if (!Array.isArray(effects)) return;
+  if (typeof ownType === 'string' && ownType.length > 0) return;
+  for (const action of effects) {
+    if (!isObj(action) || action.kind !== 'affinityStrike') continue;
+    problems.push({
+      where: at,
+      message: 'an affinityStrike needs the card to HAVE a type: its gate is "the caster carries this card\'s own '
+        + 'element (or weapon) as an affinity", and a card with neither can never open it on any board. Give the card '
+        + 'an element or a weapon, or drop the affinity hit.',
     });
   }
 }
@@ -826,6 +855,7 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   rejectSpreaderWithNothingToSpread(raw.effects, where, problems);
   rejectRiderMisordering(raw.effects, where, problems);
   rejectSelfChain(raw.element ?? raw.weapon, raw.effects, where, problems);
+  rejectTypelessAffinity(raw.element ?? raw.weapon, raw.effects, where, problems);
   if (isObj(raw.tierUpgrades)) {
     for (const [tier, up] of Object.entries(raw.tierUpgrades)) {
       if (!isObj(up)) continue;
@@ -833,6 +863,7 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
       rejectSpreaderWithNothingToSpread(up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
       rejectRiderMisordering(up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
       rejectSelfChain(up.element ?? raw.element ?? up.weapon ?? raw.weapon, up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
+      rejectTypelessAffinity(up.element ?? raw.element ?? up.weapon ?? raw.weapon, up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
     }
   }
 
