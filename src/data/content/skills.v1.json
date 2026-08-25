@@ -147,6 +147,38 @@
         "kind": "damage",
         "power": 18
        }
+      ],
+      "tierUpgrades": {
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 24
+         },
+         {
+          "kind": "affinityStrike",
+          "power": 30
+         }
+        ],
+        "text": "Deal 24 (+MATK) Lightning damage \u00b7 {{Affinity}} Lightning \u2014 hit again for 30."
+       }
+      },
+      "notes": [
+       "",
+       "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
+       "Diamond, so the card is an ordinary attack for its whole life and learns its",
+       "board's trick at the top tier. This is a CHOICE, not a forced upgrade: cards",
+       "are offered at a tier and bought with gold (`goldPriceOfCard`), so the player",
+       "reads the face and decides \u2014 an on-type board gains, any other board is",
+       "buying a worse card and can see that.",
+       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, 4 deci per point",
+       "against damage's 5) and pays no multi-hit premium (PREMIUM_HIT_KINDS), which",
+       "is why a split can beat the single big hit at all. Budget is exact at 250.",
+       "The plain bolt learns a follow-up. Auto-scaled Diamond is a single 48; this",
+       "trades 24 of that base for a 30-power gated hit, so a lightning board reads",
+       "54 across two instances and any other board reads 24. The biggest swing of",
+       "the five \u2014 lightning is the widest element in the catalog, so the board that",
+       "wants this is the easiest one to actually have."
       ]
      }
     }
@@ -1824,6 +1856,37 @@
         "kind": "damage",
         "power": 20
        }
+      ],
+      "tierUpgrades": {
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 34
+         },
+         {
+          "kind": "affinityStrike",
+          "power": 20
+         }
+        ],
+        "text": "Deal 34 (+ATK) Bow damage. Strong vs Beasts \u00b7 {{Affinity}} Bow \u2014 hit again for 20."
+       }
+      },
+      "notes": [
+       "",
+       "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
+       "Diamond, so the card is an ordinary attack for its whole life and learns its",
+       "board's trick at the top tier. This is a CHOICE, not a forced upgrade: cards",
+       "are offered at a tier and bought with gold (`goldPriceOfCard`), so the player",
+       "reads the face and decides \u2014 an on-type board gains, any other board is",
+       "buying a worse card and can see that.",
+       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, 4 deci per point",
+       "against damage's 5) and pays no multi-hit premium (PREMIUM_HIT_KINDS), which",
+       "is why a split can beat the single big hit at all. Budget is exact at 250.",
+       "THE CAUTIOUS ONE (34 + 20 against an auto-scaled 50): bow sits outside the",
+       "weapon triangle, so its guaranteed half is weighted up for the same reason",
+       "massed_volley's is. Off-type this is only 16 behind the auto-scaled version,",
+       "which makes it the safest of the five to buy without the board yet."
       ]
      }
     }
@@ -2117,6 +2180,42 @@
         "pct": 20,
         "turns": 2
        }
+      ],
+      "tierUpgrades": {
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 26
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "magicResist",
+          "pct": 20,
+          "turns": 2
+         },
+         {
+          "kind": "affinityStrike",
+          "power": 20
+         }
+        ],
+        "text": "Deal 26 (+MATK) Holy damage \u00b7 -20% enemy MDEF (2 turns) \u00b7 {{Affinity}} Holy \u2014 hit again for 20."
+       }
+      },
+      "notes": [
+       "",
+       "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
+       "Diamond, so the card is an ordinary attack for its whole life and learns its",
+       "board's trick at the top tier. This is a CHOICE, not a forced upgrade: cards",
+       "are offered at a tier and bought with gold (`goldPriceOfCard`), so the player",
+       "reads the face and decides \u2014 an on-type board gains, any other board is",
+       "buying a worse card and can see that.",
+       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, 4 deci per point",
+       "against damage's 5) and pays no multi-hit premium (PREMIUM_HIT_KINDS), which",
+       "is why a split can beat the single big hit at all. Budget is exact at 250.",
+       "The MDEF debuff is frozen control, so it survives the swap untouched and the",
+       "whole Diamond budget delta lands on the damage split: 26 + 20 = 46 on a holy",
+       "board against an auto-scaled single 42."
       ]
      }
     }
@@ -2143,6 +2242,35 @@
         "kind": "damage",
         "power": 20
        }
+      ],
+      "tierUpgrades": {
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 26
+         },
+         {
+          "kind": "affinityStrike",
+          "power": 30
+         }
+        ],
+        "text": "Deal 26 (+ATK) Lance damage \u00b7 {{Affinity}} Lance \u2014 hit again for 30."
+       }
+      },
+      "notes": [
+       "",
+       "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
+       "Diamond, so the card is an ordinary attack for its whole life and learns its",
+       "board's trick at the top tier. This is a CHOICE, not a forced upgrade: cards",
+       "are offered at a tier and bought with gold (`goldPriceOfCard`), so the player",
+       "reads the face and decides \u2014 an on-type board gains, any other board is",
+       "buying a worse card and can see that.",
+       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, 4 deci per point",
+       "against damage's 5) and pays no multi-hit premium (PREMIUM_HIT_KINDS), which",
+       "is why a split can beat the single big hit at all. Budget is exact at 250.",
+       "Auto-scaled Diamond is a single 50; this is 26 + 30 = 56 on a lance board,",
+       "26 on anything else."
       ]
      }
     }
@@ -2175,6 +2303,42 @@
         "kind": "lifesteal",
         "pct": 45
        }
+      ],
+      "tierUpgrades": {
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 30
+         },
+         {
+          "kind": "lifesteal",
+          "pct": 45
+         },
+         {
+          "kind": "affinityStrike",
+          "power": 20
+         }
+        ],
+        "text": "Deal 30 (+ATK) Beast damage \u00b7 heal 45% of damage dealt \u00b7 {{Affinity}} Beast \u2014 hit again for 20."
+       }
+      },
+      "notes": [
+       "",
+       "DIAMOND CAPSTONE (2026-08-25). The affinity payload is authored ONLY at",
+       "Diamond, so the card is an ordinary attack for its whole life and learns its",
+       "board's trick at the top tier. This is a CHOICE, not a forced upgrade: cards",
+       "are offered at a tier and bought with gold (`goldPriceOfCard`), so the player",
+       "reads the face and decides \u2014 an on-type board gains, any other board is",
+       "buying a worse card and can see that.",
+       "The affinity gate REFUNDS PL (PRICE.affinityPayoffNum/Den, 4 deci per point",
+       "against damage's 5) and pays no multi-hit premium (PREMIUM_HIT_KINDS), which",
+       "is why a split can beat the single big hit at all. Budget is exact at 250.",
+       "THE ONE WITH REAL SYNERGY: `lifesteal` heals a percentage of the whole",
+       "CAST's damage dealt (`cast.damageDealt`), and the affinity hit is part of",
+       "that cast \u2014 so on a beast board the gate buys 20 more damage AND 9 more",
+       "healing off the same 45%. Nothing needed adding for that; the two keywords",
+       "already compose. Auto-scaled Diamond is a single 46 and heals off 46."
       ]
      }
     }

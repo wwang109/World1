@@ -3,8 +3,9 @@ import { simulate } from '../../src/engine/combat/simulate';
 import { skillBook } from '../../src/data/skills';
 import { PRICE, powerLevelDeci, powerLevelBreakdown, capViolations, HIT_KINDS, PREMIUM_HIT_KINDS, TIER_BUDGET_DECI } from '../../src/engine/balance';
 import { IDENTITY_THRESHOLD } from '../../src/engine/combat/typeIdentity';
+import { applyTier, autoScaleTier } from '../../src/engine/cards';
 import { validateSkillDocument } from '../../src/data/validateSkillContent';
-import type { CombatConfig, SkillDef } from '../../src/engine/types';
+import type { CombatConfig, SkillDef, SkillTier } from '../../src/engine/types';
 import type { DamageCalculation } from '../../src/engine/combat/events';
 
 /**
@@ -258,6 +259,66 @@ describe('pricing', () => {
         if (action.kind !== 'affinityStrike') continue;
         expect(action.power % 5, `${card.id}: affinityStrike power ${action.power} is not a multiple of 5`).toBe(0);
       }
+    }
+  });
+});
+
+describe('DIAMOND CAPSTONES — an affinity payload authored only at the top tier', () => {
+  /** Every (card, tier) pair whose AUTHORED override adds an affinity payload. */
+  const capstones = Object.values(skillBook).flatMap((card) =>
+    Object.keys(card.tierUpgrades ?? {})
+      .map((tier) => ({ card, tier: tier as SkillTier, skill: applyTier(card, tier as SkillTier) }))
+      .filter(({ skill }) => skill.effects.some((a) => a.kind === 'affinityStrike')));
+
+  it('the capstones exist and are all at DIAMOND', () => {
+    // The design statement: a card is an ordinary attack for its whole life and
+    // learns its board's trick at the top tier. A capstone appearing at silver or
+    // gold would quietly undo that.
+    expect(capstones.length, 'there must be authored capstones').toBeGreaterThan(0);
+    for (const { card, tier } of capstones) {
+      expect(tier, `${card.id} capstone must be at diamond`).toBe('diamond');
+    }
+  });
+
+  it('the BRONZE card carries no affinity payload — it is learned, not innate', () => {
+    for (const { card } of capstones) {
+      expect(card.effects.some((a) => a.kind === 'affinityStrike'), `${card.id} bronze`).toBe(false);
+    }
+  });
+
+  it('every capstone is exactly on the Diamond budget and within caps', () => {
+    for (const { card, skill } of capstones) {
+      expect(powerLevelDeci(skill), `${card.id}@diamond budget`).toBe(TIER_BUDGET_DECI.diamond);
+      expect(capViolations(skill), `${card.id}@diamond caps`).toEqual([]);
+    }
+  });
+
+  it('the capstone face states BOTH numbers, so the shop choice is legible', () => {
+    // These are bought with gold at an offered tier, so the face IS the decision:
+    // an on-type board gains and any other board is buying a worse card. That is
+    // only fair if both halves are printed.
+    for (const { card, skill } of capstones) {
+      const aff = skill.effects.find((a) => a.kind === 'affinityStrike');
+      const dmg = skill.effects.find((a) => a.kind === 'damage');
+      const affPower = aff && aff.kind === 'affinityStrike' ? aff.power : -1;
+      const dmgPower = dmg && dmg.kind === 'damage' ? dmg.power : -1;
+      expect(skill.text, `${card.id}@diamond must print the base ${dmgPower}`).toContain(`Deal ${dmgPower} `);
+      expect(skill.text, `${card.id}@diamond must print the affinity ${affPower}`).toContain(`hit again for ${affPower}`);
+      expect(skill.text, `${card.id}@diamond must name the keyword`).toContain('{{Affinity}}');
+    }
+  });
+
+  it('the capstone really is a TRADE — it gives up base damage for the gated hit', () => {
+    // If a capstone were simply better than the auto-scaled tier, the choice
+    // would be fake and every board would take it. The base must come DOWN
+    // against what the same budget buys as one undivided hit.
+    for (const { card, skill } of capstones) {
+      const auto = autoScaleTier(card, 'diamond');
+      const autoDmg = auto.effects.find((a) => a.kind === 'damage');
+      const capDmg = skill.effects.find((a) => a.kind === 'damage');
+      if (!autoDmg || autoDmg.kind !== 'damage' || !capDmg || capDmg.kind !== 'damage') continue;
+      expect(capDmg.power, `${card.id}: capstone base must be below the auto-scaled ${autoDmg.power}`)
+        .toBeLessThan(autoDmg.power);
     }
   });
 });
