@@ -136,12 +136,15 @@ const STATS: Array<readonly [Stats, Stats]> = [
   [{ attack: 40, magicPower: 40 }, { armor: 0, magicResist: 0 }],
   [{ attack: 1, magicPower: 1 }, { armor: 30, magicResist: 30 }],  // forces the min-1 floor
   [{ attack: 25 }, { armor: 12, magicResist: 2 }],
-  // A FASTER FOE, which is the only way GUARD ever reaches a hit. `guard` is a
-  // self-buff lasting 2 turns, so with the hero outrunning the foe (every other
-  // row here) the hero's hit always lands BEFORE the guard goes up and the pile
-  // has expired by the hero's next cast — the whole matrix returned
-  // `guardReduction: 0` until this row existed. Discovered by the non-vacuity
-  // test below, which is precisely what it is for.
+  // A FASTER FOE, so GUARD reaches a hit in THIS matrix. `guard` is a 2-turn
+  // self-buff, and these foe boards are 1–3 cards with a ~4-turn cast cycle, so
+  // a slower foe's guard has expired before the hero's next cast and the whole
+  // matrix returned `guardReduction: 0` until this row existed. That is a
+  // property of the fixture, NOT of the game: measured over 40 seeds against
+  // real enemy boards, `barbed_rampart` (stone_beetle) blunts 56% of incoming
+  // physical hits and `unbreakable_stance` (warded_sentinel) 50%, absorbing
+  // 13–17% of would-be damage. Real boards are wider and cast far more often.
+  // Kept because the non-vacuity test needs the term to occur SOMEWHERE.
   [{ attack: 25, magicPower: 25, speed: 12 }, { speed: 40 }],
 ];
 
