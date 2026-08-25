@@ -183,6 +183,29 @@ desktop only in violation of the both-platforms rule, and a scrollbar thumb
 that never moved. Brief the auditor to report **what is wrong**, not to
 re-summarize what works.
 
+### Show the combat log FIRST, then explain (USER-LOCKED 2026-08-25)
+
+**Any claim about what a card or keyword does leads with a combat log.** Not
+prose, not a table of derived numbers, not a test name — the actual event stream,
+showing the effect firing (and, where the point is a condition, NOT firing on the
+control case). The explanation comes after, as a caption to something the reader
+has already seen.
+
+In the user's words: *"if you can prove it using the combat log it makes more
+sense for everything."*
+
+- **Two runs beat one.** The shape that carries meaning is on/off, before/after,
+  matching/non-matching — one run proves the effect exists, the pair proves what
+  gates it. `scripts/fight.ts` and `scripts/logFormat.ts`'s `calc` line already
+  print the derivation per hit; use them rather than hand-computing.
+- **This replaces explanation-first answers, not the reasoning.** A price
+  derivation or an invariant still needs stating — it just comes second, and it
+  is describing a log the reader is looking at.
+- **It applies to disagreements too.** When a claim about behaviour is
+  challenged, the log settles it. Two flags in this session (guard "never
+  reaching a hit", affinity "not existing against small boards") were wrong and a
+  log would have caught both before they were stated.
+
 ### Reporting: three buckets (USER-LOCKED 2026-08-05)
 
 Every status update uses exactly these sections, in this order:
