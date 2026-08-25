@@ -26,9 +26,6 @@ function isOffensiveAction(action: Action): boolean {
   switch (action.kind) {
     case 'damage':
     case 'statStrike':
-    // AFFINITY STRIKE lands its own hit on the victim, so it fans out with the
-    // rest of the cast and pays the AoE reach multiplier under `scope: 'all'`.
-    case 'affinityStrike':
     case 'poison':
     case 'burn':
     case 'bleed':
@@ -398,14 +395,22 @@ export function statShare(stat: number, hit: HitSplit): number {
 }
 
 /**
- * The split's denominator: how many `damage` actions the CARD ITSELF carries.
- * Gem-appended hits are skipped (see `HitSplit`), so socketing a gem never
- * shrinks the host card's own hit. `statStrike` never enters the divisor
- * either — its payload is derived independently, not carved out of the pool.
+ * The split's denominator: how many `damage` actions the CARD ITSELF carries
+ * AND WILL ACTUALLY RESOLVE on this caster. Gem-appended hits are skipped (see
+ * `HitSplit`), so socketing a gem never shrinks the host card's own hit.
+ * `statStrike` never enters the divisor either — its payload is derived
+ * independently, not carved out of the pool.
+ *
+ * GATE-AWARE (`resolves`), which matters for `affinity`: a gated hit that cannot
+ * happen on this board must not take a share of the cast's stat pool, or an
+ * off-type card would be permanently taxed for a hit it never lands. So the same
+ * card is a genuine single-hit card at full stat off-type and a genuine two-hit
+ * card on-type. A card with no gated damage passes a predicate that is always
+ * true, so every existing cast is byte-identical.
  */
-function countDamageActions(effects: readonly Action[]): number {
+function countDamageActions(effects: readonly Action[], resolves: (a: Action) => boolean): number {
   let n = 0;
-  for (const action of effects) if (action.kind === 'damage' && !action.fromGem) n += 1;
+  for (const action of effects) if (action.kind === 'damage' && !action.fromGem && resolves(action)) n += 1;
   return n;
 }
 
@@ -1264,6 +1269,19 @@ function applyAction(
   enemy: CombatantState,
   hit: HitSplit,
 ): void {
+  /**
+   * THE AFFINITY GATE — one check for every keyword in the game.
+   *
+   * Affinity is a MODIFIER, not a family of bespoke keywords (user ruling
+   * 2026-08-25): any action may carry `affinity: true`, and it resolves only when
+   * the caster holds the affinity matching this card's own type. A shut gate
+   * SKIPS the action entirely — the card behaves as though it never listed it.
+   *
+   * Placed here rather than in each arm precisely so that adding a gated effect
+   * needs no engine change at all: `{ kind: 'poison', stacks: 5, affinity: true }`
+   * works the day the content is authored, and so does every other kind.
+   */
+  if (action.affinity === true && !affinityOpen(caster, skill)) return;
   const property = skill.property;
   switch (action.kind) {
     case 'damage': {
@@ -1296,39 +1314,19 @@ function applyAction(
       });
       break;
     }
-    case 'affinityCharge': {
-      // Arms the NEXT matching cast, so nothing lands now. Same gate as
-      // `affinityStrike` — the caster must hold this card's own affinity.
-      if (!affinityOpen(caster, skill)) break;
+    case 'empowerNext': {
+      // Arms the NEXT matching cast, so nothing lands now.
+      //
+      // NO GATE CHECK HERE. Affinity is a modifier any action may carry and it is
+      // enforced ONCE at the top of this function, so this arm only ever runs
+      // when the action is actually meant to resolve — gated or not.
       const type = cardType(skill);
-      if (type === undefined) break; // unreachable: affinityOpen already required one
+      if (type === undefined) break; // a typeless card has no "next X card" to arm
       // STRONGEST WINS, never additive (see the docs in types.ts): a board
       // running several armers still only ever holds one card's printed number.
       const standing = caster.empowerNext;
       if (standing !== undefined && standing.type === type.type && standing.amount >= action.amount) break;
       caster.empowerNext = { type: type.type, amount: action.amount };
-      break;
-    }
-    case 'affinityStrike': {
-      // THE BOARD'S OWN PAYOFF. Fires only when the caster carries the affinity
-      // matching this card's type — for a hero that means Board Type Identity
-      // (`IDENTITY_THRESHOLD` cards of one unique top type, this card included),
-      // which is fixed for the whole fight because a board cannot change
-      // mid-combat. See the `affinityStrike` docs in types.ts.
-      //
-      // FLAT AND ADDITIVE, exactly like a gem-appended hit: no stat share, no
-      // `mods.damageFlat`, no rider bonus. It is not in the multi-hit divisor
-      // (`countDamageActions` counts only `kind: 'damage'`), so opening the gate
-      // ADDS a hit and never shrinks the card's own — the printed base hit reads
-      // the same on an on-type board and an off-type one.
-      if (!enemy.alive) break;
-      if (!affinityOpen(caster, skill)) break;
-      applyStrike(ctx, caster, skill, cast, enemy, {
-        power: action.power,
-        baseStat: 0,
-        effectiveStat: 0,
-        flatBonus: 0,
-      });
       break;
     }
     case 'statStrike': {
@@ -2287,7 +2285,10 @@ export function applyCast(
   // the card already had. The ordinal advances once per damage ACTION, never per
   // fan-out target, so an AoE hit and a single-target hit split identically. Both
   // are plain index walks over an array: no Map/Set, no RNG, no float.
-  const hitCount = countDamageActions(skill.effects);
+  // The divisor counts only the hits that will actually land for THIS caster, so
+  // a gated hit whose affinity is shut takes no share of the stat pool.
+  const gateOpen = affinityOpen(caster, skill);
+  const hitCount = countDamageActions(skill.effects, (a) => a.affinity !== true || gateOpen);
   let hitIndex = 0;
   // Tag every effect this cast emits with its source card (for the per-card report).
   ctx.source = { side: caster.side, unit: caster.index, slot, skillId: skill.id };

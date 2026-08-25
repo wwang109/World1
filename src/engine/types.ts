@@ -113,6 +113,44 @@ export interface GemAppended {
 }
 
 /**
+ * AFFINITY — a GATE, not an effect (user ruling 2026-08-25: "it should be
+ * affinity, which gives back PL, because affinity adds a requirement to use the
+ * effect, so it's a composite of another effect").
+ *
+ * Any action may carry it. The action resolves ONLY when the caster holds the
+ * affinity matching the card's own type (`cardType` = `element ?? weapon`); when
+ * the gate is shut the action is skipped entirely, as though the card never
+ * listed it. For a hero that affinity comes from Board Type Identity —
+ * `IDENTITY_THRESHOLD` cards of one unique top type, this card included — so the
+ * card asks for two more of its own type and no tie at the top.
+ *
+ * IT CHANGES NOTHING ELSE. A gated `damage` is an ordinary damage action that
+ * happens not to exist on the wrong board: it takes its stat share, its aura and
+ * rider bonuses, and its place in the multi-hit divisor exactly as an ungated one
+ * does. That is the whole point of expressing affinity as a modifier rather than
+ * as a family of bespoke keywords — one gate, composable with every keyword in
+ * the game, and no keyword needs to know it exists.
+ *
+ * THE DIVISOR IS GATE-AWARE for the same reason (`countDamageActions`): a hit
+ * that cannot happen on this board must not take a share of the cast's stat pool.
+ * So off-type the card is a genuine single-hit card at full stat, and on-type a
+ * genuine two-hit card — not a single-hit card permanently taxed for a hit it
+ * never lands.
+ *
+ * PRICING: the effect behind the gate prices on its OWN family's terms, and the
+ * gate applies a REFUND on top (`PRICE.affinityPayoffNum/Den`, 4/5) — because
+ * meeting it costs board freedom. See that constant for the derivation.
+ *
+ * A CARD MUST HAVE A TYPE to gate anything (`validateSkillContent`): a typeless
+ * card can never open the gate, so the action would be unreachable on every board
+ * in the game.
+ */
+export interface AffinityGated {
+  /** Set by CONTENT (unlike `fromGem`, which the resolver sets). */
+  affinity?: true;
+}
+
+/**
  * Afflictions an `exploit` rider may key off — EXACTLY the cleansable set
  * (`isCleansable`, combat/interpreter.ts), i.e. the negative statuses a unit can
  * be made to carry: poison / burn / bleed / stun / stat debuff / expose.
@@ -152,7 +190,7 @@ export type StackedStatus = 'poison' | 'burn' | 'bleed' | 'thorns';
  * Every member also carries the optional `fromGem` provenance mark (see
  * `GemAppended`), which the resolver — never content — sets.
  */
-export type Action = ActionKinds & GemAppended;
+export type Action = ActionKinds & GemAppended & AffinityGated;
 
 type ActionKinds =
   | { kind: 'damage'; power: number }
@@ -530,41 +568,15 @@ type ActionKinds =
    */
   | { kind: 'chainBonus'; after: Element | WeaponType; amount: number }
   /**
-   * AFFINITY STRIKE — an EXTRA HIT that exists only for a board committed to
-   * this card's own type: `power` FLAT damage, delivered as its own hit, if and
-   * only if the caster carries the affinity matching `cardType(this card)` (its
-   * `element` if it has one, else its `weapon`).
+   * EMPOWER NEXT — arm `amount` FLAT bonus damage for the NEXT cast of this
+   * card's own type. Nothing extra lands on the arming cast.
    *
-   * THE GATE IS THE BOARD, NOT THE FIGHT. A hero's affinity comes from Board
-   * Type Identity — `IDENTITY_THRESHOLD` (3) cards of one UNIQUE top type,
-   * counting this card itself, so it asks for two more of its own type and no
-   * tie at the top (`boardTypeIdentity`). That makes it the first OFFENSIVE
-   * payoff for a committed board; until now an identity bought only the
-   * defensive attunement that feeds the weapon/element triangle. It is also,
-   * unlike every member of the conditional-rider family, a gate that is either
-   * open for the WHOLE fight or shut for the whole fight: a board cannot change
-   * mid-combat. That is why it is priced on its own terms (`affinityPayoffNum`
-   * / `affinityPayoffDen`) rather than at the ½ conditional-trigger discount,
-   * which describes a gate that is only sometimes open.
-   *
-   * STRICTLY ADDITIVE, LIKE `statStrike`. Only `kind: 'damage'` actions enter
-   * the multi-hit divisor (`countDamageActions`), so this hit never carves a
-   * share out of the host card's own hit — turning the gate ON can only ever
-   * add damage, never redistribute it. It is FLAT for the same reason a
-   * gem-appended hit is: it takes no stat share, no `mods.damageFlat`, and no
-   * rider bonus, so the card's printed base hit reads identically whether the
-   * board opens the gate or not.
-   *
-   * A CARD MUST HAVE A TYPE to carry one (`validateSkillContent`): a typeless
-   * card can never satisfy the gate, so the payload would be unreachable —
-   * refused at authoring rather than priced, the same call
-   * `splash`-with-nothing-to-spread and self-naming `chainBonus` get.
-   */
-  | { kind: 'affinityStrike'; power: number }
-  /**
-   * AFFINITY CHARGE — the forward-armed half of the affinity family: if the
-   * caster holds the affinity matching this card's own type, arm `amount` FLAT
-   * bonus damage for the NEXT cast of that same type.
+   * NOT ITSELF AN AFFINITY KEYWORD (2026-08-25). The gate is the separate
+   * `affinity` flag, which any action may carry; what is intrinsic HERE is only
+   * the forward arming. So `{ kind: 'empowerNext', amount: 10, affinity: true }`
+   * is "if you have Fire affinity, your next Fire card hits harder", while the
+   * same action ungated is simply "your next Fire card hits harder" — a
+   * legitimate second card shape the split makes available for free.
    *
    * THE ONLY KEYWORD THAT PAYS FORWARD. Every other rider reads state that
    * already exists and spends on the cast it rides (`comboBonus`, `chainBonus`,
@@ -589,7 +601,7 @@ type ActionKinds =
    * walking the effect list that might arm a new one. Same cross-cast payoff
    * ruling the whole rider family follows.
    */
-  | { kind: 'affinityCharge'; amount: number }
+  | { kind: 'empowerNext'; amount: number }
   /**
    * EXPLOIT — `comboBonus`'s sibling, gated on the VICTIM'S CONDITION instead of
    * on the caster's own cast history: +`amount` FLAT damage this cast if the

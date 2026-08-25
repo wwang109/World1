@@ -102,6 +102,27 @@ export function archetypeEntry(archetype: Archetype): GlossaryEntry {
   return { title: `${capitalize(archetype)} archetype`, body: ARCHETYPE_EXPLANATION[archetype] };
 }
 
+/**
+ * AFFINITY, explained ONCE for every keyword it can gate.
+ *
+ * Affinity is a modifier, not a family of keywords, so its glossary entry WRAPS
+ * whatever entry the gated effect already has rather than duplicating it. A gated
+ * `poison` reads as Poison's own explanation with the requirement stated in front
+ * of it; a gated `damage` (which has no entry of its own, since damage is the
+ * headline number) reads as the requirement alone. Either way a player learns the
+ * gate from the card that carries it, and adding a new gated effect adds no
+ * glossary work.
+ */
+function keywordEntry(action: Action, property: Property, ownType?: Element | WeaponType): GlossaryEntry | undefined {
+  const inner = plainKeywordEntry(action, property, ownType);
+  if (action.affinity !== true) return inner;
+  const name = ownType === undefined ? 'this card\u2019s type' : (TYPE_NAME[ownType] ?? ownType);
+  const gate = `Only if your board has ${name} affinity — ${IDENTITY_THRESHOLD} ${name} cards, this one counts, `
+    + `with no other type tied for the most. Without it the card simply does not have this effect.`;
+  if (inner === undefined) return { title: 'Affinity', body: gate };
+  return { title: `${inner.title} (Affinity)`, body: `${gate} ${inner.body}` };
+}
+
 export function propertyEntry(property: Property): GlossaryEntry {
   return { title: `${property === 'true' ? 'TRUE' : capitalize(property)} property`, body: PROPERTY_EXPLANATION[property] };
 }
@@ -209,7 +230,7 @@ export function slotEntry(skill: SkillDef): GlossaryEntry {
  * only by `affinityStrike`, whose gate is stated in terms of the card's own type
  * rather than a field on the action.
  */
-function keywordEntry(action: Action, property: Property, ownType?: Element | WeaponType): GlossaryEntry | undefined {
+function plainKeywordEntry(action: Action, property: Property, ownType?: Element | WeaponType): GlossaryEntry | undefined {
   switch (action.kind) {
     case 'shield':
       return {
@@ -336,33 +357,16 @@ function keywordEntry(action: Action, property: Property, ownType?: Element | We
           + `one for one. Your wall spends its ${name} plating first when ${name} damage lands, and saves it for last otherwise.`,
       };
     }
-    // AFFINITY CHARGE — the forward-armed sibling. The body has to say THREE
-    // things a player will otherwise get wrong: it lands on the NEXT card (not
-    // this one), only a card of the same type collects it, and a second armer
-    // does not stack.
-    case 'affinityCharge': {
-      const name = ownType === undefined ? 'this type' : (TYPE_NAME[ownType] ?? ownType);
+    // EMPOWER NEXT — the forward-armed bonus. The body has to say TWO things a
+    // player will otherwise get wrong: it lands on the NEXT card (not this one),
+    // and a second armer does not stack.
+    case 'empowerNext': {
+      const name = ownType === undefined ? 'matching' : (TYPE_NAME[ownType] ?? ownType);
       return {
         title: 'Charge',
         body: `Your NEXT ${name} card deals +${action.amount} damage — nothing extra happens on this cast. `
-          + `Needs ${name} affinity (${IDENTITY_THRESHOLD} ${name} cards, this one counts), and it waits on the board `
-          + `until a ${name} card casts. Only one charge stands at a time: arming again keeps the bigger number, never both.`,
-      };
-    }
-    // AFFINITY — the board's own payoff, and the one keyword whose condition is
-    // about the player's DECK rather than the fight. The body has to state the
-    // threshold in plain terms, because "3 cards of one type, counting this one,
-    // with no tie at the top" is the entire decision and nothing else on the card
-    // hints at it.
-    case 'affinityStrike': {
-      const name = ownType === undefined ? 'this card\u2019s' : `${TYPE_NAME[ownType] ?? ownType}`;
-      return {
-        title: 'Affinity',
-        body: ownType === undefined
-          ? `Hits again for ${action.power} when your board matches this card\u2019s type.`
-          : `Hits again for ${action.power} — but only while your board has ${TYPE_NAME[ownType] ?? ownType} affinity. `
-            + `You get that by running ${IDENTITY_THRESHOLD} ${name} cards (this one counts) with no other type tied for the most. `
-            + `Two is not enough, and the extra hit is simply absent until you get there.`,
+          + `It waits on the board until a ${name} card casts. Only one charge stands at a time: arming again keeps the `
+          + `bigger number, never both.`,
       };
     }
     // CHAIN — Combo's twin on the TYPE axis. The entry names the partner type

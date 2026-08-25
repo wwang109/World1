@@ -220,12 +220,15 @@ describe('authoring rules', () => {
   };
 
   it('a TYPELESS card cannot carry one — it would have nothing to attune to', () => {
+    // Caught by the UNIVERSAL rule (every card carries an element or a weapon),
+    // which is why the attunement-specific check that used to sit beside it was
+    // deleted as unreachable rather than kept as dead code.
     const { weapon: _drop, ...typeless } = TYPED;
-    expect(problemsFor({ ...typeless, property: 'true' })).toContain('affinity keyword needs the card to HAVE a type');
+    expect(problemsFor({ ...typeless, property: 'true' })).toContain('must carry an element OR a weapon');
   });
 
   it('a typed card raises no attunement complaint', () => {
-    expect(problemsFor(TYPED)).not.toContain('HAVE a type');
+    expect(problemsFor(TYPED)).not.toContain('must carry an element OR a weapon');
   });
 
   it('a power of 0 is refused — plating that blocks nothing', () => {

@@ -732,7 +732,7 @@ describe('AoE reach pricing (scope: all)', () => {
     // regression guard for that drift, since balance.ts cannot import the
     // interpreter's private classification directly (layering cycle).
     expect(OFFENSIVE_KINDS).toEqual(new Set([
-      'damage', 'statStrike', 'affinityStrike', 'poison', 'burn', 'bleed', 'stun',
+      'damage', 'statStrike', 'poison', 'burn', 'bleed', 'stun',
       'debuffStat', 'expose', 'slow', 'disrupt', 'shieldBreak',
       // 2026-08-21 (the splash split): the two CARD-TARGETING keywords and their
       // SPREADER. `burden`/`curse` land on one of the victim's board cards, so

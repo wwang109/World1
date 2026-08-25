@@ -95,7 +95,17 @@ export function autoScaleTier(def: SkillDef, targetTier: SkillTier): SkillDef {
   const effects = def.effects;
 
   const dotIndices = effects.map((a, i) => (DOT_KINDS.has(a.kind) ? i : -1)).filter((i) => i >= 0);
-  const sinkIndices = effects.map((a, i) => (SCALABLE_KINDS.has(a.kind) ? i : -1)).filter((i) => i >= 0);
+  // GATED SINKS ARE FROZEN. The solver drives every sink to the SAME per-action
+  // magnitude, but an affinity-gated action prices at a REFUNDED rate (4 deci/pt
+  // against damage's 5), so an even split across a gated and an ungated hit
+  // almost never lands on a budget exactly — every affinity card fell out of the
+  // solver and shipped at its Bronze kit with only the tier bumped. Freezing the
+  // gated payload and letting the UNGATED line absorb the whole tier delta lands
+  // exactly, and reads correctly too: the payload is what the card promises its
+  // board, and the base is what grows with rank.
+  const sinkIndices = effects
+    .map((a, i) => (SCALABLE_KINDS.has(a.kind) && a.affinity !== true ? i : -1))
+    .filter((i) => i >= 0);
 
   /** The candidate kit for a given DoT stack count and per-sink-action magnitude. */
   const applyEffects = (stacks: number, perActionPower: number | null): Action[] =>
@@ -311,11 +321,8 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
   // Same reason as comboBonus: it ARMS the cast's bonus scalar, which only the
   // host's own `damage` action reads, so it must land ahead of the card.
   chainBonus: 'pre',
-  // An EXTRA HIT, so it follows the host's own damage rather than preceding it —
-  // "hit again" reads as a second blow, not a first.
-  affinityStrike: 'post',
   // Arms a FUTURE cast, so its position in this cast's order decides nothing.
-  affinityCharge: 'post',
+  empowerNext: 'post',
   // Plating, same phase as plain `shield`.
   attunedShield: 'post',
   /**

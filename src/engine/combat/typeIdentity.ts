@@ -12,12 +12,14 @@
 // in the interpreter. There is no flat same-type damage bonus, and an identity
 // still grants nothing offensive by itself.
 //
-// Since 2026-08-25 there is a SECOND, OPT-IN effect: a card may carry an
-// `affinityStrike` action — an extra flat hit that resolves only when the caster
-// holds the affinity matching that card's own type (`affinityOpen` in the
-// interpreter). It is per-card and paid for per-card, so this module's output
-// still only DERIVES the identity; nothing here decides what an identity is
-// worth. The core combat loop stays feature-agnostic.
+// Since 2026-08-25 there is a SECOND, OPT-IN effect: ANY action may carry
+// `affinity: true` (`AffinityGated`, ../types.ts) and then resolves only when the
+// caster holds the affinity matching that card's own type (`affinityOpen` in the
+// interpreter). Affinity is a MODIFIER, not a keyword — one gate check and one
+// pricing refund cover every keyword in the game. It is opt-in per action and
+// paid for per action, so this module's output still only DERIVES the identity;
+// nothing here decides what an identity is worth. The core loop stays
+// feature-agnostic.
 
 import type { Element, SkillDef, WeaponType } from '../types';
 

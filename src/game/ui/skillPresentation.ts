@@ -229,6 +229,20 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
   let shield = 0;
   const extras: EffectSegment[] = [];
   for (const action of skill.effects) {
+    // AFFINITY, handled ONCE for every keyword. The action is rendered by its own
+    // case below exactly as an ungated one would be, then — if it is gated — that
+    // output is pulled back out of the headline numbers and re-emitted as a
+    // single gated badge.
+    //
+    // WHY IT MUST LEAVE THE HEADLINE: `damage`/`heal`/`shield` accumulate into
+    // the big number on the face rather than into a badge, so a gated hit would
+    // otherwise be added to a total the card only reaches on the right board — a
+    // face promising 52 damage on a card that deals 32 off-type. Rolling the
+    // delta back out is what keeps the printed total honest for every board.
+    const beforeExtras = extras.length;
+    const beforeDamage = damage;
+    const beforeHeal = heal;
+    const beforeShield = shield;
     switch (action.kind) {
       case 'damage': damage += action.power; break;
       case 'heal': heal += action.power; break;
@@ -288,25 +302,13 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
       // ARCHETYPES per turn and would need a parallel last-cast-TYPE feed. The
       // badge is honest as static text meanwhile; the live state is a follow-up.
       case 'chainBonus': extras.push({ text: `CHAIN +${action.amount} AFTER ${action.after.toUpperCase()}`, keyword: 'chain' }); break;
-      // The chip names the TYPE the board must match, taken from the card itself
-      // — the action carries no type of its own.
-      // Reads "NEXT" first, because landing on a FUTURE cast is the whole
-      // difference between this and every other bonus-damage badge on a face.
-      // The badge leads with the SHIELD amount and names the type it is tuned to;
-      // the x2 is the whole reason the card exists, so it is on the face.
-      case 'attunedShield': {
+      // The chip names the TYPE whose next cast collects, taken from the card
+      // itself — the action carries no type of its own.
+      case 'empowerNext': {
         const ownType = skill.element ?? skill.weapon;
-        extras.push({ text: `SHIELD ${action.power}${ownType === undefined ? '' : ` x2 vs ${ownType.toUpperCase()}`}`, keyword: 'attuned' });
-        break;
-      }
-      case 'affinityCharge': {
-        const ownType = skill.element ?? skill.weapon;
-        extras.push({ text: `NEXT ${ownType === undefined ? '' : `${ownType.toUpperCase()} `}+${action.amount}`, keyword: 'affinity' });
-        break;
-      }
-      case 'affinityStrike': {
-        const ownType = skill.element ?? skill.weapon;
-        extras.push({ text: `AFFINITY +${action.power} HIT${ownType === undefined ? '' : ` (${ownType.toUpperCase()})`}`, keyword: 'affinity' });
+        // Reads "NEXT" first, because landing on a FUTURE cast is the whole
+        // difference between this and every other bonus-damage badge on a face.
+        extras.push({ text: `NEXT ${ownType === undefined ? '' : `${ownType.toUpperCase()} `}+${action.amount}`, keyword: 'charge' });
         break;
       }
       // The two CONDITIONAL BONUS-DAMAGE riders (engine/types.ts). Both print
@@ -401,6 +403,22 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
         extras.push({ text: `${action.echoHostPower ? 'ECHO' : 'STRIKE'} 1/${action.shareOf}${capNote}` });
         break;
       }
+    }
+    if (action.affinity === true) {
+      const parts: string[] = [];
+      if (damage !== beforeDamage) parts.push(`${damage - beforeDamage} DMG`);
+      if (heal !== beforeHeal) parts.push(`${heal - beforeHeal} HEAL`);
+      if (shield !== beforeShield) parts.push(`${shield - beforeShield} SHIELD`);
+      damage = beforeDamage;
+      heal = beforeHeal;
+      shield = beforeShield;
+      for (let i = beforeExtras; i < extras.length; i += 1) parts.push(extras[i]!.text);
+      extras.length = beforeExtras;
+      const ownType = skill.element ?? skill.weapon;
+      extras.push({
+        text: `${ownType === undefined ? 'AFFINITY' : ownType.toUpperCase()}: ${parts.join(' ')}`,
+        keyword: 'affinity',
+      });
     }
   }
   const property = skill.property;

@@ -56,30 +56,6 @@ interface KeywordPricingBase {
   /** Counts as a damage INSTANCE for the multi-hit premium. */
   isHit: boolean;
   /**
-   * AFFINITY-GATED: this keyword's payload resolves only when the caster holds
-   * the affinity matching the card's own type (`affinityOpen`, combat/
-   * interpreter.ts). The flag exists because "affinity" is a GATE, not an effect
-   * (user ruling 2026-08-25: "affinity is just a keyword with different effects
-   * behind it, so the prices would depend on the effect... but affinity should be
-   * something that gives back PL, because there is a cost to making affinity
-   * activate"). So the effect behind the gate prices on its OWN family's terms
-   * and the gate applies a refund on top — see `PRICE.affinityPayoffNum/Den`.
-   *
-   * It also EXEMPTS the payload from the multi-hit premium
-   * (`PREMIUM_HIT_KINDS`, balance.ts). That premium prices a CONDITIONALITY —
-   * per `PRICE.extraHitPremium`'s own rationale, a second instance soaks a
-   * `negate` charge but also re-eats mitigation, and the upside that balances the
-   * ledger is that flat `mods.damageFlat` (board auras, card-scope stat gems)
-   * "applies PER HIT, so a multi-hit card is the best host for one". A gated hit
-   * is denied exactly that: it is self-contained flat power, taking no
-   * `damageFlat`, no stat share and no rider bonus. Charging it for upside it
-   * cannot receive made the shipped affinity cards LOSE to a plain single-hit
-   * card of the same budget at every armor value even on their best board
-   * (-2 at 0 DEF, -21 at 20 DEF). Exempt, they land where the keyword belongs:
-   * ahead into light armor, behind into heavy.
-   */
-  affinityGated?: boolean;
-  /**
    * Grows via `autoScaleTier`'s exact-sink solve. Historically only
    * damage/heal/shield (the `perUnitByProperty` sinks); `cleanse` joined
    * (user-locked 2026-08-17) as the one `perUnit` keyword that also scales —
@@ -179,17 +155,6 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     magical: P.flatPowerPerPoint,
     true: P.flatPowerPerPoint + P.truePremiumPerPoint,
   };
-  /**
-   * An affinity payoff hit: the strike rate scaled by `affinityPayoffNum/Den`
-   * (4/5). Written as a pre-multiplied numerator over the shared denominator so
-   * the division stays exact — 20/5 = 4 deci per point physical or magical,
-   * 40/5 = 8 on TRUE, integers at every power.
-   */
-  const affinityStrikeRate: Record<Property, number> = {
-    physical: strikeRate.physical * P.affinityPayoffNum,
-    magical: strikeRate.magical * P.affinityPayoffNum,
-    true: strikeRate.true * P.affinityPayoffNum,
-  };
   /** TRUE heals are pure flat at their own rate; typed heals add the caster's stat. */
   const healRate: Record<Property, number> = {
     physical: P.flatPowerPerPoint,
@@ -234,40 +199,6 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // deliberate, so it misses every band loudly. The echo's host-proportional
     // price lives in `gemPowerLevelDeci`, not in this card-rate table.
     statStrike: { isHit: true, scalable: false, family: 'damage', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'cap', num: strikeRate, den: 1 }] },
-    // An EXTRA HIT gated on the caster's own board affinity. `isHit: true` and
-    // `family: 'damage'` so it counts toward the multi-hit premium and is capped
-    // with the rest of the card's damage — the conservative side of both, since
-    // a gated hit is worth no more than an ungated one.
-    //
-    // `scalable: false`, following `statStrike` rather than `damage`: the tier
-    // solver drives every sink action to the SAME per-action magnitude, so a
-    // scalable secondary hit would be dragged up to equal the card's primary one
-    // at Silver and change the card's character. Frozen here, the card still
-    // tiers on its own `damage` line, and an authored `tierUpgrades` can move
-    // the affinity hit deliberately when a card wants that.
-    /**
-     * The FORWARD-ARMED affinity payload. `family: 'empower'` (it changes a
-     * future hit's number, it is not itself a hit) and `offensive: false` — like
-     * `comboBonus`, it resolves on the CASTER and never fans out, so it pays no
-     * AoE reach multiplier.
-     *
-     * RATE: the flat-damage currency (`flatPowerPerPoint`, 5 deci/pt — the same
-     * base `comboPerPointNum/Den` derives its 2.5 from by halving for uptime)
-     * with the affinity refund on top, so 4 deci/pt. Written pre-multiplied over
-     * the shared denominator to keep the division exact at every amount.
-     *
-     * NO UPTIME HALVING, unlike `comboBonus`: the charge is not lost when the
-     * next cast does not match — it STANDS until a matching card casts, and the
-     * gate already guarantees the board runs at least IDENTITY_THRESHOLD cards of
-     * that type. What it pays for that certainty is a genuine downside
-     * `affinityStrike` does not have: re-arming while a charge stands WASTES the
-     * new one (strongest wins, never additive), and a charge unspent when the
-     * fight ends delivers nothing. Against that, a folded bonus dodges the second
-     * mitigation pass a separate hit eats — so charge and strike land at the same
-     * 4 deci/pt from opposite directions, and neither needed a new number.
-     */
-    affinityCharge: { isHit: false, affinityGated: true, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'amount', num: P.flatPowerPerPoint * P.affinityPayoffNum, den: P.affinityPayoffDen }] },
-    affinityStrike: { isHit: true, affinityGated: true, scalable: false, family: 'damage', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: affinityStrikeRate, den: P.affinityPayoffDen }] },
     // Same `shield` family cap and the same scalable sink behaviour as plain
     // plating — only the per-point rate differs, because only the exchange rate
     // differs. `offensive: false`: it resolves on the caster like every support
@@ -366,6 +297,23 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     disrupt: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'bracketed', field: 'amount', brackets: P.disruptBrackets }] },
     lifesteal: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'pct', num: P.lifestealPerPctNum, den: P.lifestealPerPctDen }] },
     shieldBreak: { isHit: false, scalable: false, family: 'control', offensive: true, cardTargeting: false, price: [{ form: 'perUnit', field: 'amount', num: P.shieldBreakPerPointNum, den: P.shieldBreakPerPointDen }] },
+    /**
+     * FORWARD-ARMED bonus damage: `amount` flat damage for the caster's NEXT cast
+     * of this card's own type. `family: 'empower'` (it changes a future hit's
+     * number, it is not itself a hit) and `offensive: false` — like `comboBonus`
+     * it resolves on the CASTER and never fans out, so no AoE reach multiplier.
+     *
+     * RATE: the flat-damage currency undiscounted (`flatPowerPerPoint`, 5 deci/pt
+     * — the same base `comboPerPointNum/Den` derives its 2.5 from by halving for
+     * uptime). NO uptime halving here: a charge is not lost when the next cast
+     * does not match, it STANDS until a matching card casts.
+     *
+     * NOT AFFINITY-PRICED (2026-08-25). Affinity is a modifier any action may
+     * carry, refunded in `actionsPriceDeci`, so this is what the effect costs
+     * UNGATED and a gated one pays 4/5 of it. That split is the point: the same
+     * keyword now ships gated or ungated without a second row.
+     */
+    empowerNext: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'amount', num: P.flatPowerPerPoint, den: 1 }] },
     comboBonus: { isHit: false, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'amount', num: P.comboPerPointNum, den: P.comboPerPointDen }] },
 
     // CHAIN BONUS — `comboBonus` on the TYPE axis (the caster's previous cast was

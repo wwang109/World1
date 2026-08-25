@@ -176,13 +176,10 @@ function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined):
       case 'chainBonus':
         expected.push(eff.amount);
         break;
-      // AFFINITY STRIKE: `power` is the extra hit's damage, and the face must
-      // print it — the whole point of the card is that the number exists.
-      case 'affinityStrike':
-        expected.push(eff.power);
-        break;
-      // AFFINITY CHARGE: `amount` is the bonus it arms for the next cast.
-      case 'affinityCharge':
+      // EMPOWER NEXT: `amount` is the bonus it arms for the next cast. (A gated
+      // `damage` needs no case of its own any more — affinity is a modifier, so it
+      // is priced and rendered as the damage action it is.)
+      case 'empowerNext':
         expected.push(eff.amount);
         break;
       // ATTUNED SHIELD: `power` is the plating granted; the doubling is a rule,

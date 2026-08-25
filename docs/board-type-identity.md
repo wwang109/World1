@@ -34,31 +34,51 @@ There is still **no flat same-type damage bonus** — the old v1 "+20% on matchi
 cards" was removed 2026-07-22, and nothing about an identity multiplies a card's
 damage.
 
-**Effect 2 — the affinity payoff (`affinityStrike`, 2026-08-25).** This is the
-"distinct same-type reward mechanic" the paragraph above reserved, on the terms
-it set: named and priced on its own rather than folded into the identity as a
-blanket bonus. A card may carry an `affinityStrike` action, an EXTRA HIT of flat
-`power` that resolves only when the caster carries the affinity matching that
-card's own type. It is opt-in per card, so an identity by itself still grants
-nothing offensive; only cards that were authored and paid for it benefit.
+**Effect 2 — the affinity gate (2026-08-25).** This is the "distinct same-type
+reward mechanic" the paragraph above reserved, on the terms it set: named and
+priced on its own rather than folded into the identity as a blanket bonus.
 
-Three properties keep it from disturbing anything above:
+**Affinity is a MODIFIER, not a keyword** (user ruling: *"it should be affinity,
+which gives back PL, because affinity adds a requirement to use the effect, so
+it's a composite of another effect"*). Any action may carry `affinity: true`
+(`AffinityGated`, engine/types.ts). That action resolves ONLY when the caster
+holds the affinity matching the card's own type; when the gate is shut it is
+skipped entirely, as though the card never listed it. It is opt-in per action, so
+an identity by itself still grants nothing offensive.
 
-- **Additive, never redistributive.** Only `kind: 'damage'` actions enter the
-  multi-hit divisor (`countDamageActions`), so the extra hit never carves a share
-  out of the card's own hit. Opening the gate can only add damage. The printed
-  base hit reads identically on an on-type board and an off-type one.
-- **Flat.** It takes no stat share, no `mods.damageFlat` and no rider bonus —
-  the same self-contained shape a gem-appended hit has.
-- **Fixed for the fight.** A board cannot change mid-combat, so the gate is open
-  for the whole fight or shut for the whole fight. That is *why* it is priced on
-  its own terms (`PRICE.affinityPayoffNum/Den`, 4/5 of the strike rate) instead of
-  at the ½ conditional-trigger discount, which prices a gate that is only
-  sometimes open. Derivation: `IDENTITY_THRESHOLD − 1` further slots are dictated
-  by the card's demand out of `HERO_BOARD_SLOTS`, i.e. one fifth of the board.
+Three consequences, each load-bearing:
 
-A card with an `affinityStrike` must HAVE a type; `validateSkillContent` refuses
-a typeless one, since its gate could never open on any board.
+- **It composes with every keyword in the game, for free.** A gated `poison`,
+  `stun`, `heal` or `damage` all work the day the content is authored — one gate
+  check in `applyAction`, one refund in `actionsPriceDeci`, and no keyword needs
+  to know affinity exists. This replaced a family of bespoke keywords
+  (`affinityStrike`, `affinityCharge`) that each needed a pricing row, an
+  interpreter arm, a validator case, a glossary entry and a face badge.
+- **The gate changes nothing but whether the action happens.** A gated `damage`
+  is an ordinary damage action: it takes its stat share, its aura and rider
+  bonuses, and its place in the multi-hit divisor. The DIVISOR is therefore
+  gate-aware (`countDamageActions`) — a hit that cannot happen on this board must
+  not take a share of the cast's stat pool, or an off-type card would be
+  permanently taxed for a payload it can never reach. So the same card is a
+  genuine single-hit card at full stat off-type and a genuine two-hit card
+  on-type.
+- **PRICING: the effect prices on its own family's terms and the gate refunds
+  4/5** (`PRICE.affinityPayoffNum/Den`; derivation there). The one thing the
+  refund does NOT cover is the multi-hit premium, which is not charged on gated
+  hits at all: that premium prices a property the card *reliably* has, and a
+  gated hit makes the hit count board-dependent.
+
+A card with a gated action must HAVE a type, which is already universal ("a card
+must carry an element OR a weapon").
+
+**`attunedShield` is NOT part of this.** Plating tuned to the card's own type
+absorbs 2 damage per point from that type and 1 from everything else. It is
+always active — the type-matching decides an exchange RATE, not whether the
+effect happens — so it is its own keyword rather than a gated `shield`.
+
+**`empowerNext`** (arm flat bonus damage for the caster's next cast of this
+card's type) is likewise its own keyword: the forward arming is the effect, and
+the gate is the separate flag. It ships gated or ungated from one row.
 
 ## Balance stance
 

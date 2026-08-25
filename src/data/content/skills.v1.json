@@ -156,8 +156,9 @@
           "power": 24
          },
          {
-          "kind": "affinityStrike",
-          "power": 30
+          "kind": "damage",
+          "power": 30,
+          "affinity": true
          }
         ],
         "text": "Deal 24 (+MATK) Lightning damage \u00b7 {{Affinity}} Lightning \u2014 hit again for 30."
@@ -1865,8 +1866,9 @@
           "power": 34
          },
          {
-          "kind": "affinityStrike",
-          "power": 20
+          "kind": "damage",
+          "power": 20,
+          "affinity": true
          }
         ],
         "text": "Deal 34 (+ATK) Bow damage. Strong vs Beasts \u00b7 {{Affinity}} Bow \u2014 hit again for 20."
@@ -2195,8 +2197,9 @@
           "turns": 2
          },
          {
-          "kind": "affinityStrike",
-          "power": 20
+          "kind": "damage",
+          "power": 20,
+          "affinity": true
          }
         ],
         "text": "Deal 26 (+MATK) Holy damage \u00b7 -20% enemy MDEF (2 turns) \u00b7 {{Affinity}} Holy \u2014 hit again for 20."
@@ -2251,8 +2254,9 @@
           "power": 26
          },
          {
-          "kind": "affinityStrike",
-          "power": 30
+          "kind": "damage",
+          "power": 30,
+          "affinity": true
          }
         ],
         "text": "Deal 26 (+ATK) Lance damage \u00b7 {{Affinity}} Lance \u2014 hit again for 30."
@@ -2316,8 +2320,9 @@
           "pct": 45
          },
          {
-          "kind": "affinityStrike",
-          "power": 20
+          "kind": "damage",
+          "power": 20,
+          "affinity": true
          }
         ],
         "text": "Deal 30 (+ATK) Beast damage \u00b7 heal 45% of damage dealt \u00b7 {{Affinity}} Beast \u2014 hit again for 20."
@@ -8514,8 +8519,9 @@
         "power": 32
        },
        {
-        "kind": "affinityStrike",
-        "power": 20
+        "kind": "damage",
+        "power": 20,
+        "affinity": true
        }
       ]
      }
@@ -8561,8 +8567,9 @@
         "power": 28
        },
        {
-        "kind": "affinityStrike",
-        "power": 25
+        "kind": "damage",
+        "power": 25,
+        "affinity": true
        }
       ]
      }
@@ -8611,8 +8618,9 @@
         "power": 36
        },
        {
-        "kind": "affinityStrike",
-        "power": 15
+        "kind": "damage",
+        "power": 15,
+        "affinity": true
        }
       ]
      }
@@ -8660,8 +8668,9 @@
         "power": 24
        },
        {
-        "kind": "affinityStrike",
-        "power": 30
+        "kind": "damage",
+        "power": 30,
+        "affinity": true
        }
       ]
      }
@@ -8707,8 +8716,9 @@
         "power": 36
        },
        {
-        "kind": "affinityStrike",
-        "power": 15
+        "kind": "damage",
+        "power": 15,
+        "affinity": true
        }
       ]
      }
@@ -8756,8 +8766,9 @@
         "power": 40
        },
        {
-        "kind": "affinityStrike",
-        "power": 10
+        "kind": "damage",
+        "power": 10,
+        "affinity": true
        }
       ]
      }
@@ -8804,8 +8815,9 @@
         "power": 28
        },
        {
-        "kind": "affinityStrike",
-        "power": 25
+        "kind": "damage",
+        "power": 25,
+        "affinity": true
        }
       ]
      }
@@ -8851,8 +8863,9 @@
         "power": 32
        },
        {
-        "kind": "affinityStrike",
-        "power": 20
+        "kind": "damage",
+        "power": 20,
+        "affinity": true
        }
       ]
      }
@@ -8899,8 +8912,9 @@
         "power": 36
        },
        {
-        "kind": "affinityStrike",
-        "power": 15
+        "kind": "damage",
+        "power": 15,
+        "affinity": true
        }
       ]
      }
@@ -8947,8 +8961,9 @@
         "power": 28
        },
        {
-        "kind": "affinityStrike",
-        "power": 25
+        "kind": "damage",
+        "power": 25,
+        "affinity": true
        }
       ]
      }
@@ -8997,8 +9012,9 @@
         "power": 36
        },
        {
-        "kind": "affinityStrike",
-        "power": 15
+        "kind": "damage",
+        "power": 15,
+        "affinity": true
        }
       ]
      }
@@ -9047,8 +9063,9 @@
         "power": 12
        },
        {
-        "kind": "affinityCharge",
-        "amount": 10
+        "kind": "empowerNext",
+        "amount": 10,
+        "affinity": true
        }
       ]
      }
@@ -9092,8 +9109,9 @@
         "power": 12
        },
        {
-        "kind": "affinityCharge",
-        "amount": 10
+        "kind": "empowerNext",
+        "amount": 10,
+        "affinity": true
        }
       ]
      }
@@ -9140,8 +9158,9 @@
         "power": 28
        },
        {
-        "kind": "affinityCharge",
-        "amount": 25
+        "kind": "empowerNext",
+        "amount": 25,
+        "affinity": true
        }
       ]
      }

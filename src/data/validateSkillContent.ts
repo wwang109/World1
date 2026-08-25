@@ -282,9 +282,20 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
   const curseTurns = () => req(raw, 'turns', inRange(1, 99), 'an integer 1..99 turns (a 0-turn curse is dropped outright by the engine — it applies nothing at all)', at, problems);
 
   // UNKNOWN KEYS on the action itself (fix: `capp` typo used to pass clean).
+  //
+  // `affinity` is CROSS-CUTTING (`AffinityGated`, engine/types.ts): a gate any
+  // action may carry, so it is legal on every kind and is not listed per-kind.
+  // Its own validity is checked here — it must be exactly `true`. The gate also
+  // needs the CARD to have a type, but that is already universal ("a card must
+  // carry an element OR a weapon"), so no affinity-specific rule is needed and
+  // the one that used to exist was dead code.
   const known = ACTION_FIELDS[kind];
   if (known) {
+    if ('affinity' in raw && raw.affinity !== true) {
+      problems.push({ where: at, message: 'affinity must be exactly true when present (omit the field for an ungated action)' });
+    }
     for (const k of Object.keys(raw)) {
+      if (k === 'affinity') continue;
       if (k !== 'kind' && !known.includes(k)) {
         problems.push({ where: at, message: 'unknown field ' + k + ' on a ' + kind + ' action (known: ' + known.join(', ') + ')' });
       }
@@ -395,11 +406,8 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
     case 'attunedShield':
       req(raw, 'power', inRange(1, 999), 'an integer 1..999 (a power of 0 is plating that blocks nothing, and a negative one would refund budget)', at, problems);
       break;
-    case 'affinityCharge':
+    case 'empowerNext':
       req(raw, 'amount', inRange(1, 999), 'an integer 1..999 (an amount of 0 arms a charge worth nothing, and a negative one would WEAKEN your own next cast while refunding budget)', at, problems);
-      break;
-    case 'affinityStrike':
-      req(raw, 'power', inRange(1, 999), 'an integer 1..999 (a power of 0 is a hit that deals nothing, and a negative one would HEAL the target while refunding budget)', at, problems);
       break;
     case 'taunt': num('amount'); break;
     case 'buffStat': stat(); pct('pct'); turns('turns'); break;
@@ -501,31 +509,6 @@ function rejectSelfChain(ownType: unknown, effects: unknown, at: string, problem
       message: 'a chainBonus cannot name its own card type (' + ownType + ') — the card would satisfy its own gate '
         + 'from its second cast onward, which is not what the conditional-trigger discount prices. Name a DIFFERENT '
         + 'type (the sword -> axe / fire -> frost pairing the keyword exists for), or drop the rider.',
-    });
-  }
-}
-
-/**
- * AN AFFINITY PAYLOAD NEEDS A TYPE TO KEY OFF. `affinityStrike` fires when the
- * caster carries the affinity matching THIS card's own type (`cardType` =
- * `element ?? weapon`). A card with neither has no type to match, so the payload
- * is unreachable for every board in the game — dead budget on the face and a
- * promise the engine can never keep.
- *
- * Refused at authoring rather than priced, the same call `splash` with nothing to
- * spread and a self-naming `chainBonus` get: an effect that cannot fire is an
- * authoring mistake, not a cheap effect.
- */
-function rejectTypelessAffinity(ownType: unknown, effects: unknown, at: string, problems: ContentProblem[]): void {
-  if (!Array.isArray(effects)) return;
-  if (typeof ownType === 'string' && ownType.length > 0) return;
-  for (const action of effects) {
-    if (!isObj(action) || (action.kind !== 'affinityStrike' && action.kind !== 'affinityCharge' && action.kind !== 'attunedShield')) continue;
-    problems.push({
-      where: at,
-      message: 'an affinity keyword needs the card to HAVE a type: its gate is "the caster carries this card\'s own '
-        + 'element (or weapon) as an affinity", and a card with neither can never open it on any board. Give the card '
-        + 'an element or a weapon, or drop the affinity hit.',
     });
   }
 }
@@ -861,7 +844,6 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   rejectSpreaderWithNothingToSpread(raw.effects, where, problems);
   rejectRiderMisordering(raw.effects, where, problems);
   rejectSelfChain(raw.element ?? raw.weapon, raw.effects, where, problems);
-  rejectTypelessAffinity(raw.element ?? raw.weapon, raw.effects, where, problems);
   if (isObj(raw.tierUpgrades)) {
     for (const [tier, up] of Object.entries(raw.tierUpgrades)) {
       if (!isObj(up)) continue;
@@ -869,7 +851,6 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
       rejectSpreaderWithNothingToSpread(up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
       rejectRiderMisordering(up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
       rejectSelfChain(up.element ?? raw.element ?? up.weapon ?? raw.weapon, up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
-      rejectTypelessAffinity(up.element ?? raw.element ?? up.weapon ?? raw.weapon, up.effects ?? raw.effects, where + '.tierUpgrades.' + tier, problems);
     }
   }
 

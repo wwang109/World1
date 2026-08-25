@@ -1272,7 +1272,19 @@ export function actionsPriceDeci(
   // Multi-hit premium: damage INSTANCES beyond the first pay a flat surcharge
   // for being separately-blocked hits (see PRICE.extraHitPremium) — offensive,
   // see the doc comment above.
-  const hits = actions.filter((a) => PREMIUM_HIT_KINDS.has(a.kind)).length;
+  //
+  // AFFINITY-GATED HITS ARE NOT COUNTED. The premium prices a property the card
+  // RELIABLY has — "this card lands N separate instances", with everything that
+  // follows from it (a `negate` charge burned per instance, mitigation re-eaten
+  // per instance, per-hit `mods.damageFlat` collected per instance). A gated hit
+  // makes the count board-dependent: the same card is a single-hit card off-type
+  // and a two-hit card on-type, so charging the full premium prices a shape it
+  // only sometimes has.
+  //
+  // This is keyed off the ACTION FLAG, not a set of kinds, which is the point of
+  // expressing affinity as a modifier: a gated `poison` or `heal` needs no entry
+  // anywhere for this rule to apply to it correctly.
+  const hits = actions.filter((a) => HIT_KINDS.has(a.kind) && a.affinity !== true).length;
   if (hits > 1) foeDeci += (hits - 1) * PRICE.extraHitPremium;
   // DATA-DRIVEN: every per-keyword rate lives in `keywords/pricing.ts`, so a
   // new keyword is a row there rather than a `case` here. That includes the
@@ -1287,8 +1299,31 @@ export function actionsPriceDeci(
     // it lands in the right offensive/self bucket, pays the AoE multiplier with
     // the rest of the offensive share, and telescopes exactly through
     // `powerLevelBreakdown`'s per-action parts.
-    const price = priceActionDeci(action, property, KEYWORD_PRICING)
+    const base = priceActionDeci(action, property, KEYWORD_PRICING)
       + selfSynergyPremiumDeci(action, kit, property);
+    /**
+     * THE AFFINITY REFUND — the whole of affinity's pricing, in one place, for
+     * every keyword at once.
+     *
+     * Affinity is a GATE, not an effect (user ruling 2026-08-25: "it should be
+     * affinity, which gives back PL, because affinity adds a requirement to use
+     * the effect, so it's a composite of another effect"). So the effect behind
+     * the gate prices on its OWN family's terms — whatever its row says — and
+     * carrying the gate REFUNDS a fraction of that. A gated `poison`, `stun`,
+     * `heal` or `damage` all work the day they are authored, with no row of their
+     * own, because the discount is applied to the action's price rather than
+     * baked into a bespoke rate.
+     *
+     * The MULTI-HIT PREMIUM above is deliberately NOT refunded: it prices the
+     * card's hit COUNT, not any one action, and a gated hit genuinely earns it
+     * when the gate is open (it takes its stat share and its per-hit
+     * `mods.damageFlat` exactly as an ungated hit does — see `AffinityGated` in
+     * types.ts). Charging it in full is what keeps "affinity changes nothing but
+     * whether the action happens" true on the pricing side as well.
+     */
+    const price = action.affinity === true
+      ? Math.floor((base * PRICE.affinityPayoffNum) / PRICE.affinityPayoffDen)
+      : base;
     if (OFFENSIVE_KINDS.has(action.kind)) foeDeci += price;
     else selfDeci += price;
   }
@@ -1353,7 +1388,9 @@ export function powerLevelBreakdown(skill: SkillDef): PlBreakdownPart[] {
   }
   // Multi-hit premium is count-based, so single-action pricing above misses
   // it — surface it as its own labeled part (keeps parts summing exactly).
-  const extraHits = skill.effects.filter((a) => PREMIUM_HIT_KINDS.has(a.kind)).length - 1;
+  // SAME RULE as `actionsPriceDeci`'s premium above — gated hits excluded — or the
+  // parts would not sum to what the budget check charges.
+  const extraHits = skill.effects.filter((a) => HIT_KINDS.has(a.kind) && a.affinity !== true).length - 1;
   if (extraHits > 0) push('multi-hit', extraHits * PRICE.extraHitPremium);
 
   // AoE REACH delta (see PRICE.aoeTargetsNum/Den and `actionsPriceDeci`'s doc
@@ -1499,26 +1536,6 @@ const TIER_SCALED_FAMILIES: ReadonlySet<keyof typeof EFFECT_CAPS_DECI> = new Set
  */
 export const HIT_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_PRICING[k].isHit);
 
-/**
- * Hit kinds that pay the MULTI-HIT PREMIUM — `HIT_KINDS` minus the
- * affinity-gated ones.
- *
- * `extraHitPremium` prices a conditionality (see its own doc): a second instance
- * soaks a `negate` charge and re-eats mitigation, and the upside that squares
- * the ledger is that flat `mods.damageFlat` applies PER HIT, making a multi-hit
- * card the best host for an aura or a card-scope gem. An affinity-gated hit is
- * denied precisely that upside — it is self-contained flat power, taking no
- * `damageFlat`, no stat share and no rider bonus — and on most boards it does
- * not exist at all. Charging it for upside it cannot receive is why the first
- * eleven affinity cards came out behind a plain single-hit card of the same
- * budget at EVERY armor value even on their best board.
- *
- * `capViolations` still checks gated hits under the `damage` family cap (they
- * are damage), and they still pay their own per-point rate; only the premium for
- * being an extra INSTANCE is dropped.
- */
-export const PREMIUM_HIT_KINDS: ReadonlySet<Action['kind']> =
-  kindsWhere((k) => KEYWORD_PRICING[k].isHit && KEYWORD_PRICING[k].affinityGated !== true);
 
 /**
  * Kinds that resolve against FOES rather than the caster — the kinds
