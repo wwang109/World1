@@ -56,6 +56,30 @@ interface KeywordPricingBase {
   /** Counts as a damage INSTANCE for the multi-hit premium. */
   isHit: boolean;
   /**
+   * AFFINITY-GATED: this keyword's payload resolves only when the caster holds
+   * the affinity matching the card's own type (`affinityOpen`, combat/
+   * interpreter.ts). The flag exists because "affinity" is a GATE, not an effect
+   * (user ruling 2026-08-25: "affinity is just a keyword with different effects
+   * behind it, so the prices would depend on the effect... but affinity should be
+   * something that gives back PL, because there is a cost to making affinity
+   * activate"). So the effect behind the gate prices on its OWN family's terms
+   * and the gate applies a refund on top — see `PRICE.affinityPayoffNum/Den`.
+   *
+   * It also EXEMPTS the payload from the multi-hit premium
+   * (`PREMIUM_HIT_KINDS`, balance.ts). That premium prices a CONDITIONALITY —
+   * per `PRICE.extraHitPremium`'s own rationale, a second instance soaks a
+   * `negate` charge but also re-eats mitigation, and the upside that balances the
+   * ledger is that flat `mods.damageFlat` (board auras, card-scope stat gems)
+   * "applies PER HIT, so a multi-hit card is the best host for one". A gated hit
+   * is denied exactly that: it is self-contained flat power, taking no
+   * `damageFlat`, no stat share and no rider bonus. Charging it for upside it
+   * cannot receive made the shipped affinity cards LOSE to a plain single-hit
+   * card of the same budget at every armor value even on their best board
+   * (-2 at 0 DEF, -21 at 20 DEF). Exempt, they land where the keyword belongs:
+   * ahead into light armor, behind into heavy.
+   */
+  affinityGated?: boolean;
+  /**
    * Grows via `autoScaleTier`'s exact-sink solve. Historically only
    * damage/heal/shield (the `perUnitByProperty` sinks); `cleanse` joined
    * (user-locked 2026-08-17) as the one `perUnit` keyword that also scales —
@@ -195,7 +219,7 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // at Silver and change the card's character. Frozen here, the card still
     // tiers on its own `damage` line, and an authored `tierUpgrades` can move
     // the affinity hit deliberately when a card wants that.
-    affinityStrike: { isHit: true, scalable: false, family: 'damage', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: affinityStrikeRate, den: P.affinityPayoffDen }] },
+    affinityStrike: { isHit: true, affinityGated: true, scalable: false, family: 'damage', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: affinityStrikeRate, den: P.affinityPayoffDen }] },
     heal: { isHit: false, scalable: true, family: 'heal', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: healRate, den: 1 }] },
     shield: { isHit: false, scalable: true, family: 'shield', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: shieldRate, den: 1 }] },
 

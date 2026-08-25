@@ -1272,7 +1272,7 @@ export function actionsPriceDeci(
   // Multi-hit premium: damage INSTANCES beyond the first pay a flat surcharge
   // for being separately-blocked hits (see PRICE.extraHitPremium) — offensive,
   // see the doc comment above.
-  const hits = actions.filter((a) => HIT_KINDS.has(a.kind)).length;
+  const hits = actions.filter((a) => PREMIUM_HIT_KINDS.has(a.kind)).length;
   if (hits > 1) foeDeci += (hits - 1) * PRICE.extraHitPremium;
   // DATA-DRIVEN: every per-keyword rate lives in `keywords/pricing.ts`, so a
   // new keyword is a row there rather than a `case` here. That includes the
@@ -1353,7 +1353,7 @@ export function powerLevelBreakdown(skill: SkillDef): PlBreakdownPart[] {
   }
   // Multi-hit premium is count-based, so single-action pricing above misses
   // it — surface it as its own labeled part (keeps parts summing exactly).
-  const extraHits = skill.effects.filter((a) => HIT_KINDS.has(a.kind)).length - 1;
+  const extraHits = skill.effects.filter((a) => PREMIUM_HIT_KINDS.has(a.kind)).length - 1;
   if (extraHits > 0) push('multi-hit', extraHits * PRICE.extraHitPremium);
 
   // AoE REACH delta (see PRICE.aoeTargetsNum/Den and `actionsPriceDeci`'s doc
@@ -1498,6 +1498,27 @@ const TIER_SCALED_FAMILIES: ReadonlySet<keyof typeof EFFECT_CAPS_DECI> = new Set
  * future per-instance defense (dodge/evade) inherits the same interaction.
  */
 export const HIT_KINDS: ReadonlySet<Action['kind']> = kindsWhere((k) => KEYWORD_PRICING[k].isHit);
+
+/**
+ * Hit kinds that pay the MULTI-HIT PREMIUM — `HIT_KINDS` minus the
+ * affinity-gated ones.
+ *
+ * `extraHitPremium` prices a conditionality (see its own doc): a second instance
+ * soaks a `negate` charge and re-eats mitigation, and the upside that squares
+ * the ledger is that flat `mods.damageFlat` applies PER HIT, making a multi-hit
+ * card the best host for an aura or a card-scope gem. An affinity-gated hit is
+ * denied precisely that upside — it is self-contained flat power, taking no
+ * `damageFlat`, no stat share and no rider bonus — and on most boards it does
+ * not exist at all. Charging it for upside it cannot receive is why the first
+ * eleven affinity cards came out behind a plain single-hit card of the same
+ * budget at EVERY armor value even on their best board.
+ *
+ * `capViolations` still checks gated hits under the `damage` family cap (they
+ * are damage), and they still pay their own per-point rate; only the premium for
+ * being an extra INSTANCE is dropped.
+ */
+export const PREMIUM_HIT_KINDS: ReadonlySet<Action['kind']> =
+  kindsWhere((k) => KEYWORD_PRICING[k].isHit && KEYWORD_PRICING[k].affinityGated !== true);
 
 /**
  * Kinds that resolve against FOES rather than the caster — the kinds

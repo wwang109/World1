@@ -8318,20 +8318,23 @@
      "version": 1,
      "def": {
       "name": "Sworn Edge",
-      "text": "Deal 26 (+ATK) Sword damage \u00b7 {{Affinity}} Sword \u2014 hit again for 20.",
+      "text": "Deal 32 (+ATK) Sword damage \u00b7 {{Affinity}} Sword \u2014 hit again for 20.",
       "notes": [
-       "SIZE 2, and deliberately so. A two-hit card pays the multi-hit premium (30",
-       "deci = 3 PL), which at size 1 is 3 of only 10 PL and leaves the pair of hits",
-       "weaker than a plain single attack even WITH the affinity live \u2014 the mechanic",
-       "would be strictly worse than sword_slash on its best board. The size-2 grant",
-       "(140 deci) is what buys the premium room, so an affinity double-hit is a",
-       "size-2 effect by construction, not by preference.",
-       "damage 26 (130) + affinityStrike 20 (80) + multi-hit (30) - size (140)",
-       "= 100 exact. The affinity hit prices at 4 deci/point (4/5 of the strike",
-       "rate, PRICE.affinityPayoffNum/Den), so 20 points cost 80 rather than 100.",
-       "THE SPLIT: base 26 and payoff 20 keeps the card honest in both decks \u2014",
-       "26 alone is a real attack for any board, and 46 on a sword board is the",
-       "reward for the two other sword cards the gate demands."
+       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
+       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
+       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
+       "",
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "family). `PREMIUM_HIT_KINDS` exempts affinity-gated hits: extraHitPremium",
+       "prices a conditionality whose upside is that flat `mods.damageFlat` applies",
+       "PER HIT, and a gated hit is explicitly denied that (no damageFlat, no stat",
+       "share, no rider bonus). Charging it anyway put every card in this family",
+       "BEHIND a plain single-hit card of the same budget at every armor value even",
+       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
+       "\"affinity should be something that gives back PL, because there is a cost to",
+       "making affinity activate\").",
+       "THE BALANCED SPLIT: 32 alone is a real attack for any board, and 52",
+       "on a sword board is the reward for the two other swords the gate demands."
       ],
       "archetypes": [
        "offense"
@@ -8344,7 +8347,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 26
+        "power": 32
        },
        {
         "kind": "affinityStrike",
@@ -8362,20 +8365,23 @@
      "version": 1,
      "def": {
       "name": "Kindred Flame",
-      "text": "Deal 22 (+MATK) Fire damage \u00b7 {{Affinity}} Fire \u2014 hit again for 25.",
+      "text": "Deal 28 (+MATK) Fire damage \u00b7 {{Affinity}} Fire \u2014 hit again for 25.",
       "notes": [
-       "SIZE 2, and deliberately so. A two-hit card pays the multi-hit premium (30",
-       "deci = 3 PL), which at size 1 is 3 of only 10 PL and leaves the pair of hits",
-       "weaker than a plain single attack even WITH the affinity live \u2014 the mechanic",
-       "would be strictly worse than sword_slash on its best board. The size-2 grant",
-       "(140 deci) is what buys the premium room, so an affinity double-hit is a",
-       "size-2 effect by construction, not by preference.",
-       "damage 22 (110) + affinityStrike 25 (100) + multi-hit (30) - size (140)",
-       "= 100 exact.",
-       "PAYOFF-HEAVY, deliberately the mirror of Sworn Edge: the affinity hit is",
-       "the BIGGER half (25 vs 22), so a fire board turns a modest bolt into the",
-       "card's real form. One of each shape exists so the keyword reads as a",
-       "dial rather than a single fixed template."
+       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
+       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
+       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
+       "",
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "family). `PREMIUM_HIT_KINDS` exempts affinity-gated hits: extraHitPremium",
+       "prices a conditionality whose upside is that flat `mods.damageFlat` applies",
+       "PER HIT, and a gated hit is explicitly denied that (no damageFlat, no stat",
+       "share, no rider bonus). Charging it anyway put every card in this family",
+       "BEHIND a plain single-hit card of the same budget at every armor value even",
+       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
+       "\"affinity should be something that gives back PL, because there is a cost to",
+       "making affinity activate\").",
+       "PAYOFF-LEANING (28 + 25): the affinity hit nearly matches the base, so a",
+       "fire board turns a modest bolt into the card's real form."
       ],
       "archetypes": [
        "offense"
@@ -8388,7 +8394,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 22
+        "power": 28
        },
        {
         "kind": "affinityStrike",
@@ -8406,22 +8412,26 @@
      "version": 1,
      "def": {
       "name": "Communion Light",
-      "text": "Deal 30 (+MATK) Holy damage \u00b7 {{Affinity}} Holy \u2014 hit again for 15.",
+      "text": "Deal 36 (+MATK) Holy damage \u00b7 {{Affinity}} Holy \u2014 hit again for 15.",
       "notes": [
-       "SIZE 2, and deliberately so. A two-hit card pays the multi-hit premium (30",
-       "deci = 3 PL), which at size 1 is 3 of only 10 PL and leaves the pair of hits",
-       "weaker than a plain single attack even WITH the affinity live \u2014 the mechanic",
-       "would be strictly worse than sword_slash on its best board. The size-2 grant",
-       "(140 deci) is what buys the premium room, so an affinity double-hit is a",
-       "size-2 effect by construction, not by preference.",
-       "damage 30 (150) + affinityStrike 15 (60) + multi-hit (30) - size (140)",
-       "= 100 exact.",
-       "HOLY, which had only two damage cards \u2014 the thinnest element in the",
-       "catalog, so a Holy board could not reach IDENTITY_THRESHOLD without this.",
-       "BASE-HEAVY (30 vs 15): Holy/Dark sit outside the elemental wheel and only",
-       "ever meet each other, so a Holy card's triangle upside is rarer than a",
-       "wheel element's. Weighting its guaranteed half up compensates without",
-       "touching the affinity rate."
+       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
+       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
+       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
+       "",
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "family). `PREMIUM_HIT_KINDS` exempts affinity-gated hits: extraHitPremium",
+       "prices a conditionality whose upside is that flat `mods.damageFlat` applies",
+       "PER HIT, and a gated hit is explicitly denied that (no damageFlat, no stat",
+       "share, no rider bonus). Charging it anyway put every card in this family",
+       "BEHIND a plain single-hit card of the same budget at every armor value even",
+       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
+       "\"affinity should be something that gives back PL, because there is a cost to",
+       "making affinity activate\").",
+       "BASE-HEAVY (36 + 15). Holy and Dark sit OUTSIDE the elemental wheel and",
+       "only ever meet each other, so a Holy card's triangle upside is rarer than a",
+       "wheel element's; weighting its guaranteed half up compensates without",
+       "touching the affinity rate. Holy also had only two damage cards, too few",
+       "for a Holy board to reach IDENTITY_THRESHOLD before this."
       ],
       "archetypes": [
        "offense"
@@ -8434,7 +8444,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 30
+        "power": 36
        },
        {
         "kind": "affinityStrike",
@@ -8452,17 +8462,25 @@
      "version": 1,
      "def": {
       "name": "Warband Cleave",
-      "text": "Deal 18 (+ATK) Axe damage \u00b7 {{Affinity}} Axe \u2014 hit again for 30.",
+      "text": "Deal 24 (+ATK) Axe damage \u00b7 {{Affinity}} Axe \u2014 hit again for 30.",
       "notes": [
-       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
-       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
-       "weaker than a plain single attack even on its best board. The size-2 grant",
-       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
-       "PAYOFF-HEAVY (18 base, 30 affinity) \u2014 the most lopsided split in the family.",
-       "Axes are the catalog's heaviest swing already (8 damage cards), so this one",
-       "leans all the way into the commitment: nearly useless off-type, the best",
-       "affinity hit in the set on-type. The family needs one card at each end of",
-       "the dial or the keyword reads as a single fixed template."
+       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
+       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
+       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
+       "",
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "family). `PREMIUM_HIT_KINDS` exempts affinity-gated hits: extraHitPremium",
+       "prices a conditionality whose upside is that flat `mods.damageFlat` applies",
+       "PER HIT, and a gated hit is explicitly denied that (no damageFlat, no stat",
+       "share, no rider bonus). Charging it anyway put every card in this family",
+       "BEHIND a plain single-hit card of the same budget at every armor value even",
+       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
+       "\"affinity should be something that gives back PL, because there is a cost to",
+       "making affinity activate\").",
+       "THE PAYOFF-HEAVY EXTREME (24 + 30) \u2014 the only card whose affinity hit",
+       "outweighs its base. Axes are already the widest weapon in the catalog, so",
+       "this one leans all the way into the commitment. The family needs a card at",
+       "each end of the dial or the keyword reads as one fixed template."
       ],
       "archetypes": [
        "offense"
@@ -8475,7 +8493,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 18
+        "power": 24
        },
        {
         "kind": "affinityStrike",
@@ -8493,15 +8511,23 @@
      "version": 1,
      "def": {
       "name": "Phalanx Thrust",
-      "text": "Deal 30 (+ATK) Lance damage \u00b7 {{Affinity}} Lance \u2014 hit again for 15.",
+      "text": "Deal 36 (+ATK) Lance damage \u00b7 {{Affinity}} Lance \u2014 hit again for 15.",
       "notes": [
-       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
-       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
-       "weaker than a plain single attack even on its best board. The size-2 grant",
-       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
-       "BASE-HEAVY (30 base, 15 affinity): a lance line holds regardless, so the",
-       "guaranteed half carries the card and the affinity hit is the reward rather",
-       "than the point. The mirror of Warband Cleave at the other end of the dial."
+       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
+       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
+       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
+       "",
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "family). `PREMIUM_HIT_KINDS` exempts affinity-gated hits: extraHitPremium",
+       "prices a conditionality whose upside is that flat `mods.damageFlat` applies",
+       "PER HIT, and a gated hit is explicitly denied that (no damageFlat, no stat",
+       "share, no rider bonus). Charging it anyway put every card in this family",
+       "BEHIND a plain single-hit card of the same budget at every armor value even",
+       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
+       "\"affinity should be something that gives back PL, because there is a cost to",
+       "making affinity activate\").",
+       "BASE-HEAVY (36 + 15): a lance line holds regardless, so the guaranteed half",
+       "carries the card and the affinity hit is the reward rather than the point."
       ],
       "archetypes": [
        "offense"
@@ -8514,7 +8540,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 30
+        "power": 36
        },
        {
         "kind": "affinityStrike",
@@ -8532,17 +8558,25 @@
      "version": 1,
      "def": {
       "name": "Massed Volley",
-      "text": "Deal 34 (+ATK) Bow damage \u00b7 {{Affinity}} Bow \u2014 hit again for 10.",
+      "text": "Deal 40 (+ATK) Bow damage \u00b7 {{Affinity}} Bow \u2014 hit again for 10.",
       "notes": [
-       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
-       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
-       "weaker than a plain single attack even on its best board. The size-2 grant",
-       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
-       "The most base-heavy split (34/10). Bow sits OUTSIDE the weapon triangle",
-       "(WEAPON_BEATS: bow beats beast only), so a bow board's triangle upside is",
-       "the narrowest of any weapon \u2014 its guaranteed half is weighted up to",
-       "compensate, exactly as communion_light is for Holy. Same reasoning, same",
-       "rate: nothing about the affinity price changes per type."
+       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
+       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
+       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
+       "",
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "family). `PREMIUM_HIT_KINDS` exempts affinity-gated hits: extraHitPremium",
+       "prices a conditionality whose upside is that flat `mods.damageFlat` applies",
+       "PER HIT, and a gated hit is explicitly denied that (no damageFlat, no stat",
+       "share, no rider bonus). Charging it anyway put every card in this family",
+       "BEHIND a plain single-hit card of the same budget at every armor value even",
+       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
+       "\"affinity should be something that gives back PL, because there is a cost to",
+       "making affinity activate\").",
+       "THE BASE-HEAVY EXTREME (40 + 10). Bow sits OUTSIDE the weapon triangle",
+       "(WEAPON_BEATS: bow beats beast and nothing beats bow), so a bow board's",
+       "triangle upside is the narrowest of any weapon and its guaranteed half is",
+       "weighted up to compensate \u2014 the same reasoning communion_light uses."
       ],
       "archetypes": [
        "offense"
@@ -8555,7 +8589,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 34
+        "power": 40
        },
        {
         "kind": "affinityStrike",
@@ -8573,16 +8607,24 @@
      "version": 1,
      "def": {
       "name": "Pack Instinct",
-      "text": "Deal 22 (+ATK) Beast damage \u00b7 {{Affinity}} Beast \u2014 hit again for 25.",
+      "text": "Deal 28 (+ATK) Beast damage \u00b7 {{Affinity}} Beast \u2014 hit again for 25.",
       "notes": [
-       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
-       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
-       "weaker than a plain single attack even on its best board. The size-2 grant",
-       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
-       "22/25 \u2014 the affinity hit edges out the base, which is the whole read on a",
-       "pack: one beast is a bite, three is a hunt. Beast is also outside the",
-       "triangle but, unlike bow, is BEATEN by it (bow beats beast), so it takes",
-       "the payoff-leaning split rather than the defensive one."
+       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
+       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
+       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
+       "",
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "family). `PREMIUM_HIT_KINDS` exempts affinity-gated hits: extraHitPremium",
+       "prices a conditionality whose upside is that flat `mods.damageFlat` applies",
+       "PER HIT, and a gated hit is explicitly denied that (no damageFlat, no stat",
+       "share, no rider bonus). Charging it anyway put every card in this family",
+       "BEHIND a plain single-hit card of the same budget at every armor value even",
+       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
+       "\"affinity should be something that gives back PL, because there is a cost to",
+       "making affinity activate\").",
+       "28 + 25, payoff-leaning: one beast is a bite, three is a hunt. Beast is also",
+       "outside the triangle but, unlike bow, is BEATEN by it, so it takes the",
+       "payoff-leaning split rather than the defensive one."
       ],
       "archetypes": [
        "offense"
@@ -8595,7 +8637,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 22
+        "power": 28
        },
        {
         "kind": "affinityStrike",
@@ -8613,15 +8655,23 @@
      "version": 1,
      "def": {
       "name": "Grove Lash",
-      "text": "Deal 26 (+MATK) Nature damage \u00b7 {{Affinity}} Nature \u2014 hit again for 20.",
+      "text": "Deal 32 (+MATK) Nature damage \u00b7 {{Affinity}} Nature \u2014 hit again for 20.",
       "notes": [
-       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
-       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
-       "weaker than a plain single attack even on its best board. The size-2 grant",
-       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
-       "The balanced split (26/20), the same shape as sworn_edge: a real attack for",
-       "any board and a clear reward for three. Nature is on the elemental wheel",
-       "(fire -> nature -> lightning), so it needs no compensation either way."
+       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
+       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
+       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
+       "",
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "family). `PREMIUM_HIT_KINDS` exempts affinity-gated hits: extraHitPremium",
+       "prices a conditionality whose upside is that flat `mods.damageFlat` applies",
+       "PER HIT, and a gated hit is explicitly denied that (no damageFlat, no stat",
+       "share, no rider bonus). Charging it anyway put every card in this family",
+       "BEHIND a plain single-hit card of the same budget at every armor value even",
+       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
+       "\"affinity should be something that gives back PL, because there is a cost to",
+       "making affinity activate\").",
+       "The balanced split (32 + 20), the same shape as sworn_edge. Nature is on the",
+       "elemental wheel (fire -> nature -> lightning), so it needs no compensation."
       ],
       "archetypes": [
        "offense"
@@ -8634,7 +8684,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 26
+        "power": 32
        },
        {
         "kind": "affinityStrike",
@@ -8652,15 +8702,24 @@
      "version": 1,
      "def": {
       "name": "Deepening Frost",
-      "text": "Deal 30 (+MATK) Frost damage \u00b7 {{Affinity}} Frost \u2014 hit again for 15.",
+      "text": "Deal 36 (+MATK) Frost damage \u00b7 {{Affinity}} Frost \u2014 hit again for 15.",
       "notes": [
-       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
-       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
-       "weaker than a plain single attack even on its best board. The size-2 grant",
-       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
-       "BASE-HEAVY (30/15). Frost already carries the catalog's control load",
-       "(slow/freeze), so a frost board is usually built for tempo rather than for",
-       "burst \u2014 the half that always fires is the half that fits that board."
+       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
+       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
+       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
+       "",
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "family). `PREMIUM_HIT_KINDS` exempts affinity-gated hits: extraHitPremium",
+       "prices a conditionality whose upside is that flat `mods.damageFlat` applies",
+       "PER HIT, and a gated hit is explicitly denied that (no damageFlat, no stat",
+       "share, no rider bonus). Charging it anyway put every card in this family",
+       "BEHIND a plain single-hit card of the same budget at every armor value even",
+       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
+       "\"affinity should be something that gives back PL, because there is a cost to",
+       "making affinity activate\").",
+       "BASE-HEAVY (36 + 15). Frost carries the catalog's control load (slow/freeze),",
+       "so a frost board is usually built for tempo rather than burst \u2014 the half",
+       "that always fires is the half that fits that board."
       ],
       "archetypes": [
        "offense"
@@ -8673,7 +8732,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 30
+        "power": 36
        },
        {
         "kind": "affinityStrike",
@@ -8691,16 +8750,24 @@
      "version": 1,
      "def": {
       "name": "Gathering Storm",
-      "text": "Deal 22 (+MATK) Lightning damage \u00b7 {{Affinity}} Lightning \u2014 hit again for 25.",
+      "text": "Deal 28 (+MATK) Lightning damage \u00b7 {{Affinity}} Lightning \u2014 hit again for 25.",
       "notes": [
-       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
-       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
-       "weaker than a plain single attack even on its best board. The size-2 grant",
-       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
-       "22/25, payoff-leaning. Lightning is the widest element in the catalog (7",
-       "damage cards), so reaching IDENTITY_THRESHOLD on it is the easiest of any",
-       "type \u2014 the split leans toward the gate precisely because the gate is cheap",
-       "to open here, and the card should still cost something to run off-type."
+       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
+       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
+       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
+       "",
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "family). `PREMIUM_HIT_KINDS` exempts affinity-gated hits: extraHitPremium",
+       "prices a conditionality whose upside is that flat `mods.damageFlat` applies",
+       "PER HIT, and a gated hit is explicitly denied that (no damageFlat, no stat",
+       "share, no rider bonus). Charging it anyway put every card in this family",
+       "BEHIND a plain single-hit card of the same budget at every armor value even",
+       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
+       "\"affinity should be something that gives back PL, because there is a cost to",
+       "making affinity activate\").",
+       "28 + 25, payoff-leaning. Lightning is the widest element in the catalog, so",
+       "reaching IDENTITY_THRESHOLD on it is the easiest of any type \u2014 the split",
+       "leans toward the gate precisely because the gate is cheap to open here."
       ],
       "archetypes": [
        "offense"
@@ -8713,7 +8780,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 22
+        "power": 28
        },
        {
         "kind": "affinityStrike",
@@ -8731,17 +8798,26 @@
      "version": 1,
      "def": {
       "name": "Umbral Choir",
-      "text": "Deal 30 (+MATK) Dark damage \u00b7 {{Affinity}} Dark \u2014 hit again for 15.",
+      "text": "Deal 36 (+MATK) Dark damage \u00b7 {{Affinity}} Dark \u2014 hit again for 15.",
       "notes": [
-       "SIZE 2 by construction, not preference: a two-hit card pays the 30-deci",
-       "multi-hit premium, which at size 1 is 3 of only 10 PL and leaves the pair",
-       "weaker than a plain single attack even on its best board. The size-2 grant",
-       "(140) is what buys that room. Budget: damage x5 + affinity x4 + 30 - 140 = 100.",
-       "BASE-HEAVY (30/15), the Dark mirror of communion_light's 30/15 on Holy.",
-       "Holy and Dark sit OUTSIDE the elemental wheel and only ever meet each",
-       "other, so both have the narrowest triangle upside of any element and both",
-       "weight their guaranteed half up by the same amount. Dark also had only 3",
-       "damage cards, so a Dark board could barely reach the threshold at all."
+       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
+       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
+       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
+       "",
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
+       "family). `PREMIUM_HIT_KINDS` exempts affinity-gated hits: extraHitPremium",
+       "prices a conditionality whose upside is that flat `mods.damageFlat` applies",
+       "PER HIT, and a gated hit is explicitly denied that (no damageFlat, no stat",
+       "share, no rider bonus). Charging it anyway put every card in this family",
+       "BEHIND a plain single-hit card of the same budget at every armor value even",
+       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
+       "\"affinity should be something that gives back PL, because there is a cost to",
+       "making affinity activate\").",
+       "BASE-HEAVY (36 + 15), the Dark mirror of communion_light. Holy and Dark sit",
+       "outside the elemental wheel and only ever meet each other, so both weight",
+       "their guaranteed half up by the same amount. Dark also had only three damage",
+       "cards, the second-thinnest element, so a Dark board could barely reach the",
+       "threshold at all."
       ],
       "archetypes": [
        "offense"
@@ -8754,7 +8830,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 30
+        "power": 36
        },
        {
         "kind": "affinityStrike",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { simulate } from '../../src/engine/combat/simulate';
 import { skillBook } from '../../src/data/skills';
-import { PRICE, powerLevelDeci, capViolations, TIER_BUDGET_DECI } from '../../src/engine/balance';
+import { PRICE, powerLevelDeci, powerLevelBreakdown, capViolations, HIT_KINDS, PREMIUM_HIT_KINDS, TIER_BUDGET_DECI } from '../../src/engine/balance';
 import { IDENTITY_THRESHOLD } from '../../src/engine/combat/typeIdentity';
 import { validateSkillDocument } from '../../src/data/validateSkillContent';
 import type { CombatConfig, SkillDef } from '../../src/engine/types';
@@ -217,6 +217,35 @@ describe('pricing', () => {
       // open it. Authoring refuses one; this proves no shipped card slipped past.
       expect(card.element ?? card.weapon, `${card.id} must have a type`).toBeDefined();
     }
+  });
+
+  it('a gated hit does NOT pay the multi-hit premium', () => {
+    // THE GATE REFUNDS PL, IT DOES NOT LEVY IT (user ruling 2026-08-25:
+    // "affinity is just a keyword with different effects behind it... but
+    // affinity should be something that gives back PL, because there is a cost
+    // to making affinity activate").
+    //
+    // `extraHitPremium` prices a conditionality whose upside is that flat
+    // `mods.damageFlat` applies PER HIT — and a gated hit is explicitly denied
+    // that (no damageFlat, no stat share, no rider bonus). Charging it anyway put
+    // every card in the family BEHIND a plain single-hit card of the same budget
+    // at every armor value even on its best board, which is a card nobody runs.
+    expect(PREMIUM_HIT_KINDS.has('affinityStrike')).toBe(false);
+    expect(HIT_KINDS.has('affinityStrike'), 'still a HIT for the damage cap and the ledger').toBe(true);
+    // And the exemption is worth exactly one premium, no more: a card carrying a
+    // damage line plus a gated hit prices as a SINGLE-instance card.
+    const probe: SkillDef = {
+      id: 'premium_probe', name: 'Premium Probe',
+      archetypes: ['offense'], property: 'physical', weapon: 'sword',
+      size: 2, rarity: 'common', tier: 'bronze',
+      effects: [{ kind: 'damage', power: 32 }, { kind: 'affinityStrike', power: 20 }],
+      text: '',
+    };
+    const parts = powerLevelBreakdown(probe);
+    expect(parts.find((x) => x.label === 'multi-hit'), 'no multi-hit part at all').toBeUndefined();
+    // Two PLAIN damage lines still pay it — the exemption is scoped to the gate.
+    const plainTwo = powerLevelBreakdown({ ...probe, effects: [{ kind: 'damage', power: 16 }, { kind: 'damage', power: 16 }] });
+    expect(plainTwo.find((x) => x.label === 'multi-hit')?.deci).toBe(PRICE.extraHitPremium);
   });
 
   it('the affinity power is a multiple of 5, so its part is a whole PL', () => {
