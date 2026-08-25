@@ -323,6 +323,19 @@ function keywordEntry(action: Action, property: Property, ownType?: Element | We
         title: 'Combo',
         body: 'Bonus triggers if your previous cast shared this card’s archetype.',
       };
+    // ATTUNED SHIELD. The body must say what the doubling is worth in the units a
+    // player thinks in (damage absorbed, not points held), and must say that it
+    // still walls normally against everything else — otherwise the card reads as
+    // a narrow shield rather than a better one.
+    case 'attunedShield': {
+      const name = ownType === undefined ? 'its type' : (TYPE_NAME[ownType] ?? ownType);
+      return {
+        title: 'Attuned shield',
+        body: `${action.power} (+DEF) shield tuned to ${name}: every point absorbs TWO damage from ${name} attacks `
+          + `instead of one, so it soaks up to ${action.power * 2} from them. Against anything else it still walls normally, `
+          + `one for one. Your wall spends its ${name} plating first when ${name} damage lands, and saves it for last otherwise.`,
+      };
+    }
     // AFFINITY CHARGE — the forward-armed sibling. The body has to say THREE
     // things a player will otherwise get wrong: it lands on the NEXT card (not
     // this one), only a card of the same type collects it, and a second armer

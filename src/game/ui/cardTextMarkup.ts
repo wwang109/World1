@@ -131,6 +131,11 @@ export const KEYWORD_TEXT_COLOR: Record<string, string> = {
   // are "your board unlocked this") while the lighter value reads as the one that
   // has not happened yet.
   charge: '#f0b878',
+  // ATTUNED plating. Deliberately in the SHIELD family's blue rather than the
+  // affinity family's warm range: what a player must read at a glance is "this
+  // is a wall", and the attunement is a modifier on the wall. Slightly deeper
+  // and more saturated than plain shield text so the two are tellable apart.
+  attuned: '#6f9fd8',
   shatter: '#d88f6a',
   thorns: '#3f9e7a',
   true: '#e8d5a0',

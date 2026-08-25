@@ -261,6 +261,29 @@ type ActionKinds =
   | { kind: 'heal'; power: number }
   | { kind: 'shield'; power: number }
   /**
+   * ATTUNED SHIELD — plating tuned to this card's own type, which absorbs
+   * DOUBLE from damage of that type: 1 point of an attuned sword shield eats 2
+   * damage from a sword card, and 1 damage from anything else.
+   *
+   * THE TYPE IS THE CARD'S, never authored separately (`cardType` = `element ??
+   * weapon`), exactly as `affinityStrike`'s gate is — so a Sword card's plating
+   * is sword plating and the two can never disagree. A card with no type cannot
+   * carry one; `validateSkillContent` refuses it, since the doubling could then
+   * never trigger.
+   *
+   * PROPERTY STILL APPLIES. Attunement is a SECOND axis, not a replacement: an
+   * attuned pool is still physical/magical/true plating and still only blocks its
+   * own property (`consumeShields`). Attunement decides the EXCHANGE RATE within
+   * that, not what it can block.
+   *
+   * SPENT BY EFFICIENCY, not by age. `consumeShields` spends MATCHING attuned
+   * pools first (2 damage per point is the best value the wall can offer),
+   * then untyped plating, then non-matching attuned pools last — so a sword
+   * shield is not eaten by a fireball while generic plating sits behind it. Fixed
+   * rule, index-ordered within each class, no RNG.
+   */
+  | { kind: 'attunedShield'; power: number }
+  /**
    * DECAYING DoT (user-locked 2026-07-20): applies `stacks` poison. Each tick
    * deals damage EQUAL to the current stack count, then one stack falls off —
    * N stacks total N×(N+1)/2 damage. Exact printed numbers: no stat scaling,

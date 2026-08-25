@@ -1,5 +1,5 @@
 import type { Rng } from '../rng';
-import type { Action, EffectSourceRef, Property, SkillDef } from '../types';
+import type { Action, EffectSourceRef, Element, Property, SkillDef, WeaponType } from '../types';
 import { isMultiTargetSkill, MAX_NEGATE_CHARGES, MAX_WARD_CHARGES } from '../types';
 import type { AntiHealCategory, AntiHealReduction, CombatEvent, DamageCalculation } from './events';
 import type { AuraMods, AuraSource } from './auras';
@@ -503,13 +503,69 @@ function mitigation(c: CombatantState, property: Property): number {
  * per point blocked, so `drain.true` is the inflated spend, not the block.
  * Arithmetic (and its Math.min/floor order) is unchanged by this bookkeeping.
  */
+/**
+ * ATTUNED PLATING, spent by EFFICIENCY rather than by age.
+ *
+ * An attuned pool absorbs 2 damage per point from damage of its own type and 1
+ * from everything else (see `attunedShield` in types.ts). So the wall spends, in
+ * order: MATCHING attuned pools (the best exchange it can offer), then untyped
+ * plating, then NON-matching attuned pools — which is what stops a sword shield
+ * from being eaten by a fireball while generic plating sits behind it.
+ *
+ * Returns what it absorbed and what it cost, so the caller can keep the
+ * property-bucketed `drain` bookkeeping the event log already reports (an
+ * attuned pool drains into its own property's bucket — no event schema change,
+ * which is what keeps every existing log byte-identical).
+ *
+ * INTEGER-ONLY and index-ordered. `Math.floor(remaining / 2)` is the points a
+ * matching pool needs; the odd point of an odd `remaining` is covered by taking
+ * one more point, so a 1-damage remainder still costs a whole point rather than
+ * being absorbed free.
+ */
+function spendAttuned(
+  c: CombatantState,
+  property: Property,
+  attackType: Element | WeaponType | undefined,
+  amount: number,
+  matching: boolean,
+  drain: Record<Property, number>,
+): { blocked: number; left: number } {
+  const pools = c.attunedShields;
+  if (pools === undefined || amount <= 0) return { blocked: 0, left: amount };
+  let blocked = 0;
+  let left = amount;
+  for (let i = 0; i < pools.length && left > 0; i += 1) {
+    const pool = pools[i]!;
+    if (pool.points <= 0) continue;
+    // A pool only ever blocks its own property, exactly like the untyped pools.
+    if (pool.property !== property) continue;
+    const isMatch = attackType !== undefined && pool.type === attackType;
+    if (isMatch !== matching) continue;
+    // 2 damage per point when matching, 1 otherwise.
+    const rate = isMatch ? 2 : 1;
+    const pointsNeeded = Math.ceil(left / rate);
+    const take = Math.min(pool.points, pointsNeeded);
+    pool.points -= take;
+    drain[property] += take;
+    const absorbed = Math.min(left, take * rate);
+    blocked += absorbed;
+    left -= absorbed;
+  }
+  return { blocked, left };
+}
+
 function consumeShields(
   c: CombatantState,
   property: Property,
   amount: number,
+  attackType?: Element | WeaponType,
 ): { blocked: number; drain: Record<Property, number> } {
   let blocked = 0;
   const drain: Record<Property, number> = { physical: 0, magical: 0, true: 0 };
+  // BEST EXCHANGE FIRST: a matching attuned pool eats two damage per point.
+  const first = spendAttuned(c, property, attackType, amount, true, drain);
+  blocked += first.blocked;
+  amount = first.left;
   if (property !== 'true') {
     const pool = Math.min(c.shields[property], amount);
     c.shields[property] -= pool;
@@ -520,12 +576,20 @@ function consumeShields(
     c.shields.true -= trueSpent;
     drain.true += trueSpent;
     blocked += Math.floor(trueSpent / 2);
+    amount -= Math.floor(trueSpent / 2);
+    // LAST RESORT: attuned plating of this property that does NOT match the
+    // incoming type still walls at 1:1 rather than standing by uselessly.
+    const rest = spendAttuned(c, property, attackType, amount, false, drain);
+    blocked += rest.blocked;
     return { blocked, drain };
   }
   const truePool = Math.min(c.shields.true, amount);
   c.shields.true -= truePool;
   drain.true += truePool;
   blocked += truePool;
+  amount -= truePool;
+  const restTrue = spendAttuned(c, property, attackType, amount, false, drain);
+  blocked += restTrue.blocked;
   return { blocked, drain };
 }
 
@@ -793,6 +857,13 @@ export function dealDamage(
   opts: {
     bypassShields?: boolean;
     matchup?: Matchup;
+    /**
+     * The ATTACKING CARD's own type (`cardType`), used only to decide whether an
+     * attuned pool on the victim absorbs at its doubled rate. Absent for every
+     * non-skill source (DoT ticks, fatigue, attrition carry no card), which is
+     * why attunement never doubles against those.
+     */
+    attackType?: Element | WeaponType;
     source?: 'skill' | 'poison' | 'burn' | 'bleed' | 'thorns' | 'fatigue' | 'attrition';
     calculation?: Omit<DamageCalculation, 'guardReduction' | 'exposeBonus' | 'shieldBlocked' | 'hpDamage'>;
   } = {},
@@ -863,7 +934,7 @@ export function dealDamage(
 
   const absorb = opts.bypassShields
     ? { blocked: 0, drain: { physical: 0, magical: 0, true: 0 } as Record<Property, number> }
-    : consumeShields(victim, property, reduced);
+    : consumeShields(victim, property, reduced, opts.attackType);
   const blocked = absorb.blocked;
   const remaining = reduced - blocked;
   victim.stats.hp = Math.max(0, victim.stats.hp - remaining);
@@ -1074,6 +1145,9 @@ function applyStrike(
   const hpBefore = enemy.stats.hp;
   const landed = dealDamage(ctx, enemy, amount, property, {
     matchup,
+    // Only a real card hit carries a type, so only a card hit can trigger the
+    // doubling on an attuned pool.
+    ...(cardType(skill) ? { attackType: cardType(skill)!.type } : {}),
     calculation: {
       scalingStat,
       baseStat,
@@ -1417,6 +1491,53 @@ function applyAction(
           });
         }
       }
+      break;
+    }
+    case 'attunedShield': {
+      if (!caster.alive) break;
+      // EVERY RULE `shield` FOLLOWS, followed here: the defensive stat add (0 for
+      // a gem-appended pool and for TRUE), the maxHp room cap read through
+      // `totalShield` (which counts attuned pools at FACE value), and the same
+      // `shieldGain` event so playback and the log need no new case. The ONLY
+      // difference is where the points land — an attuned pool, tagged with this
+      // card's own type, which `consumeShields` then spends at 2 damage per point
+      // against matching damage.
+      const attunedType = cardType(skill);
+      if (attunedType === undefined) break; // typeless: refused at authoring
+      const attunedStat = action.fromGem === true ? 0 : scaleDefStat(caster, property);
+      const attunedRequest = action.power + attunedStat;
+      const attunedRoom = Math.max(0, caster.stats.maxHp - totalShield(caster));
+      const attunedGain = Math.min(attunedRequest, attunedRoom);
+      if (attunedGain > 0) {
+        // TOP UP an existing pool of the same property AND type rather than
+        // pushing a second one: keeps the list short over a long fight and makes
+        // the spend order stable regardless of how many times a card recast.
+        const pools = caster.attunedShields ?? [];
+        let found = false;
+        for (let i = 0; i < pools.length; i += 1) {
+          const pool = pools[i]!;
+          if (pool.property === property && pool.type === attunedType.type) {
+            pool.points += attunedGain;
+            found = true;
+            break;
+          }
+        }
+        if (!found) pools.push({ property, type: attunedType.type, points: attunedGain });
+        caster.attunedShields = pools;
+      }
+      ctx.events.push({
+        turn: ctx.state.turn,
+        kind: 'shieldGain',
+        side: caster.side,
+        unit: caster.index,
+        property,
+        amount: attunedGain,
+        wasted: attunedRequest - attunedGain,
+        totalAfter: totalShield(caster),
+        poolsAfter: { ...caster.shields },
+        ...(ctx.source ? { sourceCard: ctx.source } : {}),
+        calculation: { power: action.power, statBonus: attunedStat },
+      });
       break;
     }
     case 'shield': {

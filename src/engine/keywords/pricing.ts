@@ -202,6 +202,32 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     magical: P.flatPowerPerPoint,
     true: P.flatTrueShieldPerPoint,
   };
+  /**
+   * ATTUNED plating: 1.5x the shield rate (7.5 deci/pt), derived rather than
+   * guessed. A point of it is worth ONE point of absorption always plus a SECOND
+   * point when the incoming damage matches its type — and "the enemy attacks with
+   * the type you attuned against" is precisely a gate the card cannot supply,
+   * which is what `conditionalBonusDen` (2) exists to price. So the guaranteed
+   * point pays the full shield rate and the doubling pays it at the conditional
+   * discount: rate x (1 + 1/2).
+   *
+   * Written as a pre-multiplied numerator over den 2 to keep the division exact.
+   * At 7.5 deci/pt a whole-PL part needs `power` to be a multiple of 4, which is
+   * a real authoring constraint rather than a rounding fudge.
+   *
+   * FROZEN AT TIER (`scalable: false`), for a mechanical reason rather than a
+   * design one: the tier sink solver reads a single INTEGER deci-per-point via
+   * `scalableRateDeci`, which floors — 15/2 would come back as 7 and the solver
+   * would spend a budget it had not actually costed. A frozen pool keeps the
+   * fraction contained in `actionsPriceDeci`, where `power x 15 / 2` is exact for
+   * any even power. Cards carrying one tier on their other lines, and an authored
+   * `tierUpgrades` can grow the plating deliberately.
+   */
+  const attunedShieldRate: Record<Property, number> = {
+    physical: shieldRate.physical * 3,
+    magical: shieldRate.magical * 3,
+    true: shieldRate.true * 3,
+  };
   return {
     damage: { isHit: true, scalable: true, family: 'damage', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: strikeRate, den: 1 }] },
     // An UNCAPPED statStrike prices at 0 through the `cap` field being absent —
@@ -242,6 +268,11 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
      */
     affinityCharge: { isHit: false, affinityGated: true, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'amount', num: P.flatPowerPerPoint * P.affinityPayoffNum, den: P.affinityPayoffDen }] },
     affinityStrike: { isHit: true, affinityGated: true, scalable: false, family: 'damage', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: affinityStrikeRate, den: P.affinityPayoffDen }] },
+    // Same `shield` family cap and the same scalable sink behaviour as plain
+    // plating — only the per-point rate differs, because only the exchange rate
+    // differs. `offensive: false`: it resolves on the caster like every support
+    // keyword and pays no AoE reach multiplier.
+    attunedShield: { isHit: false, scalable: false, family: 'shield', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: attunedShieldRate, den: P.conditionalBonusDen }] },
     heal: { isHit: false, scalable: true, family: 'heal', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: healRate, den: 1 }] },
     shield: { isHit: false, scalable: true, family: 'shield', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: shieldRate, den: 1 }] },
 

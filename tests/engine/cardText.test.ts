@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
+import { KEYWORD_PRICING } from '../../src/engine/balance';
 import type { Action, AuraDef, SkillTier } from '../../src/engine/types';
 
 // Drift guard: every numeric magnitude a card's `effects`/`aura` carries must
@@ -184,6 +185,11 @@ function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined):
       case 'affinityCharge':
         expected.push(eff.amount);
         break;
+      // ATTUNED SHIELD: `power` is the plating granted; the doubling is a rule,
+      // not a number, so there is nothing else for the face to print.
+      case 'attunedShield':
+        expected.push(eff.power);
+        break;
       default:
         assertNever(eff);
     }
@@ -225,7 +231,16 @@ const DEFENSE_TOKENS = ['(+DEF)', '(+MDEF)', '(+DEF/MDEF)'] as const;
 
 function assertStatTokens(label: string, text: string, effects: readonly Action[]): void {
   const hasOffense = effects.some((e) => e.kind === 'damage');
-  const hasDefense = effects.some((e) => e.kind === 'shield' || e.kind === 'heal');
+  // DERIVED FROM THE PRICING TABLE, not a hand-kept list of kinds. This used to
+  // read `e.kind === 'shield' || e.kind === 'heal'` and so did not know about
+  // `attunedShield` (2026-08-25) — a card carrying one plus a damage line read as
+  // PURELY offensive and was told off for printing the (+DEF) its plating
+  // genuinely scales from. Keying off `family` covers every present and future
+  // defensive kind by construction.
+  const hasDefense = effects.some((e) => {
+    const family = KEYWORD_PRICING[e.kind].family;
+    return family === 'shield' || family === 'heal';
+  });
 
   // A purely defensive card must never advertise an offensive stat, and vice
   // versa. A card with BOTH roles is exempt: either token is legitimately its.

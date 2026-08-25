@@ -175,6 +175,18 @@ export interface CombatantState {
   name: string;
   stats: CombatantStats;
   shields: ShieldPools;
+  /**
+   * ATTUNED plating: pools tuned to one weapon/element that absorb DOUBLE from
+   * matching damage (see the `attunedShield` docs in types.ts). A separate list
+   * rather than more fields on `ShieldPools` for two reasons: a unit may hold
+   * several attuned pools of different types at once, and — critically — a fight
+   * with no attuned shield never touches this field, so every existing event log
+   * stays byte-identical.
+   *
+   * Walked BY INDEX wherever it is spent, so the drain is reproducible from the
+   * log rather than depending on object key order.
+   */
+  attunedShields?: Array<{ property: Property; type: Element | WeaponType; points: number }>;
   boardSize: number;
   /** Sorted by slot ascending; rotation order = this order. */
   pieces: PieceState[];
@@ -434,7 +446,14 @@ export function effStat(c: CombatantState, stat: BuffableStat): number {
 }
 
 export function totalShield(c: CombatantState): number {
-  return c.shields.physical + c.shields.magical + c.shields.true;
+  let total = c.shields.physical + c.shields.magical + c.shields.true;
+  // ATTUNED pools count at FACE value here, not at their doubled absorption.
+  // This total feeds the maxHp room cap and the "how much wall is standing"
+  // reads; both are about points held, and the doubling is an exchange rate
+  // applied at the moment damage arrives (`consumeShields`), not extra points.
+  const attuned = c.attunedShields;
+  if (attuned !== undefined) for (let i = 0; i < attuned.length; i += 1) total += attuned[i]!.points;
+  return total;
 }
 
 export function hasStatus(c: CombatantState, kind: StatusInstance['kind']): boolean {
@@ -498,6 +517,20 @@ export function spendShieldsForBurst(c: CombatantState, cap: number): number {
     c.shields[pool] -= take;
     remaining -= take;
     spent += take;
+  }
+  // ATTUNED pools are spent LAST and at FACE value — a burst converts plating
+  // into damage one point for one point, so the doubling (a defensive exchange
+  // rate against matching damage) buys nothing here and the best wall is the one
+  // left standing. Same reasoning `true` is last in SHIELD_BURST_POOL_ORDER.
+  const attuned = c.attunedShields;
+  if (attuned !== undefined) {
+    for (let i = 0; i < attuned.length && remaining > 0; i += 1) {
+      const pool = attuned[i]!;
+      const take = Math.min(pool.points, remaining);
+      pool.points -= take;
+      remaining -= take;
+      spent += take;
+    }
   }
   return spent;
 }

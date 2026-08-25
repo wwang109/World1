@@ -316,6 +316,8 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
   affinityStrike: 'post',
   // Arms a FUTURE cast, so its position in this cast's order decides nothing.
   affinityCharge: 'post',
+  // Plating, same phase as plain `shield`.
+  attunedShield: 'post',
   /**
    * Arms `cast.bonusByTarget` — same seam as `comboBonus`, same failure mode if
    * appended last (no damage action left to read the bonus, so the whole gem

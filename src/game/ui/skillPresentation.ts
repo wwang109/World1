@@ -292,6 +292,13 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
       // — the action carries no type of its own.
       // Reads "NEXT" first, because landing on a FUTURE cast is the whole
       // difference between this and every other bonus-damage badge on a face.
+      // The badge leads with the SHIELD amount and names the type it is tuned to;
+      // the x2 is the whole reason the card exists, so it is on the face.
+      case 'attunedShield': {
+        const ownType = skill.element ?? skill.weapon;
+        extras.push({ text: `SHIELD ${action.power}${ownType === undefined ? '' : ` x2 vs ${ownType.toUpperCase()}`}`, keyword: 'attuned' });
+        break;
+      }
       case 'affinityCharge': {
         const ownType = skill.element ?? skill.weapon;
         extras.push({ text: `NEXT ${ownType === undefined ? '' : `${ownType.toUpperCase()} `}+${action.amount}`, keyword: 'affinity' });

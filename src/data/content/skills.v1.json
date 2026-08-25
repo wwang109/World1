@@ -9147,6 +9147,159 @@
      }
     }
    ]
+  },
+  {
+   "id": "bulwark_of_the_line",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Bulwark of the Line",
+      "text": "{{Attuned}} Lance shield 24 (+DEF) \u2014 absorbs 2 damage per point from Lance attacks \u00b7 Gain 12 (+DEF) physical shield.",
+      "notes": [
+       "ATTUNED SHIELD \u2014 plating tuned to this card's own type, absorbing 2 damage",
+       "per point from that type and 1 from everything else.",
+       "RATE 7.5 deci/pt = the shield rate (5) x 1.5. Derived, not guessed: a point",
+       "is worth ONE point of absorption always, plus a SECOND when the incoming",
+       "damage matches \u2014 and \"the enemy attacks with the type you attuned against\"",
+       "is exactly a gate the card cannot supply, which is what conditionalBonusDen",
+       "(2) prices. So the guaranteed point pays full rate and the doubling pays it",
+       "at the conditional discount: 5 x (1 + 1/2).",
+       "A whole-PL part therefore needs `power` to be a multiple of 4.",
+       "FROZEN AT TIER: the tier sink solver reads one INTEGER deci-per-point and",
+       "would floor 15/2 to 7, spending budget it had not costed. Frozen keeps the",
+       "fraction inside actionsPriceDeci, where power x 15 / 2 is exact for even",
+       "power. These cards tier on their other lines.",
+       "A SPECIALISED CORE PLUS A PLAIN OUTER WALL, not a pure attuned card, and",
+       "the plain line is load-bearing: `attunedShield` is FROZEN at tier, so a",
+       "card carrying nothing else has no sink for the auto-scaler to solve and",
+       "cannot land on Silver/Gold/Diamond at all \u2014 those budgets minus the size",
+       "grant come to 320/410/490 deci, and at 7.5/pt none is reachable with a",
+       "whole number of points. The plain `shield` line absorbs the remainder",
+       "exactly (28/46/62 points at 5/pt), so the card tiers cleanly.",
+       "bronze: attuned 24 (180) + shield 12 (60) - size (140) = 100 exact.",
+       "24 attuned points soak 48 from Lance damage; the 12 plain points wall",
+       "everything at 1:1. The hardest counter in the game to a lance board, and",
+       "never a dead card against anything else."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "attunedShield",
+        "power": 24
+       },
+       {
+        "kind": "shield",
+        "power": 12
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "riposte_guard",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Riposte Guard",
+      "text": "Deal 24 (+ATK) Sword damage \u00b7 {{Attuned}} Sword shield 16 (+DEF) \u2014 absorbs 2 damage per point from Sword attacks.",
+      "notes": [
+       "ATTUNED SHIELD \u2014 plating tuned to this card's own type, absorbing 2 damage",
+       "per point from that type and 1 from everything else.",
+       "RATE 7.5 deci/pt = the shield rate (5) x 1.5. Derived, not guessed: a point",
+       "is worth ONE point of absorption always, plus a SECOND when the incoming",
+       "damage matches \u2014 and \"the enemy attacks with the type you attuned against\"",
+       "is exactly a gate the card cannot supply, which is what conditionalBonusDen",
+       "(2) prices. So the guaranteed point pays full rate and the doubling pays it",
+       "at the conditional discount: 5 x (1 + 1/2).",
+       "A whole-PL part therefore needs `power` to be a multiple of 4.",
+       "FROZEN AT TIER: the tier sink solver reads one INTEGER deci-per-point and",
+       "would floor 15/2 to 7, spending budget it had not costed. Frozen keeps the",
+       "fraction inside actionsPriceDeci, where power x 15 / 2 is exact for even",
+       "power. These cards tier on their other lines.",
+       "THE EVEN SPLIT (120 + 120): a real 24 hit and 16 attuned points that soak 32",
+       "from Sword damage. The shape for a sword board that expects to be mirrored."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 24
+       },
+       {
+        "kind": "attunedShield",
+        "power": 16
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "emberguard",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Emberguard",
+      "text": "Deal 12 (+MATK) Fire damage \u00b7 {{Attuned}} Fire shield 24 (+DEF) \u2014 absorbs 2 damage per point from Fire attacks.",
+      "notes": [
+       "ATTUNED SHIELD \u2014 plating tuned to this card's own type, absorbing 2 damage",
+       "per point from that type and 1 from everything else.",
+       "RATE 7.5 deci/pt = the shield rate (5) x 1.5. Derived, not guessed: a point",
+       "is worth ONE point of absorption always, plus a SECOND when the incoming",
+       "damage matches \u2014 and \"the enemy attacks with the type you attuned against\"",
+       "is exactly a gate the card cannot supply, which is what conditionalBonusDen",
+       "(2) prices. So the guaranteed point pays full rate and the doubling pays it",
+       "at the conditional discount: 5 x (1 + 1/2).",
+       "A whole-PL part therefore needs `power` to be a multiple of 4.",
+       "FROZEN AT TIER: the tier sink solver reads one INTEGER deci-per-point and",
+       "would floor 15/2 to 7, spending budget it had not costed. Frozen keeps the",
+       "fraction inside actionsPriceDeci, where power x 15 / 2 is exact for even",
+       "power. These cards tier on their other lines.",
+       "DEFENCE-HEAVY (60 + 180): a token 12 hit and 24 attuned points that soak 48",
+       "from Fire damage. The counter-pick against a fire board, and the clearest",
+       "demonstration that attunement is a SECOND axis on top of property \u2014 this is",
+       "magical plating that is also fire-attuned, so it walls all magic and doubles",
+       "only against fire."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "fire",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 12
+       },
+       {
+        "kind": "attunedShield",
+        "power": 24
+       }
+      ]
+     }
+    }
+   ]
   }
  ]
 }
