@@ -126,6 +126,11 @@ export const KEYWORD_TEXT_COLOR: Record<string, string> = {
   // The third member of the gated-payoff family, one step warmer again than
   // chain so combo/chain/affinity read as siblings without collapsing together.
   affinity: '#e89040',
+  // CHARGE is affinity's forward-armed half. Same family hue, pulled lighter and
+  // slightly desaturated: on a face the two must be readable as relatives (both
+  // are "your board unlocked this") while the lighter value reads as the one that
+  // has not happened yet.
+  charge: '#f0b878',
   shatter: '#d88f6a',
   thorns: '#3f9e7a',
   true: '#e8d5a0',

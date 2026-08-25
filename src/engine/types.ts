@@ -539,6 +539,35 @@ type ActionKinds =
    */
   | { kind: 'affinityStrike'; power: number }
   /**
+   * AFFINITY CHARGE — the forward-armed half of the affinity family: if the
+   * caster holds the affinity matching this card's own type, arm `amount` FLAT
+   * bonus damage for the NEXT cast of that same type.
+   *
+   * THE ONLY KEYWORD THAT PAYS FORWARD. Every other rider reads state that
+   * already exists and spends on the cast it rides (`comboBonus`, `chainBonus`,
+   * `exploit`, …). This one leaves something behind: a single standing charge on
+   * the caster, consumed by the next matching cast — "your next Fire card hits
+   * harder", the shape a player asks for as "a buff for my next spell".
+   *
+   * FLAT, NOT DOUBLE (user asked for "doubles the next fire spell"). The damage
+   * model is flat by lock — `power` and the stat add flat, and only the
+   * weapon/element triangle and the sudden-death ramp are ever multipliers
+   * (`applyStrike`). A x2 here would be the only percentage on the offensive
+   * side of the game and would scale with the target card rather than with what
+   * was paid for it, so the charge adds a fixed `amount` instead.
+   *
+   * ONE CHARGE, STRONGEST WINS. Re-arming while a charge stands keeps the larger
+   * amount rather than adding — the same call `guard` makes for re-application.
+   * That bounds the resource at one card's printed number however many armers a
+   * board runs, which is what keeps it priceable at all.
+   *
+   * CONSUMED AT CAST START, so a card can never arm and spend within one cast:
+   * `applyCast` spends any standing charge into `CastCtx.bonusFlat` BEFORE
+   * walking the effect list that might arm a new one. Same cross-cast payoff
+   * ruling the whole rider family follows.
+   */
+  | { kind: 'affinityCharge'; amount: number }
+  /**
    * EXPLOIT — `comboBonus`'s sibling, gated on the VICTIM'S CONDITION instead of
    * on the caster's own cast history: +`amount` FLAT damage this cast if the
    * target ALREADY CARRIES the named affliction. Place it BEFORE the damage

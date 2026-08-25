@@ -392,6 +392,9 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
       req(raw, 'per', inRange(1, 999), 'an integer 1..999 (a per of 0 is priced for its cap and can never deliver a point)', at, problems);
       req(raw, 'cap', inRange(0, 999), 'an integer 0..999 — REQUIRED: the cap is what is priced, because per x stacks cleansed is unbounded', at, problems);
       break;
+    case 'affinityCharge':
+      req(raw, 'amount', inRange(1, 999), 'an integer 1..999 (an amount of 0 arms a charge worth nothing, and a negative one would WEAKEN your own next cast while refunding budget)', at, problems);
+      break;
     case 'affinityStrike':
       req(raw, 'power', inRange(1, 999), 'an integer 1..999 (a power of 0 is a hit that deals nothing, and a negative one would HEAL the target while refunding budget)', at, problems);
       break;
@@ -514,10 +517,10 @@ function rejectTypelessAffinity(ownType: unknown, effects: unknown, at: string, 
   if (!Array.isArray(effects)) return;
   if (typeof ownType === 'string' && ownType.length > 0) return;
   for (const action of effects) {
-    if (!isObj(action) || action.kind !== 'affinityStrike') continue;
+    if (!isObj(action) || (action.kind !== 'affinityStrike' && action.kind !== 'affinityCharge')) continue;
     problems.push({
       where: at,
-      message: 'an affinityStrike needs the card to HAVE a type: its gate is "the caster carries this card\'s own '
+      message: 'an affinity keyword needs the card to HAVE a type: its gate is "the caster carries this card\'s own '
         + 'element (or weapon) as an affinity", and a card with neither can never open it on any board. Give the card '
         + 'an element or a weapon, or drop the affinity hit.',
     });

@@ -1222,6 +1222,19 @@ function applyAction(
       });
       break;
     }
+    case 'affinityCharge': {
+      // Arms the NEXT matching cast, so nothing lands now. Same gate as
+      // `affinityStrike` — the caster must hold this card's own affinity.
+      if (!affinityOpen(caster, skill)) break;
+      const type = cardType(skill);
+      if (type === undefined) break; // unreachable: affinityOpen already required one
+      // STRONGEST WINS, never additive (see the docs in types.ts): a board
+      // running several armers still only ever holds one card's printed number.
+      const standing = caster.empowerNext;
+      if (standing !== undefined && standing.type === type.type && standing.amount >= action.amount) break;
+      caster.empowerNext = { type: type.type, amount: action.amount };
+      break;
+    }
     case 'affinityStrike': {
       // THE BOARD'S OWN PAYOFF. Fires only when the caster carries the affinity
       // matching this card's type — for a hero that means Board Type Identity
@@ -2124,7 +2137,29 @@ export function applyCast(
    * the old `anySideWiped` call, so every 1v1 log stays byte-identical.
    */
   const castCutShort = (): boolean => !caster.alive || anySideWiped(ctx.state);
-  const cast: CastCtx = { damageDealt: 0, bonusFlat: 0, bonusByTarget: [], healBonusFlat: 0, overhealShieldCap: 0, cleansedStacks: 0, spreadsBand: castSpreadsBand(skill.effects) };
+  /**
+   * SPEND A STANDING AFFINITY CHARGE. Done HERE, before the effect list is
+   * walked, for two reasons: a card can never arm and spend within one cast (the
+   * cross-cast ruling the whole rider family follows), and the charge lands in
+   * `bonusFlat` on exactly the schedule every other rider's bonus does — read by
+   * the first non-gem `damage` action and cleared with the cast.
+   *
+   * Matched on the CAST's type, not the armer's: the charge says "your next Fire
+   * card", so any Fire card collects it. Cleared whether or not this cast has a
+   * damage action to spend it on — a charge offered to a card that cannot use it
+   * is spent, exactly as `bonusFlat` is on a hitless card, which is what stops a
+   * support card from being a free place to park it.
+   */
+  let chargeSpent = 0;
+  const standingCharge = caster.empowerNext;
+  if (standingCharge !== undefined) {
+    const castType = cardType(skill);
+    if (castType !== undefined && castType.type === standingCharge.type) {
+      chargeSpent = standingCharge.amount;
+      caster.empowerNext = undefined;
+    }
+  }
+  const cast: CastCtx = { damageDealt: 0, bonusFlat: chargeSpent, bonusByTarget: [], healBonusFlat: 0, overhealShieldCap: 0, cleansedStacks: 0, spreadsBand: castSpreadsBand(skill.effects) };
   // MULTI-HIT STAT SPLIT: the denominator is fixed for the whole cast and counts
   // the CARD'S OWN damage actions only — a gem-appended hit neither joins the
   // split nor advances the ordinal, so socketing a gem cannot shrink the hits

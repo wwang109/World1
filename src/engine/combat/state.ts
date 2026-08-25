@@ -218,6 +218,14 @@ export interface CombatantState {
    * identical to what it was before this field existed.
    */
   lastCastType?: Element | WeaponType;
+  /**
+   * A standing `affinityCharge`: flat bonus damage waiting for the next cast of
+   * `type`. Written ONLY by that keyword's arm and cleared the moment it is
+   * spent, so a fight with no armer never touches the field and every existing
+   * log stays byte-identical. At most ONE charge stands at a time (re-arming
+   * keeps the larger amount — see the `affinityCharge` docs in types.ts).
+   */
+  empowerNext?: { type: Element | WeaponType; amount: number };
   elementAffinity?: Element;
   weaponAffinity?: WeaponType;
   /**

@@ -185,6 +185,94 @@ describe('opening the gate ADDS a hit — it never redistributes one', () => {
   });
 });
 
+describe('AFFINITY CHARGE — the forward-armed half', () => {
+  /** Bonus damage that reached a hit, per cast, in order. */
+  function bonuses(heroBoard: readonly string[], seed = 5): Array<{ card: string; bonus: number }> {
+    const config: CombatConfig = {
+      playerTeam: [{
+        name: 'Hero',
+        stats: { maxHp: 900, hp: 900, attack: 10, magicPower: 10, armor: 3, magicResist: 3, speed: 30 },
+        pieces: board(heroBoard), boardSize: 14,
+      } as never],
+      enemyTeam: [{
+        name: 'Foe', stats: { maxHp: 30000, hp: 30000, attack: 1, magicPower: 1, armor: 0, magicResist: 0, speed: 6 },
+        pieces: board(['sword_slash']), boardSize: 4,
+      } as never],
+      skillBook, maxTurns: 14, endgame: { attritionEnabled: false, suddenDeathTurn: 0 },
+    } as never;
+    const out: Array<{ card: string; bonus: number }> = [];
+    let card = '';
+    for (const e of simulate(config, seed).events) {
+      if (e.kind === 'play' && e.side === 'player') card = e.skillId;
+      if (e.kind === 'damage' && e.side === 'enemy' && e.source === 'skill' && e.calculation) {
+        out.push({ card, bonus: e.calculation.effectBonusDamage });
+      }
+    }
+    return out;
+  }
+
+  const ARMER = skillBook.kindling_rite!;
+  const AMOUNT = (() => {
+    const a = ARMER.effects.find((x) => x.kind === 'affinityCharge');
+    if (!a || a.kind !== 'affinityCharge') throw new Error('kindling_rite lost its charge');
+    return a.amount;
+  })();
+
+  it('pays the NEXT matching card, not the cast that armed it', () => {
+    // Three fire cards => fire affinity. The armer must land NOTHING extra on its
+    // own cast (it is consumed at the START of a later cast), and the next Fire
+    // card must collect exactly the printed amount.
+    const seen = bonuses(['kindling_rite', 'cinder_dart', 'ember_lash', 'sword_slash']);
+    const armerHits = seen.filter((h) => h.card === 'kindling_rite');
+    expect(armerHits.length, 'the armer must cast').toBeGreaterThan(0);
+    for (const h of armerHits) expect(h.bonus, 'the arming cast gains nothing itself').toBe(0);
+    expect(seen.some((h) => h.card === 'cinder_dart' && h.bonus === AMOUNT),
+      `the next Fire card must collect +${AMOUNT}`).toBe(true);
+  });
+
+  it('a card of a DIFFERENT type never collects it', () => {
+    // The charge says "your next FIRE card". A sword card casting in between must
+    // walk past it untouched — and must not consume it either, which the test
+    // above proves by the fire card still collecting.
+    const seen = bonuses(['kindling_rite', 'cinder_dart', 'ember_lash', 'sword_slash']);
+    for (const h of seen.filter((x) => x.card === 'sword_slash')) {
+      expect(h.bonus, 'a sword card must not collect a fire charge').toBe(0);
+    }
+  });
+
+  it('ONE charge, ONE collection — the second matching card gets nothing', () => {
+    // Bounded resource: `ember_lash` is also Fire and casts after `cinder_dart`,
+    // so it arrives to an empty board. If the charge ever paid twice it would be
+    // worth double what it prices.
+    const seen = bonuses(['kindling_rite', 'cinder_dart', 'ember_lash', 'sword_slash']);
+    const collectors = seen.filter((h) => h.bonus > 0).map((h) => h.card);
+    expect(collectors.length, 'at least one collection').toBeGreaterThan(0);
+    expect([...new Set(collectors)], 'exactly one card ever collects per arming').toEqual(['cinder_dart']);
+  });
+
+  it('arms NOTHING when the board is off-type', () => {
+    const seen = bonuses(['kindling_rite', 'sword_slash', 'twin_slash']);
+    expect(seen.length, 'the probe must land hits').toBeGreaterThan(1);
+    for (const h of seen) expect(h.bonus, `${h.card} collected on an off-type board`).toBe(0);
+  });
+
+  it('prices at the flat-damage currency with the affinity refund, and no uptime halving', () => {
+    // 4 deci/pt: flatPowerPerPoint (5) x affinityPayoffNum/Den (4/5). NOT
+    // comboBonus's 2.5 — that rate halves for ~50% archetype uptime, and a charge
+    // that STANDS until collected has no such uptime loss.
+    const perPoint = (PRICE.flatPowerPerPoint * PRICE.affinityPayoffNum) / PRICE.affinityPayoffDen;
+    expect(perPoint).toBe(4);
+    expect(perPoint).toBeLessThan(PRICE.flatPowerPerPoint);
+    expect(perPoint).toBeGreaterThan(PRICE.comboPerPointNum / PRICE.comboPerPointDen);
+    for (const card of Object.values(skillBook)) {
+      if (!card.effects.some((a) => a.kind === 'affinityCharge')) continue;
+      expect(powerLevelDeci(card), `${card.id} budget`).toBe(TIER_BUDGET_DECI[card.tier]);
+      expect(capViolations(card), `${card.id} caps`).toEqual([]);
+      expect(card.element ?? card.weapon, `${card.id} needs a type`).toBeDefined();
+    }
+  });
+});
+
 describe('pricing', () => {
   it('the discount is 4/5 of the strike rate, strictly below the conditional ½', () => {
     expect(PRICE.affinityPayoffNum).toBe(4);
@@ -343,7 +431,7 @@ describe('authoring rules', () => {
     // off, so the payload could never fire on any board in the game.
     const { weapon: _drop, ...typeless } = TYPED;
     const messages = problemsFor({ ...typeless, property: 'true', text: 'Deal 10 damage \u00b7 hit again for 5.' });
-    expect(messages).toContain('affinityStrike needs the card to HAVE a type');
+    expect(messages).toContain('affinity keyword needs the card to HAVE a type');
   });
 
   it('a typed card carrying one raises no affinity complaint', () => {

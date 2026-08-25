@@ -180,6 +180,10 @@ function expectedNumbers(effects: readonly Action[], aura: AuraDef | undefined):
       case 'affinityStrike':
         expected.push(eff.power);
         break;
+      // AFFINITY CHARGE: `amount` is the bonus it arms for the next cast.
+      case 'affinityCharge':
+        expected.push(eff.amount);
+        break;
       default:
         assertNever(eff);
     }

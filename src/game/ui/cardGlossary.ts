@@ -323,6 +323,19 @@ function keywordEntry(action: Action, property: Property, ownType?: Element | We
         title: 'Combo',
         body: 'Bonus triggers if your previous cast shared this card’s archetype.',
       };
+    // AFFINITY CHARGE — the forward-armed sibling. The body has to say THREE
+    // things a player will otherwise get wrong: it lands on the NEXT card (not
+    // this one), only a card of the same type collects it, and a second armer
+    // does not stack.
+    case 'affinityCharge': {
+      const name = ownType === undefined ? 'this type' : (TYPE_NAME[ownType] ?? ownType);
+      return {
+        title: 'Charge',
+        body: `Your NEXT ${name} card deals +${action.amount} damage — nothing extra happens on this cast. `
+          + `Needs ${name} affinity (${IDENTITY_THRESHOLD} ${name} cards, this one counts), and it waits on the board `
+          + `until a ${name} card casts. Only one charge stands at a time: arming again keeps the bigger number, never both.`,
+      };
+    }
     // AFFINITY — the board's own payoff, and the one keyword whose condition is
     // about the player's DECK rather than the fight. The body has to state the
     // threshold in plain terms, because "3 cards of one type, counting this one,

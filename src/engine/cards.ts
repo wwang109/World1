@@ -314,6 +314,8 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
   // An EXTRA HIT, so it follows the host's own damage rather than preceding it —
   // "hit again" reads as a second blow, not a first.
   affinityStrike: 'post',
+  // Arms a FUTURE cast, so its position in this cast's order decides nothing.
+  affinityCharge: 'post',
   /**
    * Arms `cast.bonusByTarget` — same seam as `comboBonus`, same failure mode if
    * appended last (no damage action left to read the bonus, so the whole gem

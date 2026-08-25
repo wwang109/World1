@@ -290,6 +290,13 @@ export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, m
       case 'chainBonus': extras.push({ text: `CHAIN +${action.amount} AFTER ${action.after.toUpperCase()}`, keyword: 'chain' }); break;
       // The chip names the TYPE the board must match, taken from the card itself
       // — the action carries no type of its own.
+      // Reads "NEXT" first, because landing on a FUTURE cast is the whole
+      // difference between this and every other bonus-damage badge on a face.
+      case 'affinityCharge': {
+        const ownType = skill.element ?? skill.weapon;
+        extras.push({ text: `NEXT ${ownType === undefined ? '' : `${ownType.toUpperCase()} `}+${action.amount}`, keyword: 'affinity' });
+        break;
+      }
       case 'affinityStrike': {
         const ownType = skill.element ?? skill.weapon;
         extras.push({ text: `AFFINITY +${action.power} HIT${ownType === undefined ? '' : ` (${ownType.toUpperCase()})`}`, keyword: 'affinity' });

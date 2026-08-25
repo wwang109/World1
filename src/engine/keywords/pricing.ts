@@ -219,6 +219,28 @@ export function buildKeywordPricing(P: PriceRates): KeywordPricingTable {
     // at Silver and change the card's character. Frozen here, the card still
     // tiers on its own `damage` line, and an authored `tierUpgrades` can move
     // the affinity hit deliberately when a card wants that.
+    /**
+     * The FORWARD-ARMED affinity payload. `family: 'empower'` (it changes a
+     * future hit's number, it is not itself a hit) and `offensive: false` — like
+     * `comboBonus`, it resolves on the CASTER and never fans out, so it pays no
+     * AoE reach multiplier.
+     *
+     * RATE: the flat-damage currency (`flatPowerPerPoint`, 5 deci/pt — the same
+     * base `comboPerPointNum/Den` derives its 2.5 from by halving for uptime)
+     * with the affinity refund on top, so 4 deci/pt. Written pre-multiplied over
+     * the shared denominator to keep the division exact at every amount.
+     *
+     * NO UPTIME HALVING, unlike `comboBonus`: the charge is not lost when the
+     * next cast does not match — it STANDS until a matching card casts, and the
+     * gate already guarantees the board runs at least IDENTITY_THRESHOLD cards of
+     * that type. What it pays for that certainty is a genuine downside
+     * `affinityStrike` does not have: re-arming while a charge stands WASTES the
+     * new one (strongest wins, never additive), and a charge unspent when the
+     * fight ends delivers nothing. Against that, a folded bonus dodges the second
+     * mitigation pass a separate hit eats — so charge and strike land at the same
+     * 4 deci/pt from opposite directions, and neither needed a new number.
+     */
+    affinityCharge: { isHit: false, affinityGated: true, scalable: false, family: 'empower', offensive: false, cardTargeting: false, price: [{ form: 'perUnit', field: 'amount', num: P.flatPowerPerPoint * P.affinityPayoffNum, den: P.affinityPayoffDen }] },
     affinityStrike: { isHit: true, affinityGated: true, scalable: false, family: 'damage', offensive: true, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: affinityStrikeRate, den: P.affinityPayoffDen }] },
     heal: { isHit: false, scalable: true, family: 'heal', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: healRate, den: 1 }] },
     shield: { isHit: false, scalable: true, family: 'shield', offensive: false, cardTargeting: false, price: [{ form: 'perUnitByProperty', field: 'power', num: shieldRate, den: 1 }] },
