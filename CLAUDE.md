@@ -198,6 +198,31 @@ sense for everything."*
   matching/non-matching — one run proves the effect exists, the pair proves what
   gates it. `scripts/fight.ts` and `scripts/logFormat.ts`'s `calc` line already
   print the derivation per hit; use them rather than hand-computing.
+- **NEVER HAND-WRITE A LOG RENDERER (USER-LOCKED 2026-08-25).** Every log shown
+  comes from `npm run fight`, never from a throwaway script that re-formats the
+  event stream. A second renderer is a duplicate that drifts, and it already did:
+  a hand-written demo invented the phrase "plating spent" (the real log says
+  "blocked") and omitted remaining shield entirely — so the demo was neither the
+  game's wording nor the game's information. The same class of bug the project
+  already closed for `fmtDamage`, `OFFENSIVE_KINDS` and the tier scaler's "fourth
+  mirror".
+
+  `scripts/fight.ts` takes the whole board from env, so any card matchup is a real
+  invocation:
+
+  ```
+  FIGHT_NARROW=1 \
+  FIGHT_HERO_BOARD=sworn_edge,void_pierce,twin_slash \
+  FIGHT_FOE_BOARD=sword_slash \
+  FIGHT_FOE_STATS=maxHp:30000,hp:30000,attack:1,armor:0 \
+  npm run fight -- bandit_duelist 5
+  ```
+
+  `FIGHT_NARROW=1` is the mobile format, and it is a REFLOW of the wide
+  renderer's own output rather than a parallel set of format strings — so it
+  cannot disagree with the wide form, and every line a future keyword adds is
+  narrow-formatted for free.
+
 - **MOBILE-FIRST LAYOUT (USER-LOCKED 2026-08-25).** The user reads these on a
   phone, so a log line that wraps is a log line that does not get read. ONE FACT
   PER LINE, nothing past ~28 characters: the cast on its own line, the hit on its

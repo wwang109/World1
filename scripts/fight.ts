@@ -142,11 +142,78 @@ function heroPieces(): { skillId: string; slot: number }[] {
   return pieces;
 }
 
+/**
+ * The FOE's board, same contract as `FIGHT_HERO_BOARD`:
+ *
+ *   FIGHT_FOE_BOARD=lance_thrust npm run fight
+ *
+ * Replaces the named enemy's pieces so a card can be tried against a chosen
+ * attacker rather than whatever the catalog enemy happens to run. Its stats are
+ * still the catalog enemy's unless `FIGHT_FOE_STATS` overrides them.
+ */
+function foePieces(boardSize: number, fallback: readonly { skillId: string; slot: number }[]): { skillId: string; slot: number }[] {
+  const spec = process.env['FIGHT_FOE_BOARD'];
+  if (spec === undefined || spec.trim() === '') return [...fallback];
+  const pieces: { skillId: string; slot: number }[] = [];
+  let slot = 0;
+  for (const raw of spec.split(',')) {
+    const skillId = raw.trim();
+    if (skillId === '') continue;
+    const def = skillBook[skillId];
+    if (!def) {
+      console.error(`FIGHT_FOE_BOARD: unknown skill '${skillId}'.`);
+      process.exit(1);
+    }
+    pieces.push({ skillId, slot });
+    slot += def.size;
+  }
+  if (pieces.length === 0) {
+    console.error('FIGHT_FOE_BOARD is empty.');
+    process.exit(1);
+  }
+  if (slot > boardSize) {
+    console.error(`FIGHT_FOE_BOARD needs ${slot} slots, board is ${boardSize}.`);
+    process.exit(1);
+  }
+  return pieces;
+}
+
+/**
+ * Stat overrides for either side:
+ *
+ *   FIGHT_FOE_STATS=maxHp:30000,hp:30000,attack:1,armor:0 npm run fight
+ *
+ * The knob for building a PASSIVE DUMMY — huge HP, no armor, no offence — so a
+ * log shows one card's behaviour and nothing else. Every field is an integer stat
+ * name from `CombatantStats`; anything unrecognised is refused rather than
+ * silently ignored, since a typo'd stat is a fight you did not ask for.
+ */
+function withStatOverrides<T extends Record<string, number>>(stats: T, envVar: string): T {
+  const spec = process.env[envVar];
+  if (spec === undefined || spec.trim() === '') return stats;
+  const out: Record<string, number> = { ...stats };
+  for (const raw of spec.split(',')) {
+    const pair = raw.trim();
+    if (pair === '') continue;
+    const [key, value] = pair.split(':');
+    if (key === undefined || value === undefined || !/^-?[0-9]+$/.test(value)) {
+      console.error(`${envVar}: expected name:integer pairs, got '${pair}'.`);
+      process.exit(1);
+    }
+    if (!(key in out)) {
+      console.error(`${envVar}: unknown stat '${key}' (known: ${Object.keys(out).join(', ')}).`);
+      process.exit(1);
+    }
+    out[key] = Number(value);
+  }
+  return out as T;
+}
+
 function heroStats(): typeof BASE_HERO_STATS {
   const stats = { ...BASE_HERO_STATS };
   const hp = process.env['FIGHT_HERO_HP'];
   if (hp !== undefined && /^[0-9]+$/.test(hp)) stats.hp = Math.min(Number(hp), stats.maxHp);
-  return stats;
+  return withStatOverrides(stats, 'FIGHT_HERO_STATS');
 }
 
 const playerTeam: CombatantSetup[] = [
@@ -159,9 +226,9 @@ const playerTeam: CombatantSetup[] = [
 ];
 const enemyTeam: CombatantSetup[] = enemyDefs.map((enemy) => ({
   name: enemy.name,
-  stats: { ...enemy.stats },
+  stats: withStatOverrides({ ...enemy.stats }, 'FIGHT_FOE_STATS'),
   boardSize: enemy.boardSize,
-  pieces: [...enemy.pieces],
+  pieces: foePieces(enemy.boardSize, enemy.pieces),
   elementAffinity: enemy.elementAffinity,
   weaponAffinity: enemy.weaponAffinity,
 }));
@@ -226,6 +293,55 @@ const targetSuffix = (e: {
  */
 const wall = new Map<string, number>();
 const wallKey = (side: Side, unit: number): string => `${side}:${unit}`;
+
+/**
+ * MOBILE MODE — `FIGHT_NARROW=1 npm run fight`.
+ *
+ * The wide log packs cast, hit, derivation and remaining HP onto one ~70-column
+ * row, which wraps into mush on a phone (user-locked 2026-08-25: one fact per
+ * line, nothing past ~28 characters).
+ *
+ * IMPLEMENTED AS A REFLOW OF THIS RENDERER'S OWN OUTPUT, deliberately, rather
+ * than as a second set of format strings. A parallel narrow renderer is a
+ * duplicate that drifts — which is exactly how a hand-written demo log ended up
+ * inventing the phrase "plating spent" and omitting "shield left" entirely. One
+ * wrapper over `console.log` means every line the switch below emits, today and
+ * in future, is narrow-formatted for free and can never disagree with the wide
+ * form because it IS the wide form, re-broken.
+ */
+const NARROW = process.env['FIGHT_NARROW'] === '1';
+if (NARROW) {
+  const wide = console.log.bind(console);
+  console.log = (...args: unknown[]): void => {
+    const line = args.map(String).join(' ');
+    if (line.trim() === '') { wide(''); return; }
+    // Two prefix shapes exist: `  5 │  Hero   <body>` for the indented detail
+    // rows and `  5  gain    Hero   <body>` for the turn-level ones. Both start
+    // with the turn number, so strip that (and the optional gutter) and split the
+    // remainder on the renderer's own column padding.
+    const m = /^\s*(\d+)\s*│?\s*(.*)$/.exec(line);
+    if (!m) { wide(line); return; }
+    const cols = (m[2] ?? '').trim().split(/\s{2,}/).map((c) => c.trim()).filter((c) => c !== '');
+    if (cols.length === 0) { wide(line); return; }
+    // Last column is the body; everything before it names the row (`gain Hero`,
+    // `calc`, `Hero`).
+    const body = cols.length > 1 ? cols[cols.length - 1]! : '';
+    wide(`t${m[1]} ${cols.slice(0, Math.max(1, cols.length - 1)).join(' ')}`);
+    const facts = body
+      // SPACED arrow only: `-> 73 hp` is a separate fact, but `attack 8->8` is one
+      // number and must not be torn in half.
+      .replace(/\s+->\s+/g, '\n-> ')
+      .replace(/\s*·\s*/g, '\n')
+      .replace(/\s*\[/g, '\n')
+      .replace(/[\])]/g, '\n')
+      .replace(/\s*\(/g, '\n')
+      .replace(/[;,]\s*/g, '\n')
+      .split('\n')
+      .map((t) => t.trim())
+      .filter((t) => t !== '');
+    for (const fact of facts) wide(`   ${fact}`);
+  };
+}
 
 // Lineup legend, so `#n` is never a guess.
 console.log(`seed ${seed} · ${enemySpec}`);
