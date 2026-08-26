@@ -24,7 +24,8 @@
   "charges across every source, so a kit's own charge count is never additive",
   "with another ward card's \\u2014 see the per-card notes below for how that",
   "shaped Aegis of the Unbroken.",
-  "Hybrid + depth pass (2026-08-18b): deepened ward/thorns/bleed/poison and authored keyword-pair bridges the user asked for by name (heal+thorns, shield+thorns) plus the heal -> ward -> thorns chain (sanctum_thorn, bramblemend, warded_reprisal, bulwark_thicket, unbreakable_stance, umbral_ward, thorn_shackle, mortal_wound, barbed_rampart, crippling_gore, poison_bloom, poison_ritual, evasive_cordon). See content-designer notes on each card for its balance derivation."
+  "Hybrid + depth pass (2026-08-18b): deepened ward/thorns/bleed/poison and authored keyword-pair bridges the user asked for by name (heal+thorns, shield+thorns) plus the heal -> ward -> thorns chain (sanctum_thorn, bramblemend, warded_reprisal, bulwark_thicket, unbreakable_stance, umbral_ward, thorn_shackle, mortal_wound, barbed_rampart, crippling_gore, poison_bloom, poison_ritual, evasive_cordon). See content-designer notes on each card for its balance derivation.",
+  "Affinity reachability pass (2026-08-26): +7 gated cards outside offense (rustbind_hex, blooded_fang, hoarfrost_creed, pikewall_oath, sanctified_vigil, oathplate, graveside_rite). The keyword shipped 16 offense + 1 healing gated cards, so the Alchemist (debuff) and Bulwark (defensive/support) shelves offered one 0.0% of the time over 500 measured rolls. These add gated debuffStat / bleed / expose / guard / ward / attunedShield / cleanse \u2014 seven families the gate had never been attached to. See each card's notes for its budget derivation."
  ],
  "cards": [
   {
@@ -9383,6 +9384,326 @@
        {
         "kind": "heal",
         "power": 64,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "rustbind_hex",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Rustbind Hex",
+      "text": "Deal 14 (+ATK) Axe damage \u00b7 {{Affinity}} Axe \u2014 -30% enemy ATK (2 turns).",
+      "notes": [
+       "AFFINITY OUTSIDE OFFENSE (2026-08-26 reachability pass). Before this card the",
+       "17 gated cards in the book were 16 offense + 1 healing, and the Alchemist's",
+       "cardFilter (archetypes: ['debuff']) matched NONE of them: measured over 500",
+       "real `rollShopStock` shelves, a debuff shopper saw a gated card 0.0% of the",
+       "time. The keyword did not exist for that build. This is the first of three",
+       "debuff-archetype gated cards authored to close that.",
+       "AFFINITY IS A MODIFIER, so this card needed no new keyword: the gated line prices on its own family's terms and the gate refunds half (PRICE.affinityPayoffNum/Den = 1/2). At that refund a gated line's raw price must be a multiple of 20 deci for the discounted part to land on a whole PL.",
+       "SOLVE (bronze, size 1, physical): gated debuffStat 30% x 2 turns x",
+       "statPctTurn(1) = 60 raw -> 30 deci refunded; damage 14 x 5 = 70. 70 + 30 =",
+       "100 = Bronze exactly. Control-family spend is the refunded 30, well under the",
+       "size-1 cap (100).",
+       "THE GATED LINE IS FROZEN AT RANK (`autoScaleTier`, GATED SINKS ARE FROZEN), so",
+       "the ungated hit absorbs the whole tier delta: 14 -> 24 -> 34 -> 44, each landing",
+       "exactly on 150/200/250. BASE AND PAYOFF ARE ON DIFFERENT NUMERALS (14 vs 30/2)",
+       "so `retextScaledNumbers` can rewrite the face at every tier."
+      ],
+      "archetypes": [
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 14
+       },
+       {
+        "kind": "debuffStat",
+        "stat": "attack",
+        "pct": 30,
+        "turns": 2,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "blooded_fang",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Blooded Fang",
+      "text": "Deal 16 (+ATK) Beast damage \u00b7 {{Affinity}} Beast \u2014 {{Bleed}} 4 (ticks when the enemy performs).",
+      "notes": [
+       "Second of the three debuff-archetype affinity cards (2026-08-26). A GATED DoT",
+       "on the physical side, beside `wildfire_rite`'s gated burn on the magical one \u2014",
+       "the pack that hunts together opens the wound.",
+       "AFFINITY IS A MODIFIER, so this card needed no new keyword: the gated line prices on its own family's terms and the gate refunds half (PRICE.affinityPayoffNum/Den = 1/2). At that refund a gated line's raw price must be a multiple of 20 deci for the discounted part to land on a whole PL.",
+       "SOLVE (bronze, size 1, physical): gated bleed 4 x dotPerStack(10) = 40 raw ->",
+       "20 deci refunded; damage 16 x 5 = 80. 80 + 20 = 100 = Bronze exactly. Stacks",
+       "must be EVEN for the refunded DoT part to land on a whole PL.",
+       "GATED DoT LINES ARE FROZEN TOO (the 2026-08-26 `autoScaleTier` fix), so the",
+       "greedy DoT walk never eats this card's always-on half: 16 -> 26 -> 36 -> 46",
+       "with bleed held at 4."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 16
+       },
+       {
+        "kind": "bleed",
+        "stacks": 4,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "hoarfrost_creed",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Hoarfrost Creed",
+      "text": "Deal 42 (+MATK) Frost damage \u00b7 {{Affinity}} Frost \u2014 {{Expose}} the enemy, +30% damage from direct hits (2 turns).",
+      "notes": [
+       "Third of the three debuff-archetype affinity cards (2026-08-26), and the one",
+       "that makes a Frost board a SETUP board: the expose only lands for a committed",
+       "Frost identity, and everything else on that board then hits into it.",
+       "AFFINITY IS A MODIFIER, so this card needed no new keyword: the gated line prices on its own family's terms and the gate refunds half (PRICE.affinityPayoffNum/Den = 1/2). At that refund a gated line's raw price must be a multiple of 20 deci for the discounted part to land on a whole PL.",
+       "SOLVE (bronze, size 2, magical): size-2 grant is 140 deci at Bronze, so the kit",
+       "spends 240. Gated expose 30% x 2 turns x exposePerPctTurn(1) = 60 raw -> 30",
+       "deci refunded; damage 42 x 5 = 210. 210 + 30 - 140 = 100 = Bronze exactly.",
+       "Control spend 30 is under the size-2 cap (150) and pct 30 is under",
+       "MAX_EXPOSE_PCT (50).",
+       "The grant moves with tier (140/170/210/240) and the ungated hit absorbs the",
+       "rest: 42 -> 58 -> 76 -> 92, exact at every rung."
+      ],
+      "archetypes": [
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 2,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 42
+       },
+       {
+        "kind": "expose",
+        "pct": 30,
+        "turns": 2,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "pikewall_oath",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Pikewall Oath",
+      "text": "Gain 12 (+DEF) physical shield \u00b7 {{Affinity}} Lance \u2014 -40% incoming physical damage (2 turns).",
+      "notes": [
+       "AFFINITY FOR THE WALL (2026-08-26 reachability pass). Bulwark's cardFilter",
+       "(defensive / support) matched ZERO gated cards before this pass \u2014 0.0% of 500",
+       "measured shelves \u2014 so a tank build never met the keyword. This is the first of",
+       "four defensive/support gated cards authored to close that, and the first gated",
+       "`guard` in the game.",
+       "AFFINITY IS A MODIFIER, so this card needed no new keyword: the gated line prices on its own family's terms and the gate refunds half (PRICE.affinityPayoffNum/Den = 1/2). At that refund a gated line's raw price must be a multiple of 20 deci for the discounted part to land on a whole PL.",
+       "SOLVE (bronze, size 1, physical): gated guard 40% x 2 turns x",
+       "guardPerPctTurn(1/1) = 80 raw -> 40 deci refunded; shield 12 x 5 = 60. 60 + 40",
+       "= 100 = Bronze exactly. Empower spend is the refunded 40 (cap 100 at size 1),",
+       "and pct 40 is under MAX_GUARD_PCT (60).",
+       "Guard is frozen empower, and the gate freezes it again, so the plating is the",
+       "sink: 12 -> 22 -> 32 -> 42."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "shield",
+        "power": 12
+       },
+       {
+        "kind": "guard",
+        "property": "physical",
+        "pct": 40,
+        "turns": 2,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "sanctified_vigil",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Sanctified Vigil",
+      "text": "Gain 10 (+MDEF) magical shield \u00b7 {{Affinity}} Holy \u2014 {{Ward}} 2 \u2014 prevent the next 2 ailments outright.",
+      "notes": [
+       "Second of the four defensive/support affinity cards (2026-08-26), and the first",
+       "gated `ward`: a Holy congregation is what makes the ailment bounce off.",
+       "AFFINITY IS A MODIFIER, so this card needed no new keyword: the gated line prices on its own family's terms and the gate refunds half (PRICE.affinityPayoffNum/Den = 1/2). At that refund a gated line's raw price must be a multiple of 20 deci for the discounted part to land on a whole PL.",
+       "SOLVE (bronze, size 1, magical): gated ward 2 x wardPerCharge(50) = 100 raw ->",
+       "50 deci refunded; shield 10 x 5 = 50. 50 + 50 = 100 = Bronze exactly. One",
+       "charge would refund 25 \u2014 a HALF PL \u2014 so 2 is the smallest legal ward at this",
+       "refund, and it leaves exactly one charge of headroom under MAX_WARD_CHARGES (3)",
+       "for `warding_prayer`'s ward 1 to stack into.",
+       "Empower spend 50 sits under the size-1 cap (100). Plating is the sink:",
+       "10 -> 20 -> 30 -> 40."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "shield",
+        "power": 10
+       },
+       {
+        "kind": "ward",
+        "charges": 2,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "oathplate",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Oathplate",
+      "text": "Gain 14 (+DEF) physical shield \u00b7 {{Affinity}} Sword \u2014 {{Attuned}} Sword shield 8 (+DEF), absorbing 2 damage per point from Sword attacks.",
+      "notes": [
+       "Third of the four defensive/support affinity cards (2026-08-26). The gate and",
+       "the payload read the SAME field: `attunedShield` tunes itself to the card's own",
+       "type (`cardType` = element ?? weapon) and so does the affinity gate, so a Sword",
+       "board buys Sword-attuned plating \u2014 one card that is entirely about committing",
+       "to a type, on both halves.",
+       "AFFINITY IS A MODIFIER, so this card needed no new keyword: the gated line prices on its own family's terms and the gate refunds half (PRICE.affinityPayoffNum/Den = 1/2). At that refund a gated line's raw price must be a multiple of 20 deci for the discounted part to land on a whole PL.",
+       "SOLVE (bronze, size 1, physical): attunedShield prices at 3x the shield rate",
+       "over conditionalBonusDen \u2014 8 x 15 / 2 = 60 raw -> 30 deci refunded; shield 14 x",
+       "5 = 70. 70 + 30 = 100 = Bronze exactly. At 7.5 deci/pt ungated and 3.75",
+       "gated, the plating must be a multiple of 8 for a whole-PL part.",
+       "`attunedShield` is already `scalable: false`, and the gate freezes it again, so",
+       "the plain plating is the sink: 14 -> 24 -> 34 -> 44."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "shield",
+        "power": 14
+       },
+       {
+        "kind": "attunedShield",
+        "power": 8,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "graveside_rite",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Graveside Rite",
+      "text": "Restore 10 (+MDEF) HP \u00b7 {{Affinity}} Dark \u2014 {{Cleanse}} up to 4 of your ailments.",
+      "notes": [
+       "Fourth of the four defensive/support affinity cards (2026-08-26), and the first",
+       "gated `cleanse`. Tagged healing+support so it reaches BOTH Sanctum (elements",
+       "holy/dark, and archetypes healing/support) and Bulwark (support) \u2014 the two",
+       "shops the audit found at 0.0% gated supply, closed by one card each way.",
+       "AFFINITY IS A MODIFIER, so this card needed no new keyword: the gated line prices on its own family's terms and the gate refunds half (PRICE.affinityPayoffNum/Den = 1/2). At that refund a gated line's raw price must be a multiple of 20 deci for the discounted part to land on a whole PL.",
+       "SOLVE (bronze, size 1, magical): gated cleanse 4 x cleansePerCharge(25) = 100",
+       "raw -> 50 deci refunded; heal 10 x 5 = 50. 50 + 50 = 100 = Bronze exactly.",
+       "Charges must be a multiple of 4 at this refund (25 deci a charge halves to",
+       "12.5). Cleanse is the ONE tier-scaled cap family, so its cap grows",
+       "100/150/200/250 while the frozen gated spend stays 50 \u2014 never close.",
+       "Cleanse is normally a sink; the gate freezes it, so the heal is the sink:",
+       "10 -> 20 -> 30 -> 40."
+      ],
+      "archetypes": [
+       "healing",
+       "support"
+      ],
+      "property": "magical",
+      "element": "dark",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "heal",
+        "power": 10
+       },
+       {
+        "kind": "cleanse",
+        "charges": 4,
         "affinity": true
        }
       ]

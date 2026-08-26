@@ -174,9 +174,16 @@ only balance currency (see the comment block in `src/run/shop.ts`).
 
 ## Shops (`src/run/shop.ts`, themes in `src/data/shopTypes.ts`)
 
-- **16 themed shops** as declarative card/gem filters; a shop NODE opens a
-  single storefront (the 16-shop picker is Sandbox-only). The node's theme is
-  decided at map generation and shown on the choice panel.
+- **21 themed shops** as declarative card/gem filters; a shop NODE opens a
+  single storefront (the full-catalog picker is Sandbox-only). The node's theme
+  is decided at map generation and shown on the choice panel.
+  16 -> 21 (2026-08-26, affinity-supply pass): the six single-ELEMENT stalls
+  gained five single-WEAPON counterparts (Swordwright's Bench, The Cleaving
+  Yard, Lancer's Rest, Fletcher's Loft, The Beastmoot). Before that, only
+  elements had a stall whose whole shelf is one type — the "identity in one
+  visit" an affinity card asks for — and weapon-typed affinity cards were
+  effectively unbuildable (`tests/run/affinityReachability.test.ts` measures the
+  floor).
 - **Theme no-repeat**: draw-without-replacement bag per run, reshuffled when
   empty (shared `runMap.ts` logic).
 - **Stock**: `rollShopStock(shopId, seed, depth, rarityGated)` —

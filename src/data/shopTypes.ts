@@ -412,6 +412,88 @@ const defs: ShopTypeDef[] = [
     gemFilter: [{ ids: ['hex_of_frailty_echo', 'resonant_echo'] }],
     shelf: { cards: 6, gems: 5 },
   },
+
+  // ---- Weapon specialist stalls (2026-08-26, affinity-supply pass) ----
+  //
+  // THE ASYMMETRY THESE CLOSE, measured over the real `rollShopStock`: every
+  // one of the six ELEMENTS had a single-element stall above, whose whole
+  // 6-card shelf is that element — an identity handed over in one visit, which
+  // is exactly what an affinity card asks for (`IDENTITY_THRESHOLD` = 3 cards
+  // of one type). NO WEAPON type had one. The best a weapon player could find
+  // was a multi-weapon counter: Armory at 2.18 (sword) / 2.22 (axe) / 1.60
+  // (lance) expected same-type offers per shelf, Wildworks at 2.76 (bow) /
+  // 3.24 (beast) — against 6.00 for every element. Five gated cards are
+  // weapon-typed (`sworn_edge`, `warband_cleave`, `phalanx_thrust`,
+  // `massed_volley`, `pack_instinct`, plus `whetstone_vow`), so the content
+  // was asking for a commitment the acquisition layer could not supply.
+  //
+  // FIXED ON THE SHOP SIDE, not by deleting content: each weapon gets the
+  // stall its element counterparts already had, with the SAME thin-by-design
+  // shape (a narrow one-weapon `cardFilter`, the standard 6/5 shelf, a short
+  // curated gem list). Every weapon pool is >= 10 cards, so each of these
+  // shelves is `min(6, pool)` = 6 cards of one weapon, every roll.
+  //
+  // THE COST, stated honestly: the shop-theme bag in `runMap.ts` is UNIFORM
+  // over `shopTypeIds`, so going from 16 themes to 21 makes every existing
+  // theme (the element stalls included) that much rarer per visit. That is the
+  // price of symmetry, and symmetry is the point — after this pass an element
+  // stall and a weapon stall are equally likely, where a weapon stall was
+  // previously impossible. It is a dilution of frequency, never of density: a
+  // stall's own shelf is exactly as concentrated as it was.
+  {
+    id: 'swordwright',
+    name: "Swordwright's Bench",
+    tagline: 'Every edge, sworn.',
+    cardFilter: [{ weapons: ['sword'] }],
+    // Sword's card identity in this catalog is riposte/thorn/plating work
+    // beside the plain hits, so its curated gems are the chain-attack payoff,
+    // the thorn pile and the plating echo — not a second flat-damage echo.
+    gemFilter: [{ ids: ['follow_through_echo', 'bramble_sliver', 'iron_bulwark_echo'] }],
+    shelf: { cards: 6, gems: 5 },
+  },
+  {
+    id: 'cleaving_yard',
+    name: 'The Cleaving Yard',
+    tagline: 'Bigger swing, fewer questions.',
+    cardFilter: [{ weapons: ['axe'] }],
+    // Axe is the armor-break / bleed / shield-splitter lane, and the bleed
+    // reader that cashes it.
+    gemFilter: [{ ids: ['armor_break_echo', 'rending_sliver', 'shield_splitter_echo', 'bloodscent_sliver'] }],
+    shelf: { cards: 6, gems: 5 },
+  },
+  {
+    id: 'lancers_rest',
+    name: "Lancer's Rest",
+    tagline: 'Hold the line; the line is for sale.',
+    cardFilter: [{ weapons: ['lance'] }],
+    // Lance is reach + guard + tempo tax (braced_pike, line_breaker,
+    // crippling_strike): a guard echo, the burden sliver, and the debuff echo
+    // its own cards are named for.
+    gemFilter: [{ ids: ['ward_of_silence_echo', 'millstone_sliver', 'crippling_strike_echo'] }],
+    shelf: { cards: 6, gems: 5 },
+  },
+  {
+    id: 'fletchers_loft',
+    name: "Fletcher's Loft",
+    tagline: 'Nock, draw, pay.',
+    cardFilter: [{ weapons: ['bow'] }],
+    // Bow is precision + stagger (marksman_shot, concussive_shot,
+    // spotters_mark): the stagger echo, the expose sliver the mark reads, and
+    // the speed charm that lands the volley first.
+    gemFilter: [{ ids: ['concussive_shot_echo', 'weak_point_sliver', 'swift_charm'] }],
+    shelf: { cards: 6, gems: 5 },
+  },
+  {
+    id: 'beastmoot',
+    name: 'The Beastmoot',
+    tagline: 'Fang, claw, and the keeping of them.',
+    cardFilter: [{ weapons: ['beast'] }],
+    // Beast is venom + drain + the pack howl, which is exactly the trio
+    // Wildworks curates for it — kept here so the stall can hand over the whole
+    // identity, gems included, in one visit.
+    gemFilter: [{ ids: ['venom_fang_echo', 'leeching_fang_echo', 'battle_howl_echo'] }],
+    shelf: { cards: 6, gems: 5 },
+  },
 ];
 
 export const shopCatalog: Record<string, ShopTypeDef> = Object.fromEntries(defs.map((d) => [d.id, d]));

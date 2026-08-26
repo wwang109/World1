@@ -30,10 +30,19 @@ import type { SkillDef, SkillTier } from '../../src/engine/types';
  * draft/mapgen/shop code):
  *   - Gold is NOT the constraint. A run that wins every fight and buys nothing
  *     holds 27-30 gold at the first boss; an identity's sticker price is 6.
- *   - SUPPLY is the constraint, and it is not even across types. Every ELEMENT
- *     has a dedicated single-element stall whose whole 6-card shelf is that
- *     element (an identity in one visit). No WEAPON type has one: the best a
- *     Lance player can find is Armory, expected 1.61 same-type offers per shelf.
+ *   - SUPPLY is the constraint, and it WAS not even across types. Every ELEMENT
+ *     had a dedicated single-element stall whose whole 6-card shelf is that
+ *     element (an identity in one visit). No WEAPON type had one: the best a
+ *     Lance player could find was Armory, expected 1.61 same-type offers per
+ *     shelf, against 6.00 for every element.
+ *
+ * CLOSED ON THE SHOP SIDE (2026-08-26): `src/data/shopTypes.ts` gained the five
+ * missing weapon stalls (swordwright / cleaving_yard / lancers_rest /
+ * fletchers_loft / beastmoot), so every one of the eleven card types now has a
+ * single-type stall and the "identity in one visit" guarantee below is asserted
+ * for weapons and elements alike — measured after the change: 6.00 same-type
+ * offers per shelf for all eleven types, weapons up from a 2.40 average best.
+ *
  * The tests below pin the floors that make the ask keepable, so a future content
  * or filter pass cannot quietly drop one type below them.
  */
@@ -101,29 +110,42 @@ describe('the shop layer can actually supply an identity', () => {
     expect(orphans, `gated cards with no counter that also sells their identity: ${orphans.join(', ')}`).toEqual([]);
   });
 
-  it('every ELEMENT a gated card is typed to has its own single-element stall, and each shelf hands over a whole identity', () => {
-    // The strongest supply guarantee in the run, and the reason the element
-    // affinity cards are reachable at all: these pools are single-element, so
-    // the shelf is `min(6, pool)` cards of that one element every time. Rolled
-    // through the REAL `rollShopStock` at the three real depth bands
-    // (`shopStockDepthForWave`), not asserted from the filter.
+  it('every TYPE a gated card is typed to has its own single-type stall, and each shelf hands over a whole identity', () => {
+    // The strongest supply guarantee in the run, and the reason the affinity
+    // cards are reachable at all: these pools are single-type, so the shelf is
+    // `min(6, pool)` cards of that one type every time. Rolled through the REAL
+    // `rollShopStock` at the three real depth bands (`shopStockDepthForWave`),
+    // not asserted from the filter.
     //
-    // ASSERTED PER ELEMENT, not over "whatever stalls happen to exist": a
-    // dilution pass that widened one stall's filter would otherwise just drop it
-    // out of the set being measured and the suite would report nothing. THE
-    // ASYMMETRY THIS DOCUMENTS: the five WEAPON types have no equivalent — the
-    // best a Lance player can find is Armory at 1.61 same-type offers per shelf
-    // (see the >= 1 floor above, which is the only bar weapons clear).
-    const gatedElementTypes = [...new Set(GATED.filter((c) => c.element !== undefined).map(typeKeyOf))].sort();
-    expect(gatedElementTypes.length, 'no element-typed gated cards to audit').toBeGreaterThan(0);
+    // ASSERTED PER TYPE, not over "whatever stalls happen to exist": a dilution
+    // pass that widened one stall's filter would otherwise just drop it out of
+    // the set being measured and the suite would report nothing.
+    //
+    // WIDENED FROM ELEMENTS TO EVERY TYPE (2026-08-26). This used to audit
+    // `c.element !== undefined` only, and its own comment recorded why: the five
+    // WEAPON types had no equivalent stall, so the >= 1 floor above was the only
+    // bar they cleared (Lance's best was Armory at 1.61 offers/shelf). Five
+    // weapon stalls closed that, and the guarantee is now asserted for the
+    // weapon-typed gated cards too — `sworn_edge`, `whetstone_vow`,
+    // `warband_cleave`, `phalanx_thrust`, `massed_volley`, `pack_instinct`,
+    // `oathplate`, `pikewall_oath`, `rustbind_hex`, `blooded_fang` — which were
+    // effectively unbuildable before it.
+    const gatedTypes = [...new Set(GATED.map(typeKeyOf))].sort();
+    expect(gatedTypes.length, 'no gated cards to audit').toBeGreaterThan(0);
+    // Non-vacuity on the half this test was blind to: weapon-typed gated cards
+    // must actually be in the set, or widening the audit proved nothing.
+    expect(
+      gatedTypes.filter((t) => t.startsWith('weapon:')).length,
+      `no weapon-typed gated card to audit — gated types: ${gatedTypes.join(', ')}`,
+    ).toBeGreaterThan(0);
     const depths = [1, 2, 4, 7].map(shopStockDepthForWave);
     let shelvesChecked = 0;
-    for (const type of gatedElementTypes) {
+    for (const type of gatedTypes) {
       const stall = shopTypeIds.find((id) => {
         const pool = cardPoolForShop(id);
         return pool.length > 0 && pool.every((s) => typeKeyOf(s) === type);
       });
-      expect(stall, `${type} has no single-element stall`).toBeDefined();
+      expect(stall, `${type} has no single-type stall`).toBeDefined();
       for (const depth of depths) {
         for (let seed = 1; seed <= 20; seed += 1) {
           const stock = rollShopStock(stall!, seed, depth);
@@ -135,6 +157,38 @@ describe('the shop layer can actually supply an identity', () => {
       }
     }
     expect(shelvesChecked, 'no shelves were actually rolled').toBeGreaterThan(100);
+  });
+
+  it('a gated card exists for the DEFENSIVE, DEBUFF and SUPPORT shelves, not just the offensive ones', () => {
+    // THE OTHER HALF OF THE SAME REACHABILITY QUESTION (2026-08-26). Supply per
+    // TYPE was measured above; this is supply per ARCHETYPE, and it was the
+    // worse of the two: 16 of the 17 gated cards were `offense` and one was
+    // `healing`, so the Alchemist (`archetypes: ['debuff']`) and Bulwark
+    // (`defensive` / `support`) shelves offered a gated card 0.0% of the time
+    // over 500 rolled shelves each. A defensive or debuff build could play a
+    // whole run and never learn the keyword exists.
+    //
+    // Asserted through the REAL shop filters, per shop, so a future filter or
+    // content pass cannot take either shelf back to zero.
+    const ARCHETYPE_SHELVES = ['alchemist', 'bulwark', 'sanctum'] as const;
+    for (const shopId of ARCHETYPE_SHELVES) {
+      const gatedInPool = cardPoolForShop(shopId).filter(isGated);
+      expect(
+        gatedInPool.length,
+        `${shopId} stocks no affinity-gated card at all — the keyword does not exist for that build`,
+      ).toBeGreaterThanOrEqual(3);
+    }
+    // And it is really rolled, not merely pool-eligible: at least one shelf in a
+    // fixed seed range must actually offer one, at every real depth band.
+    for (const shopId of ARCHETYPE_SHELVES) {
+      for (const depth of [1, 2, 4, 7].map(shopStockDepthForWave)) {
+        let offered = 0;
+        for (let seed = 1; seed <= 60; seed += 1) {
+          if (rollShopStock(shopId, seed, depth).cards.some((o) => isGated(skillBook[o.skillId]!))) offered += 1;
+        }
+        expect(offered, `${shopId} @depth ${depth}: 0 of 60 shelves offered a gated card`).toBeGreaterThan(0);
+      }
+    }
   });
 });
 

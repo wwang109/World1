@@ -351,10 +351,17 @@ describe('run/shop: shopPoolInfo (thin-pool arithmetic, docs/run-shops-design.md
   });
 });
 
-describe('run/shop: 16-theme catalog (docs/run-shops-design.md §3)', () => {
-  it('the catalog has exactly 16 themes', () => {
-    expect(shopTypeIds.length).toBe(16);
-    expect(new Set(shopTypeIds).size).toBe(16);
+describe('run/shop: 21-theme catalog (docs/run-shops-design.md §3)', () => {
+  // 16 -> 21 (2026-08-26, affinity-supply pass): the six ELEMENT stalls gained
+  // five WEAPON counterparts (swordwright / cleaving_yard / lancers_rest /
+  // fletchers_loft / beastmoot). Before that, an element identity was handed
+  // over by a single stall visit (6.00 same-type offers per shelf) and a weapon
+  // identity had no such shop at all (best 1.60-3.24 in a multi-weapon
+  // counter) — see `tests/run/affinityReachability.test.ts`, which measures the
+  // floor this count is in service of.
+  it('the catalog has exactly 21 themes', () => {
+    expect(shopTypeIds.length).toBe(21);
+    expect(new Set(shopTypeIds).size).toBe(21);
   });
 
   it('Gemcutter sells the FULL gem book via an unfiltered `all` clause', () => {
@@ -382,6 +389,25 @@ describe('run/shop: 16-theme catalog (docs/run-shops-design.md §3)', () => {
       const pool = cardPoolForShop(shopId);
       expect(pool.length).toBeGreaterThan(0);
       for (const skill of pool) expect(skill.element).toBe(element);
+    }
+  });
+
+  it('every weapon stall\'s card pool matches its declared weapon exactly', () => {
+    // The weapon half of the pair above (2026-08-26). Same guarantee, same
+    // reason: a stall whose pool is single-typed is a stall whose whole shelf
+    // is that type, which is what makes an affinity commitment buyable in one
+    // visit.
+    const byWeapon: Record<string, string> = {
+      swordwright: 'sword',
+      cleaving_yard: 'axe',
+      lancers_rest: 'lance',
+      fletchers_loft: 'bow',
+      beastmoot: 'beast',
+    };
+    for (const [shopId, weapon] of Object.entries(byWeapon)) {
+      const pool = cardPoolForShop(shopId);
+      expect(pool.length).toBeGreaterThan(0);
+      for (const skill of pool) expect(skill.weapon).toBe(weapon);
     }
   });
 
