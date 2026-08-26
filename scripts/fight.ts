@@ -209,6 +209,24 @@ const targetSuffix = (e: {
   return ` · target ${label(foeSide, e.targetUnit)}${why}`;
 };
 
+/**
+ * THE WALL LEFT STANDING, tracked by the RENDERER.
+ *
+ * `shieldGain` reports `totalAfter`, but a `damage` event carries only `blocked`
+ * and `shieldDrain` — nothing says how much plating survived the hit. So the log
+ * could tell you a hit was blocked and never tell you whether the wall that
+ * blocked it still exists, which is the number that actually decides the next
+ * few turns.
+ *
+ * DERIVED RATHER THAN ADDED TO THE EVENT: a `shieldAfter` field would touch every
+ * damage event in every log and move the frozen outcome baseline for a number the
+ * renderer can compute exactly. `shieldDrain` is the POINTS REMOVED (which is not
+ * `blocked` — an attuned pool blocks 2 per point and a typed hit spilling into
+ * TRUE spends 2 per point blocked), so subtracting the drain is exact.
+ */
+const wall = new Map<string, number>();
+const wallKey = (side: Side, unit: number): string => `${side}:${unit}`;
+
 // Lineup legend, so `#n` is never a guess.
 console.log(`seed ${seed} · ${enemySpec}`);
 for (const side of ['player', 'enemy'] as const) {
@@ -274,12 +292,26 @@ for (const e of events) {
     case 'performSkipped':
       console.log(`${t} │  ${tag(e.side, e.unit)} performance consumed (${e.reason})`);
       break;
-    case 'damage':
+    case 'damage': {
+      let shieldNote = '';
+      if (e.blocked) {
+        const drain = e.shieldDrain;
+        const spent = drain === undefined ? 0 : drain.physical + drain.magical + drain.true;
+        const key = wallKey(e.side, e.unit);
+        const left = Math.max(0, (wall.get(key) ?? 0) - spent);
+        wall.set(key, left);
+        // `blocked` is DAMAGE absorbed; `spent` is PLATING consumed. They differ
+        // whenever a pool trades at something other than 1:1 — an attuned pool
+        // blocks 2 per point, a typed hit spilling into TRUE burns 2 per point —
+        // so both are printed, and the wall left standing after them.
+        shieldNote = ` (${e.blocked} blocked${spent !== e.blocked ? `, ${spent} shield spent` : ''}; ${left} shield left)`;
+      }
       console.log(
-        `${t} │  ${tag(e.side, e.unit)} takes ${e.amount} ${e.property}${e.blocked ? ` (${e.blocked} blocked)` : ''} -> ${e.hpAfter} hp${e.source !== 'skill' ? ` [${e.source}]` : ''}`,
+        `${t} │  ${tag(e.side, e.unit)} takes ${e.amount} ${e.property}${shieldNote} -> ${e.hpAfter} hp${e.source !== 'skill' ? ` [${e.source}]` : ''}`,
       );
       if (e.calculation) console.log(`${t} │  calc             ${fmtDamage(e.calculation)}`);
       break;
+    }
     case 'heal': {
       console.log(
         `${t} │  ${tag(e.side, e.unit)} heals ${e.amount}${e.flat ? ' (flat)' : ''}${
@@ -313,6 +345,7 @@ for (const e of events) {
       // (`overhealShield`), not granted by a `shield` line — worth naming, because
       // the two are otherwise the same row.
       console.log(`${t} │  ${tag(e.side, e.unit)} +${e.amount} ${e.property} shield${e.overheal ? ' from overheal' : ''}${e.wasted ? ` (${e.wasted} wasted)` : ''} -> ${e.totalAfter} total`);
+      wall.set(wallKey(e.side, e.unit), e.totalAfter);
       break;
     case 'statusApplied': {
       let detail = '';
