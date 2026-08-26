@@ -198,6 +198,22 @@ sense for everything."*
   matching/non-matching — one run proves the effect exists, the pair proves what
   gates it. `scripts/fight.ts` and `scripts/logFormat.ts`'s `calc` line already
   print the derivation per hit; use them rather than hand-computing.
+- **MOBILE-FIRST LAYOUT (USER-LOCKED 2026-08-25).** The user reads these on a
+  phone, so a log line that wraps is a log line that does not get read. ONE FACT
+  PER LINE, nothing past ~28 characters: the cast on its own line, the hit on its
+  own line, the derivation on its own line beneath it. Do NOT pack
+  `hit -38   38 = 38 HP (attack 6->6, +0 aura/combo)` onto one row, and do not
+  put two runs side by side in columns — stack them as separate labelled blocks.
+
+  ```
+  -- ON-TYPE (3 swords) --
+  t1 sworn_edge
+     hit 38
+     = 32 pow + 6 ATK
+  ```
+
+  The same rule applies to comparison TABLES: a wide table is worse than a short
+  labelled list on a phone.
 - **This replaces explanation-first answers, not the reasoning.** A price
   derivation or an invariant still needs stating — it just comes second, and it
   is describing a log the reader is looking at.
