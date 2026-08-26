@@ -51,7 +51,61 @@
   "it played back. The four monsters below are that fix, one per rider",
   "family the brief called out: exploit (poison), shieldBurst (own shield),",
   "stackBonus (burn), stackBonus (bleed). Every board is real catalog cards",
-  "only, Bronze floor, small 2-card board \u2014 same rule as every enemy above."
+  "only, Bronze floor, small 2-card board \u2014 same rule as every enemy above.",
+  "WHAT WAS MISSING. \"Boss\" in this game is a TITLE assigned by POSITION in",
+  "the wave (`fightSpecFor` in src/run/runState.ts: pos <= 2 normal, <= 4",
+  "elite, else boss), and `TITLE_PRESETS.boss` (+4 levels, +4 rank, +2 extra",
+  "cards) will happily hang that title on whatever mob rolled. What it could",
+  "NOT do is make the fight RECOGNISABLE: a boss was a random monster with",
+  "bigger numbers, so no player could ever anticipate one or build a deck",
+  "against it. (The one real boss-pool entry, `wolf_king`, meant every single",
+  "boss WAVE was the same monster -- `BOSS_POOL` in runState.ts is",
+  "`filter(e => e.isBoss)`, and until this batch that was a pool of one.)",
+  "THE SHAPE, one rule for all of them: a signature boss is a MONO-TYPE TRIAD",
+  "-- exactly three cards, all of ONE of the game's eleven card types (6",
+  "elements + 5 weapons), with that same type AUTHORED as its affinity. That",
+  "single rule buys three things at once:",
+  "  1. IT NAMES ITS OWN COUNTER. Affinity is purely defensive",
+  "     (`cardMatchup` in the interpreter reads the DEFENDER's affinity), so",
+  "     the type stamped on all three card faces is exactly the type the",
+  "     player must bring to get +50%: Frost answers the Cinder Monarch,",
+  "     Lance answers the Sworn Colossus, Holy answers the Hollow Crown.",
+  "  2. IT TURNS THE BOSS'S OWN {{Affinity}} LINES ON. `affinityOpen`",
+  "     (interpreter.ts) checks the CASTER's authored affinity, so an",
+  "     attuned boss fires the gated half of its own cards that an ordinary",
+  "     mob never can. That is the mechanical difference between a boss and a",
+  "     buffed rat: same Bronze budget, but the conditional half is always",
+  "     live.",
+  "  3. IT IS A ROTATION, NOT A PILE. `castCursor` walks pieces in SLOT",
+  "     order, so slot order here is authored choreography: the Galewright",
+  "     charges before it detonates, the Hollow Crown exposes before it",
+  "     executes.",
+  "COUNT: ELEVEN bosses, one per card type -- the same eleven types",
+  "`src/data/shopTypes.ts` guarantees a single-type stall for (see",
+  "tests/run/affinityReachability.test.ts: \"identity in one visit\", 6.00",
+  "same-type offers per shelf for all eleven). One boss per type is the",
+  "smallest set where every identity a player can actually BUILD has a boss",
+  "it hard-counters, and it is the natural binding for a future biome layer",
+  "(one signature boss per biome). `wolf_king` already IS the beast entry",
+  "(mono-beast triad, authored beast affinity) and is left untouched, so this",
+  "batch adds the other TEN.",
+  "FLOOR RULE UNCHANGED. Every card below is Bronze, no gems, no tier",
+  "overrides, universal Level-1 statline, `boardSize` exactly the sum of the",
+  "pieces' sizes -- docs/enemy-design.md's floor rule, same as every monster",
+  "above. The extra threat a boss carries is the TITLE's (+4 levels, +4 rank,",
+  "+2 cards), applied by the run layer, never hand-inflated here.",
+  "THREE PIECES, NEVER FOUR. `REFERENCE_ENEMY_DECK_SIZE`",
+  "(src/run/encounter.ts) is derived live as the LARGEST base deck on the",
+  "roster and prices every pack member's board; a 4-card boss would raise it",
+  "for the whole game. Bosses buy their presence with card SIZE (a size-3",
+  "capstone) instead of card COUNT, which costs slots and cast tempo rather",
+  "than a run-layer budget constant.",
+  "GOLD SEATS THE BOSS LADDER. `computeEnemyDepthBands` (src/run/enemyDepth.ts)",
+  "is run over the boss pool separately from the fight pool, sorted by",
+  "`goldReward`, so these 46-74 values place each boss on the ladder without",
+  "disturbing the non-boss depth bands at all: waves 5 and 10 draw from the",
+  "first six, wave 15 from the last five, wave 20+ from the Dawn Arbiter and",
+  "the Hollow Crown. ---------------------------------------------------------"
  ],
  "enemies": [
   {
@@ -283,6 +337,111 @@
    ]
   },
   {
+   "id": "bramble_matriarch",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "The Bramble Matriarch",
+      "notes": [
+       "NATURE -- THE FIGHT YOU CANNOT OUT-GRIND. Countered by FIRE (fire beats",
+       "nature; +50%), resistant to LIGHTNING (-25%). Grove Communion's",
+       "{{Affinity}} Nature half restores 64 (+MDEF) HP on a board that also holds",
+       "{{Thorns}} and {{Poison}} -- so a slow, safe, chip-damage deck literally",
+       "cannot win this: the Matriarch heals more per rotation than a chip deck",
+       "deals, and Nettle Ward's thorns bill every direct hit on the way in. It is",
+       "the roster's explicit answer to \"just play defensively\".",
+       "COUNTERPLAY: Fire, and BURST over chip -- out-damage one heal cycle rather",
+       "than trading. DoT also ignores the thorns (thorns only answers a landed",
+       "DIRECT hit)."
+      ],
+      "baseDepth": 1,
+      "isBoss": true,
+      "elementAffinity": "nature",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 5,
+      "pieces": [
+       {
+        "skillId": "nettle_ward",
+        "slot": 0
+       },
+       {
+        "skillId": "grove_lash",
+        "slot": 1
+       },
+       {
+        "skillId": "grove_communion",
+        "slot": 3
+       }
+      ],
+      "goldReward": 54,
+      "xpReward": 36
+     }
+    }
+   ]
+  },
+  {
+   "id": "cinder_monarch",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "The Cinder Monarch",
+      "notes": [
+       "FIRE -- THE BURN AVALANCHE. Countered by FROST (frost beats fire; +50%),",
+       "and shrugs off NATURE (-25%). The rotation is the whole identity and it",
+       "reads left to right on the board: Kindling Rite {{Charge}}s Fire (+16 on",
+       "the next Fire card), Wildfire Rite spends that charge AND fires its",
+       "{{Affinity}} Fire half for {{Burn}} 16, then Inferno Eruption -- the",
+       "roster's largest single ignition at 56 + {{Burn}} 20 -- lands on a target",
+       "already burning. Burn halves fast, so the pile only matters because all",
+       "three cards feed it in order.",
+       "COUNTERPLAY: Frost damage, {{Ward}} charges (each cancels one whole",
+       "affliction APPLICATION regardless of stack count -- three wards blank the",
+       "entire rotation), or {{Cleanse}}. Armor does nothing: burn is a DoT."
+      ],
+      "baseDepth": 1,
+      "isBoss": true,
+      "elementAffinity": "fire",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 6,
+      "pieces": [
+       {
+        "skillId": "kindling_rite",
+        "slot": 0
+       },
+       {
+        "skillId": "wildfire_rite",
+        "slot": 1
+       },
+       {
+        "skillId": "inferno_eruption",
+        "slot": 3
+       }
+      ],
+      "goldReward": 46,
+      "xpReward": 31
+     }
+    }
+   ]
+  },
+  {
    "id": "cleric",
    "versions": [
     {
@@ -340,6 +499,60 @@
    ]
   },
   {
+   "id": "dawn_arbiter",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "The Dawn Arbiter",
+      "notes": [
+       "HOLY -- THE UNBREAKABLE JUDGE. Countered by DARK (holy and dark are",
+       "mutually strong; +50% each way), and by nothing else on the wheel. Prism",
+       "Barrier is the catalog's only TRUE shield: 92 points that block TRUE",
+       "damage outright and drain 2-per-point against physical/magical, i.e. ~46",
+       "absorbed from ANY property -- there is no damage type that ignores it, so",
+       "the usual \"go around the shield\" answers (TRUE damage, poison-through-",
+       "shields) do not apply. Hallowed Toll's {{Affinity}} Holy half {{Stun}}s on",
+       "top, consuming a whole performance. Deliberately the roster's slowest",
+       "board (Prism Barrier alone is weight 26 across 3 slots) -- it is a siege,",
+       "not a race.",
+       "COUNTERPLAY: DARK cards for the +50%, or {{Shatter}}/shieldBreak to strip",
+       "the barrier the turn it goes up. Stalling loses: it re-plates every cycle."
+      ],
+      "baseDepth": 1,
+      "isBoss": true,
+      "elementAffinity": "holy",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 7,
+      "pieces": [
+       {
+        "skillId": "hallowed_toll",
+        "slot": 0
+       },
+       {
+        "skillId": "prism_barrier",
+        "slot": 2
+       },
+       {
+        "skillId": "communion_light",
+        "slot": 5
+       }
+      ],
+      "goldReward": 70,
+      "xpReward": 47
+     }
+    }
+   ]
+  },
+  {
    "id": "ember_imp",
    "versions": [
     {
@@ -388,6 +601,58 @@
    ]
   },
   {
+   "id": "galewright",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "The Galewright",
+      "notes": [
+       "LIGHTNING -- CHARGE, STEAL, DETONATE. Countered by NATURE (nature beats",
+       "lightning; +50%), resistant to FROST (-25%). Thunderhead opens with",
+       "{{Charge}} Lightning (+40 on the next Lightning card), Gathering Storm",
+       "spends it AND fires its {{Affinity}} Lightning second hit for 40 -- 28 +40",
+       "charge +40 gated, the largest scripted burst any Bronze board can assemble",
+       "-- and Overcharge {{Disrupt}}s 4 banked readiness so the answer does not",
+       "arrive in time. Recognisable because the wind-up is VISIBLE: the charge",
+       "lands a full cast before the payoff.",
+       "COUNTERPLAY: Nature, or kill the window -- {{Negate}} the magical hit, or",
+       "burst it down during the wind-up cast, which deals almost nothing."
+      ],
+      "baseDepth": 1,
+      "isBoss": true,
+      "elementAffinity": "lightning",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 5,
+      "pieces": [
+       {
+        "skillId": "thunderhead",
+        "slot": 0
+       },
+       {
+        "skillId": "gathering_storm",
+        "slot": 2
+       },
+       {
+        "skillId": "overcharge",
+        "slot": 4
+       }
+      ],
+      "goldReward": 66,
+      "xpReward": 44
+     }
+    }
+   ]
+  },
+  {
    "id": "giant_rat",
    "versions": [
     {
@@ -424,6 +689,115 @@
       ],
       "goldReward": 12,
       "xpReward": 8
+     }
+    }
+   ]
+  },
+  {
+   "id": "greenwood_sovereign",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "The Greenwood Sovereign",
+      "notes": [
+       "BOW -- THE MARKED VOLLEY. The one DUAL-affinity boss on the roster, and",
+       "deliberately so: Bow is the only card type NOTHING beats on the weapon",
+       "triangle (`WEAPON_BEATS` in src/engine/elements.ts maps sword->axe->lance->",
+       "sword and bow->beast; no entry maps to bow), so a Bow-only boss would be",
+       "counter-PROOF -- the exact opposite of a telegraphed fight. Its greenwood",
+       "is therefore also authored NATURE, which is the counter axis: bring FIRE.",
+       "The bow leg is not decoration either -- it opens Massed Volley's",
+       "{{Affinity}} Bow second hit, and it makes BEAST attackers eat -25%.",
+       "The board is authored as a sandwich: Spotter's Mark sits in slot 2",
+       "physically touching both volleys, so its \"adjacent Offense cards deal +10\"",
+       "passive lands on every one of the four arrows either side of it.",
+       "COUNTERPLAY: Fire (nature's counter, +50%), or armor -- every hit here is",
+       "physical and small, which is exactly what flat DEF subtracts best."
+      ],
+      "baseDepth": 1,
+      "isBoss": true,
+      "elementAffinity": "nature",
+      "weaponAffinity": "bow",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 5,
+      "pieces": [
+       {
+        "skillId": "barrage",
+        "slot": 0
+       },
+       {
+        "skillId": "spotters_mark",
+        "slot": 2
+       },
+       {
+        "skillId": "massed_volley",
+        "slot": 3
+       }
+      ],
+      "goldReward": 50,
+      "xpReward": 33
+     }
+    }
+   ]
+  },
+  {
+   "id": "hollow_crown",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "The Hollow Crown",
+      "notes": [
+       "DARK -- THE ONE YOUR DEFENCES DO NOT ANSWER. Countered by HOLY (+50%),",
+       "and it is the roster's deepest boss for a reason: Ruinous Hex {{Expose}}s",
+       "for +50% from every direct hit, Umbral Choir's {{Affinity}} Dark half",
+       "doubles into that window (36, then 24 again), and Annihilation Strike is",
+       "48 (+best stat) TRUE damage -- it ignores DEF and MDEF entirely. Stacking",
+       "armor or magic resist, the answer to most of this roster, is worth",
+       "literally nothing against the finisher; only HP, healing, {{Negate}} or",
+       "killing it first are.",
+       "COUNTERPLAY: HOLY for the +50%, raw maxHp/heal to survive the TRUE",
+       "finisher, or out-tempo it -- the Expose window is only 2 turns wide and",
+       "the rotation is 6 slots long."
+      ],
+      "baseDepth": 1,
+      "isBoss": true,
+      "elementAffinity": "dark",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 6,
+      "pieces": [
+       {
+        "skillId": "ruinous_hex",
+        "slot": 0
+       },
+       {
+        "skillId": "umbral_choir",
+        "slot": 1
+       },
+       {
+        "skillId": "annihilation_strike",
+        "slot": 3
+       }
+      ],
+      "goldReward": 74,
+      "xpReward": 49
      }
     }
    ]
@@ -691,6 +1065,59 @@
    ]
   },
   {
+   "id": "rime_tyrant",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "The Rime Tyrant",
+      "notes": [
+       "FROST -- THE SLOW DEATH. Countered by LIGHTNING (lightning beats frost;",
+       "+50%), resistant to FIRE (-25%). Nothing here hits hard; the Rime Tyrant",
+       "wins by taking your TURNS. Deep Freeze is -40% SPD for 3 turns, Hoarfrost",
+       "Creed's {{Affinity}} Frost half {{Expose}}s you for +30% from every direct",
+       "hit, and Deepening Frost's gated half hits a second time into that Expose",
+       "window. Readiness is gained per turn at SPD, so a 40% cut is a 40% cut to",
+       "how often you act at all -- the longer this runs the further behind you",
+       "get, which is exactly the fight a player should learn to pre-empt.",
+       "COUNTERPLAY: Lightning, or SPEED/tempo (act before the debuff lands and",
+       "finish inside its window). Expose and the SPD debuff are stat effects, not",
+       "afflictions -- {{Ward}} does NOT stop them."
+      ],
+      "baseDepth": 1,
+      "isBoss": true,
+      "elementAffinity": "frost",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 6,
+      "pieces": [
+       {
+        "skillId": "deep_freeze",
+        "slot": 0
+       },
+       {
+        "skillId": "hoarfrost_creed",
+        "slot": 2
+       },
+       {
+        "skillId": "deepening_frost",
+        "slot": 4
+       }
+      ],
+      "goldReward": 64,
+      "xpReward": 43
+     }
+    }
+   ]
+  },
+  {
    "id": "rogue",
    "versions": [
     {
@@ -751,6 +1178,57 @@
       ],
       "goldReward": 20,
       "xpReward": 13
+     }
+    }
+   ]
+  },
+  {
+   "id": "ruin_warlord",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "The Ruin-Warlord",
+      "notes": [
+       "AXE -- THE GUARD-BREAKER. Countered by SWORD (sword beats axe; +50%),",
+       "resistant to LANCE (-25%). Warlord's Banner is a whole-board passive (ALL",
+       "cards +5 damage, no adjacency to respect), then Sundering Roar is the",
+       "single most complete swing in the catalog -- {{Shatter}} 64, {{Expose}}",
+       "+20%, {{Bleed}} 8 AND 56 damage -- and Warband Cleave's {{Affinity}} Axe",
+       "half adds a 48 second hit into the hole it just made. A shield-and-plate",
+       "build is the WRONG answer here; that is the lesson this boss teaches.",
+       "COUNTERPLAY: Sword cards, and HP/heal over shields (64 shatter eats almost",
+       "any plating you can hold). {{Ward}} blanks the bleed."
+      ],
+      "baseDepth": 1,
+      "isBoss": true,
+      "weaponAffinity": "axe",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 6,
+      "pieces": [
+       {
+        "skillId": "warlord_banner",
+        "slot": 0
+       },
+       {
+        "skillId": "sundering_roar",
+        "slot": 1
+       },
+       {
+        "skillId": "warband_cleave",
+        "slot": 4
+       }
+      ],
+      "goldReward": 56,
+      "xpReward": 37
      }
     }
    ]
@@ -918,6 +1396,59 @@
    ]
   },
   {
+   "id": "sworn_colossus",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "The Sworn Colossus",
+      "notes": [
+       "SWORD -- THE WALL THAT SWINGS BACK. Countered by LANCE (lance beats",
+       "sword; +50%) and by {{Shatter}}/shieldBreak, and it punishes the one thing",
+       "a player most wants to bring against a sword boss: Oathplate's",
+       "{{Affinity}} Sword half stacks an ATTUNED Sword shield that eats 2 damage",
+       "per point from SWORD attacks specifically. Fortress Bastion is the",
+       "roster's biggest single plating (96 +DEF) and Sworn Edge's gated half",
+       "doubles its swing (34, then 28 again), so the Colossus is a race against a",
+       "shield that comes back every rotation.",
+       "COUNTERPLAY: Lance cards for the triangle, a {{Shatter}} line to open the",
+       "plating before your big hit, or DoT (poison bypasses shields entirely;",
+       "bleed does not)."
+      ],
+      "baseDepth": 1,
+      "isBoss": true,
+      "weaponAffinity": "sword",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 6,
+      "pieces": [
+       {
+        "skillId": "oathplate",
+        "slot": 0
+       },
+       {
+        "skillId": "fortress_bastion",
+        "slot": 1
+       },
+       {
+        "skillId": "sworn_edge",
+        "slot": 4
+       }
+      ],
+      "goldReward": 48,
+      "xpReward": 32
+     }
+    }
+   ]
+  },
+  {
    "id": "thorn_beast",
    "versions": [
     {
@@ -966,6 +1497,59 @@
       ],
       "goldReward": 27,
       "xpReward": 18
+     }
+    }
+   ]
+  },
+  {
+   "id": "thornpike_marshal",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "The Thornpike Marshal",
+      "notes": [
+       "LANCE -- THE PHALANX THAT BILLS YOU FOR ATTACKING. Countered by AXE (axe",
+       "beats lance; +50%), resistant to SWORD (-25%). Pikewall Oath's",
+       "{{Affinity}} Lance half is -40% incoming PHYSICAL for 2 turns, and",
+       "Bramblewrath stands 20 {{Thorns}} up: a physical attacker is therefore",
+       "paying twice -- 40% of its damage is refused at the door and 20 comes back",
+       "per landed hit (physical, so the attacker's own DEF applies -- see the",
+       "2026-08-21 thorns ruling in docs/enemy-design.md). Phalanx Thrust's gated",
+       "half then doubles the counter-punch.",
+       "COUNTERPLAY: Axe for the triangle, ARMOR to blunt the thorns reflect, or",
+       "go MAGICAL/DoT -- neither the -40% physical guard nor the thorns touches a",
+       "magic card or a poison tick."
+      ],
+      "baseDepth": 1,
+      "isBoss": true,
+      "weaponAffinity": "lance",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 6,
+      "pieces": [
+       {
+        "skillId": "pikewall_oath",
+        "slot": 0
+       },
+       {
+        "skillId": "bramblewrath",
+        "slot": 1
+       },
+       {
+        "skillId": "phalanx_thrust",
+        "slot": 4
+       }
+      ],
+      "goldReward": 62,
+      "xpReward": 41
      }
     }
    ]

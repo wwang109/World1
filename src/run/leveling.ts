@@ -213,6 +213,25 @@ export const MONSTER_PROFILES: Record<string, StatProfile> = {
   // brute grinding it out, and a light maxHp keeps it standing for its own
   // two-card sequence to land in full.
   blood_duelist: profile({ attack: 3, speed: 2, maxHp: 1 }),
+
+  // --- SIGNATURE BOSSES (2026-08-26) ---
+  // Every boss is a mono-type triad whose identity is its DECK, so its profile
+  // must grow the stat that deck actually scales off — otherwise the level
+  // ladder blurs eleven distinct fights back into one. Without an entry here a
+  // boss silently falls through to DEFAULT_PROFILE and loses that identity as
+  // the run deepens, which `tests/run/leveling.ts`'s roster guard exists to
+  // catch. Weights follow the same reading the roster above uses: dominant stat
+  // = what the deck spends, secondary = how it wants to be fought.
+  cinder_monarch: profile({ magicPower: 4, maxHp: 1 }),
+  sworn_colossus: profile({ armor: 4, maxHp: 2, attack: 1 }),
+  greenwood_sovereign: profile({ attack: 4, speed: 2 }),
+  bramble_matriarch: profile({ magicPower: 3, magicResist: 3, maxHp: 1 }),
+  ruin_warlord: profile({ attack: 5, maxHp: 2 }),
+  thornpike_marshal: profile({ armor: 3, attack: 3, maxHp: 1 }),
+  rime_tyrant: profile({ magicPower: 4, speed: 2 }),
+  galewright: profile({ magicPower: 5, speed: 2 }),
+  dawn_arbiter: profile({ magicPower: 3, magicResist: 2, maxHp: 2 }),
+  hollow_crown: profile({ magicPower: 5, maxHp: 1 }),
 };
 
 /** Profile lookup for an enemy id, falling back to DEFAULT_PROFILE. */

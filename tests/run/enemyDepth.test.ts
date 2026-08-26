@@ -94,12 +94,30 @@ describe('run/enemyDepth: computeEnemyDepthBands', () => {
     }
   });
 
-  it('degenerates gracefully for a 1-enemy pool (boss pool) — single open-ended tier', () => {
+  // WAS PINNED TO THE LIVE BOSS POOL until 2026-08-26, when the signature-boss
+  // roster (src/data/enemies.ts) took `isBoss` from one id to eleven — and a
+  // pool of eleven is banded like any other, so asserting `[1, Infinity]` over
+  // the live boss pool stopped testing the degenerate path and started testing
+  // "the boss pool has exactly one member". The degenerate case is what this
+  // test is named for, so it is now built explicitly; the boss pool's own
+  // ladder (every boss wave has an anchor, every boss is reachable) is covered
+  // in tests/run/bossRoster.test.ts.
+  it('degenerates gracefully for a 1-enemy pool — single open-ended tier', () => {
+    const solo = [BOSS_POOL_ENEMIES[0] ?? FIGHT_POOL_ENEMIES[0]!];
+    const soloBands = computeEnemyDepthBands(solo);
+    for (const enemy of solo) {
+      const band = soloBands[enemy.id]!;
+      expect(band.min).toBe(1);
+      expect(band.max).toBe(Infinity);
+    }
+  });
+
+  it('gives every boss-pool enemy id its own non-empty band', () => {
     const bossBands = computeEnemyDepthBands(BOSS_POOL_ENEMIES);
     for (const enemy of BOSS_POOL_ENEMIES) {
       const band = bossBands[enemy.id]!;
-      expect(band.min).toBe(1);
-      expect(band.max).toBe(Infinity);
+      expect(band, enemy.id).toBeDefined();
+      expect(band.max, enemy.id).toBeGreaterThanOrEqual(band.min);
     }
   });
 
