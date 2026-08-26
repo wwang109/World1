@@ -247,6 +247,20 @@ sense for everything."*
   reaching a hit", affinity "not existing against small boards") were wrong and a
   log would have caught both before they were stated.
 
+### End every reply with a SHORT summary (USER-LOCKED 2026-08-25)
+
+Long replies bury the decision. Close with a compact block the user can act on
+without re-reading anything above it:
+
+- **What changed** — one line each, no rationale.
+- **What needs your call** — the open decision, stated as a choice.
+- **State** — test count, whether it is pushed.
+
+Short means short: a handful of lines, mobile width (see the log convention
+above). The detail belongs in commit messages and card `notes`, which is where
+the next person actually looks — not restated in chat. If a reply cannot be
+summarised in a few lines, it is doing too much at once.
+
 ### Reporting: three buckets (USER-LOCKED 2026-08-05)
 
 Every status update uses exactly these sections, in this order:
