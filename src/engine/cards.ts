@@ -411,9 +411,13 @@ function weightWithGemIncrease(base: number, pct: number): number {
  * two authored cards carrying these kinds (`shield_splitter`, `follow_through`)
  * both put them first, ahead of their damage line.
  *
- * SCOPE: this decides only where GEM actions splice in. A card's OWN authored
- * effect order is never reordered — `spliceGemActions` keeps `base` intact and
- * contiguous between the two gem blocks.
+ * SCOPE: this decides only where GEM actions splice in — `spliceGemActions`
+ * keeps `base` intact and contiguous between the two gem blocks. A card's own
+ * authored order is otherwise left alone, with ONE exception, and it is the read
+ * side of this same table's `lifesteal` row: `orderCastSinks` (below) folds a
+ * leech that authored itself AHEAD of one of its card's own hits back behind
+ * them, because that row's rule ("must trail every hit of the cast") is a
+ * property of the resolved kit, not of gems.
  */
 type GemPhase = 'pre' | 'post';
 
@@ -688,6 +692,86 @@ function hasCardTargeting(actions: readonly Action[]): boolean {
  * no-op did not happen in combat. The place to warn a player is the socket UI,
  * which can ask `splashSuppressionOn` directly.
  */
+/**
+ * THE CAST-SINK ORDERING RULE — the read-side twin of `GEM_ACTION_PHASE`, and
+ * the one place a card's OWN authored order is normalized.
+ *
+ * `lifesteal` is the only action that reads a value the cast ACCUMULATES
+ * (`cast.damageDealt`, written by every `damage` application — see the
+ * `lifesteal` arm of `applyAction`, combat/interpreter.ts). Its own phase row
+ * already says why: "Reads `cast.damageDealt` — must trail every hit of the
+ * cast." That rule was enforced for GEM actions and nowhere else, so a kit that
+ * authored a hit AFTER its own lifesteal line silently leeched off a partial
+ * total.
+ *
+ * THE DEFECT IT CLOSES (2026-08-26). `leeching_fang` at Diamond authors
+ * `[damage 30, lifesteal 45, damage 32 (affinity)]`, and its own notes commit to
+ * the composition: "lifesteal heals a percentage of the whole CAST's damage
+ * dealt (`cast.damageDealt`), and the affinity hit is part of that cast".
+ * It was not: on a Beast board the log showed `hit 31 / heals 13 / hit 32` —
+ * 45% of 31, not of 63 — while the face printed the unqualified "heal 45% of
+ * damage dealt". The same shape is reachable without any card edit, through the
+ * splicer: `GEM_ACTION_PHASE` puts BOTH `damage` and `lifesteal` at `post`, so a
+ * gem carrying a hit (or carrying `[lifesteal, damage]` in that order) lands a
+ * hit behind a lifesteal host's own leech line.
+ *
+ * WHY THE RESOLVER, NOT THE LOOP (CLAUDE.md, "the resolver seam"): the fix is a
+ * property of the RESOLVED card, so it folds in before the loop runs and
+ * `applyCast` stays feature-agnostic — no deferred-action queue, no second pass,
+ * no `kind === 'lifesteal'` branch in the walk. It also covers all three ways a
+ * kit is assembled at once (authored effects, a `tierUpgrades` override, a gem
+ * splice) instead of one card's JSON.
+ *
+ * MINIMAL AND STABLE: an offending `lifesteal` moves to immediately AFTER the
+ * last `damage` action and nothing else moves — relative order is otherwise
+ * preserved, so hit ordinals (the multi-hit stat split), the one-bonus-per-cast
+ * spend and every status line stay exactly where the card authored them. A kit
+ * whose lifesteal already trails its hits (`siphon_life`, `verdant_rebuke`, base
+ * `leeching_fang`, every gem-spliced lifesteal today) returns the SAME array
+ * reference, so it resolves byte-identically.
+ *
+ * KNOWN CONSEQUENCE, and it is the locked rule winning: with the leech behind
+ * the hits, a cast whose LAST hit wipes the enemy side now stops at that hit and
+ * heals nothing — "no lifesteal-back off the killing blow" (`castCutShort`,
+ * combat/interpreter.ts, user-locked 2026-08-04). Leeching Fang at Diamond used
+ * to dodge that rule by leeching before its own gated hit; it no longer does,
+ * and it now behaves exactly like the other lifesteal cards.
+ */
+function orderCastSinks(effects: readonly Action[]): readonly Action[] {
+  let lastHit = -1;
+  for (let i = 0; i < effects.length; i += 1) if (effects[i]!.kind === 'damage') lastHit = i;
+  if (lastHit < 0) return effects;
+  let needsMove = false;
+  for (let i = 0; i < lastHit; i += 1) {
+    if (effects[i]!.kind === 'lifesteal') { needsMove = true; break; }
+  }
+  if (!needsMove) return effects;
+  const out: Action[] = [];
+  const deferred: Action[] = [];
+  for (let i = 0; i < effects.length; i += 1) {
+    const action = effects[i]!;
+    if (i < lastHit && action.kind === 'lifesteal') {
+      deferred.push(action);
+      continue;
+    }
+    out.push(action);
+    // Every deferred index is < lastHit, so the list is complete by the time the
+    // last hit is pushed. Plain index walk: no Map/Set, no sort, no RNG.
+    if (i === lastHit) for (let d = 0; d < deferred.length; d += 1) out.push(deferred[d]!);
+  }
+  return out;
+}
+
+/**
+ * `skill` with `orderCastSinks` applied — the SAME reference back when nothing
+ * needed moving, which is what keeps `resolveEffectiveSkill`'s "un-gemmed piece
+ * resolves to the same def" contract (pinned by tests/engine/gems.test.ts) true.
+ */
+function withOrderedSinks(skill: SkillDef): SkillDef {
+  const ordered = orderCastSinks(skill.effects);
+  return ordered === skill.effects ? skill : { ...skill, effects: ordered as Action[] };
+}
+
 function spliceGemActions(host: SkillDef, gemActions: readonly Action[]): Action[] {
   const pre: Action[] = [];
   const post: Action[] = [];
@@ -741,15 +825,23 @@ export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece): SkillDe
   // card with no lock, so an un-featured piece resolves byte-identically.
   const tiered = applyTier(def, piece.tier ?? def.tier);
   const gem = piece.gem;
-  if (!gem || gem.kind !== 'effect') return tiered;
+  // THE CAST-SINK ORDER is fixed on the way OUT of every branch below (see
+  // `orderCastSinks`): whether a kit's `lifesteal` trails its hits is a property
+  // of the fully assembled card, and the three assembly routes — authored
+  // effects, a `tierUpgrades` override, a gem splice — must all land on the same
+  // answer. Same reference back when nothing moves, so the "un-gemmed piece
+  // resolves to the same def" contract survives.
+  if (!gem || gem.kind !== 'effect') return withOrderedSinks(tiered);
   const cooldownReduction = gem.cooldownReduction ?? 0;
   const weightIncreasePct = gem.weightIncreasePct ?? 0;
-  if (gem.actions.length === 0 && cooldownReduction === 0 && weightIncreasePct <= 0) return tiered;
+  if (gem.actions.length === 0 && cooldownReduction === 0 && weightIncreasePct <= 0) return withOrderedSinks(tiered);
 
-  const effects = gem.actions.length > 0
+  const effects = orderCastSinks(gem.actions.length > 0
     ? spliceGemActions(tiered, gem.actions)
-    : tiered.effects;
-  if (cooldownReduction === 0 && weightIncreasePct <= 0) return { ...tiered, effects };
+    : tiered.effects) as Action[];
+  if (cooldownReduction === 0 && weightIncreasePct <= 0) {
+    return effects === tiered.effects ? tiered : { ...tiered, effects };
+  }
 
   const baseCooldown = tiered.cooldownTurns ?? BASELINE_COOLDOWN;
   return {
