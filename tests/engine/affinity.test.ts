@@ -288,13 +288,16 @@ describe('AFFINITY CHARGE — the forward-armed half', () => {
   });
 
   it('prices at the flat-damage currency with the affinity refund, and no uptime halving', () => {
-    // 4 deci/pt: flatPowerPerPoint (5) x affinityPayoffNum/Den (4/5). NOT
-    // comboBonus's 2.5 — that rate halves for ~50% archetype uptime, and a charge
-    // that STANDS until collected has no such uptime loss.
+    // 2.5 deci/pt: flatPowerPerPoint (5) x the affinity refund (1/2).
     const perPoint = (PRICE.flatPowerPerPoint * PRICE.affinityPayoffNum) / PRICE.affinityPayoffDen;
-    expect(perPoint).toBe(4);
+    expect(perPoint).toBe(2.5);
     expect(perPoint).toBeLessThan(PRICE.flatPowerPerPoint);
-    expect(perPoint).toBeGreaterThan(PRICE.comboPerPointNum / PRICE.comboPerPointDen);
+    // IT NOW EQUALS `comboBonus`'s rate, from the opposite direction: comboBonus
+    // halves the flat currency for ~50% archetype UPTIME, this halves it for the
+    // board COMMITMENT the gate demands. Two independent dials that happen to
+    // meet — worth pinning, because a future move of either should be a decision
+    // and not a side effect of assuming they are the same number.
+    expect(perPoint).toBe(PRICE.comboPerPointNum / PRICE.comboPerPointDen);
     for (const card of Object.values(skillBook)) {
       if (!card.effects.some((a) => a.kind === 'empowerNext')) continue;
       expect(powerLevelDeci(card), `${card.id} budget`).toBe(TIER_BUDGET_DECI[card.tier]);
@@ -374,26 +377,37 @@ describe('THE POINT OF THE REFACTOR: affinity composes with keywords that know n
 });
 
 describe('pricing', () => {
-  it('the discount is 4/5 of the strike rate, strictly below the conditional ½', () => {
-    expect(PRICE.affinityPayoffNum).toBe(4);
-    expect(PRICE.affinityPayoffDen).toBe(5);
-    // The ordering that carries the whole argument: this gate never closes once
-    // met, so it must be discounted LESS than a gate that is only sometimes open.
-    const affinityDiscount = 1 - PRICE.affinityPayoffNum / PRICE.affinityPayoffDen;
-    const conditionalDiscount = 1 - 1 / PRICE.conditionalBonusDen;
-    expect(affinityDiscount).toBeLessThan(conditionalDiscount);
-    // And it must be a real discount, or nothing would ever run the card.
-    expect(affinityDiscount).toBeGreaterThan(0);
+  it('the refund is HALF, and it buys twice what the same budget buys ungated', () => {
+    expect(PRICE.affinityPayoffNum).toBe(1);
+    expect(PRICE.affinityPayoffDen).toBe(2);
+    const refund = 1 - PRICE.affinityPayoffNum / PRICE.affinityPayoffDen;
+    expect(refund).toBeGreaterThan(0);
+    // THE NUMBER THAT MATTERS to a player: a fixed budget spent on a gated effect
+    // buys 1/(1-refund) times what the same budget buys ungated. At the old 4/5
+    // that was x1.25 — the entire reward for committing three board slots — and it
+    // measured as +2.7% total damage on the card's BEST board.
+    expect(1 / (1 - refund)).toBe(2);
   });
 
-  it('the derivation matches the constants it claims to come from', () => {
-    // The doc comment derives the fifth from "IDENTITY_THRESHOLD - 1 slots
-    // dictated out of HERO_BOARD_SLOTS". Pinned here so the prose and the number
-    // cannot drift apart silently — if either constant moves, this fails and the
-    // derivation has to be rewritten or the rate re-solved.
-    const HERO_BOARD_SLOTS = 10;
-    const dictated = IDENTITY_THRESHOLD - 1;
-    expect(1 - PRICE.affinityPayoffNum / PRICE.affinityPayoffDen).toBeCloseTo(dictated / HERO_BOARD_SLOTS, 10);
+  it('does NOT have to price below the conditional discount — that comparison was unsound', () => {
+    // A previous version of this suite asserted `affinityRefund < conditionalDiscount`
+    // "since this gate never closes once met". The two pay for DIFFERENT things:
+    // `conditionalBonusDen` prices UNCERTAINTY (~50% archetype uptime, a gate that
+    // costs nothing to build toward), affinity prices COMMITMENT (two board slots
+    // dictated at build time). Nothing required one to sit below the other, and the
+    // false constraint is what held the family at an unplayable rate. Pinned as an
+    // EQUALITY now so the two are seen to be independent dials that happen to meet.
+    expect(1 - PRICE.affinityPayoffNum / PRICE.affinityPayoffDen).toBe(1 / PRICE.conditionalBonusDen);
+  });
+
+  it('the gate still costs what the refund is paying for: two dictated slots', () => {
+    // The rate is no longer DERIVED from board fractions — that derivation
+    // (IDENTITY_THRESHOLD-1 over HERO_BOARD_SLOTS = 1/5) produced a number that
+    // measured as unplayable, and it is now set by measurement instead. What is
+    // still worth pinning is the COST the refund pays for: a card's gate dictates
+    // two further board slots. If IDENTITY_THRESHOLD moves, the refund is owed a
+    // fresh measurement, and this failing is the reminder.
+    expect(IDENTITY_THRESHOLD).toBe(3);
   });
 
   it('every shipped affinity card is exactly on budget and within caps', () => {
@@ -436,17 +450,26 @@ describe('pricing', () => {
     expect(plainTwo.find((x) => x.label === 'multi-hit')?.deci).toBe(PRICE.extraHitPremium);
   });
 
-  it('the affinity power is a multiple of 5, so its part is a whole PL', () => {
-    // At 4 deci per point only multiples of 5 land on a whole power level, which
-    // the project-wide "every priced part is a whole PL" audit requires. Stated
-    // here so an author sees the constraint at the keyword rather than as a
-    // failure in a distant suite.
+  it('every gated part lands on a WHOLE power level, at every tier', () => {
+    // At the 1/2 refund a gated `damage` prices at 2.5 deci/pt, so its magnitude
+    // must be a multiple of 4 (it was a multiple of 5 at the old 4/5 rate). Rather
+    // than restate that arithmetic per kind — it differs for a DoT, a heal, a
+    // charge — assert the property the project actually requires, on every shipped
+    // gated card at every tier it can reach. That is also what caught the five
+    // Diamond capstones when the rate moved: their authored payloads were still
+    // multiples of 5 and went fractional.
+    let checked = 0;
     for (const card of Object.values(skillBook)) {
-      for (const action of card.effects) {
-        if (!isGatedHit(action) || action.kind !== 'damage') continue;
-        expect(action.power % 5, `${card.id}: gated hit power ${action.power} is not a multiple of 5`).toBe(0);
+      for (const tier of ['bronze', 'silver', 'gold', 'diamond'] as SkillTier[]) {
+        const skill = applyTier(card, tier);
+        if (!skill.effects.some(isGated)) continue;
+        checked += 1;
+        for (const part of powerLevelBreakdown(skill)) {
+          expect(part.deci % 10 === 0, `${card.id}@${tier}: part "${part.label}" (${part.deci}) is not whole`).toBe(true);
+        }
       }
     }
+    expect(checked, 'the sweep must actually reach gated cards').toBeGreaterThan(20);
   });
 });
 

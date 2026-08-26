@@ -157,11 +157,11 @@
          },
          {
           "kind": "damage",
-          "power": 30,
+          "power": 48,
           "affinity": true
          }
         ],
-        "text": "Deal 24 (+MATK) Lightning damage \u00b7 {{Affinity}} Lightning \u2014 hit again for 30."
+        "text": "Deal 24 (+MATK) Lightning damage \u00b7 {{Affinity}} Lightning \u2014 hit again for 48."
        }
       },
       "notes": [
@@ -179,7 +179,10 @@
        "trades 24 of that base for a 30-power gated hit, so a lightning board reads",
        "54 across two instances and any other board reads 24. The biggest swing of",
        "the five \u2014 lightning is the widest element in the catalog, so the board that",
-       "wants this is the easiest one to actually have."
+       "wants this is the easiest one to actually have.",
+       "REFUND 1/2 (2026-08-25): the Diamond payload re-solved 30 -> 48. At",
+       "2.5 deci/pt a gated magnitude must be a multiple of 4 for a whole-PL part;",
+       "the base is unchanged, so the whole rate change lands on the payoff."
       ]
      }
     }
@@ -1867,11 +1870,11 @@
          },
          {
           "kind": "damage",
-          "power": 20,
+          "power": 32,
           "affinity": true
          }
         ],
-        "text": "Deal 34 (+ATK) Bow damage. Strong vs Beasts \u00b7 {{Affinity}} Bow \u2014 hit again for 20."
+        "text": "Deal 34 (+ATK) Bow damage. Strong vs Beasts \u00b7 {{Affinity}} Bow \u2014 hit again for 32."
        }
       },
       "notes": [
@@ -1888,7 +1891,10 @@
        "THE CAUTIOUS ONE (34 + 20 against an auto-scaled 50): bow sits outside the",
        "weapon triangle, so its guaranteed half is weighted up for the same reason",
        "massed_volley's is. Off-type this is only 16 behind the auto-scaled version,",
-       "which makes it the safest of the five to buy without the board yet."
+       "which makes it the safest of the five to buy without the board yet.",
+       "REFUND 1/2 (2026-08-25): the Diamond payload re-solved 20 -> 32. At",
+       "2.5 deci/pt a gated magnitude must be a multiple of 4 for a whole-PL part;",
+       "the base is unchanged, so the whole rate change lands on the payoff."
       ]
      }
     }
@@ -2198,11 +2204,11 @@
          },
          {
           "kind": "damage",
-          "power": 20,
+          "power": 32,
           "affinity": true
          }
         ],
-        "text": "Deal 26 (+MATK) Holy damage \u00b7 -20% enemy MDEF (2 turns) \u00b7 {{Affinity}} Holy \u2014 hit again for 20."
+        "text": "Deal 26 (+MATK) Holy damage \u00b7 -20% enemy MDEF (2 turns) \u00b7 {{Affinity}} Holy \u2014 hit again for 32."
        }
       },
       "notes": [
@@ -2218,7 +2224,10 @@
        "is why a split can beat the single big hit at all. Budget is exact at 250.",
        "The MDEF debuff is frozen control, so it survives the swap untouched and the",
        "whole Diamond budget delta lands on the damage split: 26 + 20 = 46 on a holy",
-       "board against an auto-scaled single 42."
+       "board against an auto-scaled single 42.",
+       "REFUND 1/2 (2026-08-25): the Diamond payload re-solved 20 -> 32. At",
+       "2.5 deci/pt a gated magnitude must be a multiple of 4 for a whole-PL part;",
+       "the base is unchanged, so the whole rate change lands on the payoff."
       ]
      }
     }
@@ -2255,11 +2264,11 @@
          },
          {
           "kind": "damage",
-          "power": 30,
+          "power": 48,
           "affinity": true
          }
         ],
-        "text": "Deal 26 (+ATK) Lance damage \u00b7 {{Affinity}} Lance \u2014 hit again for 30."
+        "text": "Deal 26 (+ATK) Lance damage \u00b7 {{Affinity}} Lance \u2014 hit again for 48."
        }
       },
       "notes": [
@@ -2274,7 +2283,10 @@
        "against damage's 5) and pays no multi-hit premium (the `a.affinity !== true` filter in actionsPriceDeci), which",
        "is why a split can beat the single big hit at all. Budget is exact at 250.",
        "Auto-scaled Diamond is a single 50; this is 26 + 30 = 56 on a lance board,",
-       "26 on anything else."
+       "26 on anything else.",
+       "REFUND 1/2 (2026-08-25): the Diamond payload re-solved 30 -> 48. At",
+       "2.5 deci/pt a gated magnitude must be a multiple of 4 for a whole-PL part;",
+       "the base is unchanged, so the whole rate change lands on the payoff."
       ]
      }
     }
@@ -2321,11 +2333,11 @@
          },
          {
           "kind": "damage",
-          "power": 20,
+          "power": 32,
           "affinity": true
          }
         ],
-        "text": "Deal 30 (+ATK) Beast damage \u00b7 heal 45% of damage dealt \u00b7 {{Affinity}} Beast \u2014 hit again for 20."
+        "text": "Deal 30 (+ATK) Beast damage \u00b7 heal 45% of damage dealt \u00b7 {{Affinity}} Beast \u2014 hit again for 32."
        }
       },
       "notes": [
@@ -2343,7 +2355,10 @@
        "CAST's damage dealt (`cast.damageDealt`), and the affinity hit is part of",
        "that cast \u2014 so on a beast board the gate buys 20 more damage AND 9 more",
        "healing off the same 45%. Nothing needed adding for that; the two keywords",
-       "already compose. Auto-scaled Diamond is a single 46 and heals off 46."
+       "already compose. Auto-scaled Diamond is a single 46 and heals off 46.",
+       "REFUND 1/2 (2026-08-25): the Diamond payload re-solved 20 -> 32. At",
+       "2.5 deci/pt a gated magnitude must be a multiple of 4 for a whole-PL part;",
+       "the base is unchanged, so the whole rate change lands on the payoff."
       ]
      }
     }
@@ -8487,27 +8502,25 @@
      "version": 1,
      "def": {
       "name": "Sworn Edge",
-      "text": "Deal 32 (+ATK) Sword damage \u00b7 {{Affinity}} Sword \u2014 hit again for 20.",
+      "text": "Deal 34 (+ATK) Sword damage \u00b7 {{Affinity}} Sword \u2014 hit again for 28.",
       "notes": [
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
-       "premium's upside \u2014 it is not: a gated `damage` takes its stat share AND its",
-       "per-hit `mods.damageFlat` exactly as an ungated one does (`AffinityGated`,",
-       "engine/types.ts). The reason is the one written in `actionsPriceDeci`: the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
-       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
-       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
-       "",
        "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
-       "family). A gated hit pays no multi-hit premium: extraHitPremium",
-       "share, no rider bonus). Charging it anyway put every card in this family",
-       "BEHIND a plain single-hit card of the same budget at every armor value even",
-       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
-       "\"affinity should be something that gives back PL, because there is a cost to",
-       "making affinity activate\").",
-       "THE BALANCED SPLIT: 32 alone is a real attack for any board, and 52",
-       "on a sword board is the reward for the two other swords the gate demands."
+       "BASE AND PAYOFF MUST DIFFER (32+32 -> 34+28). At the 1/2 refund the",
+       "even solve put both halves on the same number, and `retextScaledNumbers`",
+       "REFUSES to rewrite an ambiguous numeral (a value appearing twice), so every",
+       "tier above bronze kept printing the bronze base. The guard is right; the",
+       "content was wrong. Constraint here is 2*base + gated = 96, base even, gated a",
+       "multiple of 4 \u2014 34 + 28 is the nearest split to the intended character."
       ],
       "archetypes": [
        "offense"
@@ -8520,11 +8533,11 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 32
+        "power": 34
        },
        {
         "kind": "damage",
-        "power": 20,
+        "power": 28,
         "affinity": true
        }
       ]
@@ -8539,27 +8552,19 @@
      "version": 1,
      "def": {
       "name": "Kindred Flame",
-      "text": "Deal 28 (+MATK) Fire damage \u00b7 {{Affinity}} Fire \u2014 hit again for 25.",
+      "text": "Deal 28 (+MATK) Fire damage \u00b7 {{Affinity}} Fire \u2014 hit again for 40.",
       "notes": [
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
-       "premium's upside \u2014 it is not: a gated `damage` takes its stat share AND its",
-       "per-hit `mods.damageFlat` exactly as an ungated one does (`AffinityGated`,",
-       "engine/types.ts). The reason is the one written in `actionsPriceDeci`: the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
-       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
-       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
-       "",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
-       "family). A gated hit pays no multi-hit premium: extraHitPremium",
-       "share, no rider bonus). Charging it anyway put every card in this family",
-       "BEHIND a plain single-hit card of the same budget at every armor value even",
-       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
-       "\"affinity should be something that gives back PL, because there is a cost to",
-       "making affinity activate\").",
-       "PAYOFF-LEANING (28 + 25): the affinity hit nearly matches the base, so a",
-       "fire board turns a modest bolt into the card's real form."
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
       ],
       "archetypes": [
        "offense"
@@ -8576,7 +8581,7 @@
        },
        {
         "kind": "damage",
-        "power": 25,
+        "power": 40,
         "affinity": true
        }
       ]
@@ -8591,30 +8596,19 @@
      "version": 1,
      "def": {
       "name": "Communion Light",
-      "text": "Deal 36 (+MATK) Holy damage \u00b7 {{Affinity}} Holy \u2014 hit again for 15.",
+      "text": "Deal 36 (+MATK) Holy damage \u00b7 {{Affinity}} Holy \u2014 hit again for 24.",
       "notes": [
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
-       "premium's upside \u2014 it is not: a gated `damage` takes its stat share AND its",
-       "per-hit `mods.damageFlat` exactly as an ungated one does (`AffinityGated`,",
-       "engine/types.ts). The reason is the one written in `actionsPriceDeci`: the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
-       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
-       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
-       "",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
-       "family). A gated hit pays no multi-hit premium: extraHitPremium",
-       "share, no rider bonus). Charging it anyway put every card in this family",
-       "BEHIND a plain single-hit card of the same budget at every armor value even",
-       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
-       "\"affinity should be something that gives back PL, because there is a cost to",
-       "making affinity activate\").",
-       "BASE-HEAVY (36 + 15). Holy and Dark sit OUTSIDE the elemental wheel and",
-       "only ever meet each other, so a Holy card's triangle upside is rarer than a",
-       "wheel element's; weighting its guaranteed half up compensates without",
-       "touching the affinity rate. Holy also had only two damage cards, too few",
-       "for a Holy board to reach IDENTITY_THRESHOLD before this."
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
       ],
       "archetypes": [
        "offense"
@@ -8631,7 +8625,7 @@
        },
        {
         "kind": "damage",
-        "power": 15,
+        "power": 24,
         "affinity": true
        }
       ]
@@ -8646,29 +8640,19 @@
      "version": 1,
      "def": {
       "name": "Warband Cleave",
-      "text": "Deal 24 (+ATK) Axe damage \u00b7 {{Affinity}} Axe \u2014 hit again for 30.",
+      "text": "Deal 24 (+ATK) Axe damage \u00b7 {{Affinity}} Axe \u2014 hit again for 48.",
       "notes": [
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
-       "premium's upside \u2014 it is not: a gated `damage` takes its stat share AND its",
-       "per-hit `mods.damageFlat` exactly as an ungated one does (`AffinityGated`,",
-       "engine/types.ts). The reason is the one written in `actionsPriceDeci`: the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
-       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
-       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
-       "",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
-       "family). A gated hit pays no multi-hit premium: extraHitPremium",
-       "share, no rider bonus). Charging it anyway put every card in this family",
-       "BEHIND a plain single-hit card of the same budget at every armor value even",
-       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
-       "\"affinity should be something that gives back PL, because there is a cost to",
-       "making affinity activate\").",
-       "THE PAYOFF-HEAVY EXTREME (24 + 30) \u2014 the only card whose affinity hit",
-       "outweighs its base. Axes are already the widest weapon in the catalog, so",
-       "this one leans all the way into the commitment. The family needs a card at",
-       "each end of the dial or the keyword reads as one fixed template."
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
       ],
       "archetypes": [
        "offense"
@@ -8685,7 +8669,7 @@
        },
        {
         "kind": "damage",
-        "power": 30,
+        "power": 48,
         "affinity": true
        }
       ]
@@ -8700,27 +8684,19 @@
      "version": 1,
      "def": {
       "name": "Phalanx Thrust",
-      "text": "Deal 36 (+ATK) Lance damage \u00b7 {{Affinity}} Lance \u2014 hit again for 15.",
+      "text": "Deal 36 (+ATK) Lance damage \u00b7 {{Affinity}} Lance \u2014 hit again for 24.",
       "notes": [
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
-       "premium's upside \u2014 it is not: a gated `damage` takes its stat share AND its",
-       "per-hit `mods.damageFlat` exactly as an ungated one does (`AffinityGated`,",
-       "engine/types.ts). The reason is the one written in `actionsPriceDeci`: the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
-       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
-       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
-       "",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
-       "family). A gated hit pays no multi-hit premium: extraHitPremium",
-       "share, no rider bonus). Charging it anyway put every card in this family",
-       "BEHIND a plain single-hit card of the same budget at every armor value even",
-       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
-       "\"affinity should be something that gives back PL, because there is a cost to",
-       "making affinity activate\").",
-       "BASE-HEAVY (36 + 15): a lance line holds regardless, so the guaranteed half",
-       "carries the card and the affinity hit is the reward rather than the point."
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
       ],
       "archetypes": [
        "offense"
@@ -8737,7 +8713,7 @@
        },
        {
         "kind": "damage",
-        "power": 15,
+        "power": 24,
         "affinity": true
        }
       ]
@@ -8752,29 +8728,19 @@
      "version": 1,
      "def": {
       "name": "Massed Volley",
-      "text": "Deal 40 (+ATK) Bow damage \u00b7 {{Affinity}} Bow \u2014 hit again for 10.",
+      "text": "Deal 40 (+ATK) Bow damage \u00b7 {{Affinity}} Bow \u2014 hit again for 16.",
       "notes": [
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
-       "premium's upside \u2014 it is not: a gated `damage` takes its stat share AND its",
-       "per-hit `mods.damageFlat` exactly as an ungated one does (`AffinityGated`,",
-       "engine/types.ts). The reason is the one written in `actionsPriceDeci`: the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
-       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
-       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
-       "",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
-       "family). A gated hit pays no multi-hit premium: extraHitPremium",
-       "share, no rider bonus). Charging it anyway put every card in this family",
-       "BEHIND a plain single-hit card of the same budget at every armor value even",
-       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
-       "\"affinity should be something that gives back PL, because there is a cost to",
-       "making affinity activate\").",
-       "THE BASE-HEAVY EXTREME (40 + 10). Bow sits OUTSIDE the weapon triangle",
-       "(WEAPON_BEATS: bow beats beast and nothing beats bow), so a bow board's",
-       "triangle upside is the narrowest of any weapon and its guaranteed half is",
-       "weighted up to compensate \u2014 the same reasoning communion_light uses."
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
       ],
       "archetypes": [
        "offense"
@@ -8791,7 +8757,7 @@
        },
        {
         "kind": "damage",
-        "power": 10,
+        "power": 16,
         "affinity": true
        }
       ]
@@ -8806,28 +8772,19 @@
      "version": 1,
      "def": {
       "name": "Pack Instinct",
-      "text": "Deal 28 (+ATK) Beast damage \u00b7 {{Affinity}} Beast \u2014 hit again for 25.",
+      "text": "Deal 28 (+ATK) Beast damage \u00b7 {{Affinity}} Beast \u2014 hit again for 40.",
       "notes": [
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
-       "premium's upside \u2014 it is not: a gated `damage` takes its stat share AND its",
-       "per-hit `mods.damageFlat` exactly as an ungated one does (`AffinityGated`,",
-       "engine/types.ts). The reason is the one written in `actionsPriceDeci`: the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
-       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
-       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
-       "",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
-       "family). A gated hit pays no multi-hit premium: extraHitPremium",
-       "share, no rider bonus). Charging it anyway put every card in this family",
-       "BEHIND a plain single-hit card of the same budget at every armor value even",
-       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
-       "\"affinity should be something that gives back PL, because there is a cost to",
-       "making affinity activate\").",
-       "28 + 25, payoff-leaning: one beast is a bite, three is a hunt. Beast is also",
-       "outside the triangle but, unlike bow, is BEATEN by it, so it takes the",
-       "payoff-leaning split rather than the defensive one."
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
       ],
       "archetypes": [
        "offense"
@@ -8844,7 +8801,7 @@
        },
        {
         "kind": "damage",
-        "power": 25,
+        "power": 40,
         "affinity": true
        }
       ]
@@ -8859,27 +8816,25 @@
      "version": 1,
      "def": {
       "name": "Grove Lash",
-      "text": "Deal 32 (+MATK) Nature damage \u00b7 {{Affinity}} Nature \u2014 hit again for 20.",
+      "text": "Deal 34 (+MATK) Nature damage \u00b7 {{Affinity}} Nature \u2014 hit again for 28.",
       "notes": [
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
-       "premium's upside \u2014 it is not: a gated `damage` takes its stat share AND its",
-       "per-hit `mods.damageFlat` exactly as an ungated one does (`AffinityGated`,",
-       "engine/types.ts). The reason is the one written in `actionsPriceDeci`: the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
-       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
-       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
-       "",
        "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
-       "family). A gated hit pays no multi-hit premium: extraHitPremium",
-       "share, no rider bonus). Charging it anyway put every card in this family",
-       "BEHIND a plain single-hit card of the same budget at every armor value even",
-       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
-       "\"affinity should be something that gives back PL, because there is a cost to",
-       "making affinity activate\").",
-       "The balanced split (32 + 20), the same shape as sworn_edge. Nature is on the",
-       "elemental wheel (fire -> nature -> lightning), so it needs no compensation."
+       "BASE AND PAYOFF MUST DIFFER (32+32 -> 34+28). At the 1/2 refund the",
+       "even solve put both halves on the same number, and `retextScaledNumbers`",
+       "REFUSES to rewrite an ambiguous numeral (a value appearing twice), so every",
+       "tier above bronze kept printing the bronze base. The guard is right; the",
+       "content was wrong. Constraint here is 2*base + gated = 96, base even, gated a",
+       "multiple of 4 \u2014 34 + 28 is the nearest split to the intended character."
       ],
       "archetypes": [
        "offense"
@@ -8892,11 +8847,11 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 32
+        "power": 34
        },
        {
         "kind": "damage",
-        "power": 20,
+        "power": 28,
         "affinity": true
        }
       ]
@@ -8911,28 +8866,19 @@
      "version": 1,
      "def": {
       "name": "Deepening Frost",
-      "text": "Deal 36 (+MATK) Frost damage \u00b7 {{Affinity}} Frost \u2014 hit again for 15.",
+      "text": "Deal 36 (+MATK) Frost damage \u00b7 {{Affinity}} Frost \u2014 hit again for 24.",
       "notes": [
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
-       "premium's upside \u2014 it is not: a gated `damage` takes its stat share AND its",
-       "per-hit `mods.damageFlat` exactly as an ungated one does (`AffinityGated`,",
-       "engine/types.ts). The reason is the one written in `actionsPriceDeci`: the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
-       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
-       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
-       "",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
-       "family). A gated hit pays no multi-hit premium: extraHitPremium",
-       "share, no rider bonus). Charging it anyway put every card in this family",
-       "BEHIND a plain single-hit card of the same budget at every armor value even",
-       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
-       "\"affinity should be something that gives back PL, because there is a cost to",
-       "making affinity activate\").",
-       "BASE-HEAVY (36 + 15). Frost carries the catalog's control load (slow/freeze),",
-       "so a frost board is usually built for tempo rather than burst \u2014 the half",
-       "that always fires is the half that fits that board."
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
       ],
       "archetypes": [
        "offense"
@@ -8949,7 +8895,7 @@
        },
        {
         "kind": "damage",
-        "power": 15,
+        "power": 24,
         "affinity": true
        }
       ]
@@ -8964,28 +8910,19 @@
      "version": 1,
      "def": {
       "name": "Gathering Storm",
-      "text": "Deal 28 (+MATK) Lightning damage \u00b7 {{Affinity}} Lightning \u2014 hit again for 25.",
+      "text": "Deal 28 (+MATK) Lightning damage \u00b7 {{Affinity}} Lightning \u2014 hit again for 40.",
       "notes": [
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
-       "premium's upside \u2014 it is not: a gated `damage` takes its stat share AND its",
-       "per-hit `mods.damageFlat` exactly as an ungated one does (`AffinityGated`,",
-       "engine/types.ts). The reason is the one written in `actionsPriceDeci`: the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
-       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
-       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
-       "",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
-       "family). A gated hit pays no multi-hit premium: extraHitPremium",
-       "share, no rider bonus). Charging it anyway put every card in this family",
-       "BEHIND a plain single-hit card of the same budget at every armor value even",
-       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
-       "\"affinity should be something that gives back PL, because there is a cost to",
-       "making affinity activate\").",
-       "28 + 25, payoff-leaning. Lightning is the widest element in the catalog, so",
-       "reaching IDENTITY_THRESHOLD on it is the easiest of any type \u2014 the split",
-       "leans toward the gate precisely because the gate is cheap to open here."
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
       ],
       "archetypes": [
        "offense"
@@ -9002,7 +8939,7 @@
        },
        {
         "kind": "damage",
-        "power": 25,
+        "power": 40,
         "affinity": true
        }
       ]
@@ -9017,30 +8954,19 @@
      "version": 1,
      "def": {
       "name": "Umbral Choir",
-      "text": "Deal 36 (+MATK) Dark damage \u00b7 {{Affinity}} Dark \u2014 hit again for 15.",
+      "text": "Deal 36 (+MATK) Dark damage \u00b7 {{Affinity}} Dark \u2014 hit again for 24.",
       "notes": [
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
        "NO MULTI-HIT PREMIUM ON A GATED HIT. Not because the hit is denied the",
-       "premium's upside \u2014 it is not: a gated `damage` takes its stat share AND its",
-       "per-hit `mods.damageFlat` exactly as an ungated one does (`AffinityGated`,",
-       "engine/types.ts). The reason is the one written in `actionsPriceDeci`: the",
        "premium prices a hit COUNT the card RELIABLY has, and a gated hit makes that",
        "count board-dependent \u2014 one hit off-type, two on-type.",
-       "SIZE 2 by construction: the size-2 grant (140 deci) is what affords a real",
-       "base hit alongside a real affinity hit inside a 100-deci Bronze budget.",
-       "Budget: damage x5 + affinityStrike x4 - 140 size grant = 100 exact.",
-       "",
-       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the",
-       "family). A gated hit pays no multi-hit premium: extraHitPremium",
-       "share, no rider bonus). Charging it anyway put every card in this family",
-       "BEHIND a plain single-hit card of the same budget at every armor value even",
-       "on its best board. The gate refunds PL, it does not levy it (user ruling:",
-       "\"affinity should be something that gives back PL, because there is a cost to",
-       "making affinity activate\").",
-       "BASE-HEAVY (36 + 15), the Dark mirror of communion_light. Holy and Dark sit",
-       "outside the elemental wheel and only ever meet each other, so both weight",
-       "their guaranteed half up by the same amount. Dark also had only three damage",
-       "cards, the second-thinnest element, so a Dark board could barely reach the",
-       "threshold at all."
+       "NO MULTI-HIT PREMIUM (2026-08-25 re-solve, +6 base on every card in the"
       ],
       "archetypes": [
        "offense"
@@ -9057,7 +8983,7 @@
        },
        {
         "kind": "damage",
-        "power": 15,
+        "power": 24,
         "affinity": true
        }
       ]
@@ -9072,26 +8998,15 @@
      "version": 1,
      "def": {
       "name": "Kindling Rite",
-      "text": "Deal 12 (+MATK) Fire damage \u00b7 {{Charge}} Fire \u2014 your next Fire card deals +10 damage.",
+      "text": "Deal 12 (+MATK) Fire damage \u00b7 {{Charge}} Fire \u2014 your next Fire card deals +16 damage.",
       "notes": [
-       "AFFINITY CHARGE \u2014 the forward-armed half of the affinity family: nothing",
-       "extra lands on this cast, and the NEXT card of the same type collects.",
-       "RATE 4 deci/point: the flat-damage currency (flatPowerPerPoint 5) with the",
-       "affinity refund on top, the same 4/pt affinityStrike pays. It takes no uptime",
-       "halving the way comboBonus does (2.5/pt) because the charge is not lost when",
-       "the next cast does not match \u2014 it STANDS until a matching card casts, and the",
-       "gate already guarantees the board runs IDENTITY_THRESHOLD cards of the type.",
-       "What it pays for that certainty instead: re-arming while a charge stands",
-       "WASTES the new one (strongest wins, never additive), and a charge unspent at",
-       "the end of a fight delivers nothing.",
-       "The card the mechanic was asked for: \"fire has an affinity that doubles the",
-       "next fire spell\". FLAT +10 rather than x2 \u2014 the damage model is flat by lock",
-       "(only the triangle and the sudden-death ramp are ever multipliers), and a",
-       "doubling would scale with whatever card collected it rather than with what",
-       "this card paid, which is unpriceable.",
-       "SMALL BASE (12 against a plain size-1 bronze's 20): two thirds of the budget",
-       "is in the charge, so off-type this is a bad card and on a fire board it is a",
-       "12 that turns the next Fire card into a 30+."
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5)."
       ],
       "archetypes": [
        "offense"
@@ -9108,7 +9023,7 @@
        },
        {
         "kind": "empowerNext",
-        "amount": 10,
+        "amount": 16,
         "affinity": true
        }
       ]
@@ -9123,21 +9038,15 @@
      "version": 1,
      "def": {
       "name": "Whetstone Vow",
-      "text": "Deal 12 (+ATK) Sword damage \u00b7 {{Charge}} Sword \u2014 your next Sword card deals +10 damage.",
+      "text": "Deal 12 (+ATK) Sword damage \u00b7 {{Charge}} Sword \u2014 your next Sword card deals +16 damage.",
       "notes": [
-       "AFFINITY CHARGE \u2014 the forward-armed half of the affinity family: nothing",
-       "extra lands on this cast, and the NEXT card of the same type collects.",
-       "RATE 4 deci/point: the flat-damage currency (flatPowerPerPoint 5) with the",
-       "affinity refund on top, the same 4/pt affinityStrike pays. It takes no uptime",
-       "halving the way comboBonus does (2.5/pt) because the charge is not lost when",
-       "the next cast does not match \u2014 it STANDS until a matching card casts, and the",
-       "gate already guarantees the board runs IDENTITY_THRESHOLD cards of the type.",
-       "What it pays for that certainty instead: re-arming while a charge stands",
-       "WASTES the new one (strongest wins, never additive), and a charge unspent at",
-       "the end of a fight delivers nothing.",
-       "The WEAPON-axis twin, identical split. Proof the keyword is type-agnostic:",
-       "`cardType` returns element-or-weapon, so a sword charge is armed, matched and",
-       "collected by exactly the same code a fire charge is."
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5)."
       ],
       "archetypes": [
        "offense"
@@ -9154,7 +9063,7 @@
        },
        {
         "kind": "empowerNext",
-        "amount": 10,
+        "amount": 16,
         "affinity": true
        }
       ]
@@ -9169,24 +9078,15 @@
      "version": 1,
      "def": {
       "name": "Thunderhead",
-      "text": "Deal 28 (+MATK) Lightning damage \u00b7 {{Charge}} Lightning \u2014 your next Lightning card deals +25 damage.",
+      "text": "Deal 28 (+MATK) Lightning damage \u00b7 {{Charge}} Lightning \u2014 your next Lightning card deals +40 damage.",
       "notes": [
-       "AFFINITY CHARGE \u2014 the forward-armed half of the affinity family: nothing",
-       "extra lands on this cast, and the NEXT card of the same type collects.",
-       "RATE 4 deci/point: the flat-damage currency (flatPowerPerPoint 5) with the",
-       "affinity refund on top, the same 4/pt affinityStrike pays. It takes no uptime",
-       "halving the way comboBonus does (2.5/pt) because the charge is not lost when",
-       "the next cast does not match \u2014 it STANDS until a matching card casts, and the",
-       "gate already guarantees the board runs IDENTITY_THRESHOLD cards of the type.",
-       "What it pays for that certainty instead: re-arming while a charge stands",
-       "WASTES the new one (strongest wins, never additive), and a charge unspent at",
-       "the end of a fight delivers nothing.",
-       "THE BIG ONE (size 2, 28 + 25). The size-2 grant affords a real base hit",
-       "alongside the largest charge in the set, so unlike Kindling Rite this is not",
-       "a dead card off-type \u2014 it is simply a 28 that does not pay forward.",
-       "Lightning because it is the widest element in the catalog: the board most",
-       "likely to already hold three of a type is the one that should get the",
-       "highest-variance version of the effect."
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5)."
       ],
       "archetypes": [
        "offense"
@@ -9203,7 +9103,7 @@
        },
        {
         "kind": "empowerNext",
-        "amount": 25,
+        "amount": 40,
         "affinity": true
        }
       ]
@@ -9371,17 +9271,15 @@
      "version": 1,
      "def": {
       "name": "Wildfire Rite",
-      "text": "Deal 32 (+MATK) Fire damage \u00b7 {{Affinity}} Fire \u2014 {{Burn}} 10.",
+      "text": "Deal 32 (+MATK) Fire damage \u00b7 {{Affinity}} Fire \u2014 {{Burn}} 16.",
       "notes": [
-       "AFFINITY AS A MODIFIER (2026-08-25). `affinity: true` is a flag any action may",
-       "carry, so this card needed NO engine work: the gate is checked once in",
-       "applyAction and the refund applied once in actionsPriceDeci. These three cards",
-       "exist to prove that across three different FAMILIES (dot / control / heal) and",
-       "to give the refund rate something to be judged against besides one damage card.",
-       "Budget: base damage x5 + gated effect at its own family rate x 4/5 - 140 size",
-       "grant = 100 exact.",
-       "GATED DOT. burn 10 costs 100 deci ungated and 80 gated; the dot family cap at",
-       "size-2 bronze is 300, so there is headroom \u2014 the BUDGET binds here, not the cap."
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5)."
       ],
       "archetypes": [
        "offense"
@@ -9398,7 +9296,7 @@
        },
        {
         "kind": "burn",
-        "stacks": 10,
+        "stacks": 16,
         "affinity": true
        }
       ]
@@ -9413,25 +9311,21 @@
      "version": 1,
      "def": {
       "name": "Hallowed Toll",
-      "text": "Deal 32 (+MATK) Holy damage \u00b7 {{Affinity}} Holy \u2014 {{Stun}}.",
+      "text": "Deal 38 (+MATK) Holy damage \u00b7 {{Affinity}} Holy \u2014 {{Stun}}.",
       "notes": [
-       "AFFINITY AS A MODIFIER (2026-08-25). `affinity: true` is a flag any action may",
-       "carry, so this card needed NO engine work: the gate is checked once in",
-       "applyAction and the refund applied once in actionsPriceDeci. These three cards",
-       "exist to prove that across three different FAMILIES (dot / control / heal) and",
-       "to give the refund rate something to be judged against besides one damage card.",
-       "Budget: base damage x5 + gated effect at its own family rate x 4/5 - 140 size",
-       "grant = 100 exact.",
-       "GATED CONTROL, and the one to watch when the refund moves. stun 1 costs 100",
-       "deci ungated and 80 gated against a control cap of 150 at size-2 bronze. A",
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5).",
+       "hallowed_toll could NOT grow its payoff: MAX_STUN_PER_CARD caps stun at 1",
+       "turn regardless of price, so the refund landed on its base (32 -> 38).",
        "CORRECTION (2026-08-25): an earlier note here claimed a larger affinity",
-       "refund would make a gated `stun 2` affordable inside the control cap, so the",
-       "refund rate decided between a tempo card and a two-turn lockout. THAT IS",
        "FALSE. `capViolations` checks raw stun turns against MAX_STUN_PER_CARD (1)",
        "INDEPENDENTLY of PL, so stun 2 is refused at every refund \u2014 verified at 1/2,",
-       "where the control PL cap is satisfied (100 <= 150) and the card is still",
-       "rejected. There is no cliff: the stun ceiling is refund-invariant, and the",
-       "refund only ever changes MAGNITUDES the PL cap governs."
+       "rejected. There is no cliff: the stun ceiling is refund-invariant, and the"
       ],
       "archetypes": [
        "offense"
@@ -9444,7 +9338,7 @@
       "effects": [
        {
         "kind": "damage",
-        "power": 32
+        "power": 38
        },
        {
         "kind": "stun",
@@ -9463,18 +9357,15 @@
      "version": 1,
      "def": {
       "name": "Grove Communion",
-      "text": "Deal 16 (+MATK) Nature damage \u00b7 {{Affinity}} Nature \u2014 restore 40 (+MDEF) HP.",
+      "text": "Deal 16 (+MATK) Nature damage \u00b7 {{Affinity}} Nature \u2014 restore 64 (+MDEF) HP.",
       "notes": [
-       "AFFINITY AS A MODIFIER (2026-08-25). `affinity: true` is a flag any action may",
-       "carry, so this card needed NO engine work: the gate is checked once in",
-       "applyAction and the refund applied once in actionsPriceDeci. These three cards",
-       "exist to prove that across three different FAMILIES (dot / control / heal) and",
-       "to give the refund rate something to be judged against besides one damage card.",
-       "Budget: base damage x5 + gated effect at its own family rate x 4/5 - 140 size",
-       "grant = 100 exact.",
-       "GATED SUPPORT \u2014 the proof the gate is not an offensive mechanic. A nature",
-       "board turns a weak 16 poke into a 16 + 40-heal sustain turn; any other board",
-       "gets the poke alone."
+       "AFFINITY REFUND RAISED TO 1/2 (2026-08-25), from 4/5. The gated payload grew",
+       "and the base held: at half price the same budget buys twice the effect the",
+       "ungated alternative would, against x1.25 before. Measured cause: at 4/5 this",
+       "family's break-even armor sat at 2-6 against a base enemy armor of 1 that grows",
+       "with depth, so several cards lost to an ungated peer even on their best board.",
+       "The gated part now prices at 2.5 deci/pt, so its magnitude must be a multiple",
+       "of 4 for a whole-PL part (it was a multiple of 5 at 4/5)."
       ],
       "archetypes": [
        "healing"
@@ -9491,7 +9382,7 @@
        },
        {
         "kind": "heal",
-        "power": 40,
+        "power": 64,
         "affinity": true
        }
       ]

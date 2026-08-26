@@ -154,10 +154,10 @@ describe('PRICE structure lock', () => {
       comboPerPointNum: 5,
       comboPerPointDen: 2,
       conditionalBonusDen: 2,
-    // The affinity payoff discount: 4/5 of the strike rate. Derived from
-    // IDENTITY_THRESHOLD - 1 slots dictated out of HERO_BOARD_SLOTS (2/10).
-    affinityPayoffNum: 4,
-    affinityPayoffDen: 5,
+    // The affinity refund: pay HALF. Raised from 4/5 on 2026-08-25 after
+    // measurement — see the derivation in balance.ts.
+    affinityPayoffNum: 1,
+    affinityPayoffDen: 2,
       guardPerPctTurnNum: 1,
       guardPerPctTurnDen: 1,
       exposePerPctTurnNum: 1,

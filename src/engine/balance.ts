@@ -484,14 +484,29 @@ export const PRICE = {
    * so nothing would ever run it and the mechanic would not exist. A discount is
    * what makes the commitment worth making; the only honest question is its size.
    *
-   * THE DERIVATION uses two constants already in the game rather than a new
-   * judgement. Opening the gate costs BOARD FREEDOM: `IDENTITY_THRESHOLD` (3)
-   * cards must share this card's type, of which the card itself is one, so it
-   * dictates the contents of 2 further slots out of the hero's
-   * `HERO_BOARD_SLOTS` (10) — one fifth of the board is spoken for by this
-   * card's demand. So the payload is discounted by exactly that fifth: pay 4/5.
-   * That lands strictly below the ½ conditional discount, as it must, since this
-   * gate never closes once met.
+   * RAISED TO ½ (2026-08-25), from 4/5. The original derivation took the fifth
+   * of the board the gate dictates (`IDENTITY_THRESHOLD - 1` slots out of
+   * `HERO_BOARD_SLOTS`) and argued the refund must land strictly BELOW the ½
+   * conditional discount "since this gate never closes once met". That comparison
+   * was unsound: `conditionalBonusDen`'s ½ pays for UNCERTAINTY (~50% archetype
+   * uptime, a gate that costs nothing to build toward), while this pays for
+   * COMMITMENT (two slots dictated at build time, plus handing the enemy a known
+   * attack vector — see docs/board-type-identity.md's balance stance). Different
+   * costs, so there was never a reason one had to price below the other.
+   *
+   * MEASURED, not argued. At 4/5 the whole reward for committing three board
+   * slots was x1.25 on the gated portion, which came to +2.7% total damage over a
+   * 24-turn fight on the card's BEST board — and three separate findings landed on
+   * the same conclusion: `massed_volley` lost to `marksman_shot` at any armor >= 2,
+   * `wildfire_rite` never beat its ungated twin, and the whole family's break-even
+   * armor sat at 2-6 against a base enemy armor of 1 that grows with depth. At ½
+   * the gated portion is worth x2.00 of what the same budget buys ungated, which
+   * is a reward proportional to giving up a third of the board's flexibility.
+   *
+   * NOT BLOCKED BY THE CONTROL CAP, contrary to an earlier note here: a gated
+   * `stun 2` is refused by `MAX_STUN_PER_CARD` (1), which is checked on raw turns
+   * INDEPENDENTLY of PL, so no refund can ever unlock it. The refund only moves
+   * magnitudes the PL caps govern.
    *
    * MOVABLE, DELIBERATELY. This is the one number here whose derivation is an
    * analogy rather than an identity; if committed boards prove too strong the
@@ -499,8 +514,8 @@ export const PRICE = {
    * falls toward 3. Content re-solves against it automatically because every
    * affinity card is authored to a tier budget.
    */
-  affinityPayoffNum: 4,
-  affinityPayoffDen: 5,
+  affinityPayoffNum: 1,
+  affinityPayoffDen: 2,
 
   /**
    * guard: pct * turns * (guardPerPctTurnNum/Den) deci. Priced at PARITY with
