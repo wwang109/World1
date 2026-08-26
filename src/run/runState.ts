@@ -27,6 +27,7 @@ import {
 } from './encounter';
 import { canAfford, spentPL, type Allocation, type LevelStat } from './leveling';
 import { anchorPoolFor, computeEnemyDepthBands, fillerPoolFor, type DepthBand } from './enemyDepth';
+import { biomeFor, weightIds } from './biome';
 import type { EventTheme } from '../data/events';
 import {
   BOSS_EVERY,
@@ -626,8 +627,31 @@ export function rollEncounter(state: RunState): EncounterPack {
   }
   const bands = node.kind === 'boss' ? BOSS_POOL_BANDS : FIGHT_POOL_BANDS;
   const gateDepth = node.fightNumber!;
-  const anchorPool = anchorPoolFor(pool, bands, gateDepth);
-  const fillerPool = fillerPoolFor(pool, bands, gateDepth);
+  const biome = biomeFor(state.map.seed, node.wave, node.biomeId);
+  // BIOME BINDING (2026-08-26) — a THIRD narrowing, applied after depth gating
+  // with the identical prefer-then-fall-back shape and, like depth gating,
+  // spending NO additional Rng call: it only changes which array each slot's
+  // existing `rng.int(pool.length)` draw indexes into. See `preferIds`.
+  //
+  // A BOSS COLUMN draws its anchor from the band biome's `bosses` SHORTLIST
+  // instead of `BOSS_POOL`, and does so UNGATED by depth — exactly as boss
+  // nodes have always been. Any roster id is legal in a shortlist: `isBoss` is
+  // an authored identity tag, while the boss TITLE (+4 levels / +4 rank / +2
+  // cards, `TITLE_PRESETS.boss`) is applied by POSITION to whatever mob rolls
+  // at the end of a band, so a shortlisted kit is scaled to the ladder by the
+  // same priced economy as every other foe — no new statline (docs/enemy-design.md).
+  // This is the line that makes "I know which boss is coming" true.
+  //
+  // A boss-TITLED *fight* option (`'hard'` on an elite fight — the same title,
+  // see `fightSpecFor`) deliberately keeps the ordinary mob preference: it is a
+  // risk dial inside the band, not the band's boss, and the band banner already
+  // telegraphs the mob list it draws from.
+  const bossShortlist = node.kind === 'boss'
+    ? biome.bosses.filter((id) => enemies[id] !== undefined)
+    : [];
+  const anchorBase = bossShortlist.length > 0 ? bossShortlist : anchorPoolFor(pool, bands, gateDepth);
+  const anchorPool = node.kind === 'boss' ? anchorBase : weightIds(anchorBase, biome.mobs);
+  const fillerPool = weightIds(fillerPoolFor(pool, bands, gateDepth), biome.mobs);
   const entry = fightTableEntryForNode(node);
   const gateOpen = node.kind !== 'boss' && (node.fightNumber ?? 0) >= MIN_PACK_FIGHT_NUMBER;
   let variant: PackVariant = gateOpen ? rollPackVariant(rng) : 'solo';

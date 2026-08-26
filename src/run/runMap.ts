@@ -29,6 +29,7 @@
 import { hashSeed, Rng } from '../engine/rng';
 import { shopCatalog, shopTypeIds } from '../data/shopTypes';
 import type { EventTheme } from '../data/events';
+import { bandIndexOf, biomeForBand } from './biome';
 
 /** `'event'`/`'shop'` are the two stop-column choice kinds; `'fight'` is the
  * mandatory single-node-or-3-option column ending every non-boss wave (see
@@ -85,6 +86,20 @@ export interface RunNode {
   shopId?: string;
   /** Seed for `rollShopStock(shopId, shopSeed, depth)` — shop nodes only. */
   shopSeed?: number;
+  /**
+   * The BAND's biome id (`src/data/biomes.ts`), stamped at generation on EVERY
+   * node of every column in the wave — a DENORMALISED copy of
+   * `biomeForBand(seed, bandIndexOf(wave))`, never an independent roll. Two
+   * nodes in the same band can therefore never disagree; if they could, the
+   * band would stop being a promise and the banner would start lying
+   * (docs/biome-paths-proposal.md §6.8).
+   *
+   * It is display + pool routing ONLY — never a gameplay branch, never a combat
+   * effect. Optional so a map persisted before biomes existed still loads:
+   * `biomeFor` in `run/biome.ts` re-derives the band's biome when the stamp is
+   * missing.
+   */
+  biomeId?: string;
 }
 
 export interface RunMap {
@@ -198,9 +213,20 @@ interface WaveResult {
  *      reshuffling via THIS wave's rng if exhausted),
  *   6. per stop column: its event-node themes, drawn together (bag draw,
  *      reshuffling via THIS wave's rng if exhausted).
+ *
+ * BIOMES (2026-08-26) change NONE of that call order. The wave's band biome is
+ * dealt by `biomeForBand` — a `hashSeed` of its own domain, no `Rng` instance —
+ * and is applied as a PREFERENCE pass in front of the two bag scans below
+ * (`nextShopTheme` / `nextEventThemes`), each falling straight back to today's
+ * first-eligible behaviour when the biome has nothing left in the bag. Zero
+ * extra `Rng` calls, so stop counts, choice counts, shop placement, node ids
+ * and every per-node seed stay byte-identical per seed; only WHICH theme a draw
+ * lands on moves. `hashSeed('wave', seed, wave)` is deliberately NOT mixed with
+ * the biome (proposal §2.3).
  */
 function generateWave(seed: number, wave: number, startDepth: number, bagsIn: MapGenBags): WaveResult {
   const rng = new Rng(hashSeed('wave', seed, wave));
+  const biome = biomeForBand(seed, bandIndexOf(wave));
 
   // 1) Stop-column count (2 or 3).
   const stopCount = MIN_STOPS_PER_WAVE + rng.int(MAX_STOPS_PER_WAVE - MIN_STOPS_PER_WAVE + 1);
@@ -223,10 +249,27 @@ function generateWave(seed: number, wave: number, startDepth: number, bagsIn: Ma
   const nextShopTheme = (waveNum: number): string => {
     for (let attempt = 0; attempt < 2; attempt++) {
       if (shopThemeBag.length === 0) shopThemeBag = sampleDistinct(rng, shopTypeIds, shopTypeIds.length);
-      const idx = shopThemeBag.findIndex((id) => {
+      const eligible = (id: string): boolean => {
         const minWave = shopCatalog[id]?.minWave;
         return minWave === undefined || waveNum >= minWave;
-      });
+      };
+      // BIOME PREFERENCE, then today's behaviour verbatim as the fallback. The
+      // bag itself is untouched (still the same 21-theme no-repeat bag, still
+      // reshuffled by THIS wave's rng) — this only chooses WHICH eligible entry
+      // is spliced out of it, which is what moves a band's stalls toward its own
+      // lean without ever removing a stall from the run.
+      //
+      // Walked in the BIOME's own priority order, not the bag's: `biome.shops[0]`
+      // is the stall that hands the lean over in one visit, so it must win when
+      // it is still in the bag rather than losing to whichever preferred entry
+      // the shuffle happened to put first. Zero extra Rng calls either way —
+      // this is a scan, not a draw.
+      let idx = -1;
+      for (let i = 0; i < biome.shops.length && idx === -1; i++) {
+        const wanted = biome.shops[i]!;
+        idx = shopThemeBag.findIndex((id) => id === wanted && eligible(id));
+      }
+      if (idx === -1) idx = shopThemeBag.findIndex(eligible);
       if (idx !== -1) {
         const [id] = shopThemeBag.splice(idx, 1);
         return id!;
@@ -244,7 +287,13 @@ function generateWave(seed: number, wave: number, startDepth: number, bagsIn: Ma
       if (eventThemeBag.length === 0) {
         eventThemeBag = sampleDistinct(rng, EVENT_THEMES, EVENT_THEMES.length);
       }
-      const idx = eventThemeBag.findIndex((t) => !drawn.includes(t));
+      // Same preference-then-fallback shape as `nextShopTheme`: prefer a theme
+      // this band's biome leans on, otherwise the first not-yet-drawn entry —
+      // so a column's themes stay DISTINCT either way (the fallback predicate is
+      // the original one, unchanged).
+      const undrawn = (t: EventTheme): boolean => !drawn.includes(t);
+      let idx = eventThemeBag.findIndex((t) => undrawn(t) && biome.eventThemes.includes(t));
+      if (idx === -1) idx = eventThemeBag.findIndex(undrawn);
       if (idx === -1) {
         // Every theme left in the current bag was already drawn earlier in
         // THIS column (only possible if a column ever asked for more themes
@@ -276,12 +325,14 @@ function generateWave(seed: number, wave: number, startDepth: number, bagsIn: Ma
       if (slot === shopSlot) {
         nodes.push({
           id, depth, wave, kind: 'shop',
+          biomeId: biome.id,
           shopId: nextShopTheme(wave),
           shopSeed: hashSeed('shop', seed, id),
         });
       } else {
         nodes.push({
           id, depth, wave, kind: 'event',
+          biomeId: biome.id,
           eventSeed: hashSeed('event', seed, id),
           eventTheme: eventThemes[eventThemeCursor++]!,
         });
@@ -303,6 +354,7 @@ function generateWave(seed: number, wave: number, startDepth: number, bagsIn: Ma
     const id = `d${depth}-0`;
     columns.push([{
       id, depth, wave, kind: 'boss',
+      biomeId: biome.id,
       fightNumber: wave,
       encounterSeed: hashSeed('encounter', seed, id),
     }]);
@@ -313,18 +365,21 @@ function generateWave(seed: number, wave: number, startDepth: number, bagsIn: Ma
     columns.push([
       {
         id: idEasy, depth, wave, kind: 'fight',
+        biomeId: biome.id,
         fightNumber: wave,
         fightOption: 'easy',
         encounterSeed: hashSeed('encounter', seed, idEasy),
       },
       {
         id: idStandard, depth, wave, kind: 'fight',
+        biomeId: biome.id,
         fightNumber: wave,
         fightOption: 'standard',
         encounterSeed: hashSeed('encounter', seed, idStandard),
       },
       {
         id: idHard, depth, wave, kind: 'fight',
+        biomeId: biome.id,
         fightNumber: wave,
         fightOption: 'hard',
         encounterSeed: hashSeed('encounter', seed, idHard),
