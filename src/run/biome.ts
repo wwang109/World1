@@ -25,6 +25,7 @@
 // NO COMBAT EFFECT, EVER (proposal §6.5). A biome never buffs, debuffs or
 // modifies a fight. PL is the balance unit; a biome is supply and legibility.
 
+import type { Element, WeaponType } from '../engine/types';
 import { hashSeed } from '../engine/rng';
 import { ELEMENT_BEATS, WEAPON_BEATS } from '../engine/elements';
 import { biomeCatalog, biomeIds, type BiomeDef, type BiomeLean } from '../data/biomes';
@@ -197,6 +198,42 @@ export function counterTypeFor(lean: BiomeLean): string | undefined {
     if (beaten === lean.type) return attacker;
   }
   return undefined;
+}
+
+/**
+ * Every type that gets +50% against a COMBATANT carrying these affinities —
+ * the per-enemy counterpart of `counterTypeFor`, which answers the same
+ * question for a biome's declared LEAN. Both live here so the forecast cannot
+ * derive one of them a second way and disagree with itself.
+ *
+ * WHY A LIST, NOT A TYPE. A combatant may carry an element affinity AND a
+ * weapon affinity at once (`greenwood_sovereign` is nature + bow), and
+ * `elements.ts` resolves the two matchups INDEPENDENTLY — a fire card gets its
+ * +50% off the nature half whatever the weapon half says. So the honest answer
+ * is every counter that applies, not the first one found.
+ *
+ * Sorted, so identical affinities always render an identical string, and
+ * deduped (an element and a weapon counter can never collide today, but the
+ * dedupe keeps the array a set without ever iterating a `Set`).
+ *
+ * EMPTY IS A REAL ANSWER, not a failure: an unaffined kit has no counter, and
+ * neither does one whose only affinity is `bow` — `WEAPON_BEATS` has no
+ * attacker mapping to it (bow beats beast; nothing beats bow).
+ */
+export function counterTypesFor(
+  elementAffinity?: Element,
+  weaponAffinity?: WeaponType,
+): readonly string[] {
+  const out: string[] = [];
+  if (elementAffinity !== undefined) {
+    const c = counterTypeFor({ kind: 'element', type: elementAffinity });
+    if (c !== undefined && !out.includes(c)) out.push(c);
+  }
+  if (weaponAffinity !== undefined) {
+    const c = counterTypeFor({ kind: 'weapon', type: weaponAffinity });
+    if (c !== undefined && !out.includes(c)) out.push(c);
+  }
+  return out.sort();
 }
 
 export type { BiomeDef, BiomeLean };
