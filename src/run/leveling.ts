@@ -284,6 +284,63 @@ export const MONSTER_PROFILES: Record<string, StatProfile> = {
   // heal+shield and enough maxHp to actually win a grind.
   vigil_keeper: profile({ magicResist: 3, maxHp: 3, magicPower: 1 }),
   blight_shambler: profile({ magicPower: 3, magicResist: 2, maxHp: 2 }),
+
+  // --- FULL-DEPTH BAND ROSTER (2026-08-26) ---
+  // Fourteen mobs closing the last empty (band x depth-tier) cells in the biome
+  // catalog -- see the same-named block in `src/data/enemies.ts` for why it is
+  // fourteen and not the five the gap names. EVERY new monster id needs an entry
+  // here: an unlisted id silently falls through to DEFAULT_PROFILE's flat
+  // 2/2/1/1/1/1 spend, which is exactly how an authored identity evaporates as
+  // the run deepens (`tests/run/leveling.test.ts`'s roster guard is the net, and
+  // a previous pass shipped ten ids without profiles). Same reading as the
+  // roster above: DOMINANT weight = the stat the deck actually spends,
+  // secondary = how the kit wants to be fought.
+  //
+  // TIER-0 KITS stay deliberately lopsided -- one dominant stat and a token --
+  // because a two-card board has nothing else to grow into.
+  // `cinder_sprite`'s {{Charge}} only pays if the SECOND cast lands, so it buys
+  // the same token speed `rime_wisp` does; `sworn_recruit` splits attack (Twin
+  // Slash's two hits) against armor (Bastion Stance's shield scales off DEF);
+  // `rust_marauder` is attack-only plus a token maxHp, and attack is also what
+  // Mortal Wound's "+best stat" TRUE line reads for this profile.
+  cinder_sprite: profile({ magicPower: 4, speed: 1 }),
+  sworn_recruit: profile({ attack: 3, armor: 2, maxHp: 1 }),
+  rust_marauder: profile({ attack: 4, maxHp: 1 }),
+  // TIER-1 KITS. `frostbound_zealot` is the band's pure blaster (Deepening
+  // Frost off MATK; Frost Ward is a flat percentage with no stat term, hence the
+  // single magicResist point rather than none). `gorse_hound`'s Battle Howl is a
+  // +50% ATK MULTIPLIER, so attack is not merely its damage stat, it is the stat
+  // its buff compounds -- the profile has to agree with the deck or the howl
+  // stays worthless as the run deepens. `thicket_shaman` weights speed properly
+  // rather than as a residual: Time Crystal's whole payoff is casting SOONER, and
+  // a profile that never bought tempo would fight its own aura.
+  frostbound_zealot: profile({ magicPower: 5, magicResist: 1 }),
+  gorse_hound: profile({ attack: 4, speed: 1, maxHp: 1 }),
+  thicket_shaman: profile({ magicPower: 4, speed: 2 }),
+  // TIER-2 KITS. `greenwood_ranger` carries the roster's heaviest card (Barrage,
+  // weight 26) so speed is what decides how often it gets to fire at all;
+  // `umbral_chanter` is a MATK caster with one flat utility card;
+  // `reliquary_deacon` is the inverse of both -- Sanctuary Overflow's heal AND
+  // its overflow-into-shield, plus Sanctified Vigil's shield, all scale off MDEF,
+  // so magicResist leads and magicPower stays a token for Judgment Light.
+  // `squall_binder` is MATK-dominant like every other lightning caster but takes
+  // only a token speed, unlike `arc_adept`/`tempest_herald`: it does not buy
+  // tempo on the board, it removes yours.
+  greenwood_ranger: profile({ attack: 5, speed: 2 }),
+  umbral_chanter: profile({ magicPower: 4, magicResist: 1, maxHp: 1 }),
+  reliquary_deacon: profile({ magicResist: 4, maxHp: 2, magicPower: 1 }),
+  squall_binder: profile({ magicPower: 5, speed: 1 }),
+  // TIER-3 CHAMPIONS all weight the stat their DEFENSIVE card reads alongside
+  // the one their offensive card reads, because a champion's job is to still be
+  // standing when its own second card comes round again: `hedgerow_captain`
+  // (Crippling Gore off ATK, Bulwark of the Line off DEF), `moorfang_alpha`
+  // (Pack Instinct off ATK, Vital Surge's 48 heal off DEF), `rotwood_ancient`
+  // and `furnace_elemental` (affinity damage off MATK, Purge the Rot's heal and
+  // Emberguard's attuned shield off MDEF).
+  hedgerow_captain: profile({ attack: 4, armor: 3, maxHp: 2 }),
+  moorfang_alpha: profile({ attack: 4, armor: 2, maxHp: 2 }),
+  rotwood_ancient: profile({ magicPower: 4, magicResist: 2, maxHp: 2 }),
+  furnace_elemental: profile({ magicPower: 4, magicResist: 2, maxHp: 1 }),
 };
 
 /** Profile lookup for an enemy id, falling back to DEFAULT_PROFILE. */

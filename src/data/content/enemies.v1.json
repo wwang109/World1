@@ -98,6 +98,62 @@
   "stay strictly inside the fight pool's existing 12-33 range, so the bosses",
   "(46-74) still sit entirely above it -- `tests/run/bossRoster.test.ts`",
   "asserts exactly that.",
+  "WHAT WAS MISSING, and it was the SAME defect as the block above, one axis",
+  "over. `d695eaa` gave all eleven card types a wave band and staffed each with",
+  "on-type mobs, then recorded what it had NOT closed: four of the eleven bands",
+  "fielded no tier-3 mob (fire, nature, beast, lance), and fire had no tier-0",
+  "one either, so those bands stopped reading like themselves at depth -- and",
+  "the Emberwaste read generic from its very first fight.",
+  "A BAND THAT REVERTS TO GENERIC MOBS HAS STOPPED TELEGRAPHING, which is the",
+  "only thing a biome is for. `weightIds` intersects a band's `mobs` with the",
+  "DEPTH-GATED fight pool and, finding nothing, hands back the untouched pool",
+  "(`src/run/biome.ts`) -- graceful, honest, and completely mute. From fight 17",
+  "the Pikewold's monsters were whatever the roster happened to offer.",
+  "MEASURED FIRST, AUTHORED SECOND -- and the measurement is why this is",
+  "FOURTEEN mobs rather than the five the gap names. `computeEnemyDepthBands`",
+  "splits the fight pool into four goldReward-RANKED tiers, so tier 3 holds",
+  "roughly a QUARTER of the pool: 9 of 34 seats before this pass, already",
+  "filled by 8 incumbents that seven bands each depend on for their own deep",
+  "end. Adding four tier-3 mobs to a 39-strong pool would have pushed three",
+  "incumbents down a tier and taken the Arrowfell's `deadeye_stalker` and the",
+  "Stormreach's `tempest_herald` with them -- closing four holes by opening",
+  "two. Tier 3 only grows when the WHOLE pool grows, so the honest increment",
+  "is the one that fills every remaining hole at once:",
+  "  tier 0  fire, axe, sword          gold 14, 16, 15",
+  "  tier 1  frost, beast, nature      gold 20, 21, 22",
+  "  tier 2  bow, dark, holy, lightning gold 25, 26, 27, 29",
+  "  tier 3  fire, nature, beast, lance gold 33, 31, 32, 30",
+  "34 -> 48 fight-pool ids makes every tier exactly 12 seats, and the fourteen",
+  "gold values above are chosen so NO incumbent changes tier: 11 ids sit at or",
+  "below gold 17 (`cleric` at 18 stays rank 11, the last tier-0 seat), 24 at or",
+  "below 22, 36 at or below 29. Every band is now 4 for 4, the catalog's first",
+  "full coverage, and `tests/run/biomeMobs.test.ts` measures it end to end.",
+  "SAME SHAPE AS THE BLOCK ABOVE, because it is the same kind of content: 2-3",
+  "real catalog cards, Bronze floor, no gem, no tier override, the universal",
+  "Level-1 statline, `boardSize` an EXACT fit of the pieces' sizes, and EVERY",
+  "CARD OF THE MOB'S OWN TYPE so the counter line the forecast prints is never",
+  "contradicted by the board. Values 14-33 stay strictly inside the fight",
+  "pool's existing 12-33 range, so the bosses (46-74) still sit entirely above",
+  "it. No `isBoss` here: `tests/run/bossRoster.test.ts` pins exactly one boss",
+  "per card type and all eleven are already authored.",
+  "TWENTY CATALOG CARDS COME OFF THE SHELF -- these fourteen boards are the",
+  "first enemy use of `bastion_stance`, `battle_howl`, `blooded_fang`,",
+  "`bulwark_of_the_line`, `crippling_gore`, `emberguard`, `kindred_flame`,",
+  "`leaden_bite`, `mortal_wound`, `pack_instinct`, `purge_the_rot`,",
+  "`rustbind_hex`, `sanctified_vigil`, `sanctuary_overflow`, `scorching_brand`,",
+  "`time_crystal`, `twin_slash`, `umbral_ward`, `verdant_rebuke` and",
+  "`vital_surge`. `time_crystal` is the FIFTH of the catalog's six aura cards to",
+  "reach the roster, leaving only `mending_aura` (which wants two adjacent",
+  "Healing neighbours, i.e. a board with no offense at all). Where a card is",
+  "shared with an existing kit the per-monster note says which and why.",
+  "THREE RIDERS STILL HAVE NO ON-TYPE HOME, checked rather than assumed:",
+  "`thermal_shock` is a FROST card that chains off the caster's own previous",
+  "FIRE cast (`caster.lastCastType`, interpreter.ts) -- a fire board would",
+  "prime it but contradict its own affinity, and a frost board keeps the",
+  "affinity and ships a rider that can never fire. `control_opportunist` wants",
+  "{{Stun}} already on the target and no bow card stuns. `debuff_crusher` wants",
+  "a STAT debuff on the target and no lightning card applies one (Burden, Slow",
+  "and Disrupt are not `debuffStat`). All three stay unfielded on purpose.",
   "WHAT WAS MISSING. \"Boss\" in this game is a TITLE assigned by POSITION in",
   "the wave (`fightSpecFor` in src/run/runState.ts: pos <= 2 normal, <= 4",
   "elite, else boss), and `TITLE_PRESETS.boss` (+4 levels, +4 rank, +2 extra",
@@ -651,6 +707,59 @@
    ]
   },
   {
+   "id": "cinder_sprite",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Cinder Sprite",
+      "notes": [
+       "CINDER SPRITE -- FIRE, tier 0, and the reason the Emberwaste now reads like",
+       "itself from fight 1. Fire had NO tier-0 kit at all, so the band's opening",
+       "waves fell back to the generic pool while the banner said \"fire shelves,",
+       "fire mobs\". Two cards, both of them a sequence: Kindling Rite deals 12",
+       "(+MATK) and hangs a {{Charge}} Fire, then Scorching Brand's 8 (+MATK)",
+       "arrives as 24 with {{Burn}} 3 and -15% DEF behind it. So the mob's whole",
+       "threat is ORDER, not power -- interrupting it between the two casts is",
+       "worth more than any mitigation. The roster's first non-boss kit to carry a",
+       "{{Charge}}; `cinder_monarch` and `galewright` had the keyword to themselves.",
+       "Distinct from `ember_imp` (burn attrition, no payoff card) and",
+       "`pyre_acolyte` (burn stacks -> Burn Detonator). Shares Kindling Rite with",
+       "`cinder_monarch` on purpose -- a sprite is what that country's fires leave",
+       "behind -- but none of the Monarch's size-2/3 cards. goldReward 14 seats it",
+       "in tier 0 beside `pike_conscript`. Counter-play: FROST (+50%, frost beats",
+       "fire), or simply kill it inside one cast -- 20 flat power is the second",
+       "thinnest offense in tier 0 and the Charge is wasted if it never spends."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "fire",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 2,
+      "pieces": [
+       {
+        "skillId": "kindling_rite",
+        "slot": 0
+       },
+       {
+        "skillId": "scorching_brand",
+        "slot": 1
+       }
+      ],
+      "goldReward": 14,
+      "xpReward": 9
+     }
+    }
+   ]
+  },
+  {
    "id": "cleric",
    "versions": [
     {
@@ -914,6 +1023,111 @@
    ]
   },
   {
+   "id": "frostbound_zealot",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Frostbound Zealot",
+      "notes": [
+       "FROSTBOUND ZEALOT -- FROST, tier 1. The Frostmarch's three kits sat at",
+       "tiers 0/2/3, so fights 5-8 of that band belonged to the generic pool. And",
+       "the band needed something OTHER than another tempo thief: Rime Wisp shaves",
+       "SPD, Hoarfrost Adept halves MATK, Glacial Warden takes the whole rotation.",
+       "The Zealot just kills you. Deepening Frost is 36 (+MATK) and, on this mob's",
+       "own frost affinity, its {{Affinity}} half opens for 24 MORE on the same cast",
+       "-- 60 off one card, the largest single-cast number in tier 1 -- with Frost",
+       "Ward's -50% incoming magical to buy the turn it takes to recharge. The",
+       "lesson is that the band's read is not \"it slows you\", it is \"frost decides",
+       "the pace\", and one of the ways to decide the pace is to end it. Shares",
+       "Deepening Frost with `rime_tyrant`, the same way `glacial_warden` shares",
+       "Deep Freeze -- the band's signature line, not one of the Tyrant's gated",
+       "cards. goldReward 20 seats it in tier 1 beside `seraph`. Counter-play:",
+       "LIGHTNING (+50%), or PHYSICAL damage -- Frost Ward answers magic only, so a",
+       "weapon build fights a naked caster."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "frost",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 3,
+      "pieces": [
+       {
+        "skillId": "deepening_frost",
+        "slot": 0
+       },
+       {
+        "skillId": "frost_ward",
+        "slot": 2
+       }
+      ],
+      "goldReward": 20,
+      "xpReward": 13
+     }
+    }
+   ]
+  },
+  {
+   "id": "furnace_elemental",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Furnace Elemental",
+      "notes": [
+       "FURNACE ELEMENTAL -- FIRE, tier 3, and the Emberwaste's CHAMPION. Fire was",
+       "the catalog's thinnest lean at two mobs (tiers 1-2); with the Cinder Sprite",
+       "above and this, the band finally spans all four. Kindred Flame is 28 (+MATK)",
+       "with its {{Affinity}} Fire half open on this mob's own affinity for 40 more,",
+       "and Emberguard is 12 (+MATK) plus an {{Attuned}} Fire shield 24 (+MDEF) --",
+       "the roster's first UNGATED attuned shield and its first ELEMENT-attuned one",
+       "(`oathplate`, on `sworn_colossus`, is sword and affinity-gated). Attuned",
+       "plating absorbs 2 damage per point from its own type, so a FIRE build's own",
+       "hits are drained at double rate: the deep Emberwaste cannot be beaten with",
+       "fire, which is the same lesson the Hedgerow Captain teaches with lance and",
+       "the sharpest possible reading of a band that has spent five waves saying",
+       "\"fire\". Distinct from `ember_imp` (burn attrition), `pyre_acolyte` (burn",
+       "stacks into a detonation) and `cinder_sprite` (Charge sequencing): it is the",
+       "only fire kit with a defensive card at all. goldReward 33 seats it in tier 3",
+       "beside `blood_duelist` and `barrow_wight`. Counter-play: FROST (+50%, frost",
+       "beats fire) -- and specifically NOT fire, which the attuned shield eats."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "fire",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 4,
+      "pieces": [
+       {
+        "skillId": "kindred_flame",
+        "slot": 0
+       },
+       {
+        "skillId": "emberguard",
+        "slot": 2
+       }
+      ],
+      "goldReward": 33,
+      "xpReward": 22
+     }
+    }
+   ]
+  },
+  {
    "id": "galewright",
    "versions": [
     {
@@ -1061,6 +1275,63 @@
    ]
   },
   {
+   "id": "gorse_hound",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Gorse Hound",
+      "notes": [
+       "GORSE HOUND -- BEAST, tier 1. The Howlmoor jumped from `giant_rat` (tier 0)",
+       "straight to two tier-2 kits. Battle Howl is the roster's FIRST self-ATK buff",
+       "-- every other `buffStat` card on the roster buys SPEED (`thunder_step`,",
+       "`storm_surge`, `storm_guard`) -- and +50% ATK for 2 turns is a MULTIPLIER,",
+       "so it is worth almost nothing at the floor statline and a great deal by the",
+       "time the moor is a deep band with levels and a title on it. That is the",
+       "honest read of this kit: it grows with the ladder instead of arriving",
+       "finished. Blooded Fang's 16 (+ATK) opens its {{Affinity}} Beast half on this",
+       "mob's own affinity for {{Bleed}} 4, and Leaden Bite's 16 (+ATK) hangs",
+       "{{Burden}} +8 weight on the card you were about to play -- so the hound",
+       "buffs, bites twice, and makes your answer cost more. Distinct from",
+       "`giant_rat` (chip), `thorn_beast` (thorns wall) and `venom_stalker` (poison",
+       "exploit loop): it is the only beast kit that improves its own numbers.",
+       "goldReward 21 seats it in tier 1 beside `cordon_archer`. Counter-play: BOW",
+       "(+50%, bow beats beast), or kill it during the howl -- the buff turn deals",
+       "no damage at Bronze, so it hands you a free tempo swing."
+      ],
+      "baseDepth": 1,
+      "weaponAffinity": "beast",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 3,
+      "pieces": [
+       {
+        "skillId": "battle_howl",
+        "slot": 0
+       },
+       {
+        "skillId": "blooded_fang",
+        "slot": 1
+       },
+       {
+        "skillId": "leaden_bite",
+        "slot": 2
+       }
+      ],
+      "goldReward": 21,
+      "xpReward": 14
+     }
+    }
+   ]
+  },
+  {
    "id": "grave_acolyte",
    "versions": [
     {
@@ -1104,6 +1375,61 @@
       ],
       "goldReward": 16,
       "xpReward": 11
+     }
+    }
+   ]
+  },
+  {
+   "id": "greenwood_ranger",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Greenwood Ranger",
+      "notes": [
+       "GREENWOOD RANGER -- BOW, tier 2. The Arrowfell's three archers sat at tiers",
+       "0/1/3, so its middle depth was generic. Barrage is the roster's HEAVIEST",
+       "multi-hit -- 24 (+ATK) twice at weight 26 -- and that pairing is the whole",
+       "kit: two hits mean {{Thorns}} bills twice and an {{Attuned}} shield drains",
+       "twice, while the weight means the Ranger acts rarely, so every one of its",
+       "turns has to count. Concussive Shot is how it makes yours not count:",
+       "{{Disrupt}} 6 burns banked readiness, and a hero saving up for a size-2 or",
+       "size-3 card loses the save outright. Distinct from `hunter` (chip volley",
+       "plus Expose), `cordon_archer` (ward-and-shield behind a 48 burst) and",
+       "`deadeye_stalker` (Spotter's Mark aura into a marked shot). NO NEW CARD",
+       "HERE, and that is stated rather than papered over: bow's one unfielded card",
+       "is `control_opportunist`, whose bonus reads {{Stun}} on the target, and no",
+       "bow card in the catalog stuns -- fielding it would ship a rider that can",
+       "never fire. goldReward 25 seats it in tier 2 beside `venom_stalker`.",
+       "Counter-play: NOTHING on the weapon triangle counters bow (which is the",
+       "Arrowfell's whole telegraph), so this is a fight you win on ARMOR -- flat",
+       "DEF is billed against each of Barrage's two hits separately -- or by",
+       "spending readiness the moment you bank it."
+      ],
+      "baseDepth": 1,
+      "weaponAffinity": "bow",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 3,
+      "pieces": [
+       {
+        "skillId": "barrage",
+        "slot": 0
+       },
+       {
+        "skillId": "concussive_shot",
+        "slot": 2
+       }
+      ],
+      "goldReward": 25,
+      "xpReward": 17
      }
     }
    ]
@@ -1160,6 +1486,62 @@
       ],
       "goldReward": 50,
       "xpReward": 33
+     }
+    }
+   ]
+  },
+  {
+   "id": "hedgerow_captain",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Hedgerow Captain",
+      "notes": [
+       "HEDGEROW CAPTAIN -- LANCE, tier 3, and the Pikewold's CHAMPION (the second",
+       "face of that band's boss shortlist, the pattern every band follows). Lance",
+       "had no tier-3 kit, so from fight 17 the drill ground was staffed by whoever",
+       "the depth pool offered. TWO first fieldings, both of them the deep end of",
+       "their family. Crippling Gore is the catalog's only card that shreds -40%",
+       "enemy DEF, lays {{Bleed}} 10 AND hits 60 (+ATK) in one cast -- and it is",
+       "SIZE 3, so it busies the Captain two turns after it fires, which is the",
+       "honest price of that line and the window the fight is actually won in.",
+       "Bulwark of the Line is an {{Attuned}} Lance shield 24 (+DEF) over a plain 12",
+       "(+DEF) one: a lance hero's own attacks are drained at 2 points per damage,",
+       "so the MIRROR is the worst way to fight it. That is the band's telegraph",
+       "made mechanical -- the Pikewold tells you it is lance, and its champion",
+       "punishes you for answering in kind. Distinct from `pike_conscript` (braced",
+       "thrusts), `rogue` (reach skirmisher) and `phalanx_veteran` (thorns-and-heal",
+       "wall): this is the only lance kit that opens the guard instead of holding",
+       "one. goldReward 30 seats it in tier 3 beside `bandit_duelist`.",
+       "Counter-play: AXE (+50%, axe beats lance), MAGIC (both halves of the shield",
+       "are physical and the attuned half only knows lance), or racing the size-3",
+       "cast -- while Crippling Gore recharges the Captain is doing nothing at all."
+      ],
+      "baseDepth": 1,
+      "weaponAffinity": "lance",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 5,
+      "pieces": [
+       {
+        "skillId": "crippling_gore",
+        "slot": 0
+       },
+       {
+        "skillId": "bulwark_of_the_line",
+        "slot": 3
+       }
+      ],
+      "goldReward": 30,
+      "xpReward": 20
      }
     }
    ]
@@ -1423,6 +1805,57 @@
    ]
   },
   {
+   "id": "moorfang_alpha",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Moorfang Alpha",
+      "notes": [
+       "MOORFANG ALPHA -- BEAST, tier 3, and the Howlmoor's CHAMPION. Beast's",
+       "deepest kits were `thorn_beast`/`venom_stalker` at tier 2. Pack Instinct is",
+       "28 (+ATK) with its {{Affinity}} Beast half open on this mob's own affinity",
+       "for 40 more -- 68 off one cast, the hardest single line any beast kit has --",
+       "and Vital Surge is a flat 48 (+DEF) heal, the roster's LARGEST physical heal",
+       "by a factor of nearly three (`sanctum_thorn` 18, `bramblemend` 10) and the",
+       "first heal of any kind on a beast board. That combination is the fight: the",
+       "Alpha out-damages you on its offensive turn and undoes your grind on its",
+       "defensive one, so a chip build simply never gets ahead. Distinct from",
+       "`wolf_king` (Leeching Fang's 45%-of-damage lifesteal, which needs to LAND to",
+       "sustain) -- Vital Surge heals whether or not the Alpha hit anything, which",
+       "is a strictly harder problem. goldReward 32 seats it in tier 3 beside",
+       "`warded_sentinel`. Counter-play: BOW (+50%, bow beats beast), or BURST over",
+       "chip -- you have to out-damage one Vital Surge, not trade with it."
+      ],
+      "baseDepth": 1,
+      "weaponAffinity": "beast",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 4,
+      "pieces": [
+       {
+        "skillId": "pack_instinct",
+        "slot": 0
+       },
+       {
+        "skillId": "vital_surge",
+        "slot": 2
+       }
+      ],
+      "goldReward": 32,
+      "xpReward": 21
+     }
+    }
+   ]
+  },
+  {
    "id": "necromancer",
    "versions": [
     {
@@ -1633,6 +2066,63 @@
    ]
   },
   {
+   "id": "reliquary_deacon",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Reliquary Deacon",
+      "notes": [
+       "RELIQUARY DEACON -- HOLY, tier 2, and the roster's answer to \"what happens",
+       "when a heal is wasted\". The Hallowfield's kits sat at tiers 0/1/3.",
+       "Sanctuary Overflow is its first fielding and the only card in the catalog",
+       "whose `overhealShield` arm turns up to 12 of a heal's OVERKILL into Holy",
+       "{{Shield}} instead of letting it evaporate -- so chipping the Deacon is",
+       "strictly worse than bursting it: at full HP its heal is not wasted, it is",
+       "banked as plating. Sanctified Vigil (also a first) is 10 (+MDEF) magical",
+       "shield with an {{Affinity}} Holy half that opens on this mob's own affinity",
+       "for {{Ward}} 2, refusing your next two afflictions. Judgment Light's 12",
+       "(+MATK) and -20% enemy MDEF is the one offensive line, and it exists so the",
+       "board is not purely defensive. Distinct from `cleric` (cleanse-and-heal),",
+       "`seraph` (Ward of Silence negate plus Mending Light) and `vigil_keeper`",
+       "(Ward 2 plus a TRUE Purging Strike). goldReward 27 seats it in tier 2 beside",
+       "`thorn_beast`. Counter-play: DARK (+50%, dark beats holy), or BURST -- one",
+       "big hit beats three small ones against a unit that converts its own excess",
+       "healing into shield, and two throwaway afflictions strip the Ward first."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "holy",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 3,
+      "pieces": [
+       {
+        "skillId": "judgment_light",
+        "slot": 0
+       },
+       {
+        "skillId": "sanctuary_overflow",
+        "slot": 1
+       },
+       {
+        "skillId": "sanctified_vigil",
+        "slot": 2
+       }
+      ],
+      "goldReward": 27,
+      "xpReward": 18
+     }
+    }
+   ]
+  },
+  {
    "id": "rime_tyrant",
    "versions": [
     {
@@ -1801,6 +2291,61 @@
    ]
   },
   {
+   "id": "rotwood_ancient",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Rotwood Ancient",
+      "notes": [
+       "ROTWOOD ANCIENT -- NATURE, tier 3. Nature's deepest kit was `blight_shambler`",
+       "at tier 2, so the Thornwild also read generic from fight 17. Purge the Rot",
+       "is its first fielding and the point of the whole kit: it removes up to FOUR",
+       "of the Ancient's own ailments and heals 28 (+MDEF), the biggest UNGATED",
+       "cleanse on the roster (`graveside_rite`'s four are behind an {{Affinity}}",
+       "Dark gate, `warding_prayer` and `penitent_mending` clear two). So an",
+       "affliction build -- poison, burn, bleed, the thing the Thornwild's own",
+       "shallower mobs teach you to bring -- gets answered here, once per rotation,",
+       "with a heal on top. Grove Lash then lands 34 (+MATK) with its {{Affinity}}",
+       "Nature half open on this mob's own affinity for 28 more: 62 in a single",
+       "cast. The Thornwild therefore ends by inverting its own lesson, which is",
+       "what a champion is for. Distinct from `blight_shambler` (applies poison and",
+       "exploits it) and `toxic_druid` (three poison hybrids). Shares Grove Lash",
+       "with `bramble_matriarch`, whose identity is Grove Communion's 64-HP gated",
+       "heal, not the cleanse. goldReward 31 seats it in tier 3 beside",
+       "`deadeye_stalker`. Counter-play: FIRE (+50%, fire beats nature), DIRECT",
+       "damage over afflictions (there is nothing for Purge the Rot to remove), or",
+       "out-pacing it -- one cleanse per cast cannot keep up with two afflictions."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "nature",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 4,
+      "pieces": [
+       {
+        "skillId": "grove_lash",
+        "slot": 0
+       },
+       {
+        "skillId": "purge_the_rot",
+        "slot": 2
+       }
+      ],
+      "goldReward": 31,
+      "xpReward": 21
+     }
+    }
+   ]
+  },
+  {
    "id": "ruin_warlord",
    "versions": [
     {
@@ -1847,6 +2392,58 @@
       ],
       "goldReward": 56,
       "xpReward": 37
+     }
+    }
+   ]
+  },
+  {
+   "id": "rust_marauder",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Rust Marauder",
+      "notes": [
+       "RUST MARAUDER -- AXE, tier 0. The Ironmoot was the catalog's best-staffed",
+       "band and still opened on nothing: its lightest member, `bleed_reaver`, is",
+       "tier 1. Rustbind Hex hits 14 (+ATK) and, because this mob's own",
+       "`weaponAffinity` IS axe, its {{Affinity}} half opens for -30% enemy ATK (2",
+       "turns) -- the gate is the mechanic, not flavour (`affinityOpen` reads the",
+       "CASTER's affinity, interpreter.ts). Mortal Wound then deals 5 (+best stat)",
+       "TRUE damage with {{Bleed}} 5 on it: the roster's first TRUE-damage card on a",
+       "WEAPON kit (`purging_strike`, `soul_rend` and `annihilation_strike` are all",
+       "element cards on casters), so DEF answers neither half of this board -- the",
+       "hex takes your attack away and the wound ignores your armour. Distinct from",
+       "`bleed_reaver` (Armor Break + two bleeding cleaves) in that it never once",
+       "reads your DEF. goldReward 16 seats it in tier 0 beside `grave_acolyte`.",
+       "Counter-play: SWORD (+50%, sword beats axe), MAGIC damage (the ATK debuff",
+       "touches physical output only), or a shield -- {{Bleed}} is blocked outright",
+       "while any shield stands."
+      ],
+      "baseDepth": 1,
+      "weaponAffinity": "axe",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 2,
+      "pieces": [
+       {
+        "skillId": "rustbind_hex",
+        "slot": 0
+       },
+       {
+        "skillId": "mortal_wound",
+        "slot": 1
+       }
+      ],
+      "goldReward": 16,
+      "xpReward": 11
      }
     }
    ]
@@ -1941,6 +2538,61 @@
        },
        {
         "skillId": "aegis_charge",
+        "slot": 2
+       }
+      ],
+      "goldReward": 29,
+      "xpReward": 19
+     }
+    }
+   ]
+  },
+  {
+   "id": "squall_binder",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Squall Binder",
+      "notes": [
+       "SQUALL BINDER -- LIGHTNING, tier 2. The Stormreach's kits sat at tiers",
+       "0/1/3, and its two ends teach the same lesson from opposite directions:",
+       "`arc_adept` hurries itself, `tempest_herald` buys speed outright. The",
+       "Binder does neither -- it takes what you have already banked. Gathering",
+       "Storm is 28 (+MATK) with its {{Affinity}} Lightning half open on this mob's",
+       "own affinity for 40 MORE, 68 off one cast, and Overcharge's 16 (+MATK)",
+       "carries {{Disrupt}} 4 to strip banked readiness. So the Stormreach's middle",
+       "depth is pure burst plus a tax on saving up, which is the exact opposite",
+       "failure mode from its tier-0 and tier-3 kits. Shares Gathering Storm with",
+       "`galewright` (the band's own headliner) and Overcharge with it too -- the",
+       "Binder is what that storm leaves behind, and it carries none of the",
+       "Galewright's Thunderhead {{Charge}}. NO NEW CARD, and the reason is checked:",
+       "lightning's one unfielded card, `debuff_crusher`, pays +4 only if the target",
+       "already carries a STAT debuff, and no lightning card applies one -- Burden,",
+       "Slow and Disrupt are weight and readiness effects, not `debuffStat`.",
+       "goldReward 29 seats it in tier 2 beside `shield_warden`. Counter-play:",
+       "NATURE (+50%, nature beats lightning), or spend readiness as you earn it --",
+       "Disrupt can only take what is still banked."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "lightning",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 3,
+      "pieces": [
+       {
+        "skillId": "gathering_storm",
+        "slot": 0
+       },
+       {
+        "skillId": "overcharge",
         "slot": 2
        }
       ],
@@ -2067,6 +2719,57 @@
    ]
   },
   {
+   "id": "sworn_recruit",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Sworn Recruit",
+      "notes": [
+       "SWORN RECRUIT -- SWORD, tier 0. The Swornhold's garrison had no recruits:",
+       "its four mobs started at `knight` in tier 1 and ran up to two tier-3 walls,",
+       "so the band's first waves were somebody else's monsters. Twin Slash is the",
+       "roster's FIRST sword card that hits twice unconditionally (6 (+ATK), then 6",
+       "again -- `barrage` and `rapid_volley` are both bow, and `sworn_edge`'s",
+       "second hit is affinity-gated), which makes this the cheapest board in the",
+       "game that teaches the multi-hit lesson: {{Thorns}} bills it twice, an",
+       "{{Attuned}} shield drains twice, and a per-hit rider pays out twice.",
+       "Bastion Stance is a plain 20 (+DEF) shield behind it -- no ward, no parry,",
+       "no banner, which is exactly what separates a recruit from `knight`'s",
+       "block-buff-parry and `shield_warden`'s shield-into-burst. goldReward 15",
+       "seats it in tier 0 beside `arc_adept`. Counter-play: LANCE (+50%, lance",
+       "beats sword), or ARMOR -- two 6-power hits are the board most punished by",
+       "flat DEF, since mitigation is billed per hit."
+      ],
+      "baseDepth": 1,
+      "weaponAffinity": "sword",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 2,
+      "pieces": [
+       {
+        "skillId": "twin_slash",
+        "slot": 0
+       },
+       {
+        "skillId": "bastion_stance",
+        "slot": 1
+       }
+      ],
+      "goldReward": 15,
+      "xpReward": 10
+     }
+    }
+   ]
+  },
+  {
    "id": "tempest_herald",
    "versions": [
     {
@@ -2115,6 +2818,65 @@
       ],
       "goldReward": 30,
       "xpReward": 20
+     }
+    }
+   ]
+  },
+  {
+   "id": "thicket_shaman",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Thicket Shaman",
+      "notes": [
+       "THICKET SHAMAN -- NATURE, tier 1. The Thornwild's list was 2/0/1/0 across",
+       "the tiers; this is its middle. It is also the FIFTH of the catalog's six",
+       "aura cards to reach the roster: Time Crystal sits at slot 1 with a magical",
+       "card on either side, and `resolveAuras` gives every ADJACENT magical card",
+       "-5 weight (combat/auras.ts, footprint-adjacency), so Verdant Rebuke and",
+       "Thorn Bite both cast SOONER than their printed weight -- the first aura on",
+       "the roster that buys tempo for a specific PROPERTY rather than for whatever",
+       "happens to be beside it (`swift_march`, on `barrow_wight`, is unfiltered).",
+       "The two neighbours are what the tempo is for: Verdant Rebuke is {{Ward}} 1",
+       "plus 10 (+MATK) -- the roster's first nature ward, eating your next",
+       "affliction before it lands -- and Thorn Bite lays {{Poison}} 5, which",
+       "bypasses shields. So the Shaman refuses YOUR debuff while stacking its own,",
+       "faster than the weight column says. Distinct from `toxic_druid` (three",
+       "poison hybrids, no ward, no aura) and `blight_shambler` (poison as a payoff",
+       "condition). Shares Thorn Bite with `toxic_druid`. goldReward 22 seats it in",
+       "tier 1 beside `knight`. Counter-play: FIRE (+50%, fire beats nature), or",
+       "spend the Ward cheaply -- it is one charge, so any throwaway affliction",
+       "clears the way for the real one."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "nature",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 3,
+      "pieces": [
+       {
+        "skillId": "verdant_rebuke",
+        "slot": 0
+       },
+       {
+        "skillId": "time_crystal",
+        "slot": 1
+       },
+       {
+        "skillId": "thorn_bite",
+        "slot": 2
+       }
+      ],
+      "goldReward": 22,
+      "xpReward": 15
      }
     }
    ]
@@ -2287,6 +3049,58 @@
       ],
       "goldReward": 16,
       "xpReward": 11
+     }
+    }
+   ]
+  },
+  {
+   "id": "umbral_chanter",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Umbral Chanter",
+      "notes": [
+       "UMBRAL CHANTER -- DARK, tier 2. The Duskbarrow's three kits sat at tiers",
+       "0/1/3. Umbral Ward is its first fielding anywhere and it is a strange,",
+       "useful card: {{Ward}} 1 refuses your next affliction outright AND -25%",
+       "enemy DEF for 2 turns, so one cast makes the Chanter harder to afflict and",
+       "you softer to hit. Umbral Choir then lands 36 (+MATK) with its",
+       "{{Affinity}} Dark half open (this mob IS dark) for 24 more -- 60 into",
+       "armour that is already 25% thinner. The whole board is therefore a",
+       "two-step: soften, then sing. Distinct from `grave_acolyte` (Siphon Life",
+       "sustain), `necromancer` (Dulling Hex / Hex of Frailty curses) and",
+       "`barrow_wight` (TRUE Soul Rend under a Swift March aura). Shares Umbral",
+       "Choir with `hollow_crown`, the dark boss whose country this is -- the same",
+       "band-signature-line precedent `glacial_warden` set. goldReward 26 seats it",
+       "in tier 2 beside `pyre_acolyte`. Counter-play: HOLY (+50%, holy beats",
+       "dark), or take the Ward off with a cheap affliction before committing your",
+       "real one; the DEF debuff is a stat effect, so nothing wards YOU from it."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "dark",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 3,
+      "pieces": [
+       {
+        "skillId": "umbral_ward",
+        "slot": 0
+       },
+       {
+        "skillId": "umbral_choir",
+        "slot": 1
+       }
+      ],
+      "goldReward": 26,
+      "xpReward": 17
      }
     }
    ]

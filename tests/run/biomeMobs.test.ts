@@ -4,7 +4,10 @@ import {
 } from '../../src/run/runState';
 import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
 import { ensureWavesThrough, totalColumns, type RunNode } from '../../src/run/runMap';
-import { anchorPoolFor, computeEnemyDepthBands, inDepthBand } from '../../src/run/enemyDepth';
+import {
+  anchorPoolFor, computeEnemyDepthBands, inDepthBand,
+  ENEMY_DEPTH_BAND_STEP, ENEMY_DEPTH_TIER_COUNT,
+} from '../../src/run/enemyDepth';
 import { biomeFor, bandIndexOf, biomeForBand, BIOME_MOB_WEIGHT } from '../../src/run/biome';
 import { biomeCatalog, biomeIds } from '../../src/data/biomes';
 import { enemies } from '../../src/data/enemies';
@@ -89,6 +92,66 @@ describe('biome mobs: PREFERRED, never siloed', () => {
   it('BIOME_MOB_WEIGHT is the only dial, and it is a weighting — 0 would restore today\'s uniform draw', () => {
     expect(BIOME_MOB_WEIGHT).toBeGreaterThan(0);
     expect(Number.isInteger(BIOME_MOB_WEIGHT)).toBe(true);
+  });
+
+  /**
+   * THE DEPTH HALF OF THE MOB PROMISE, and the invariant `d695eaa` recorded as
+   * found-and-not-fixed.
+   *
+   * `weightIds` intersects a band's `mobs` with the DEPTH-GATED fight pool and,
+   * when that intersection is EMPTY, hands back the untouched pool
+   * (`src/run/biome.ts`). That is deliberate and graceful -- but it is also
+   * SILENT: the banner keeps naming the band's monsters while the fights field
+   * whatever the roster happens to offer. Four bands (fire, nature, beast,
+   * lance) had no tier-3 on-type mob and so degraded from fight 17 on, and fire
+   * had no tier-0 one either, so the Emberwaste degraded at fights 1-4 as well.
+   *
+   * Asserted through `computeEnemyDepthBands` and `anchorPoolFor` -- the same
+   * production functions `rollEncounter` calls -- so it cannot pass by agreeing
+   * with a hand-written tier table.
+   */
+  it('every band spans every depth tier: no (band x tier) cell is empty', () => {
+    const tierOf = (id: string): number => {
+      const band = FIGHT_BANDS[id];
+      expect(band, `${id} has no depth band`).toBeDefined();
+      return (band!.min - 1) / ENEMY_DEPTH_BAND_STEP;
+    };
+    const empty: string[] = [];
+    const table: string[] = [];
+    for (const id of biomeIds) {
+      const biome = biomeCatalog[id]!;
+      const counts: number[] = [];
+      for (let tier = 0; tier < ENEMY_DEPTH_TIER_COUNT; tier++) {
+        const n = biome.mobs.filter((mob) => tierOf(mob) === tier).length;
+        counts.push(n);
+        if (n === 0) empty.push(`${id} (${biome.lean.type}) has no tier-${tier} mob`);
+      }
+      table.push(`${biome.lean.type.padEnd(10)} ${id.padEnd(12)} ${counts.join(' ')}`);
+    }
+    expect(empty, `bands that fall back to the generic depth pool:\n  ${empty.join('\n  ')}\n\n${table.join('\n')}`).toEqual([]);
+    // NON-VACUITY, both axes: the tier model must really have four tiers and the
+    // catalog eleven bands, or "every cell filled" is a claim about nothing.
+    expect(ENEMY_DEPTH_TIER_COUNT).toBe(4);
+    expect(biomeIds.length).toBe(11);
+  });
+
+  it('...which is the same thing as: a band\'s mob preference NEVER falls back to the whole pool', () => {
+    // The property stated through the production path rather than through a tier
+    // count. `weightIds` is fed `anchorPoolFor`'s output, so what actually
+    // matters is that the intersection is non-empty at EVERY depth a band can be
+    // dealt at -- tiers are just how that is arranged. Depth 1..24 covers the
+    // first five bands, and tier 3's band is open-ended so everything past 13
+    // behaves like 13.
+    const barren: string[] = [];
+    for (let depth = 1; depth <= 24; depth++) {
+      const depthPool = anchorPoolFor(FIGHT_POOL_IDS, FIGHT_BANDS, depth);
+      expect(depthPool.length, `depth ${depth} has no eligible anchors at all`).toBeGreaterThan(0);
+      for (const id of biomeIds) {
+        const onBiome = depthPool.filter((e) => biomeCatalog[id]!.mobs.includes(e));
+        if (onBiome.length === 0) barren.push(`${id} @depth ${depth}`);
+      }
+    }
+    expect(barren, `the mob preference is a no-op at: ${barren.join(', ')}`).toEqual([]);
   });
 
   it('every fight-pool enemy is named by at least one biome (no enemy the biome layer can never introduce)', () => {

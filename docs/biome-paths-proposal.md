@@ -1136,14 +1136,50 @@ plus its own toughest on-type mob as a second face. The same pass cleaned the si
 original `mobs` lists of their borrowed off-type members (§2.3) and made the
 counter-less bow band's forecast read honestly instead of printing nothing.
 
-**Known thin spots, named rather than hidden.** `computeEnemyDepthBands` splits
-the now-34-strong fight pool into tiers with bands [1,8]/[5,12]/[9,16]/[13,inf).
-Eight of the eleven bands span three tiers; fire, nature, beast and lance field
-no tier-3 on-type mob, so those four read generic from fight 17 on (the weighting
-finds no intersection and falls back to the untouched depth pool — a graceful
-degradation, not a lie). Fire is the thinnest at two on-type mobs, both mid-tier.
-One mob each is the next content increment; no band needs a borrowed member to
-function.
+~~**Known thin spots, named rather than hidden.**~~ — **CLOSED 2026-08-26,
+second pass.** The thin spots were: eight of eleven bands spanned only three of
+`computeEnemyDepthBands`'s four tiers; fire, nature, beast and lance fielded no
+tier-3 on-type mob, so those four read generic from fight 17 on; and fire, at two
+mid-tier mobs, read generic at fights 1-4 as well. Degradation is graceful (the
+weighting finds no intersection and falls back to the untouched depth pool) but
+it is still a band that has stopped TELEGRAPHING, which is the only thing a band
+is for.
+
+**Why the fix is fourteen mobs and not the five the gap names.** Tier 3 holds a
+QUARTER of the fight pool BY RANK, and its nine seats were already full — seven
+of the eleven bands each depend on exactly one incumbent for their own deep end.
+Four new tier-3 mobs in a 39-strong pool would have demoted three incumbents,
+taking the Arrowfell's `deadeye_stalker` and the Stormreach's `tempest_herald`
+with them: four holes closed, two opened. Tier 3 only grows when the WHOLE pool
+grows, so the honest increment fills every remaining cell at once — the
+FULL-DEPTH BAND ROSTER in `src/data/enemies.ts`, 34 → 48 fight-pool ids, four
+tiers of exactly 12 seats each:
+
+| tier | band × depth cells filled | gold |
+|---|---|---|
+| 0 | fire, axe, sword | 14, 16, 15 |
+| 1 | frost, beast, nature | 20, 21, 22 |
+| 2 | bow, dark, holy, lightning | 25, 26, 27, 29 |
+| 3 | fire, nature, beast, lance | 33, 31, 32, 30 |
+
+The fourteen gold values are chosen so no incumbent changes tier: 11 ids sit at
+or below gold 17 (`cleric` at 18 keeps rank 11, the last tier-0 seat), 24 at or
+below 22, 36 at or below 29. Exactly ONE incumbent moved anyway — `warbreaker`
+(gold 22) tier 2 → 1 — and the Ironmoot keeps a tier-2 member (`berserker`), so
+no band lost a rung to gain one. Coverage is **44/44**, the catalog's first full
+span, asserted cell by cell in `tests/run/biomeMobs.test.ts`. Three bands also
+promote their champion to the deeper mob that now exists (`furnace_elemental`,
+`moorfang_alpha`, `hedgerow_captain` replace tier-2 faces), which is what the
+"boss plus its own toughest on-type mob" pattern already asked for.
+
+**Still unfielded, checked rather than assumed.** Three catalog riders have no
+on-type home: `thermal_shock` is a FROST card that chains off the caster's own
+previous FIRE cast, so a fire board primes it but contradicts its own affinity
+while a frost board keeps the affinity and ships a dead rider;
+`control_opportunist` wants {{Stun}} on the target and no bow card stuns;
+`debuff_crusher` wants a STAT debuff and no lightning card applies one (Burden,
+Slow and Disrupt are not `debuffStat`). `mending_aura` wants two adjacent Healing
+neighbours, i.e. a board with no offense at all.
 
 **Phase 3 — the fork.** `RunMap.biomes` ledger, `'fork'` node kind, fork column
 after each boss, `chooseBiome`, fork panels on both platforms, the
