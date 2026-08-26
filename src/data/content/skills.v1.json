@@ -9319,6 +9319,137 @@
      }
     }
    ]
+  },
+  {
+   "id": "wildfire_rite",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Wildfire Rite",
+      "text": "Deal 32 (+MATK) Fire damage \u00b7 {{Affinity}} Fire \u2014 {{Burn}} 10.",
+      "notes": [
+       "AFFINITY AS A MODIFIER (2026-08-25). `affinity: true` is a flag any action may",
+       "carry, so this card needed NO engine work: the gate is checked once in",
+       "applyAction and the refund applied once in actionsPriceDeci. These three cards",
+       "exist to prove that across three different FAMILIES (dot / control / heal) and",
+       "to give the refund rate something to be judged against besides one damage card.",
+       "Budget: base damage x5 + gated effect at its own family rate x 4/5 - 140 size",
+       "grant = 100 exact.",
+       "GATED DOT. burn 10 costs 100 deci ungated and 80 gated; the dot family cap at",
+       "size-2 bronze is 300, so there is headroom \u2014 the BUDGET binds here, not the cap."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "fire",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 32
+       },
+       {
+        "kind": "burn",
+        "stacks": 10,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "hallowed_toll",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Hallowed Toll",
+      "text": "Deal 32 (+MATK) Holy damage \u00b7 {{Affinity}} Holy \u2014 {{Stun}}.",
+      "notes": [
+       "AFFINITY AS A MODIFIER (2026-08-25). `affinity: true` is a flag any action may",
+       "carry, so this card needed NO engine work: the gate is checked once in",
+       "applyAction and the refund applied once in actionsPriceDeci. These three cards",
+       "exist to prove that across three different FAMILIES (dot / control / heal) and",
+       "to give the refund rate something to be judged against besides one damage card.",
+       "Budget: base damage x5 + gated effect at its own family rate x 4/5 - 140 size",
+       "grant = 100 exact.",
+       "GATED CONTROL, and the one to watch when the refund moves. stun 1 costs 100",
+       "deci ungated and 80 gated against a control cap of 150 at size-2 bronze. A",
+       "LARGER refund would drop stun 1 to 50 and make stun 2 (100) affordable inside",
+       "the same cap \u2014 so the refund rate decides whether gated control stays a",
+       "single-turn tempo card or becomes a two-turn lockout. Flagged deliberately:",
+       "this is the family where the dial has a cliff rather than a slope."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 32
+       },
+       {
+        "kind": "stun",
+        "turns": 1,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "grove_communion",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Grove Communion",
+      "text": "Deal 16 (+MATK) Nature damage \u00b7 {{Affinity}} Nature \u2014 restore 40 (+MDEF) HP.",
+      "notes": [
+       "AFFINITY AS A MODIFIER (2026-08-25). `affinity: true` is a flag any action may",
+       "carry, so this card needed NO engine work: the gate is checked once in",
+       "applyAction and the refund applied once in actionsPriceDeci. These three cards",
+       "exist to prove that across three different FAMILIES (dot / control / heal) and",
+       "to give the refund rate something to be judged against besides one damage card.",
+       "Budget: base damage x5 + gated effect at its own family rate x 4/5 - 140 size",
+       "grant = 100 exact.",
+       "GATED SUPPORT \u2014 the proof the gate is not an offensive mechanic. A nature",
+       "board turns a weak 16 poke into a 16 + 40-heal sustain turn; any other board",
+       "gets the poke alone."
+      ],
+      "archetypes": [
+       "healing"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 2,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 16
+       },
+       {
+        "kind": "heal",
+        "power": 40,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
   }
  ]
 }
