@@ -1,11 +1,19 @@
 # Biome paths — proposal
 
-> **Scope:** PROPOSAL (not yet built, not an owner doc). Design investigation for
-> giving the endless run **legible paths** — bands of waves with a declared
+> **Scope:** PROPOSAL, **Phase 1 now BUILT** (2026-08-26). Design investigation
+> for giving the endless run **legible paths** — bands of waves with a declared
 > identity (mobs, boss, shops, events) the player can read *before* committing,
-> chosen because they feed the deck being built. Nothing here is implemented.
-> If accepted, `docs/run-structure.md` (LIVING, owner of run shape) absorbs the
-> parts that ship and this file moves to `docs/history/`.
+> chosen because they feed the deck being built.
+> **What shipped:** `src/data/biomes.ts` (6 biomes), `src/run/biome.ts` (the deal
+> + the two binding primitives), `src/run/biomeForecast.ts` (the read),
+> biome-preferred shop themes and event themes in `src/run/runMap.ts`, and
+> biome-weighted mobs + a per-biome boss shortlist in `rollEncounter`. Biomes are
+> **dealt**, not chosen — the fork is still Phase 3. Tests:
+> `tests/run/biomeDeal.test.ts`, `biomeSupply.test.ts`, `biomeMobs.test.ts`.
+> **Every §1 number was re-measured against the real code before building**, and
+> §2.0/§2.3/§5 now carry MEASURED results where they used to carry projections.
+> When `docs/run-structure.md` (LIVING, owner of run shape) absorbs the shipped
+> parts, this file moves to `docs/history/`.
 >
 > Every number in §1 was measured against the real `generateRunMap` /
 > `rollEncounter` / `rollShopStock` / `rollStartDraft`, not estimated. The
@@ -117,6 +125,12 @@ every shelf that is offered in waves 1–10 through the real `rollShopStock`, ov
 | weapon:sword | 3.00 | 43% | 25% |
 | weapon:beast | 3.13 | 47% | 28% |
 
+> **RE-MEASURED 2026-08-26 before building** (400 seeds, same harness, current
+> catalog): the table reproduces. fire 2.26 offers / 32% P(≥3) / 44% P(zero),
+> frost 2.12 / 29% / 41%, axe 2.77 / 42% / 30%, beast 3.21 / 51% / 25% — mean
+> across the eleven types 2.60 offers, 37% P(≥3), 34% P(zero). The problem this
+> section describes is real and current.
+
 `IDENTITY_THRESHOLD` is 3. **A player who decides at wave 1 to build Fire has a
 29% chance of even being offered three Fire cards by wave 10, and a 46% chance
 of being offered none at all** — before affordability, before choosing the shop
@@ -136,20 +150,78 @@ to build Fire.
 Catalog for reference: 156 cards, 24 affinity-gated, spread 10–22 cards and 1–3
 gated cards per type.
 
-### 1.6 Fights are varied; the boss is not
+### 1.6 Fights are varied; the boss is a TITLE, not an enemy
 
-Enemy roster: 22 units — 21 in `FIGHT_POOL`, **1 in `BOSS_POOL`**.
+> **CORRECTED 2026-08-26 (user-verified, re-measured before building Phase 1).**
+> The original text of this section read *"boss node enemy: `wolf_king`, 100% of
+> the time… Biomes cannot deliver a predictable boss until the roster has more
+> than one boss."* **That conclusion was wrong**, and it was wrong in a way that
+> would have mis-scheduled the whole plan (it put the boss binding behind a
+> content prerequisite it never had). The corrected reading, and what it means
+> for the design, is below. The paragraph is corrected rather than deleted so the
+> mistake stays legible.
 
-Over 300 seeds × 20 waves (4 800 fight columns, 1 200 boss nodes):
+**`'boss'` is a TITLE, assigned by POSITION, to whatever mob rolls there.**
+`fightSpecFor` (`src/run/runState.ts`) is the whole rule:
 
-- all three fight options are different enemies: **62%**
-- all three are three different type identities: **43%**
-- all three share one type identity: 8%
-- **boss node enemy: `wolf_king`, 100% of the time. Always. Every seed, every
-  boss wave, forever.**
+```ts
+const pos = ((n - 1) % BOSS_EVERY) + 1;
+const title: EnemyTitle = pos <= 2 ? 'normal' : pos <= 4 ? 'elite' : 'boss';
+```
+
+and `TITLE_PRESETS.boss` is `{ levelDelta: +4, rank: +4, extraCards: 2 }`
+(`src/run/encounter.ts`). A fight column's `'hard'` option bumps its title one
+rung as well (`TITLE_BUMP`, `elite -> boss`), so fights 3, 4, 8, 9, 13, 14, … each
+carry a boss-titled option too. `isBoss` on an `EnemyDef` decides one thing only:
+which pool a boss-KIND *column* draws from. It is not what makes a fight a boss
+fight.
+
+Measured over fights 1-40 against the roster as it stood (22 enemies, 21 in
+`FIGHT_POOL`, 1 in `BOSS_POOL`), asking "which enemy ids can appear wearing the
+boss title":
+
+```
+fight  3 (fight column)  hard option: 6 eligible anchors
+fight  4 (fight column)  hard option: 6
+fight  5 (BOSS COLUMN)               1
+fight  8 (fight column)  hard option: 11
+fight  9 (fight column)  hard option: 10
+fight 10 (BOSS COLUMN)               1
+...
+fight 18/19             hard option: 5      fight 20 (BOSS COLUMN): 1
+
+distinct enemies that wore the boss title over fights 1-40: 22 of 22
+```
+
+So **every enemy on the roster could already wear the boss title**, at some
+depth, before any content was added. What was true — and remains true, it is the
+one part of the original claim that survives — is narrower: the boss **COLUMN**
+at waves 5/10/15/… drew from `BOSS_POOL`, which held exactly one id, so *that*
+node was `wolf_king` on every seed forever. Per-depth the anchor pools are 5-11
+wide (11 at fight 5, 10 at 10 and 15, 5 from fight 20 on), not 22 — the 22 is
+the union across the ladder, not the pool at any one fight.
+
+**What this changes about the plan.** The problem was never "there is exactly one
+boss". The problem is **TELEGRAPHING**: any of the roster could turn up wearing
++4 levels, +4 rank and 2 extra cards, and the player had no way to see which one
+before committing to the column. That is a *legibility* problem, which is
+squarely a mapgen/UI job — so the boss binding is **not** blocked on boss content
+and does **not** belong in a later phase behind a content gate. It ships with
+Phase 1, in two halves:
+
+- the boss COLUMN draws from the band biome's **boss shortlist** (any roster id
+  is legal — the title supplies the power, so promoting an existing kit needs no
+  new statline), and
+- every other fight draws from the band biome's **mob list**, which the band
+  banner has already shown the player.
+
+Boss *content* is still worth having — it makes the shortlists signatures rather
+than promotions — but it is an enrichment, not a prerequisite. (A boss-roster
+pass landed alongside this work and added 11 `isBoss` kits; the shortlists in
+`src/data/biomes.ts` name them, and would have worked without them.)
 
 Depth gating (`src/run/enemyDepth.ts`) already narrows *which* mobs may anchor a
-fight: 6 eligible anchors at fights 1–4, 11 at 5–8, 10 at 10–15, 5 from fight 20
+fight: 6 eligible anchors at fights 1-4, 11 at 5-8, 10 at 10-15, 5 from fight 20
 on. So the ladder already has a coarse "what lives here" rule — it is derived
 from `goldReward`, carries no theme, and is invisible to the player.
 
@@ -163,10 +235,10 @@ fights 13-16 5 types
 fights 17+   3 types (axe, beast, sword)
 ```
 
-The user's ask — *"predict which boss mob might come up"* — currently has no
-possible answer other than "the Wolf King", and no ask at all past that.
-**Biomes cannot deliver a predictable boss until the roster has more than one
-boss.** That is a content prerequisite, not a mapgen problem (see §5, Phase 2).
+Over 300 seeds x 20 waves, all three fight options were three different enemies
+**62%** of the time, and three different type identities 43% of the time. That
+62% is the variety baseline the mob binding has to protect — see §2.3, where a
+hard biome filter was measured taking it to 9% and was replaced.
 
 ### 1.7 Events: 32 events, 74 choices, and almost no deck-building steer
 
@@ -245,18 +317,44 @@ weight:
    move `src/run/enemyDepth.ts` already made (derive from `goldReward`, author
    nothing new).
 
-**Projected payoff**, modelling the §2.3 shop mechanism over 400 seeds,
-waves 1–10 (approximate — reshuffles modelled with an independent Rng, so this
-estimates the mechanism's effect, it is not a byte-exact preview):
+**MEASURED payoff** (2026-08-26, replacing this section's original projection).
+400 seeds, every shelf OFFERED in the window rolled through the real
+`rollShopStock`, typed with the real `cardType`. "BEFORE" is the pre-biome
+generator (a `git show HEAD:src/run/runMap.ts` copy) run over the same seeds, so
+both columns come from the same harness.
 
-| Biome lean | Offers of the lean type, w1–10 | P(≥3) | P(zero) |
+The unit of the promise is the BAND, so the number that matters is *the lean the
+band's banner NAMES, inside that band's own five waves*:
+
+| Window | Offers of the announced lean | P(≥3) | P(zero) |
 |---|---|---|---|
-| fire (today) | 2.10 | 29% | 46% |
-| **fire (Emberwaste)** | **7.62** | **98%** | **1%** |
-| frost (today) | 2.00 | 28% | 43% |
-| **frost (Frostmarch)** | **7.68** | **98%** | **0%** |
-| axe (today) | 2.88 | 41% | 26% |
-| **axe (Ironmoot)** | **9.31** | **100%** | **0%** |
+| band 0 (w1–5), before | 1.36 | 19% | 56% |
+| **band 0 (w1–5), after** | **6.82** | **98%** | **3%** |
+| band 1 (w6–10), before | 1.47 | 22% | 55% |
+| **band 1 (w6–10), after** | **6.85** | **98%** | **2%** |
+| bands 0–3 pooled (w1–20), before | 1.48 | 21% | 55% |
+| **bands 0–3 pooled, after** | **5.90** | **85%** | **9%** |
+
+**98%, and it matches the projection** — but only because `BiomeDef.shops` is
+walked in AUTHORED PRIORITY ORDER rather than bag order (§2.3). With the naive
+"first preferred entry the bag happens to hold" version it measured 85-87%.
+
+Two honest caveats the projection did not have:
+
+1. **It decays with depth.** The 21-theme bag is a no-repeat bag that refills
+   only when empty (~20 shop draws), so by band 3 a biome dealt earlier may find
+   its own stall already spent: band 3 measures 61%. Still ~3× the 21% baseline.
+2. **A biome only owns five waves.** A player who fixes on one type at wave 1 and
+   refuses to re-read the banner gets biome help for band 0 and then a *different*
+   band. Measured over waves 1–10 with a FIXED type, the mean across all eleven
+   types is 2.72 offers / 38% P(≥3) after, against 2.60 / 37% before — i.e.
+   **unchanged**. The gain is real and large, and it is entirely conditional on
+   the player reading the band. That is the feature working as designed (the band
+   is the unit of the decision), not the number underdelivering.
+
+The original §1.5 table is also re-measured and reproduces: fixed-type P(≥3) sits
+at 29-51% per type before the change, 30-47% after — **no type was crowded out**.
+Getting there took one fix; see §2.3, "what the measurement caught".
 
 **The caveat, and it needs a deliberate ruling.** A biome full of Fire mobs is
 not neutral ground for a Fire board. From `src/engine/elements.ts`:
@@ -280,6 +378,17 @@ purpose:
 > and more forgiving; loses the sequencing decision and blurs the biome's name.
 > **Tradeoff:** (a) is a sharper decision and needs the UI to state the matchup
 > plainly, or it reads as a gotcha. (b) is safer and duller.
+>
+> **SHIPPED AS (a), with one measured exception, and the user's ruling is still
+> open.** Each biome's priority-0 stall is its own lean, so a band supplies the
+> type it names. Priority 1 is a stall for a type NO biome leans on — forced by
+> the crowd-out measurement in §2.3, not by a design preference — and for the
+> Hallowfield that stall happens to be `umbral_stall`, i.e. its own counter. So
+> holy is (b) and the other five are (a). If the ruling comes back (a)-strict,
+> the Hallowfield's dark slot moves to another biome and the coverage invariant
+> holds; if it comes back (b), it generalises in six lines of data.
+> **The counter is stated plainly either way**: `counterTypeFor` is part of
+> `BandForecast` and the renderer prints "frost hits these mobs for +50%".
 
 ### 2.1 Where a biome attaches — per **wave band**, not per node or per edge
 
@@ -311,39 +420,46 @@ This is right because:
 New file, `src/data/biomes.ts` — declarative content only, no logic, mirroring
 `shopTypes.ts` / `events.ts`:
 
-```ts
-import type { Element, WeaponType } from '../engine/types';
-import type { EventTheme } from './events';
+**As built** (`src/data/biomes.ts`), with the two deltas from the sketch called
+out:
 
-/** The type a biome leans into — the whole reason a player picks it. */
+```ts
 export type BiomeLean =
   | { kind: 'element'; type: Element }
   | { kind: 'weapon'; type: WeaponType };
 
 export interface BiomeDef {
   id: string;
-  /** "The Emberwaste" — what the fork panel and band banner say. */
-  name: string;
-  /** One line, fork-panel sized. "Ash and cinder. Fire mobs, fire shelves." */
-  tagline: string;
+  name: string;      // "The Emberwaste"
+  tagline: string;   // one line, panel-sized
   lean: BiomeLean;
-  /** Enemy ids this biome PREFERS for its fight nodes. Sorted array, never a
-   *  Set — pool order fixes the draw (tests/run/contentPoolOrder.test.ts). */
+  /** Enemy ids this biome PREFERS. Sorted array, never a Set. */
   mobs: readonly string[];
-  /** The boss at the end of this band. The "predict the boss" promise. */
-  boss: string;
-  /** Shop theme ids this biome PREFERS. Sorted array. */
+  /** DELTA 1: a SHORTLIST, not a single `boss: string`. Two entries per biome
+   *  means the boss line is a promise ("one of these two") without being the
+   *  same name forever, and it degrades to one entry cleanly. */
+  bosses: readonly string[];
+  /** DELTA 2: authored PRIORITY order, not sorted — index 0 is the biome's own
+   *  single-type stall, index 1 is the stall it carries for a type no biome
+   *  leans on. Position is load-bearing (§2.3), and it is worth 13 points of
+   *  P(>=3) on its own. */
   shops: readonly string[];
-  /** Event themes this biome PREFERS. */
   eventThemes: readonly EventTheme[];
-  /** Art key for the band banner / fork panel (docs/art-prompt-pack.md). */
-  art: string;
 }
 
 export const biomeCatalog: Record<string, BiomeDef>;
-/** Id-sorted, for deterministic iteration. */
-export const biomeIds: readonly string[];
+export const biomeIds: readonly string[];   // id-sorted
 ```
+
+No `art` key was authored: nothing renders a banner yet (§2.4), and an unused
+content field is a field that rots. It is one line when the Phaser work lands.
+
+**Six biomes shipped** — `emberwaste` (fire), `hallowfield` (holy), `thornwild`
+(nature), `ironmoot` (axe), `swornhold` (sword), `howlmoor` (beast): one per type
+the roster can actually staff with MOBS. Frost, lightning, dark, bow and lance
+field 1 or 0 mobs each, so a "Frostmarch" would be a name with no monsters behind
+it. Their stalls and their bosses are carried by the biome each reads beside (see
+the coverage invariant in §2.3) so nothing is orphaned.
 
 **Membership lives here as id lists. Do not add a `biome` field to `EnemyDef`,
 `SkillDef`, or `ShopTypeDef`** — see §6.3. This is exactly the precedent
@@ -356,104 +472,246 @@ A starting catalog of 5–6 biomes covering the types the roster can actually
 staff (§1.6: fire, holy, nature, beast, bow early; axe/sword/lance/lightning/
 dark later) is enough. Do not author 11.
 
-The ledger, on `RunMap`:
+**`RunMap.biomes` was NOT built.** It is the fork's ledger, and Phase 1 deals
+biomes rather than choosing them, so there is nothing to record: the deal is
+`biomeIdForBand(seed, band)`, a pure function with its own `hashSeed` domain and
+no `Rng` instance at all. That means no new `RunState`/`RunMap` field, no
+persistence question, and a reload re-derives the whole thing. The ledger lands
+with the fork in Phase 3, exactly as sketched.
 
-```ts
-export interface RunMap {
-  seed: number;
-  depths: RunNode[][];
-  /** Chosen biome id per band, index = bandIndexOf(wave). Plain data, exactly
-   *  like the theme bags — so the lazy rebuild-from-wave-1 stays valid. An
-   *  index past the end (or the whole field absent) means "unchosen": that
-   *  band uses `defaultBiomeFor(seed, band)`, so every existing caller of
-   *  `generateRunMap(seed)` keeps compiling and keeps its current behaviour. */
-  biomes?: readonly string[];
-}
-```
+One deal rule was added that the sketch did not have: **no immediate repeat** —
+band *b* never deals band *b−1*'s biome. Five waves in the Emberwaste followed by
+five more is not a path. It stays a pure function of `(seed, band)` by dealing
+band *b* out of the other *n−1* biomes and shifting past the previous pick.
 
-And on `RunNode`, for rendering and for the pool lookups:
+`RunNode.biomeId` shipped as sketched:
 
 ```ts
   /** The band's biome id, stamped at generation on EVERY node. Display + pool
-   *  routing; never a gameplay branch of its own. */
+   *  routing; never a gameplay branch of its own. Optional so a map persisted
+   *  before biomes existed still loads — `biomeFor` re-derives the band. */
   biomeId?: string;
 ```
 
 ### 2.3 How a biome binds to shops, events and mobs — **filters, not new dice**
 
-This is the most important implementation rule in the proposal:
+This is the most important implementation rule in the proposal, and it **holds —
+verified, not assumed**:
 
 > **Every biome binding is a preference or a filter over a pool that is already
 > being drawn from. No binding spends a new `Rng` call.**
 
-That keeps the determinism invariant ("all randomness flows through `Rng` in a
-fixed call order") untouched, keeps the map's *shape* byte-identical, and makes
-every change reviewable as "which array did the existing draw index into".
+**How it was verified.** A structural fingerprint (every node's id, depth, wave,
+kind, `fightNumber`, `fightOption`, `encounterSeed`, `eventSeed`, `shopSeed` —
+deliberately *not* `shopId`/`eventTheme`/`biomeId`) was hashed over 50 seeds ×
+12 waves, 6 097 nodes, with the biome code in place and again with
+`src/run/runMap.ts` + `src/run/runState.ts` stashed back to their pre-biome
+state. **Identical both ways**:
+`2ae0ecdbc647b00883aba45995b0ae676a87eef9573a2c2068409ba700d10441`. That hash is
+now frozen in `tests/run/biomeDeal.test.ts`, and it was mutation-checked: adding
+one component to `hashSeed('wave', seed, wave)` fails it immediately.
 
-**Shops.** `generateWave`'s `nextShopTheme` already scans the no-repeat bag with
-`findIndex` for the first entry eligible by `minWave`. Add one preference pass
-in front of it:
+**Shops — as sketched, with one correction that is worth 13 points.** The sketch
+was:
 
 ```ts
-// prefer this band's biome stalls; fall back to today's behaviour exactly.
 let idx = shopThemeBag.findIndex((id) => eligible(id) && biome.shops.includes(id));
 if (idx === -1) idx = shopThemeBag.findIndex(eligible);
 ```
 
-Zero extra Rng calls, no new randomness, the 21-theme no-repeat bag survives
-intact, and the biome's stall is drawn *whenever one is still in the bag*. This
-is the mechanism §2.0's projection measures.
-
-**Events.** `nextEventThemes` already does `findIndex(t => !drawn.includes(t))`.
-Same one-line preference for `biome.eventThemes` with the same fallback.
-
-Binding events by *theme* is only half the value, because §1.7 shows a theme
-does not predict a reward's type. The other half is content: give the
-card-granting outcomes type filters. `EventOutcomeSpec` already supports it —
-`cardChoice`/`bonusDraft`/`grantCard` all take a `CardFilter`, and
-`CardFilterClause` already has `elements` / `weapons`. **No new outcome kind is
-needed to make events feed an identity**; it is a content pass over
-`src/data/events.ts`. The cheapest version that fully closes §1.7's gap:
-a biome-leaning `cardChoice` in the `recruit` and `forge` themes whose filter is
-`[{ elements: [biome.lean.type] }]`. That requires the resolver to know the
-band's biome — pass it into `resolveEventChoice` (the node already carries
-`biomeId`), or resolve the filter at roll time.
-
-**Mobs.** `rollEncounter` already narrows via `anchorPoolFor` / `fillerPoolFor`,
-which filter an array and **fall back to the full pool if the filter empties**.
-Add the biome as a second narrowing with the identical fallback:
+That works and measures **85-87%** P(≥3) on the announced lean. The problem is
+that it takes whichever *preferred* entry the shuffle happened to put earliest in
+the bag — so a band's one shop visit lands on the biome's generalist stall as
+often as on the single-type stall that hands the identity over in one shelf. What
+shipped walks the BIOME's own list in order instead, which costs nothing (it is a
+scan, not a draw) and measures **98%**:
 
 ```ts
-const depthPool = anchorPoolFor(pool, bands, gateDepth);
+let idx = -1;
+for (let i = 0; i < biome.shops.length && idx === -1; i++) {
+  const wanted = biome.shops[i]!;
+  idx = shopThemeBag.findIndex((id) => id === wanted && eligible(id));
+}
+if (idx === -1) idx = shopThemeBag.findIndex(eligible);   // today's behaviour, verbatim
+```
+
+`BiomeDef.shops` is therefore authored **priority order**, not sorted, and that
+is content, not incidental ordering.
+
+**What the measurement caught — the crowd-out.** With each biome preferring only
+stalls of its own lean, the three types **no biome leans on** (frost, lightning,
+dark — the roster fields no mob for any of them) fell from 2.1-2.5 offers per ten
+waves to **0.96-1.19**, and P(≥3) from 29-34% to **10-16%**. Preference crowds out
+whatever it does not name, and `tests/run/affinityReachability.test.ts` could not
+see it: that suite measures per-SHELF density, and the shelves were unchanged —
+it was the *frequency of reaching them* that halved.
+
+Fixed by the **coverage invariant**, now asserted in `tests/run/biomeSupply.test.ts`:
+
+> Every card type's single-type stall sits at priority 0 or 1 of some biome.
+
+`stormspire` is carried by the Emberwaste (whose `mage` is already its caster
+kin), `umbral_stall` by the Hallowfield (whose `necromancer` is the thing the
+ground keeps out), `frosthold` by the Howlmoor (the run's cold open country),
+`fletchers_loft` by the Thornwild (hunting country). After it, every one of the
+eleven types is back within noise of its pre-biome supply.
+
+**Events — the binding is frequency-neutral by arithmetic, and that is stated
+rather than papered over.** The sketch's one-line preference was built as
+described, and measured over 400 seeds × 20 waves it moves the aggregate
+on-theme share from an unbiased **33.3%** to **33.4%**. The event theme bag holds
+all six themes with no repeat until it empties; preferring two of them inside a
+no-repeat bag changes the ORDER the bag is spent in, never the FREQUENCY over a
+cycle. Every way around that (reshuffling at a band boundary, a weighted bag)
+spends extra `Rng` calls inside `generateWave` and moves the structural
+fingerprint, which the rule above forbids.
+
+What it *does* buy, on the same sweep: **the first event column of a band is
+63.2% on-theme against 33.3% by chance** — a band OPENS in its own flavour, then
+relaxes. That is genuinely worth having and it is what the test asserts.
+
+The rest of the event value is a CONTENT pass, exactly as this section already
+said: §1.7 shows a theme predicts a reward's *flavour*, never its *type*, and
+`EventOutcomeSpec`'s `cardChoice`/`bonusDraft`/`grantCard` already take a
+`CardFilter` with `elements`/`weapons`. **No new outcome kind is needed.** Left
+to Phase 2 (§5).
+
+**Mobs — the sketched hard filter was measured and REPLACED.** As written:
+
+```ts
 const biomePool = depthPool.filter((id) => biome.mobs.includes(id));
 const anchorPool = biomePool.length > 0 ? biomePool : depthPool;
 ```
 
-Again zero new Rng calls — only which array `rng.int(pool.length)` indexes.
+it produces a **silo in all but name**, because a biome's mob list intersects a
+single depth tier at one or two ids. Measured at 60 seeds × 20 waves: 100% of
+fight anchors came from the band's list, the share of fight columns offering
+three DIFFERENT enemies collapsed from the **62%** baseline (§1.6) to **9%**, and
+bands existed that fielded a single enemy for five straight waves. Every
+reachability audit stayed green throughout — they ask whether an enemy is
+reachable *somewhere*, not whether a band is monotonous.
 
-**Boss.** A boss node reads `biome.boss` directly instead of drawing from
-`BOSS_POOL`. This is the line that makes the user's sentence true, and it is
-blocked on boss content (§1.6, §5 Phase 2).
+What shipped is a **weighted** preference (`weightIds` in `src/run/biome.ts`) —
+still exactly one `rng.int` call, still array-ordered, no Set:
+
+```ts
+// biome mobs repeated BIOME_MOB_WEIGHT times in front of the untouched pool
+const weighted = [...kept, ...kept, ...kept, ...pool];
+const enemyId = weighted[rng.int(weighted.length)]!;
+```
+
+At `BIOME_MOB_WEIGHT = 3`: **55% of anchors are biome mobs against 25% unweighted**
+(a 2.2× lift), three-different-enemies recovers to **54%** against the 62%
+baseline, and all 21 fight-pool enemies still anchor somewhere. The band reads as
+a place without becoming one enemy on repeat.
+
+**Boss — NOT blocked on content (§1.6 correction).** A boss COLUMN draws its
+anchor from the band biome's `bosses` shortlist instead of `BOSS_POOL`, ungated
+by depth exactly as boss nodes have always been. Any roster id is legal in a
+shortlist, because the boss TITLE supplies the power. This is the line that makes
+the user's sentence true, and it shipped in Phase 1.
+
+A boss-TITLED *fight* option (`'hard'` on an elite fight — the same title) keeps
+the ordinary mob weighting on purpose: it is a risk dial inside the band, not the
+band's boss, and the banner has already shown the mob list it draws from. Both
+boss-titled cases are therefore telegraphed, which was the actual problem.
 
 **Prefer, never silo.** Every one of the above degrades to today's behaviour
 when the biome's list is empty or unavailable. That is not defensive
 boilerplate — it is what keeps `tests/run/contentReachability.test.ts` and
 `tests/run/affinityReachability.test.ts` trivially green (§4), keeps every
 enemy reachable at every depth, and stops a wrong biome pick from being
-unrecoverable.
+unrecoverable. Two of the three bindings needed a *measurement* to find where
+"prefer" had quietly become "only".
 
 **Do not mix the biome id into the wave seed.** `generateWave` seeds from
-`hashSeed('wave', seed, wave)`. Leave that alone. If biome only *filters
-content*, the map's structure (stop counts, choice counts, shop placement) is
-byte-identical to today for every seed, and the diff a reviewer has to hold is
-"which pool did this draw index into". Mixing the biome into the seed would
-change every structural roll for no design gain and would make every
-before/after comparison unreadable.
+`hashSeed('wave', seed, wave)`. Left alone — and the frozen fingerprint above is
+what keeps it that way.
 
 ### 2.4 How the player sees it — the part the feature *is*
 
 Four surfaces, in ascending cost. The first two are worth shipping even if
 nothing else here is built.
+
+> **BUILT IN PHASE 1: the MODEL for all four, and the text form of it.**
+> `src/run/biomeForecast.ts` composes the whole read once — biome name, tagline,
+> lean chip, mob list, the boss (its **real** enemy id/name/level/title, rolled
+> through the same pure `rollEncounter` the map's own fight previews use, on a
+> band the run has not reached yet), the preferred stalls, the event themes, and
+> the counter line. Every surface below is to render THAT model; a second
+> derivation would eventually name a different boss, which is exactly the class
+> of drift the project already paid for with a hand-written combat-log renderer.
+>
+> `forecastBand(state, band)` extends a COPY of the map (`ensureWavesThrough`)
+> and composes a throwaway `currentNodeId` — the `runStore.ts#previewEncounter`
+> idiom — so previewing band 6 from band 0 is free, repeatable, and provably
+> non-mutating (asserted).
+>
+> `renderBandForecast` is its text form, mobile-first per CLAUDE.md (one fact per
+> line, nothing past 28 characters — asserted line-by-line in the test, not
+> eyeballed). Real output of `renderBandForecast(forecastBand(createRun(7), n))`,
+> two bands of one run, stacked as separate labelled blocks:
+>
+> ```
+> ===== seed 7 · band 0 =====
+> THE IRONMOOT
+> [AXE] w1-5
+> A warband camp. Axes, bleeding, and a price for both.
+>
+> BOSS
+>   Bloodletter
+>   LV 5 · BOSS
+> MOBS
+>   Berserker
+>   Reaver
+>   Bloodletter
+>   Hunter
+>   Warbreaker
+> SHOPS
+>   The Cleaving Yard
+>   Armory
+>   Caravan
+> EVENTS
+>   forge
+>   market
+>
+> sword hits these
+> mobs for +50%.
+>
+> ===== seed 7 · band 1 =====
+> THE HALLOWFIELD
+> [HOLY] w6-10
+> Consecrated ground and the things it keeps out.
+>
+> BOSS
+>   The Hollow Crown
+>   LV 10 · BOSS
+> MOBS
+>   Cleric
+>   Knight
+>   Necromancer
+>   Seraph
+>   Sentinel
+> SHOPS
+>   Reliquary
+>   Umbral Stall
+>   Sanctum
+>   Bulwark
+> EVENTS
+>   omen
+>   training
+>
+> dark hits these
+> mobs for +50%.
+> ```
+>
+> The boss line is the whole point of the feature and it is not a guess: the test
+> rolls the boss node the player will actually stand in front of and asserts it is
+> the id the forecast named, for four bands of twelve seeds.
+>
+> **NOT built in Phase 1: the Phaser half.** `src/game/**` was out of scope for
+> this pass, so (a)-(d) below are still to do — but each is now "render this
+> model", not "work out what to say".
 
 **(a) Name the boss.** `renderRunBossCountdownPanel`
 (`src/game/ui/RunStatsPanel.ts:167`) already says "boss in N waves". The boss
@@ -691,11 +949,11 @@ needs its walk-away.
 | `tests/run/runMap.test.ts` — determinism / eager-vs-lazy suite | All call `generateRunMap(seed)`. Stays green **only** if `biomes` defaults to unchosen and structure stays seed-only (§2.3). | Optional field + default. Add a new test for `(seed, biomes)` equality. |
 | `tests/run/runState.test.ts` — `availableChoices surfaces the depth-1 column`, `chooseNode rejects a node that is not an available choice` | A fork column before wave 1 would shift depth 1. | **No fork before band 0** (§2.5). Then these stay green. |
 | `tests/run/runState.test.ts` — hero/enemy lockstep, `recordBattleResult throws when no combat node is active` | Broken by any event battle that levels the hero or reuses `recordBattleResult`. | §3.3: separate transition, no level grant. |
-| `tests/run/enemyDepthGating.test.ts` — *"boss nodes are ungated (single-boss pool, always solo, always the boss id)"* | Dies the moment a biome names its boss. | Expected; rewrite as "a boss node fields its band's biome boss". |
+| `tests/run/enemyDepthGating.test.ts` — *"boss nodes are ungated (single-boss pool, always solo, always the boss id)"* | Predicted to die the moment a biome names its boss. **It did not** — despite its NAME, that test only asserts solo/1-unit, never the id. It stayed green untouched, and `tests/run/biomeMobs.test.ts` now carries the "a boss node fields its band's biome shortlist" assertion the row asked for. | None needed. |
 | `tests/run/enemyDepthGating.test.ts` — *"the whole non-boss roster is reachable as an anchor somewhere"* | Dies if biome filtering is a hard silo. | Prefer-not-restrict (§2.3) keeps it green. |
 | `tests/run/affinityReachability.test.ts` | Measures per-shelf density, so unaffected by *which* stalls are drawn. Breaks only if a biome **removes** stalls from the bag, which would make "every type has a stall" conditional on biome. | Prefer-not-restrict. |
 | `tests/run/contentReachability.test.ts` | Same: every card must stay reachable via draft/shop/event. | Prefer-not-restrict. |
-| `tests/run/contentPoolOrder.test.ts` | Id-sorted pools are what fixes the draw per seed. | `BiomeDef.mobs`/`shops` must be **sorted arrays**, never Sets. |
+| `tests/run/contentPoolOrder.test.ts` | Id-sorted pools are what fixes the draw per seed. | Green. `BiomeDef.mobs`/`bosses`/`eventThemes` are sorted arrays (asserted in `biomeDeal.test.ts`); `shops` is deliberately **authored priority order** instead — see §2.3, it is worth 13 points of P(≥3) — which is equally deterministic and is content, not incidental iteration order. |
 | `tests/run/events.test.ts` | 2–3 choices, cost-0 safe exit, affordability predicate. | A battle event still needs its walk-away choice. |
 | `tests/game/runEventStoryLayout.test.ts` | The N=3 mobile bound. | Fork panels and battle events both cap at 3. |
 | `tests/build/boundaryChecker.test.ts` + `scripts/check-boundaries.mjs` | The event-battle path must not pull `resolveBattle`/`simulate` into `src/game`. The temptation is real: the resolver hands back a pack and someone will want to "just resolve it here". | §3.1. |
@@ -727,38 +985,61 @@ DECISIONS 1–3.
 
 Each phase is shippable on its own and green on `npm test`.
 
-**Phase 0 — name the boss.** *No biomes.* Extend
-`renderRunBossCountdownPanel` to show the upcoming boss's name, level and art,
-via `previewEncounter` on the future boss node. Both platforms.
-*Proves:* whether forward information actually changes how the player plays,
-for an afternoon of UI work. *Exposes immediately:* there is only one boss
-(§1.6), so the panel will say "Wolf King" forever — which is the honest, visible
-statement of the content gap everything else depends on.
+**Phase 0 — name the boss.** *Folded into Phase 1 and superseded.* The §1.6
+correction removed its reason to exist as a separate step: the panel would not
+have said "Wolf King forever" for the reason this section claimed, and the model
+that answers "which boss" (`biomeForecast.ts`) now exists, so the UI work is a
+render of it rather than an investigation.
 
-**Phase 1 — biomes exist, dealt not chosen.** `src/data/biomes.ts`; band biome
-as a pure function of `(seed, band)`; bind **shops and events by preference**
-(§2.3); band banner + route-board tint. No fork, no mob binding, no new node
-kind, no `RunState` change.
-*Proves:* the data shape; that preference-not-silo leaves every reachability
-audit green; that map *structure* is byte-identical per seed; and — the number
-that justifies the feature — that a named type's supply moves from ~29% to ~98%
-(§2.0). *Smallest slice that delivers real value:* the deck-building supply fix
-lands here, before any agency exists.
+**Phase 1 — biomes exist, dealt not chosen. ✅ SHIPPED 2026-08-26.**
+Delivered: `src/data/biomes.ts` (6 biomes) · `src/run/biome.ts` (the `(seed,
+band)` deal with no-immediate-repeat, plus the two binding primitives `preferIds`
+/ `weightIds`) · shop-theme and event-theme preference in `generateWave` ·
+biome-weighted mobs **and** the per-biome boss shortlist in `rollEncounter`
+(pulled forward from Phase 2 — see §1.6, it was never blocked on content) ·
+`src/run/biomeForecast.ts`, the readable-before-entered model and its mobile
+text renderer · `RunNode.biomeId` · 30 assertions across
+`tests/run/biomeDeal.test.ts`, `biomeSupply.test.ts`, `biomeMobs.test.ts`.
 
-**Phase 2 — mobs and the boss.** Requires **boss content first**: at least one
-boss per biome. Cheapest honest route is to let `BiomeDef.boss` name any enemy
-and have the boss node read it directly — the `'boss'` **title** already
-supplies the rank/stat bump, and `isBoss` is only an identity tag, so promoting
-existing kits (Pyre Acolyte for the Emberwaste, Bandit Duelist for a sword
-biome…) needs no new statlines. Then narrow `rollEncounter`'s anchor pool by
-biome with fallback.
-*Proves:* "I know what I am fighting for the next five waves", and finally makes
-the boss line in the banner say something different per band.
+*Proved:* the data shape; that prefer-not-silo keeps every reachability audit
+green (all 21 fight-pool enemies still anchor, every shop theme still reaches the
+run); that map STRUCTURE is byte-identical per seed (frozen fingerprint,
+mutation-checked); and the number that justifies the feature — the announced
+lean's supply moves **19% → 98%** P(≥3) inside its own band, 21% → 85% pooled
+over four bands.
+
+*Not delivered (out of scope for this pass):* the Phaser surfaces — band banner,
+route-board tint, boss-countdown panel — `src/game/**` belongs to another owner.
+`RunMap.biomes` was deliberately not built (nothing to record while biomes are
+dealt).
+
+**Phase 2 — make the band pay off in EVENTS, and finish the read.** Two pieces,
+both flushed out by Phase 1's measurements:
+1. **Type-filtered event rewards** (§1.7, §2.3). The event-theme preference is
+   frequency-neutral by arithmetic — it can only make a band OPEN on its themes
+   (63% vs 33%), never change how often they appear. The value the proposal
+   wants from events therefore has to come from CONTENT: give the card-granting
+   outcomes in `recruit`/`forge` a `CardFilter` of `[{ elements: [lean] }]`,
+   resolved against the node's `biomeId`. No new outcome kind needed.
+2. **The Phaser read** — render `BandForecast` as the band banner, the
+   route-board tint, and the boss line in `renderRunBossCountdownPanel`. Both
+   platforms, one model, no second derivation.
+
+Also here: **biomes for the five types that have none** (frost, lightning, dark,
+bow, lance). They are homeless because the roster fields 0-1 mobs each; their
+stalls and their bosses are currently carried by an adjacent biome. New mob
+content, then five more `BiomeDef`s, is the honest fix — and the boss roster
+already has `rime_tyrant` and `galewright` waiting for a Frostmarch and a
+Stormreach to belong to.
 
 **Phase 3 — the fork.** `RunMap.biomes` ledger, `'fork'` node kind, fork column
 after each boss, `chooseBiome`, fork panels on both platforms, the
 "appending a later band cannot change walked ground" test.
-*Proves:* the user's actual ask — a path chosen, not dealt.
+*Proves:* the user's actual ask — a path chosen, not dealt. Phase 1 measured what
+this is worth: dealt biomes give the player the 98% supply **only if they read
+the banner and build what the band names**; the fork is what lets them bring the
+build and pick the band. Nothing in Phase 1 has to change for it — the deal
+function is the only thing the ledger replaces.
 
 **Phase 4 — the extra-battle event.** Independent of 1–3 and could be done at
 any point, but sequenced last because it is the largest new-state change
@@ -767,7 +1048,7 @@ any point, but sequenced last because it is the largest new-state change
 settle without touching `recordBattleResult` or the level ladder.
 
 **Not scheduled — biome-specific event *content*** (bespoke events per biome, as
-opposed to Phase 1's theme preference + type-filtered rewards). Real value, but
+opposed to Phase 2's theme preference + type-filtered rewards). Real value, but
 it is a content backlog, not a system, and it should wait until the system has
 been played.
 
@@ -788,8 +1069,21 @@ sells *only* fire") breaks `contentReachability` and `affinityReachability`,
 thins the anchor pool at depths where §1.6 shows it is already down to 5
 enemies, and makes a wrong fork unrecoverable — the player who picks Emberwaste
 and then draws two gated Frost cards has no way back. Prefer-first-eligible with
-fallback (§2.3) produces the same *read* at a fraction of the risk, and the
-projection in §2.0 is measured on the preference mechanism, not on a silo.
+fallback (§2.3) produces the same *read* at a fraction of the risk, and §2.0's
+payoff is measured on the preference mechanism, not on a silo.
+
+> **AND THE AUDITS DO NOT CATCH A SILO ON THEIR OWN — measured 2026-08-26.** This
+> section assumed the reachability suites were the backstop. They are not, twice
+> over. (1) The sketched hard mob filter (§2.3) siloed a band to one or two
+> enemies and took three-different-enemies from 62% to 9%; every reachability
+> audit stayed green, because they ask whether an enemy is reachable *somewhere*
+> across the whole ladder, never whether a band is monotonous. (2) The shop
+> preference halved the supply of the three types no biome names; `affinity
+> Reachability` measures per-SHELF density, and the shelves were unchanged — it
+> was the frequency of reaching them that moved. Both were found by measuring,
+> not by the suite going red, and both now have their own assertions in
+> `tests/run/biomeSupply.test.ts` / `biomeMobs.test.ts` with the control computed
+> inside the test rather than frozen as a number.
 
 **6.3 Would not add a `biome` field to `EnemyDef` / `SkillDef` / `ShopTypeDef`.**
 It puts run-layer routing inside frozen content JSON that has parity, schema and
@@ -834,3 +1128,11 @@ hidden is the exact opposite of the thing being asked for.
 supply problem and are worth shipping on their own, but the request was for
 *choosing* paths. Shipping legibility without agency and closing the ticket
 would answer a question the user did not ask.
+
+> **Still true after Phase 1 shipped, and now with a number on it.** The 98%
+> supply is conditional on the player reading the band and building what it
+> names; measured over waves 1-10 with a FIXED type chosen at wave 1 and never
+> revisited, supply is *unchanged* from before biomes existed (2.72 offers / 38%
+> after, 2.60 / 37% before). Phase 1 makes the run legible and makes committing
+> to the band pay. It does not yet let the player bring a build and choose the
+> band that feeds it — that is Phase 3, and it is still the ask.
