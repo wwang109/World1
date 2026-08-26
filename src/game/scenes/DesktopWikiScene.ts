@@ -2,6 +2,7 @@
 import { playSfx } from '../audio/sfxSynth';
 import { powerLevelDeci } from '../../engine/balance';
 import { applyTier } from '../../engine/cards';
+import { cardOfferableAtTier, minOfferableTier } from '../../engine/types';
 import type { SkillDef, SkillTier } from '../../engine/types';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
@@ -41,7 +42,10 @@ export class DesktopWikiScene extends Phaser.Scene {
   private filter: CardFilter = 'all';
   private view: 'cards' | 'gems' = 'cards';
   private selected?: SkillDef;
-  /** Preview/add tier for the selected card (defaults to the card's authored tier). */
+  /** Preview/add tier for the selected card — defaults to the card's MINIMUM
+   * OFFERABLE tier (`minOfferableTier`, engine/types.ts), not to its authored
+   * `tier`: a card whose whole payload is tier-locked above its own tier has no
+   * usable copy there, and ADD TO BAG must never stamp one. */
   private tier: SkillTier = 'bronze';
   private selectedGem?: GemDef;
   private filterObjects: Phaser.GameObjects.GameObject[] = [];
@@ -84,7 +88,7 @@ export class DesktopWikiScene extends Phaser.Scene {
     renderDesktopHeader(this, 'WIKI', 'wiki');
     if (this.view === 'cards') {
       this.selected = this.selected ?? this.filteredSkills()[0];
-      this.tier = this.selected?.tier ?? 'bronze';
+      this.tier = this.defaultTierFor(this.selected);
       this.renderFilterRow();
       this.renderGallery();
       this.renderDetail();
@@ -190,7 +194,7 @@ export class DesktopWikiScene extends Phaser.Scene {
         if (this.filter === value) return;
         this.filter = value;
         this.selected = this.filteredSkills()[0];
-        this.tier = this.selected?.tier ?? 'bronze';
+        this.tier = this.defaultTierFor(this.selected);
         this.renderFilterRow();
         this.renderGallery();
         this.clearObjects(this.detailObjects);
@@ -359,9 +363,17 @@ export class DesktopWikiScene extends Phaser.Scene {
     });
   }
 
+  /** The tier a freshly selected card opens on: its lowest OFFERABLE tier, or
+   * its authored tier if it is offerable nowhere (unreachable — content
+   * validation rejects that card). Shared by every site that (re)selects. */
+  private defaultTierFor(skill: SkillDef | undefined): SkillTier {
+    if (!skill) return 'bronze';
+    return minOfferableTier(skill) ?? skill.tier;
+  }
+
   private selectCard(skill: SkillDef): void {
     this.selected = skill;
-    this.tier = skill.tier;
+    this.tier = this.defaultTierFor(skill);
     this.clearObjects(this.detailObjects);
     this.renderDetail();
   }
@@ -417,13 +429,15 @@ export class DesktopWikiScene extends Phaser.Scene {
     this.detailObjects.push(pl);
     y += pl.height + 8;
 
-    // Tier chips — preview/add any tier from the card's authored tier up.
-    const baseIdx = TIERS.indexOf(skill.tier);
+    // Tier chips — preview/add any tier the card actually HAS a copy at
+    // (`cardOfferableAtTier`, engine/types.ts). That is its authored tier and up,
+    // EXCEPT for a card whose whole payload is tier-locked higher: there the
+    // lowest chips are dead too, because a copy at them would do nothing.
     const chipW = (paneWidth - 32 - 3 * 6) / 4;
     TIERS.forEach((t, i) => {
       const cx = paneX + 16 + i * (chipW + 6);
       const active = t === this.tier;
-      const allowed = i >= baseIdx;
+      const allowed = cardOfferableAtTier(skill, t);
       const chip = this.add.rectangle(cx, y, chipW, 26, active ? TIER_COLOR[t] : allowed ? UI.panelAlt : UI.panelMuted, allowed ? 1 : 0.4)
         .setOrigin(0, 0).setStrokeStyle(active ? 2 : 1, TIER_COLOR[t], allowed ? 1 : 0.3);
       const label = this.add.text(cx + chipW / 2, y + 13, t.toUpperCase(), {

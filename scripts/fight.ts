@@ -217,13 +217,40 @@ function heroPieces(): BoardPiece[] {
 }
 
 /**
+ * The FOE's BOARD SLOTS — `FIGHT_FOE_SLOTS=4 npm run fight`.
+ *
+ * A catalog enemy's `boardSize` is sized to its OWN authored deck (every
+ * roster entry today fills its board exactly, zero slack), but the run layer
+ * GROWS it for a titled encounter: `buildEnemyEncounter` ships
+ * `Math.max(enemy.boardSize, nextFreeSlot(pieces))`, so an ELITE (+1 card) or
+ * BOSS (+2) legitimately fields a bigger board than the catalog value. Without
+ * this override no real elite/boss board could be shown in a combat log at
+ * all — the `FIGHT_FOE_BOARD` slot check below would reject every one of them
+ * — which is exactly the gap that pushes people into hand-writing a log
+ * instead (the one thing this script exists to prevent).
+ *
+ * Refuses a non-positive or non-integer value rather than silently falling
+ * back, same contract as `FIGHT_FOE_STATS`'s unknown-stat refusal.
+ */
+function foeBoardSize(catalogSize: number): number {
+  const spec = process.env['FIGHT_FOE_SLOTS'];
+  if (spec === undefined || spec.trim() === '') return catalogSize;
+  if (!/^[0-9]+$/.test(spec.trim()) || Number(spec.trim()) < 1) {
+    console.error(`FIGHT_FOE_SLOTS: expected a positive integer, got '${spec}'.`);
+    process.exit(1);
+  }
+  return Number(spec.trim());
+}
+
+/**
  * The FOE's board, same contract as `FIGHT_HERO_BOARD`:
  *
  *   FIGHT_FOE_BOARD=lance_thrust npm run fight
  *
  * Replaces the named enemy's pieces so a card can be tried against a chosen
  * attacker rather than whatever the catalog enemy happens to run. Its stats are
- * still the catalog enemy's unless `FIGHT_FOE_STATS` overrides them.
+ * still the catalog enemy's unless `FIGHT_FOE_STATS` overrides them, and its
+ * board is the catalog enemy's unless `FIGHT_FOE_SLOTS` overrides it.
  */
 function foePieces(boardSize: number, fallback: readonly BoardPiece[]): BoardPiece[] {
   const spec = process.env['FIGHT_FOE_BOARD'];
@@ -241,7 +268,7 @@ function foePieces(boardSize: number, fallback: readonly BoardPiece[]): BoardPie
     process.exit(1);
   }
   if (slot > boardSize) {
-    console.error(`FIGHT_FOE_BOARD needs ${slot} slots, board is ${boardSize}.`);
+    console.error(`FIGHT_FOE_BOARD needs ${slot} slots, board is ${boardSize} (raise it with FIGHT_FOE_SLOTS).`);
     process.exit(1);
   }
   return pieces;
@@ -296,8 +323,8 @@ const playerTeam: CombatantSetup[] = [
 const enemyTeam: CombatantSetup[] = enemyDefs.map((enemy) => ({
   name: enemy.name,
   stats: withStatOverrides({ ...enemy.stats }, 'FIGHT_FOE_STATS'),
-  boardSize: enemy.boardSize,
-  pieces: foePieces(enemy.boardSize, enemy.pieces),
+  boardSize: foeBoardSize(enemy.boardSize),
+  pieces: foePieces(foeBoardSize(enemy.boardSize), enemy.pieces),
   elementAffinity: enemy.elementAffinity,
   weaponAffinity: enemy.weaponAffinity,
 }));

@@ -15,10 +15,9 @@
  * command, not a merge.
  *
  * Rescues any balance-derivation COMMENTS attached to each preset literal
- * into the document's per-entry `notes` (none exist today — every preset in
- * modifiers.ts is currently comment-free — but the rescue runs unconditionally
- * so a future affix's reasoning is captured automatically instead of by a
- * hand-edit to the JSON).
+ * into the document's per-entry `notes` — which is how each behavioural
+ * affix's "what it taxes / what answers it" reasoning (2026-08-26) reaches
+ * the document automatically instead of by a hand-edit to the JSON.
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -90,12 +89,13 @@ const notesById = rescueNotes();
 /**
  * FIELD ORDER inside the `def` payload, matching declaration order in
  * `EnemyModifierPreset`: name/blurb (copy) -> notes -> bonusPL/bonusProfile
- * (the PL-spend dial) -> forceTier (the tier-override dial). `id` is NOT
+ * (the PL-spend dial) -> forceTier (the tier-override dial) -> affix/cards
+ * (the behavioural-affix dial). `id` is NOT
  * here: it is the document's KEY (see the envelope docs on the
  * skills/gems/enemies loaders) and the loader puts it back when rebuilding
  * the preset.
  */
-const DEF_FIELD_ORDER = ['name', 'blurb', 'notes', 'bonusPL', 'bonusProfile', 'forceTier'] as const;
+const DEF_FIELD_ORDER = ['name', 'blurb', 'notes', 'bonusPL', 'bonusProfile', 'forceTier', 'affix', 'cards'] as const;
 
 const modifierList = Object.values(MODIFIER_PRESETS)
   .slice()

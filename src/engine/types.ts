@@ -1278,6 +1278,79 @@ export function tierResolved(skill: SkillDef, tier: SkillTier = skill.tier): Ski
 }
 
 /**
+ * CAN A COPY OF THIS CARD BE HANDED TO A PLAYER AT `tier`? — the predicate every
+ * layer that CHOOSES a (card, tier) pair must filter or clamp on, and the reason
+ * `cardExistsAtTier` alone is not enough.
+ *
+ * TWO WAYS A (card, tier) PAIR CAN BE UNOFFERABLE, and they are independent:
+ *   1. THE CARD HAS NO COPY THERE — `cardExistsAtTier`: a card authored at Gold
+ *      has no Bronze form, because tiering only ranks UP.
+ *   2. THE COPY IS A HUSK — every action it lists is tier-locked above `tier`
+ *      (`tierResolved` strips them, `TierLocked`), so the copy exists but does
+ *      literally nothing. `validateSkillContent` rejects that shape at the
+ *      card's OWN tier, which is why case 2 cannot ship today; it is still
+ *      checked here because the run layer is the thing that would hand the husk
+ *      out, and "the validator covers it" is a guarantee about content, not
+ *      about the (card, tier) pairs the run layer invents at roll time.
+ *
+ * "DOES NOTHING" IS `effects` AND `aura`, NOT `effects` ALONE. Six shipped cards
+ * (`mending_aura`, `spotters_mark`, `swift_march`, `time_crystal`, `war_banner`,
+ * `warlord_banner`) have an EMPTY `effects` list and carry their whole payload in
+ * `aura` — a passive board identity that never casts. An empty-`effects` test
+ * alone calls all six husks and would quietly delete them from every acquisition
+ * pool in the game. A tier lock cannot strip an `aura` (it is per-ACTION, see
+ * `TierLocked`), so a card with an aura is offerable wherever it exists.
+ *
+ * MONOTONE IN `tier`, which is what makes `minOfferableTier` below well-defined:
+ * `cardExistsAtTier` is monotone by construction, and a lock only ever OPENS as
+ * tier rises, so a card offerable at some tier is offerable at every tier above.
+ */
+export function cardOfferableAtTier(skill: SkillDef, tier: SkillTier): boolean {
+  if (!cardExistsAtTier(skill, tier)) return false;
+  // The aura that would actually be in force at `tier`: the base one, or a
+  // `tierUpgrades` block's replacement (`applyTier` spreads it over the base).
+  // Read here rather than through `applyTier` because that lives in cards.ts,
+  // which imports THIS module — asking it would close an import cycle.
+  if (skill.aura !== undefined) return true;
+  if (tier !== 'bronze' && skill.tierUpgrades?.[tier]?.aura !== undefined) return true;
+  return tierResolved(skill, tier).effects.length > 0;
+}
+
+/**
+ * The LOWEST tier a copy of this card can be handed out at — `null` for a card
+ * that is unofferable at every tier (a husk all the way up, which content
+ * validation rejects and no shipped card is).
+ *
+ * This is the number the run layer needs and `SkillDef.tier` alone is not: a
+ * card's own `tier` is its budget floor, but a Bronze card whose whole payload
+ * is Gold-locked is not offerable until Gold.
+ */
+export function minOfferableTier(skill: SkillDef): SkillTier | null {
+  for (let i = 0; i < TIER_ORDER.length; i += 1) {
+    const tier = TIER_ORDER[i]!;
+    if (cardOfferableAtTier(skill, tier)) return tier;
+  }
+  return null;
+}
+
+/**
+ * `tier`, RAISED to this card's minimum offerable tier (`minOfferableTier`) —
+ * the clamp for every surface that rolls a tier independently of the card it
+ * rolled it for, and `null` for a card that is offerable nowhere.
+ *
+ * THE CALLER STILL OWNS THE PRICE. `goldPriceOfCard` (src/run/shop.ts) is keyed
+ * off tier, so a shelf that clamps Bronze -> Gold must re-derive its price from
+ * the RETURN of this function, never from the tier it rolled. Clamping without
+ * repricing sells a Gold card for 2 gold, which is the exact failure this whole
+ * clamp exists to make impossible.
+ */
+export function clampTierToCard(skill: SkillDef, tier: SkillTier): SkillTier | null {
+  const min = minOfferableTier(skill);
+  if (min === null) return null;
+  return tierAtLeast(tier, min) ? tier : min;
+}
+
+/**
  * Whether this skill's OFFENSIVE effects resolve against MORE THAN ONE unit.
  *
  * THE CONCEPT, ONE DEFINITION — deliberately not a `scope === 'all'` test

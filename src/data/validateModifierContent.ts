@@ -30,7 +30,51 @@ const TIERS = ['bronze', 'silver', 'gold', 'diamond'] as readonly string[];
 const PROFILE_FIELDS = ['maxHp', 'attack', 'magicPower', 'armor', 'magicResist', 'speed'] as const;
 
 /** Fields allowed inside a document's `def` payload. `id`/`version` are the KEY and live on the envelope. */
-const DEF_FIELDS = new Set(['notes', 'name', 'blurb', 'bonusPL', 'bonusProfile', 'forceTier']);
+const DEF_FIELDS = new Set(['notes', 'name', 'blurb', 'bonusPL', 'bonusProfile', 'forceTier', 'affix', 'cards']);
+
+/**
+ * A `cards` list's ceiling. An affix installs cards IN PLACE OF the title's
+ * generic filler (`buildEnemyEncounter`), and the biggest filler allowance in
+ * `TITLE_PRESETS` today is Boss's 2 — so an affix carrying more than a
+ * handful of cards has stopped being a re-shape and become a second deck.
+ * Deliberately not pinned to `TITLE_PRESETS.elite.extraCards` (that lives in
+ * `src/run`, which `src/data` never imports): the run layer PRICES whatever
+ * overflows this allowance (`memberDeckDeci`) and
+ * `tests/run/eliteAffix.test.ts` asserts today's affixes stay inside it.
+ */
+const MAX_AFFIX_CARDS = 4;
+
+/** A skill id shape check only. Whether the id EXISTS in the skill book is
+ * deliberately NOT checked here, exactly as `validateEnemyContent.ts` leaves
+ * its `pieces[].skillId` unchecked: `src/data/skills.ts` is a sibling content
+ * module and importing it into a validator would couple two books' load
+ * order. `tests/run/eliteAffix.test.ts` asserts every affix card resolves in
+ * the live book — the run layer already holds both. */
+const isSkillId = (v: unknown): v is string => typeof v === 'string' && /^[a-z][a-z0-9_]*$/.test(v);
+
+/** Validates a `cards` list: a non-empty, duplicate-free array of skill-id-shaped strings within the allowance. */
+function validateCards(raw: unknown, where: string, problems: ContentProblem[]): void {
+  const at = where + '.cards';
+  if (!Array.isArray(raw)) { problems.push({ where: at, message: 'cards must be an array of skill ids' }); return; }
+  if (raw.length === 0) {
+    problems.push({ where: at, message: 'cards must name at least one card (an empty list is an affix that installs nothing)' });
+  }
+  if (raw.length > MAX_AFFIX_CARDS) {
+    problems.push({ where: at, message: 'cards must name at most ' + String(MAX_AFFIX_CARDS) + ' cards, got ' + String(raw.length) });
+  }
+  const seen = new Set<string>();
+  for (let i = 0; i < raw.length; i += 1) {
+    const id = raw[i];
+    if (!isSkillId(id)) {
+      problems.push({ where: at + '[' + String(i) + ']', message: 'must be a lower_snake_case skill id, got ' + JSON.stringify(id) });
+      continue;
+    }
+    if (seen.has(id)) {
+      problems.push({ where: at + '[' + String(i) + ']', message: 'duplicate card id ' + id + ' (install one copy; a second copy is a different affix)' });
+    }
+    seen.add(id);
+  }
+}
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -69,6 +113,8 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   opt(raw, 'bonusPL', inRange(1, MAX_BONUS_PL), 'an integer 1..' + String(MAX_BONUS_PL), where, problems);
   if (raw.bonusProfile !== undefined) validateBonusProfile(raw.bonusProfile, where, problems);
   opt(raw, 'forceTier', (v) => TIERS.includes(v as string), TIERS.join('|'), where, problems);
+  opt(raw, 'affix', (v) => v === true, 'the literal true (there is no affix: false — omit the field)', where, problems);
+  if (raw.cards !== undefined) validateCards(raw.cards, where, problems);
 
   // CROSS-FIELD: bonusPL and bonusProfile are a PAIR — buildEnemyEncounter's
   // own apply site (`if (!mod.bonusPL || !mod.bonusProfile) continue;`) skips
@@ -86,8 +132,23 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   // STRUCTURALLY IMPOSSIBLE: a modifier with no effect at all — neither a PL
   // auto-spend nor a tier override — is an affix that changes nothing, which
   // can only be an authoring mistake (a dropped `forceTier`/`bonusPL` pair).
-  if (!hasBonusPL && !hasBonusProfile && raw.forceTier === undefined) {
-    problems.push({ where, message: 'a modifier must define at least one effect: bonusPL+bonusProfile, or forceTier' });
+  if (!hasBonusPL && !hasBonusProfile && raw.forceTier === undefined && raw.cards === undefined) {
+    problems.push({ where, message: 'a modifier must define at least one effect: bonusPL+bonusProfile, forceTier, or cards' });
+  }
+
+  // CROSS-FIELD: `affix` and `cards` are a PAIR too. `affix: true` with no
+  // cards is an elite identity that changes nothing about the fight (the
+  // exact "no error, just different numbers" failure this schema exists to
+  // close); `cards` without `affix: true` would install cards while sitting
+  // in the DEEP-RUN ESCALATION pool instead of the elite pool, i.e. silently
+  // land on a normal fight (see the two-pool note in modifiers.ts).
+  const isAffix = raw.affix === true;
+  const hasCards = raw.cards !== undefined;
+  if (isAffix !== hasCards) {
+    problems.push({
+      where,
+      message: 'affix and cards must both be present or both be absent (affix: true with no cards changes nothing; cards without affix: true would ride the deep-run escalation ramp onto a normal fight)',
+    });
   }
 
   for (const key of Object.keys(raw)) {

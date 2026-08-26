@@ -6,7 +6,8 @@
 // in a fixed call order, so replaying the same run+path is byte-identical.
 
 import { hashSeed, Rng } from '../engine/rng';
-import type { SkillTier } from '../engine/types';
+import { cardOfferableAtTier, clampTierToCard } from '../engine/types';
+import type { SkillDef, SkillTier } from '../engine/types';
 import { eventCatalog, eventCatalogIds, type EventChoiceDef, type EventDef, type EventOutcomeSpec, type EventTheme } from '../data/events';
 import type { DraftCard } from './draft';
 import { skillBook } from '../data/skills';
@@ -190,6 +191,31 @@ function sampleDistinct<T>(rng: Rng, pool: readonly T[], count: number): T[] {
 
 function toDraftCard(skillId: string): DraftCard {
   return { skillId, tier: 'bronze' };
+}
+
+/**
+ * THE BOOK, NARROWED TO CARDS THAT CAN ACTUALLY BE HANDED OVER AT `tier`
+ * (`cardOfferableAtTier`, engine/types.ts) — the one pool builder every card-
+ * granting outcome in this module draws from, so the tier-minimum rule is
+ * applied in ONE place rather than per outcome.
+ *
+ * EVENTS EXCLUDE, THEY DO NOT CLAMP (with one exception, below). Every card
+ * grant here is bought with an authored `choice.cost` in gold, not with a
+ * tier-keyed price like a shop shelf's (`goldPriceOfCard`, shop.ts) — so raising
+ * a grant's tier raises what the player receives with nothing to raise on the
+ * other side of the trade. A 2-gold event choice must not become a Gold card.
+ * Narrowing the DRAW POOL keeps the trade exactly as authored.
+ *
+ * THE EXCEPTION IS A NAMED CARD: `grantCard` with an explicit `spec.cardId`
+ * (content pointed at ONE card) has no pool to narrow, so that path clamps and
+ * reports the true tier instead — see `grantCardOutcome`.
+ *
+ * NO Rng CALL CHANGES: every consumer spends the same number of `rng.int`/
+ * `rng.pick` draws over a narrower array. `Array#filter` preserves the book's
+ * canonical id order. No-op for today's all-Bronze, lock-free book.
+ */
+function offerableBook(tier: SkillTier): SkillDef[] {
+  return Object.values(skillBook).filter((s) => cardOfferableAtTier(s, tier));
 }
 
 // ---------------------------------------------------------------------------
@@ -381,13 +407,30 @@ function grantCardOutcome(
   rng: Rng,
   spec: Extract<EventOutcomeSpec, { kind: 'grantCard' }>,
 ): { state: RunState; outcome: EventOutcome } {
-  const tier = spec.tier ?? DEFAULT_CARD_TIER;
+  const requested = spec.tier ?? DEFAULT_CARD_TIER;
   let skillId = spec.cardId;
   if (!skillId) {
-    const pool = Object.values(skillBook).filter((s) => (spec.filter ? cardMatchesFilter(s, spec.filter) : true));
-    if (pool.length === 0) throw new Error('grantCard: no skill matches the given filter');
-    skillId = rng.pick(pool).id;
+    const matches = Object.values(skillBook).filter((s) => (spec.filter ? cardMatchesFilter(s, spec.filter) : true));
+    if (matches.length === 0) throw new Error('grantCard: no skill matches the given filter');
+    // TIER MINIMUMS, BY EXCLUSION (`offerableBook`'s doc comment): prefer the
+    // cards that genuinely have a copy at `requested`, so a Bronze grant stays a
+    // Bronze grant. Falls back to the unnarrowed matches if the tier filter
+    // empties them — the same "never throw over a narrow filter" posture this
+    // function already takes, and the clamp below then keeps the grant honest.
+    // ONE `rng.pick` either way: the draw count is unchanged, only the array it
+    // indexes into is.
+    const offerable = matches.filter((s) => cardOfferableAtTier(s, requested));
+    skillId = rng.pick(offerable.length > 0 ? offerable : matches).id;
   }
+  // THE NAMED-CARD PATH CLAMPS. With `spec.cardId` set there is no pool to
+  // narrow — content named exactly this card — so refusing would make the choice
+  // dead and stamping `requested` would record a tier the card has no copy at
+  // (`applyTier` would resolve the real, higher kit while `sellPriceOfCard` and
+  // the merge ladder priced the stamp: a corrupt owned instance). The grant is
+  // therefore raised to the card's minimum and REPORTED at the tier actually
+  // handed over, so the reward screen and the run's own record agree.
+  const named = skillBook[skillId];
+  const tier = (named ? clampTierToCard(named, requested) : null) ?? requested;
   const inserted = tryInsertRunCard(state, skillId, tier);
   if (!inserted) {
     return {
@@ -506,7 +549,11 @@ function bonusDraftOutcome(
   rng: Rng,
   spec: Extract<EventOutcomeSpec, { kind: 'bonusDraft' }>,
 ): EventOutcome {
-  const all = Object.values(skillBook);
+  // `toDraftCard` stamps Bronze (`DraftCard.tier` is the literal `'bronze'`), so
+  // the pool is narrowed to cards that HAVE a Bronze copy before the theme filter
+  // runs — the fallback chain is themed-and-Bronze -> whole-book-and-Bronze, and
+  // no arm of it can produce a card this mini-draft cannot hand over at Bronze.
+  const all = offerableBook(DEFAULT_CARD_TIER);
   const pool = spec.filter ? all.filter((s) => cardMatchesFilter(s, spec.filter!)) : all;
   const picked = sampleDistinct(rng, pool.length > 0 ? pool : all, BONUS_DRAFT_SIZE);
   return { kind: 'bonusDraft', cards: picked.map((s) => toDraftCard(s.id)) };
@@ -542,7 +589,12 @@ function cardChoiceOutcome(
   // `spec.tier` is narrowed to `'bronze'` at the type level (see the doc
   // comment on `cardChoice` in data/events.ts) — `toDraftCard` always builds
   // a bronze `DraftCard`, so there's nothing to branch on here today.
-  const all = Object.values(skillBook);
+  //
+  // Bronze-offerable only, exactly as `bonusDraftOutcome` above: the width guard
+  // below therefore measures the pool the player can REALLY be shown, so a tier
+  // minimum that thinned a filter under `EVENT_CHOICE_SIZE` is reported as the
+  // content problem it is rather than silently handing back a 1-of-2 "pick".
+  const all = offerableBook(DEFAULT_CARD_TIER);
   const pool = spec.filter ? all.filter((s) => cardMatchesFilter(s, spec.filter!)) : all;
   const drawPool = pool.length > 0 ? pool : all;
   if (drawPool.length < EVENT_CHOICE_SIZE) {

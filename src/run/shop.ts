@@ -5,6 +5,7 @@
 
 import { gemPowerLevelDeci } from '../engine/balance';
 import { hashSeed, Rng } from '../engine/rng';
+import { clampTierToCard } from '../engine/types';
 import type { Action, BuffableStat, Rarity, SkillDef, SkillTier } from '../engine/types';
 import type { GemDef } from '../data/gems';
 import { gemBook } from '../data/gems';
@@ -49,7 +50,19 @@ export function gemMatchesFilter(gem: GemDef, filter: GemFilter): boolean {
   return filter.some((clause) => gemMatchesClause(gem, clause));
 }
 
-/** Every skill matching a given shop's card filter (deterministic book order). */
+/** Every skill matching a given shop's card filter (deterministic book order).
+ *
+ * ANSWERS "WHICH CARDS", NEVER "AT WHICH TIER" — deliberately UNFILTERED by tier
+ * minimums (`cardOfferableAtTier`, engine/types.ts), even though a card's minimum
+ * can be above the tier a shelf would roll for it. A narrowing here was built
+ * first and rejected: `caravan`/`relic_vault` promise the WHOLE card book
+ * (empty-clause wildcard filter, pinned by tests/run/shop.test.ts), and
+ * `shopPoolInfo` derives shelf slot counts and the REROLL-is-pointless test from
+ * this same function — so dropping a card here removes it from the only shops
+ * that guarantee full-book reachability and silently shrinks shelves. The tier
+ * minimum is applied where a tier is actually CHOSEN, one function per offer
+ * (`offeredTierForCard`), which is also the only place that can re-price it.
+ */
 export function cardPoolForShop(shopId: string): SkillDef[] {
   const shop = shopCatalog[shopId];
   if (!shop) throw new Error(`cardPoolForShop: unknown shop id "${shopId}"`);
@@ -410,6 +423,42 @@ function rollOfferedTier(rng: Rng, depth: number, tierBias?: 'silver'): SkillTie
 }
 
 /**
+ * THE ROLLED TIER, CLAMPED UP TO WHAT THE CARD ACTUALLY HAS A COPY AT
+ * (`clampTierToCard`, engine/types.ts) — the shelf's half of the tier-minimum
+ * rule, and the one that must be paired with a re-derived PRICE.
+ *
+ * CLAMP, NOT EXCLUDE, and this is the opposite call from `draft.ts`'s
+ * bronze-only pool. Three reasons:
+ *   • THE ROLL COMES AFTER THE PICK. `rollShopStock` draws the card first, then
+ *     rolls its tier; rejecting the pair here would mean either re-rolling (an
+ *     EXTRA `rng` draw, which moves every downstream roll in the run and breaks
+ *     frozen baselines) or dropping the slot (a silently short shelf).
+ *   • A SHELF IS PRICED, so a clamp has somewhere honest to land: the offer is
+ *     re-priced at the tier actually handed over. A draft pick has no price, so
+ *     there a clamp would be a free upgrade — hence exclusion there.
+ *   • DEPTH ALREADY GATES IT ECONOMICALLY. A Gold-minimum card clamped onto a
+ *     depth-1 shelf costs `GOLD_PRICE_BY_TIER.gold` (4) against a wave-1 wallet,
+ *     so it reads as a thing seen before it can be afforded — which is the shape
+ *     a roguelite shop wants — rather than a thing quietly sold at Bronze price.
+ *
+ * THE ONE PLACE A SHELF CAN SHOW DIAMOND. `rollOfferedTier` stops at Gold, so
+ * "Diamond never appears in shops" holds for every card whose minimum is Bronze,
+ * Silver or Gold — i.e. every card today. A DIAMOND-MINIMUM card clamps to
+ * Diamond and is priced at `GOLD_PRICE_BY_TIER.diamond` (5), which is the
+ * deliberate trade against the alternative: excluding it from the pool would make
+ * that card unreachable from the only shops that promise the whole book.
+ *
+ * `null` — a card offerable at NO tier (a husk all the way up, which
+ * `validateSkillContent` rejects) — falls back to the card's OWN tier rather than
+ * the rolled one. A wrong-but-real tier still prices correctly; the rolled tier
+ * would be the very lie this function exists to prevent.
+ */
+function offeredTierForCard(rng: Rng, skill: SkillDef, depth: number, tierBias?: 'silver'): SkillTier {
+  const rolled = rollOfferedTier(rng, depth, tierBias);
+  return clampTierToCard(skill, rolled) ?? skill.tier;
+}
+
+/**
  * Seeded shelf roll for one shop: up to `shelf.cards` distinct card offers and
  * up to `shelf.gems` distinct gem offers. Same (shopId, seed, depth,
  * rarityGated) -> identical shelf, forever (no wall-clock or ambient
@@ -434,10 +483,17 @@ export function rollShopStock(shopId: string, seed: number, depth = 1, rarityGat
 
   const cardPool = cardPoolForShop(shopId);
   const pickedCards = sampleDistinct(rng, cardPool, shop.shelf.cards);
-  const cards: CardOffer[] = pickedCards.map((skill) => {
-    const tier = rollOfferedTier(rng, depth, shop.tierBias);
-    return { skillId: skill.id, tier, price: goldPriceOfCardForShop(tier, shop.priceDelta) };
-  });
+  const cards: CardOffer[] = [];
+  for (let i = 0; i < pickedCards.length; i += 1) {
+    const skill = pickedCards[i]!;
+    // ONE `rng.int` per slot, exactly as before — `offeredTierForCard` clamps the
+    // value that draw resolved to, it never draws again. THE PRICE IS DERIVED
+    // FROM THE CLAMPED TIER, never from the rolled one: `goldPriceOfCard` is
+    // keyed off tier, so pricing off the roll would sell a clamped Gold card at
+    // the Bronze price.
+    const tier = offeredTierForCard(rng, skill, depth, shop.tierBias);
+    cards.push({ skillId: skill.id, tier, price: goldPriceOfCardForShop(tier, shop.priceDelta) });
+  }
 
   const gemPoolFull = gemPoolForShop(shopId);
   const gemPool = rarityGated ? gemPoolFull.filter((g) => gemRarityEligible(g.rarity, depth)) : gemPoolFull;

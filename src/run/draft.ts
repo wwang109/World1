@@ -6,10 +6,22 @@
 
 import { hashSeed, Rng } from '../engine/rng';
 import { skillBook } from '../data/skills';
+import { cardOfferableAtTier } from '../engine/types';
 import type { SkillDef } from '../engine/types';
 
 export interface DraftCard {
   skillId: string;
+  /**
+   * BRONZE, AS A LITERAL TYPE, DELIBERATELY. The start draft (and every event
+   * mini-draft that reuses this shape, `src/run/events.ts`) hands cards over for
+   * FREE — there is no price to re-derive, so a card clamped up to a higher tier
+   * would be a silent free upgrade. The tier-minimum rule is therefore honoured
+   * here by EXCLUSION, not by clamping: the draw pools contain only cards that
+   * are genuinely offerable at Bronze (`cardOfferableAtTier`), which is what lets
+   * this field stay a literal instead of widening to `SkillTier`. See
+   * `rollStartDraft` below, and `offeredTierForCard` in `shop.ts` for the priced
+   * surface that went the other way.
+   */
   tier: 'bronze';
 }
 
@@ -76,7 +88,19 @@ function pickThemeSet(rng: Rng, themePool: readonly SkillDef[], fullPool: readon
  */
 export function rollStartDraft(seed: number): StartDraft {
   const rng = new Rng(hashSeed('draft', seed));
-  const all = Object.values(skillBook);
+  // BRONZE-OFFERABLE ONLY (`cardOfferableAtTier`, engine/types.ts) — the pool
+  // filter that makes `DraftCard.tier`'s literal `'bronze'` true rather than
+  // merely asserted. A card with no Bronze copy (authored above Bronze, or whose
+  // whole payload is tier-locked above it) is EXCLUDED from every set, including
+  // the wildcard set and the underfill backfill, because this draft is free and
+  // has no price to raise alongside a clamped tier.
+  //
+  // NO Rng CALL CHANGES: `sampleDistinct` spends exactly one `rng.int` per slot
+  // either way; a narrower pool only changes which card each existing draw
+  // indexes to. Byte-identical for today's all-Bronze book (the filter removes
+  // nothing), and `Array#filter` preserves the book's canonical id order, which
+  // `tests/run/contentPoolOrder.test.ts` pins.
+  const all = Object.values(skillBook).filter((s) => cardOfferableAtTier(s, 'bronze'));
 
   const offensePool = all.filter((s) => s.archetypes.includes('offense'));
   const defensePool = all.filter((s) => s.archetypes.includes('defensive') || s.archetypes.includes('healing'));

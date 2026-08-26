@@ -6,6 +6,7 @@
 // Math.random — the map, encounters, and shop rolls all derive from the run
 // seed via the engine's seeded `Rng`.
 
+import { clampTierToCard } from '../engine/types';
 import type { Gem, SkillTier } from '../engine/types';
 import { enemies } from '../data/enemies';
 import { skillBook } from '../data/skills';
@@ -14,6 +15,7 @@ import { DRAFT_SET_KEYS, type DraftSetKey } from './draft';
 import {
   buildEnemyEncounter,
   capPackTitle,
+  eliteAffixIdFor,
   ENEMY_MODIFIER_IDS,
   MIN_PACK_FIGHT_NUMBER,
   PACK_SIZE,
@@ -482,8 +484,18 @@ export function applyDraftResult(state: RunState, picks: Partial<Record<DraftSet
     const size = Math.max(1, skillBook[skillId]?.size ?? 1);
     const instanceId = `card_${String(nextId).padStart(3, '0')}`;
     nextId += 1;
+    // BRONZE, FLOORED AT THE CARD'S MINIMUM (`clampTierToCard`,
+    // engine/types.ts). `rollStartDraft` only offers cards that HAVE a Bronze
+    // copy, so this resolves to plain `'bronze'` for every pick it produces —
+    // the floor is here because this function takes bare skill ids from the UI
+    // and is the point where a tier is STAMPED onto an owned instance. Stamping
+    // a tier the card has no copy at is silently corrupting: the card would
+    // resolve at its real (higher) kit through `applyTier` while
+    // `sellPriceOfCard` and the merge ladder read the stamp.
+    const drafted = skillBook[skillId];
+    const tier = (drafted ? clampTierToCard(drafted, 'bronze') : null) ?? 'bronze';
     if (cursor + size <= RUN_BOARD_SLOTS) {
-      pieces.push({ instanceId, skillId, tier: 'bronze', slot: cursor });
+      pieces.push({ instanceId, skillId, tier, slot: cursor });
       cursor += size;
       continue;
     }
@@ -494,7 +506,7 @@ export function applyDraftResult(state: RunState, picks: Partial<Record<DraftSet
       // guarded rather than silently dropping the pick.
       throw new Error(`applyDraftResult: no room on board or in bag for drafted pick "${skillId}"`);
     }
-    bagSlots[fit] = { instanceId, skillId, tier: 'bronze' };
+    bagSlots[fit] = { instanceId, skillId, tier };
   }
   return {
     ...state,
@@ -629,9 +641,17 @@ export function rollEncounter(state: RunState): EncounterPack {
   const gateDepth = node.fightNumber!;
   const biome = biomeFor(state.map.seed, node.wave, node.biomeId);
   // BIOME BINDING (2026-08-26) — a THIRD narrowing, applied after depth gating
-  // with the identical prefer-then-fall-back shape and, like depth gating,
-  // spending NO additional Rng call: it only changes which array each slot's
-  // existing `rng.int(pool.length)` draw indexes into. See `preferIds`.
+  // and, like depth gating, spending NO additional Rng call: it only changes
+  // which array each slot's existing `rng.int(pool.length)` draw indexes into.
+  //
+  // MOBS ARE WEIGHTED, NOT FILTERED (`weightIds` in `biome.ts`). A hard filter
+  // was built first and measured: a biome's mob list intersects a single depth
+  // tier at 1-2 ids, so it siloed the band — the share of fight columns offering
+  // three DIFFERENT enemies fell from 62% to 9%, with bands fielding one enemy
+  // for five straight waves, while every reachability audit stayed green (they
+  // ask "reachable somewhere", not "is this band monotonous"). Weighting keeps
+  // the band's identity dominant (55% of anchors vs 25% unweighted) and leaves
+  // the rest of the depth pool genuinely reachable inside it.
   //
   // A BOSS COLUMN draws its anchor from the band biome's `bosses` SHORTLIST
   // instead of `BOSS_POOL`, and does so UNGATED by depth — exactly as boss
@@ -653,13 +673,23 @@ export function rollEncounter(state: RunState): EncounterPack {
   const anchorPool = node.kind === 'boss' ? anchorBase : weightIds(anchorBase, biome.mobs);
   const fillerPool = weightIds(fillerPoolFor(pool, bands, gateDepth), biome.mobs);
   const entry = fightTableEntryForNode(node);
+  // ELITE AFFIX (2026-08-26) — dealt from the run seed + fight number through
+  // `eliteAffixIdFor`'s OWN `hashSeed` domain, so it spends NO draw off this
+  // node's `rng` and cannot shift the pack-variant or enemy-id rolls below.
+  // Keyed on the FIGHT NUMBER, so the whole fight column agrees which affix
+  // that rung carries whichever risk option the player takes. Only an ELITE
+  // title carries one: `'easy'` caps an elite back to normal and `'hard'`
+  // promotes it to boss, and bosses are deliberately affix-free (their biome
+  // shortlist already telegraphs them by name — see the ELITE AFFIXES block
+  // in `encounter.ts` for that fork).
+  const nodeAffix = entry.title === 'elite' ? eliteAffixIdFor(state.map.seed, node.fightNumber!) : null;
   const gateOpen = node.kind !== 'boss' && (node.fightNumber ?? 0) >= MIN_PACK_FIGHT_NUMBER;
   let variant: PackVariant = gateOpen ? rollPackVariant(rng) : 'solo';
 
   let memberLevel = entry.level;
   let memberTitle: EnemyTitle = entry.title;
   if (variant !== 'solo') {
-    const solvedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[variant], entry.modifiers);
+    const solvedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[variant], entry.modifiers, nodeAffix);
     if (solvedLevel === null) {
       // Budget floor-fallback (encounter.ts#resolvePackMemberLevel): even
       // level 1 would exceed this member's taxed share — ship solo instead.
@@ -671,12 +701,16 @@ export function rollEncounter(state: RunState): EncounterPack {
   }
   const size = PACK_SIZE[variant];
   const rank = TITLE_PRESETS[memberTitle].rank;
+  // Pack members are mob/normal (`capPackTitle`), so a pack drops the affix
+  // with the title it belonged to — no elite packs, no affixed packs, and
+  // `resolvePackMemberLevel`'s member-deck term above matches that exactly.
+  const unitAffix = memberTitle === 'elite' ? nodeAffix : null;
 
   const units: EncounterUnit[] = [];
   for (let i = 0; i < size; i++) {
     const drawPool = i === 0 ? anchorPool : fillerPool;
     const enemyId = drawPool[rng.int(drawPool.length)]!;
-    units.push(buildEnemyEncounter(enemyId, memberLevel, memberTitle, rank, entry.modifiers));
+    units.push(buildEnemyEncounter(enemyId, memberLevel, memberTitle, rank, entry.modifiers, unitAffix));
   }
   return { variant, units };
 }
@@ -924,12 +958,26 @@ export function tryInsertRunCard(
   skillId: string,
   tier: SkillTier,
 ): { state: RunState; instanceId: string } | null {
-  const size = Math.max(1, skillBook[skillId]?.size ?? 1);
+  const card = skillBook[skillId];
+  const size = Math.max(1, card?.size ?? 1);
   const fit = runNearestFit(runBagOccupied(state), size, 0);
   if (fit < 0) return null;
   const instanceId = `card_${String(state.nextCardInstanceId).padStart(3, '0')}`;
   const bagSlots = [...state.bagSlots];
-  bagSlots[fit] = { instanceId, skillId, tier };
+  // THE LAST FLOOR ON A STAMPED TIER (`clampTierToCard`, engine/types.ts). Every
+  // card a run hands the player — shop buy, event grant, mini-draft pick — passes
+  // through here, so this is where "no owned instance is ever stamped below its
+  // card's minimum tier" is guaranteed rather than assumed. A no-op when the
+  // OFFER site did its job (`offeredTierForCard` in shop.ts, the exclusion pools
+  // in draft.ts/events.ts), which is the normal case.
+  //
+  // IT DOES NOT MAKE A PRICE HONEST, and must not be mistaken for doing so: the
+  // gold was already charged by `buyRunCard` from `offer.price`. Pricing is the
+  // offer site's job; this only stops a bad (card, tier) pair from becoming a
+  // corrupt owned instance whose sell price and merge ladder read a tier the card
+  // has no copy at.
+  const stamped = (card ? clampTierToCard(card, tier) : null) ?? tier;
+  bagSlots[fit] = { instanceId, skillId, tier: stamped };
   const nextState: RunState = { ...state, bagSlots, nextCardInstanceId: state.nextCardInstanceId + 1 };
   return { state: nextState, instanceId };
 }

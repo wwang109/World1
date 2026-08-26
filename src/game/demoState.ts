@@ -1,4 +1,6 @@
 import { gemBook } from '../data/gems';
+import { skillBook } from '../data/skills';
+import { clampTierToCard } from '../engine/types';
 import type { BoardPiece, Gem, SkillTier } from '../engine/types';
 import type { EnemyTitle } from '../run/encounter';
 import type { Allocation } from '../run/leveling';
@@ -302,8 +304,24 @@ export function resetDemoState(overrides: Partial<DemoState> = {}): void {
   demoState.shopShelves = cloneShopShelves(overrides.shopShelves ?? DEFAULT_DEMO_STATE.shopShelves);
 }
 
+/**
+ * The sandbox's single card-stamping point — the mirror of
+ * `tryInsertRunCard`/`applyDraftResult` in `src/run/runState.ts`, and it carries
+ * the SAME tier floor for the same reason (`clampTierToCard`, engine/types.ts):
+ * no owned instance may be stamped below the tier its card actually has a copy
+ * at. Every sandbox acquisition — the START draft (`draftActions.ts`), a shop buy
+ * (`shopActions.ts`) and the Wiki's ADD TO BAG — comes through here, so the floor
+ * lives here rather than being repeated three times.
+ *
+ * A no-op for today's all-Bronze, lock-free book, and a no-op whenever the OFFER
+ * site already got it right (which is the normal case — see
+ * `offeredTierForCard` in shop.ts). It does not make a price honest; that is the
+ * offer site's job.
+ */
 export function createOwnedCard(skillId: string, tier: SkillTier): OwnedCard {
   const instanceId = `card_${String(demoState.nextCardInstanceId).padStart(3, '0')}`;
   demoState.nextCardInstanceId += 1;
-  return { instanceId, skillId, tier };
+  const card = skillBook[skillId];
+  const stamped = (card ? clampTierToCard(card, tier) : null) ?? tier;
+  return { instanceId, skillId, tier: stamped };
 }

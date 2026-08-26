@@ -18,13 +18,17 @@
 // Titles (Mob/Normal/Elite/Boss) are just named presets over (level + rank +
 // extra cards). Modifiers (rogue-like affixes) are a FOURTH additive dial —
 // see `MODIFIER_PRESETS` below.
+//
+// ELITE AFFIXES (2026-08-26) are a FIFTH dial that deliberately costs ZERO —
+// see `eliteAffixIdFor` and the block above it.
 // The resolver-seam pattern — no combat-loop involvement. No RNG, no Phaser.
 
 import type { BoardPiece, CombatantSetup, EnemyDef, SkillTier } from '../engine/types';
 import { enemies } from '../data/enemies';
 import { skillBook } from '../data/skills';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../data/heroes';
-import { ENEMY_MODIFIER_IDS, MODIFIER_PRESETS, type EnemyModifierPreset } from '../data/modifiers';
+import { ELITE_AFFIX_IDS, ENEMY_MODIFIER_IDS, MODIFIER_PRESETS, type EnemyModifierPreset } from '../data/modifiers';
+import { hashSeed } from '../engine/rng';
 import { TIER_BUDGET_DECI } from '../engine/balance';
 import {
   allocateMonsterPL,
@@ -89,18 +93,32 @@ export const ENEMY_TITLES: EnemyTitle[] = ['mob', 'normal', 'elite', 'boss'];
  * from `./encounter` unchanged. This module keeps the MECHANISM: each preset
  * is either a bonus PL auto-spend (`bonusPL` + `bonusProfile`, applied below
  * in `buildEnemyEncounter` through the SAME `LEVEL_STAT_COST` economy as
- * every other stat point in the game) or a deck-wide tier override
- * (`forceTier`, applied AFTER rank assignment). Add a new affix = add a row
+ * every other stat point in the game), a deck-wide tier override
+ * (`forceTier`, applied AFTER rank assignment), or a BEHAVIOURAL AFFIX
+ * (`affix: true` + `cards`, installed onto the deck in place of the title's
+ * generic filler — see `eliteAffixIdFor`). Add a new affix = add a row
  * to `MODIFIER_PRESETS` in the data module; the resolver below needs no
  * changes.
+ *
+ * TWO POOLS: `ENEMY_MODIFIER_IDS` is the deep-run escalation ramp
+ * (`fightSpecFor` slices it past `MAX_LEVEL`); `ELITE_AFFIX_IDS` is the elite
+ * affix pool (`eliteAffixIdFor` deals one per elite fight). A preset is in
+ * exactly one, decided by its own `affix` flag.
  */
-export { ENEMY_MODIFIER_IDS, MODIFIER_PRESETS, type EnemyModifierPreset };
+export { ELITE_AFFIX_IDS, ENEMY_MODIFIER_IDS, MODIFIER_PRESETS, type EnemyModifierPreset };
 
 /**
- * Shared extra-card pool keyed by the enemy's damage flavour. All size-1 so
- * placement is trivial; deterministic (no RNG).
+ * Shared extra-card pool keyed by the enemy's damage flavour — the GENERIC
+ * FILLER a title's `extraCards` allowance draws from. All size-1 so placement
+ * is trivial; deterministic (no RNG).
+ *
+ * Exported so `tests/run/eliteAffix.test.ts` can hold the one invariant that
+ * keeps an affix legible: NO affix card may also be generic filler. Filler is
+ * drawn first-unseen, so a filler card that doubles as an affix card would make
+ * an affixed elite byte-identical to a plain one on every enemy whose kit
+ * already contains the earlier pool entry.
  */
-const EXTRA_CARD_POOL: Record<'physical' | 'magical', readonly string[]> = {
+export const EXTRA_CARD_POOL: Record<'physical' | 'magical', readonly string[]> = {
   physical: ['sword_slash', 'venom_fang', 'crippling_strike'],
   magical: ['arcane_bolt', 'shadow_bolt', 'hex_of_frailty'],
 };
@@ -154,6 +172,108 @@ function addExtraCards(pieces: BoardPiece[], pool: readonly string[], count: num
   return result;
 }
 
+// ---------------------------------------------------------------------------
+// ELITE AFFIXES (2026-08-26) — what makes an `elite` a DIFFERENT problem
+// instead of a bigger one.
+//
+// THE PROBLEM THIS FIXES. `elite` was a pure STAT RUNG: +2 levels, +2 rank,
+// +1 generic filler card off `EXTRA_CARD_POOL` (a plain `sword_slash` or
+// `arcane_bolt`). Combat here is fully automatic, so a fight that is only
+// numerically bigger asks the player NOTHING — there is no decision attached
+// to it, and nothing about their deck matters differently. The only place a
+// title can create interest is by changing WHAT THE PLAYER'S DECK HAS TO
+// ANSWER.
+//
+// THE SHAPE. Every elite fight carries EXACTLY ONE affix, dealt from
+// `ELITE_AFFIX_IDS`. An affix installs an authored card onto the elite's deck
+// IN PLACE OF the title's generic filler (see `buildEnemyEncounter`), so the
+// elite fields a readable behaviour — a physical-only shield wall, thorns that
+// sting per hit, a magical negate, a lifesteal drain — instead of a slightly
+// larger number.
+//
+// PL-HONEST BY CONSTRUCTION, NOT BY TUNING. Every bronze card in this game
+// audits to exactly ONE bronze tier budget (`TIER_BUDGET_DECI.bronze` = 100
+// deci — that is what `powerLevelDeci`'s tier-budget audit enforces across the
+// whole book). An affix swaps one bronze filler card for one bronze affix
+// card, at the same slot, so:
+//   • the deck's CARD COUNT is unchanged,
+//   • `assignRankTiers` distributes the SAME rank over the SAME slots,
+//   • `soloThreatDeci` / `memberDeckDeci` price the deck identically,
+//   • and no affix STRENGTH was ever chosen, so none can be mis-tuned.
+// This is the locked balance philosophy taken literally: the affix's cost is
+// honest (zero, because it is a substitution) and every outcome is emergent.
+// `memberDeckDeci` still PRICES any overflow past the title's own filler
+// allowance, so a future multi-card affix cannot slip in free.
+//
+// NO Rng DRAW, EVER. Choosing an affix with the node's `Rng` would shift every
+// downstream roll in `rollEncounter` (enemy ids, pack variants) and move the
+// frozen map/encounter fingerprints. So the deal follows `biome.ts`'s
+// precedent exactly: its OWN `hashSeed` domain keyed on (seed, fight number),
+// no `Rng` instance at all, independent of when it is asked.
+//
+// BOSSES DO NOT GET AFFIXES (the design fork, decided here). A boss is already
+// telegraphed BY NAME — the band biome's boss shortlist names it a whole band
+// ahead, and `TITLE_PRESETS.boss` (+4 levels / +4 rank / +2 cards) scales that
+// authored kit up; its own card list IS its behavioural signature, and a
+// rolled affix layered on top would blur the one fight the player can prepare
+// for specifically. Affixes are therefore what DISTINGUISHES elite from boss:
+// the ladder alternates a rolled-shape problem (elite) with a known-shape one
+// (boss), instead of stacking both onto the same rung.
+// ---------------------------------------------------------------------------
+
+/**
+ * The affix id dealt to the elite fight at `fightNumber` of run `seed` — pure,
+ * integer-only, and independent of every other draw in the run (its own
+ * `hashSeed` domain, no `Rng` instance at all, so it cannot perturb
+ * `rollEncounter`'s call order no matter when it is asked). Same idiom, and
+ * the same reason, as `biomeIdForBand` in `biome.ts`.
+ *
+ * Keyed on the FIGHT NUMBER, not the node id, so all three of a fight
+ * column's risk options (easy/medium/hard) agree about which affix that rung
+ * of the ladder carries — the player reads one affix per fight, whichever
+ * option they take, and the map preview cannot disagree with the fight.
+ */
+export function eliteAffixIdFor(seed: number, fightNumber: number): string {
+  const n = ELITE_AFFIX_IDS.length;
+  if (n === 0) throw new Error('eliteAffixIdFor: the elite affix pool is empty');
+  const h = hashSeed('eliteAffix', seed, Math.max(1, Math.floor(fightNumber)));
+  return ELITE_AFFIX_IDS[h % n]!;
+}
+
+/** Validate an affix id and hand back its preset. Throws on an unknown id, or
+ * on a modifier that is not flagged `affix: true` — a typo'd or mis-flagged
+ * affix must scream, not silently produce a plain elite. */
+export function eliteAffixPreset(affixId: string): EnemyModifierPreset {
+  const preset = MODIFIER_PRESETS[affixId];
+  if (!preset) throw new Error(`eliteAffixPreset: unknown affix id "${affixId}"`);
+  if (preset.affix !== true) {
+    throw new Error(`eliteAffixPreset: modifier "${affixId}" is not an affix (it belongs to the deep-run escalation pool)`);
+  }
+  return preset;
+}
+
+/** The card ids an affix installs (empty for no affix). */
+function affixCardsFor(affixId: string | null | undefined): readonly string[] {
+  if (!affixId) return [];
+  return eliteAffixPreset(affixId).cards ?? [];
+}
+
+/**
+ * Append NAMED cards onto a CLONE of `pieces`, in list order, at the next free
+ * slots. Unlike `addExtraCards` there is no dedupe pass: an affix names the
+ * exact card it installs, so if the enemy already runs one it gets a second
+ * copy rather than the affix silently doing nothing.
+ */
+function addNamedCards(pieces: BoardPiece[], ids: readonly string[]): BoardPiece[] {
+  const result = pieces.map((p) => ({ ...p }));
+  let slot = nextFreeSlot(result);
+  for (const id of ids) {
+    result.push({ skillId: id, slot });
+    slot += skillBook[id]?.size ?? 1;
+  }
+  return result;
+}
+
 /**
  * Stamp per-card tiers from a deck-wide `rank`, distributing tier-steps
  * round-robin across the deck in slot order: step 1 upgrades the first card to
@@ -199,8 +319,21 @@ export interface EncounterUnit {
   /** Tier-steps applied across the deck (after clamping to the ceiling). */
   rank: number;
   enemyId: string;
-  /** Modifier ids applied (validated against MODIFIER_PRESETS). */
+  /** Modifier ids applied (validated against MODIFIER_PRESETS). The DEEP-RUN
+   * escalation stack only — an elite affix is NOT in here, it has its own
+   * field below, so `modifiers.length` (which `battleGoldReward` reads as a
+   * difficulty term) keeps meaning exactly what it meant before affixes. */
   modifiers: string[];
+  /**
+   * The ELITE AFFIX this unit carries, or `null`. Exactly one or none, by
+   * shape rather than by convention — this is the field the map preview and
+   * the prep screen read to name the affix BEFORE the fight
+   * (`previewEncounter` in `src/game/runStore.ts` returns these units
+   * verbatim, and it is the SAME `rollEncounter` call the FIGHT button makes,
+   * so preview and fight can never disagree). Look the id up in
+   * `MODIFIER_PRESETS` for its `name`/`blurb`.
+   */
+  affix: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -363,10 +496,17 @@ function modifierBonusDeci(modifierIds: readonly string[]): number {
 /** The fixed board-threat PL (deci) every member at `title` ships — its
  * rank/extraCards come straight from `TITLE_PRESETS`, never a second dial.
  * A `forceTier` modifier (e.g. DIAMOND-POWERED) overrides the rank-tiered
- * deck entirely, matching `buildEnemyEncounter`'s post-rank tier override. */
-function memberDeckDeci(title: EnemyTitle, modifierIds: readonly string[] = []): number {
+ * deck entirely, matching `buildEnemyEncounter`'s post-rank tier override.
+ *
+ * An `affixId`'s cards CONSUME the title's own `extraCards` allowance first
+ * (exactly as `buildEnemyEncounter` installs them), so today's one-card
+ * affixes against Elite's one filler slot add ZERO here — the substitution is
+ * free by construction, not by an assumption. Anything an affix names PAST
+ * that allowance grows the deck and is priced as the extra cards it is. */
+function memberDeckDeci(title: EnemyTitle, modifierIds: readonly string[] = [], affixId: string | null = null): number {
   const preset = TITLE_PRESETS[title];
-  const deckSize = REFERENCE_ENEMY_DECK_SIZE + preset.extraCards;
+  const affixCards = affixCardsFor(affixId).length;
+  const deckSize = REFERENCE_ENEMY_DECK_SIZE + Math.max(preset.extraCards, affixCards);
   const forceTier = forceTierFor(modifierIds);
   if (forceTier) return deckSize * TIER_BUDGET_DECI[forceTier];
   return deckThreatDeci(deckSize, preset.rank);
@@ -380,12 +520,20 @@ function memberDeckDeci(title: EnemyTitle, modifierIds: readonly string[] = []):
  * actually feeds the stat-PL term, matching `buildEnemyEncounter`'s own
  * scaling order. `modifierIds` prices the SAME modifier stack every member
  * (pack or solo) independently rolls — see `modifierBonusDeci`/`memberDeckDeci`.
+ * `affixId` prices the elite affix this node would deal (`eliteAffixIdFor`);
+ * it is free today (a one-for-one card substitution) and priced if a future
+ * affix ever grows the deck past the title's own filler allowance.
  */
-export function soloThreatDeci(level: number, title: EnemyTitle, modifierIds: readonly string[] = []): number {
+export function soloThreatDeci(
+  level: number,
+  title: EnemyTitle,
+  modifierIds: readonly string[] = [],
+  affixId: string | null = null,
+): number {
   const preset = TITLE_PRESETS[title];
   const effectiveLevel = clampLevel(level) + preset.levelDelta;
   const statDeci = Math.max(0, monsterLevelPL(effectiveLevel)) * 10 + modifierBonusDeci(modifierIds);
-  return statDeci + memberDeckDeci(title, modifierIds);
+  return statDeci + memberDeckDeci(title, modifierIds, affixId);
 }
 
 /**
@@ -417,13 +565,18 @@ export function resolvePackMemberLevel(
   title: EnemyTitle,
   size: number,
   modifierIds: readonly string[] = [],
+  affixId: string | null = null,
 ): number | null {
   const k = Math.max(1, Math.floor(size));
   if (k <= 1) return clampLevel(level);
-  const budgetDeci = packBudgetDeci(soloThreatDeci(level, title, modifierIds), k);
+  // The BUDGET is what a SOLO foe at this node would cost, affix included.
+  // The MEMBER deck carries no affix: `capPackTitle` drops elite to normal, and
+  // an affix belongs to the elite TITLE (`rollEncounter`), so pack members are
+  // never affixed — passing `null` here is the model matching what ships.
+  const budgetDeci = packBudgetDeci(soloThreatDeci(level, title, modifierIds, affixId), k);
   const shareDeci = Math.floor(budgetDeci / k);
   const memberTitle = capPackTitle(title);
-  const statBudgetDeci = shareDeci - memberDeckDeci(memberTitle, modifierIds) - modifierBonusDeci(modifierIds);
+  const statBudgetDeci = shareDeci - memberDeckDeci(memberTitle, modifierIds, null) - modifierBonusDeci(modifierIds);
   const memberLevel = 1 + Math.floor(statBudgetDeci / (PL_PER_LEVEL * 10));
   return memberLevel >= 1 ? memberLevel : null;
 }
@@ -466,13 +619,22 @@ function clampLevel(level: number): number {
 }
 
 /**
- * Resolve an enemy encounter along the four dials. `title` picks a preset;
+ * Resolve an enemy encounter along the dials. `title` picks a preset;
  * `rankOverride` (if given) replaces the title's rank so the prep UI can tune
- * it directly; `modifiers` stacks affixes from `MODIFIER_PRESETS`. Order:
- * scale stats to the effective level → apply modifier stat bonuses → add the
- * title's extra cards → distribute rank as per-card tiers → apply modifier
- * tier overrides. Throws on an unknown enemy OR modifier id (a typo'd affix
- * must scream, not silently produce an easier fight).
+ * it directly; `modifiers` stacks deep-run modifiers from `MODIFIER_PRESETS`;
+ * `affix` installs ONE behavioural affix (see the ELITE AFFIXES block above).
+ * Order: scale stats to the effective level → apply modifier stat bonuses →
+ * install the affix's cards → backfill the title's remaining generic filler
+ * cards → distribute rank as per-card tiers → apply modifier tier overrides.
+ * Throws on an unknown enemy, modifier OR affix id (a typo'd affix must
+ * scream, not silently produce an easier fight).
+ *
+ * THE AFFIX CARDS GO IN FIRST, AND THEY EAT THE FILLER ALLOWANCE. The title's
+ * `extraCards` count is spent on the affix's cards before any generic filler
+ * is drawn, so an elite (1 extra card) fielding a 1-card affix has the SAME
+ * card count at the SAME slots as a plain elite — identical rank distribution,
+ * identical tier budget, zero PL added. That substitution is the whole reason
+ * an affix reads as a different problem rather than a bigger one.
  */
 export function buildEnemyEncounter(
   enemyId: string,
@@ -480,6 +642,7 @@ export function buildEnemyEncounter(
   title: EnemyTitle = 'normal',
   rankOverride?: number,
   modifiers: readonly string[] = [],
+  affix: string | null = null,
 ): EncounterUnit {
   const enemy = enemies[enemyId];
   if (!enemy) {
@@ -504,7 +667,14 @@ export function buildEnemyEncounter(
     stats = applyLevelAllocation(stats, allocateMonsterPL(mod.bonusPL, profile));
   }
 
-  const withCards = addExtraCards(scaled.pieces, poolFor(enemy), preset.extraCards);
+  // AFFIX CARDS FIRST — they consume the title's filler allowance (see the
+  // doc comment above); `addExtraCards` then backfills whatever is left, and
+  // its own dedupe pass already sees the affix card because it reads the
+  // pieces it is handed.
+  const affixCards = affixCardsFor(affix);
+  const withAffix = addNamedCards(scaled.pieces, affixCards);
+  const fillerCount = Math.max(0, preset.extraCards - affixCards.length);
+  const withCards = addExtraCards(withAffix, poolFor(enemy), fillerCount);
   let rank = Math.max(0, Math.min(rankOverride ?? preset.rank, maxRankFor(withCards.length)));
   let pieces = assignRankTiers(withCards, rank);
 
@@ -524,6 +694,7 @@ export function buildEnemyEncounter(
     rank,
     enemyId,
     modifiers: [...modifiers],
+    affix: affix ?? null,
   };
 }
 

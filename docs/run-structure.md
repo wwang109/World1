@@ -61,12 +61,74 @@ Every dial is a PURE function of the 1-indexed fight number — no RNG:
   3-4 `'elite'`, 5 `'boss'`.
 - **Enemy level = fight number, uncapped** — it tracks the fight number 1:1
   forever. The HERO caps at `MAX_LEVEL` (30), so the gap widens by design.
-- **Modifiers**: one additional DISTINCT `MODIFIER_PRESETS` id unlocks every
+- **Modifiers**: one additional DISTINCT id from the **escalation pool**
+  (`ENEMY_MODIFIER_IDS` — every `MODIFIER_PRESETS` entry NOT flagged
+  `affix: true`, today `diamond`/`swift`) unlocks every
   `MODIFIER_PER_OVERFLOW_FIGHTS` (5) fights past `MAX_LEVEL`, capped at the
-  preset count; level keeps climbing after this axis plateaus.
+  pool size; level keeps climbing after this axis plateaus.
 - The encounter itself is built additively over the Bronze floor by
   `buildEnemyEncounter` (`src/run/encounter.ts`): base monster + Title preset
-  (rank/stat dials) + Level (priced stat economy) + Modifiers.
+  (rank/stat dials) + Level (priced stat economy) + Modifiers + one Elite
+  Affix.
+
+## Elite affixes (`eliteAffixIdFor`, `src/run/encounter.ts`)
+
+`elite` used to be a pure STAT RUNG — +2 levels, +2 rank, +1 **generic** filler
+card off `EXTRA_CARD_POOL`. Combat is fully automatic, so a fight that is only
+numerically bigger asks the player's deck nothing; the only place a title can
+create interest is by changing **what the deck has to answer**.
+
+**Every elite fight now carries EXACTLY ONE affix**, dealt from
+`ELITE_AFFIX_IDS` (the `MODIFIER_PRESETS` entries flagged `affix: true`) and
+surfaced on `EncounterUnit.affix` — so `previewEncounter`
+(`src/game/runStore.ts`), which returns the SAME `rollEncounter` the FIGHT
+button runs, names it **before** the fight. Look the id up in
+`MODIFIER_PRESETS` for its `name`/`blurb`.
+
+| affix | card installed | what it taxes | answered by |
+|---|---|---|---|
+| `braced` BRACED | `braced_pike` | **one damage property** — −20% incoming physical, and `guard` never matches a different property | magical (`arcane_bolt`, `fireball`, `shadow_bolt`) or TRUE (`void_pierce`, `purging_strike`, `soul_rend`, `annihilation_strike`) hits, which a physical guard cannot see; or `expose` to pay it back (`piercing_arrow`, `ruinous_hex`, `sundering_roar`) |
+| `hobbling` HOBBLING | `hamstring` | **tempo** — `slow` +16 weight on your next action, and card weights are constants so this tax never decays | build LIGHT: weight-8 cards (`twin_slash`, `purging_strike`, `arcane_bolt`, `static_jolt`) pay 24 to act where a weight-20 anchor pays 36; and every point of SPD buys it back. Held on the piece, not as a status, so `cleanse` does NOT answer this one — board construction is the whole answer |
+| `leeching` LEECHING | `leeching_fang` | **the clock** — 45% lifesteal on a scaling hit | the anti-heal world rule: each affliction CATEGORY standing on the elite cuts its drain 20%, cap 60% — a DoT (`hemorrhage`, `cinder_dart`), a stat debuff (`armor_break`, `hex_of_frailty`), an `expose` (`piercing_arrow`); or burst |
+| `venomous` VENOMOUS | `second_bite` | **shields and heals** — poison bypasses shields, is an anti-heal category on you, and the card's own exploit pays +4 more on an already-poisoned target | `cleanse` removes the stacks and disarms the exploit (`purify`, `purge_the_rot`, `graveside_rite`, `poison_ritual`, `penitent_mending`, `warding_prayer`); or `ward`, which prevents the ailment outright (`unbreakable_stance`, `umbral_ward`, `sanctified_vigil`, `verdant_rebuke`) |
+
+- **PL cost: ZERO, by construction.** The affix's card CONSUMES the title's own
+  `extraCards` allowance instead of adding to it, and every bronze card in the
+  book audits to exactly one bronze tier budget (100 deci-PL). Same card count,
+  same slots, same rank distribution, same `soloThreatDeci`. No affix strength
+  was ever chosen, so none can be mis-tuned.
+- **Threat-NEUTRAL, checked not assumed.** An affix that swaps a scaling (+ATK)
+  filler swing for a flat defence quietly makes elites EASIER: over an identical
+  288-fight probe, hero winrate against the plain filler was 19%, but
+  `bastion_stance` took it to 33%, `frost_ward` 35%, `ward_of_silence` 27%. The
+  four shipped cards measured 19-21%. Every affix is therefore "an offensive
+  card carrying a rider", never a pure defensive cast.
+- **And the payload has to keep pace with the ladder.** There is deliberately NO
+  thorns affix, despite thorns being the most interesting hit-count tax in the
+  book: a reflect is armor-mitigated with a min-1 floor (`reflectThorns`), so a
+  bronze pile of 5-8 stacks degrades to 1 damage per hit against any hero who
+  bought armor at all, at every depth. Each shipped affix pays in a currency
+  that does not decay — a percent (`braced`, `leeching`, `venomous`'s anti-heal),
+  a shield bypass (`venomous`'s poison), or flat weight against card weights
+  that are themselves constants (`hobbling`).
+- **NO `Rng` draw.** The deal is `eliteAffixIdFor(seed, fightNumber)` — its own
+  `hashSeed` domain, no `Rng` instance, exactly the `biome.ts` precedent — so it
+  cannot shift `rollEncounter`'s pack-variant or enemy-id draws, and the frozen
+  map-structure fingerprint (`tests/run/biomeDeal.test.ts`) is untouched.
+- Keyed on the FIGHT NUMBER, so all three of a fight column's risk options
+  agree which affix that rung carries. Only an ELITE title carries one: `'easy'`
+  caps an elite back to `'normal'` and `'hard'` promotes it to `'boss'`, and
+  pack members are `mob`/`normal` (`capPackTitle`) so **no pack is ever
+  affixed**.
+- **BOSSES GET NO AFFIX** (the design fork). A boss is telegraphed BY NAME a
+  whole band ahead by its biome's boss shortlist, and its authored kit IS its
+  behavioural signature; a rolled affix on top would blur the one fight the
+  player can prepare for specifically. Affixes are what makes an elite a
+  DIFFERENT problem from a boss, so the ladder alternates a rolled-shape problem
+  (elite) with a known-shape one (boss) instead of stacking both.
+- The affix is **not** in `EncounterUnit.modifiers`, so `battleGoldReward`'s
+  `modifiers.length` difficulty term (and therefore fight gold) is unchanged.
+- Rules pinned in `tests/run/eliteAffix.test.ts`.
 
 ## Packs (`rollEncounter`, `src/run/runState.ts` + `src/run/encounter.ts`)
 
@@ -320,7 +382,7 @@ Two layers, both pure/integer, no UI yet (a stats screen is separate):
 |---|---|
 | `runState.ts` | The `RunState` shape + every pure transition (create/choose/resolve node, battle result, retire, gold, shelves, event bags) |
 | `runMap.ts` | Lazy endless wave-ladder generation, node kinds, `BOSS_EVERY`, stop-choice anchoring |
-| `encounter.ts` | Additive enemy resolver: titles, ranks, modifiers, `buildEnemyEncounter`, `buildAutoHeroSetup`; PACK constants (`PackVariant`, `PACK_VARIANT_WEIGHTS`, `MIN_PACK_FIGHT_NUMBER`, `capPackTitle`, `EncounterPack`) and budget helpers (`soloThreatDeci`, `packBudgetDeci`, `resolvePackMemberLevel`, `PACK_ACTION_ECONOMY_TAX_PCT`, `REFERENCE_ENEMY_DECK_SIZE`) |
+| `encounter.ts` | Additive enemy resolver: titles, ranks, modifiers, elite affixes (`eliteAffixIdFor`, `ELITE_AFFIX_IDS`), `buildEnemyEncounter`, `buildAutoHeroSetup`; PACK constants (`PackVariant`, `PACK_VARIANT_WEIGHTS`, `MIN_PACK_FIGHT_NUMBER`, `capPackTitle`, `EncounterPack`) and budget helpers (`soloThreatDeci`, `packBudgetDeci`, `resolvePackMemberLevel`, `PACK_ACTION_ECONOMY_TAX_PCT`, `REFERENCE_ENEMY_DECK_SIZE`) |
 | `leveling.ts` | `PL_PER_LEVEL`, `LEVEL_STAT_COST`, allocation math, monster auto-spend profiles |
 | `shop.ts` | Shop filters/pools, gold prices, `rollShopStock`, `shopPoolInfo`, `battleGoldReward`, sell-back pricing (`sellPriceOfCard`, `sellPriceOfGem`) |
 | `events.ts` | Event roll/resolve/bonus-draft, affordability, no-repeat bags |

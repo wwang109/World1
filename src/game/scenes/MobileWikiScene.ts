@@ -3,6 +3,7 @@ import { playSfx } from '../audio/sfxSynth';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { instancePowerLevelDeci, powerLevelDeci } from '../../engine/balance';
 import { applyTier } from '../../engine/cards';
+import { cardOfferableAtTier, minOfferableTier } from '../../engine/types';
 import type { SkillDef, SkillTier } from '../../engine/types';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
@@ -410,7 +411,11 @@ export class MobileWikiScene extends Phaser.Scene {
   private openDetail(skill: SkillDef): void {
     this.detailOpen = true;
     this.detailSkill = skill;
-    this.detailTier = skill.tier;
+    // The card's LOWEST OFFERABLE tier, not its authored one (`minOfferableTier`,
+    // engine/types.ts) — same rule as DesktopWikiScene's `defaultTierFor`: a card
+    // whose whole payload is tier-locked above its own tier has no usable copy
+    // there, and ADD TO BAG must never stamp one.
+    this.detailTier = minOfferableTier(skill) ?? skill.tier;
     this.renderCardDetail();
   }
 
@@ -466,15 +471,17 @@ export class MobileWikiScene extends Phaser.Scene {
     objs.push(pl);
     y += pl.height + 8;
 
-    // Tier chips — preview/add any tier from the card's authored tier up.
-    const baseIdx = TIERS.indexOf(skill.tier);
+    // Tier chips — preview/add any tier the card actually HAS a copy at
+    // (`cardOfferableAtTier`, engine/types.ts). Authored tier and up, except for
+    // a card whose whole payload is tier-locked higher: there the lowest chips
+    // are dead too, because a copy at them would do nothing.
     const chipGap = 6;
     const chipW = (paneWidth - 3 * chipGap) / 4;
     const chipsX = centerX - paneWidth / 2;
     TIERS.forEach((t, i) => {
       const cx = chipsX + i * (chipW + chipGap);
       const active = t === this.detailTier;
-      const allowed = i >= baseIdx;
+      const allowed = cardOfferableAtTier(skill, t);
       const chip = this.add.rectangle(cx, y, chipW, 24, active ? TIER_COLOR[t] : allowed ? 0x18263a : 0x101a2a, allowed ? 1 : 0.4)
         .setOrigin(0, 0).setStrokeStyle(active ? 2 : 1, TIER_COLOR[t], allowed ? 1 : 0.3).setDepth(3002);
       const label = this.add.text(cx + chipW / 2, y + 12, t.toUpperCase(), {
