@@ -28,6 +28,92 @@
 // `kind: 'upgradeCard'` (deliberately NOT re-kinded to `grantGold` like
 // `grantCard`'s full-bag fallback — "nothing to upgrade" needs its own UI
 // line, not "bag was full").
+//
+// ===========================================================================
+// STEERABLE CARD REWARDS (2026-08-26) — P19 "put the reward on the door" +
+// P22 "guarantee the category, roll the instance"
+// (docs/design-reference-roguelite-structure.md §4). CONTENT ONLY: no new
+// outcome kind, no new filter machinery, no resolver change. Every filter
+// added below is an ordinary `CardFilterClause` (`./shopTypes.ts`), matched by
+// the same `cardMatchesFilter` the shops use.
+//
+// WHAT WAS WRONG. The deck-building payoff runs on TYPE: an `affinity` action
+// resolves only when the board holds `IDENTITY_THRESHOLD` (3) cards of ONE
+// type (`src/engine/combat/typeIdentity.ts`). Measured over the real catalog
+// before this pass, the 14 card-granting event pools contained ZERO
+// single-type pools: three were the whole 156-card book, and the widest
+// (`sparring_circle`, `toll_bridge` — `archetypes: ['offense']`, 94 cards)
+// put ELEVEN types behind a button that says "take a blade". Nothing on any
+// event door told the player which type it paid, so no player could route for
+// one — the definition of a reward that gets ignored (P22).
+//
+// WHAT THIS PASS DOES — AND, JUST AS DELIBERATELY, WHAT IT DOES NOT.
+// Every card type gains a door whose pool is 100% that type and whose LABEL
+// names it (the label is the only place the player can read it:
+// `choiceOutcomeHint` in `src/game/ui/eventOutcomeText.ts` renders an offer's
+// WIDTH — "MINI-DRAFT", "CHOICE OF 3 CARDS" — never its category):
+//
+//   sword     recruiter/pick_sword             weapons:['sword']
+//   axe       sellsword_camp/browse_axes       weapons:['axe']
+//   lance     wandering_smith/pike_blanks      weapons:['lance']
+//   bow       overloaded_caravan/bow_staves    weapons:['bow']
+//   beast     beast_nest/raid_prepared         weapons:['beast']
+//   fire      circle_of_adepts/copy_fire       elements:['fire']
+//   lightning circle_of_adepts/copy_lightning  elements:['lightning']
+//   nature    field_medic/herb_satchel         elements:['nature']
+//   frost     toll_bridge/frost_crate          elements:['frost']
+//   holy      crossroads_shrine/tithe          elements:['holy']
+//   dark      crossroads_shrine/moon_rite      elements:['dark']
+//
+// The doors are ADDED BESIDE the broad pools, not swapped in for them. That
+// ordering is not a style preference — it is the result of measuring the
+// alternative. A first cut of this pass REPLACED each broad pool with a
+// single-type one; walked over the real run layer (map gen, node commit, the
+// real `resolveEventChoice`) to wave 10, that version raised same-type cards
+// OFFERED but cut the same-type cards a committed player actually KEEPS from
+// 2.64 to 1.73 per run, and runs where the events handed over an identity
+// (3+) fell from 48% to 22%. The reason is structural: a player keeps ONE
+// card per event, so a wide pool pays a little to EVERY type at EVERY event
+// while a single-type door pays 1.00 to one type and 0 to the other ten. Take
+// the breadth away and the door has to be the event you happened to draw.
+// Kept side by side, an event pays 1.00 when it is your door and its old
+// broad odds when it is not — better on both measures at once, and the
+// routing decision is real without the constraint being removed (P23).
+//
+// Only TWO existing pools were narrowed rather than supplemented, both of
+// them two-type pools where splitting is a gain for the types involved and a
+// loss for none: `crossroads_shrine/tithe` (holy+dark — 93% holy / 83% dark
+// per offer) became the holy door at 100%, with the shrine's third slot taking
+// the dark door at 100%; and `beast_nest/raid_prepared` (bow+beast — 93%
+// beast / 57% bow) became the beast door, bow being paid back at 100% by
+// `overloaded_caravan`'s own new door.
+//
+// WHAT IT MEASURES OUT AT (same walk, 60 seeds x 11 types, to wave 10): the
+// same-type cards the event layer hands a committed player went 2.64 -> 2.91
+// per run, runs where events alone deliver an identity 48% -> 56%, runs where
+// they deliver NONE of the committed type 8% -> 4%, and same-type cards merely
+// OFFERED 3.32 -> 5.59. The number that matters most is not in that list: a
+// player who READS the labels now gets 2.91 where one who ignores them gets
+// 1.67, against 2.64 versus 2.64 — identical to two decimals, per type —
+// before the pass. That gap is the whole point of P19, and
+// `tests/run/eventRewardDoors.test.ts` asserts it stays open.
+//
+// POOL-WIDTH RULE (the one that throws). `cardChoiceOutcome` THROWS when a
+// filtered pool is narrower than `EVENT_CHOICE_SIZE` (3), and a `bonusDraft`
+// silently deals fewer than its 5 (`sampleDistinct`) — so no filter here may
+// go under those widths. The thinnest single-type pools in the book are bow
+// and frost at 10 cards, double the wider bound.
+// `tests/run/eventRewardDoors.test.ts` pins both widths against the REAL
+// resolver, asserts every type still has a door, and re-runs the supply walk.
+//
+// HONESTY RULE. A choice's text may not imply a category its pool does not
+// deliver — that is what made the old "spare blade off the rack" (13% swords)
+// and `sweep_drill`'s retired splash filter (7%) defects rather than flavour.
+// Every guaranteed door names its type in its label; every pool that stayed
+// broad had its body rewritten to say what it actually is (a mixed rack,
+// defensive issue, a shelf of debuffs, "anything at all"), and the same test
+// file asserts both directions.
+// ===========================================================================
 
 import type { SkillTier } from '../engine/types';
 import type { CardFilter, GemFilter } from './shopTypes';
@@ -171,11 +257,20 @@ const defs: EventDef[] = [
     id: 'recruiter',
     title: 'The Recruiter',
     theme: 'recruit',
-    body: 'A weapons broker flags you down from beneath a striped awning at the roadside edge of the Muster Road, arms full of blades and bowstrings still warm from the last camp. "Pick your favorite," he grins, laying out a row of five, "or take the coin instead — I won\'t haggle either way."',
+    body: 'A weapons broker flags you down from beneath a striped awning at the roadside edge of the Muster Road, arms full of blades and bowstrings still warm from the last camp. "Swords are racked on their own — anything else, you take your chances with what\'s in the cart," he grins, laying out a row of five either way. "Or take the coin instead. I won\'t haggle."',
     choices: [
+      // THE SWORD DOOR (2026-08-26 P19/P22 pass — see the header). Added
+      // BESIDE `pick_weapon`, never in place of it: the rack is 100% swords
+      // and says so, the cart stays the old five-weapon mixed pool for
+      // everyone the rack doesn't serve.
+      {
+        id: 'pick_sword',
+        label: 'Browse the sword rack',
+        outcome: { kind: 'bonusDraft', filter: [{ weapons: ['sword'] }] },
+      },
       {
         id: 'pick_weapon',
-        label: 'Browse the weapons',
+        label: 'Dig through the mixed cart',
         outcome: { kind: 'bonusDraft', filter: [{ weapons: ['sword', 'axe', 'lance', 'bow', 'beast'] }] },
       },
       { id: 'take_coin', label: 'Take the coin instead', outcome: { kind: 'grantGold', amount: 2 } },
@@ -198,13 +293,33 @@ const defs: EventDef[] = [
     id: 'crossroads_shrine',
     title: 'Crossroads Shrine',
     theme: 'omen',
-    body: 'At the heart of the Crossroads Unquiet stands a weathered shrine, carvings split evenly between a rising sun and a crescent moon. Pilgrims leave gold here for a blessing; others, less devout, have been known to pry it apart for scrap and take their chances with whatever hears them do it.',
+    body: 'At the heart of the Crossroads Unquiet stands a weathered shrine, carvings split evenly between a rising sun and a crescent moon, and the two faces answer separately: tithe at the sun and what comes back is holy work, every time; scratch the moon-mark instead and it is dark work, every time. Others, less devout, simply pry the shrine apart for scrap.',
     choices: [
+      // THE HOLY DOOR and THE DARK DOOR. This is the one pool the pass
+      // NARROWED rather than supplemented, because splitting it is a strict
+      // gain for both of its types and a loss for none: the old shared
+      // holy+dark pool offered holy on 93% of draws and dark on 83%, and now
+      // each face offers its own at 100%. `tests/run/events.test.ts` asserts
+      // `tithe`'s offers stay inside holy/dark — holy-only satisfies that
+      // strictly.
       {
         id: 'tithe',
-        label: 'Leave a tithe (2 gold)',
+        label: 'Leave a holy tithe (2 gold)',
         cost: 2,
-        outcome: { kind: 'cardChoice', filter: [{ elements: ['holy', 'dark'] }] },
+        outcome: { kind: 'cardChoice', filter: [{ elements: ['holy'] }] },
+      },
+      // Same outcome kind and the same 2 gold as its holy sibling on purpose:
+      // two faces of one shrine that differ ONLY in which element they pay.
+      // A 5-wide `bonusDraft` here would have made the moon strictly the
+      // better buy at an identical price (see `EVENT_CHOICE_SIZE`'s
+      // pricing-arithmetic comment in src/run/events.ts) — the catalog's
+      // cardChoice count is unchanged overall, `toll_bridge` below trading the
+      // other way for the same reason.
+      {
+        id: 'moon_rite',
+        label: 'Scratch the moon-mark for dark work (2 gold)',
+        cost: 2,
+        outcome: { kind: 'cardChoice', filter: [{ elements: ['dark'] }] },
       },
       { id: 'deface', label: 'Deface it for scrap', outcome: { kind: 'grantGold', amount: 3 } },
     ],
@@ -246,8 +361,18 @@ const defs: EventDef[] = [
     id: 'overloaded_caravan',
     title: 'Overloaded Caravan',
     theme: 'market',
-    body: 'A merchant caravan sits axle-deep in the mud of the Tolling Road, its driver frantic as the sun sinks lower. She\'ll gladly let you rummage her overstuffed trunks for the trouble of pushing — or just toss you a coin for a shoulder at the wheel, no rummaging required.',
+    body: 'A merchant caravan sits axle-deep in the mud of the Tolling Road, its driver frantic as the sun sinks lower. A bundle of bowstaves is lashed to the tailgate where anyone can see it; the trunks behind it are packed with no order at all and could hold anything. Push, and she\'ll let you take from either — or just toss you a coin for a shoulder at the wheel.',
     choices: [
+      // THE BOW DOOR — added beside the trunks, which stay the catalog's
+      // widest offer (the WHOLE 156-card book, ~6-14% per type). Bow is also
+      // the type that gave up `beast_nest`'s old shared bow+beast pool, and
+      // this pays it back at 100% instead of that pool's 57%.
+      {
+        id: 'bow_staves',
+        label: 'Take a bow off the tailgate (1 gold)',
+        cost: 1,
+        outcome: { kind: 'bonusDraft', filter: [{ weapons: ['bow'] }] },
+      },
       { id: 'rummage', label: 'Push, then rummage the trunks (1 gold)', cost: 1, outcome: { kind: 'bonusDraft' } },
       { id: 'push', label: 'Just push for a coin', outcome: { kind: 'grantGold', amount: 1 } },
     ],
@@ -264,15 +389,21 @@ const defs: EventDef[] = [
     id: 'sparring_circle',
     title: 'Sparring Circle',
     theme: 'training',
-    body: 'A ring of packed dirt marks the heart of the Hollow Yard, worn smooth by years of practice bouts. A scarred instructor waves you over: "Two gold buys you a real lesson. Or grab a spare blade off the rack and figure it out yourself — that\'s free, and it shows."',
+    body: 'A ring of packed dirt marks the heart of the Hollow Yard, worn smooth by years of practice bouts. A scarred instructor waves you over: "Two gold buys you a real lesson. Or help yourself to the practice rack — it\'s every kind of gear anyone ever left here, all of it meant for hitting things, and no two pieces alike."',
     choices: [
       { id: 'lesson', label: 'Pay 2 gold for a real lesson', cost: 2, outcome: { kind: 'grantLevel' } },
       // Stays cost 0 — the event's ONLY cost-0 choice (`lesson` costs 2); the
       // safe-exit invariant (docs at the top of this file) forbids repricing
       // it, unlike its `take_armor`/`take_stone` siblings below.
+      // STAYS BROAD (94 cards, all eleven types) — one of the pass's
+      // deliberate non-doors (P23: a catalog where every reward is guaranteed
+      // has deleted the routing decision). What changed is the PROMISE: the
+      // old label said "a spare blade", which a sword player read as a sword
+      // and got one 13% of the time. It is now openly a mixed rack of
+      // offensive gear, which is exactly what the filter says.
       {
         id: 'spare_blade',
-        label: 'Take a spare blade from the rack',
+        label: 'Help yourself to the mixed rack',
         outcome: { kind: 'cardChoice', filter: [{ archetypes: ['offense'] }], tier: 'bronze' },
       },
     ],
@@ -321,7 +452,7 @@ const defs: EventDef[] = [
     id: 'quartermasters_error',
     title: "Quartermaster's Error",
     theme: 'cache',
-    body: 'A tired quartermaster at the edge of the Silt Hollows shoves a requisition ledger across the counter, muttering about a shipment that was never meant to reach you. "Take the armor plating," he says, "or the loose gemstone in the corner. Don\'t care which — just take it and go before someone notices."',
+    body: 'A tired quartermaster at the edge of the Silt Hollows shoves a requisition ledger across the counter, muttering about a shipment that was never meant to reach you. "Take the armor plating — it\'s all defensive issue, wards and guards and nothing that hits back," he says, "or the loose gemstone in the corner. Don\'t care which — just take it and go before someone notices."',
     choices: [
       // Both choices here were cost-0 free picks pre-widening; only ONE of an
       // event's choices needs to stay cost-0 for the safe-exit invariant, so
@@ -344,7 +475,7 @@ const defs: EventDef[] = [
     id: 'beast_nest',
     title: 'Beast Nest',
     theme: 'cache',
-    body: 'A trampled nest sits half-sunk in the Silt Hollows\' mud, littered with the shed claws and feathers of something large. Raiding it for a trophy weapon is tempting — if whatever built it doesn\'t come back and cost you a coin purse for the trouble.',
+    body: 'A trampled nest sits half-sunk in the Silt Hollows\' mud, littered with the shed claws and feathers of something large. Everything worth carrying out of it is beast-work — fang, claw and hide, nothing else — if whatever built it doesn\'t come back and cost you a coin purse for the trouble.',
     choices: [
       // No RNG on rewards (USER-LOCKED) — and this specific choice was also a
       // PROVEN defect: `raid_it` had `cost: 0` (the UI reads its button as
@@ -355,11 +486,16 @@ const defs: EventDef[] = [
       // grant, and the old gamble's winning outcome (the bow/beast card) is
       // now a separate, honestly-priced paid choice.
       { id: 'raid_it', label: 'Raid the nest', outcome: { kind: 'grantGold', amount: 1 } },
+      // THE BEAST DOOR — the second (and last) pool this pass narrowed
+      // rather than supplemented: the old bow+beast pool offered beast on 93%
+      // of draws and bow on 57%, and a nest full of fangs is beast-work by
+      // its own fiction. Bow's replacement is `overloaded_caravan`'s
+      // bowstave door at 100%, which is more than the 57% it gave up here.
       {
         id: 'raid_prepared',
-        label: 'Raid it properly, gear in hand (2 gold)',
+        label: 'Take a beast trophy (2 gold)',
         cost: 2,
-        outcome: { kind: 'cardChoice', filter: [{ weapons: ['bow', 'beast'] }], tier: 'bronze' },
+        outcome: { kind: 'cardChoice', filter: [{ weapons: ['beast'] }], tier: 'bronze' },
       },
       { id: 'leave_it', label: 'Leave the nest be', outcome: { kind: 'nothing' } },
     ],
@@ -370,11 +506,18 @@ const defs: EventDef[] = [
     id: 'sellsword_camp',
     title: 'Sellsword Camp',
     theme: 'recruit',
-    body: 'A ring of tents and cookfires along the Muster Road marks a sellsword company between contracts. Their captain sizes you up and offers a look through the company armory — steel of every make, yours to borrow a trick from — or, if you\'d rather not linger, a coin for the road.',
+    body: 'A ring of tents and cookfires along the Muster Road marks a sellsword company between contracts. Their captain sizes you up and waves at the camp: the axes stand in their own rack by the mess tent, company-issue and nothing but axes, while the armory tent behind it is steel of every make thrown in together. Or, if you\'d rather not linger, a coin for the road.',
     choices: [
+      // THE AXE DOOR — added beside the armory, which keeps its old
+      // five-weapon mixed pool for the four weapons the rack doesn't serve.
+      {
+        id: 'browse_axes',
+        label: 'Borrow from the axe rack',
+        outcome: { kind: 'bonusDraft', filter: [{ weapons: ['axe'] }] },
+      },
       {
         id: 'browse_armory',
-        label: 'Browse the company armory',
+        label: 'Browse the mixed armory tent',
         outcome: { kind: 'bonusDraft', filter: [{ weapons: ['sword', 'axe', 'lance', 'bow', 'beast'] }] },
       },
       { id: 'take_coin', label: 'Take a coin for the road', outcome: { kind: 'grantGold', amount: 2 } },
@@ -384,25 +527,49 @@ const defs: EventDef[] = [
     id: 'circle_of_adepts',
     title: 'Circle of Adepts',
     theme: 'recruit',
-    body: "Camped along the Muster Road, a circle of robed scholars debates arcane theory beneath a floating lattice of light. They'll happily let you leaf through a spellbook of half-finished notations — or, sensing you're not here for lectures, simply press a few coins into your hand instead.",
+    body: "Camped along the Muster Road, a circle of robed scholars debates arcane theory beneath a floating lattice of light. Two of their books are single-discipline and copied clean — one fire-work cover to cover, one lightning-work — and the third is the working grimoire, every discipline they practise jammed in together in no order at all. Copy from whichever you like; they're too deep in the argument to care.",
     choices: [
+      // THE FIRE DOOR and THE LIGHTNING DOOR, beside the grimoire, which
+      // keeps the old `properties: ['magical']` pool (67 cards, all six
+      // elements at ~15-18% apiece) for the four elements the two clean books
+      // don't cover. This event's old `take_coin` gave up its slot for them:
+      // three cost-0 choices, all of them cards, and its recruit-theme
+      // siblings (`recruiter`, `sellsword_camp`) both still offer coin.
+      {
+        id: 'copy_fire',
+        label: 'Copy from the fire book',
+        outcome: { kind: 'bonusDraft', filter: [{ elements: ['fire'] }] },
+      },
+      {
+        id: 'copy_lightning',
+        label: 'Copy from the lightning book',
+        outcome: { kind: 'bonusDraft', filter: [{ elements: ['lightning'] }] },
+      },
       {
         id: 'leaf_through',
-        label: 'Leaf through the spellbook',
+        label: 'Leaf through the mixed grimoire',
         outcome: { kind: 'bonusDraft', filter: [{ properties: ['magical'] }] },
       },
-      { id: 'take_coin', label: 'Take the coins instead', outcome: { kind: 'grantGold', amount: 2 } },
     ],
   },
   {
     id: 'field_medic',
     title: 'Field Medic',
     theme: 'recruit',
-    body: 'A field medic has set up a triage tent at the roadside among the Muster Road\'s camps, satchel overflowing with salves, wraps, and half-taught remedies she\'s happy to share with anyone willing to listen. Or, if healing lore isn\'t what you need, she\'ll simply spare a little coin instead.',
+    body: 'A field medic has set up a triage tent at the roadside among the Muster Road\'s camps. Her herb satchel is sorted and green to the last cutting — nature work, all of it — while the rest of the tent is whatever keeps people upright: salves, wraps, mending songs, half-taught steadying tricks. Or, if none of it is what you need, she\'ll simply spare a little coin instead.',
     choices: [
+      // THE NATURE DOOR, beside the tent's old healing/support pool — 29
+      // cards spread over NINE types, the widest scatter-per-card in the
+      // catalog, and still the only event surface aimed at keeping a party
+      // alive rather than at a type.
+      {
+        id: 'herb_satchel',
+        label: 'Take from her nature satchel',
+        outcome: { kind: 'bonusDraft', filter: [{ elements: ['nature'] }] },
+      },
       {
         id: 'learn_remedies',
-        label: 'Learn her remedies',
+        label: 'Learn her mending remedies',
         outcome: { kind: 'bonusDraft', filter: [{ archetypes: ['healing', 'support'] }] },
       },
       { id: 'take_coin', label: 'Take the coin instead', outcome: { kind: 'grantGold', amount: 2 } },
@@ -414,13 +581,24 @@ const defs: EventDef[] = [
     id: 'wandering_smith',
     title: 'Wandering Smith',
     theme: 'forge',
-    body: 'Deep in the Cinderworks, a traveling smith works an anvil under a lean-to, hammer still ringing from the last commission. "Four gold," she grunts, "and I\'ll temper a blade proper — not the bronze rubbish you find lying about." Anything less, and she won\'t bother lighting the forge.',
+    body: 'Deep in the Cinderworks, a traveling smith works an anvil under a lean-to, hammer still ringing from the last commission. "Four gold," she grunts, "and I\'ll temper a blade proper — not the bronze rubbish you find lying about." Two gold, and you can have your pick of the pike-blanks stacked against the lean-to instead; she forges nothing else on spec, so lance-work is all that stack has ever been. Anything less, and she won\'t bother lighting the forge.',
     choices: [
       {
         id: 'commission',
         label: 'Pay 4 gold for a properly tempered blade',
         cost: 4,
         outcome: { kind: 'grantCard', cardId: 'armor_break', tier: 'silver' },
+      },
+      // THE LANCE DOOR (2026-08-26 P19/P22 pass — see the header). Nothing
+      // was taken away for it: this event had one real choice and a "walk
+      // on", and at 4 gold `hasAffordableChoice` skipped it outright for a
+      // player under that — the 2-gold rung makes the forge reachable as well
+      // as legible.
+      {
+        id: 'pike_blanks',
+        label: 'Pick a lance-blank from the stack (2 gold)',
+        cost: 2,
+        outcome: { kind: 'bonusDraft', filter: [{ weapons: ['lance'] }] },
       },
       { id: 'decline', label: 'Walk on', outcome: { kind: 'nothing' } },
     ],
@@ -446,13 +624,28 @@ const defs: EventDef[] = [
     id: 'toll_bridge',
     title: 'Toll Bridge',
     theme: 'market',
-    body: 'A rickety toll bridge spans the worst of the Tolling Road\'s ravines, its keeper demanding coin before he\'ll lower the gate. Pay his toll and he throws in something from his cart of confiscated goods — refuse, and there\'s a longer, drier road around.',
+    body: 'A rickety toll bridge spans the worst of the Tolling Road\'s ravines, where the spray off the melt below freezes onto the ropes before it lands. Its keeper wants coin before he\'ll lower the gate, and he has two crates behind him: one is frost-work to the last piece, taken off the traders coming down from the pass, and the other is a jumble of whatever else he has confiscated, all of it made for hitting things. Refuse, and there\'s a longer, drier road around.',
     choices: [
+      // THE FROST DOOR, added beside the old confiscated-goods pool
+      // (`archetypes: ['offense']` — 94 cards over all eleven types), which
+      // keeps every one of its cards and now says on the button that it is a
+      // jumble. Both crates are the same outcome kind at the same price, so
+      // the only thing the player is choosing between is CATEGORY: a
+      // guaranteed element or the wide pile. (`pay_toll` moved cardChoice ->
+      // bonusDraft to match its new sibling's width, and `crossroads_shrine`'s
+      // `moon_rite` moved the other way, so the catalog's cardChoice count is
+      // exactly what it was.)
+      {
+        id: 'frost_crate',
+        label: 'Pay the toll, take the frost crate (2 gold)',
+        cost: 2,
+        outcome: { kind: 'bonusDraft', filter: [{ elements: ['frost'] }] },
+      },
       {
         id: 'pay_toll',
-        label: 'Pay the 2-gold toll',
+        label: 'Pay the toll, take the mixed crate (2 gold)',
         cost: 2,
-        outcome: { kind: 'cardChoice', filter: [{ archetypes: ['offense'] }], tier: 'bronze' },
+        outcome: { kind: 'bonusDraft', filter: [{ archetypes: ['offense'] }] },
       },
       { id: 'go_around', label: 'Take the long way around', outcome: { kind: 'nothing' } },
     ],
@@ -627,7 +820,7 @@ const defs: EventDef[] = [
     id: 'thorn_garden_shrine',
     title: 'The Thorn Garden Shrine',
     theme: 'cache',
-    body: "Deep in the Silt Hollows, a shrine has vanished beneath a decade of bramble growth, thorned vines lashed so thick across the stone that whatever it once honored is anyone's guess. Something in the tangle glints when the light catches it right — worth the scratches, if you're willing to push through and find out.",
+    body: "Deep in the Silt Hollows, a shrine has vanished beneath a decade of bramble growth, thorned vines lashed so thick across the stone that whatever it once honored is anyone's guess. What the tangle has swallowed is all armor-work — wards, guards, thorn-mail, nothing that hits back — worth the scratches, if you're willing to push through for it.",
     choices: [
       { id: 'gather_thorns', label: 'Gather the fallen thorns at the edge', outcome: { kind: 'grantGold', amount: 1 } },
       {
@@ -643,7 +836,7 @@ const defs: EventDef[] = [
     id: 'venomers_den',
     title: "The Venomer's Den",
     theme: 'recruit',
-    body: 'Off the Muster Road, half-hidden behind a curtain of hanging roots, a venomer keeps her still and her jars in careful rows, breath sharp with something that isn\'t quite smoke. "The weak batch is yours for nothing," she says, nodding at a dull green vial, "or two gold buys you a taste of what I actually sell."',
+    body: 'Off the Muster Road, half-hidden behind a curtain of hanging roots, a venomer keeps her still and her jars in careful rows, breath sharp with something that isn\'t quite smoke. "The weak batch is yours for nothing," she says, nodding at a dull green vial, "or two gold buys off the real shelf. Every jar on it does the one job — leaves whatever you use it on worse off than it started. Past that I make no promises about what\'s in the glass."',
     choices: [
       { id: 'weak_batch', label: 'Take the weak batch for free', outcome: { kind: 'grantGold', amount: 1 } },
       {
