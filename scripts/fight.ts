@@ -13,7 +13,7 @@
 // index, so in a pack fight the reader could not tell which foe was hit.
 import { simulate } from '../src/engine/combat/simulate';
 import { fmtDamage } from './logFormat';
-import type { CombatantSetup, Side } from '../src/engine/types';
+import type { BoardPiece, CombatantSetup, Side } from '../src/engine/types';
 import { hashSeed } from '../src/engine/rng';
 import { skillBook } from '../src/data/skills';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../src/data/heroes';
@@ -100,9 +100,40 @@ const DEFAULT_HERO_PIECES = [
 ];
 
 /**
+ * One board-spec entry: `skill_id`, or `skill_id@tier` to rank the card up
+ * before the fight (`bronze`|`silver`|`gold`|`diamond`).
+ *
+ * The TIER SUFFIX exists so a tier-scaled card can be shown the same way every
+ * other claim in this project is shown — by a real `npm run fight` log rather
+ * than a second, hand-written renderer. `BoardPiece.tier` is the engine's own
+ * per-piece override (`resolveEffectiveSkill` runs `applyTier` on it), so this
+ * parses the spec and hands the engine the field it already has; no formatting
+ * or resolution logic is duplicated here. No suffix = bronze = byte-identical
+ * to the pre-suffix behavior.
+ */
+function parsePiece(raw: string, envName: string, slot: number): BoardPiece | null {
+  const entry = raw.trim();
+  if (entry === '') return null;
+  const at = entry.indexOf('@');
+  const skillId = at < 0 ? entry : entry.slice(0, at).trim();
+  const tierText = at < 0 ? '' : entry.slice(at + 1).trim();
+  if (!skillBook[skillId]) {
+    console.error(`${envName}: unknown skill '${skillId}'.`);
+    process.exit(1);
+  }
+  if (tierText === '') return { skillId, slot };
+  if (tierText !== 'bronze' && tierText !== 'silver' && tierText !== 'gold' && tierText !== 'diamond') {
+    console.error(`${envName}: unknown tier '${tierText}' on '${skillId}' — use bronze|silver|gold|diamond.`);
+    process.exit(1);
+  }
+  return { skillId, slot, tier: tierText };
+}
+
+/**
  * ...OVERRIDABLE, for eyeballing ONE card instead of the starter deck:
  *
  *   FIGHT_HERO_BOARD=aegis_of_the_unbroken,vow_broken npm run fight -- knight 7
+ *   FIGHT_HERO_BOARD=wildfire_rite@silver,cinder_dart npm run fight -- knight 7
  *   FIGHT_HERO_HP=40 FIGHT_HERO_BOARD=cornered_beast npm run fight
  *
  * A comma-separated list of skill ids, laid out left to right from slot 0 with
@@ -115,21 +146,16 @@ const DEFAULT_HERO_PIECES = [
  * existing invocation in the docs. Absent env = byte-identical to before, which is
  * what keeps this a debugging affordance rather than a behavior change.
  */
-function heroPieces(): { skillId: string; slot: number }[] {
+function heroPieces(): BoardPiece[] {
   const spec = process.env['FIGHT_HERO_BOARD'];
   if (spec === undefined || spec.trim() === '') return DEFAULT_HERO_PIECES;
-  const pieces: { skillId: string; slot: number }[] = [];
+  const pieces: BoardPiece[] = [];
   let slot = 0;
   for (const raw of spec.split(',')) {
-    const skillId = raw.trim();
-    if (skillId === '') continue;
-    const def = skillBook[skillId];
-    if (!def) {
-      console.error(`FIGHT_HERO_BOARD: unknown skill '${skillId}'.`);
-      process.exit(1);
-    }
-    pieces.push({ skillId, slot });
-    slot += def.size;
+    const piece = parsePiece(raw, 'FIGHT_HERO_BOARD', slot);
+    if (!piece) continue;
+    pieces.push(piece);
+    slot += skillBook[piece.skillId]!.size;
   }
   if (pieces.length === 0) {
     console.error('FIGHT_HERO_BOARD is empty.');
@@ -151,21 +177,16 @@ function heroPieces(): { skillId: string; slot: number }[] {
  * attacker rather than whatever the catalog enemy happens to run. Its stats are
  * still the catalog enemy's unless `FIGHT_FOE_STATS` overrides them.
  */
-function foePieces(boardSize: number, fallback: readonly { skillId: string; slot: number }[]): { skillId: string; slot: number }[] {
+function foePieces(boardSize: number, fallback: readonly BoardPiece[]): BoardPiece[] {
   const spec = process.env['FIGHT_FOE_BOARD'];
   if (spec === undefined || spec.trim() === '') return [...fallback];
-  const pieces: { skillId: string; slot: number }[] = [];
+  const pieces: BoardPiece[] = [];
   let slot = 0;
   for (const raw of spec.split(',')) {
-    const skillId = raw.trim();
-    if (skillId === '') continue;
-    const def = skillBook[skillId];
-    if (!def) {
-      console.error(`FIGHT_FOE_BOARD: unknown skill '${skillId}'.`);
-      process.exit(1);
-    }
-    pieces.push({ skillId, slot });
-    slot += def.size;
+    const piece = parsePiece(raw, 'FIGHT_FOE_BOARD', slot);
+    if (!piece) continue;
+    pieces.push(piece);
+    slot += skillBook[piece.skillId]!.size;
   }
   if (pieces.length === 0) {
     console.error('FIGHT_FOE_BOARD is empty.');

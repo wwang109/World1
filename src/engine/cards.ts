@@ -94,7 +94,20 @@ export function autoScaleTier(def: SkillDef, targetTier: SkillTier): SkillDef {
   const property = def.property;
   const effects = def.effects;
 
-  const dotIndices = effects.map((a, i) => (DOT_KINDS.has(a.kind) ? i : -1)).filter((i) => i >= 0);
+  // GATED DoT LINES ARE FROZEN TOO — same rule, same reason as the gated sinks
+  // below (bug fix 2026-08-26). The DoT bucket grows GREEDILY toward its family
+  // cap before the sink is solved, so a gated DoT ate the whole tier delta AND
+  // part of the base: `wildfire_rite` (damage 32 + gated burn 10) ranked to
+  // Silver as damage 16 + gated burn 30 — its always-on half HALVED, and the
+  // budget it lost went into a payload that does not exist unless the board
+  // carries `IDENTITY_THRESHOLD` cards of the card's own type. Buying the Silver
+  // copy was a strict DOWNGRADE for every board that cannot open the gate, and
+  // it did not recover until Diamond (50). Freezing the gated line restores the
+  // family's rule — payload frozen, base grows with rank — and makes the card
+  // monotone in tier again (32 -> 42 -> 52 -> 62).
+  const dotIndices = effects
+    .map((a, i) => (DOT_KINDS.has(a.kind) && a.affinity !== true ? i : -1))
+    .filter((i) => i >= 0);
   // GATED SINKS ARE FROZEN. The solver drives every sink to the SAME per-action
   // magnitude, but an affinity-gated action prices at a REFUNDED rate (4 deci/pt
   // against damage's 5), so an even split across a gated and an ungated hit

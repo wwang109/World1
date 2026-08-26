@@ -111,8 +111,18 @@ export function opt(o: Record<string, unknown>, key: string, ok: (v: unknown) =>
  * UNKNOWN-KEY warning: without it a typo like `capp` for `cap` validates clean
  * and the card silently plays wrong, which is the worst failure mode there is —
  * no error, no crash, just different numbers. Mirrors what validateDef does.
+ *
+ * TYPED AS AN EXHAUSTIVE Record OVER `Action['kind']` (2026-08-25), not
+ * `Record<string, …>`. As a loose string map it silently rotted: `affinityStrike`
+ * stayed behind after that kind was deleted, and `attunedShield`/`empowerNext`
+ * were never added — and because the lookup is `ACTION_FIELDS[kind]`, a MISSING
+ * entry skipped the whole guarded block, unknown-field check and the
+ * `affinity must be exactly true` check together. So the two newest kinds were
+ * exactly the two with no typo protection at all, which is the failure mode the
+ * paragraph above exists to prevent. Exhaustive typing makes tsc refuse to
+ * compile the next omission instead of leaving it to be noticed.
  */
-const ACTION_FIELDS: Record<string, readonly string[]> = {
+const ACTION_FIELDS: Record<Action['kind'], readonly string[]> = {
   damage: ['power'],
   statStrike: ['shareOf', 'cap', 'echoHostPower'],
   heal: ['power'],
@@ -146,7 +156,8 @@ const ACTION_FIELDS: Record<string, readonly string[]> = {
   // type (a weapon OR an element: `cardType` reads `element ?? weapon`), so one
   // keyword covers both the sword->axe and the fire->frost pairing.
   chainBonus: ['after', 'amount'],
-  affinityStrike: ['power'],
+  attunedShield: ['power'],
+  empowerNext: ['amount'],
   exploit: ['status', 'amount'],
   // `cap` is REQUIRED on stackBonus (engine/types.ts) — the payload is
   // `min(per × stacks, cap)` and only the ceiling is priceable. Same for the
