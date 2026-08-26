@@ -30,7 +30,23 @@ describe('engine/cards: auto-scaled tier text', () => {
   });
 
   it('same-tier applyTier returns the identical def (no retext)', () => {
-    const base = skillBook.arcane_bolt!;
-    expect(applyTier(base, 'bronze')).toBe(base);
+    // A card with NO tier lock comes back by REFERENCE — that identity is what
+    // makes "un-featured input resolves byte-identically" true by construction.
+    // `arcane_bolt` used to be the probe here and no longer qualifies: it is a
+    // Diamond capstone, so post-migration its ONE definition carries a
+    // `minTier: 'diamond'` line that `tierResolved` must strip at Bronze (a new
+    // object, necessarily). `sword_slash` carries no lock, so it still proves the
+    // reference contract; the capstone is asserted on VALUE below, which is the
+    // strongest claim available once an action really has to be removed.
+    const unlocked = skillBook.sword_slash!;
+    expect(unlocked.effects.some((a) => a.minTier !== undefined), 'the probe must have no lock').toBe(false);
+    expect(applyTier(unlocked, 'bronze')).toBe(unlocked);
+
+    const locked = skillBook.arcane_bolt!;
+    expect(locked.effects.some((a) => a.minTier !== undefined), 'the capstone must carry a lock').toBe(true);
+    const bronze = applyTier(locked, 'bronze');
+    expect(bronze.text, 'no retext at the card own tier').toBe(locked.text);
+    expect(bronze.effects, 'the Bronze copy is the kit minus every locked line')
+      .toEqual(locked.effects.filter((a) => a.minTier === undefined));
   });
 });

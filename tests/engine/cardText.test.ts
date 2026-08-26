@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
+import { applyTier } from '../../src/engine/cards';
 import { KEYWORD_PRICING } from '../../src/engine/balance';
+import { tierResolved } from '../../src/engine/types';
 import type { Action, AuraDef, SkillTier } from '../../src/engine/types';
 
 // Drift guard: every numeric magnitude a card's `effects`/`aura` carries must
@@ -303,7 +305,14 @@ function assertTextCoversKit(label: string, text: string, effects: readonly Acti
 describe('card text drift guard', () => {
   for (const skill of Object.values(skillBook)) {
     it(`${skill.id}: every effect/aura magnitude appears in text`, () => {
-      assertTextCoversKit(skill.id, skill.text, skill.effects, skill.aura);
+      // THE CARD'S OWN FACE DESCRIBES THE CARD AS IT EXISTS AT ITS OWN TIER
+      // (2026-08-26, the Q1 `minTier` migration). A tier-locked action is not on
+      // the Bronze copy at all — `tierResolved` strips it — so its magnitude has
+      // no business in the Bronze prose, and demanding it there would force every
+      // migrated card to print a number its Bronze copy cannot deliver. The
+      // locked line's own numbers are audited at the tier it unlocks, below.
+      const base = tierResolved(skill);
+      assertTextCoversKit(skill.id, base.text, base.effects, base.aura);
     });
 
     const upgrades = skill.tierUpgrades;
@@ -312,14 +321,21 @@ describe('card text drift guard', () => {
         for (const tier of Object.keys(upgrades) as Exclude<SkillTier, 'bronze'>[]) {
           const up = upgrades[tier];
           if (!up) continue;
-          const effects = up.effects ?? skill.effects;
-          const aura = up.aura ?? skill.aura;
+          // AUDITED AGAINST THE RESOLVED RANK, not against the authored block.
+          // Before the `minTier` migration a block that added a line restated the
+          // whole effects list, so `up.effects` WAS the rank's kit; now the kit at
+          // this rank is what `applyTier` produces (locked lines resolved in, the
+          // sink re-solved by the budget-honest scaler) and the block usually
+          // carries nothing but the `text` being checked. Reading the resolved
+          // rank is strictly stronger: it audits the numbers the player is shown
+          // against the numbers the engine will actually cast.
+          const resolved = applyTier(skill, tier);
           // An override that changes the kit MUST bring its own text — the UI
           // would otherwise show the Bronze prose with the wrong numbers.
           if (up.effects !== undefined || up.aura !== undefined) {
             expect(up.text, `${skill.id}@${tier}: override changes effects/aura but has no text`).toBeDefined();
           }
-          assertTextCoversKit(`${skill.id}@${tier}`, up.text ?? skill.text, effects, aura);
+          assertTextCoversKit(`${skill.id}@${tier}`, resolved.text, resolved.effects, resolved.aura);
         }
       });
     }

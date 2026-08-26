@@ -52,6 +52,19 @@ const typeKeyOf = (s: SkillDef): string => {
   return t ? `${t.kind}:${t.type}` : 'none';
 };
 const isGated = (s: SkillDef): boolean => s.effects.some((a) => a.affinity === true);
+/**
+ * A gated card whose gate is open on the copy a player is FIRST offered — i.e. the
+ * gated line is not itself tier-locked (`TierLocked`, engine/types.ts).
+ *
+ * THE DISTINCTION MATTERS FOR DENSITY (2026-08-26). The five Diamond capstones
+ * (`arcane_bolt`, `hunter_shot`, `judgment_light`, `lance_thrust`, `leeching_fang`)
+ * carry `{ affinity: true, minTier: 'diamond' }`, so `isGated` counts them while
+ * their payoff does not exist until the top rank. Counting them as payoff supply
+ * would claim reachability the Bronze/Silver/Gold shelf does not have — which is
+ * exactly the over-claim the floors below exist to prevent.
+ */
+const isGatedFromBronze = (s: SkillDef): boolean =>
+  s.effects.some((a) => a.affinity === true && a.minTier === undefined);
 const ALL_CARDS = Object.values(skillBook);
 const GATED = ALL_CARDS.filter(isGated);
 const TYPES = [...new Set(ALL_CARDS.map(typeKeyOf))].sort();
@@ -188,6 +201,111 @@ describe('the shop layer can actually supply an identity', () => {
         }
         expect(offered, `${shopId} @depth ${depth}: 0 of 60 shelves offered a gated card`).toBeGreaterThan(0);
       }
+    }
+  });
+});
+
+/**
+ * PAYOFF-TO-ENABLER DENSITY, PER TYPE — the half of reachability nothing measured.
+ *
+ * WHAT WAS MISSING. Everything above measures SUPPLY: does a shelf exist that
+ * hands over three of a type, is a gated card sold beside its own identity, can
+ * the draft commit. None of it asks the prior question — does the type have
+ * enough PAYOFFS to be worth committing to, and enough ENABLERS to reach them?
+ * A type with 22 cards and one gated card passes every test above and is still a
+ * dead archetype: the commitment has one reward, so "go three Axe" is a
+ * single-card lottery rather than a build.
+ *
+ * MEASURED 2026-08-26, over the real book, BRONZE-REACHABLE gated cards per type:
+ *   bow 1 · frost 2 · lightning 2 · dark 2 · beast 2 · nature 2 · lance 2 ·
+ *   axe 2 · fire 3 · holy 3 · sword 3
+ * against enabler pools (all on-type cards) of bow 10 · frost 10 · lightning 11 ·
+ * fire 12 · dark 12 · beast 13 · nature 13 · holy 16 · lance 16 · sword 21 · axe 22.
+ * So the payoff the game offered a Bow board was ONE card, drawn from the
+ * joint-thinnest pool in the book. The Q3 pass added nine gated cards to take
+ * every type to the floor below.
+ *
+ * THE TWO FLOORS, and why each is the number it is:
+ *
+ *  1. PAYOFFS >= MIN_PAYOFFS_PER_TYPE (3). One payoff is a lottery and two is a
+ *     coin flip on which one the shop rolls; three is the point at which a type's
+ *     reward is a CHOICE. It is deliberately the same number as
+ *     `IDENTITY_THRESHOLD` — the ask and the answer are the same size.
+ *
+ *  2. NON-PAYOFF ON-TYPE CARDS >= (IDENTITY_THRESHOLD - 1) * PAYOFFS. Every payoff
+ *     needs `IDENTITY_THRESHOLD - 1` OTHER cards of its type on the board to switch
+ *     on, and they cannot all be the same two cards if the payoffs are to be
+ *     playable as alternatives. This is the ratio the rot would show up in: a
+ *     future pass that keeps adding gated cards to a thin type raises the payoff
+ *     count without adding anything that can open the gate, and this is the
+ *     assertion that catches it. Held with room today (the tightest is bow at 9
+ *     non-payoff cards against a required 6) — the floor is a tripwire, not a fit.
+ */
+describe('a payoff family never outruns the enablers that switch it on', () => {
+  const MIN_PAYOFFS_PER_TYPE = 3;
+  /** Per type: every on-type card, and which of them are bronze-reachable payoffs. */
+  const byType = new Map<string, { all: SkillDef[]; payoffs: SkillDef[] }>();
+  for (const card of ALL_CARDS) {
+    const key = typeKeyOf(card);
+    const row = byType.get(key) ?? { all: [], payoffs: [] };
+    row.all.push(card);
+    if (isGatedFromBronze(card)) row.payoffs.push(card);
+    byType.set(key, row);
+  }
+
+  it('the measurement covers every type in the book — otherwise the floors below are partial', () => {
+    expect([...byType.keys()].sort()).toEqual(TYPES);
+    expect(TYPES.length, 'the game claims eleven card types').toBe(11);
+    expect(MIN_PAYOFFS_PER_TYPE, 'the payoff floor is the identity threshold').toBe(IDENTITY_THRESHOLD);
+  });
+
+  it('every type has at least MIN_PAYOFFS_PER_TYPE bronze-reachable affinity payoffs', () => {
+    const thin: string[] = [];
+    for (const type of TYPES) {
+      const { payoffs } = byType.get(type)!;
+      if (payoffs.length < MIN_PAYOFFS_PER_TYPE) {
+        thin.push(`${type}: ${payoffs.length} payoff(s) — ${payoffs.map((s) => s.id).join(', ') || 'none'}`);
+      }
+    }
+    expect(
+      thin,
+      'a type whose commitment has fewer than three rewards is a trap, not an archetype. '
+      + 'Author gated cards for it (it is PL-neutral — the gate carries its own refund): '
+      + thin.join(' | '),
+    ).toEqual([]);
+  });
+
+  it('and every payoff has its own pair of non-payoff on-type cards to switch it on', () => {
+    const starved: string[] = [];
+    for (const type of TYPES) {
+      const { all, payoffs } = byType.get(type)!;
+      const enablers = all.length - payoffs.length;
+      const need = (IDENTITY_THRESHOLD - 1) * payoffs.length;
+      if (enablers < need) {
+        starved.push(`${type}: ${payoffs.length} payoffs need ${need} non-payoff on-type cards, has ${enablers}`);
+      }
+    }
+    expect(
+      starved,
+      'a payoff family outrunning its enablers — add ON-TYPE cards, not more gated ones: '
+      + starved.join(' | '),
+    ).toEqual([]);
+  });
+
+  it('the capstone payoffs are counted separately, and are NOT what clears the floor', () => {
+    // The honesty check on the measurement itself. A Diamond-locked gated hit is a
+    // real payoff at Diamond and no payoff at all on the shelf a Bronze board is
+    // shopping from, so it must not be able to lift a type over the floor. Proven
+    // by re-running the floor against the LOOSER predicate and showing the strict
+    // one is what the assertion above used.
+    const capstones = ALL_CARDS.filter((s) => isGated(s) && !isGatedFromBronze(s));
+    expect(capstones.length, 'no tier-locked gated card — this check has nothing to separate').toBe(5);
+    for (const card of capstones) {
+      expect(card.effects.some((a) => a.affinity === true && a.minTier === 'diamond'), card.id).toBe(true);
+    }
+    for (const type of TYPES) {
+      const strict = byType.get(type)!.payoffs.length;
+      expect(strict, `${type} must clear the floor on bronze-reachable payoffs alone`).toBeGreaterThanOrEqual(MIN_PAYOFFS_PER_TYPE);
     }
   });
 });

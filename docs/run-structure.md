@@ -300,25 +300,69 @@ dialogues with 2-3 choices, seeded outcomes.
   bag-full → `fellBack` to gold) · `grantGem` · `grantGold` · `loseGold` ·
   `grantLevel` (capped at `MAX_LEVEL`) · `bonusDraft` (single-set 1-5 card
   mini-draft) · `upgradeCard` (bumps one owned card +1 tier, see below) ·
-  `nothing` · `gemChoicePick` (3-wide gem pick). All outcomes are
+  `nothing` · `gemChoicePick` (3-wide gem pick) · `sellGemPick`/`sellGem`
+  (sell a pouch gem at `sellPriceOfGem`). All outcomes are
   deterministic — the gamble machinery and its `gambled` flag were deleted
   once every risk choice became a real pick.
-- `upgradeCard` (2026-08-04): +1 tier (bronze→silver→gold→diamond) on ONE
-  already-owned card. **v1 has no picker UI** — `upgradeCardOutcome`
-  (`run/events.ts`) deterministically targets the lowest-tier eligible
-  (non-diamond) card: board `pieces` are checked before the bag, ties broken
-  by ascending board `slot`/bag array order. Nothing eligible (no owned
-  cards, or every one is already diamond) → `{fellBack: true}` plus
-  `CARD_FALLBACK_GOLD`, reported as `upgradeCard`/`fellBack` (NOT re-kinded to
-  `grantGold` like `grantCard`'s bag-full fallback — the reason differs, so
-  the UI needs to say something different). A choose-your-card picker is a
-  later pass. Three Cinderworks (forge) events use it (guaranteed-pay, a free
-  coin-flip, and a paid-better-odds coin-flip).
+- `upgradeCard` (2026-08-04, picker 2026-08-08): +1 tier
+  (bronze→silver→gold→diamond) on ONE already-owned card the PLAYER picks.
+  `upgradeCardOutcome` (`run/events.ts`) collects every eligible (non-diamond)
+  owned card — board `pieces` first (ascending `slot`), then bag `bagSlots`
+  (array order) — and returns a deferred `{kind:'upgradeCardPick', options}`;
+  `applyUpgradeCardPick` bumps whichever `instanceId` comes back. Nothing
+  eligible (no owned cards, or every one is already diamond) → `{fellBack:
+  true}` plus `CARD_FALLBACK_GOLD`, reported as `upgradeCard`/`fellBack` (NOT
+  re-kinded to `grantGold` like `grantCard`'s bag-full fallback — the reason
+  differs, so the UI needs to say something different). Three Cinderworks
+  (forge) events use it.
+- **`mergeCards` (2026-08-26)** — THREE owned cards of ONE tier in, a CHOICE
+  of three cards at tier+1 out; the only destructive card outcome in the
+  vocabulary. Same-tier input (never "any 3, upgrade the lowest", which would
+  let a player feed a Diamond into a Bronze trade) and three candidates out
+  (never one rolled card, which would make it a slot machine). Two forge doors,
+  both cost 0 — the three cards ARE the price: `ruined_anvil/beat_together`
+  and `ember_pit/feed_the_coals`.
+  - `mergeCardsPlan` (`run/events.ts`) is the SINGLE authority on all four
+    decisions, and the gate, the offer and the finalizer all call it: **which
+    tier** (the LOWEST non-diamond tier with 3 owned cards — three Golds are a
+    built deck, three Bronzes are surplus), **which three** (bag array order
+    first, then board by ascending `slot` — the inverse of `upgradeCard`'s
+    board-first order, because this outcome DESTROYS what it touches), **what
+    comes back** (`EVENT_CHOICE_SIZE` = 3 candidates drawn from cards
+    `cardOfferableAtTier` at tier+1 that also FIT the post-removal bag), and
+    **whether to offer at all**.
+  - **Diamond**: the top rung has no tier+1, so a Diamond trio is never an
+    input; a player whose only trio is Diamond gets the rung reported UNUSABLE
+    (`isEventChoiceUsable`) — the same gating vocabulary `sellGem` uses for an
+    empty pouch — rather than a button that spends three Diamonds for nothing.
+    Both doors keep another non-`nothing` choice, so the EVENT still appears.
+  - **No room for the output**: answered BEFORE anything is consumed, by not
+    making the offer. Candidates are pre-filtered by `runBagHasRoomFor` against
+    the state the removal leaves, so a shown offer cannot fail to deliver; if
+    no tier can deliver, the rung is dark. `applyMergeCardsPick` is atomic —
+    any failure returns the ORIGINAL state plus the `grantGold`/`fellBack`
+    consolation, so no path consumes inputs without delivering an output.
+    A socketed gem on a consumed board piece returns to the pouch, exactly as
+    `sellRunCard` does.
+  - The pending offer rides on `resolveEventChoice`'s return as an OPTIONAL
+    `merge` field beside `outcome: {kind:'nothing'}` (nothing has happened to
+    the run yet), NOT as a new `EventOutcome` member — `outcomeHeadline`
+    (`src/game`) closes its switch on `never`, so a new member cannot be added
+    without the Phaser phase. A client that ignores `merge` resolves the event
+    as an inert no-op. **The UI phase is not wired yet**: read `merge`, render
+    `merge.consumed` + `from`→`to` above `merge.candidates`, and call
+    `applyMergeCardsPick` on a tap.
+  - Measured over the real run layer, 120 seeds to wave 10: 83.3% of runs meet
+    a usable merge door (64.2% with only one door — hence two), 1.32 merges per
+    run, and a merging player ends wave 10 with 8.72 cards (5.49 bronze / 2.66
+    silver) against the control's 11.11 (9.21 / 1.38) — ~2.4 cards of raw count
+    traded for ~1.3 extra Silvers. `tests/run/cardMerge.test.ts`.
 - No-repeat bags: a per-run `eventBag` plus per-theme bags
   (`eventThemeBags`), reshuffled deterministically via refill counters.
-- Affordability: `isEventChoiceAffordable` is the single predicate both the
-  resolver and the UI use; `rollEventForNode` skips events with no playable
-  choice at current gold.
+- Affordability: `isEventChoiceAffordable` (gold) and `isEventChoiceUsable`
+  (gold PLUS any outcome-specific precondition — `sellGem`'s pouch,
+  `mergeCards`'s plan) are the single predicates both the resolver and the UI
+  use; `rollEventForNode` skips events with no playable choice at current gold.
 
 ## Leveling (`src/run/leveling.ts`)
 
@@ -385,7 +429,7 @@ Two layers, both pure/integer, no UI yet (a stats screen is separate):
 | `encounter.ts` | Additive enemy resolver: titles, ranks, modifiers, elite affixes (`eliteAffixIdFor`, `ELITE_AFFIX_IDS`), `buildEnemyEncounter`, `buildAutoHeroSetup`; PACK constants (`PackVariant`, `PACK_VARIANT_WEIGHTS`, `MIN_PACK_FIGHT_NUMBER`, `capPackTitle`, `EncounterPack`) and budget helpers (`soloThreatDeci`, `packBudgetDeci`, `resolvePackMemberLevel`, `PACK_ACTION_ECONOMY_TAX_PCT`, `REFERENCE_ENEMY_DECK_SIZE`) |
 | `leveling.ts` | `PL_PER_LEVEL`, `LEVEL_STAT_COST`, allocation math, monster auto-spend profiles |
 | `shop.ts` | Shop filters/pools, gold prices, `rollShopStock`, `shopPoolInfo`, `battleGoldReward`, sell-back pricing (`sellPriceOfCard`, `sellPriceOfGem`) |
-| `events.ts` | Event roll/resolve/bonus-draft, affordability, no-repeat bags |
+| `events.ts` | Event roll/resolve/bonus-draft, affordability + usability gates, no-repeat bags, the card merge (`mergeCardsPlan`/`applyMergeCardsPick`) |
 | `draft.ts` | `rollStartDraft` — the 4-set start draft |
 | `loadout.ts` | Board/bag placement: `canPlace`, `shiftInsert`, `moveWithinStrip`, gem socket/unsocket/swap, `bagAsBoardPieces` (bag-as-`BoardPiece[]` view so `canPlace` validates the bag axis too) |
 | `resolveBattle.ts` | `BattleRequest → BattleLog` — the battle service's whole payload (the ONLY combat entry point above the engine) |

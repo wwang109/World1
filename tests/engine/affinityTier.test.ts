@@ -3,6 +3,7 @@ import { applyTier, autoScaleTier } from '../../src/engine/cards';
 import { guaranteedPowerLevelDeci, powerLevelDeci, capViolations, TIER_BUDGET_DECI } from '../../src/engine/balance';
 import { simulate } from '../../src/engine/combat/simulate';
 import { skillBook } from '../../src/data/skills';
+import { tierResolved } from '../../src/engine/types';
 import type { Action, CombatConfig, SkillBook, SkillDef, SkillTier } from '../../src/engine/types';
 
 /**
@@ -52,8 +53,18 @@ function magnitude(a: Action): number {
 const RANKS: readonly SkillTier[] = ['silver', 'gold', 'diamond'];
 
 /** Cards that ship a gated payload at BRONZE (not the diamond capstones, whose
- * gated hit does not exist at bronze to be frozen against). */
-const GATED_AT_BRONZE: SkillDef[] = Object.values(skillBook).filter((c) => c.effects.some(isGated));
+ * gated hit does not exist at bronze to be frozen against).
+ *
+ * MEASURED THROUGH `tierResolved` (2026-08-26, the Q1 `minTier` migration), not off
+ * the raw `effects` list. The five capstones now write their gated hit ONCE, in
+ * `effects`, carrying `{ affinity: true, minTier: 'diamond' }` — so the raw list
+ * names it at every rank while the BRONZE COPY does not have it. A raw filter would
+ * pull all five in here and assert the freeze against a payload that does not exist
+ * yet, which is precisely the case this set was defined to exclude. Their own rule
+ * (a conditional Diamond trade, guarded by a named allowlist) lives in
+ * `tests/engine/tierLock.test.ts` and `tests/engine/balance.test.ts`. */
+const GATED_AT_BRONZE: SkillDef[] = Object.values(skillBook)
+  .filter((c) => tierResolved(c).effects.some(isGated));
 
 describe('a gated payload is FROZEN at every rank, and the ungated line grows', () => {
   it('the catalog actually ships cards to audit — this suite is not vacuous', () => {

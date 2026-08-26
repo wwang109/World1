@@ -72,6 +72,9 @@ const OUTCOME_KINDS = new Set([
   'gemChoice',
   'upgradeCard',
   'sellGem',
+  // `mergeCards` (2026-08-26) — three owned same-tier cards in, a choice of
+  // three at tier+1 out. Its own suite is `tests/run/cardMerge.test.ts`.
+  'mergeCards',
   'nothing',
 ]);
 
@@ -262,6 +265,35 @@ describe('data/events: catalog lint', () => {
     expect(gemChoiceCount).toBe(10);
     expect(sellGemCount).toBe(1);
     expect(namedGrantCardCount).toBe(5);
+  });
+
+  // DELIBERATE LINT ADDITION (2026-08-26, the card-merge pass). The four counts
+  // above are UNCHANGED by that pass — it added no card/gem choice and no named
+  // grant, only two new `mergeCards` rungs — so this is a new pin beside them
+  // rather than an edit to them. Both rungs sit on events that already had a
+  // cost-0, non-`nothing` choice, which is why the event DRAW (and every seeded
+  // event sequence in this suite) is byte-identical to before it.
+  it('exactly 2 mergeCards outcomes, both on forge events that were already eligible at gold 0', () => {
+    let mergeCount = 0;
+    const events: string[] = [];
+    for (const id of eventCatalogIds) {
+      for (const choice of eventCatalog[id]!.choices) {
+        if (choice.outcome.kind !== 'mergeCards') continue;
+        mergeCount++;
+        events.push(id);
+        expect(choice.cost ?? 0, `${id}/${choice.id} charges gold on top of the three cards`).toBe(0);
+      }
+    }
+    expect(mergeCount).toBe(2);
+    expect(events.sort()).toEqual(['ember_pit', 'ruined_anvil']);
+    for (const id of events) {
+      const event = eventCatalog[id]!;
+      expect(event.theme).toBe('forge');
+      const alreadyLive = event.choices.some(
+        (c) => (c.cost ?? 0) === 0 && c.outcome.kind !== 'nothing' && c.outcome.kind !== 'mergeCards',
+      );
+      expect(alreadyLive, `${id}'s eligibility now depends on the merge rung`).toBe(true);
+    }
   });
 
   it('reprices only the 2 currently-free widened choices whose sibling stays a genuinely safe cost-0 exit, leaving the other 2 free', () => {
@@ -1084,13 +1116,34 @@ describe('run/events: cardChoice/gemChoice throw on a too-small filtered pool (2
   });
 
   it('cardChoiceOutcome throws rather than silently dealing fewer than EVENT_CHOICE_SIZE cards', () => {
-    // bow+debuff is a real, verified 2-card pool in the live skill book —
-    // non-empty (so this is NOT the pre-existing "no skill matches" throw)
-    // but narrower than EVENT_CHOICE_SIZE (3).
+    // THE FIXTURE POOL: beast + healing. Non-empty (so this is NOT the
+    // pre-existing "no skill matches" throw) but narrower than
+    // EVENT_CHOICE_SIZE, which is the whole shape being demonstrated.
+    //
+    // WAS bow + debuff, a 2-card pool until the Q3 affinity-density pass
+    // (2026-08-26) added `marksmans_creed` and took it to 3 — bow shipped ONE
+    // affinity payoff against 10 on-type cards, so widening it was the point of
+    // that pass, and this fixture was collateral. The replacement is chosen to be
+    // STRUCTURALLY narrow rather than incidentally narrow: a WEAPON type crossed
+    // with `healing` is the thinnest cell in the book by construction (weapons are
+    // the physical damage classes, healing is the archetype least of them carry —
+    // sword/axe/lance sit at 1 each and bow at 0), so it is the cell a content pass
+    // is least likely to widen, and if one does it will widen it by one, not to five.
+    //
+    // ASSERTED AS THE BOUND, NOT AS A LITERAL. What this test needs is
+    // `0 < pool < EVENT_CHOICE_SIZE`; pinning the exact count made a fixture fail
+    // for a content change that did not affect what it was proving. This form still
+    // fails loudly the moment the pool stops being short — which is the only
+    // failure that matters — and names the pool so the fix is obvious.
     const narrowPool = Object.values(skillBook).filter(
-      (s) => s.weapon === 'bow' && s.archetypes.includes('debuff'),
+      (s) => s.weapon === 'beast' && s.archetypes.includes('healing'),
     );
-    expect(narrowPool.length).toBe(2); // pins the fixture; fails loudly if content ever shifts this count
+    const named = narrowPool.map((s) => s.id).join(', ');
+    expect(narrowPool.length, `beast+healing is empty — this would test the wrong throw`).toBeGreaterThan(0);
+    expect(
+      narrowPool.length,
+      `beast+healing is no longer shorter than EVENT_CHOICE_SIZE (${named}) — pick another structurally narrow filter, do NOT raise the number`,
+    ).toBeLessThan(EVENT_CHOICE_SIZE);
     (eventCatalog as Record<string, EventDef>)[RIGGED_ID] = {
       id: RIGGED_ID,
       title: 'QA rig',
@@ -1100,7 +1153,7 @@ describe('run/events: cardChoice/gemChoice throw on a too-small filtered pool (2
         {
           id: 'narrow',
           label: '',
-          outcome: { kind: 'cardChoice', filter: [{ weapons: ['bow'], archetypes: ['debuff'] }] },
+          outcome: { kind: 'cardChoice', filter: [{ weapons: ['beast'], archetypes: ['healing'] }] },
         },
       ],
     };

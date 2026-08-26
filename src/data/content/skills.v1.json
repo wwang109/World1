@@ -26,7 +26,8 @@
   "shaped Aegis of the Unbroken.",
   "Hybrid + depth pass (2026-08-18b): deepened ward/thorns/bleed/poison and authored keyword-pair bridges the user asked for by name (heal+thorns, shield+thorns) plus the heal -> ward -> thorns chain (sanctum_thorn, bramblemend, warded_reprisal, bulwark_thicket, unbreakable_stance, umbral_ward, thorn_shackle, mortal_wound, barbed_rampart, crippling_gore, poison_bloom, poison_ritual, evasive_cordon). See content-designer notes on each card for its balance derivation.",
   "Affinity reachability pass (2026-08-26): +7 gated cards outside offense (rustbind_hex, blooded_fang, hoarfrost_creed, pikewall_oath, sanctified_vigil, oathplate, graveside_rite). The keyword shipped 16 offense + 1 healing gated cards, so the Alchemist (debuff) and Bulwark (defensive/support) shelves offered one 0.0% of the time over 500 measured rolls. These add gated debuffStat / bleed / expose / guard / ward / attunedShield / cleanse \u2014 seven families the gate had never been attached to. See each card's notes for its budget derivation.",
-  "Whole-PL-at-every-tier re-solve (2026-08-26): the whole-PL-parts invariant was only ever swept over BASE `effects`, so 11 cards shipped fractional parts above Bronze (barrage, chain_spark, concussive_shot, crushing_blow, overgrowth, penitent_mending, rapid_volley, shadow_bolt, sword_slash, twin_slash, vow_broken). Every tier of every card is now swept by tests/engine/balance.ts's whole-PL test, which also asserts budget exactness and output monotonicity per rank. See each card's notes for its re-solve."
+  "Whole-PL-at-every-tier re-solve (2026-08-26): the whole-PL-parts invariant was only ever swept over BASE `effects`, so 11 cards shipped fractional parts above Bronze (barrage, chain_spark, concussive_shot, crushing_blow, overgrowth, penitent_mending, rapid_volley, shadow_bolt, sword_slash, twin_slash, vow_broken). Every tier of every card is now swept by tests/engine/balance.ts's whole-PL test, which also asserts budget exactness and output monotonicity per rank. See each card's notes for its re-solve.",
+  "Q2 positional pass + Q3 affinity-density pass (2026-08-26): +10 cards. Q2 \u2014 the board was a bag: 6 of 156 cards carried an `aura`, all six `support`, all six `adjacent` or `allBoard`, and NOTHING had ever used a direction (`left`/`right`) or a gap (`reach` > 1). Six new cards use them, on offense / defensive / debuff / healing / support, five of them at `reach: 2`. One-sided reach is the honest shape: `PRICE.auraDamageFlat` is derived as 5 x its 2-NEIGHBOUR coverage and `powerLevelDeci` never reads `reach`, so `left`/`right` at `reach: 2` covers exactly the two pieces the rate is calibrated for while `adjacent` at `reach: 2` would cover four at the same price \u2014 pinned by tests/engine/auraCoverage.test.ts. Q3 \u2014 measured per type over bronze-reachable gated cards: bow 1, then frost/lightning/dark/beast/nature/lance/axe 2, then fire/holy/sword 3, against enabler pools of 10 (bow, frost) to 22 (axe). Nine of the ten new cards carry a gated line, taking every type to at least 3 and holding the enabler floor; tests/run/affinityReachability.test.ts now asserts both halves. Plus `rimebarb_vigil`, the first thorns card whose stack count grows with rank \u2014 see its notes."
  ],
  "cards": [
   {
@@ -148,21 +149,16 @@
        {
         "kind": "damage",
         "power": 18
+       },
+       {
+        "kind": "damage",
+        "power": 48,
+        "affinity": true,
+        "minTier": "diamond"
        }
       ],
       "tierUpgrades": {
        "diamond": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 24
-         },
-         {
-          "kind": "damage",
-          "power": 48,
-          "affinity": true
-         }
-        ],
         "text": "Deal 24 (+MATK) Lightning damage \u00b7 {{Affinity}} Lightning \u2014 hit again for 48."
        }
       },
@@ -184,7 +180,17 @@
        "wants this is the easiest one to actually have.",
        "REFUND 1/2 (2026-08-25): the Diamond payload re-solved 30 -> 48. At",
        "2.5 deci/pt a gated magnitude must be a multiple of 4 for a whole-PL part;",
-       "the base is unchanged, so the whole rate change lands on the payoff."
+       "the base is unchanged, so the whole rate change lands on the payoff.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Diamond on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ]
      }
     }
@@ -201,7 +207,17 @@
       "notes": [
        "Frozen debuff (already at the size-1 control cap, 100 deci); a physical",
        "Axe chop sinks the rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100",
-       "= 200. Diamond 30 (150) + 100 = 250."
+       "= 200. Diamond 30 (150) + 100 = 250.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "debuff"
@@ -217,52 +233,21 @@
         "stat": "armor",
         "pct": 50,
         "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "debuffStat",
-          "stat": "armor",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 10
-         }
-        ],
         "text": "-50% enemy DEF (2 turns) \u00b7 Deal 10 (+ATK) Axe damage."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "debuffStat",
-          "stat": "armor",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 20
-         }
-        ],
         "text": "-50% enemy DEF (2 turns) \u00b7 Deal 20 (+ATK) Axe damage."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "debuffStat",
-          "stat": "armor",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 30
-         }
-        ],
         "text": "-50% enemy DEF (2 turns) \u00b7 Deal 30 (+ATK) Axe damage."
        }
       }
@@ -383,7 +368,17 @@
        "content-designer can ship a fresh, priced support aura in its place.",
        "War-cry theme: the +50%/2t buff is frozen (already at the size-1 empower",
        "cap, 100 deci); a Beast damage roar sinks the rest. Silver 10 (50) + 100",
-       "= 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250."
+       "= 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "support"
@@ -399,52 +394,21 @@
         "stat": "attack",
         "pct": 50,
         "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "attack",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 10
-         }
-        ],
         "text": "+50% ATK (2 turns) \u00b7 Deal 10 (+ATK) Beast damage."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "attack",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 20
-         }
-        ],
         "text": "+50% ATK (2 turns) \u00b7 Deal 20 (+ATK) Beast damage."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "buffStat",
-          "stat": "attack",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 30
-         }
-        ],
         "text": "+50% ATK (2 turns) \u00b7 Deal 30 (+ATK) Beast damage."
        }
       }
@@ -612,7 +576,17 @@
        "size-3 control cap (200) to spare. Damage sinks the rest: Gold 94 (470)",
        "+ thorns 200 + stun 100 \\u2212 570 (size-3 grant) = 200 = Gold exactly.",
        "Diamond keeps the same control kit and grows damage: 122 (610) + 200 +",
-       "100 \\u2212 660 (grant) = 250 exactly."
+       "100 \\u2212 660 (grant) = 250 exactly.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `stun` locked to Gold on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "defensive",
@@ -631,41 +605,18 @@
        {
         "kind": "damage",
         "power": 56
+       },
+       {
+        "kind": "stun",
+        "turns": 1,
+        "minTier": "gold"
        }
       ],
       "tierUpgrades": {
        "gold": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 20
-         },
-         {
-          "kind": "damage",
-          "power": 94
-         },
-         {
-          "kind": "stun",
-          "turns": 1
-         }
-        ],
         "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Deal 94 (+ATK) Lance damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 20
-         },
-         {
-          "kind": "damage",
-          "power": 122
-         },
-         {
-          "kind": "stun",
-          "turns": 1
-         }
-        ],
         "text": "{{Thorns}} 20 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Deal 122 (+ATK) Lance damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
        }
       }
@@ -846,7 +797,17 @@
       "notes": [
        "Same CAP-HIT shape as Retaliation Stance (thorns + guard, both frozen",
        "empower, 60 + 40 = 100 = Bronze exactly) \\u2014 magical/Fire twin, magical",
-       "shield sink added only at Silver+."
+       "shield sink added only at Silver+.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `shield` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "defensive"
@@ -866,64 +827,21 @@
         "property": "magical",
         "pct": 20,
         "turns": 2
+       },
+       {
+        "kind": "shield",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 6
-         },
-         {
-          "kind": "guard",
-          "property": "magical",
-          "pct": 20,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 10
-         }
-        ],
         "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming magical damage (2 turns) \u00b7 Gain 10 (+MDEF) magical shield."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 6
-         },
-         {
-          "kind": "guard",
-          "property": "magical",
-          "pct": 20,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 20
-         }
-        ],
         "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming magical damage (2 turns) \u00b7 Gain 20 (+MDEF) magical shield."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 6
-         },
-         {
-          "kind": "guard",
-          "property": "magical",
-          "pct": 20,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 30
-         }
-        ],
         "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming magical damage (2 turns) \u00b7 Gain 30 (+MDEF) magical shield."
        }
       }
@@ -1046,7 +964,17 @@
        "so the ability itself, not a bigger number, is what Gold buys. Damage",
        "sinks the remainder: Gold 52 (260) + control 150 (frozen) \u2212 size-2",
        "grant (210) = 200 = Gold exactly. Diamond keeps the same control kit",
-       "and grows damage further: 68 (340) + 150 \u2212 240 (grant) = 250 exactly."
+       "and grows damage further: 68 (340) + 150 \u2212 240 (grant) = 250 exactly.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `stun` locked to Gold on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "offense",
@@ -1067,45 +995,18 @@
         "stat": "attack",
         "pct": 25,
         "turns": 2
+       },
+       {
+        "kind": "stun",
+        "turns": 1,
+        "minTier": "gold"
        }
       ],
       "tierUpgrades": {
        "gold": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 52
-         },
-         {
-          "kind": "debuffStat",
-          "stat": "attack",
-          "pct": 25,
-          "turns": 2
-         },
-         {
-          "kind": "stun",
-          "turns": 1
-         }
-        ],
         "text": "Deal 52 (+ATK) Lance damage \u00b7 -25% enemy ATK (2 turns) \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 68
-         },
-         {
-          "kind": "debuffStat",
-          "stat": "attack",
-          "pct": 25,
-          "turns": 2
-         },
-         {
-          "kind": "stun",
-          "turns": 1
-         }
-        ],
         "text": "Deal 68 (+ATK) Lance damage \u00b7 -25% enemy ATK (2 turns) \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
        }
       }
@@ -1479,7 +1380,17 @@
        "Guard is frozen (already at the size-1 empower cap, 100 deci, and near",
        "the 60%-apply-time clamp); a magical shield sinks the rest. Silver",
        "10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100",
-       "= 250."
+       "= 250.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `shield` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "defensive"
@@ -1495,52 +1406,21 @@
         "property": "magical",
         "pct": 50,
         "turns": 2
+       },
+       {
+        "kind": "shield",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "guard",
-          "property": "magical",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 10
-         }
-        ],
         "text": "-50% incoming magical damage (2 turns) \u00b7 Gain 10 (+MDEF) magical shield."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "guard",
-          "property": "magical",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 20
-         }
-        ],
         "text": "-50% incoming magical damage (2 turns) \u00b7 Gain 20 (+MDEF) magical shield."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "guard",
-          "property": "magical",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 30
-         }
-        ],
         "text": "-50% incoming magical damage (2 turns) \u00b7 Gain 30 (+MDEF) magical shield."
        }
       }
@@ -1826,7 +1706,17 @@
        "(was 40%\u00d73t = 12 PL funded by extra weight).",
        "Curse theme: the debuff is frozen (already at the size-1 control cap,",
        "100 deci); a Dark damage tick sinks the rest. Silver 10 (50) + 100 = 150.",
-       "Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250."
+       "Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "debuff"
@@ -1842,52 +1732,21 @@
         "stat": "magicResist",
         "pct": 50,
         "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "debuffStat",
-          "stat": "magicResist",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 10
-         }
-        ],
         "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "debuffStat",
-          "stat": "magicResist",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 20
-         }
-        ],
         "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "debuffStat",
-          "stat": "magicResist",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 30
-         }
-        ],
         "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
        }
       }
@@ -1915,21 +1774,16 @@
        {
         "kind": "damage",
         "power": 20
+       },
+       {
+        "kind": "damage",
+        "power": 32,
+        "affinity": true,
+        "minTier": "diamond"
        }
       ],
       "tierUpgrades": {
        "diamond": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 34
-         },
-         {
-          "kind": "damage",
-          "power": 32,
-          "affinity": true
-         }
-        ],
         "text": "Deal 34 (+ATK) Bow damage. Strong vs Beasts \u00b7 {{Affinity}} Bow \u2014 hit again for 32."
        }
       },
@@ -1950,7 +1804,17 @@
        "which makes it the safest of the five to buy without the board yet.",
        "REFUND 1/2 (2026-08-25): the Diamond payload re-solved 20 -> 32. At",
        "2.5 deci/pt a gated magnitude must be a multiple of 4 for a whole-PL part;",
-       "the base is unchanged, so the whole rate change lands on the payoff."
+       "the base is unchanged, so the whole rate change lands on the payoff.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Diamond on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ]
      }
     }
@@ -2151,7 +2015,17 @@
        "and a second empower effect has zero room beside it). `damage` is its",
        "own family (not `empower`), so it is the legal sink: Silver 10 (50) +",
        "100 = 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100 = 250 \u2014",
-       "verified against src/engine/balance.ts's powerLevelDeci/capViolations."
+       "verified against src/engine/balance.ts's powerLevelDeci/capViolations.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "defensive"
@@ -2166,49 +2040,21 @@
         "kind": "negate",
         "property": "physical",
         "charges": 1
+       },
+       {
+        "kind": "damage",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "negate",
-          "property": "physical",
-          "charges": 1
-         },
-         {
-          "kind": "damage",
-          "power": 10
-         }
-        ],
         "text": "{{Negate}} the next physical attack \u00b7 Deal 10 (+ATK) Sword damage."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "negate",
-          "property": "physical",
-          "charges": 1
-         },
-         {
-          "kind": "damage",
-          "power": 20
-         }
-        ],
         "text": "{{Negate}} the next physical attack \u00b7 Deal 20 (+ATK) Sword damage."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "negate",
-          "property": "physical",
-          "charges": 1
-         },
-         {
-          "kind": "damage",
-          "power": 30
-         }
-        ],
         "text": "{{Negate}} the next physical attack \u00b7 Deal 30 (+ATK) Sword damage."
        }
       }
@@ -2243,27 +2089,16 @@
         "stat": "magicResist",
         "pct": 20,
         "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 32,
+        "affinity": true,
+        "minTier": "diamond"
        }
       ],
       "tierUpgrades": {
        "diamond": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 26
-         },
-         {
-          "kind": "debuffStat",
-          "stat": "magicResist",
-          "pct": 20,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 32,
-          "affinity": true
-         }
-        ],
         "text": "Deal 26 (+MATK) Holy damage \u00b7 -20% enemy MDEF (2 turns) \u00b7 {{Affinity}} Holy \u2014 hit again for 32."
        }
       },
@@ -2283,7 +2118,17 @@
        "board against an auto-scaled single 42.",
        "REFUND 1/2 (2026-08-25): the Diamond payload re-solved 20 -> 32. At",
        "2.5 deci/pt a gated magnitude must be a multiple of 4 for a whole-PL part;",
-       "the base is unchanged, so the whole rate change lands on the payoff."
+       "the base is unchanged, so the whole rate change lands on the payoff.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Diamond on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ]
      }
     }
@@ -2309,21 +2154,16 @@
        {
         "kind": "damage",
         "power": 20
+       },
+       {
+        "kind": "damage",
+        "power": 48,
+        "affinity": true,
+        "minTier": "diamond"
        }
       ],
       "tierUpgrades": {
        "diamond": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 26
-         },
-         {
-          "kind": "damage",
-          "power": 48,
-          "affinity": true
-         }
-        ],
         "text": "Deal 26 (+ATK) Lance damage \u00b7 {{Affinity}} Lance \u2014 hit again for 48."
        }
       },
@@ -2342,7 +2182,17 @@
        "26 on anything else.",
        "REFUND 1/2 (2026-08-25): the Diamond payload re-solved 30 -> 48. At",
        "2.5 deci/pt a gated magnitude must be a multiple of 4 for a whole-PL part;",
-       "the base is unchanged, so the whole rate change lands on the payoff."
+       "the base is unchanged, so the whole rate change lands on the payoff.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Diamond on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ]
      }
     }
@@ -2374,25 +2224,16 @@
        {
         "kind": "lifesteal",
         "pct": 45
+       },
+       {
+        "kind": "damage",
+        "power": 32,
+        "affinity": true,
+        "minTier": "diamond"
        }
       ],
       "tierUpgrades": {
        "diamond": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 30
-         },
-         {
-          "kind": "lifesteal",
-          "pct": 45
-         },
-         {
-          "kind": "damage",
-          "power": 32,
-          "affinity": true
-         }
-        ],
         "text": "Deal 30 (+ATK) Beast damage \u00b7 heal 45% of damage dealt \u00b7 {{Affinity}} Beast \u2014 hit again for 32."
        }
       },
@@ -2414,7 +2255,17 @@
        "already compose. Auto-scaled Diamond is a single 46 and heals off 46.",
        "REFUND 1/2 (2026-08-25): the Diamond payload re-solved 20 -> 32. At",
        "2.5 deci/pt a gated magnitude must be a multiple of 4 for a whole-PL part;",
-       "the base is unchanged, so the whole rate change lands on the payoff."
+       "the base is unchanged, so the whole rate change lands on the payoff.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Diamond on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ]
      }
     }
@@ -3187,7 +3038,17 @@
        "higher tiers (a CAP-HIT kit). Hand-authored ladder adds a physical",
        "shield at Silver/Gold/Diamond ONLY (never at Bronze), matching the",
        "frost_ward/ward_of_silence/battle_howl precedent for a frozen-kit-plus-",
-       "higher-tier-sink card: +10/20/30 shield = +50/100/150 deci exactly."
+       "higher-tier-sink card: +10/20/30 shield = +50/100/150 deci exactly.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `shield` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "defensive"
@@ -3207,64 +3068,21 @@
         "property": "physical",
         "pct": 20,
         "turns": 2
+       },
+       {
+        "kind": "shield",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 6
-         },
-         {
-          "kind": "guard",
-          "property": "physical",
-          "pct": 20,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 10
-         }
-        ],
         "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 10 (+DEF) physical shield."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 6
-         },
-         {
-          "kind": "guard",
-          "property": "physical",
-          "pct": 20,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 20
-         }
-        ],
         "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 20 (+DEF) physical shield."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 6
-         },
-         {
-          "kind": "guard",
-          "property": "physical",
-          "pct": 20,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 30
-         }
-        ],
         "text": "{{Thorns}} 6 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 30 (+DEF) physical shield."
        }
       }
@@ -3285,7 +3103,17 @@
        "Expose is frozen (already at the size-1 control cap, 100 deci, and the",
        "50%-apply-time clamp); a Dark damage tick sinks the rest. Silver 10",
        "(50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30 (150) + 100",
-       "= 250."
+       "= 250.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "debuff"
@@ -3300,49 +3128,21 @@
         "kind": "expose",
         "pct": 50,
         "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "expose",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 10
-         }
-        ],
         "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "expose",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 20
-         }
-        ],
         "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "expose",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 30
-         }
-        ],
         "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
        }
       }
@@ -3992,7 +3792,17 @@
        "`disrupt` \u2014 a tool Silver has no access to at all. disrupt 6 (40 deci,",
        "`disruptBrackets`: 5\u00d75 + 1\u00d715) + damage 28 (140) + weight-6 refund",
        "(+20, (10\u22126)\u00d75) = 200 = Gold exactly. Diamond keeps disrupt frozen at",
-       "6 and grows damage: 38 (190) + 40 + 20 = 250 = Diamond exactly."
+       "6 and grows damage: 38 (190) + 40 + 20 = 250 = Diamond exactly.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `disrupt` locked to Gold on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "offense"
@@ -4007,33 +3817,18 @@
        {
         "kind": "damage",
         "power": 16
+       },
+       {
+        "kind": "disrupt",
+        "amount": 6,
+        "minTier": "gold"
        }
       ],
       "tierUpgrades": {
        "gold": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 28
-         },
-         {
-          "kind": "disrupt",
-          "amount": 6
-         }
-        ],
         "text": "Deal 28 (+MATK) Lightning damage \u00b7 {{Disrupt}} 6 banked readiness. Very quick (weight 6)."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "damage",
-          "power": 38
-         },
-         {
-          "kind": "disrupt",
-          "amount": 6
-         }
-        ],
         "text": "Deal 38 (+MATK) Lightning damage \u00b7 {{Disrupt}} 6 banked readiness. Very quick (weight 6)."
        }
       }
@@ -4054,7 +3849,17 @@
        "buffStat (speed, 20%x2t = 40 deci) = 100 = Bronze exactly \\u2014 both frozen",
        "empower members, CAP-HIT (no sink). Hand-authored ladder adds a magical",
        "shield at Silver+ only, same precedent as Retaliation Stance/Cinder",
-       "Skin: +10/20/30 shield = +50/100/150 deci."
+       "Skin: +10/20/30 shield = +50/100/150 deci.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `shield` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "defensive"
@@ -4076,70 +3881,21 @@
         "stat": "speed",
         "pct": 20,
         "turns": 2
+       },
+       {
+        "kind": "shield",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "guard",
-          "property": "magical",
-          "pct": 30,
-          "turns": 2
-         },
-         {
-          "kind": "buffStat",
-          "stat": "speed",
-          "pct": 20,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 10
-         }
-        ],
         "text": "-30% incoming magical damage (2 turns) \u00b7 +20% SPD (2 turns) \u00b7 Gain 10 (+MDEF) magical shield."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "guard",
-          "property": "magical",
-          "pct": 30,
-          "turns": 2
-         },
-         {
-          "kind": "buffStat",
-          "stat": "speed",
-          "pct": 20,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 20
-         }
-        ],
         "text": "-30% incoming magical damage (2 turns) \u00b7 +20% SPD (2 turns) \u00b7 Gain 20 (+MDEF) magical shield."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "guard",
-          "property": "magical",
-          "pct": 30,
-          "turns": 2
-         },
-         {
-          "kind": "buffStat",
-          "stat": "speed",
-          "pct": 20,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 30
-         }
-        ],
         "text": "-30% incoming magical damage (2 turns) \u00b7 +20% SPD (2 turns) \u00b7 Gain 30 (+MDEF) magical shield."
        }
       }
@@ -4195,7 +3951,17 @@
        "Stun cannot grow (hard-capped at 1 performance/card, and already the",
        "full size-1 control cap at 100 deci); a physical Axe smash sinks the",
        "rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond 30",
-       "(150) + 100 = 250."
+       "(150) + 100 = 250.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "debuff"
@@ -4209,46 +3975,21 @@
        {
         "kind": "stun",
         "turns": 1
+       },
+       {
+        "kind": "damage",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "stun",
-          "turns": 1
-         },
-         {
-          "kind": "damage",
-          "power": 10
-         }
-        ],
         "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 10 (+ATK) Axe damage."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "stun",
-          "turns": 1
-         },
-         {
-          "kind": "damage",
-          "power": 20
-         }
-        ],
         "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 20 (+ATK) Axe damage."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "stun",
-          "turns": 1
-         },
-         {
-          "kind": "damage",
-          "power": 30
-         }
-        ],
         "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 30 (+ATK) Axe damage."
        }
       }
@@ -5118,7 +4859,17 @@
        "Negate can't grow to 2 charges (200 deci would blow the size-1 empower",
        "cap of 100 alone) \u2014 frozen at 1 charge; a magical shield sinks the",
        "rest. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond",
-       "30 (150) + 100 = 250."
+       "30 (150) + 100 = 250.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `shield` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "defensive"
@@ -5133,49 +4884,21 @@
         "kind": "negate",
         "property": "magical",
         "charges": 1
+       },
+       {
+        "kind": "shield",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "negate",
-          "property": "magical",
-          "charges": 1
-         },
-         {
-          "kind": "shield",
-          "power": 10
-         }
-        ],
         "text": "{{Negate}} the next magical attack \u00b7 Gain 10 (+MDEF) magical shield."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "negate",
-          "property": "magical",
-          "charges": 1
-         },
-         {
-          "kind": "shield",
-          "power": 20
-         }
-        ],
         "text": "{{Negate}} the next magical attack \u00b7 Gain 20 (+MDEF) magical shield."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "negate",
-          "property": "magical",
-          "charges": 1
-         },
-         {
-          "kind": "shield",
-          "power": 30
-         }
-        ],
         "text": "{{Negate}} the next magical attack \u00b7 Gain 30 (+MDEF) magical shield."
        }
       }
@@ -5641,7 +5364,17 @@
        "= Bronze), so `autoScaleTier` has nothing to grow at higher tiers (a",
        "CAP-HIT kit, same shape as retaliation_stance/cinder_skin). Hand-",
        "authored ladder adds a physical shield at Silver/Gold/Diamond ONLY:",
-       "+10/20/30 shield = +50/100/150 deci exactly."
+       "+10/20/30 shield = +50/100/150 deci exactly.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `shield` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "defensive"
@@ -5661,64 +5394,21 @@
         "property": "physical",
         "pct": 25,
         "turns": 2
+       },
+       {
+        "kind": "shield",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "ward",
-          "charges": 1
-         },
-         {
-          "kind": "guard",
-          "property": "physical",
-          "pct": 25,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 10
-         }
-        ],
         "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% incoming physical damage (2 turns) \u00b7 Gain 10 (+DEF) physical shield."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "ward",
-          "charges": 1
-         },
-         {
-          "kind": "guard",
-          "property": "physical",
-          "pct": 25,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 20
-         }
-        ],
         "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% incoming physical damage (2 turns) \u00b7 Gain 20 (+DEF) physical shield."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "ward",
-          "charges": 1
-         },
-         {
-          "kind": "guard",
-          "property": "physical",
-          "pct": 25,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 30
-         }
-        ],
         "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% incoming physical damage (2 turns) \u00b7 Gain 30 (+DEF) physical shield."
        }
       }
@@ -5739,7 +5429,17 @@
        "Bronze \u2014 CAP-HIT, same shape as unbreakable_stance. ward 1 (50) +",
        "debuffStat 25%x2t (50) = 100 = Bronze exactly. Hand-authored ladder",
        "adds a magical damage sink at Silver/Gold/Diamond: +10/20/30 power =",
-       "+50/100/150 deci exactly. Fills the defensive x dark grid cell."
+       "+50/100/150 deci exactly. Fills the defensive x dark grid cell.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "defensive",
@@ -5760,64 +5460,21 @@
         "stat": "armor",
         "pct": 25,
         "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "ward",
-          "charges": 1
-         },
-         {
-          "kind": "debuffStat",
-          "stat": "armor",
-          "pct": 25,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 10
-         }
-        ],
         "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "ward",
-          "charges": 1
-         },
-         {
-          "kind": "debuffStat",
-          "stat": "armor",
-          "pct": 25,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 20
-         }
-        ],
         "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "ward",
-          "charges": 1
-         },
-         {
-          "kind": "debuffStat",
-          "stat": "armor",
-          "pct": 25,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 30
-         }
-        ],
         "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
        }
       }
@@ -5841,7 +5498,17 @@
        "empower cap 150) + debuffStat 50%x2t (100) = 240 raw - 140 (size-2",
        "grant) = 100 = Bronze exactly. Hand-authored ladder adds a physical",
        "shield at Silver/Gold/Diamond: 16/34/50 power (80/170/250 deci) \u2014",
-       "solved against the size-2 grant at each tier (170/210/240)."
+       "solved against the size-2 grant at each tier (170/210/240).",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `shield` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "offense",
@@ -5862,64 +5529,21 @@
         "stat": "armor",
         "pct": 50,
         "turns": 2
+       },
+       {
+        "kind": "shield",
+        "power": 16,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 14
-         },
-         {
-          "kind": "debuffStat",
-          "stat": "armor",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 16
-         }
-        ],
         "text": "{{Thorns}} 14 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 16 (+DEF) physical shield."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 14
-         },
-         {
-          "kind": "debuffStat",
-          "stat": "armor",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 34
-         }
-        ],
         "text": "{{Thorns}} 14 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 34 (+DEF) physical shield."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "thorns",
-          "stacks": 14
-         },
-         {
-          "kind": "debuffStat",
-          "stat": "armor",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "shield",
-          "power": 50
-         }
-        ],
         "text": "{{Thorns}} 14 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 -50% enemy DEF (2 turns) \u00b7 Gain 50 (+DEF) physical shield."
        }
       }
@@ -6649,7 +6273,17 @@
        "'bow', archetypes: ['debuff']` pool is pinned at exactly 2 cards by",
        "tests/run/events.test.ts's narrow-pool fixture (concussive_shot,",
        "piercing_arrow) \u2014 axe already carries 9 debuff cards, so this adds no",
-       "new narrow-pool risk."
+       "new narrow-pool risk.",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "debuff"
@@ -6665,52 +6299,21 @@
         "stat": "attack",
         "pct": 50,
         "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "debuffStat",
-          "stat": "attack",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 10
-         }
-        ],
         "text": "-50% enemy ATK (2 turns) \u00b7 Deal 10 (+ATK) Axe damage."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "debuffStat",
-          "stat": "attack",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 20
-         }
-        ],
         "text": "-50% enemy ATK (2 turns) \u00b7 Deal 20 (+ATK) Axe damage."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "debuffStat",
-          "stat": "attack",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 30
-         }
-        ],
         "text": "-50% enemy ATK (2 turns) \u00b7 Deal 30 (+ATK) Axe damage."
        }
       }
@@ -6733,7 +6336,17 @@
        "deci) at every tier; a Frost bolt sinks the rest. Bronze: 100 = Bronze",
        "exactly. Silver 10 (50) + 100 = 150. Gold 20 (100) + 100 = 200. Diamond",
        "30 (150) + 100 = 250 \u2014 verified with `powerLevelDeci`/`capViolations`",
-       "at every tier (zero cap violations, exact budget match)."
+       "at every tier (zero cap violations, exact budget match).",
+       "",
+       "Q1 minTier MIGRATION (2026-08-26). The Silver/Gold/Diamond `tierUpgrades.effects`",
+       "restatement(s) are DELETED: `damage` locked to Silver on the one",
+       "definition, and `tierResolved` strips it at every rank below. The rungs are",
+       "no longer hand-solved \\u2014 `autoScaleTier` re-solves the sink from this single",
+       "kit at every tier, and reproduces the deleted numbers EXACTLY at all four",
+       "(pinned against the pre-migration defs read from git d695eaa by",
+       "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
+       "survives, because a Bronze face cannot describe a line the Bronze copy",
+       "does not have."
       ],
       "archetypes": [
        "debuff"
@@ -6749,52 +6362,21 @@
         "stat": "magicPower",
         "pct": 50,
         "turns": 2
+       },
+       {
+        "kind": "damage",
+        "power": 10,
+        "minTier": "silver"
        }
       ],
       "tierUpgrades": {
        "silver": {
-        "effects": [
-         {
-          "kind": "debuffStat",
-          "stat": "magicPower",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 10
-         }
-        ],
         "text": "-50% enemy MATK (2 turns) \u00b7 Deal 10 (+MATK) Frost damage."
        },
        "gold": {
-        "effects": [
-         {
-          "kind": "debuffStat",
-          "stat": "magicPower",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 20
-         }
-        ],
         "text": "-50% enemy MATK (2 turns) \u00b7 Deal 20 (+MATK) Frost damage."
        },
        "diamond": {
-        "effects": [
-         {
-          "kind": "debuffStat",
-          "stat": "magicPower",
-          "pct": 50,
-          "turns": 2
-         },
-         {
-          "kind": "damage",
-          "power": 30
-         }
-        ],
         "text": "-50% enemy MATK (2 turns) \u00b7 Deal 30 (+MATK) Frost damage."
        }
       }
@@ -9921,6 +9503,527 @@
         "affinity": true
        }
       ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "enfilade_volley",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Enfilade Volley",
+      "text": "Deal 10 (+ATK) Bow damage \u00b7 Passive: the two cards to its RIGHT deal +3 damage \u00b7 {{Affinity}} Bow \u2014 hit again for 8.",
+      "notes": [
+       "Q2 POSITIONAL PASS (2026-08-26). `right` + `reach: 2` \\u2014 both had ZERO content",
+       "users before this card: all six shipped auras were `adjacent` or `allBoard`, and",
+       "nothing in the book had ever exercised a DIRECTION or a GAP. The lane it opens",
+       "reaches the two cards to its right, so the same three cards are a different",
+       "board depending on which end of them this one sits.",
+       "WHY THE COVERAGE IS TWO. `PRICE.auraDamageFlat` (10/pt) is derived as 5 x its",
+       "2-NEIGHBOUR coverage (see its doc comment), and `powerLevelDeci` multiplies an",
+       "aura only by `allBoard ? 2 : 1` \\u2014 it never reads `reach`. So a one-sided aura at",
+       "`reach: 2` covers at most two pieces and is priced EXACTLY at the rate's own",
+       "calibration, while `adjacent` at `reach: 2` would cover up to four at the same",
+       "price. That is why this card (and every positional card in this pass) uses",
+       "one-sided reach rather than widening `adjacent`; the rule is pinned by",
+       "tests/engine/auraCoverage.test.ts, and widening it needs a rate, not a card.",
+       "BUDGET. aura |3| * 10 = 30. Gated hit 8: base 8*5 = 40, affinity refund 1/2 ->",
+       "20, and it pays no multi-hit premium (gated hits are excluded from the count).",
+       "Sink damage 10 * 5 = 50. 30 + 20 + 50 = 100 = Bronze exactly. The gated line and",
+       "the aura are both FROZEN by `autoScaleTier`, so the sink absorbs every higher",
+       "budget: 20 / 30 / 40 at silver / gold / diamond, all whole PL."
+      ],
+      "archetypes": [
+       "offense"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 10
+       },
+       {
+        "kind": "damage",
+        "power": 8,
+        "affinity": true
+       }
+      ],
+      "aura": {
+       "affects": "right",
+       "reach": 2,
+       "mods": {
+        "damageFlat": 3
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "rearguard_pike",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Rearguard Pike",
+      "text": "Gain 8 (+DEF) physical shield \u00b7 Passive: the two cards to its LEFT are -2 weight (cast sooner) \u00b7 {{Affinity}} Lance \u2014 also -20% incoming physical damage (2 turns).",
+      "notes": [
+       "Q2 POSITIONAL PASS (2026-08-26). `left` + `reach: 2`, on a DEFENSIVE card \\u2014 the",
+       "half of Q2 that matters: before this pass all six aura cards were `support`, so",
+       "position only ever mattered on a board that spent a slot on a pure buff piece.",
+       "A Lance card that pulls the rank BEHIND it forward is a placement decision on a",
+       "card you were already playing for its plating.",
+       "BUDGET. aura |-2| * 20 = 40. Gated guard (physical 20% x 2t) = 40 base, affinity",
+       "refund 1/2 -> 20. Sink shield 8 * 5 = 40. 40 + 20 + 40 = 100 = Bronze exactly.",
+       "Shield is the only unfrozen line, so it takes the whole ladder: 18 / 28 / 38.",
+       "Coverage is two pieces on ONE side, which is the calibration `PRICE.auraWeightDelta`",
+       "is derived at \\u2014 see Enfilade Volley's note for the full argument."
+      ],
+      "archetypes": [
+       "defensive",
+       "support"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "shield",
+        "power": 8
+       },
+       {
+        "kind": "guard",
+        "property": "physical",
+        "pct": 20,
+        "turns": 2,
+        "affinity": true
+       }
+      ],
+      "aura": {
+       "affects": "left",
+       "reach": 2,
+       "mods": {
+        "weightDelta": -2
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "gravelight_choir",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Gravelight Choir",
+      "text": "Restore 6 (+MDEF) HP \u00b7 Passive: the two cards to its LEFT heal +4 \u00b7 {{Affinity}} Dark \u2014 restore 12 more.",
+      "notes": [
+       "Q2 POSITIONAL PASS (2026-08-26). `left` + `reach: 2` carrying `healFlat` \\u2014 the",
+       "one aura mod with a single shipped user (`mending_aura`), and it had never been",
+       "authored anywhere but `adjacent`. A healer two slots back still gets the choir.",
+       "BUDGET. aura |4| * 10 = 40. Gated heal 12: base 60, affinity refund 1/2 -> 30.",
+       "Sink heal 6 * 5 = 30. 40 + 30 + 30 = 100 = Bronze exactly. Ladder 16 / 26 / 36.",
+       "TWO HEALS, ONE GATED, ON PURPOSE: the gated half is the payoff for holding the",
+       "Dark identity and is frozen at 12 forever (`autoScaleTier`'s GATED SINKS ARE",
+       "FROZEN rule), so ranking the card up can never move budget out of the always-on",
+       "heal and into the conditional one \\u2014 the `wildfire_rite` failure."
+      ],
+      "archetypes": [
+       "healing",
+       "support"
+      ],
+      "property": "magical",
+      "element": "dark",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "heal",
+        "power": 6
+       },
+       {
+        "kind": "heal",
+        "power": 12,
+        "affinity": true
+       }
+      ],
+      "aura": {
+       "affects": "left",
+       "reach": 2,
+       "mods": {
+        "healFlat": 4
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "rimebound_pact",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Rimebound Pact",
+      "text": "Deal 8 (+MATK) Frost damage \u00b7 Passive: the two cards to its RIGHT are -2 weight (cast sooner) \u00b7 {{Affinity}} Frost \u2014 -20% enemy DEF (2 turns).",
+      "notes": [
+       "Q2 POSITIONAL PASS (2026-08-26). `right` + `reach: 2` on an OFFENSE/DEBUFF card.",
+       "Q3 AFFINITY PASS in the same card: frost shipped 2 bronze-reachable gated cards",
+       "against 10 on-type cards, the joint-thinnest type in the book.",
+       "BUDGET. aura |-2| * 20 = 40. Gated debuffStat (armor 20% x 2t) = 40 base,",
+       "affinity refund 1/2 -> 20. Sink damage 8 * 5 = 40. Total 100 = Bronze exactly.",
+       "Ladder 18 / 28 / 38 on the damage line; gate and aura frozen."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 8
+       },
+       {
+        "kind": "debuffStat",
+        "stat": "armor",
+        "pct": 20,
+        "turns": 2,
+        "affinity": true
+       }
+      ],
+      "aura": {
+       "affects": "right",
+       "reach": 2,
+       "mods": {
+        "weightDelta": -2
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "stormrank_relay",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Stormrank Relay",
+      "text": "Deal 8 (+MATK) Lightning damage \u00b7 Passive: adjacent Magical cards are -2 weight (cast sooner) \u00b7 {{Affinity}} Lightning \u2014 +20% SPD (2 turns).",
+      "notes": [
+       "Q2 POSITIONAL PASS (2026-08-26). The one card in the pass that keeps `adjacent`,",
+       "with a `propertyFilter` \\u2014 the shape `time_crystal` established, moved off",
+       "`support` and onto an OFFENSE card so the relay competes for a slot with an",
+       "attack rather than being a dedicated buff piece.",
+       "Q3: lightning had 2 bronze-reachable gated cards against 11 on-type.",
+       "BUDGET. aura |-2| * 20 = 40. Gated buffStat (speed 20% x 2t) = 40 base, refund",
+       "1/2 -> 20. Sink damage 8 * 5 = 40. Total 100 = Bronze exactly. Ladder 18/28/38."
+      ],
+      "archetypes": [
+       "offense",
+       "support"
+      ],
+      "property": "magical",
+      "element": "lightning",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 8
+       },
+       {
+        "kind": "buffStat",
+        "stat": "speed",
+        "pct": 20,
+        "turns": 2,
+        "affinity": true
+       }
+      ],
+      "aura": {
+       "affects": "adjacent",
+       "reach": 1,
+       "propertyFilter": "magical",
+       "mods": {
+        "weightDelta": -2
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "packline_flank",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Packline Flank",
+      "text": "Deal 6 (+ATK) Beast damage \u00b7 Passive: the two cards to its LEFT deal +4 damage \u00b7 {{Affinity}} Beast \u2014 hit again for 12.",
+      "notes": [
+       "Q2 POSITIONAL PASS (2026-08-26). `left` + `reach: 2` carrying `damageFlat`, the",
+       "mirror of Enfilade Volley \\u2014 the two are the pass's on/off pair for direction:",
+       "the same board reads differently depending on which of them holds the flank.",
+       "Q3: beast had 2 bronze-reachable gated cards against 13 on-type.",
+       "BUDGET. aura |4| * 10 = 40. Gated hit 12: base 60, refund 1/2 -> 30, no multi-hit",
+       "premium (gated hits are excluded from the count). Sink damage 6 * 5 = 30.",
+       "40 + 30 + 30 = 100 = Bronze exactly. Ladder 16 / 26 / 36."
+      ],
+      "archetypes": [
+       "offense",
+       "support"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 6
+       },
+       {
+        "kind": "damage",
+        "power": 12,
+        "affinity": true
+       }
+      ],
+      "aura": {
+       "affects": "left",
+       "reach": 2,
+       "mods": {
+        "damageFlat": 4
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "cleaving_creed",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Cleaving Creed",
+      "text": "Deal 12 (+ATK) Axe damage \u00b7 {{Affinity}} Axe \u2014 {{Bleed}} 8 (ticks when the enemy performs; blocked by shields).",
+      "notes": [
+       "Q3 AFFINITY DENSITY PASS (2026-08-26). Axe is the WIDEST type in the book (22",
+       "on-type cards) and had only 2 bronze-reachable gated payoffs \\u2014 the largest",
+       "enabler-to-payoff gap measured. A gated DoT is also a family the axe gate had",
+       "never carried.",
+       "BUDGET. Gated bleed 8: base 8 * 10 = 80, affinity refund 1/2 -> 40. Sink damage",
+       "12 * 5 = 60. 40 + 60 = 100 = Bronze exactly. The gated DoT is frozen in the DoT",
+       "bucket too (the `wildfire_rite` fix), so the damage line takes the whole ladder:",
+       "22 / 32 / 42, and the bleed pile stays 8 at every rank."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 12
+       },
+       {
+        "kind": "bleed",
+        "stacks": 8,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "bramble_covenant",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Bramble Covenant",
+      "text": "Gain 12 (+MDEF) magical shield \u00b7 {{Affinity}} Nature \u2014 {{Poison}} 8 (ticks at end of turn; bypasses shields).",
+      "notes": [
+       "Q3 AFFINITY DENSITY PASS (2026-08-26). Nature had 2 bronze-reachable gated",
+       "payoffs against 13 on-type cards. DEFENSIVE + DEBUFF, because the gate's",
+       "archetype spread was the worse half of the measurement: 17 of the 24 shipped",
+       "bronze-reachable gated cards are `offense`.",
+       "BUDGET. Gated poison 8: base 80, affinity refund 1/2 -> 40. Sink shield 12 * 5 =",
+       "60. Total 100 = Bronze exactly. Ladder 22 / 32 / 42 on the shield; poison frozen."
+      ],
+      "archetypes": [
+       "defensive",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "shield",
+        "power": 12
+       },
+       {
+        "kind": "poison",
+        "stacks": 8,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "marksmans_creed",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Marksman's Creed",
+      "text": "Deal 16 (+ATK) Bow damage \u00b7 {{Affinity}} Bow \u2014 {{Expose}} the enemy: +20% damage from all direct hits (2 turns).",
+      "notes": [
+       "Q3 AFFINITY DENSITY PASS (2026-08-26). BOW WAS THE WHOLE POINT: it shipped ONE",
+       "bronze-reachable gated card (`massed_volley`) against 10 on-type cards \\u2014 the",
+       "thinnest payoff supply in the game, for the type whose enabler pool is also",
+       "joint-thinnest. This and Enfilade Volley take bow to three.",
+       "BUDGET. Gated expose (20% x 2t) = 40 base, affinity refund 1/2 -> 20. Sink",
+       "damage 16 * 5 = 80. Total 100 = Bronze exactly. Ladder 26 / 36 / 46."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 16
+       },
+       {
+        "kind": "expose",
+        "pct": 20,
+        "turns": 2,
+        "affinity": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "rimebarb_vigil",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Rimebarb Vigil",
+      "text": "{{Thorns}} 5 \u2014 attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 32 (+MDEF) magical shield.",
+      "notes": [
+       "THE FIRST THORNS CARD WHOSE STACKS SCALE WITH RANK (2026-08-26), and it is only",
+       "expressible because of the Q1 `minTier` migration in the same pass.",
+       "THE GAP IT CLOSES. `thorns` sits in the EMPOWER family, which is FROZEN across",
+       "tiers (user-locked 2026-07-23), and `autoScaleTier` never scales an empower",
+       "magnitude \\u2014 so every one of the twelve shipped thorns cards carries its BRONZE",
+       "stack count at Diamond too. A reflect is an ordinary PHYSICAL hit (user-locked",
+       "2026-08-21): `reflectThorns` subtracts the attacker's armor from the sting and",
+       "floors it at 1. So the eight small thorns cards (5-8 stacks) sting for exactly 1",
+       "against any attacker with 8+ armor, at every depth and at every rank, and buying",
+       "the tier-up bought nothing for the reflect at all.",
+       "HOW THIS ONE SCALES. Four `thorns` lines on ONE definition, three of them behind",
+       "`minTier` \\u2014 `applyAction`'s thorns arm MERGES into a single pile (one pile per",
+       "holder, like the DoTs), so the resolved wall is 5 / 8 / 11 / 14 stacks at bronze /",
+       "silver / gold / diamond. Each locked line is charged in FULL at and above its lock",
+       "and nothing below it (`tierResolved` strips it), so this is a real purchase, not a",
+       "discount: the tier-up buys reflect.",
+       "WHAT IT CANNOT DO, stated plainly. `EFFECT_CAPS_DECI.empower` is 150 deci at size",
+       "2 = 15 stacks, frozen at every tier, so 14 is one stack short of the ceiling and",
+       "no authored card of any size can exceed 20. A single cast can therefore never",
+       "outrun late-depth armor by stack count alone \\u2014 that would need a rate or a cap",
+       "change, which is balance-designer's call, not a card's. What a card CAN do is",
+       "reach the pile that runtime stacking then compounds: `speedWeight` 14 against a",
+       "size-2 baseline of 20 makes this the quickest wall in the book, and a second cast",
+       "merges into the first (runtime stacking is intentional gameplay, user-locked",
+       "2026-07-20 \\u2014 never clamped), so the pile climbs 14 -> 28 -> 42 across casts.",
+       "BUDGET, per rank. size-2 grant is a refund that grows with the tier budget",
+       "(140 / 170 / 210 / 240) and the weight deviation costs (20 - 14) * 5 = 30 at every",
+       "rank. bronze: thorns 50 + shield 32*5=160 + 30 - 140 = 100. silver: 80 + 210 + 30",
+       "- 170 = 150. gold: 110 + 270 + 30 - 210 = 200. diamond: 140 + 320 + 30 - 240 = 250.",
+       "Every part is a whole PL and the shield line is the only thing the solver moves."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 2,
+      "rarity": "epic",
+      "tier": "bronze",
+      "speedWeight": 14,
+      "effects": [
+       {
+        "kind": "thorns",
+        "stacks": 5
+       },
+       {
+        "kind": "thorns",
+        "stacks": 3,
+        "minTier": "silver"
+       },
+       {
+        "kind": "thorns",
+        "stacks": 3,
+        "minTier": "gold"
+       },
+       {
+        "kind": "thorns",
+        "stacks": 3,
+        "minTier": "diamond"
+       },
+       {
+        "kind": "shield",
+        "power": 32
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "text": "{{Thorns}} 5 plus 3 \u2014 an 8-stack wall; attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 42 (+MDEF) magical shield."
+       },
+       "gold": {
+        "text": "{{Thorns}} 5 plus 3 twice \u2014 an 11-stack wall; attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 54 (+MDEF) magical shield."
+       },
+       "diamond": {
+        "text": "{{Thorns}} 5 plus 3 three times \u2014 a 14-stack wall; attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 64 (+MDEF) magical shield."
+       }
+      }
      }
     }
    ]

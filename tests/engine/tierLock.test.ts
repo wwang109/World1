@@ -79,68 +79,55 @@ function shapeOf(effects: readonly Action[]): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Every shipped card whose authored `tierUpgrades` block adds an affinity-gated
- * action the base card does not have: the Diamond capstones. Their whole
- * `effects` list is restated only so one gated hit can appear at Diamond.
+ * Every shipped Diamond capstone, read off THE ONE DEFINITION.
+ *
+ * MIGRATED 2026-08-26 (Q1). These five used to restate their whole `effects` list
+ * inside a `tierUpgrades.diamond` block so that one gated hit could appear at
+ * Diamond; they now carry that hit ONCE, in `effects`, flagged
+ * `{ affinity: true, minTier: 'diamond' }`. So the derivation below reads the
+ * base kit and asks which cards gain a GATED HIT at a rank above their own —
+ * which is what "capstone" has always meant. The before/after equivalence of the
+ * migration itself (byte-identical resolved output at all four tiers, measured
+ * against the PRE-migration definitions read out of git) lives in
+ * `tests/engine/tierLockMigration.test.ts`.
  */
 const CAPSTONES = Object.values(skillBook).flatMap((card) =>
-  Object.entries(card.tierUpgrades ?? {})
-    .filter(([, up]) => (up?.effects ?? []).some((a) => a.affinity === true)
-      && !card.effects.some((a) => a.affinity === true))
-    .map(([tier]) => ({ card, tier: tier as SkillTier })));
+  card.effects
+    .filter((a) => a.affinity === true && a.minTier !== undefined)
+    .map((a) => ({ card, tier: a.minTier as SkillTier })));
 
-/**
- * The same card expressed as ONE LADDER: the base kit plus the capstone's gated
- * line carrying `minTier`, and NO `tierUpgrades` at all. This is the authoring
- * the feature is meant to make possible, and the whole point is that the
- * budget-honest scaler re-derives every rung — including the hand-solved Diamond
- * payload — instead of a human restating it.
- */
-function asOneLadder(card: SkillDef, tier: SkillTier): SkillDef {
-  const authored = card.tierUpgrades?.[tier as Exclude<SkillTier, 'bronze'>]?.effects ?? [];
-  const locked = authored.filter((a) => a.affinity === true).map((a) => ({ ...a, minTier: tier }));
-  const { tierUpgrades: _drop, ...rest } = card;
-  return { ...rest, effects: [...card.effects, ...locked] };
-}
-
-describe('ONE LADDER reproduces the five hand-authored Diamond capstones exactly', () => {
-  it('the capstones exist to be reproduced — this suite is not vacuous', () => {
-    // If content ever migrates these to locks this set goes empty and the suite
-    // below would pass while proving nothing. Fail loudly instead: the migration
-    // is exactly when someone must re-read what this file claims.
-    expect(CAPSTONES.length, 'no shipped card authors a gated action only at a higher tier').toBe(5);
+describe('THE FIVE DIAMOND CAPSTONES ARE ONE LADDER EACH', () => {
+  it('the capstones exist as locks — this suite is not vacuous', () => {
+    expect(CAPSTONES.length, 'no shipped card locks a gated action to a higher tier').toBe(5);
     for (const { card, tier } of CAPSTONES) {
       expect(tier, `${card.id}: capstones are a Diamond design statement`).toBe('diamond');
-      expect(card.effects.some((a) => a.affinity === true), `${card.id} bronze must be ungated`).toBe(false);
+      // ONE definition, no restatement: the whole point of the migration.
+      const upgrades = Object.values(card.tierUpgrades ?? {});
+      expect(upgrades.some((up) => up.effects !== undefined), `${card.id} must not restate its effects`).toBe(false);
+      // ...and the Bronze copy is genuinely ungated — the lock is what does it.
+      expect(tierResolved(card).effects.some((a) => a.affinity === true), `${card.id} bronze must be ungated`).toBe(false);
     }
   });
 
-  it('every rung — effects, price and caps — matches the authored card at every tier', () => {
-    const mismatches: string[] = [];
-    for (const { card, tier } of CAPSTONES) {
-      const ladder = asOneLadder(card, tier);
+  it('every rung is exactly on budget and within caps, re-solved from the one kit', () => {
+    for (const { card } of CAPSTONES) {
       for (const rank of RANKS) {
-        const one = applyTier(ladder, rank);
-        const authored = applyTier(card, rank);
-        if (shapeOf(one.effects) !== shapeOf(authored.effects)) {
-          mismatches.push(`${card.id}@${rank}\n  one-ladder: ${shapeOf(one.effects)}\n  authored  : ${shapeOf(authored.effects)}`);
-        }
+        const one = applyTier(card, rank);
         expect(powerLevelDeci(one), `${card.id}@${rank} budget`).toBe(TIER_BUDGET_DECI[rank]);
         expect(capViolations(one), `${card.id}@${rank} caps`).toEqual([]);
       }
     }
-    expect(mismatches, mismatches.join('\n')).toEqual([]);
   });
 
   it('and the LOCK is what does it — the same list without `minTier` is a different, off-budget card', () => {
-    // The control. Appending the gated line with no lock gives every tier the
-    // capstone payload, so Bronze is instantly over budget: proof the assertions
-    // above are testing the lock rather than passing for free.
+    // The control. Drop the lock and the gated line exists at every tier, so
+    // Bronze is instantly over budget: proof the assertions above are testing the
+    // lock rather than passing for free.
     let overBudget = 0;
-    for (const { card, tier } of CAPSTONES) {
+    for (const { card } of CAPSTONES) {
       const unlocked: SkillDef = {
-        ...asOneLadder(card, tier),
-        effects: asOneLadder(card, tier).effects.map((a) => {
+        ...card,
+        effects: card.effects.map((a) => {
           const copy: Record<string, unknown> = { ...a };
           delete copy['minTier'];
           return copy as unknown as Action;
@@ -365,10 +352,9 @@ describe('THE TRADE IS REAL: what a rank-up guarantees never falls for an UNCOND
     // top tier only, both numbers printed on the face (`affinity.test.ts`) — but it
     // is a CONDITIONAL rank-up and must be visible as one, never fallen into.
     const falls: string[] = [];
-    for (const { card, tier } of CAPSTONES) {
-      const ladder = asOneLadder(card, tier);
-      const before = guaranteed(ladder, 'gold');
-      const after = guaranteed(ladder, 'diamond');
+    for (const { card } of CAPSTONES) {
+      const before = guaranteed(card, 'gold');
+      const after = guaranteed(card, 'diamond');
       if (after < before) falls.push(`${card.id}: guaranteed ${before / 10} PL @gold -> ${after / 10} PL @diamond`);
     }
     expect(falls.length, `a conditional unlock must show up as a falling guarantee:\n${falls.join('\n')}`)
@@ -652,20 +638,72 @@ describe('a nonsense lock is REFUSED at authoring time', () => {
 // ---------------------------------------------------------------------------
 
 describe('nothing changes for a card with no lock', () => {
-  it('no shipped card carries one yet — so the whole book is the control group', () => {
-    const locked = Object.values(skillBook)
-      .filter((c) => [...c.effects, ...Object.values(c.tierUpgrades ?? {}).flatMap((u) => u?.effects ?? [])]
-        .some((a) => a.minTier !== undefined))
-      .map((c) => c.id);
-    expect(locked, 'update this suite deliberately when content authors the first lock').toEqual([]);
+  /** Every card that authors at least one `minTier`, and every card that authors none. */
+  const LOCKED_IDS = Object.values(skillBook)
+    .filter((c) => [...c.effects, ...Object.values(c.tierUpgrades ?? {}).flatMap((u) => u?.effects ?? [])]
+      .some((a) => a.minTier !== undefined))
+    .map((c) => c.id)
+    .sort();
+
+  it('the feature HAS content users — and every one of them is a card, not a tierUpgrades block', () => {
+    // Was "no shipped card carries one yet" until the Q1 migration landed
+    // (2026-08-26). The set is now the migration's own manifest: 24 cards whose
+    // higher rungs used to be hand-solved `tierUpgrades.effects` restatements.
+    // 24 migrated (`tests/engine/tierLockMigration.test.ts` owns the before/after)
+    // plus `rimebarb_vigil`, the first card AUTHORED with a lock: four `thorns`
+    // lines on one definition, three of them locked, merging into one pile so the
+    // reflect grows 5 -> 8 -> 11 -> 14 with rank. That is the shape `TierLocked`
+    // was built for and no `tierUpgrades` restatement could have priced honestly.
+    expect(LOCKED_IDS.length, 'the lock manifest must not silently shrink').toBe(25);
+    for (const id of LOCKED_IDS) {
+      const card = skillBook[id]!;
+      // `validateSkillContent` refuses a lock inside a `tierUpgrades` effects list
+      // (that block applies at exactly one tier, so a lock in it is dead either
+      // way) — pinned here as content, not only as a validator rule.
+      for (const up of Object.values(card.tierUpgrades ?? {})) {
+        expect((up.effects ?? []).some((a) => a.minTier !== undefined), `${id}: lock inside a tierUpgrades block`).toBe(false);
+      }
+      // Every locked line is a real lock: strictly above the card's own tier, so
+      // it genuinely closes on the copy the card is priced as.
+      for (const a of card.effects) {
+        if (a.minTier === undefined) continue;
+        expect(TIER_ORDER.indexOf(a.minTier), `${id}: lock at or below the card own tier`)
+          .toBeGreaterThan(TIER_ORDER.indexOf(card.tier));
+      }
+    }
   });
 
-  it('`tierResolved` and `applyTier` hand back the SAME REFERENCE for every card in the book', () => {
+  it('EVERY tier at or above a lock carries an authored `text` — the face can never describe a line it lacks', () => {
+    // The one thing the migration cannot delegate to the solver. `retextScaledNumbers`
+    // rewrites CHANGED numbers in the existing prose; it cannot invent the clause for
+    // a line the Bronze face never mentioned. So a `tierUpgrades.<tier>.text` override
+    // is mandatory from the lock tier upward, and `tests/engine/cardText.test.ts`
+    // audits each one against the RESOLVED rank.
+    const missing: string[] = [];
+    for (const id of LOCKED_IDS) {
+      const card = skillBook[id]!;
+      const locks = card.effects.filter((a) => a.minTier !== undefined).map((a) => TIER_ORDER.indexOf(a.minTier!));
+      const lowest = Math.min(...locks);
+      for (let i = lowest; i < TIER_ORDER.length; i += 1) {
+        const tier = TIER_ORDER[i]! as Exclude<SkillTier, 'bronze'>;
+        if (card.tierUpgrades?.[tier]?.text === undefined) missing.push(`${id}@${tier}`);
+      }
+    }
+    expect(missing, `a locked line unlocks into prose that never mentions it:\n${missing.join('\n')}`).toEqual([]);
+  });
+
+  it('`tierResolved` and `applyTier` hand back the SAME REFERENCE for every UNLOCKED card', () => {
     // Reference identity, not deep equality: it is what makes "un-featured input
     // resolves byte-identically" true by construction rather than by inspection,
     // and it is why the frozen 400-fight outcome baseline did not move.
+    //
+    // SCOPED TO UNLOCKED CARDS since the Q1 migration (2026-08-26). A card that
+    // really does have a line to STRIP cannot come back by reference — that is the
+    // feature working, not a regression — so the 24 locked cards are held to the
+    // VALUE claim in the next test instead.
     let checked = 0;
     for (const card of Object.values(skillBook)) {
+      if (LOCKED_IDS.includes(card.id)) continue;
       expect(tierResolved(card), card.id).toBe(card);
       for (const tier of RANKS) {
         if (TIER_ORDER.indexOf(tier) > TIER_ORDER.indexOf(card.tier)) continue;
@@ -674,5 +712,17 @@ describe('nothing changes for a card with no lock', () => {
       }
     }
     expect(checked, 'the sweep must actually cover cards').toBeGreaterThan(100);
+  });
+
+  it('...and a LOCKED card resolves to exactly its unlocked lines, in authored order', () => {
+    for (const id of LOCKED_IDS) {
+      const card = skillBook[id]!;
+      const resolved = tierResolved(card);
+      expect(resolved, `${id}: a card with a live lock must allocate`).not.toBe(card);
+      expect(resolved.effects, id).toEqual(card.effects.filter((a) => a.minTier === undefined));
+      // Nothing but `effects` moves: `tierResolved` answers only "which actions exist".
+      expect({ ...resolved, effects: [] }, `${id}: tierResolved rewrote something else`)
+        .toEqual({ ...card, effects: [] });
+    }
   });
 });

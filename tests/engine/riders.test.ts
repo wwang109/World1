@@ -243,13 +243,23 @@ describe('lifesteal trails every hit of the cast', () => {
   });
 
   it('a kit whose leech already trails its hits is untouched (same reference back)', () => {
-    // The other two lifesteal cards in the book, and the fang at Bronze: the
-    // normalizer must be a no-op on them, reference included, or every un-featured
-    // resolve stops being byte-identical (the determinism + outcome baselines).
-    for (const id of ['leeching_fang', 'siphon_life', 'verdant_rebuke']) {
+    // The other two lifesteal cards in the book: the normalizer must be a no-op on
+    // them, reference included, or every un-featured resolve stops being
+    // byte-identical (the determinism + outcome baselines).
+    for (const id of ['siphon_life', 'verdant_rebuke']) {
       const def = skillBook[id]!;
       expect(resolveEffectiveSkill(def, { skillId: id, slot: 0 }), id).toBe(def);
     }
+    // THE FANG AT BRONZE cannot come back by reference any more (2026-08-26, the Q1
+    // `minTier` migration): its Diamond capstone hit now lives in the ONE
+    // definition carrying `minTier: 'diamond'`, so `tierResolved` has a line to
+    // STRIP at Bronze and must allocate. What still has to hold is the VALUE — the
+    // Bronze kit is exactly the unlocked lines, in order, with the leech already
+    // trailing and therefore nothing for `orderCastSinks` to move.
+    const fang = skillBook[FANG]!;
+    const bronze = resolveEffectiveSkill(fang, { skillId: FANG, slot: 0 });
+    expect(bronze.effects).toEqual(fang.effects.filter((a) => a.minTier === undefined));
+    expect(bronze.effects.map((a) => a.kind)).toEqual(['damage', 'lifesteal']);
   });
 
   it('leeching_fang is the ONLY kit that needed reordering — and it moved', () => {
@@ -267,9 +277,17 @@ describe('lifesteal trails every hit of the cast', () => {
     }
     // ...and the fang's Diamond kit is the one that actually gets reordered, so
     // the sweep above is not vacuously true of an unchanged book.
-    const authored = skillBook['leeching_fang']!.tierUpgrades!.diamond!.effects!.map((a) => a.kind);
+    //
+    // READ OFF THE ONE DEFINITION NOW (2026-08-26, the Q1 `minTier` migration):
+    // the authored order used to live in `tierUpgrades.diamond.effects` and now
+    // lives in `effects` itself, with the gated hit carrying
+    // `minTier: 'diamond'`. The authored order is deliberately UNCHANGED —
+    // `[damage, lifesteal, damage(locked)]` — so this regression pin keeps its
+    // teeth: the resolver, not the content, is what puts the leech last.
+    const authored = skillBook[FANG]!.effects.map((a) => a.kind);
     expect(authored).toEqual(['damage', 'lifesteal', 'damage']);
-    const resolved = resolveEffectiveSkill(skillBook['leeching_fang']!, { skillId: 'leeching_fang', slot: 0, tier: 'diamond' }).effects.map((a) => a.kind);
+    expect(skillBook[FANG]!.effects[2]!.minTier).toBe('diamond');
+    const resolved = resolveEffectiveSkill(skillBook[FANG]!, { skillId: FANG, slot: 0, tier: 'diamond' }).effects.map((a) => a.kind);
     expect(resolved).toEqual(['damage', 'damage', 'lifesteal']);
   });
 });

@@ -248,15 +248,31 @@ describe('run/events: no pool is narrower than the offer it deals', () => {
     });
 
     it('a bonusDraft over a too-narrow pool deals a SHORT offer and throws nothing — which is why the catalog is linted', () => {
-      const narrow = ALL.filter((s) => s.weapon === 'bow' && s.archetypes.includes('debuff'));
-      expect(narrow.length, 'fixture pool moved — pick another narrow filter').toBe(2);
+      // THE FIXTURE POOL: beast + healing. See the twin rig in
+      // `tests/run/events.test.ts` for the full rationale — in short, a WEAPON type
+      // crossed with `healing` is the thinnest cell in the book BY CONSTRUCTION
+      // (sword/axe/lance carry one each, bow none), so it is the narrow filter a
+      // content pass is least likely to widen. It replaced bow + debuff, which the
+      // Q3 affinity-density pass (2026-08-26) took from 2 to 3 when it closed bow's
+      // one-payoff gap.
+      //
+      // ASSERTED AS THE BOUND, not as a literal count: what this rig needs is a
+      // pool that is non-empty and SHORTER THAN THE MINI-DRAFT WIDTH, so that is
+      // what is checked. It fails loudly the moment the pool stops being short.
+      const narrow = ALL.filter((s) => s.weapon === 'beast' && s.archetypes.includes('healing'));
+      const named = narrow.map((s) => s.id).join(', ');
+      expect(narrow.length, 'beast+healing is empty — a short deal needs something to deal').toBeGreaterThan(0);
+      expect(
+        narrow.length,
+        `beast+healing is no longer shorter than the mini-draft width (${named}) — pick another structurally narrow filter, do NOT raise the number`,
+      ).toBeLessThan(OBSERVED_DRAFT_WIDTH);
       (eventCatalog as Record<string, EventDef>)[RIGGED_ID] = {
         id: RIGGED_ID,
         title: 'QA rig',
         body: '',
         theme: 'training',
         choices: [
-          { id: 'narrow', label: '', outcome: { kind: 'bonusDraft', filter: [{ weapons: ['bow'], archetypes: ['debuff'] }] } },
+          { id: 'narrow', label: '', outcome: { kind: 'bonusDraft', filter: [{ weapons: ['beast'], archetypes: ['healing'] }] } },
         ],
       };
       const cards = offeredCards(stateAtFirstEvent(4), RIGGED_ID, eventCatalog[RIGGED_ID]!.choices[0]!);

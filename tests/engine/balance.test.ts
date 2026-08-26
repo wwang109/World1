@@ -847,8 +847,16 @@ describe('Power Level breakdown', () => {
    */
   const CAPSTONE_IDS = new Set(
     Object.values(skillBook)
-      .filter((card) => Object.values(card.tierUpgrades ?? {})
-        .some((up) => (up.effects ?? []).some((a) => a.affinity === true && HIT_KINDS.has(a.kind))))
+      .filter((card) => [
+        // POST-MIGRATION (2026-08-26, Q1): a capstone writes its gated hit ONCE, in
+        // `effects`, carrying BOTH flags — `{ affinity: true, minTier: 'diamond' }`.
+        // The lock is the half that makes it a capstone rather than an innate gated
+        // line, so both must be present.
+        ...card.effects.filter((a) => a.minTier !== undefined),
+        // The pre-migration shape, still read so a card that hand-authors a gated
+        // hit in a `tierUpgrades` block is caught by the same derivation.
+        ...Object.values(card.tierUpgrades ?? {}).flatMap((up) => up.effects ?? []),
+      ].some((a) => a.affinity === true && HIT_KINDS.has(a.kind)))
       .map((card) => card.id),
   );
 

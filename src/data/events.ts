@@ -179,6 +179,37 @@ export type EventOutcomeSpec =
   // resolved shapes, and this module's `the_lapidary` entry for the one
   // catalog choice that uses it today.
   | { kind: 'sellGem' }
+  // `mergeCards` (2026-08-26) — THREE OWNED CARDS OF ONE TIER IN, A CHOICE OF
+  // THREE CARDS AT TIER+1 OUT. The only DESTRUCTIVE card outcome in the
+  // vocabulary: every other member above either adds something
+  // (`grantCard`/`bonusDraft`/`cardChoice`), rewrites one instance in place
+  // (`upgradeCard`), or spends a gem (`sellGem`) — this one removes three owned
+  // instances and hands back one.
+  //
+  // BOTH HALVES OF THE SHAPE ARE DELIBERATE (approved 2026-08-26).
+  //   - SAME-TIER INPUT, never mixed. The alternative ("accept any three and
+  //     upgrade the LOWEST tier of them") lets a player feed two Bronze and a
+  //     Diamond and lose the Diamond's value — a trap, not a decision.
+  //   - A CHOICE OF THREE OUT, never one random card. Combat is automatic, so
+  //     every decision this game has lives in what goes on the board; a single
+  //     rolled result would make the trade a slot machine instead of a way to
+  //     steer a build (the same P19/P22 reasoning as the card doors above).
+  //
+  // No fields: WHICH tier merges, WHICH three instances are consumed and WHAT
+  // the three candidates are is entirely a function of the run state plus the
+  // choice's own seed, so there is nothing for content to declare. See
+  // `src/run/events.ts#mergeCardsPlan` for the (single, shared) authority on
+  // all four, `isEventChoiceUsable` for the eligibility gate that keeps this
+  // choice from ever being offered when it could not be honoured, and
+  // `applyMergeCardsPick` for the finalizer.
+  //
+  // DIAMOND HAS NOWHERE TO GO, so a trio of Diamonds is NOT a merge input: the
+  // plan only ever picks a tier that HAS a tier+1, and a player whose only trio
+  // is Diamond gets this choice reported UNUSABLE (`isEventChoiceUsable`) rather
+  // than a button that spends three Diamonds for nothing. Both events carrying
+  // this outcome keep another non-`nothing` choice, so the EVENT still appears —
+  // only the merge rung is dark.
+  | { kind: 'mergeCards' }
   | { kind: 'nothing' };
 
 export interface EventChoiceDef {
@@ -607,7 +638,7 @@ const defs: EventDef[] = [
     id: 'ruined_anvil',
     title: 'Ruined Anvil',
     theme: 'forge',
-    body: 'One of the Cinderworks\' many forges stands half-collapsed and long abandoned, its anvil cracked but still serviceable. A rough blade sits cooling on the workbench, yours for the taking — or, for three gold toward proper tools, you could retemper it into something sturdier before you go.',
+    body: 'One of the Cinderworks\' many forges stands half-collapsed and long abandoned, its anvil cracked but still serviceable. A rough blade sits cooling on the workbench, yours for the taking — or, for three gold toward proper tools, you could retemper it into something sturdier before you go. The anvil will still take a heavier job for nothing: lay three pieces of the SAME grade across it and they beat down into one piece of the next grade up, and the scrap left over decides which three you get to pick from.',
     choices: [
       { id: 'take_rough', label: 'Take the rough blade as-is', outcome: { kind: 'grantCard', cardId: 'sword_slash', tier: 'bronze' } },
       {
@@ -616,6 +647,16 @@ const defs: EventDef[] = [
         cost: 3,
         outcome: { kind: 'grantCard', cardId: 'sword_slash', tier: 'silver' },
       },
+      // THE MERGE DOOR (2026-08-26). Added to an event that was ALREADY
+      // eligible at every gold (`take_rough` is a cost-0, non-`nothing`
+      // choice), and priced at 0 gold, so `hasAffordableChoice` returns
+      // exactly what it returned before for every event at every wallet — the
+      // event DRAW is byte-identical to before this pass, which is why no
+      // seeded event sequence anywhere in the suite moves. The three cards ARE
+      // the price; charging gold on top would be a second toll on a trade the
+      // player already pays for out of the only currency that is scarce here
+      // (board and bag slots).
+      { id: 'beat_together', label: 'Beat three matched pieces into one', outcome: { kind: 'mergeCards' } },
     ],
   },
 
@@ -687,7 +728,7 @@ const defs: EventDef[] = [
     id: 'ember_pit',
     title: 'The Ember Pit',
     theme: 'forge',
-    body: "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead.",
+    body: "A pit of banked coals glows at the edge of the Cinderworks, deep enough to swallow a blade whole and hand it back changed — or hand back nothing, should the fire's mood sour. Thrust your gear in free and chance it, or pay the tender two gold for a safer cinder-gem instead. Three pieces of one grade, fed together, come back out as a single piece of the grade above — the tender lays out three the coals will take, and you choose.",
     choices: [
       // No RNG on rewards (USER-LOCKED): the free choice always grants a
       // small guaranteed reward. The paid choice was ALREADY a guaranteed
@@ -695,6 +736,17 @@ const defs: EventDef[] = [
       // winning branch — it stays exactly as it was.
       { id: 'reach_in', label: 'Thrust your gear into the coals', outcome: { kind: 'grantGold', amount: 1 } },
       { id: 'pay_tender', label: 'Pay 2 gold to steady the coals first', cost: 2, outcome: { kind: 'gemChoice' } },
+      // The second merge door — same zero-perturbation rule as
+      // `ruined_anvil/beat_together` above (`reach_in` already made this event
+      // eligible at every gold, and this rung is cost 0, so the event draw is
+      // unchanged). TWO doors, not one, and the count was MEASURED rather than
+      // guessed: walked over the real run layer to wave 10 at 120 seeds, one
+      // door alone reached only 64.2% of runs and fired 0.68 merges per run —
+      // the forge theme bag is 6 events deep, so a single door is a coin-flip
+      // whether the run ever meets it. Both doors: 83.3% of runs and 1.32
+      // merges. An event a third of runs never see is a mechanic that was not
+      // built. See `tests/run/cardMerge.test.ts` for the walk.
+      { id: 'feed_the_coals', label: 'Feed three matched pieces to the coals', outcome: { kind: 'mergeCards' } },
     ],
   },
   {

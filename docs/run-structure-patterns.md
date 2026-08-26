@@ -79,22 +79,33 @@ fine if it lives on `RunState` and the UI shows it.
 ## 0.2 What is already built
 
 Stated so the queue does not re-propose shipped work. Measured over
-`src/data/content/skills.v1.json` (156 cards) on 2026-08-26.
+`src/data/content/skills.v1.json` on 2026-08-26 — **166 cards** after the
+Q1/Q2/Q3 pass below; the pre-pass figures are kept beside each line because they
+are what the queue was argued from.
 
-- **Affinity gate** — 29 gated actions on 29 cards.
-  Per type: sword 3 · fire 3 · holy 3 · axe 2 · lance 2 · beast 2 · nature 2 ·
-  frost 2 · lightning 2 · dark 2 · **bow 1**.
-- **Tier lock (`minTier`)** — mechanism built, **zero** actions use it.
-  (In flight at the time of writing: another agent is adding the
-  offer-surface plumbing a locked card needs — `cardOfferableAtTier` /
-  `minOfferableTier` in `src/engine/types.ts`, consumed by
-  `src/run/draft.ts` and `src/run/shop.ts`. Q1 is the CONTENT half and is
-  independent of it; re-read those files before starting.)
-- **Positional auras** — `affects: adjacent|left|right|allBoard`, plus `reach`
-  and `gap`, all resolved in `src/engine/combat/auras.ts` and priced in
+- **Affinity gate** — 34 gated cards: **29 whose gate is open on the copy the
+  player is first offered**, plus the 5 Diamond capstones whose gated hit is
+  `minTier`-locked to Diamond (so it is a payoff at the top rank and nothing on a
+  Bronze shelf — the two are counted separately, see Q3).
+  Bronze-reachable per type: sword 3 · fire 3 · holy 3 · axe 3 · lance 3 ·
+  beast 3 · nature 3 · frost 3 · lightning 3 · dark 3 · bow 3.
+  *(Was: sword/fire/holy 3, seven types at 2, **bow 1** — 24 in total.)*
+- **Tier lock (`minTier`)** — **25 content users** (was zero): the 24 cards
+  migrated off `tierUpgrades.effects` restatements (Q1), plus `rimebarb_vigil`,
+  authored with the lock from the start. The offer-surface plumbing a locked card
+  needs (`cardOfferableAtTier` / `minOfferableTier` in `src/engine/types.ts`,
+  consumed by `src/run/draft.ts` and `src/run/shop.ts`) landed in `d1ac673`.
+- **Positional auras** — `affects: adjacent|left|right|allBoard` and `reach`
+  (the edge-to-edge GAP dial; there is no separate `gap` field), all resolved in
+  `src/engine/combat/auras.ts` and priced in
   `PRICE.auraDamageFlat/auraHealFlat/auraWeightDelta`.
-  Content using it: **6 cards of 156** (5 `adjacent`, 1 `allBoard`), all six
-  `support`. No card uses `reach` or `gap`.
+  Content using it: **12 cards of 166** — 6 `adjacent`, 1 `allBoard`, and 5 at
+  `left`/`right` with `reach: 2`, spread over offense / defensive / debuff /
+  healing / support. *(Was: 6 of 156, all `support`, all `adjacent` or
+  `allBoard`, and NOTHING at `reach` > 1 or on a direction.)*
+  **The rate is reach-blind** — `powerLevelDeci` multiplies by `affects` only —
+  so coverage is capped at 2 pieces by a content rule
+  (`tests/engine/auraCoverage.test.ts`); see `docs/power-level-reference.md`.
 - **Duplicate merge** — two copies tier up (`mergeRunCard`, `shop.ts`).
 - **Sell-back** — half price, floored at 1 (`sellRunCard`/`sellRunGem`).
 - **Targeted upgrade** — `upgradeCardPick` events (`src/run/events.ts`).
@@ -107,8 +118,10 @@ Stated so the queue does not re-propose shipped work. Measured over
 - **Enemy affixes** — `MODIFIER_PRESETS`: **2 presets**, both pure numbers
   (`forceTier`, `bonusPL`+`bonusProfile`).
 
-Two numbers in that list are the whole argument for the top of the queue: a
-gate family with **one** content user, and a positional system with **six**.
+Two numbers in that list *were* the whole argument for the top of the queue: a
+gate family with **one** content user, and a positional system with **six**. Both
+are now closed — Q1, Q2 and Q3 shipped together on 2026-08-26, and their verdicts
+below have been rewritten from ADOPT NOW to SHIPPED with what actually landed.
 
 ---
 
@@ -126,9 +139,9 @@ re-derived by hand, with nothing to catch the one that was missed.
 This is not a genre import; it is a migration the codebase already built the
 target for. `TierLocked` (`src/engine/types.ts`) exists, is enforced in exactly
 one place (`tierResolved` strips a locked action below its lock), prices
-correctly by construction (a stripped action is charged nothing), and has
-**zero** content users. Meanwhile 72 of 156 cards restate an effects list in
-`tierUpgrades`. It pays off in construction because the tier solver then
+correctly by construction (a stripped action is charged nothing), and — AT THE
+TIME THIS WAS WRITTEN — had **zero** content users, while 72 of 156 cards
+restated an effects list in `tierUpgrades`. It pays off in construction because the tier solver then
 re-solves every rung from one definition — so the player reads one card face
 whose higher rungs are budget-honest rather than hand-solved.
 
@@ -139,33 +152,53 @@ restatement with a `minTier` on the one action that was being added.
 No engine change. No new price. `npm test` already covers it
 (`tests/data/contentSchema.test.ts`, the budget audit, `autoScaleTier`).
 
-**Measured candidate set: 28 cards.** Method — a card qualifies when every
-`tierUpgrades` entry (a) sets no `scope`, and (b) has an effects list whose
-leading action signatures (kind + stat/status/property/`of`/`affinity`) match
-the base list exactly, with extra actions appended. Numbers are ignored,
-because the solver re-derives them.
+**MEASURED, RE-DERIVED, AND SHIPPED (2026-08-26).** The doc's own method — a
+card qualifies when every `tierUpgrades` entry sets no `scope` and appends to a
+leading action list that matches the base exactly — actually yields **29**
+candidates, not 28 (`hemorrhage` was missed). Of those 29, **24 migrate with
+byte-identical resolved output at all four tiers** and are done:
 
     arcane_bolt · armor_break · battle_howl · bramblewrath · cinder_skin
     crippling_strike · disarming_blow · frost_ward · hex_of_frailty
     hunter_shot · iron_riposte · judgment_light · lance_thrust
     leeching_fang · mind_frost · retaliation_stance · ruinous_hex
-    static_jolt · storm_guard · stunning_smash · swift_march
-    thorn_shackle · time_crystal · umbral_ward · unbreakable_stance
-    verdant_rebuke · ward_of_silence · warlord_banner
+    static_jolt · storm_guard · stunning_smash · thorn_shackle
+    umbral_ward · unbreakable_stance · ward_of_silence
 
-Five of those are the Diamond capstones `types.ts` names as the motivating
-case. The list is a **candidate** list: each card still needs a read, because a
-restatement that also re-shapes the base kit is not a pure add.
+**Five candidates are NOT pure adds and were left alone.** The doc's signature
+test ignores numbers, which is right for a card the solver re-derives — but these
+five change an EXISTING line's magnitude per tier, so there is nothing for the
+solver to reproduce:
 
-**Coordination note.** The acquisition surfaces are being taught about locks
-right now (`cardOfferableAtTier`, `src/run/draft.ts`, `src/run/shop.ts`), so a
-card whose whole payload sits behind a lock is excluded from free draws rather
-than clamped. Migrate ADDITIONS (a locked extra line on a card that is still
-whole at Bronze) first — those need nothing from that work.
+- `swift_march`, `time_crystal`, `warlord_banner` — the appended `buffStat` grows
+  15 → 20 → 25% per rank. `buffStat` is FROZEN empower; the solver holds it at 15
+  and the authored ladder cannot be recovered.
+- `verdant_rebuke` — its `lifesteal` grows 45 → 60%. Same reason.
+- `hemorrhage` — its `expose` grows 20 → 30% AND its base is a DoT the solver
+  grows greedily, so the migrated card is a different card at every rank.
 
-**Verdict: ADOPT NOW.** Content-only, measured, deletes duplication of a
-hand-solved payload — the exact failure class this repo has already been burned
-by twice.
+Migrating any of them would need the solver to scale a frozen empower magnitude,
+which is a user-locked rule (2026-07-23), not a content decision.
+
+**What the migration actually deletes, and what it keeps.** Gone: 811 lines of
+restated `effects`. Kept: the per-tier `text` override on every rung at or above a
+lock — `retextScaledNumbers` rewrites CHANGED numbers in existing prose and cannot
+invent the clause for a line the Bronze face never mentioned, so a text block is
+mandatory there and `tests/engine/tierLock.test.ts` now asserts it.
+
+**The equivalence is pinned as a real before/after**, not a self-consistent
+tautology: `tests/engine/tierLockMigration.test.ts` reads the PRE-migration
+definitions out of `git show d695eaa:src/data/content/skills.v1.json` through the
+production loader and compares effects, order, numbers, aura, weight, cooldown,
+scope, text, the per-part price breakdown, AND the fully assembled
+`resolveEffectiveSkill` output (which matters: `leeching_fang` is in the set and is
+the one card `orderCastSinks` reorders). Corroborating: 14 of the 24 sit in
+`FROZEN_SWEEP_SKILL_IDS`, and `outcomeBaseline.json` did not move.
+
+**Verdict: SHIPPED 2026-08-26 (24 of 29).** Content-only, no price moved, and
+the five it could not take are named above with the reason. `minTier` went from
+zero content users to 25 (the 24 migrated plus `rimebarb_vigil`, which the lock
+made expressible for the first time — see Q3).
 
 ---
 
@@ -190,9 +223,10 @@ argument. And it is deterministic: the board is static during a fight and
 `resolveAuras` walks it by index.
 
 The gap is content, not machinery. Six cards of 156 carry an aura. All six are
-`support`. `reach` and `gap` — the dials that make "one slot away" or "across a
-gap" a real distinction — have **no content at all**. The 10-slot board is
-currently, for 150 of 156 cards, an unordered bag.
+`support`. `reach` — the dial that makes "one slot away" or "across a gap" a real
+distinction — has **no content at all**, and neither does either DIRECTION
+(`left`/`right`). The 10-slot board is currently, for 150 of 156 cards, an
+unordered bag.
 
 **What it would cost.**
 Content-only for the first pass: new entries in
@@ -205,8 +239,46 @@ A later pass wants aura mods beyond the three current fields, which is NOT
 content-only: a new mod kind needs a rate in `PRICE`, a fold in
 `src/engine/cards.ts`, and a cap-family decision. Keep that separate.
 
-**Verdict: ADOPT NOW** for the content pass; **ADOPT LATER** for widening the
-mod vocabulary. The single largest built-and-unused surface in the game.
+**SHIPPED 2026-08-26 — six new positional cards, and the pricing constraint the
+pass ran into.**
+
+| card | type | roles | aura |
+|---|---|---|---|
+| `enfilade_volley` | bow | offense | `right` reach 2, `damageFlat` 3 |
+| `packline_flank` | beast | offense + support | `left` reach 2, `damageFlat` 4 |
+| `rearguard_pike` | lance | defensive + support | `left` reach 2, `weightDelta` −2 |
+| `gravelight_choir` | dark | healing + support | `left` reach 2, `healFlat` 4 |
+| `rimebound_pact` | frost | offense + debuff | `right` reach 2, `weightDelta` −2 |
+| `stormrank_relay` | lightning | offense + support | `adjacent`, magical filter, `weightDelta` −2 |
+
+So `left`/`right` and `reach: 2` have content for the first time, and five of the
+twelve aura cards in the book are no longer `support`. Every one of the six also
+carries an affinity-gated line, which is Q3 in the same card: the aura is
+UNCONDITIONAL (an aura cannot be gated — the lock and the gate are both
+per-ACTION), so the positional half works on any board and only the extra line
+asks for the identity. Two layers of construction decision, one slot.
+
+**THE CONSTRAINT THE PASS FOUND, and it is a real hole.** `powerLevelDeci` prices
+an aura as `auraModsDeci(mods) * (affects === 'allBoard' ? 2 : 1)` — **it never
+reads `AuraDef.reach`** — while `PRICE.auraDamageFlat`'s own derivation is "the
+best adjacent placement (**2 casting neighbors**) is PL-fair". So `adjacent` at
+`reach: 2` reaches up to FOUR pieces at the two-piece price: free PL. One-sided
+reach is the honest shape (at most two, all on one side, exactly the calibration),
+which is why five of the six above are `left`/`right` rather than a widened
+`adjacent`. The rule is now enforced as content —
+`tests/engine/auraCoverage.test.ts` measures coverage by walking the real 10-slot
+board through the real `auraCovers`, and separately proves the pricer is
+reach-blind so the rule is guarding a live hole rather than restating code. Full
+write-up: `docs/power-level-reference.md`, "Aura coverage".
+
+**NO NEW `allBoard` CARD, deliberately.** `allBoard` is the one aura shape for
+which position does not matter, which is the opposite of what this pattern is for
+— and its ×2 multiplier against up to 9 pieces is a documented approximation
+(`warlord_banner`) this pass had no reason to widen exposure to.
+
+**Verdict: SHIPPED 2026-08-26** for the content pass; **ADOPT LATER** for
+widening the mod vocabulary — and that LATER now also owns a **reach term in
+`PRICE`**, without which `adjacent` cannot legally project further than one slot.
 
 ---
 
@@ -228,6 +300,12 @@ type at all) runs axe 22 down to bow 10 and frost 10. So the payoff a bow
 board is offered is a single card, and the pool it must fill three slots from
 is the thinnest in the book.
 
+(Measured precisely for the pass: BRONZE-REACHABLE payoffs per type were bow 1;
+frost / lightning / dark / beast / nature / lance / axe 2; fire / holy / sword 3
+— 24 in all. The other five gated cards are the Diamond capstones, whose payoff
+is `minTier`-locked and therefore is not supply on any shelf below Diamond;
+counting them would have claimed reachability the shop does not have.)
+
 This is squarely a construction pattern, needs no new mechanism, and is
 PL-neutral: an affinity card is already priced with its refund, so authoring
 more of them adds no power, only reachability.
@@ -240,8 +318,66 @@ measures per-shelf TYPE density; it does not measure **payoff-to-enabler ratio
 per type**, so a type can have plenty of cards and one payoff and pass. Add
 that assertion and the floor becomes enforceable rather than aspirational.
 
-**Verdict: ADOPT NOW.** Content plus one test; it makes the one payoff keyword
-in the game reachable for every type it claims to serve.
+**SHIPPED 2026-08-26 — nine new gated cards, a declared floor, and a test that
+holds it.**
+
+Six of the nine are the Q2 positional cards above (bow, beast, lance, dark,
+frost, lightning). Three are gated-only, chosen to widen the gate's ARCHETYPE
+spread as well as its type spread — 17 of the 24 pre-pass bronze-reachable gated
+cards were `offense`:
+
+- `marksmans_creed` — bow, offense + debuff, gated `expose`. Bow was the whole
+  point: one payoff, thinnest enabler pool. Now three.
+- `cleaving_creed` — axe, offense + debuff, gated `bleed`. Axe is the WIDEST type
+  in the book (22 on-type) and had the largest enabler-to-payoff gap measured.
+- `bramble_covenant` — nature, defensive + debuff, gated `poison`.
+
+Every type is now at **3 or more** bronze-reachable payoffs.
+
+**THE FLOOR, DECLARED AND ASSERTED** in `tests/run/affinityReachability.test.ts`:
+
+1. **≥ 3 bronze-reachable payoffs per type.** One is a lottery, two is a coin
+   flip on which one the shop rolls; three is where the reward becomes a choice.
+   Deliberately the same number as `IDENTITY_THRESHOLD` — the ask and the answer
+   are the same size.
+2. **Non-payoff on-type cards ≥ `(IDENTITY_THRESHOLD − 1) × payoffs`.** This is
+   the ratio the rot shows up in: a future pass that keeps adding gated cards to a
+   thin type raises the payoff count without adding anything that can open the
+   gate. Held with room today (tightest is bow: 9 non-payoff cards against a
+   required 6) — a tripwire, not a fit.
+3. **Capstones are counted separately and cannot lift a type over the floor** —
+   asserted, so the measurement cannot quietly start crediting a Diamond-only
+   payoff to a Bronze shelf.
+
+**AND THE THORNS GAP, closed in the same pass.** No thorns card's stack count had
+ever grown with rank: `thorns` is EMPOWER, which is FROZEN across tiers
+(user-locked 2026-07-23), and `autoScaleTier` never scales an empower magnitude —
+so all twelve shipped thorns cards carried their Bronze pile at Diamond. Since a
+reflect is an ordinary PHYSICAL hit (user-locked 2026-08-21) with the attacker's
+armor subtracted and a min-1 floor, the eight small ones (5-8 stacks) sting for
+exactly 1 against any 8-armor attacker, at every depth and every rank.
+
+`rimebarb_vigil` (frost, defensive, size 2) is the first card whose reflect grows:
+four `thorns` lines on ONE definition, three behind `minTier`, merging into a
+single pile (one pile per holder, like the DoTs) for **5 / 8 / 11 / 14** stacks at
+bronze / silver / gold / diamond. Each locked line is charged in full at and above
+its lock and nothing below it, so the tier-up genuinely BUYS reflect. **This card
+is only expressible because of Q1** — a `tierUpgrades` restatement growing a frozen
+empower magnitude is exactly the shape the solver refuses.
+
+Stated plainly, because the pricing law binds here: `EFFECT_CAPS_DECI.empower` is
+150 deci at size 2 (= 15 stacks) and 200 at size 3 (= 20), frozen at every tier,
+so **no authored card of any size can put more than 20 stacks up in one cast** and
+none can out-scale late-depth armor by stack count alone. Raising that needs a rate
+or cap change — balance-designer's call, not a card's. What a card can do is reach
+the pile that runtime stacking compounds, and `rimebarb_vigil` is built for it:
+`speedWeight` 14 against a size-2 baseline of 20 makes it the quickest wall in the
+book, and a recast merges into the existing pile (runtime stacking is intentional
+gameplay, user-locked 2026-07-20 — never clamped).
+
+**Verdict: SHIPPED 2026-08-26.** Content plus the floor test; the one payoff
+keyword in the game is now reachable for every type it claims to serve, and the
+gap cannot silently reopen.
 
 ---
 
@@ -711,18 +847,23 @@ project, and it is ranked as one.
 Ordered by (value delivered) ÷ (machinery disturbed). Each item is
 independently shippable and green.
 
-**Content-only — do these first.**
+**Content-only — ~~do these first~~ DONE 2026-08-26.**
 
-1. **`minTier` migration (Q1).** 28 candidate cards, no code, no price.
-   Turns a built-and-unused mechanism into the way the tier ladder is authored,
-   and deletes hand-solved duplication.
-2. **Positional content pass (Q2).** 6 of 156 cards use auras; `reach`/`gap`
-   have none. Priced already. Biggest built-and-unused surface in the game.
-3. **Affinity payoff density (Q3).** Author gated cards for the thin types
-   (bow has one), and extend `affinityReachability` to assert a
-   payoff-to-enabler ratio per type.
+1. ~~**`minTier` migration (Q1).**~~ **SHIPPED** — 24 of 29 re-derived
+   candidates, byte-identical resolved output at all four tiers, pinned against
+   the pre-migration defs read out of git. Five are not pure adds and are named
+   in Q1.
+2. ~~**Positional content pass (Q2).**~~ **SHIPPED** — six cards on
+   `left`/`right` + `reach: 2` (plus one filtered `adjacent`), across five roles.
+   Left behind for the LATER pass: **a reach term in `PRICE`**, without which
+   `adjacent` cannot legally project past one slot (see Q2).
+3. ~~**Affinity payoff density (Q3).**~~ **SHIPPED** — nine gated cards take
+   every type to ≥ 3 bronze-reachable payoffs, and
+   `tests/run/affinityReachability.test.ts` asserts the payoff floor AND the
+   payoff-to-enabler ratio. Plus `rimebarb_vigil`, the first thorns card whose
+   stacks grow with rank.
 
-**Small run-layer — next.**
+**Small run-layer — do these first now.**
 
 4. **A type set in the start draft (Q4).** `src/run/draft.ts` + Draft-scene
    labels. Closes the 3%-of-runs measurement on declaring a type early.
@@ -757,7 +898,8 @@ Two items from the sibling doc are still open and are not re-argued here:
 `P14` is item 5 above, and `P18`/`P20` (the fight column is a one-axis fork)
 still needs a balance-designer ruling before it can be queued at all.
 
-**Do not reorder 1–3 behind anything.** They are content-only, they need no
+**Items 1–3 are shipped; the note below is kept as the reasoning that put them
+first.** They were content-only, they needed no
 decision from anyone, and each one makes an already-built system carry the
 content it was built for.
 
@@ -802,3 +944,11 @@ argued from **this repo's measurements** rather than from an external source's
 reasoning. The measured numbers in §0.2, Q1, Q2, Q3 and Q5 were taken directly
 from `src/data/content/*.json` and the run/engine modules named beside them, so
 they are auditable here regardless of network state.
+
+**Re-measurement discipline (2026-08-26).** Q1/Q2/Q3 shipped, and every number
+in those three sections was re-derived from the book rather than trusted: Q1's
+candidate set came out at 29 rather than the 28 recorded here (`hemorrhage` was
+missing), and Q3's payoff counts had to be split into bronze-reachable versus
+`minTier`-locked before they meant anything. If a future pass quotes a figure
+from this doc, re-derive it first — the two that were wrong were both wrong in
+the direction of looking smaller than they were.

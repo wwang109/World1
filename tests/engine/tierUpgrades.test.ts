@@ -201,10 +201,20 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
    */
   describe('GOLD/DIAMOND IDENTITY: a rank-up can grant an ability the lower tier cannot afford at all', () => {
     const kindsOf = (skill: SkillDef): Set<string> => new Set(skill.effects.map((a) => a.kind));
+    /**
+     * The BRONZE copy — deliberately `applyTier(base, 'bronze')` and never the raw
+     * `base` def (2026-08-26, the Q1 `minTier` migration). Three of the cards below
+     * now express their gate as a `minTier` on the ONE definition instead of a
+     * `tierUpgrades` restatement, so the raw `effects` list LISTS the higher-tier
+     * line while the Bronze copy does not have it (`tierResolved` strips it).
+     * Reading the raw list would assert the absence of something that is only ever
+     * absent after resolution — the exact distinction this suite is about.
+     */
+    const bronzeOf = (skill: SkillDef): SkillDef => applyTier(skill, 'bronze');
 
     it('crippling_strike: `stun` exists ONLY at Gold+ (Bronze/Silver have no lockdown tool at all)', () => {
       const base = skillBook.crippling_strike!;
-      expect(kindsOf(base).has('stun')).toBe(false);
+      expect(kindsOf(bronzeOf(base)).has('stun')).toBe(false);
       expect(kindsOf(applyTier(base, 'silver')).has('stun')).toBe(false);
       for (const tier of ['gold', 'diamond'] as const) {
         const scaled = applyTier(base, tier);
@@ -216,7 +226,7 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
 
     it('static_jolt: `disrupt` exists ONLY at Gold+ (the pure Bronze/Silver zap has no stagger tool)', () => {
       const base = skillBook.static_jolt!;
-      expect(kindsOf(base).has('disrupt')).toBe(false);
+      expect(kindsOf(bronzeOf(base)).has('disrupt')).toBe(false);
       expect(kindsOf(applyTier(base, 'silver')).has('disrupt')).toBe(false);
       for (const tier of ['gold', 'diamond'] as const) {
         const scaled = applyTier(base, tier);
@@ -228,7 +238,7 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
 
     it('bramblewrath: `stun` exists ONLY at Gold+ (Thorn Garden theme)', () => {
       const base = skillBook.bramblewrath!;
-      expect(kindsOf(base).has('stun')).toBe(false);
+      expect(kindsOf(bronzeOf(base)).has('stun')).toBe(false);
       expect(kindsOf(applyTier(base, 'silver')).has('stun')).toBe(false);
       for (const tier of ['gold', 'diamond'] as const) {
         const scaled = applyTier(base, tier);
@@ -240,7 +250,7 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
 
     it('hemorrhage: `expose` exists ONLY at Gold+ (Opened Wound theme)', () => {
       const base = skillBook.hemorrhage!;
-      expect(kindsOf(base).has('expose')).toBe(false);
+      expect(kindsOf(bronzeOf(base)).has('expose')).toBe(false);
       expect(kindsOf(applyTier(base, 'silver')).has('expose')).toBe(false);
       for (const tier of ['gold', 'diamond'] as const) {
         const scaled = applyTier(base, tier);
@@ -252,7 +262,7 @@ describe('tier-up audit: budget-honest auto-scaler', () => {
 
     it('verdant_rebuke: `lifesteal` exists ONLY at Gold+ (The Unbroken theme)', () => {
       const base = skillBook.verdant_rebuke!;
-      expect(kindsOf(base).has('lifesteal')).toBe(false);
+      expect(kindsOf(bronzeOf(base)).has('lifesteal')).toBe(false);
       expect(kindsOf(applyTier(base, 'silver')).has('lifesteal')).toBe(false);
       for (const tier of ['gold', 'diamond'] as const) {
         const scaled = applyTier(base, tier);

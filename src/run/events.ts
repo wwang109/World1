@@ -16,9 +16,12 @@ import { cardMatchesFilter, gemMatchesFilter, pickWeightedGem, pickWeightedGems,
 import {
   currentEventNode,
   MAX_LEVEL,
+  runBagHasRoomFor,
   sellRunGem,
   shopStockDepthForWave,
   tryInsertRunCard,
+  type RunBagSlot,
+  type RunBoardPiece,
   type RunNode,
   type RunState,
 } from './runState';
@@ -240,13 +243,16 @@ export function isEventChoiceAffordable(state: RunState, choice: EventChoiceDef)
 }
 
 /** Whether `choice` is USABLE right now — `isEventChoiceAffordable` (the
- * gold gate) PLUS any outcome-specific precondition. Today the only such
- * precondition is `sellGem`: its picker has nothing to offer with an empty
- * pouch, so a cost-0 `sellGem` choice at `state.gemInventory.length === 0`
- * reads as affordable (cost 0 <= any gold) but is NOT usable — this is the
- * gate that keeps `sellGemOutcome` from ever resolving to an empty picker
- * (see that function's doc comment). Every other outcome kind has no such
- * precondition and this reduces to `isEventChoiceAffordable` alone for them.
+ * gold gate) PLUS any outcome-specific precondition. There are TWO such
+ * preconditions today. `sellGem`: its picker has nothing to offer with an
+ * empty pouch, so a cost-0 `sellGem` choice at
+ * `state.gemInventory.length === 0` reads as affordable (cost 0 <= any gold)
+ * but is NOT usable — this is the gate that keeps `sellGemOutcome` from ever
+ * resolving to an empty picker (see that function's doc comment).
+ * `mergeCards`: it needs three owned cards of one non-Diamond tier AND a
+ * deliverable output, so a cost-0 merge rung is unusable until
+ * `mergeCardsPlan` finds a trade (see below). Every other outcome kind has no
+ * such precondition and this reduces to `isEventChoiceAffordable` alone.
  * This is the predicate the UI should call to dim an individual choice
  * button (not `isEventChoiceAffordable` directly) and the one
  * `hasAffordableChoice`/`rollEventForNode` use to decide whether an event is
@@ -254,6 +260,15 @@ export function isEventChoiceAffordable(state: RunState, choice: EventChoiceDef)
 export function isEventChoiceUsable(state: RunState, choice: EventChoiceDef): boolean {
   if (!isEventChoiceAffordable(state, choice)) return false;
   if (choice.outcome.kind === 'sellGem') return state.gemInventory.length > 0;
+  // `mergeCards` (2026-08-26): the second outcome-specific precondition, and the
+  // reason this function exists apart from `isEventChoiceAffordable`. A merge
+  // needs `MERGE_INPUT_COUNT` owned cards sharing ONE non-Diamond tier AND a
+  // deliverable output — all four decisions live in `mergeCardsPlan`, and this
+  // gate is the SAME call the offer and the finalizer make, so an event can
+  // never advertise a trade it would then refuse (a player with three Diamonds
+  // and nothing else, or a bag with no room for anything at tier+1, sees this
+  // rung dark instead of spending three cards for a fallback coin).
+  if (choice.outcome.kind === 'mergeCards') return mergeCardsPlan(state) !== null;
   return true;
 }
 
@@ -680,10 +695,353 @@ function sellGemOutcome(state: RunState): EventOutcome {
   return { kind: 'sellGemPick', options };
 }
 
+// ---------------------------------------------------------------------------
+// CARD MERGE (2026-08-26) — three owned cards of ONE tier in, a CHOICE of three
+// cards at tier+1 out. The only destructive card outcome in the vocabulary, so
+// it is also the only one that has to prove a negative: no path may consume the
+// inputs without delivering an output.
+//
+// FOUR THINGS ARE DECIDED HERE, and `mergeCardsPlan` below is the SINGLE
+// authority on all four — the eligibility gate (`isEventChoiceUsable`), the
+// offer (`mergeCardsOutcome`) and the finalizer (`applyMergeCardsPick`) all read
+// THAT function rather than re-deriving any of it, which is what makes a dimmed
+// button, a shown offer and an applied merge incapable of disagreeing (the same
+// "one predicate authority" rule `isEventChoiceAffordable` states for gold).
+//
+//   1. WHICH TIER MERGES — the LOWEST tier that has `MERGE_INPUT_COUNT` owned
+//      cards and can actually deliver its output. Lowest, not highest: a Bronze
+//      trio is the surplus a run accumulates by accident, while three Golds are
+//      three cards the player deliberately built, and an event that quietly ate
+//      them because they happened to be the deeper stack would be exactly the
+//      trap the same-tier rule exists to remove.
+//   2. WHICH THREE ARE CONSUMED — BAG FIRST (array order), then BOARD (ascending
+//      `slot`). Deliberately the INVERSE of `upgradeCardOptions`'s board-first
+//      order, and for the reason that ordering exists at all: `upgradeCard`
+//      IMPROVES what it touches, so it reaches for the board (the cards actually
+//      fighting) first; this outcome DESTROYS what it touches, so it reaches for
+//      the bag — the un-equipped spares — first, and only breaks into the
+//      player's own expressed build when the bag cannot pay. Within one tier the
+//      game has no value ordering to prefer by (`sellPriceOfCard` is keyed on
+//      tier alone), so there is nothing finer to sort on; a per-instance PICKER
+//      for the inputs would need a second deferred step no outcome in this
+//      vocabulary has, and is a follow-up, not a v1 omission that loses value —
+//      the three instances are NAMED IN THE OFFER before the trade can be taken.
+//   3. WHAT COMES BACK — `EVENT_CHOICE_SIZE` (3) distinct candidates drawn from
+//      the cards that are OFFERABLE at tier+1 (`cardOfferableAtTier` via
+//      `offerableBook`, never a fourth predicate) AND fit the bag the removal
+//      leaves behind. Offerable, so the output is neither a husk nor a card
+//      stamped at a tier it has no copy at (the `d1ac673` trap); fitting, so the
+//      offer cannot contain a card the merge would fail to hand over.
+//   4. WHETHER THE TRADE IS OFFERED AT ALL — it is a plan or it is nothing.
+//      DIAMOND: the top of the ladder has no tier+1, so a Diamond trio is never
+//      an input (the loop skips it) and a player whose ONLY trio is Diamond gets
+//      this choice reported UNUSABLE rather than a button that spends three
+//      Diamonds for nothing. NO ROOM: if every card at tier+1 is too big for the
+//      bag the removal leaves, that tier yields no plan either (the loop moves
+//      on to the next tier up, and if none qualifies the choice is unusable) —
+//      so "the output cannot fit" is answered BEFORE the inputs are touched, by
+//      not making the offer, rather than after, by a refund. Both events
+//      carrying this outcome keep another non-`nothing` choice, so the EVENT
+//      still appears in either case; only the merge rung is dark.
+//
+// WHY THE OFFER RIDES BESIDE THE OUTCOME, NOT INSIDE IT. `resolveEventChoice`
+// returns an OPTIONAL `merge` alongside `outcome: {kind:'nothing'}` for this
+// choice, instead of adding a `mergeCardsPick` member to `EventOutcome`. Two
+// reasons, one principled and one practical:
+//   - PRINCIPLED: `EventOutcome` means "what happened to the run state". At
+//     offer time NOTHING has happened — no gold, no cards, no removal (the
+//     `nothing` is the literal truth, not a placeholder). The four existing
+//     deferred pickers (`bonusDraft`/`upgradeCardPick`/`gemChoicePick`/
+//     `sellGemPick`) carry a QUESTION through the outcome channel; this one
+//     keeps the question in its own field.
+//   - PRACTICAL: `src/game/ui/eventOutcomeText.ts#outcomeHeadline` closes its
+//     switch with `const exhaustive: never = outcome`, so ANY new `EventOutcome`
+//     member fails `npm run typecheck` in a file this pass is not permitted to
+//     touch (the Phaser side of this mechanic is a separate phase). An optional
+//     field on the RETURN OBJECT is invisible to every existing consumer, so the
+//     run layer ships complete and green, and a client that ignores `merge` gets
+//     an inert no-op — it cannot leak a free card, consume an input, or strand a
+//     picker with nothing in it.
+// THE UI PHASE'S PATCH, in full: read `merge` off `resolveEventChoice`'s result
+// (thread it through `runStore.resolveCurrentEventChoice`), render
+// `merge.consumed` + `merge.from`->`merge.to` above `merge.candidates`, and call
+// `applyMergeCardsPick(state, skillId)` on a tap instead of
+// `applyBonusDraftPick`. `choiceOutcomeHint` needs one case (`mergeCards` ->
+// '3 CARDS -> 1 BETTER'); its `default` already returns '' until then.
+// ---------------------------------------------------------------------------
+
+/** How many same-tier cards one merge consumes. Exported so the tests (and a
+ * future UI) measure against the resolver's own number, never a literal 3. */
+export const MERGE_INPUT_COUNT = 3;
+
+/** One owned instance a merge would consume — enough to DISPLAY it
+ * (`skillId`/`tier`), to re-identify it (`instanceId`, globally unique across
+ * `pieces` AND `bagSlots`, see `tryInsertRunCard`'s counter), and to REMOVE it
+ * (`location` + `index`, the same addressing `sellRunCard` takes: an index into
+ * `state.pieces` for `'board'`, into `state.bagSlots` for `'bag'` — NOT the
+ * board `slot`, which is a different number). */
+export interface MergeInputCard {
+  instanceId: string;
+  skillId: string;
+  tier: SkillTier;
+  location: 'board' | 'bag';
+  index: number;
+}
+
+/** One card the merge could hand back — `tier` is always the offer's `to`, and
+ * is the tier the card is REALLY delivered at (`cardOfferableAtTier` filtered
+ * the pool, `tryInsertRunCard` clamps again), so nothing here is stamped at a
+ * tier the card has no copy at. */
+export interface MergeCardsCandidate {
+  skillId: string;
+  tier: SkillTier;
+}
+
+/** The whole trade, legible BEFORE it is taken: the three instances that go in,
+ * the tier that comes back, and the three cards it could be. */
+export interface MergeCardsOffer {
+  from: SkillTier;
+  to: SkillTier;
+  consumed: readonly MergeInputCard[];
+  candidates: readonly MergeCardsCandidate[];
+}
+
+/** The trade as TAKEN — what `applyMergeCardsPick` actually did, for the reward
+ * screen's "3 BRONZE -> 1 SILVER" line. Deliberately not a `MergeCardsOffer`
+ * with one candidate left in it: an offer is a set of possibilities, a receipt
+ * names the single card that arrived. */
+export interface MergeCardsReceipt {
+  from: SkillTier;
+  to: SkillTier;
+  consumed: readonly MergeInputCard[];
+  taken: MergeCardsCandidate;
+}
+
+/** `MergeCardsOffer` plus the two things only the resolver needs: the state the
+ * removal leaves behind, and the FULL set of cards deliverable into it (the
+ * offer's `candidates` are `EVENT_CHOICE_SIZE` drawn from this). */
+interface MergeCardsPlan {
+  from: SkillTier;
+  to: SkillTier;
+  consumed: readonly MergeInputCard[];
+  after: RunState;
+  pool: readonly SkillDef[];
+}
+
+/** Every owned card stamped exactly `tier`, in CONSUMPTION ORDER — bag (array
+ * order) then board (ascending `slot`). See decision 2 in the block comment
+ * above for why the bag is first. Pure read. */
+function ownedCardsAtTier(state: RunState, tier: SkillTier): MergeInputCard[] {
+  const out: MergeInputCard[] = [];
+  for (let i = 0; i < state.bagSlots.length; i += 1) {
+    const card = state.bagSlots[i];
+    if (!card || card.tier !== tier) continue;
+    out.push({ instanceId: card.instanceId, skillId: card.skillId, tier: card.tier, location: 'bag', index: i });
+  }
+  // Board pieces are addressed by their INDEX in `state.pieces` (what removal
+  // needs) but ORDERED by `slot` (what the player sees), so the two are tracked
+  // separately rather than assuming the array is slot-sorted — nothing in
+  // `runState.ts` promises that it is.
+  const byIndex: number[] = [];
+  for (let i = 0; i < state.pieces.length; i += 1) byIndex.push(i);
+  byIndex.sort((a, b) => state.pieces[a]!.slot - state.pieces[b]!.slot);
+  for (let k = 0; k < byIndex.length; k += 1) {
+    const i = byIndex[k]!;
+    const piece = state.pieces[i]!;
+    if (piece.tier !== tier) continue;
+    out.push({ instanceId: piece.instanceId, skillId: piece.skillId, tier: piece.tier, location: 'board', index: i });
+  }
+  return out;
+}
+
+/**
+ * `state` with `consumed` removed — the ONLY destructive step in this module.
+ *
+ * BOARD: the piece is dropped from `state.pieces` and any SOCKETED GEM comes
+ * back to the pouch rather than being destroyed with it, exactly as
+ * `sellRunCard` (runState.ts) does for a sold board piece — a merge must not be
+ * a quieter way to lose a gem than selling. Surviving pieces keep their own
+ * `slot` untouched, so no card's span moves and no multi-slot card can end up
+ * straddling a gap: removal only ever LEAVES a hole, which is the same shape
+ * selling a board card already leaves and which `canPlace`/`bagOccupiedFrom`
+ * both already read as free.
+ *
+ * BAG: the card's own (leftmost) slot is nulled and nothing else — a size-N
+ * card's trailing placeholders read as free the instant the head clears, since
+ * bag occupancy is DERIVED by scanning non-null cards and their skill size
+ * (`bagOccupiedFrom`, runState.ts). Same idiom, same one-line reason, as
+ * `sellRunCard`'s bag branch; no orphan entry can be left behind because there
+ * is no second entry to orphan.
+ */
+function removeOwnedCards(state: RunState, consumed: readonly MergeInputCard[]): RunState {
+  const boardIndices: number[] = [];
+  const bagIndices: number[] = [];
+  for (let i = 0; i < consumed.length; i += 1) {
+    const card = consumed[i]!;
+    if (card.location === 'board') boardIndices.push(card.index);
+    else bagIndices.push(card.index);
+  }
+  const pieces: RunBoardPiece[] = [];
+  const freedGems: string[] = [];
+  for (let i = 0; i < state.pieces.length; i += 1) {
+    const piece = state.pieces[i]!;
+    if (boardIndices.indexOf(i) === -1) {
+      pieces.push(piece);
+      continue;
+    }
+    if (piece.gem) freedGems.push(piece.gem.id);
+  }
+  const bagSlots: RunBagSlot[] = [...state.bagSlots];
+  for (let i = 0; i < bagIndices.length; i += 1) bagSlots[bagIndices[i]!] = null;
+  return {
+    ...state,
+    pieces,
+    bagSlots,
+    gemInventory: freedGems.length > 0 ? [...state.gemInventory, ...freedGems] : state.gemInventory,
+  };
+}
+
+/**
+ * THE MERGE, AS A PURE FUNCTION OF STATE — or `null` when there is no honest
+ * trade to offer. No `Rng`: which tier, which three instances and which cards
+ * are deliverable are all determined by `state.pieces`/`state.bagSlots` alone,
+ * so the gate can call this without a seed and the offer draws its three
+ * candidates from the plan's pool afterward. See the block comment above for
+ * the four decisions this encodes.
+ *
+ * The tier loop CONTINUES rather than returning on a tier that cannot deliver:
+ * a Bronze trio whose Silver output has nowhere to sit does not block a Silver
+ * trio from becoming a Gold card in the same bag (the Silver merge frees three
+ * bag/board slots of its own). Only when NO tier qualifies is there no plan.
+ */
+function mergeCardsPlan(state: RunState): MergeCardsPlan | null {
+  for (let t = 0; t < TIER_LADDER.length; t += 1) {
+    const from = TIER_LADDER[t]!;
+    if (from === 'diamond') continue; // the top rung has no tier+1 — never an input
+    const to = TIER_UP[from as Exclude<SkillTier, 'diamond'>];
+    const owned = ownedCardsAtTier(state, from);
+    if (owned.length < MERGE_INPUT_COUNT) continue;
+    const consumed = owned.slice(0, MERGE_INPUT_COUNT);
+    const after = removeOwnedCards(state, consumed);
+    // OFFERABLE AT `to` AND DELIVERABLE INTO `after` — the two independent
+    // reasons a candidate would be a broken promise, both answered before the
+    // offer exists. `Array#filter` twice over the book's canonical id order, so
+    // the pool is order-stable and the draw below is reproducible.
+    const pool = offerableBook(to).filter((s) => runBagHasRoomFor(after, s.id));
+    if (pool.length === 0) continue;
+    return { from, to, consumed, after, pool };
+  }
+  return null;
+}
+
+/** The trade `state` would be offered right now, or `null`. The plan plus one
+ * `sampleDistinct` draw over its pool — the only place a merge spends `Rng`,
+ * and it spends it exactly once, from the choice's own
+ * `hashSeed('event', eventSeed, choiceId)` stream, so no other outcome's rolls
+ * shift. Internal: `isEventChoiceUsable` answers "is there a trade" without a
+ * seed via `mergeCardsPlan` directly, so a UI preview needs no draw either. */
+function mergeCardsOffer(state: RunState, rng: Rng): MergeCardsOffer | null {
+  const plan = mergeCardsPlan(state);
+  if (!plan) return null;
+  const drawn = sampleDistinct(rng, plan.pool, EVENT_CHOICE_SIZE);
+  return {
+    from: plan.from,
+    to: plan.to,
+    consumed: plan.consumed,
+    candidates: drawn.map((s) => ({ skillId: s.id, tier: plan.to })),
+  };
+}
+
+/**
+ * `mergeCards` — returns the OFFER and changes nothing. The removal happens in
+ * `applyMergeCardsPick`, once the player has picked which of the three
+ * candidates to take, so a player who never picks has lost nothing.
+ *
+ * Throws on an empty plan, the same posture (and for the same reason) as
+ * `sellGemOutcome`'s empty-pouch throw: `isEventChoiceUsable` — the gate BOTH
+ * `rollEventForNode`'s `hasAffordableChoice` and the UI call — refuses this
+ * choice when `mergeCardsPlan` is null, so reaching here without a plan is a
+ * wiring bug, not a state to render.
+ *
+ * NOTE THE OFFER IS FEWER THAN `EVENT_CHOICE_SIZE` CANDIDATES only when the
+ * deliverable pool itself is thinner than 3 (a nearly-full bag with room for
+ * one small card). Unlike `cardChoice`'s pool — which is authored content and
+ * therefore THROWS when it is too thin — this one is a function of the player's
+ * bag at that moment, so a narrow offer is a real game state, not a content
+ * bug: a 1-of-1 merge is still a legible trade, and refusing it would take away
+ * a merge the run can honour.
+ */
+function mergeCardsOutcome(
+  state: RunState,
+  rng: Rng,
+): { state: RunState; outcome: EventOutcome; merge: MergeCardsOffer } {
+  const offer = mergeCardsOffer(state, rng);
+  if (!offer) {
+    throw new Error('mergeCards: no mergeable trio (should be gated unusable before resolve — see isEventChoiceUsable)');
+  }
+  return { state, outcome: { kind: 'nothing' }, merge: offer };
+}
+
+/**
+ * Finalizes a `mergeCards` offer: consumes the three inputs and inserts
+ * `skillId` at tier+1. THE ONLY PLACE THE TRADE IS EXECUTED, and it re-derives
+ * the plan from `state` rather than trusting the offer it was shown — the
+ * consumed instances therefore cannot be chosen by the caller, which is what
+ * keeps a UI bug from turning into "consume any three cards I name".
+ *
+ * ATOMIC IN BOTH DIRECTIONS. The insert runs against the POST-REMOVAL state, so
+ * the three freed slots are available to the output (a size-3 output can sit
+ * exactly where a size-3 input was). If anything is wrong — no plan any more,
+ * a `skillId` that was never deliverable, or an insert that somehow still fails
+ * — the ORIGINAL `state` is returned untouched and the outcome is the same
+ * `grantGold`/`fellBack` consolation `applyBonusDraftPick` gives a full bag.
+ * There is no ordering in which inputs are consumed and no output arrives.
+ *
+ * Validation is against the plan's whole deliverable POOL rather than the three
+ * candidates the offer happened to draw (which would need the choice's seed
+ * again). Same trust model as `applyGemChoicePick` — the picker only ever hands
+ * back something it was just shown — but a strictly tighter check than that
+ * function's "is it a real id", since pool membership is exactly the "can this
+ * be delivered" property.
+ */
+export function applyMergeCardsPick(
+  state: RunState,
+  skillId: string,
+): { state: RunState; outcome: EventOutcome; merged?: MergeCardsReceipt } {
+  const plan = mergeCardsPlan(state);
+  const deliverable = plan ? plan.pool.some((s) => s.id === skillId) : false;
+  const inserted = plan && deliverable ? tryInsertRunCard(plan.after, skillId, plan.to) : null;
+  if (!plan || !inserted) {
+    return {
+      state: {
+        ...state,
+        gold: state.gold + CARD_FALLBACK_GOLD,
+        stats: { ...state.stats, goldEarned: state.stats.goldEarned + CARD_FALLBACK_GOLD },
+      },
+      outcome: { kind: 'grantGold', amount: CARD_FALLBACK_GOLD, fellBack: true },
+    };
+  }
+  return {
+    state: inserted.state,
+    outcome: { kind: 'grantCard', skillId, tier: plan.to },
+    merged: {
+      from: plan.from,
+      to: plan.to,
+      consumed: plan.consumed,
+      taken: { skillId, tier: plan.to },
+    },
+  };
+}
+
 /** Applies a single (already-rolled) outcome spec. `depth` is the
  * node's shop-stock-equivalent depth band (see `grantGemOutcome`'s doc
  * comment) — `grantGem` and `gemChoice` both consume it today. */
-function applySpec(state: RunState, rng: Rng, spec: EventOutcomeSpec, depth: number): { state: RunState; outcome: EventOutcome } {
+function applySpec(
+  state: RunState,
+  rng: Rng,
+  spec: EventOutcomeSpec,
+  depth: number,
+): { state: RunState; outcome: EventOutcome; merge?: MergeCardsOffer } {
   switch (spec.kind) {
     case 'grantCard':
       return grantCardOutcome(state, rng, spec);
@@ -722,6 +1080,8 @@ function applySpec(state: RunState, rng: Rng, spec: EventOutcomeSpec, depth: num
       return upgradeCardOutcome(state);
     case 'sellGem':
       return { state, outcome: sellGemOutcome(state) };
+    case 'mergeCards':
+      return mergeCardsOutcome(state, rng);
     case 'nothing':
       return { state, outcome: { kind: 'nothing' } };
     default: {
@@ -743,12 +1103,18 @@ function applySpec(state: RunState, rng: Rng, spec: EventOutcomeSpec, depth: num
  * Legendary gem a same-depth shop shelf could never offer. Throws if there's
  * no active event node, or `eventId`/`choiceId` don't resolve to a real
  * catalog choice.
+ *
+ * The optional `merge` in the return is present for a `mergeCards` choice ONLY
+ * — the pending trade, beside `outcome: {kind:'nothing'}`, because at that
+ * point nothing has happened to the run yet (see `mergeCardsOutcome`'s block
+ * comment for why the offer rides beside the outcome instead of inside it).
+ * A caller that ignores it resolves the event as an inert no-op.
  */
 export function resolveEventChoice(
   state: RunState,
   eventId: string,
   choiceId: string,
-): { state: RunState; outcome: EventOutcome } {
+): { state: RunState; outcome: EventOutcome; merge?: MergeCardsOffer } {
   const node = currentEventNode(state);
   if (!node) {
     throw new Error('resolveEventChoice: no event node is currently active');
@@ -774,10 +1140,15 @@ export function resolveEventChoice(
   }
 
   const rng = new Rng(hashSeed('event', node.eventSeed!, choiceId));
-  const { state: nextState, outcome } = applySpec(working, rng, choice.outcome, shopStockDepthForWave(node.wave));
+  const { state: nextState, outcome, merge } = applySpec(working, rng, choice.outcome, shopStockDepthForWave(node.wave));
   return {
     state: { ...nextState, stats: { ...nextState.stats, eventsResolved: nextState.stats.eventsResolved + 1 } },
     outcome,
+    // Present ONLY for a `mergeCards` choice (see that outcome's block comment):
+    // the pending trade, beside an `outcome` of `nothing` because at this point
+    // nothing has happened to the run yet. A caller that ignores it resolves the
+    // event as a no-op and loses nothing.
+    ...(merge ? { merge } : {}),
   };
 }
 

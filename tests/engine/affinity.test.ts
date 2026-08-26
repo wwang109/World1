@@ -5,7 +5,7 @@ import { PRICE, powerLevelDeci, powerLevelBreakdown, capViolations, HIT_KINDS, T
 import { IDENTITY_THRESHOLD } from '../../src/engine/combat/typeIdentity';
 import { applyTier, autoScaleTier } from '../../src/engine/cards';
 import { validateSkillDocument } from '../../src/data/validateSkillContent';
-import { cardExistsAtTier } from '../../src/engine/types';
+import { cardExistsAtTier, tierResolved } from '../../src/engine/types';
 import type { Action, CombatConfig, SkillDef, SkillTier } from '../../src/engine/types';
 import type { DamageCalculation } from '../../src/engine/combat/events';
 
@@ -495,8 +495,13 @@ describe('DIAMOND CAPSTONES — an affinity payload authored only at the top tie
   });
 
   it('the BRONZE card carries no affinity payload — it is learned, not innate', () => {
+    // THE BRONZE COPY, not the raw def (2026-08-26, the Q1 `minTier` migration).
+    // Every capstone now writes its gated hit ONCE, in `effects`, carrying
+    // `{ affinity: true, minTier: 'diamond' }` — so the raw list LISTS it while the
+    // Bronze copy does not have it. `applyTier` is where the lock is resolved, and
+    // "the Bronze card" means the resolved Bronze card.
     for (const { card } of capstones) {
-      expect(card.effects.some(isGatedHit), `${card.id} bronze`).toBe(false);
+      expect(applyTier(card, 'bronze').effects.some(isGatedHit), `${card.id} bronze`).toBe(false);
     }
   });
 
@@ -527,7 +532,13 @@ describe('DIAMOND CAPSTONES — an affinity payload authored only at the top tie
     // would be fake and every board would take it. The base must come DOWN
     // against what the same budget buys as one undivided hit.
     for (const { card, skill } of capstones) {
-      const auto = autoScaleTier(card, 'diamond');
+      // THE COMPARISON CARD is the card WITHOUT its capstone line, ranked to
+      // Diamond: what the same budget buys as one undivided hit. Post-migration the
+      // locked line lives in `card.effects`, and `autoScaleTier` does NOT strip
+      // locks (`applyTier` does), so handing it the raw def would scale the capstone
+      // kit and compare the card against itself. `tierResolved` at the card's own
+      // tier is exactly "the kit before the capstone unlocks".
+      const auto = autoScaleTier(tierResolved(card), 'diamond');
       const autoDmg = auto.effects.find((a) => a.kind === 'damage' && a.affinity !== true);
       const capDmg = skill.effects.find((a) => a.kind === 'damage' && a.affinity !== true);
       if (!autoDmg || autoDmg.kind !== 'damage' || !capDmg || capDmg.kind !== 'damage') continue;

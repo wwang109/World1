@@ -58,7 +58,7 @@ immediately):
 | `ward` (charges) | `charges * wardPerCharge` | `PRICE.wardPerCharge` — half a negate charge: a charge denies one whole affliction APPLICATION (poison / burn / bleed / debuffStat / expose — not stun) rather than a card's whole damage line, and 50 deci is the median price of an application of a covered kind across the shipped book |
 | multi-hit premium | `(damageActions − 1) * extraHitPremium` | `PRICE.extraHitPremium` — every hit beyond the first re-delivers the caster's full (unpriced) stat add, so each extra hit pays a flat surcharge; each extra hit also eats mitigation again, the built-in counterweight vs armor stacks. First-pass rate, re-derive with sim data |
 | AoE reach (`scope: 'all'`) | `offensiveShare * aoeTargetsNum/Den`, floored once over the whole offensive share | `PRICE.aoeTargetsNum/Den` — flat multiplier on the OFFENSIVE portion of a kit (damage/DoT/control; see `OFFENSIVE_KINDS`), derived from the game's own pack-frequency constants, not `MAX_FOES`; see rationale below |
-| aura `damageFlat` / `healFlat` / `weightDelta` | `mod * rate * reach` (reach = 2 for `allBoard`, else 1) | `PRICE.auraDamageFlat` / `auraHealFlat` / `auraWeightDelta` — flat auras cost 2× a card's own one-shot flat damage: empirically the break-even where the best adjacent placement (2 casting neighbors) is PL-fair (2026-07-23 audit) |
+| aura `damageFlat` / `healFlat` / `weightDelta` | `mod * rate * reachMultiplier` (2 for `allBoard`, else 1) | `PRICE.auraDamageFlat` / `auraHealFlat` / `auraWeightDelta` — flat auras cost 2× a card's own one-shot flat damage: empirically the break-even where the best adjacent placement (2 casting neighbors) is PL-fair (2026-07-23 audit). **`AuraDef.reach` is NOT an input** — the multiplier reads `affects` only, so coverage past 2 pieces is free PL; see the aura-coverage section below |
 | weight | `(baseline − weight) * weightPer`, baseline = `size * 10` | `PRICE.weightPer` — lighter costs, heavier refunds |
 | size grant | `−sizeGrantDeci(size, tier)` | `PRICE.sizeGrant2Bronze/3Bronze` — grows at HALF the tier-budget growth (user-locked 2026-07-19); big cards get extra kit budget for board space + turn span |
 | cooldown (`cooldownTurns`), SHORT side (shorter than baseline, costs PL) | `(BASELINE_COOLDOWN − cooldownTurns) * cooldownPerTurn` | `PRICE.cooldownPerTurn`, `BASELINE_COOLDOWN` (`src/engine/types.ts`) — see rationale below |
@@ -229,6 +229,43 @@ on caster or target (`stackBonus`), the caster is holding shield to spend
   unrepresentable rather than merely conventional. This ordering is what
   makes the self-synergy premium above STATICALLY decidable from the authored
   kit alone, with no simulation or host knowledge needed.
+
+## Aura coverage: the rate is calibrated at TWO pieces, and `reach` is not priced
+
+`PRICE.auraDamageFlat`/`auraHealFlat`/`auraWeightDelta` are derived from ONE
+placement: "the best adjacent placement (**2 casting neighbors**) is PL-fair"
+(2026-07-23 audit, quoted in the constants themselves). `powerLevelDeci` then
+charges `auraModsDeci(mods) * (affects === 'allBoard' ? 2 : 1)` and **never reads
+`AuraDef.reach`**.
+
+So the reach dial is unpriced, and exactly one shape can abuse it:
+
+- `adjacent` + `reach: 1` — up to 2 pieces. **Priced at its calibration.**
+- `left` / `right` + `reach: 2` — up to 2 pieces, all on one side. **Priced at its
+  calibration**, and the only way to author a GAP-crossing aura honestly today.
+- `left` / `right` + `reach: 1` — 1 piece. Deliberately OVER-priced (safe side).
+- `adjacent` + `reach: 2` — up to **4** pieces at the 2-piece price. **Free PL.**
+- `allBoard` — up to 9 pieces at 2× the rate. A documented approximation that
+  predates this note (`warlord_banner`), not a new hole.
+
+**THE RULE, and it is a CONTENT rule.** No shipped aura may cover more than 2
+pieces at the non-`allBoard` rate. Enforced by `tests/engine/auraCoverage.test.ts`,
+which measures coverage by walking the real 10-slot hero board through the real
+`auraCovers` (`src/engine/combat/auras.ts`) rather than reasoning about `reach`,
+and which also proves the pricer is reach-blind so the rule is guarding a live
+hole rather than restating something code already enforces.
+
+Widening the vocabulary — an `adjacent` aura that really does project two slots
+each way — needs a **reach term in `PRICE`**, a cap-family decision, and a fold in
+`src/engine/cards.ts`. That is balance-designer's call and is split off as
+ADOPT LATER in `docs/run-structure-patterns.md` Q2. Until it lands, a card that
+wants more reach buys it one-sided.
+
+The 2026-08-26 Q2 positional pass was authored to this rule: six new cards on
+`left`/`right` at `reach: 2` (five of them) and one `adjacent`, across
+offense/defensive/debuff/healing/support, and **no new `allBoard` card** — an
+`allBoard` aura is the one shape for which position does not matter, which is the
+opposite of what that pass was for.
 
 ## `scope: 'all'` (AoE reach) pricing rationale
 

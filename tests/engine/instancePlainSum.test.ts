@@ -10,6 +10,7 @@ import {
 import { splashSuppressionOn } from '../../src/engine/cards';
 import { skillBook } from '../../src/data/skills';
 import { gemBook } from '../../src/data/gems';
+import { tierResolved } from '../../src/engine/types';
 
 /**
  * INSTANCE PL IS THE PLAIN SUM (user-locked 2026-08-21, verbatim: "every gem pl
@@ -53,7 +54,17 @@ describe('instance PL is the plain sum of the two standalone prices', () => {
       for (const gemId of Object.keys(gemBook)) {
         const gem = gemBook[gemId]!;
         const instance = instancePowerLevelDeci(def, { gem });
-        const plainSum = powerLevelDeci(def) + gemPowerLevelDeci(gem, def);
+        // THE PLAIN SUM IS TAKEN AGAINST THE TIER-RESOLVED HOST, exactly as
+        // `instancePowerLevelDeci` does it (2026-08-26, the Q1 `minTier`
+        // migration). The host-aware gem terms — `echoHostShareDeci`'s share of
+        // the host's damage line, THE SPLASH GATE's "has the host anything to
+        // spread" — read the card AS IT EXISTS at this tier, and a locked line is
+        // not part of it. `powerLevelDeci` already resolves internally, so it is
+        // only the gem term that has to be handed the resolved def; passing the
+        // raw one made an echo price against a Diamond-locked hit the Bronze host
+        // does not have.
+        const host = tierResolved(def);
+        const plainSum = powerLevelDeci(def) + gemPowerLevelDeci(gem, host);
         // NEVER above the plain sum — no pairing premium exists any more.
         if (instance > plainSum) {
           wrong.push(`${cardId} + ${gemId}: instance ${instance} > plain sum ${plainSum}`);
@@ -63,7 +74,7 @@ describe('instance PL is the plain sum of the two standalone prices', () => {
         // host (the suppression subtracts the splash's contribution).
         const suppressed = gem.kind === 'effect'
           && gem.actions.some((a) => a.kind === 'splash')
-          && splashSuppressionOn(def, gem.actions) !== null;
+          && splashSuppressionOn(host, gem.actions) !== null;
         if ((instance < plainSum) !== suppressed) {
           wrong.push(`${cardId} + ${gemId}: instance ${instance} vs ${plainSum}, suppressed=${String(suppressed)}`);
         }
