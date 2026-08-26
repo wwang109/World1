@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyTier, autoScaleTier } from '../../src/engine/cards';
-import { powerLevelDeci, capViolations, TIER_BUDGET_DECI } from '../../src/engine/balance';
+import { guaranteedPowerLevelDeci, powerLevelDeci, capViolations, TIER_BUDGET_DECI } from '../../src/engine/balance';
 import { simulate } from '../../src/engine/combat/simulate';
 import { skillBook } from '../../src/data/skills';
 import type { Action, CombatConfig, SkillBook, SkillDef, SkillTier } from '../../src/engine/types';
@@ -93,9 +93,21 @@ describe('a gated payload is FROZEN at every rank, and the ungated line grows', 
     // authored `tierUpgrades` block elsewhere in the book may legitimately trade
     // base damage for a NEW effect the lower tier could not afford (crushing_blow,
     // sword_slash, crippling_strike…), and this rule is not about those.
+    //
+    // RE-SCOPED 2026-08-26, and the scope is the whole point of the rule. A card
+    // carrying a TIER LOCK (`minTier`, engine/types.ts) is allowed to shrink a line
+    // to afford the effect that unlocks at that rank — the payload is
+    // UNCONDITIONAL there, so every owner of the rank gets it and the exchange is
+    // real (user ruling: "reducing some effect at higher tier to gain new ones").
+    // This rule is about the opposite case: budget moving into a payload that only
+    // SOME BOARDS can trigger, which is what made the Silver `wildfire_rite` a
+    // purchase that left the player worse. So locked cards are excluded here and
+    // held to the guaranteed-value rule instead — `tests/engine/tierLock.test.ts`,
+    // "THE TRADE IS REAL", which measures `guaranteedPowerLevelDeci` rather than a
+    // single line's magnitude precisely because a trade moves lines both ways.
     const regressions: string[] = [];
     let grew = 0;
-    for (const card of GATED_AT_BRONZE) {
+    for (const card of GATED_AT_BRONZE.filter((c) => !c.effects.some((a) => a.minTier !== undefined))) {
       const ladder = [card, ...RANKS.map((t) => applyTier(card, t))];
       card.effects.forEach((base, i) => {
         if (isGated(base)) return;
@@ -115,6 +127,31 @@ describe('a gated payload is FROZEN at every rank, and the ungated line grows', 
     // moves, which is exactly what a broken solver returns (base kit, tier
     // bumped). The ladders must actually climb.
     expect(grew, 'no ungated line grew at any rank — the solver is returning base kits').toBeGreaterThan(GATED_AT_BRONZE.length);
+  });
+
+  it('and what a gated card GUARANTEES on any board never falls with rank either', () => {
+    // The rule the magnitude test above cannot state once a card is allowed to
+    // trade lines: measure the kit with every CONDITIONAL line switched off
+    // (`guaranteedPowerLevelDeci`) and require THAT to climb. It is the same
+    // property — "buying the upgrade is an upgrade for a board that cannot open
+    // the gate" — expressed as one number instead of per line, so it survives a
+    // rank-up that grows one line and shrinks another. Asserted over EVERY card
+    // that ships a gated payload at bronze, locked or not.
+    const regressions: string[] = [];
+    for (const card of GATED_AT_BRONZE) {
+      let previous = guaranteedPowerLevelDeci(card);
+      for (const tier of RANKS) {
+        const now = guaranteedPowerLevelDeci(applyTier(card, tier));
+        if (now < previous) regressions.push(`${card.id}@${tier}: guaranteed ${previous / 10} -> ${now / 10} PL`);
+        previous = now;
+      }
+    }
+    expect(regressions, regressions.join('\n')).toEqual([]);
+    // NON-VACUITY: the measure must actually be smaller than the whole card's PL
+    // somewhere, or it is just `powerLevelDeci` under another name and this test
+    // is the vacuous "the budget rises with the tier" assertion.
+    const discriminates = GATED_AT_BRONZE.some((c) => guaranteedPowerLevelDeci(c) < powerLevelDeci(c));
+    expect(discriminates, 'guaranteed PL never differs from total PL — the measure is not measuring').toBe(true);
   });
 
   it('every rank of every affinity card still lands EXACTLY on its tier budget and within caps', () => {

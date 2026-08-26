@@ -5,6 +5,7 @@ import { PRICE, powerLevelDeci, powerLevelBreakdown, capViolations, HIT_KINDS, T
 import { IDENTITY_THRESHOLD } from '../../src/engine/combat/typeIdentity';
 import { applyTier, autoScaleTier } from '../../src/engine/cards';
 import { validateSkillDocument } from '../../src/data/validateSkillContent';
+import { cardExistsAtTier } from '../../src/engine/types';
 import type { Action, CombatConfig, SkillDef, SkillTier } from '../../src/engine/types';
 import type { DamageCalculation } from '../../src/engine/combat/events';
 
@@ -460,7 +461,10 @@ describe('pricing', () => {
     // multiples of 5 and went fractional.
     let checked = 0;
     for (const card of Object.values(skillBook)) {
-      for (const tier of ['bronze', 'silver', 'gold', 'diamond'] as SkillTier[]) {
+      // REACHABLE TIERS ONLY: a card's minimum tier is its own `tier`
+      // (`cardExistsAtTier`) — there is no copy below it to price. No-op for
+      // today's all-Bronze book; correct the day a card is authored above Bronze.
+      for (const tier of (['bronze', 'silver', 'gold', 'diamond'] as SkillTier[]).filter((t) => cardExistsAtTier(card, t))) {
         const skill = applyTier(card, tier);
         if (!skill.effects.some(isGated)) continue;
         checked += 1;

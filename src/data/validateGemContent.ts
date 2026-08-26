@@ -137,7 +137,7 @@ function validateGemDef(raw: unknown, id: string, problems: ContentProblem[]): v
     if (!Array.isArray(raw.actions) || raw.actions.length === 0) {
       problems.push({ where, message: 'an effect gem needs a non-empty actions array' });
     } else {
-      raw.actions.forEach((a, i) => validateAction(a, where + '.actions[' + String(i) + ']', problems));
+      raw.actions.forEach((a, i) => validateAction(a, where + '.actions[' + String(i) + ']', problems, { list: 'gem' }));
     }
   } else if (raw.kind === 'stat') {
     if (raw.actions !== undefined) problems.push({ where, message: 'actions belongs to an effect gem; a stat gem carries mods' });

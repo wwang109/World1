@@ -11,7 +11,7 @@
 // docs/power-level-reference.md, sourced from these exact constants. Do not
 // hand-copy numbers elsewhere — read PRICE.
 
-import { BASELINE_COOLDOWN, isMultiTargetSkill, weightOf, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
+import { BASELINE_COOLDOWN, isMultiTargetSkill, tierResolved, weightOf, type Action, type BuffableStat, type Gem, type Property, type Rarity, type SkillDef, type SkillTier } from './types';
 import { buildKeywordPricing, priceActionDeci, scalableRateDeci, walkBrackets, type CapFamily } from './keywords/pricing';
 
 export const TIER_BUDGET_DECI: Record<SkillTier, number> = {
@@ -1350,8 +1350,28 @@ export function actionsPriceDeci(
   return selfDeci + foeDeci;
 }
 
-/** Total deci-PL of a card's kit. */
-export function powerLevelDeci(skill: SkillDef): number {
+/**
+ * Total deci-PL of a card's kit.
+ *
+ * THE TIER LOCK IS PRICED BY BEING ABSENT (`tierResolved`, types.ts). A card is
+ * priced AS IT EXISTS AT ITS OWN TIER: an action locked above `skill.tier` is
+ * not in the kit, so it contributes nothing — no rate, no multi-hit premium, no
+ * family-cap spend — and at and above its lock it is charged in full, at its own
+ * family's ordinary rate. There is no tier-lock discount anywhere in this file
+ * and there must never be one: a Gold-locked stun must cost a Gold copy exactly
+ * what a stun costs a Gold card that authored it directly, or the ladder buys
+ * power the budget never sees.
+ *
+ * ONE CALL, not a per-rule test. This is the same choice `affinity` made in the
+ * opposite direction: affinity's condition is a BOARD fact, unknowable at
+ * resolution, so it is a refund applied per action; a tier lock is a STATIC
+ * fact, so the action is simply removed and every rule below inherits it. Adding
+ * a `minTier` test to `actionsPriceDeci`, the multi-hit count, `capViolations`
+ * and both solver buckets would be five mirrors of one rule — the drift this
+ * file has already paid for twice (THE THIRD and FOURTH MIRROR notes above).
+ */
+export function powerLevelDeci(raw: SkillDef): number {
+  const skill = tierResolved(raw);
   let deci = actionsPriceDeci(skill.effects, skill.property, skill.scope);
 
   if (skill.aura) {
@@ -1374,6 +1394,42 @@ export function powerLevelDeci(skill: SkillDef): number {
   return deci;
 }
 
+/**
+ * THE GUARANTEED SHARE of a card's Power Level — what this copy is worth on the
+ * WORST board for it, i.e. with every affinity-gated line switched off.
+ *
+ * WHY THIS EXISTS AND `powerLevelDeci` IS NOT ENOUGH. `powerLevelDeci` always
+ * equals the card's tier budget (that is what the audits enforce), so "did this
+ * card get better when it ranked up?" is VACUOUSLY true measured that way — the
+ * budget rises with every tier by definition. It cannot see the failure the
+ * project actually cares about: budget moving OUT of the always-on kit and INTO a
+ * payload that only some boards can trigger. That is the shipped `wildfire_rite`
+ * bug (Bronze damage 32 -> Silver 16, the difference spent on a gated burn), and
+ * it is invisible to every on-budget assertion in this file.
+ *
+ * So: strip the CONDITIONAL lines and price what is left. A tier-locked line
+ * (`TierLocked`) is NOT stripped — at and above its lock it fires for every owner
+ * of that rank, which is exactly what makes trading base damage for it an honest
+ * exchange rather than a downgrade (user ruling 2026-08-26). The two flags look
+ * alike in the data and this function is where the difference is measurable:
+ *   locked, unconditional  -> counted; the ladder's guaranteed share still climbs
+ *   gated, conditional     -> not counted; a rank that spends the delta on it
+ *                             leaves the guaranteed share flat or FALLING
+ *
+ * A FALLING guaranteed share is not automatically a bug — the five Diamond
+ * capstones deliberately trade base damage for a gated second hit at the TOP tier
+ * only, with both numbers printed on the face (`affinity.test.ts`, "the capstone
+ * really is a TRADE"). It is the signal that a rank-up is conditional, which is a
+ * balance decision that must be taken deliberately and stated, never fallen into.
+ * `tests/engine/tierLock.test.ts` pins which cards do it.
+ */
+export function guaranteedPowerLevelDeci(skill: SkillDef): number {
+  const kit = tierResolved(skill);
+  const unconditional = kit.effects.filter((a) => a.affinity !== true);
+  if (unconditional.length === kit.effects.length) return powerLevelDeci(kit);
+  return powerLevelDeci({ ...kit, effects: unconditional });
+}
+
 export interface PlBreakdownPart {
   label: string;
   deci: number;
@@ -1384,7 +1440,10 @@ export interface PlBreakdownPart {
  * powerLevelDeci, split into labeled parts for balance inspection UIs.
  * Invariant (tested): the parts sum exactly to powerLevelDeci(skill).
  */
-export function powerLevelBreakdown(skill: SkillDef): PlBreakdownPart[] {
+export function powerLevelBreakdown(raw: SkillDef): PlBreakdownPart[] {
+  // Same resolution as `powerLevelDeci` — the parts must sum to what that
+  // function charges, so both must price the same kit (see its doc comment).
+  const skill = tierResolved(raw);
   const parts: PlBreakdownPart[] = [];
   const push = (label: string, deci: number): void => {
     if (deci !== 0) parts.push({ label, deci });
@@ -1597,7 +1656,12 @@ export function effectCapDeci(family: keyof typeof EFFECT_CAPS_DECI, size: numbe
 }
 
 /** Cap violations for a card's kit; empty = compliant. Audited for every card. */
-export function capViolations(skill: SkillDef): string[] {
+export function capViolations(raw: SkillDef): string[] {
+  // AT ITS OWN TIER, like every other pricing surface here: a line locked above
+  // this tier is not on the card, so it cannot break a family cap here — and it
+  // IS checked, at full price, at the tier where it appears (`applyTier` hands
+  // this function the resolved card at each rank; see `TierLocked`).
+  const skill = tierResolved(raw);
   const violations: string[] = [];
   const spent = (kinds: ReadonlySet<Action['kind']>): number =>
     // The full kit is passed as the pricing CONTEXT even though only one
@@ -1909,7 +1973,12 @@ function gatedGemActions(host: SkillDef, gemActions: Action[]): Action[] {
  * before pricing the rest of the gem normally; every other gem shape is
  * untouched, so nothing else moves.
  */
-export function instancePowerLevelDeci(def: SkillDef, piece: { gem?: Gem | null }): number {
+export function instancePowerLevelDeci(raw: SkillDef, piece: { gem?: Gem | null }): number {
+  // Resolved ONCE here so the host-aware gem terms (`echoHostShareDeci`'s share
+  // of the host's own damage line, THE SPLASH GATE's "has the host anything to
+  // spread") read the card as it exists at this tier, not as authored. Without
+  // it an echo would price against a damage line the host does not have yet.
+  const def = tierResolved(raw);
   const gem = piece.gem;
   if (!gem) return powerLevelDeci(def);
   // A STAT gem appends no actions, so there is nothing for the gate to drop:

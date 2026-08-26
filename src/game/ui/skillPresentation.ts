@@ -1,5 +1,5 @@
 import { OFFENSIVE_KINDS } from '../../engine/balance';
-import type { BuffableStat, SkillDef } from '../../engine/types';
+import { tierResolved, type BuffableStat, type SkillDef } from '../../engine/types';
 import { STAT_TOKEN } from './statLabels';
 
 interface AuraModifierShape {
@@ -196,7 +196,19 @@ const STATUS_TOKEN: Record<'poison' | 'burn' | 'bleed' | 'stun' | 'debuff' | 'ex
  * `.map(text).join(' · ')` over this; CardToken's segmented line renderer
  * uses THIS form directly so it can color each token independently.
  */
-export function summarizeEffectSegments(skill: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed'): EffectSegment[] {
+export function summarizeEffectSegments(raw: SkillDef, stats?: ScalingStats, mode: SkillFaceMode = 'summed'): EffectSegment[] {
+  /**
+   * TIER LOCKS RESOLVED HERE TOO, idempotently (`tierResolved`,
+   * engine/types.ts): a line locked above `skill.tier` does not exist on this
+   * copy, so it must not appear on its face. The contract above still asks the
+   * caller for an already-resolved skill and every board/shop path obliges via
+   * `resolveDisplaySkill`; the one path that does NOT is a wiki pane rendering a
+   * book def at its own base tier, which never calls `applyTier` at all. Folding
+   * it in here costs a reference comparison for an unlocked card and makes "the
+   * face never prints an effect this copy does not have" true structurally
+   * rather than by convention.
+   */
+  const skill = tierResolved(raw);
   // User ruling (2026-08-20): "aura card should just say aura, not this far
   // near thing." This branch used to lead with a reach word (ALL/NEAR)
   // because an all-board +5 and an adjacent +15 price the same and the face

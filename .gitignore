@@ -12,3 +12,5 @@ dist/
 .wrangler/
 scratchpad/
 .tmp/
+# Agent scratch dirs — probe fixtures, audit dumps. Same role as .tmp/.
+tmp/

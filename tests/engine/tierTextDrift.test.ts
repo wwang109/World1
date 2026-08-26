@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { skillBook } from '../../src/data/skills';
 import { applyTier, autoScaleTier } from '../../src/engine/cards';
 import { capViolations, powerLevelDeci, TIER_BUDGET_DECI } from '../../src/engine/balance';
+import { cardExistsAtTier } from '../../src/engine/types';
 import type { Action, SkillDef, SkillTier } from '../../src/engine/types';
 
 /**
@@ -57,7 +58,13 @@ function hasStandalone(text: string, n: number): boolean {
  * auditing through it covers BOTH paths exactly as the game does.
  */
 function resolvedTiers(card: SkillDef): Array<{ tier: SkillTier; skill: SkillDef }> {
-  return TIERS.map((tier) => ({ tier, skill: applyTier(card, tier) }));
+  // REACHABLE TIERS ONLY (2026-08-26). A card's minimum tier is its own `tier`
+  // (`cardExistsAtTier`, engine/types.ts) — tiering only ranks UP, so a card
+  // authored at Gold has no Bronze or Silver copy to audit. Asking `applyTier` for
+  // one clamps up and hands back the Gold card, which would audit the Gold face
+  // against the Silver row and report drift that no player can ever see. Today's
+  // book is all-Bronze, so this filter changes nothing yet.
+  return TIERS.filter((tier) => cardExistsAtTier(card, tier)).map((tier) => ({ tier, skill: applyTier(card, tier) }));
 }
 
 describe('tier text describes the tier-scaled card', () => {

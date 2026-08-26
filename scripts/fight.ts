@@ -11,11 +11,13 @@
 // `targetPolicy` / `targetValue` / `aoe` / `targets`; every `damage` carries
 // the victim's `side` + `unit`) — this script previously discarded the unit
 // index, so in a pack fight the reader could not tell which foe was hit.
+import { readFileSync } from 'node:fs';
 import { simulate } from '../src/engine/combat/simulate';
 import { fmtDamage } from './logFormat';
 import type { BoardPiece, CombatantSetup, Side } from '../src/engine/types';
 import { hashSeed } from '../src/engine/rng';
-import { skillBook } from '../src/data/skills';
+import { skillBook as shippedSkillBook } from '../src/data/skills';
+import { skillDefOfDocument, validateSkillDocument } from '../src/data/validateSkillContent';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../src/data/heroes';
 import { enemies } from '../src/data/enemies';
 
@@ -26,6 +28,52 @@ import { enemies } from '../src/data/enemies';
 const MAX_FOES = 5;
 
 const enemySpec = process.argv[2] ?? 'bandit_duelist';
+/**
+ * PROBE CARDS — `FIGHT_EXTRA_CARDS=<path to a skills-document JSON>`.
+ *
+ * Merges extra card documents into the book for THIS RUN only, so a card shape
+ * that is not (or not yet) shipped content can be shown in a REAL combat log
+ * instead of being described in prose. Added for the tier-lock work
+ * (`TierLocked`, src/engine/types.ts), whose whole point is a shape no shipped
+ * card carries yet — and the project rule is that behaviour is proven with
+ * `npm run fight` and never with a second, hand-written renderer
+ * (CLAUDE.md, user-locked 2026-08-25).
+ *
+ * NOT A BACK DOOR AROUND CONTENT VALIDATION: the file is the exact same document
+ * shape as `src/data/content/skills.v1.json` and goes through the SAME
+ * `validateSkillDocument` the real loader uses, so a probe card that could not be
+ * authored for real cannot be fought either. It never touches the shipped book on
+ * disk, and a run without the env var is byte-identical to before.
+ */
+function loadBook(): typeof shippedSkillBook {
+  const path = process.env['FIGHT_EXTRA_CARDS'];
+  if (path === undefined || path.trim() === '') return shippedSkillBook;
+  let doc: unknown;
+  try {
+    doc = JSON.parse(readFileSync(path.trim(), 'utf8')) as unknown;
+  } catch (err) {
+    console.error(`FIGHT_EXTRA_CARDS: cannot read '${path}' — ${String(err)}`);
+    process.exit(1);
+  }
+  const problems = validateSkillDocument(doc);
+  if (problems.length > 0) {
+    console.error(`FIGHT_EXTRA_CARDS: ${problems.length} problem(s) in '${path}':`);
+    for (const p of problems) console.error(`  ${p.where}: ${p.message}`);
+    process.exit(1);
+  }
+  const cards = (doc as { cards: Array<{ id: string; versions: Array<{ version: number; def: Record<string, unknown> }> }> }).cards;
+  const out = { ...shippedSkillBook };
+  // Highest version wins, exactly as `skillsContent.ts` resolves the real book.
+  for (const card of cards) {
+    let current = card.versions[0]!;
+    for (const entry of card.versions) if (entry.version > current.version) current = entry;
+    out[card.id] = skillDefOfDocument(card.id, current.def);
+  }
+  return out;
+}
+
+const skillBook = loadBook();
+
 
 /**
  * A seed you cannot trust is worse than no seed: `Number('abc')` is NaN, and

@@ -151,6 +151,83 @@ export interface AffinityGated {
 }
 
 /**
+ * TIER LOCK — "this action does not exist below this tier".
+ *
+ * THE SIBLING OF `AffinityGated`, and deliberately built to the same shape: a
+ * cross-cutting flag ANY action may carry, enforced in ONE place, priced in ONE
+ * place, and unknown to every keyword. Where affinity gates on the BOARD, this
+ * gates on the card's RANK.
+ *
+ * WHAT IT REPLACES. An effect that only exists at a higher tier used to require
+ * an authored `tierUpgrades.<tier>.effects` list — a full restatement of the
+ * card's whole kit, per tier, just to add one line. Five Diamond capstones
+ * (`arcane_bolt`, `hunter_shot`, `judgment_light`, `lance_thrust`,
+ * `leeching_fang`) each restate their base hit only so a gated second hit can
+ * appear at Diamond. Duplication of an authored payload is the exact shape this
+ * codebase has been burned by twice: when the affinity refund moved from 4/5 to
+ * 1/2, every one of those hand-solved Diamond payloads had to be re-derived by
+ * hand and nothing would have caught a fractional one; and a `tierUpgrades`
+ * text once disagreed with the effects beside it. With a lock, ONE definition
+ * carries the whole ladder and the budget-honest scaler re-solves every rung
+ * whenever a price moves.
+ *
+ * ENFORCED AT RESOLUTION, NOT AT CAST TIME (this is the one real difference
+ * from affinity, and it is why there is no check in `applyAction`). A tier is
+ * known statically, before the fight: `tierResolved` STRIPS a locked action
+ * from the effective card at every tier below its lock, so the resolved
+ * `SkillDef` a Silver copy casts genuinely does not list it. Every downstream
+ * consumer is then correct with no new branch — the pricer, the effect caps,
+ * the multi-hit divisor, the card face, the tier solver and the event log all
+ * see a card that simply does not have that line. Affinity CANNOT work that way
+ * (it depends on the board, which resolution does not know), which is why it is
+ * a cast-time check instead.
+ *
+ * PRICING FALLS OUT OF THE STRIP: an action that is not in the kit is charged
+ * nothing, so a locked action costs 0 at every tier below its lock and FULL
+ * price at and above it (`powerLevelDeci`/`capViolations` resolve their argument
+ * first). There is no discount and no surcharge — a Gold-locked stun is priced
+ * at Gold exactly as a stun a Gold card authored directly.
+ *
+ * COMPOSES WITH `affinity`, and the two mean different things:
+ *   `{ affinity: true }`               — exists at every tier, fires on the right board
+ *   `{ minTier: 'diamond' }`           — exists only from Diamond, always fires
+ *   `{ affinity: true, minTier: 'd' }` — exists only from Diamond, and there
+ *                                        fires only on the right board
+ * The last is the five capstones' shape. Neither flag needs to know about the
+ * other: the lock removes the action, and whatever survives is gated as usual.
+ *
+ * THE TRADE (user ruling 2026-08-26: "we should have the cards tier up allowed
+ * to remove extra PL to fit in higher tier effect that might cost more PL, so
+ * reducing some effect at higher tier to gain new ones"). Because the unlocked
+ * action is an ORDINARY member of the kit at and above its lock, the tier
+ * solver pays for it out of the whole budget — which may mean the card's
+ * existing damage line SHRINKS to afford it. That is intended, and it is the
+ * difference from affinity stated as a rule:
+ *
+ *   CONDITIONAL payload  => NO trade. An affinity-gated line is frozen and can
+ *                           never be paid for out of the always-on line, because
+ *                           a board that cannot open the gate would have bought
+ *                           a strict downgrade (the shipped `wildfire_rite` bug).
+ *   UNCONDITIONAL payload => TRADE ALLOWED. A tier-locked line fires for every
+ *                           owner of that rank, so exchanging damage for it is a
+ *                           real exchange the player can read off the face.
+ *
+ * See `autoScaleTier` (cards.ts), where the solver decides, for the enforcement.
+ */
+export interface TierLocked {
+  /**
+   * Set by CONTENT. The LOWEST tier at which this action exists; absent means
+   * "every tier", which is every action in the book today.
+   *
+   * `validateSkillContent` refuses a value that is not a tier, a lock at or
+   * below the card's own tier (it could never close), and a lock inside a
+   * `tierUpgrades` effects list (that block already applies at exactly one
+   * tier, so a lock in it is dead either way).
+   */
+  minTier?: SkillTier;
+}
+
+/**
  * Afflictions an `exploit` rider may key off — EXACTLY the cleansable set
  * (`isCleansable`, combat/interpreter.ts), i.e. the negative statuses a unit can
  * be made to carry: poison / burn / bleed / stun / stat debuff / expose.
@@ -190,7 +267,7 @@ export type StackedStatus = 'poison' | 'burn' | 'bleed' | 'thorns';
  * Every member also carries the optional `fromGem` provenance mark (see
  * `GemAppended`), which the resolver — never content — sets.
  */
-export type Action = ActionKinds & GemAppended & AffinityGated;
+export type Action = ActionKinds & GemAppended & AffinityGated & TierLocked;
 
 type ActionKinds =
   | { kind: 'damage'; power: number }
@@ -1117,6 +1194,87 @@ export type SkillBook = Record<string, SkillDef>;
 
 export function weightOf(skill: SkillDef): number {
   return skill.speedWeight ?? skill.size * 10;
+}
+
+/**
+ * Low -> high tier order; the index is the number of tier-steps above bronze.
+ * ONE definition, here beside `SkillTier` itself, because three separate rules
+ * now compare tiers (`applyTier`'s no-op test, the tier lock below, and the
+ * validator's "carry upward" rule) and a second copy is how they would drift.
+ */
+export const TIER_ORDER: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
+
+/** Is `tier` at or above `floor`? */
+export function tierAtLeast(tier: SkillTier, floor: SkillTier): boolean {
+  return TIER_ORDER.indexOf(tier) >= TIER_ORDER.indexOf(floor);
+}
+
+/** Does this action exist on a copy of its card at `tier`? (See `TierLocked`.) */
+export function actionExistsAtTier(action: Action, tier: SkillTier): boolean {
+  return action.minTier === undefined || tierAtLeast(tier, action.minTier);
+}
+
+/**
+ * Does a COPY OF THIS CARD exist at `tier`? — the card-level sibling of
+ * `actionExistsAtTier` (user ruling 2026-08-26: "some skill cards may have min
+ * tier level due to their effects so we should have cards that dont have bronze
+ * tier etc").
+ *
+ * A CARD'S MINIMUM TIER IS ITS OWN `tier`, and there is deliberately NO second
+ * field for it. `SkillDef.tier` already means "the tier this kit is authored and
+ * priced against" (`isOnBudget`), and tiering only ever goes UP (`applyTier`
+ * scales a card toward a higher budget and has no way to scale one down). So a
+ * card with no Bronze form is simply a card authored at `tier: 'gold'`: its kit
+ * sums to the Gold budget, and Bronze and Silver copies of it do not exist.
+ * Adding a separate `minTier` to `SkillDef` would be a second piece of state
+ * that can only ever agree with `tier` or be wrong — the same duplication the
+ * attuned-shield type rule refuses ("THE TYPE IS THE CARD'S, never authored
+ * separately").
+ *
+ * That is also why the two levels differ on BUDGET, which is the one place they
+ * are not symmetric: a Gold-minimum card is priced against the Gold budget,
+ * while a Bronze card whose every action is locked to Gold would still be priced
+ * against the BRONZE budget with an empty Bronze kit — a card that does nothing
+ * at the tier it is sold at. `validateSkillContent` rejects that shape and tells
+ * the author to raise the card's own `tier` instead.
+ *
+ * THIS IS THE PREDICATE THE RUN LAYER MUST FILTER ON. Shop stock, draft pools
+ * and the wiki's tier picker each choose a (card, tier) pair, and none of them
+ * knows about card minimums today; offering a Bronze copy of a Gold-minimum card
+ * offers something that cannot exist. `applyTier` CLAMPS UP rather than throwing
+ * (a below-minimum request returns the card at its real tier, never stamped with
+ * the lower one), so the mistake is not fatal — it is a card the player got too
+ * cheaply, which is exactly the sort of thing that ships unnoticed. Filter here.
+ */
+export function cardExistsAtTier(skill: Pick<SkillDef, 'tier'>, tier: SkillTier): boolean {
+  return tierAtLeast(tier, skill.tier);
+}
+
+/**
+ * THE TIER LOCK, ENFORCED — the one place a `minTier` is ever read.
+ *
+ * Returns the card as it exists at `tier`: every action locked above that tier
+ * is STRIPPED, so the returned `SkillDef` genuinely does not list it. Everything
+ * downstream (pricing, effect caps, the multi-hit divisor, the tier solver, the
+ * card face, the combat loop) then needs no knowledge of tier locks at all —
+ * see `TierLocked` for why the gate is applied here rather than at cast time.
+ *
+ * IDENTITY-PRESERVING BY CONSTRUCTION: when nothing is locked (every card in the
+ * book today) the SAME REFERENCE comes back, so an un-featured card resolves
+ * byte-identically and allocates nothing. `tier` defaults to the card's own,
+ * which is what "price/show this def as authored" means.
+ *
+ * Deliberately does NOT rewrite `tier`, `text` or anything else: it answers only
+ * "which actions exist", and callers that are also RANKING a card
+ * (`applyTier`) set the rest.
+ */
+export function tierResolved(skill: SkillDef, tier: SkillTier = skill.tier): SkillDef {
+  let locked = false;
+  for (let i = 0; i < skill.effects.length; i += 1) {
+    if (!actionExistsAtTier(skill.effects[i]!, tier)) { locked = true; break; }
+  }
+  if (!locked) return skill;
+  return { ...skill, effects: skill.effects.filter((a) => actionExistsAtTier(a, tier)) };
 }
 
 /**

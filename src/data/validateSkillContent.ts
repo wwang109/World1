@@ -178,7 +178,36 @@ const ACTION_FIELDS: Record<Action['kind'], readonly string[]> = {
   debuffStat: ['stat', 'pct', 'turns'],
 };
 
-export function validateAction(raw: unknown, where: string, problems: ContentProblem[]): void {
+/**
+ * Where an action is authored, for the TIER LOCK rule (`TierLocked`,
+ * engine/types.ts). `authoredAt` is the tier whose kit this action belongs to —
+ * the card's own `tier` for a base `effects` list, and `null` for a
+ * `tierUpgrades` effects list, where a lock can never mean anything (that block
+ * applies at exactly one tier, so a lock inside it is either always open or
+ * never reached).
+ */
+export interface ActionTierContext {
+  /**
+   * Which list this action was authored in: the card's own `effects` (`base`),
+   * an authored per-tier block's (`tierUpgrade`), or a gem's (`gem`). ONLY a
+   * base list can carry a tier lock — see the `minTier` block below for why the
+   * other two cannot.
+   */
+  list: 'base' | 'tierUpgrade' | 'gem';
+  /**
+   * The card's own tier, when it is a valid one — the floor a base list's lock
+   * must sit above. Omitted when the card's `tier` field is itself invalid, in
+   * which case that is already being reported and the lock is not second-guessed.
+   */
+  authoredAt?: string;
+}
+
+export function validateAction(
+  raw: unknown,
+  where: string,
+  problems: ContentProblem[],
+  tierCtx: ActionTierContext,
+): void {
   if (!isObj(raw)) { problems.push({ where, message: 'action must be an object' }); return; }
   if (typeof raw.kind !== 'string') { problems.push({ where, message: 'action is missing a string kind' }); return; }
   const kind = raw.kind as Action['kind'];
@@ -300,13 +329,46 @@ export function validateAction(raw: unknown, where: string, problems: ContentPro
   // needs the CARD to have a type, but that is already universal ("a card must
   // carry an element OR a weapon"), so no affinity-specific rule is needed and
   // the one that used to exist was dead code.
+  /**
+   * `minTier` IS CROSS-CUTTING TOO — the tier lock (`TierLocked`,
+   * engine/types.ts), affinity's static sibling: "this action does not exist
+   * below this tier". Legal on every kind for the same reason `affinity` is, so
+   * it is not listed per-kind, and checked here in one place.
+   *
+   * THREE WAYS TO WRITE A LOCK THAT CANNOT DO ANYTHING, all refused rather than
+   * tolerated — a flag the engine silently ignores is how a card ships promising
+   * a Diamond payoff it does not have:
+   *  (a) a value that is not a tier — `tierResolved` compares it by index, and an
+   *      unknown string indexes to -1, i.e. a lock that is always OPEN;
+   *  (b) a lock at or below the tier the action is authored at — always open;
+   *  (c) a lock inside a `tierUpgrades` effects list — that block resolves at
+   *      exactly one tier, so the lock is always open or the block is never
+   *      reached. Locks belong on the base `effects` list, which is the entire
+   *      point of the feature: ONE definition carrying the whole ladder.
+   */
   const known = ACTION_FIELDS[kind];
   if (known) {
     if ('affinity' in raw && raw.affinity !== true) {
       problems.push({ where: at, message: 'affinity must be exactly true when present (omit the field for an ungated action)' });
     }
+    if ('minTier' in raw) {
+      const lock = raw.minTier;
+      if (typeof lock !== 'string' || !TIERS.includes(lock)) {
+        problems.push({ where: at, message: 'minTier must be one of ' + TIERS.join('|') + ', got ' + JSON.stringify(lock) });
+      } else if (tierCtx.list === 'tierUpgrade') {
+        problems.push({ where: at, message: 'minTier cannot be used inside a tierUpgrades effects list — that block already applies at exactly one tier, so the lock can never close. Put the locked action on the card\'s base effects instead.' });
+      } else if (tierCtx.list === 'gem') {
+        // A gem's actions are spliced onto an ALREADY tier-resolved host
+        // (`resolveEffectiveSkill`: "a gem's own actions are never tier-scaled"),
+        // so nothing ever reads a lock on one — it would be a flag the engine
+        // silently ignores, which is the failure mode these checks exist for.
+        problems.push({ where: at, message: 'minTier cannot be used on a gem action — a gem is never tier-scaled, so the lock would be silently ignored' });
+      } else if (tierCtx.authoredAt !== undefined && TIERS.indexOf(lock) <= TIERS.indexOf(tierCtx.authoredAt)) {
+        problems.push({ where: at, message: 'minTier ' + lock + ' is at or below the card\'s own tier (' + tierCtx.authoredAt + '), so the lock is always open — drop it, or raise it above ' + tierCtx.authoredAt });
+      }
+    }
     for (const k of Object.keys(raw)) {
-      if (k === 'affinity') continue;
+      if (k === 'affinity' || k === 'minTier') continue;
       if (k !== 'kind' && !known.includes(k)) {
         problems.push({ where: at, message: 'unknown field ' + k + ' on a ' + kind + ' action (known: ' + known.join(', ') + ')' });
       }
@@ -690,7 +752,7 @@ const TIER_UPGRADE_FIELDS = new Set(['effects', 'aura', 'speedWeight', 'cooldown
 function validateTierUpgrade(raw: unknown, where: string, problems: ContentProblem[]): void {
   if (!isObj(raw)) { problems.push({ where, message: 'tier upgrade must be an object' }); return; }
   const changesEffects = Array.isArray(raw.effects);
-  if (changesEffects) (raw.effects as unknown[]).forEach((a, i) => validateAction(a, where + '.effects[' + String(i) + ']', problems));
+  if (changesEffects) (raw.effects as unknown[]).forEach((a, i) => validateAction(a, where + '.effects[' + String(i) + ']', problems, { list: 'tierUpgrade' }));
   if (raw.aura !== undefined) validateAura(raw.aura, where, problems);
   opt(raw, 'speedWeight', inRange(0, 200), 'an integer 0..200', where, problems);
   opt(raw, 'cooldownTurns', inRange(0, 99), 'an integer 0..99', where, problems);
@@ -726,6 +788,9 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   req(raw, 'property', (v) => PROPERTIES.includes(v as string), PROPERTIES.join('|'), where, problems);
   req(raw, 'rarity', (v) => RARITIES.includes(v as string), RARITIES.join('|'), where, problems);
   req(raw, 'tier', (v) => TIERS.includes(v as string), TIERS.join('|'), where, problems);
+  /** The card's own tier when valid — the FLOOR for every tier rule below
+   * (action locks, unreachable tier blocks, the reachable-tier sweep). */
+  const cardTier = typeof raw.tier === 'string' && TIERS.includes(raw.tier) ? raw.tier : undefined;
   req(raw, 'size', (v) => v === 1 || v === 2 || v === 3, '1, 2 or 3', where, problems);
   req(raw, 'archetypes', (v) => Array.isArray(v) && v.length > 0 && v.every((a) => ARCHETYPES.includes(a as string)), 'a NON-EMPTY array of ' + ARCHETYPES.join('|'), where, problems);
   req(raw, 'effects', (v) => Array.isArray(v), 'an array', where, problems);
@@ -762,9 +827,40 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   if (Array.isArray(raw.effects) && raw.effects.length === 0 && raw.aura === undefined) {
     problems.push({ where, message: 'a card with no effects must carry an aura — otherwise it does nothing and there is nothing to show' });
   }
+  /**
+   * ...AND IT MUST DO SOMETHING AT ITS OWN TIER — the card-level half of the tier
+   * lock (user ruling 2026-08-26: "some skill cards may have min tier level due
+   * to their effects so we should have cards that dont have bronze tier etc").
+   *
+   * A card's minimum tier IS its own `tier` (`cardExistsAtTier`,
+   * engine/types.ts): that is the budget its kit is priced against, and tiering
+   * only ever goes up. So locking EVERY action above the card's own tier does not
+   * make a Gold-minimum card — it makes a card that is sold at Bronze, priced
+   * against the Bronze budget, and does nothing at all when cast. That is the
+   * silent-under-budget shape the CAP-HIT escape hatch already taught this
+   * codebase to distrust, and the fix is one word in the data: author the card at
+   * the tier it actually starts existing at.
+   */
+  if (Array.isArray(raw.effects) && raw.effects.length > 0 && raw.aura === undefined && cardTier !== undefined) {
+    const locks = raw.effects.map((a) => (isObj(a) && typeof a.minTier === 'string' ? a.minTier : ''));
+    if (locks.every((lock) => lock !== '' && TIERS.indexOf(lock) > TIERS.indexOf(cardTier))) {
+      let lowest = locks[0]!;
+      for (const lock of locks) if (TIERS.indexOf(lock) < TIERS.indexOf(lowest)) lowest = lock;
+      problems.push({
+        where,
+        message: 'every effect is locked above ' + cardTier + ', so this card does nothing at the tier it is priced against'
+          + ' — author it as tier: ' + lowest + ' (a card has no copy below its own tier) or unlock one line',
+      });
+    }
+  }
   if (raw.aura !== undefined) validateAura(raw.aura, where, problems);
 
-  if (Array.isArray(raw.effects)) raw.effects.forEach((a, i) => validateAction(a, where + '.effects[' + String(i) + ']', problems));
+  if (Array.isArray(raw.effects)) {
+    raw.effects.forEach((a, i) => validateAction(
+      a, where + '.effects[' + String(i) + ']', problems,
+      { list: 'base', ...(cardTier !== undefined ? { authoredAt: cardTier } : {}) },
+    ));
+  }
 
   /**
    * AN AUTHORED `scope: 'all'` + `splash` CARD IS REJECTED (user-locked
@@ -855,6 +951,33 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
   rejectSpreaderWithNothingToSpread(raw.effects, where, problems);
   rejectRiderMisordering(raw.effects, where, problems);
   rejectSelfChain(raw.element ?? raw.weapon, raw.effects, where, problems);
+  /**
+   * A TIER LOCK MAKES THE BASE LIST TIER-DEPENDENT, so the whole-card rules
+   * above have to be re-asked per tier. All four judge a LIST, and a lock only
+   * ever REMOVES entries from it — which is exactly how a list that passes as
+   * authored can fail at a lower rank: lock the `burden` and leave the `splash`
+   * and the Bronze copy is a spreader with nothing to spread; lock the poison a
+   * `stackBonus` reads and the Bronze copy pays for a rider that reads 0.
+   *
+   * Gated on "does any action carry a lock" so a book with no locked card walks
+   * nothing extra and cannot change behaviour. The tiers audited are the ones the
+   * card can actually reach — at or above its own `tier` (`cardExistsAtTier`);
+   * below that there is no copy to be wrong.
+   */
+  if (Array.isArray(raw.effects) && raw.effects.some((a) => isObj(a) && a.minTier !== undefined)) {
+    const from = cardTier === undefined ? 0 : TIERS.indexOf(cardTier);
+    for (let t = Math.max(0, from); t < TIERS.length; t += 1) {
+      const tier = TIERS[t]!;
+      const atTier = raw.effects.filter((a) => !isObj(a) || typeof a.minTier !== 'string'
+        || TIERS.indexOf(tier) >= TIERS.indexOf(a.minTier));
+      if (atTier.length === raw.effects.length) continue;
+      const at = where + ' at ' + tier;
+      rejectAoeUnitScoped(raw.scope, atTier, at);
+      rejectSpreaderWithNothingToSpread(atTier, at, problems);
+      rejectRiderMisordering(atTier, at, problems);
+      rejectSelfChain(raw.element ?? raw.weapon, atTier, at, problems);
+    }
+  }
   if (isObj(raw.tierUpgrades)) {
     for (const [tier, up] of Object.entries(raw.tierUpgrades)) {
       if (!isObj(up)) continue;
@@ -872,6 +995,15 @@ function validateDef(raw: Record<string, unknown>, where: string, problems: Cont
       for (const [tier, up] of Object.entries(raw.tierUpgrades)) {
         if (tier === 'bronze') { problems.push({ where, message: 'tierUpgrades cannot override bronze — bronze IS the authored base' }); continue; }
         if (!TIERS.includes(tier)) { problems.push({ where, message: 'tierUpgrades key ' + tier + ' is not a tier' }); continue; }
+        // ...NOR ANY OTHER TIER AT OR BELOW THE CARD'S OWN. `applyTier` never
+        // scales downward, so a block at or below the base tier is unreachable —
+        // the generalisation of the bronze rule above, which is exactly this case
+        // for the all-Bronze book, and the rule a Gold-minimum card needs
+        // (`tierUpgrades.silver` on a Gold card is dead authoring).
+        if (cardTier !== undefined && TIERS.indexOf(tier) <= TIERS.indexOf(cardTier)) {
+          problems.push({ where, message: 'tierUpgrades.' + tier + ' is at or below this card\'s own tier (' + cardTier + ') — a card has no copy below its own tier, so the block is unreachable' });
+          continue;
+        }
         validateTierUpgrade(up, where + '.tierUpgrades.' + tier, problems);
       }
       // SCOPE MUST CARRY UPWARD. `applyTier` always scales from the BASE def:

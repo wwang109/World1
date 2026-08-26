@@ -1,4 +1,4 @@
-import type { Action, Archetype, Element, Property, SkillDef, SkillTier, WeaponType } from '../../engine/types';
+import { tierResolved, type Action, type Archetype, type Element, type Property, type SkillDef, type SkillTier, type WeaponType } from '../../engine/types';
 import { MAX_WARD_CHARGES, weightOf } from '../../engine/types';
 import { burnTotalDamage } from '../../engine/balance';
 import { IDENTITY_THRESHOLD } from '../../engine/combat/typeIdentity';
@@ -452,8 +452,14 @@ function plainKeywordEntry(action: Action, property: Property, ownType?: Element
   }
 }
 
-/** Glossary entries for every mechanical keyword this card's effects use. */
-export function skillKeywordEntries(skill: SkillDef): GlossaryEntry[] {
+/** Glossary entries for every mechanical keyword this card's effects use.
+ *
+ * Tier-lock resolved first, for the reason `summarizeEffectSegments` states
+ * (skillPresentation.ts): a keyword whose only source is a line locked above
+ * this copy's tier must not be explained on this copy's face. Idempotent — an
+ * already-resolved skill comes back by reference. */
+export function skillKeywordEntries(raw: SkillDef): GlossaryEntry[] {
+  const skill = tierResolved(raw);
   const entries: GlossaryEntry[] = [];
   const seen = new Set<string>();
   for (const action of skill.effects) {

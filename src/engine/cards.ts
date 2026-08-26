@@ -29,6 +29,8 @@ import {
   type CombatantStats,
   type Gem,
   type Property,
+  tierResolved,
+  TIER_ORDER,
   type SkillDef,
   type SkillTier,
 } from './types';
@@ -36,8 +38,6 @@ import {
 /** Fixed order for deterministic hero-stat folding (sums are commutative regardless). */
 const HERO_STATS: readonly BuffableStat[] = ['attack', 'magicPower', 'armor', 'magicResist', 'speed'];
 
-/** Low → high tier order (index = tier-steps above bronze). */
-const TIER_ORDER: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
 
 // `cleanse` joined the sink kinds (user-locked 2026-08-17): it is the one
 // `perUnit` (not `perUnitByProperty`) scalable, growing its own `charges`
@@ -93,6 +93,54 @@ export function autoScaleTier(def: SkillDef, targetTier: SkillTier): SkillDef {
   const budget = TIER_BUDGET_DECI[targetTier];
   const property = def.property;
   const effects = def.effects;
+
+  // ------------------------------------------------------------------------
+  // WHAT THE TWO GATES DO HERE, AND WHY THEY DIFFER (user ruling 2026-08-26:
+  // "we should have the cards tier up allowed to remove extra PL to fit in
+  // higher tier effect that might cost more PL, so reducing some effect at
+  // higher tier to gain new ones").
+  //
+  // In the data an affinity gate and a tier lock look almost identical — a flag
+  // on one action. They get OPPOSITE treatment here, and the deciding question
+  // is whether the payload is GUARANTEED to the owner of this copy:
+  //
+  //  • AFFINITY (`affinity: true`) — CONDITIONAL. It fires only on a board with
+  //    `IDENTITY_THRESHOLD` cards of the card's own type. So its payload is
+  //    FROZEN in both buckets below and the always-on line absorbs the whole
+  //    tier delta: NO TRADE. Paying for a conditional payload out of the
+  //    guaranteed one means the player who cannot open the gate bought a strict
+  //    downgrade, and the shop sells tiers for gold. That is not hypothetical —
+  //    it shipped (`wildfire_rite`, damage 32 -> 16 at Silver; see the DoT note
+  //    below).
+  //
+  //  • TIER LOCK (`minTier`) — UNCONDITIONAL at and above its tier: every owner
+  //    of that rank gets it, every cast, on every board. So it is NOT frozen and
+  //    needs no rule at all here — by the time the solver runs, `applyTier` has
+  //    already stripped it below its lock and left it an ORDINARY action at and
+  //    above it. It therefore competes for the same budget as everything else,
+  //    and the sink line may legitimately SHRINK to afford it. THAT IS THE TRADE,
+  //    and it is honest precisely because the payload is guaranteed: the player
+  //    reads the exchange on the card face and decides.
+  //
+  // Stated as one rule: conditional payload => no trade; unconditional payload
+  // => trade allowed. Anything that makes a CONDITIONAL effect scale, or a
+  // tier-locked one freeze, has this backwards.
+  //
+  // THE ONE CASE WHERE BOTH FLAGS MEET, and it is deliberate. An action that is
+  // gated AND locked (`{ affinity: true, minTier: 'diamond' }` — the five Diamond
+  // capstones' shape) COMES INTO EXISTENCE at its lock tier, so it is paid for out
+  // of that tier's whole budget and the base line does shrink to afford it. Note
+  // the difference from the freeze above: the freeze forbids GROWING a payload
+  // that already exists at the lower rank, because nothing about the card changed
+  // except the number. A capstone is a different transaction — the card gains an
+  // ability it did not have, at the TOP tier, with both halves printed on the face
+  // (`affinity.test.ts`: "the capstone face states BOTH numbers, so the shop
+  // choice is legible" / "the capstone really is a TRADE"). It is a conditional
+  // trade, which is why the design confines it to Diamond and to a legible face
+  // rather than allowing it at every rank. `guaranteedPowerLevelDeci` (balance.ts)
+  // is the measure that makes a conditional rank-up visible instead of implicit,
+  // and `tests/engine/tierLock.test.ts` pins exactly which cards take it.
+  // ------------------------------------------------------------------------
 
   // GATED DoT LINES ARE FROZEN TOO — same rule, same reason as the gated sinks
   // below (bug fix 2026-08-26). The DoT bucket grows GREEDILY toward its family
@@ -273,16 +321,58 @@ function retextScaledNumbers(text: string, before: readonly Action[], after: rea
 }
 
 /**
- * Rank/tier-up dispatch (resolver-seam). A target at or below the base tier is
- * a no-op (same reference). An authored `tierUpgrades` entry for the target
- * tier wins verbatim (spread over the base); otherwise the budget-honest
- * `autoScaleTier` runs.
+ * Rank/tier-up dispatch (resolver-seam). A target at or below the base tier
+ * scales nothing (and returns the same reference for a card with no tier lock).
+ * An authored `tierUpgrades` entry for the target tier wins verbatim (spread
+ * over the base); otherwise the budget-honest `autoScaleTier` runs.
+ *
+ * THE TIER LOCK IS RESOLVED FIRST, ON EVERY PATH (`tierResolved`, types.ts): the
+ * def handed onward carries only the actions that exist at `targetTier`, so a
+ * locked action is priced, solved, capped, rendered and cast exactly as if the
+ * card had never listed it below its lock — and as an ordinary action at and
+ * above it. Nothing further down learns what a lock is; see `TierLocked`.
+ *
+ * Note the no-op path resolves at the card's OWN tier, not at `targetTier`: a
+ * Bronze card asked for its Bronze form must still drop its Diamond-locked
+ * lines. This is also the path a piece with no explicit tier takes through
+ * `resolveEffectiveSkill`.
+ *
+ * A REQUEST BELOW THE CARD'S MINIMUM CLAMPS UP, IT DOES NOT STAMP DOWN. A card's
+ * minimum tier is its own `tier` (`cardExistsAtTier`, types.ts): tiering only
+ * goes up, so a card authored at Gold has no Bronze form. Asked for one, this
+ * returns the card AT GOLD — `tier` still reads `gold`, so `powerLevelDeci`,
+ * `isOnBudget` and every audit still price it against the Gold budget and the
+ * card can never silently appear to be a cheap copy of itself. What it is NOT is
+ * a refusal: throwing here would turn a run-layer filtering mistake into a dead
+ * scene (the wiki's tier picker calls this directly). The layers that CHOOSE a
+ * (card, tier) pair — shop stock, draft pools, the wiki picker — must filter on
+ * `cardExistsAtTier` instead; see its doc comment.
+ *
+ * A PARTIAL `tierUpgrades` BLOCK NOW STILL SCALES (2026-08-26). An authored
+ * block used to win verbatim even when it did not restate `effects`, which
+ * silently froze the card's numbers at their base values for that tier. That
+ * mattered little while every block restated its whole kit; with tier locks it
+ * is the difference between a usable feature and none, because a locked line
+ * still needs per-tier TEXT ("{{Affinity}} Lightning — hit again for 48") and
+ * authoring that text must not cost the author the auto-scaler as well. So an
+ * override that does not restate `effects` is treated as a PARTIAL override:
+ * the scaler solves the numbers, then the block's own fields (text / aura /
+ * scope / weight / cooldown) are spread on top. An override that DOES restate
+ * `effects` still wins verbatim — it is the deliberate escape hatch, and the
+ * author has taken responsibility for the whole kit.
+ *
+ * BYTE-IDENTICAL FOR TODAY'S CONTENT: the only cards with an effects-less block
+ * are the three pure-aura cards (`mending_aura`, `spotters_mark`, `war_banner`),
+ * whose kits have no sink and no DoT — so `autoScaleTier` returns their base kit
+ * with only `tier` bumped, and the block's `aura`/`text` then land on top exactly
+ * as before.
  */
 export function applyTier(def: SkillDef, targetTier: SkillTier): SkillDef {
-  if (TIER_ORDER.indexOf(targetTier) <= TIER_ORDER.indexOf(def.tier)) return def;
+  if (TIER_ORDER.indexOf(targetTier) <= TIER_ORDER.indexOf(def.tier)) return tierResolved(def);
   const override = def.tierUpgrades?.[targetTier as Exclude<SkillTier, 'bronze'>];
-  if (override) return { ...def, tier: targetTier, ...override };
-  return autoScaleTier(def, targetTier);
+  if (override?.effects) return tierResolved({ ...def, tier: targetTier, ...override }, targetTier);
+  const scaled = autoScaleTier(tierResolved(def, targetTier), targetTier);
+  return override ? { ...scaled, ...override } : scaled;
 }
 
 /**
@@ -645,7 +735,11 @@ function spliceGemActions(host: SkillDef, gemActions: readonly Action[]): Action
 export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece): SkillDef {
   // Rank/tier-up first (scales the base card), THEN fold the gem on top — a
   // gem's own actions are never tier-scaled.
-  const tiered = piece.tier ? applyTier(def, piece.tier) : def;
+  // ALWAYS through `applyTier`, even with no piece tier: it is also where the
+  // TIER LOCK is resolved, and an untiered piece plays the card's own tier —
+  // which must still drop any line locked above it. Same reference back for a
+  // card with no lock, so an un-featured piece resolves byte-identically.
+  const tiered = applyTier(def, piece.tier ?? def.tier);
   const gem = piece.gem;
   if (!gem || gem.kind !== 'effect') return tiered;
   const cooldownReduction = gem.cooldownReduction ?? 0;
