@@ -22,9 +22,11 @@ import {
   powerLevelDeci,
   RARITY_PL_DECI,
   TIER_BUDGET_DECI,
+  HIT_KINDS,
 } from '../../src/engine/balance';
+import { applyTier } from '../../src/engine/cards';
 import { skillBook } from '../../src/data/skills';
-import { BASELINE_COOLDOWN, type Gem, type SkillDef } from '../../src/engine/types';
+import { BASELINE_COOLDOWN, cardExistsAtTier, TIER_ORDER, type Gem, type SkillDef, type SkillTier } from '../../src/engine/types';
 import { BOSS_EVERY } from '../../src/run/runMap';
 import { PACK_VARIANT_WEIGHTS } from '../../src/run/encounter';
 
@@ -93,8 +95,10 @@ import { PACK_VARIANT_WEIGHTS } from '../../src/run/encounter';
 // recoup up to 300 deci/30 PL by cooldownTurns 6, when the marginal turns are
 // NOT equally weakening — see balance.ts for the fight-length-derived 5:3:2
 // ratio and the 100-deci total-refund anchor). `cooldownPerTurn` itself is
-// UNCHANGED and now prices the SHORT (cost) side only. NO shipped card moved
-// (0/74 override `cooldownTurns`).
+// UNCHANGED and now prices the SHORT (cost) side only. No shipped card moved at
+// the time (0/74 overrode `cooldownTurns`); the FIRST overrides landed
+// 2026-08-26 — the four size-1 AoE tier gates buy their reach with this refund's
+// first step (see `PRICE.cooldownRefundStepDeci` and those cards' notes).
 // 2026-08-21: THE SPLASH SPLIT. `splashPerWeightNum/Den` (5/1) REMOVED and
 // replaced by `burdenPerWeightNum/Den` (5/2 — slow's own per-point rate, for
 // the weight tax on ONE card) plus a spreader price (below).
@@ -781,15 +785,119 @@ describe('Power Level breakdown', () => {
     }
   });
 
-  // User-locked 2026-07-19: rules are whole-PL per clean unit and cards must
-  // CONFORM — every priced part of every card lands on a whole PL. If this
-  // fails, fix the card's effect magnitudes, never the rates.
-  it('every priced part of every card is a WHOLE power level', () => {
-    for (const skill of Object.values(skillBook)) {
-      for (const part of powerLevelBreakdown(skill)) {
-        expect(Math.abs(part.deci % 10), `${skill.id}: ${part.label} = ${part.deci / 10} PL must be whole`).toBe(0);
+  /**
+   * THE WHOLE-PL SWEEP — every card, at EVERY TIER IT CAN REACH, not just the
+   * authored Bronze kit.
+   *
+   * User-locked 2026-07-19: rates are whole-PL per clean unit and CARDS must
+   * conform — every priced part of every card lands on a whole PL. If this
+   * fails, fix the card's effect magnitudes, never the rates.
+   *
+   * WHY IT SWEEPS TIERS NOW (2026-08-26). It used to price `skillBook`'s base
+   * `effects` only, so the entire tier ladder — `tierUpgrades` blocks AND
+   * `autoScaleTier`'s solved magnitudes — was unaudited, and ELEVEN cards had
+   * rotted above Bronze: `barrage`/`overgrowth` (the auto-scaler splits a
+   * two-sink kit evenly and landed on an ODD magnitude, 41 = 20.5 PL),
+   * `penitent_mending`/`vow_broken` (hand-authored rider ladders on odd caps and
+   * odd charge counts), the five AoE tier gates (an odd damage/shield power, and
+   * `sword_slash`'s 'aoe reach' part itself at 3.5 PL — a part that can only
+   * EXIST above Bronze, since no base card sets `scope`). Each was a real
+   * fractional price the Bronze-only sweep could not see.
+   *
+   * Three assertions share the one sweep, because all three are properties of
+   * "the copy a player actually buys" and each needs the same resolved card:
+   *  1. WHOLE PARTS — every `powerLevelBreakdown` part is a multiple of 10 deci.
+   *  2. BUDGET EXACTNESS — the resolved kit prices to its tier budget EXACTLY
+   *     (`BUDGET_TOLERANCE_DECI` is 0). A rank whose numbers do not solve is a
+   *     card sold at the wrong price, the same defect class as a fractional part.
+   *  3. NO DOWNGRADE — the always-on output value never falls rank to rank.
+   */
+  const REACHABLE = (card: SkillDef): SkillTier[] => TIER_ORDER.filter((t) => cardExistsAtTier(card, t));
+
+  /**
+   * WHAT A RANK ACTUALLY DELIVERS, in deci-PL: the price of the card's
+   * UNCONDITIONAL effects at that rank, reach multiplier included.
+   *
+   * `powerLevelDeci` is the wrong measure for a downgrade — it always equals the
+   * tier budget (assertion 2 above pins exactly that), so "did it get better?" is
+   * vacuously true. And `guaranteedPowerLevelDeci` (the measure
+   * `tests/engine/tierLock.test.ts` uses for the TRADE rule) is that same
+   * budget-pinned number minus the gated lines, so it cannot see budget leaking
+   * out of the EFFECTS and into the structural refunds — a rank that bought its
+   * new numbers by getting heavier or by taking a longer cooldown. Pricing the
+   * effect list alone is what catches that: weight, cooldown and the size grant
+   * are excluded, so they cannot pay for an output that shrank.
+   *
+   * Gated lines are excluded for the reason the shipped `wildfire_rite` bug
+   * (Bronze damage 33 -> Silver 17, the delta spent on an affinity-gated burn)
+   * exists at all: a payload only some boards can trigger is not something every
+   * buyer of that rank receives, so it must not count toward what the rank
+   * guarantees. A tier-LOCKED line does count — at its rank it fires for everyone.
+   */
+  const alwaysOnOutputDeci = (skill: SkillDef): number =>
+    actionsPriceDeci(skill.effects.filter((a) => a.affinity !== true), skill.property, skill.scope, skill.effects);
+
+  /**
+   * The ONE allowed exception, DERIVED from the content rather than hand-listed:
+   * the Diamond capstones, whose authored top-tier block trades base damage for
+   * an affinity-gated second hit with both numbers on the face (see
+   * `tests/engine/affinity.test.ts` and `tierLock.test.ts`, which pin that there
+   * are exactly five and that they are Diamond-only). A conditional rank-up is a
+   * deliberate design that must stay VISIBLE; anything else that falls is a scam.
+   */
+  const CAPSTONE_IDS = new Set(
+    Object.values(skillBook)
+      .filter((card) => Object.values(card.tierUpgrades ?? {})
+        .some((up) => (up.effects ?? []).some((a) => a.affinity === true && HIT_KINDS.has(a.kind))))
+      .map((card) => card.id),
+  );
+
+  it('every priced part of every card is a WHOLE power level, at EVERY tier', () => {
+    const fractional: string[] = [];
+    let checked = 0;
+    for (const card of Object.values(skillBook)) {
+      for (const tier of REACHABLE(card)) {
+        checked += 1;
+        for (const part of powerLevelBreakdown(applyTier(card, tier))) {
+          if (part.deci % 10 !== 0) fractional.push(`${card.id}@${tier}: ${part.label} = ${part.deci / 10} PL`);
+        }
       }
     }
+    expect(fractional, `fractional priced parts (fix the CARD's numbers, never the rates):\n${fractional.join('\n')}`).toEqual([]);
+    // NON-VACUITY: the sweep must really reach every rank of every card, or a
+    // future filter bug would make this test pass by checking nothing.
+    expect(checked, 'the sweep must cover 4 tiers of every card').toBe(Object.keys(skillBook).length * 4);
+  });
+
+  it('every card lands EXACTLY on its tier budget, at EVERY tier', () => {
+    const off: string[] = [];
+    for (const card of Object.values(skillBook)) {
+      for (const tier of REACHABLE(card)) {
+        const deci = powerLevelDeci(applyTier(card, tier));
+        if (Math.abs(deci - TIER_BUDGET_DECI[tier]) > BUDGET_TOLERANCE_DECI) {
+          off.push(`${card.id}@${tier}: ${deci / 10} PL vs budget ${TIER_BUDGET_DECI[tier] / 10} PL`);
+        }
+      }
+    }
+    expect(off, `off-budget ranks:\n${off.join('\n')}`).toEqual([]);
+  });
+
+  it('a rank-up is never a DOWNGRADE — always-on output never falls tier to tier', () => {
+    const downgrades: string[] = [];
+    for (const card of Object.values(skillBook)) {
+      const tiers = REACHABLE(card);
+      let previous: number | undefined;
+      for (const tier of tiers) {
+        const now = alwaysOnOutputDeci(applyTier(card, tier));
+        if (previous !== undefined && now < previous && !CAPSTONE_IDS.has(card.id)) {
+          downgrades.push(`${card.id}@${tier}: always-on output ${previous / 10} -> ${now / 10} PL`);
+        }
+        previous = now;
+      }
+    }
+    expect(downgrades, `a higher tier is a PURCHASE — these ranks deliver less than the rank below:\n${downgrades.join('\n')}`).toEqual([]);
+    // The allowlist must stay small and real: five authored Diamond capstones.
+    expect(CAPSTONE_IDS.size, 'the capstone allowlist must not silently grow').toBe(5);
   });
 });
 

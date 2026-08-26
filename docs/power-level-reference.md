@@ -269,9 +269,13 @@ offensive action inherits its HOST's `scope` for targeting (an echo of an AoE
 host fans out too — see `echoHostPower` in `src/engine/types.ts`), but
 `gemPowerLevelDeci` stays host-blind to AoE reach (it never sees the host's
 `scope`, matching how it never sees the host's `property` either). No shipped
-card sets `scope: 'all'` today, so no gem's action can combine with an AoE
-host in the current catalog — this is a latent gap for a future gem, not a
-live mispricing.
+card sets `scope: 'all'` at BRONZE — but five do from Gold up (the AoE tier
+gates: `sword_slash`, `shadow_bolt`, `chain_spark`, `concussive_shot`,
+`crushing_blow`), so a gem socketed into a Gold+ copy of one of those DOES
+combine with an AoE host today and its appended offensive action fans out
+unpriced. The gap is live, not latent; sizing the fix (a host-aware reach term
+at the instance level, or a refusal) is balance-designer's call and is
+untouched by the 2026-08-26 whole-PL re-solve, which only moved card numbers.
 
 ## `cooldown` pricing rationale
 
@@ -288,8 +292,9 @@ fires with stride `cooldown + 1` (baseline 3 → every 4th turn).
 fight, close to a whole Bronze card's worth of power, so it is priced like
 one. Baseline (cooldownTurns omitted) prices at exactly +0, so every existing
 card is unaffected. At this rate NO gem rarity budget (2-8 PL) can afford even
-−1 turn, and no card in the shipped catalog overrides `cooldownTurns` — the
-rate exists to price any future exception honestly.
+−1 turn, and no card in the shipped catalog BUYS a shorter cooldown — the
+rate exists to price any future exception honestly. (The LONG, refunding side
+does have shipped users since 2026-08-26 — see below.)
 
 **The LONG side (a longer-than-baseline cooldown, which REFUNDS PL) no longer
 shares this flat rate** (balance-designer pass, 2026-08-19, issue #22): a flat
@@ -308,7 +313,11 @@ turn is itself diminishing (0.380 : 0.253 : 0.181 ≈ 5 : 3 : 2 across the
 exactly `cooldownPerTurn` (100 deci) — the SAME "one whole extra cast" value
 the short side charges to BUY a cast, since by `cooldownTurns` 6 the card has
 symmetrically LOST one whole cast relative to baseline. No shipped card moved
-(0/74 override `cooldownTurns`). Full derivation:
+when the rate landed (0/74 overrode `cooldownTurns`); the first users arrived
+2026-08-26, when the four size-1 AoE tier gates (`sword_slash`, `shadow_bolt`,
+`chain_spark`, `concussive_shot`) bought their Gold/Diamond reach with this
+refund's first step — a whole-PL AoE share costs 250 deci after the reach
+multiplier, so a size-1 card at Gold has to refund exactly 50. Full derivation:
 `src/engine/balance.ts`'s `PRICE.cooldownRefundStepDeci` doc comment.
 
 ## Socket / Gem PL accounting

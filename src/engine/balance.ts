@@ -168,9 +168,10 @@ export const PRICE = {
    * Priced at 100 deci (10 PL) per turn on the SHORT side — user-locked 2026-07-19: a shorter
    * cooldown is a full extra cast over the course of a fight, close to a
    * whole Bronze card's worth of power, so it is priced like one. At this
-   * rate NO gem rarity budget (2-8 PL) can afford even −1 turn, so nothing
-   * in the current content deviates from the fixed baseline 3; the rate
-   * exists to price any future exception honestly.
+   * rate NO gem rarity budget (2-8 PL) can afford even −1 turn, and no card
+   * or gem in the current content BUYS a shorter cooldown; the rate exists to
+   * price any future exception honestly. (Content does now use the LONG,
+   * refunding side — see `cooldownRefundStepDeci` below.)
    *
    * THE LONG SIDE IS CLAMPED (2026-08-17, fail-open close): this rate is
    * only honest for a deviation that actually removes/adds a cast. Read
@@ -227,6 +228,14 @@ export const PRICE = {
    * this table): 50 / 30 / 20 deci for the 1st / 2nd / 3rd extra turn —
    * cumulative 50 -> 80 -> 100 deci (5 -> 8 -> 10 PL) at cooldownTurns 4 / 5
    * / 6, down from the old flat 100 -> 200 -> 300.
+   *
+   * NO shipped card used it until 2026-08-26 (the pass note above said 0/74).
+   * The FIRST users are the four size-1 AoE tier gates (`sword_slash`,
+   * `shadow_bolt`, `chain_spark`, `concussive_shot`): with every priced part a
+   * whole PL, the smallest offensive share an AoE card can carry is 190 deci,
+   * which costs 250 after `aoeTargetsNum/Den` — all of Diamond — so at Gold a
+   * size-1 card (no size grant to lean on) must refund exactly 50 deci, and
+   * this table's FIRST STEP is exactly that number. See those cards' notes.
    */
   cooldownRefundStepDeci: [50, 30, 20] as readonly number[],
 

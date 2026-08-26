@@ -25,7 +25,8 @@
   "with another ward card's \\u2014 see the per-card notes below for how that",
   "shaped Aegis of the Unbroken.",
   "Hybrid + depth pass (2026-08-18b): deepened ward/thorns/bleed/poison and authored keyword-pair bridges the user asked for by name (heal+thorns, shield+thorns) plus the heal -> ward -> thorns chain (sanctum_thorn, bramblemend, warded_reprisal, bulwark_thicket, unbreakable_stance, umbral_ward, thorn_shackle, mortal_wound, barbed_rampart, crippling_gore, poison_bloom, poison_ritual, evasive_cordon). See content-designer notes on each card for its balance derivation.",
-  "Affinity reachability pass (2026-08-26): +7 gated cards outside offense (rustbind_hex, blooded_fang, hoarfrost_creed, pikewall_oath, sanctified_vigil, oathplate, graveside_rite). The keyword shipped 16 offense + 1 healing gated cards, so the Alchemist (debuff) and Bulwark (defensive/support) shelves offered one 0.0% of the time over 500 measured rolls. These add gated debuffStat / bleed / expose / guard / ward / attunedShield / cleanse \u2014 seven families the gate had never been attached to. See each card's notes for its budget derivation."
+  "Affinity reachability pass (2026-08-26): +7 gated cards outside offense (rustbind_hex, blooded_fang, hoarfrost_creed, pikewall_oath, sanctified_vigil, oathplate, graveside_rite). The keyword shipped 16 offense + 1 healing gated cards, so the Alchemist (debuff) and Bulwark (defensive/support) shelves offered one 0.0% of the time over 500 measured rolls. These add gated debuffStat / bleed / expose / guard / ward / attunedShield / cleanse \u2014 seven families the gate had never been attached to. See each card's notes for its budget derivation.",
+  "Whole-PL-at-every-tier re-solve (2026-08-26): the whole-PL-parts invariant was only ever swept over BASE `effects`, so 11 cards shipped fractional parts above Bronze (barrage, chain_spark, concussive_shot, crushing_blow, overgrowth, penitent_mending, rapid_volley, shadow_bolt, sword_slash, twin_slash, vow_broken). Every tier of every card is now swept by tests/engine/balance.ts's whole-PL test, which also asserts budget exactness and output monotonicity per rank. See each card's notes for its re-solve."
  ],
  "cards": [
   {
@@ -278,9 +279,17 @@
       "name": "Barrage",
       "text": "Deal 24 (+ATK) Bow damage, twice. Heavier and slower (weight 26).",
       "notes": [
-       "Each hit priced alone must be a whole PL (24*5=120 deci = 12 PL): 2 hits",
-       "(240) + extraHit premium (30) + weight26 heavier refund (-30) + size2",
-       "grant (-140) = 100."
+       "TWO HITS, AND EACH HIT IS PRICED ALONE, so each hit's power must be EVEN",
+       "(flatPowerPerPoint = 5 deci: an odd power prices at x.5 PL). A two-hit card",
+       "can therefore only move its damage line in 20-deci steps, while the tier",
+       "budgets step by 50 - so the residue alternates rank to rank and NO pair of",
+       "EQUAL hits is whole at all four tiers. Gold and Diamond are authored with the",
+       "two hits TWO APART, the smallest move that keeps both parts whole; the card is",
+       "unchanged in every other respect (two heavy bow hits, weight 26, size 2).",
+       "Bronze  24 + 24 (240) + extraHit (30) + weight 26 refund (-30) - size-2 grant (140) = 100.",
+       "Silver  32 + 32 (320) + 30 - 30 - 170 = 150 (auto-scaler; equal hits land whole at this rank).",
+       "Gold    42 + 40 (410) + 30 - 30 - 210 = 200.",
+       "Diamond 50 + 48 (490) + 30 - 30 - 240 = 250."
       ],
       "archetypes": [
        "offense"
@@ -300,7 +309,35 @@
         "kind": "damage",
         "power": 24
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 42
+         },
+         {
+          "kind": "damage",
+          "power": 40
+         }
+        ],
+        "text": "Deal 42 (+ATK) Bow damage, then 40 again. Heavier and slower (weight 26)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 50
+         },
+         {
+          "kind": "damage",
+          "power": 48
+         }
+        ],
+        "text": "Deal 50 (+ATK) Bow damage, then 48 again. Heavier and slower (weight 26)."
+       }
+      }
      }
     }
    ]
@@ -648,14 +685,24 @@
        "AOE TIER GATE (2026-08-18): the elemental-blast case done as a CHAIN \u2014",
        "the spark literally arcs to every foe at Gold+, lightning's most",
        "on-theme AoE identity. `slow` (control, also `offensive`) stays FROZEN",
-       "at its Bronze `weight: 8` at every tier and pays the same reach",
-       "multiplier as damage when summed (floor((105+20) x 33/25) = 165 deci) \u2014",
-       "well under the flat size-1 control cap (100 deci) even after reach.",
-       "Silver is left to the auto-scaler. damage 21 is the offensive share,",
-       "held FLAT across Gold/Diamond; an unmultiplied shield closes the",
-       "remainder both tiers:",
-       "Gold    (damage 21 + slow 8) reach 165 + shield  7 (35) = 200 exact.",
-       "Diamond (damage 21 + slow 8) reach 165 + shield 17 (85) = 250 exact."
+       "at its Bronze `weight: 8` at every tier and pays the reach multiplier",
+       "alongside the damage. Silver is left to the auto-scaler.",
+       "WHY THE SWEEP COSTS A COOLDOWN TURN (re-solved 2026-08-26 \u2014 the old Gold/",
+       "Diamond blocks were fractional). With every part a whole PL the offensive share",
+       "is a multiple of 10 deci, and the reach part (floor(share x 33/25) - share) is",
+       "only a whole PL when the share is 190, 220 or 250 deci (then +250n) \u2014 190 is the",
+       "SMALLEST legal offensive share an AoE card can carry. 190 costs 250 after reach,",
+       "which is all of DIAMOND, so at Gold (200) a size-1 card \u2014 no size grant to lean",
+       "on \u2014 must refund exactly 50 deci. The book's honest 50-deci refunds are one",
+       "extra cooldown turn (cooldownRefundStepDeci[0]) or +10 weight (weightPer); the",
+       "cooldown turn is the cheaper of the two in play (a 20% cadence loss against a",
+       "50% one) and it is the one that reads on the card face, so the sweep is authored",
+       "as cooldown 4 at Gold and Diamond both.",
+       "The frozen slow is 20 deci of that 190, so damage 34 (170) closes it:",
+       "Gold    damage 34 (170) + slow 8 (20) + reach (60) - cooldown 4 (50) = 200 exact.",
+       "Diamond same offense + shield 10 (50) - cooldown 4 (50) = 250 exact.",
+       "The slow's own family spend at reach is floor(20 x 33/25) = 26 deci, far",
+       "under the flat size-1 control cap (100 deci)."
       ],
       "archetypes": [
        "offense",
@@ -679,28 +726,26 @@
       "tierUpgrades": {
        "gold": {
         "scope": "all",
+        "cooldownTurns": 4,
         "effects": [
          {
           "kind": "damage",
-          "power": 21
+          "power": 34
          },
          {
           "kind": "slow",
           "weight": 8
-         },
-         {
-          "kind": "shield",
-          "power": 7
          }
         ],
-        "text": "Deal 21 (+MATK) Lightning damage and {{Slow}} every foe's next action by +8 weight \u00b7 Gain 7 (+MDEF) magical shield."
+        "text": "Deal 34 (+MATK) Lightning damage and {{Slow}} every foe's next action by +8 weight \u00b7 The arc is slow to come back around (cooldown 4)."
        },
        "diamond": {
         "scope": "all",
+        "cooldownTurns": 4,
         "effects": [
          {
           "kind": "damage",
-          "power": 21
+          "power": 34
          },
          {
           "kind": "slow",
@@ -708,10 +753,10 @@
          },
          {
           "kind": "shield",
-          "power": 17
+          "power": 10
          }
         ],
-        "text": "Deal 21 (+MATK) Lightning damage and {{Slow}} every foe's next action by +8 weight \u00b7 Gain 17 (+MDEF) magical shield."
+        "text": "Deal 34 (+MATK) Lightning damage and {{Slow}} every foe's next action by +8 weight \u00b7 Gain 10 (+MDEF) magical shield \u00b7 The arc is slow to come back around (cooldown 4)."
        }
       }
      }
@@ -902,19 +947,26 @@
        "disrupt 16 at the old flat 1-per-4 rate; 16 is now unaffordable at any",
        "tier \u2014 310 deci = 31 PL).",
        "AOE TIER GATE (2026-08-18): a control card going AoE \u2014 one shockwave",
-       "arrow staggering the whole enemy line at Gold+, \"far stronger than it",
-       "looks\" per the brief (disrupt is `offensive` too, so it fans out to",
-       "every foe under `scope: 'all'`, not just the one). `disrupt 6` stays",
-       "FROZEN at its Bronze bracket price (40 deci) at every tier \u2014 same rule",
-       "the auto-scaler already applies to every other control keyword \u2014 and",
-       "is checked against the (flat) size-1 control cap (100 deci) AT the AoE",
-       "reach price: floor(40 x 33/25) = 52 deci, comfortably under. Silver is",
-       "left to the auto-scaler. damage 17 is the offensive share alongside",
-       "disrupt (floor((85+40) x 33/25) = 165 deci \u2014 the two offensive terms",
-       "are summed and floored ONCE, per `actionsPriceDeci`), held FLAT across",
-       "Gold/Diamond; an unmultiplied shield closes the remainder both tiers:",
-       "Gold    (damage 17 + disrupt 6) reach 165 + shield  7 (35) = 200 exact.",
-       "Diamond (damage 17 + disrupt 6) reach 165 + shield 17 (85) = 250 exact."
+       "arrow staggering the whole enemy line at Gold+ (disrupt is `offensive`",
+       "too, so it fans out to every foe, not just the one). `disrupt 6` stays",
+       "FROZEN at its Bronze bracket price (40 deci) at every tier. Silver is",
+       "left to the auto-scaler.",
+       "WHY THE SWEEP COSTS A COOLDOWN TURN (re-solved 2026-08-26 \u2014 the old Gold/",
+       "Diamond blocks were fractional). With every part a whole PL the offensive share",
+       "is a multiple of 10 deci, and the reach part (floor(share x 33/25) - share) is",
+       "only a whole PL when the share is 190, 220 or 250 deci (then +250n) \u2014 190 is the",
+       "SMALLEST legal offensive share an AoE card can carry. 190 costs 250 after reach,",
+       "which is all of DIAMOND, so at Gold (200) a size-1 card \u2014 no size grant to lean",
+       "on \u2014 must refund exactly 50 deci. The book's honest 50-deci refunds are one",
+       "extra cooldown turn (cooldownRefundStepDeci[0]) or +10 weight (weightPer); the",
+       "cooldown turn is the cheaper of the two in play (a 20% cadence loss against a",
+       "50% one) and it is the one that reads on the card face, so the sweep is authored",
+       "as cooldown 4 at Gold and Diamond both.",
+       "The frozen disrupt is 40 deci of that 190, so damage 30 (150) closes it:",
+       "Gold    damage 30 (150) + disrupt 6 (40) + reach (60) - cooldown 4 (50) = 200 exact.",
+       "Diamond same offense + shield 10 (50) - cooldown 4 (50) = 250 exact.",
+       "The disrupt's own family spend at reach is floor(40 x 33/25) = 52 deci,",
+       "comfortably under the flat size-1 control cap (100 deci)."
       ],
       "archetypes": [
        "offense",
@@ -938,28 +990,26 @@
       "tierUpgrades": {
        "gold": {
         "scope": "all",
+        "cooldownTurns": 4,
         "effects": [
          {
           "kind": "damage",
-          "power": 17
+          "power": 30
          },
          {
           "kind": "disrupt",
           "amount": 6
-         },
-         {
-          "kind": "shield",
-          "power": 7
          }
         ],
-        "text": "Deal 17 (+ATK) Bow damage and {{Disrupt}} 6 banked readiness from ALL foes \u00b7 Gain 7 (+DEF) physical shield."
+        "text": "Deal 30 (+ATK) Bow damage and {{Disrupt}} 6 banked readiness from ALL foes \u00b7 The shockwave is slow to come back around (cooldown 4)."
        },
        "diamond": {
         "scope": "all",
+        "cooldownTurns": 4,
         "effects": [
          {
           "kind": "damage",
-          "power": 17
+          "power": 30
          },
          {
           "kind": "disrupt",
@@ -967,10 +1017,10 @@
          },
          {
           "kind": "shield",
-          "power": 17
+          "power": 10
          }
         ],
-        "text": "Deal 17 (+ATK) Bow damage and {{Disrupt}} 6 banked readiness from ALL foes \u00b7 Gain 17 (+DEF) physical shield."
+        "text": "Deal 30 (+ATK) Bow damage and {{Disrupt}} 6 banked readiness from ALL foes \u00b7 Gain 10 (+DEF) physical shield \u00b7 The shockwave is slow to come back around (cooldown 4)."
        }
       }
      }
@@ -1074,13 +1124,18 @@
       "notes": [
        "AOE TIER GATE (2026-08-18): the mastery capstone for a size-3 axe swing",
        "is a cleave through the whole line \u2014 axe is the weapon literally named",
-       "for it. Silver is left to the auto-scaler. damage 113 is the offensive",
-       "share (floor(565 x 33/25) = 745 deci) held FLAT across Gold and",
-       "Diamond (the sweep's own reach doesn't grow further); an unmultiplied",
-       "shield absorbs the size-3 grant's own growth with tier PLUS the extra",
-       "50-deci budget:",
-       "Gold    damage 113 (565) + aoe reach (180) + shield  5 ( 25) \u2212 size3 grant (570) = 200 exact.",
-       "Diamond damage 113 (565) + aoe reach (180) + shield 33 (165) \u2212 size3 grant (660) = 250 exact."
+       "for it. Silver is left to the auto-scaler.",
+       "WHOLE-PL PARTS PIN THE CLEAVE (re-solved 2026-08-26 \u2014 the old damage 113",
+       "priced at 56.5 PL). With every part a whole PL the offensive share is a",
+       "multiple of 10 deci, and the reach part (floor(share x 33/25) - share) is only",
+       "a whole PL at shares of 190, 220, 250 (+250n) \u2014 here 500, i.e. damage 100.",
+       "Unlike the four size-1 gates this card needs no cooldown refund: its size-3",
+       "grant (570 at Gold, 660 at Diamond) is what pays for the reach.",
+       "damage 100 is held FLAT across Gold and Diamond (the sweep's own reach does",
+       "not grow further); an unmultiplied shield absorbs the grant's growth with",
+       "tier PLUS the extra 50-deci budget:",
+       "Gold    damage 100 (500) + reach (160) + shield 22 (110) - size-3 grant (570) = 200 exact.",
+       "Diamond damage 100 (500) + reach (160) + shield 50 (250) - size-3 grant (660) = 250 exact."
       ],
       "archetypes": [
        "offense"
@@ -1102,28 +1157,28 @@
         "effects": [
          {
           "kind": "damage",
-          "power": 113
+          "power": 100
          },
          {
           "kind": "shield",
-          "power": 5
+          "power": 22
          }
         ],
-        "text": "Deal 113 (+ATK) Axe damage to ALL foes \u00b7 Gain 5 (+DEF) physical shield."
+        "text": "Deal 100 (+ATK) Axe damage to ALL foes \u00b7 Gain 22 (+DEF) physical shield."
        },
        "diamond": {
         "scope": "all",
         "effects": [
          {
           "kind": "damage",
-          "power": 113
+          "power": 100
          },
          {
           "kind": "shield",
-          "power": 33
+          "power": 50
          }
         ],
-        "text": "Deal 113 (+ATK) Axe damage to ALL foes \u00b7 Gain 33 (+DEF) physical shield."
+        "text": "Deal 100 (+ATK) Axe damage to ALL foes \u00b7 Gain 50 (+DEF) physical shield."
        }
       }
      }
@@ -2594,7 +2649,59 @@
         "kind": "shield",
         "power": 18
        }
-      ]
+      ],
+      "notes": [
+       "A BIG HEAL PLUS A SMALLER BARK SHIELD - the 5:3 lean is the card, so every",
+       "rank is authored to keep it. Both sinks price at 5 deci/point, so each power",
+       "must be EVEN for its part to be a whole PL, and the auto-scaler cannot be used",
+       "here: it drives every sink to the SAME magnitude (which flattens the lean) and",
+       "at Gold/Diamond that shared magnitude is odd (41 / 49 = 20.5 / 24.5 PL).",
+       "Bronze  heal 30 (150) + shield 18 ( 90) - size-2 grant (140) = 100.",
+       "Silver  heal 40 (200) + shield 24 (120) - 170 = 150.",
+       "Gold    heal 52 (260) + shield 30 (150) - 210 = 200.",
+       "Diamond heal 62 (310) + shield 36 (180) - 240 = 250."
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 40
+         },
+         {
+          "kind": "shield",
+          "power": 24
+         }
+        ],
+        "text": "Restore 40 (+MDEF) HP \u00b7 Gain 24 (+MDEF) magical shield \u2014 a thorned bark ward."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 52
+         },
+         {
+          "kind": "shield",
+          "power": 30
+         }
+        ],
+        "text": "Restore 52 (+MDEF) HP \u00b7 Gain 30 (+MDEF) magical shield \u2014 a thorned bark ward."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 62
+         },
+         {
+          "kind": "shield",
+          "power": 36
+         }
+        ],
+        "text": "Restore 62 (+MDEF) HP \u00b7 Gain 36 (+MDEF) magical shield \u2014 a thorned bark ward."
+       }
+      }
      }
     }
    ]
@@ -2912,8 +3019,15 @@
       "name": "Rapid Volley",
       "text": "Deal 10 (+ATK) Bow damage, twice. Heavier and slower (weight 16).",
       "notes": [
-       "Each hit priced alone must be a whole PL (10*5=50 deci = 5 PL): 2 hits",
-       "(100) + extraHit premium (30) + weight16 heavier refund (-30) = 100."
+       "TWO HITS, EACH PRICED ALONE, so each power must be EVEN (5 deci/point). The",
+       "damage line therefore moves in 20-deci steps against tier budgets that step by",
+       "50, so equal hits cannot be whole at every rank - Silver and Diamond are",
+       "authored with the pair TWO APART (see `barrage`, same rule, same fix). Bronze",
+       "and Gold land whole on equal hits and are left to the auto-scaler.",
+       "Bronze  10 + 10 (100) + extraHit (30) + weight 16 refund (-30) = 100.",
+       "Silver  16 + 14 (150) + 30 - 30 = 150.",
+       "Gold    20 + 20 (200) + 30 - 30 = 200 (auto-scaler).",
+       "Diamond 26 + 24 (250) + 30 - 30 = 250."
       ],
       "archetypes": [
        "offense"
@@ -2933,7 +3047,35 @@
         "kind": "damage",
         "power": 10
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 16
+         },
+         {
+          "kind": "damage",
+          "power": 14
+         }
+        ],
+        "text": "Deal 16 (+ATK) Bow damage, then 14 again. Heavier and slower (weight 16)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 26
+         },
+         {
+          "kind": "damage",
+          "power": 24
+         }
+        ],
+        "text": "Deal 26 (+ATK) Bow damage, then 24 again. Heavier and slower (weight 16)."
+       }
+      }
      }
     }
    ]
@@ -3521,11 +3663,23 @@
       "notes": [
        "AOE TIER GATE (2026-08-18): a plain bolt widening into the whole enemy",
        "line at Gold+ \u2014 the pure \"elemental blast\" case. Silver is left to the",
-       "auto-scaler. damage 25 is the offensive share (floor(125 x 33/25) =",
-       "165 deci), held FLAT across Gold/Diamond; an unmultiplied shield closes",
-       "the remainder both tiers:",
-       "Gold    damage 25 (125) + aoe reach (40) + shield  7 (35)  = 200 exact.",
-       "Diamond damage 25 (125) + aoe reach (40) + shield 17 (85)  = 250 exact."
+       "auto-scaler.",
+       "WHY THE SWEEP COSTS A COOLDOWN TURN (re-solved 2026-08-26 \u2014 the old Gold/",
+       "Diamond blocks were fractional). With every part a whole PL the offensive share",
+       "is a multiple of 10 deci, and the reach part (floor(share x 33/25) - share) is",
+       "only a whole PL when the share is 190, 220 or 250 deci (then +250n) \u2014 190 is the",
+       "SMALLEST legal offensive share an AoE card can carry. 190 costs 250 after reach,",
+       "which is all of DIAMOND, so at Gold (200) a size-1 card \u2014 no size grant to lean",
+       "on \u2014 must refund exactly 50 deci. The book's honest 50-deci refunds are one",
+       "extra cooldown turn (cooldownRefundStepDeci[0]) or +10 weight (weightPer); the",
+       "cooldown turn is the cheaper of the two in play (a 20% cadence loss against a",
+       "50% one) and it is the one that reads on the card face, so the sweep is authored",
+       "as cooldown 4 at Gold and Diamond both.",
+       "damage 38 is the whole offensive share at both ranks:",
+       "Gold    offense 190 + reach (60) - cooldown 4 (50) = 200 exact.",
+       "Diamond offense 190 + reach (60) + shield 10 (50) - cooldown 4 (50) = 250 exact.",
+       "Diamond spends its whole step on the UNMULTIPLIED shield (support never pays the",
+       "reach multiplier), which is the same closer the pre-re-solve ladder used."
       ],
       "archetypes": [
        "offense"
@@ -3544,31 +3698,29 @@
       "tierUpgrades": {
        "gold": {
         "scope": "all",
+        "cooldownTurns": 4,
         "effects": [
          {
           "kind": "damage",
-          "power": 25
-         },
-         {
-          "kind": "shield",
-          "power": 7
+          "power": 38
          }
         ],
-        "text": "Deal 25 (+MATK) Dark damage to ALL foes \u00b7 Gain 7 (+MDEF) magical shield."
+        "text": "Deal 38 (+MATK) Dark damage to ALL foes \u00b7 The blast is slow to come back around (cooldown 4)."
        },
        "diamond": {
         "scope": "all",
+        "cooldownTurns": 4,
         "effects": [
          {
           "kind": "damage",
-          "power": 25
+          "power": 38
          },
          {
           "kind": "shield",
-          "power": 17
+          "power": 10
          }
         ],
-        "text": "Deal 25 (+MATK) Dark damage to ALL foes \u00b7 Gain 17 (+MDEF) magical shield."
+        "text": "Deal 38 (+MATK) Dark damage to ALL foes \u00b7 Gain 10 (+MDEF) magical shield \u00b7 The blast is slow to come back around (cooldown 4)."
        }
       }
      }
@@ -4318,12 +4470,22 @@
        "Gold \u2014 the obvious \"single-target attack learns to cleave\" case, kept",
        "on the plain sword rather than the axe so both weapons get a turn.",
        "Silver is left to the auto-scaler (single-target, exact on its own).",
-       "damage 22 is the offensive share \u2014 floor(110 x 33/25) = 145 \u2014 closed by",
-       "an UNMULTIPLIED shield (support half never pays the reach multiplier):",
-       "Gold   damage 22 (110) + aoe reach (35) + shield 11 (55)  = 200 exact.",
-       "Diamond keeps the SAME damage (the sweep's reach doesn't grow further)",
-       "and lets the follow-up guard absorb all of Diamond's extra budget:",
-       "Diamond damage 22 (110) + aoe reach (35) + shield 21 (105) = 250 exact."
+       "WHY THE SWEEP COSTS A COOLDOWN TURN (re-solved 2026-08-26 \u2014 the old Gold/",
+       "Diamond blocks were fractional). With every part a whole PL the offensive share",
+       "is a multiple of 10 deci, and the reach part (floor(share x 33/25) - share) is",
+       "only a whole PL when the share is 190, 220 or 250 deci (then +250n) \u2014 190 is the",
+       "SMALLEST legal offensive share an AoE card can carry. 190 costs 250 after reach,",
+       "which is all of DIAMOND, so at Gold (200) a size-1 card \u2014 no size grant to lean",
+       "on \u2014 must refund exactly 50 deci. The book's honest 50-deci refunds are one",
+       "extra cooldown turn (cooldownRefundStepDeci[0]) or +10 weight (weightPer); the",
+       "cooldown turn is the cheaper of the two in play (a 20% cadence loss against a",
+       "50% one) and it is the one that reads on the card face, so the sweep is authored",
+       "as cooldown 4 at Gold and Diamond both.",
+       "damage 38 is the whole offensive share at both ranks:",
+       "Gold    offense 190 + reach (60) - cooldown 4 (50) = 200 exact.",
+       "Diamond offense 190 + reach (60) + shield 10 (50) - cooldown 4 (50) = 250 exact.",
+       "Diamond spends its whole step on the UNMULTIPLIED shield (support never pays the",
+       "reach multiplier), which is the same closer the pre-re-solve ladder used."
       ],
       "archetypes": [
        "offense"
@@ -4342,31 +4504,29 @@
       "tierUpgrades": {
        "gold": {
         "scope": "all",
+        "cooldownTurns": 4,
         "effects": [
          {
           "kind": "damage",
-          "power": 22
-         },
-         {
-          "kind": "shield",
-          "power": 11
+          "power": 38
          }
         ],
-        "text": "Deal 22 (+ATK) Sword damage to ALL foes \u00b7 Gain 11 (+DEF) physical shield."
+        "text": "Deal 38 (+ATK) Sword damage to ALL foes \u00b7 The sweep is slow to come back around (cooldown 4)."
        },
        "diamond": {
         "scope": "all",
+        "cooldownTurns": 4,
         "effects": [
          {
           "kind": "damage",
-          "power": 22
+          "power": 38
          },
          {
           "kind": "shield",
-          "power": 21
+          "power": 10
          }
         ],
-        "text": "Deal 22 (+ATK) Sword damage to ALL foes \u00b7 Gain 21 (+DEF) physical shield."
+        "text": "Deal 38 (+ATK) Sword damage to ALL foes \u00b7 Gain 10 (+DEF) physical shield \u00b7 The sweep is slow to come back around (cooldown 4)."
        }
       }
      }
@@ -4577,9 +4737,18 @@
       "name": "Twin Slash",
       "text": "Deal 6 (+ATK) Sword damage, twice.",
       "notes": [
-       "Twin-hit showcase: 2 \u00d7 6 base (60 deci) + 1 extra-hit premium (30 deci)",
+       "Twin-hit showcase: 2 x 6 base (60 deci) + 1 extra-hit premium (30 deci)",
        "+ weight 8 (light, +10 deci) = exactly Bronze. Each hit adds full",
-       "Attack; armor mitigates each hit separately."
+       "Attack; armor mitigates each hit separately.",
+       "EACH HIT IS PRICED ALONE, so each power must be EVEN (5 deci/point) - the",
+       "damage line moves in 20-deci steps against 50-deci tier steps, so equal hits",
+       "cannot be whole at every rank (`barrage` carries the full derivation). Silver",
+       "and Diamond are authored with the pair TWO APART; Bronze and Gold land whole",
+       "on equal hits and are left to the auto-scaler.",
+       "Bronze   6 +  6 ( 60) + extraHit (30) + weight 8 (10) = 100.",
+       "Silver  12 + 10 (110) + 30 + 10 = 150.",
+       "Gold    16 + 16 (160) + 30 + 10 = 200 (auto-scaler).",
+       "Diamond 22 + 20 (210) + 30 + 10 = 250."
       ],
       "archetypes": [
        "offense"
@@ -4599,7 +4768,35 @@
         "kind": "damage",
         "power": 6
        }
-      ]
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 12
+         },
+         {
+          "kind": "damage",
+          "power": 10
+         }
+        ],
+        "text": "Deal 12 (+ATK) Sword damage, then 10 again."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 22
+         },
+         {
+          "kind": "damage",
+          "power": 20
+         }
+        ],
+        "text": "Deal 22 (+ATK) Sword damage, then 20 again."
+       }
+      }
      }
     }
    ]
@@ -7970,13 +8167,25 @@
        "THE FREE INTERACTION: the cleanse runs first, so stripping the poison also",
        "strips the anti-heal CATEGORY it was imposing. The bigger heal then arrives",
        "into a lighter tax \u2014 or none.",
-       "THE LADDER KEEPS THE REACH AT 3 STACKS at every tier (ceil(cap/per) = 3),",
-       "sized to the card's own 2\u20133 cleanse charges rather than drifting out of",
-       "reach while the numbers grow.",
-       "Bronze:  cleanse 2 (50) + convert cap 12 (30) + heal 4 (20) = 100.  (+4/stack)",
-       "Silver:  cleanse 2 (50) + convert cap 18 (45) + heal 11 (55) = 150. (+6/stack)",
-       "Gold:    cleanse 3 (75) + convert cap 24 (60) + heal 13 (65) = 200. (+8/stack)",
-       "Diamond: cleanse 3 (75) + convert cap 30 (75) + heal 20 (100) = 250. (+10/stack)",
+       "THE LADDER KEEPS THE REACH AT 3 STACKS at every tier (ceil(cap/per) = 3, the",
+       "`per` following the cap as ceil(cap/3)), so the payoff never drifts out of",
+       "reach of what the card's own cleanse can actually strip.",
+       "WHOLE-PL PARTS PIN EVERY PRICED MAGNITUDE (re-solved 2026-08-26 \u2014 the old",
+       "ladder was fractional above Bronze: cleanse 3 = 7.5 PL, cap 18 = 4.5 PL, heal",
+       "11 = 5.5 PL). `cleanse` costs 25/charge, so CHARGES MUST BE EVEN;",
+       "`cleanseConvert` prices its cap at 2.5/pt, so THE CAP MUST BE A MULTIPLE OF 4;",
+       "`heal` is 5/pt, so ITS POWER MUST BE EVEN. (`per` is unpriced \u2014 only the cap",
+       "is \u2014 so it is free to be whatever keeps the reach at 3.)",
+       "Bronze:  cleanse 2 (50) + convert cap 12 (30) + heal  4 ( 20) = 100.  (+4/stack)",
+       "Silver:  cleanse 2 (50) + convert cap 20 (50) + heal 10 ( 50) = 150.  (+7/stack)",
+       "Gold:    cleanse 2 (50) + convert cap 28 (70) + heal 16 ( 80) = 200. (+10/stack)",
+       "Diamond: cleanse 2 (50) + convert cap 36 (90) + heal 22 (110) = 250. (+12/stack)",
+       "THE CHARGE COUNT IS FROZEN AT 2 (it used to read 2/2/3/3, which is 7.5 PL at",
+       "the 3s). Even charges are the only legal ones, so the only growth available is",
+       "2 -> 4, and 4 charges cost 100 deci \u2014 the same 50-deci step Gold already spends",
+       "on the rider and the heal. Buying it would mean SHRINKING the convert cap or",
+       "the heal at the top rank, i.e. selling a Diamond that converts less than the",
+       "Gold below it. The charges stay 2 and the two lines that pay off grow instead.",
        "Hand-authored: the kit has TWO sinks at DIFFERENT rates (cleanse 25/charge,",
        "heal 5/pt), so `autoScaleTier` refuses it as non-homogeneous and would leave",
        "every tier identical to Bronze."
@@ -8014,51 +8223,51 @@
          },
          {
           "kind": "cleanseConvert",
-          "per": 6,
-          "cap": 18
+          "per": 7,
+          "cap": 20
          },
          {
           "kind": "heal",
-          "power": 11
+          "power": 10
          }
         ],
-        "text": "{{Cleanse}} 2 \u2014 then heal 11 (+MDEF) Holy, +6 more for every affliction stack that cleanse actually removed (max +18). Strip nothing, heal nothing extra."
+        "text": "{{Cleanse}} 2 \u2014 then heal 10 (+MDEF) Holy, +7 more for every affliction stack that cleanse actually removed (max +20). Strip nothing, heal nothing extra."
        },
        "gold": {
         "effects": [
          {
           "kind": "cleanse",
-          "charges": 3
+          "charges": 2
          },
          {
           "kind": "cleanseConvert",
-          "per": 8,
-          "cap": 24
+          "per": 10,
+          "cap": 28
          },
          {
           "kind": "heal",
-          "power": 13
+          "power": 16
          }
         ],
-        "text": "{{Cleanse}} 3 \u2014 then heal 13 (+MDEF) Holy, +8 more for every affliction stack that cleanse actually removed (max +24). Strip nothing, heal nothing extra."
+        "text": "{{Cleanse}} 2 \u2014 then heal 16 (+MDEF) Holy, +10 more for every affliction stack that cleanse actually removed (max +28). Strip nothing, heal nothing extra."
        },
        "diamond": {
         "effects": [
          {
           "kind": "cleanse",
-          "charges": 3
+          "charges": 2
          },
          {
           "kind": "cleanseConvert",
-          "per": 10,
-          "cap": 30
+          "per": 12,
+          "cap": 36
          },
          {
           "kind": "heal",
-          "power": 20
+          "power": 22
          }
         ],
-        "text": "{{Cleanse}} 3 \u2014 then heal 20 (+MDEF) Holy, +10 more for every affliction stack that cleanse actually removed (max +30). Strip nothing, heal nothing extra."
+        "text": "{{Cleanse}} 2 \u2014 then heal 22 (+MDEF) Holy, +12 more for every affliction stack that cleanse actually removed (max +36). Strip nothing, heal nothing extra."
        }
       }
      }
@@ -8088,17 +8297,22 @@
        "whole pile for nothing (releaseWardCharges, combat/state.ts, lowest-index",
        "pile first exactly as consumeWard spends them). The ladder keeps",
        "ceil(cap/per) = 3 at every tier, which is MAX_WARD_CHARGES: the reach is",
-       "the whole pile a holder can legally carry, at every tier.",
+       "the whole pile a holder can legally carry, at every tier \u2014 `per` simply",
+       "follows the cap as ceil(cap/3).",
        "SINGLE-TARGET BY IDENTITY: one pile, spent once, into ONE hit \u2014 an authored",
        "scope: all + wardRelease card is refused, the same call splash and",
        "shieldBurst get.",
-       "Bronze:  release cap 24 (60) + damage 8 (40) = 100.  (+8 per charge)",
-       "Silver:  release cap 30 (75) + damage 15 (75) = 150. (+10 per charge)",
-       "Gold:    release cap 36 (90) + damage 22 (110) = 200. (+12 per charge)",
-       "Diamond: release cap 38 (95) + damage 31 (155) = 250. (+13 per charge)",
-       "Diamond's cap stops at 38 rather than 39 because the size-1 EMPOWER",
-       "ceiling is 100 deci and 39 would price at 97 with no whole-PL damage line",
-       "left to pair it with; 38 lands the kit exactly on 250.",
+       "WHOLE-PL PARTS PIN THE CAP AND THE HIT (re-solved 2026-08-26 \u2014 the old ladder",
+       "was fractional above Bronze: cap 30 = 7.5 PL, damage 15 = 7.5 PL). The rider",
+       "prices at 2.5 deci/pt of `cap`, so THE CAP MUST BE A MULTIPLE OF 4; the damage",
+       "line is 5/pt, so ITS POWER MUST BE EVEN. (`per` is unpriced, so it is free to",
+       "be whatever keeps the reach at 3 \u2014 hence the odd-looking 11 at Gold.)",
+       "Bronze:  release cap 24 (60) + damage  8 ( 40) = 100.  (+8 per charge)",
+       "Silver:  release cap 28 (70) + damage 16 ( 80) = 150. (+10 per charge)",
+       "Gold:    release cap 32 (80) + damage 24 (120) = 200. (+11 per charge)",
+       "Diamond: release cap 36 (90) + damage 32 (160) = 250. (+12 per charge)",
+       "The cap stops at 36 rather than 40: 40 prices at exactly 100 deci, the size-1",
+       "EMPOWER ceiling, which would leave no whole-PL damage line to pair it with.",
        "Hand-authored: `autoScaleTier` freezes the whole rider (not a scalable",
        "sink), so it would grow damage alone and never `per`/`cap`."
       ],
@@ -8128,16 +8342,30 @@
          {
           "kind": "wardRelease",
           "per": 10,
-          "cap": 30
+          "cap": 28
          },
          {
           "kind": "damage",
-          "power": 15
+          "power": 16
          }
         ],
-        "text": "Deal 15 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +10 damage each (max +30), and the charges are gone. Only charges you were already holding count."
+        "text": "Deal 16 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +10 damage each (max +28), and the charges are gone. Only charges you were already holding count."
        },
        "gold": {
+        "effects": [
+         {
+          "kind": "wardRelease",
+          "per": 11,
+          "cap": 32
+         },
+         {
+          "kind": "damage",
+          "power": 24
+         }
+        ],
+        "text": "Deal 24 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +11 damage each (max +32), and the charges are gone. Only charges you were already holding count."
+       },
+       "diamond": {
         "effects": [
          {
           "kind": "wardRelease",
@@ -8146,24 +8374,10 @@
          },
          {
           "kind": "damage",
-          "power": 22
+          "power": 32
          }
         ],
-        "text": "Deal 22 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +12 damage each (max +36), and the charges are gone. Only charges you were already holding count."
-       },
-       "diamond": {
-        "effects": [
-         {
-          "kind": "wardRelease",
-          "per": 13,
-          "cap": 38
-         },
-         {
-          "kind": "damage",
-          "power": 31
-         }
-        ],
-        "text": "Deal 31 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +13 damage each (max +38), and the charges are gone. Only charges you were already holding count."
+        "text": "Deal 32 (+ATK) Sword damage \u2014 spend your own {{Ward}} charges for +12 damage each (max +36), and the charges are gone. Only charges you were already holding count."
        }
       }
      }
