@@ -4,7 +4,9 @@
 > for giving the endless run **legible paths** — bands of waves with a declared
 > identity (mobs, boss, shops, events) the player can read *before* committing,
 > chosen because they feed the deck being built.
-> **What shipped:** `src/data/biomes.ts` (6 biomes), `src/run/biome.ts` (the deal
+> **What shipped:** `src/data/biomes.ts` (**11 biomes** — 6 in phase 1, the
+> five typeless leans added 2026-08-26 with the mob roster that staffs them),
+> `src/run/biome.ts` (the deal
 > + the two binding primitives), `src/run/biomeForecast.ts` (the read),
 > biome-preferred shop themes and event themes in `src/run/runMap.ts`, and
 > biome-weighted mobs + a per-biome boss shortlist in `rollEncounter`. Biomes are
@@ -379,16 +381,22 @@ purpose:
 > **Tradeoff:** (a) is a sharper decision and needs the UI to state the matchup
 > plainly, or it reads as a gotcha. (b) is safer and duller.
 >
-> **SHIPPED AS (a), with one measured exception, and the user's ruling is still
-> open.** Each biome's priority-0 stall is its own lean, so a band supplies the
-> type it names. Priority 1 is a stall for a type NO biome leans on — forced by
-> the crowd-out measurement in §2.3, not by a design preference — and for the
-> Hallowfield that stall happens to be `umbral_stall`, i.e. its own counter. So
-> holy is (b) and the other five are (a). If the ruling comes back (a)-strict,
-> the Hallowfield's dark slot moves to another biome and the coverage invariant
-> holds; if it comes back (b), it generalises in six lines of data.
+> **NOW SHIPPED AS (a)-STRICT, ALL ELEVEN BANDS (2026-08-26). The exception is
+> gone and the ruling is no longer blocking.** Phase 1 shipped (a) with one
+> measured exception: priority 1 of each band had to carry the single-type stall
+> of a type NO biome leaned on (forced by the crowd-out measurement in §2.3, not
+> by preference), and for the Hallowfield that stall was `umbral_stall` — its own
+> counter — so holy was accidentally (b). With a band per card type, every
+> single-type stall sits at **priority 0 of its own band** and priority 1 is free
+> for generalists again: no band sells its own counter, and the coverage
+> invariant is satisfied without the patch. If the ruling ever comes back (b) it
+> still generalises in eleven lines of data.
 > **The counter is stated plainly either way**: `counterTypeFor` is part of
-> `BandForecast` and the renderer prints "frost hits these mobs for +50%".
+> `BandForecast` and the renderer prints "frost hits these mobs for +50%" — and,
+> for the one lean nothing counters, "nothing counters these mobs."
+> **AND THE MOB LINE IS NOW TRUE OF EVERY MOB IT DESCRIBES**, which it was not in
+> phase 1: five of the six `mobs` lists carried borrowed off-type members, so
+> "dark hits these mobs" was false of the Hallowfield's `necromancer`. See §2.3.
 
 ### 2.1 Where a biome attaches — per **wave band**, not per node or per edge
 
@@ -454,12 +462,32 @@ export const biomeIds: readonly string[];   // id-sorted
 No `art` key was authored: nothing renders a banner yet (§2.4), and an unused
 content field is a field that rots. It is one line when the Phaser work lands.
 
-**Six biomes shipped** — `emberwaste` (fire), `hallowfield` (holy), `thornwild`
-(nature), `ironmoot` (axe), `swornhold` (sword), `howlmoor` (beast): one per type
-the roster can actually staff with MOBS. Frost, lightning, dark, bow and lance
-field 1 or 0 mobs each, so a "Frostmarch" would be a name with no monsters behind
-it. Their stalls and their bosses are carried by the biome each reads beside (see
-the coverage invariant in §2.3) so nothing is orphaned.
+**Six biomes shipped in phase 1** — `emberwaste` (fire), `hallowfield` (holy),
+`thornwild` (nature), `ironmoot` (axe), `swornhold` (sword), `howlmoor` (beast):
+one per type the roster could actually staff with MOBS. Frost, lightning, dark,
+bow and lance fielded 1 or 0 mobs each, so a "Frostmarch" would have been a name
+with no monsters behind it; their stalls and their bosses were carried by the
+biome each read beside (the coverage invariant in §2.3) so nothing was orphaned.
+
+**ELEVEN NOW — one per card type (2026-08-26).** The five missing bands landed
+with the enemy content that staffs them (`arrowfell` bow, `duskbarrow` dark,
+`frostmarch` frost, `pikewold` lance, `stormreach` lightning), because the
+blocker was never biome data: it was the roster. 13 mobs were authored — three
+each for the five homeless types counting the one existing kit four of them had
+(`mage`, `necromancer`, `hunter`, `rogue`), plus one holy and one nature kit so
+the Hallowfield and the Thornwild keep their depth coverage once their BORROWED
+members are removed. `rime_tyrant` and `galewright`, which rode as guests in
+bands that leaned elsewhere, are now the headliners of the bands they were
+written for; so are `hollow_crown` and `thornpike_marshal`.
+
+Every band now shortlists **its own signature boss plus its own toughest on-type
+mob** — the pattern `ironmoot` already used with `blood_duelist` — so no band
+hosts another type's boss and no boss line is one name forever. NO NEW BOSS WAS
+NEEDED: the 11 signature bosses of `106b9bd` are exactly one per card type, and
+`tests/run/bossRoster.test.ts` pins that as a contract, so authoring a 12th would
+have broken it. `greenwood_sovereign` sits in TWO shortlists, honestly — it is
+the only dual-affinity boss (nature + bow) and is genuinely a face of both the
+Thornwild and the Arrowfell.
 
 **Membership lives here as id lists. Do not add a `biome` field to `EnemyDef`,
 `SkillDef`, or `ShopTypeDef`** — see §6.3. This is exactly the precedent
@@ -470,7 +498,11 @@ radius entirely.
 
 A starting catalog of 5–6 biomes covering the types the roster can actually
 staff (§1.6: fire, holy, nature, beast, bow early; axe/sword/lance/lightning/
-dark later) is enough. Do not author 11.
+dark later) is enough. ~~Do not author 11.~~ **Superseded 2026-08-26**: eleven is
+now the right number, and for a reason this line did not have — the set of
+DECLARABLE identities is the set of bands, so a type with no band cannot be
+committed to at all (docs/run-structure-patterns.md Q12). The sequencing advice
+stands and was followed: enemy content first, then the band is five lines.
 
 **`RunMap.biomes` was NOT built.** It is the fork's ledger, and Phase 1 deals
 biomes rather than choosing them, so there is nothing to record: the deal is
@@ -550,11 +582,54 @@ Fixed by the **coverage invariant**, now asserted in `tests/run/biomeSupply.test
 
 > Every card type's single-type stall sits at priority 0 or 1 of some biome.
 
-`stormspire` is carried by the Emberwaste (whose `mage` is already its caster
-kin), `umbral_stall` by the Hallowfield (whose `necromancer` is the thing the
-ground keeps out), `frosthold` by the Howlmoor (the run's cold open country),
-`fletchers_loft` by the Thornwild (hunting country). After it, every one of the
-eleven types is back within noise of its pre-biome supply.
+In phase 1 that meant a priority-1 carriage: `stormspire` by the Emberwaste
+(whose `mage` was already its caster kin), `umbral_stall` by the Hallowfield
+(whose `necromancer` is the thing the ground keeps out), `frosthold` by the
+Howlmoor, `fletchers_loft` by the Thornwild. After it, every one of the eleven
+types was back within noise of its pre-biome supply.
+
+**THE ELEVEN-BAND PASS RETIRES THE CARRIAGE (2026-08-26).** Every type has a band
+now, so every single-type stall sits at priority 0 of its own band and priority 1
+is generalists again. The invariant is unchanged and still asserted — it is what
+would catch a 12th band that leans a type twice while another loses its home.
+
+**MEASURED, same harness, 400 seeds, 6 bands vs 11.** The number the feature is
+actually about is *can a run be dealt a band that names my type, and does that
+band then supply it*:
+
+| Lean | runs with such a band, 6 bands | 11 bands | in-band P(>=3), 6 | 11 |
+|---|---|---|---|---|
+| frost / lightning / dark / bow / lance | **0%** (no band existed) | **31-38%** | n/a | **87-91%** |
+| fire / holy / nature / axe / sword / beast | 52-61% | 30-36% | 81-89% | 85-92% |
+
+The five homeless leans go from *structurally undeclarable* to a third of runs,
+and the six original leans pay for it evenly — total steering is unchanged (one
+preferred stall per band either way), it is simply spread over eleven types
+instead of six. Their in-band supply actually improves, because the 21-theme
+no-repeat bag is now contended by eleven different priority-0 stalls rather than
+six, which also lifts the DEEP bands: pooled announced-lean P(>=3) at band 2 goes
+83% -> 88% and at band 3 **61% -> 74%**, partly undoing the decay §2.0 recorded
+as this mechanism's honest ceiling.
+
+Fixed-TYPE supply over waves 1-10 (the §1.5 metric, a player who commits at wave
+1 and never re-reads the banner) is unchanged as expected — mean 2.73 -> 2.72
+offers, P(>=3) 37% -> 36% — and P(ZERO) improves for every one of the eleven
+types (e.g. fire 58% -> 46%, lightning 57% -> 40%, frost 55% -> 41%), because the
+supply is less bimodal when eleven stalls share the steering. No type was crowded
+out; `biomeSupply.test.ts`'s per-type floor is what keeps that honest.
+
+**AND THE MOB LISTS ARE NOW ON-TYPE, which is a correctness fix, not tidying.**
+The forecast's MOB line states the counter of the biome's declared LEAN, and five
+of the six phase-1 `mobs` lists carried BORROWED off-type members — the
+Hallowfield's `necromancer` (dark) and `knight` (sword), the Thornwild's three
+beast mobs, the Emberwaste's `mage` (lightning, which takes -25% from frost, not
++50%) — borrowed precisely because on-type mobs did not exist. The line was FALSE
+of every one of them: the same defect `3881717` fixed one level up for the boss
+line and recorded as found-and-not-fixed here. All six lists are cleaned; where a
+lean lost depth coverage the answer was to AUTHOR an on-type mob (`vigil_keeper`
+for holy's deep tier, `blight_shambler` for nature's middle), never to borrow.
+`tests/run/biomeForecastCounter.test.ts` now checks the claim against EVERY listed
+mob through the engine's own matchup math.
 
 **Events — the binding is frequency-neutral by arithmetic, and that is stated
 rather than papered over.** The sketch's one-line preference was built as
@@ -654,55 +729,78 @@ nothing else here is built.
 >
 > ```
 > ===== seed 7 · band 0 =====
-> THE IRONMOOT
-> [AXE] w1-5
-> A warband camp. Axes, bleeding, and a price for both.
->
-> BOSS
->   Bloodletter
->   LV 5 · BOSS
-> MOBS
->   Berserker
->   Reaver
->   Bloodletter
->   Hunter
->   Warbreaker
-> SHOPS
->   The Cleaving Yard
->   Armory
->   Caravan
-> EVENTS
->   forge
->   market
->
-> sword hits these
-> mobs for +50%.
->
-> ===== seed 7 · band 1 =====
 > THE HALLOWFIELD
-> [HOLY] w6-10
+> [HOLY] w1-5
 > Consecrated ground and the things it keeps out.
 >
 > BOSS
->   The Hollow Crown
->   LV 10 · BOSS
+>   The Dawn Arbiter
+>   LV 5 · BOSS
+> dark hits this
+> boss for +50%.
+>
 > MOBS
 >   Cleric
->   Knight
->   Necromancer
 >   Seraph
->   Sentinel
+>   Vigil Keeper
+> dark hits these
+> mobs for +50%.
+>
 > SHOPS
 >   Reliquary
->   Umbral Stall
 >   Sanctum
 >   Bulwark
+>
 > EVENTS
 >   omen
 >   training
 >
-> dark hits these
+> ===== seed 7 · band 1 =====
+> THE PIKEWOLD
+> [LANCE] w6-10
+> Drill ground and hedgerow. Every line here is braced.
+>
+> BOSS
+>   The Thornpike Marshal
+>   LV 10 · BOSS
+> axe hits this
+> boss for +50%.
+>
+> MOBS
+>   Phalanx Veteran
+>   Pike Conscript
+>   Lancer
+> axe hits these
 > mobs for +50%.
+>
+> SHOPS
+>   Lancer's Rest
+>   Armory
+>   Bulwark
+>   Caravan
+>
+> EVENTS
+>   forge
+>   training
+> ```
+>
+> **RE-CAPTURED 2026-08-26** (the earlier capture predates two fixes and both are
+> visible above): `3881717` moved each counter sentence INSIDE the block it
+> describes and gave it a subject, and the eleven-band pass cleaned the `mobs`
+> lists of borrowed off-type members — the old Hallowfield capture listed `Knight`
+> (sword) and `Necromancer` (dark) under a line promising +50% for dark, which was
+> false of both. Seed 7's band 1 is now a band that did not exist then.
+>
+> The one lean nothing counters reads like this instead — real information, not a
+> dropped line (`WEAPON_BEATS` has no entry mapping to bow):
+>
+> ```
+> MOBS
+>   Cordon Archer
+>   Deadeye Stalker
+>   Hunter
+> nothing counters
+> these mobs.
 > ```
 >
 > The boss line is the whole point of the feature and it is not a guess: the test
@@ -992,7 +1090,8 @@ that answers "which boss" (`biomeForecast.ts`) now exists, so the UI work is a
 render of it rather than an investigation.
 
 **Phase 1 — biomes exist, dealt not chosen. ✅ SHIPPED 2026-08-26.**
-Delivered: `src/data/biomes.ts` (6 biomes) · `src/run/biome.ts` (the `(seed,
+Delivered: `src/data/biomes.ts` (6 biomes; **11 since 2026-08-26**) ·
+`src/run/biome.ts` (the `(seed,
 band)` deal with no-immediate-repeat, plus the two binding primitives `preferIds`
 / `weightIds`) · shop-theme and event-theme preference in `generateWave` ·
 biome-weighted mobs **and** the per-biome boss shortlist in `rollEncounter`
@@ -1025,12 +1124,26 @@ both flushed out by Phase 1's measurements:
    route-board tint, and the boss line in `renderRunBossCountdownPanel`. Both
    platforms, one model, no second derivation.
 
-Also here: **biomes for the five types that have none** (frost, lightning, dark,
-bow, lance). They are homeless because the roster fields 0-1 mobs each; their
-stalls and their bosses are currently carried by an adjacent biome. New mob
-content, then five more `BiomeDef`s, is the honest fix — and the boss roster
-already has `rime_tyrant` and `galewright` waiting for a Frostmarch and a
-Stormreach to belong to.
+~~Also here: **biomes for the five types that have none**~~ — **DONE 2026-08-26,
+ahead of the rest of phase 2.** `arrowfell` (bow), `duskbarrow` (dark),
+`frostmarch` (frost), `pikewold` (lance) and `stormreach` (lightning) shipped
+with the 13-mob TYPELESS-BAND MOB ROSTER that staffs them; `rime_tyrant` and
+`galewright` are the Frostmarch's and the Stormreach's headliners, exactly as
+this line anticipated. NO NEW BOSS was authored — the eleven signature bosses are
+already one per card type and `tests/run/bossRoster.test.ts` pins that, so each
+new band takes its own boss home from whichever band was hosting it as a guest,
+plus its own toughest on-type mob as a second face. The same pass cleaned the six
+original `mobs` lists of their borrowed off-type members (§2.3) and made the
+counter-less bow band's forecast read honestly instead of printing nothing.
+
+**Known thin spots, named rather than hidden.** `computeEnemyDepthBands` splits
+the now-34-strong fight pool into tiers with bands [1,8]/[5,12]/[9,16]/[13,inf).
+Eight of the eleven bands span three tiers; fire, nature, beast and lance field
+no tier-3 on-type mob, so those four read generic from fight 17 on (the weighting
+finds no intersection and falls back to the untouched depth pool — a graceful
+degradation, not a lie). Fire is the thinnest at two on-type mobs, both mid-tier.
+One mob each is the next content increment; no band needs a borrowed member to
+function.
 
 **Phase 3 — the fork.** `RunMap.biomes` ledger, `'fork'` node kind, fork column
 after each boss, `chooseBiome`, fork panels on both platforms, the

@@ -47,6 +47,42 @@ import type { Element, EnemyDef, WeaponType } from '../../src/engine/types';
  *      off-type band;
  *   3. key the boss counter off the shortlist's FIRST face instead of the
  *      resolved boss — fires on every band whose column rolled the other face.
+ *
+ * ---------------------------------------------------------------------------
+ * THE SECOND HALF OF THE SAME BUG, CLOSED 2026-08-26 (eleven-band pass).
+ *
+ * `3881717` fixed the BOSS claim and left the identical defect one level down,
+ * which its own commit message recorded as found-and-not-fixed: the MOB line
+ * states the counter of the biome's declared LEAN, but five of the six `mobs`
+ * lists carried BORROWED off-type members — "dark hits these mobs for +50%" was
+ * false of the Hallowfield's `necromancer` (dark, takes nothing from dark) and
+ * its `knight` (sword). Those members were borrowed because on-type mobs did
+ * not exist for five of the eleven types.
+ *
+ * They exist now (the TYPELESS-BAND MOB ROSTER in `src/data/enemies.ts`), the
+ * six original lists are cleaned to on-type members only, and the five homeless
+ * types have bands of their own. So this suite gains the assertion the mob line
+ * always needed: §"the MOB counter line is true of every mob in the list" checks
+ * the claim against EVERY listed mob through the engine's own matchup math, not
+ * against the lean it was derived from.
+ *
+ * TWO CONSEQUENCES WORTH STATING, because both look like a test getting weaker:
+ *
+ *   - `offTypeBands` is now EMPTY. Every band's boss shares its band's lean, so
+ *     the mob counter is never false of the boss either. The four pairs that
+ *     used to populate it (`emberwaste/galewright`, `hallowfield/hollow_crown`,
+ *     `howlmoor/rime_tyrant`, `swornhold/thornpike_marshal`) were all guests in
+ *     a band that leaned elsewhere; each has gone to its own band. It is
+ *     asserted as an exact empty set so a regression re-populates it by name.
+ *   - The mutation resistance moves to the ARROWFELL, the bow band, which is now
+ *     the one legitimate place the boss claim and the mob claim disagree — and
+ *     it disagrees in the direction the old bug could not produce. Nothing on
+ *     the weapon triangle counters bow, so its MOBS line says "nothing counters
+ *     these mobs", while its boss `greenwood_sovereign` is the roster's only
+ *     dual-affinity boss (nature + bow) and IS countered, by fire off the nature
+ *     half. A renderer that derived the boss claim from the lean would print
+ *     "nothing counters this boss" over a boss fire farms; a renderer that kept
+ *     the mob line's `if (counterType)` guard would print no mob claim at all.
  */
 
 /** Every type name a counter claim could legitimately print — the full value
@@ -130,6 +166,7 @@ describe('the BOSS counter claim is true of the boss', () => {
   it('every band states a boss counter, and it is the RESOLVED boss\'s own — never the mobs\'', () => {
     const biomesSeen = new Set<string>();
     const offTypeBands: string[] = [];
+    const diverged: string[] = [];
     let checked = 0;
     for (const seed of SWEEP_SEEDS) {
       const run = createRun(seed);
@@ -169,25 +206,42 @@ describe('the BOSS counter claim is true of the boss', () => {
             `seed ${seed} band ${band}: the boss claim reuses the MOB counter "${mobCounter}"`,
           ).not.toContain(mobCounter);
         }
+        // (4) AND THE TWO CLAIMS MUST STILL BE DERIVED SEPARATELY. With every
+        // band's boss now on-type, (3) has nothing left to bite on, so the
+        // "reused the mob counter" mutation is caught HERE instead: the exact set
+        // of bands whose boss counters differ from their mob counter is content,
+        // and a renderer that derived one from the other would empty it.
+        const mobTypes = mobCounter === undefined ? [] : [mobCounter];
+        if (typesNamedIn(boss.claim).join(',') !== mobTypes.join(',')) {
+          diverged.push(`${f.biomeId}/${f.boss!.enemyId}`);
+        }
         biomesSeen.add(f.biomeId);
         checked += 1;
       }
     }
     expect(biomesSeen.size, 'the sweep did not reach every biome').toBe(biomeIds.length);
     expect(checked).toBeGreaterThan(100);
-    // NON-VACUITY, AND A CORRECTION. Assertion (3) must actually have had
-    // off-type bands to bite on — and the exact set is recorded because it is
-    // SMALLER than the five pairings the bug report listed. `greenwood_sovereign`
-    // is named there as off-type, but it carries `elementAffinity: 'nature'` —
-    // the Thornwild's own lean — alongside `weaponAffinity: 'bow'`, and nothing
-    // in `WEAPON_BEATS` counters bow. So the mob line's "fire" was already true
-    // of it and the Thornwild never lied. FOUR faces did.
-    expect([...new Set(offTypeBands)].sort()).toEqual([
-      'emberwaste/galewright',
-      'hallowfield/hollow_crown',
-      'howlmoor/rime_tyrant',
-      'swornhold/thornpike_marshal',
-    ]);
+    // NO BAND FIELDS AN OFF-TYPE BOSS ANY MORE, and that is the eleven-band
+    // pass landing, not the assertion going soft. Every band names its own
+    // signature boss plus its own toughest on-type mob, so the type that farms
+    // the mobs also farms the boss. The four pairs below are the ones this list
+    // used to hold — each was a boss with no band of its own riding as a guest —
+    // and they are named so a regression that re-orphans one shows up by name.
+    expect(
+      [...new Set(offTypeBands)].sort(),
+      'a boss is off-type for its own band again — it has been shortlisted somewhere it does not belong',
+    ).toEqual([]);
+
+    // ...WHICH MOVES THE NON-VACUITY ONTO (4). The boss claim and the mob claim
+    // are still computed from different things, and there is exactly one band
+    // where that shows: the ARROWFELL. Nothing counters bow, so its mobs have no
+    // counter, while `greenwood_sovereign` (nature + bow, the only dual-affinity
+    // boss) is countered by fire off its nature half. `arrowfell/deadeye_stalker`
+    // is NOT in the set: that face is pure bow, so both claims say "nothing".
+    expect(
+      [...new Set(diverged)].sort(),
+      'the boss claim and the mob claim never disagreed — one is being derived from the other',
+    ).toEqual(['arrowfell/greenwood_sovereign']);
   });
 
   it('covers all 12 (biome, boss face) pairs the catalog can field, not just the ones a short sweep hits', () => {
@@ -215,7 +269,9 @@ describe('the BOSS counter claim is true of the boss', () => {
 });
 
 describe('the MOB counter line still says exactly what it always said', () => {
-  it('is the biome LEAN\'s counter, in HEAD\'s two lines, verbatim', () => {
+  it('is the biome LEAN\'s counter, in HEAD\'s two lines, verbatim — and says so in words when there is none', () => {
+    let withCounter = 0;
+    let withoutCounter = 0;
     for (const seed of SWEEP_SEEDS.slice(0, 12)) {
       const run = createRun(seed);
       for (const band of SWEEP_BANDS) {
@@ -225,16 +281,32 @@ describe('the MOB counter line still says exactly what it always said', () => {
         // re-derived from the mob list or from the boss.
         expect(f.counterType).toBe(counterTypeFor(lean));
         const text = renderBandForecast(f);
+        const mobs = blockNamed(text, 'MOBS');
+        if (f.counterType === undefined) {
+          // THE ABSENT COUNTER IS A FACT (2026-08-26). `counterTypeFor` returns
+          // undefined for the bow band — `WEAPON_BEATS` has no entry mapping TO
+          // bow — and the renderer used to print NOTHING there, which a player
+          // cannot tell apart from a dropped line. It now states it.
+          withoutCounter += 1;
+          expect(text).toContain('nothing counters\nthese mobs.');
+          expect(mobs.claim).toBe('nothing counters these mobs.');
+          expect(typesNamedIn(mobs.claim), 'a band with no counter named a type').toEqual([]);
+          continue;
+        }
+        withCounter += 1;
         // The WORDING is unchanged, character for character — this suite adds a
         // line, it does not quietly redefine the existing one. These two strings
         // are copied from `renderBandForecast` as it stood at HEAD (532b6ac).
         expect(text).toContain(`${f.counterType} hits these\nmobs for +50%.`);
         // And it is the MOBS block that owns it, not the card.
-        const mobs = blockNamed(text, 'MOBS');
         expect(mobs.claim).toBe(`${f.counterType} hits these mobs for +50%.`);
-        expect(typesNamedIn(mobs.claim)).toEqual([f.counterType!]);
+        expect(typesNamedIn(mobs.claim)).toEqual([f.counterType]);
       }
     }
+    // NON-VACUITY on BOTH branches: the sweep must have hit a band with a
+    // counter and a band without one, or one of the two forms above is untested.
+    expect(withCounter, 'no band with a counter was sampled').toBeGreaterThan(30);
+    expect(withoutCounter, 'no counter-less band was sampled — the bow band is unreachable?').toBeGreaterThan(0);
   });
 
   it('the two claims are DIFFERENT sentences with different subjects — neither can be read as the other', () => {
@@ -252,6 +324,86 @@ describe('the MOB counter line still says exactly what it always said', () => {
       }
     }
     expect(new Set(differed).size, 'no band produced two different claims').toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('the MOB counter line is true of every mob in the list', () => {
+  /**
+   * THE ASSERTION THE MOB LINE ALWAYS NEEDED, and the second half of the bug
+   * `3881717` closed for the boss line (its own commit recorded this one as
+   * found-and-not-fixed). The line generalises over a LIST: it names one type
+   * and claims +50% against "these mobs", so it is true only if that type really
+   * gets advantage on EVERY member. Five of the six original lists carried
+   * borrowed off-type members — the Hallowfield's `necromancer` is dark and takes
+   * nothing from dark, its `knight` is sword — because on-type mobs did not exist
+   * for five of the eleven types.
+   *
+   * Resolved through the engine's own `elementMatchup`/`weaponMatchup`, per mob,
+   * so it cannot pass by agreeing with `counterTypeFor`.
+   */
+  it('the type the mob line names gets +50% on EVERY mob in that biome\'s list', () => {
+    const offenders: string[] = [];
+    let checked = 0;
+    for (const id of biomeIds) {
+      const biome = biomeCatalog[id]!;
+      const claimed = counterTypeFor(biome.lean);
+      for (const mobId of biome.mobs) {
+        const def = enemies[mobId];
+        expect(def, `${id} names unknown mob ${mobId}`).toBeDefined();
+        const counters = realCountersOf(def!);
+        checked += 1;
+        if (claimed === undefined) {
+          // A band whose lean nothing counters may not list a mob that SOMETHING
+          // counters either, or "nothing counters these mobs" is false of it.
+          if (counters.length > 0) offenders.push(`${id}/${mobId} is countered by ${counters.join('/')} but the band claims nothing is`);
+        } else if (!counters.includes(claimed)) {
+          offenders.push(`${id}/${mobId}: "${claimed} hits these mobs for +50%" is FALSE (real counters: ${counters.join('/') || 'none'})`);
+        }
+      }
+    }
+    expect(offenders, `the mob counter line lies about:\n  ${offenders.join('\n  ')}`).toEqual([]);
+    // NON-VACUITY: an empty catalog, or biomes with empty mob lists, would pass.
+    expect(checked, 'no biome mob was checked').toBeGreaterThan(30);
+  });
+
+  it('stated the other way: every listed mob carries its band\'s lean as an affinity', () => {
+    // The same property from the CONTENT side rather than the matchup side, so a
+    // future off-type addition fails here even if the counter wheel changes. This
+    // is the rule the six original lists broke to span their depth tiers; the fix
+    // was to AUTHOR on-type mobs (`vigil_keeper`, `blight_shambler`), never to
+    // borrow. `stone_beetle` passes on `elementAffinity: 'nature'`, which is a
+    // creature-level matchup identity — matchup reads the DEFENDER's affinity, so
+    // that is exactly what makes the claim true of it.
+    const offenders: string[] = [];
+    for (const id of biomeIds) {
+      const biome = biomeCatalog[id]!;
+      const want = biome.lean.type;
+      for (const mobId of biome.mobs) {
+        const def = enemies[mobId]!;
+        const has = biome.lean.kind === 'element' ? def.elementAffinity === want : def.weaponAffinity === want;
+        if (!has) offenders.push(`${id} (${biome.lean.kind}:${want}) lists off-type mob ${mobId}`);
+      }
+    }
+    expect(offenders, offenders.join('; ')).toEqual([]);
+  });
+
+  it('and every band shortlists only bosses its own lean\'s counter can farm', () => {
+    // The boss half of the same rule, as CONTENT rather than as rendered text:
+    // no band hosts another type's boss as a guest any more. The exception is
+    // stated, not hidden — a face may carry the lean plus a SECOND affinity
+    // (`greenwood_sovereign` is nature + bow), which is what makes the Arrowfell
+    // a legitimate split rather than a mis-shelved boss.
+    const offenders: string[] = [];
+    for (const id of biomeIds) {
+      const biome = biomeCatalog[id]!;
+      const want = biome.lean.type;
+      for (const bossId of biome.bosses) {
+        const def = enemies[bossId]!;
+        const has = biome.lean.kind === 'element' ? def.elementAffinity === want : def.weaponAffinity === want;
+        if (!has) offenders.push(`${id} (${biome.lean.kind}:${want}) shortlists off-type boss ${bossId}`);
+      }
+    }
+    expect(offenders, offenders.join('; ')).toEqual([]);
   });
 });
 
@@ -278,8 +430,19 @@ describe('two shortlisted bosses of different types cannot be promised as one', 
     expect(agree.length, 'no biome shortlist agrees on a counter').toBeGreaterThan(0);
     expect(split.length, 'no biome shortlist disagrees on a counter').toBeGreaterThan(0);
     // Recorded so a content change that flips a band shows up here by name.
-    expect(agree).toEqual(['ironmoot', 'thornwild']);
-    expect(split).toEqual(['emberwaste', 'hallowfield', 'howlmoor', 'swornhold']);
+    // TEN AGREE, ONE SPLITS (2026-08-26). Before the eleven-band pass it was two
+    // and four: the four splits were bands hosting another type's boss as a
+    // guest, and every one of those has gone home. The surviving split is the
+    // ARROWFELL and it is a real one, not a leftover — `greenwood_sovereign`
+    // (nature + bow) is countered by fire, `deadeye_stalker` (pure bow) is
+    // countered by nothing, so no type is true of both faces and the renderer
+    // must refuse to promise one. This is the only thing keeping the `'split'`
+    // branch exercised by real content rather than by a synthetic forecast.
+    expect(split).toEqual(['arrowfell']);
+    expect(agree).toEqual([
+      'duskbarrow', 'emberwaste', 'frostmarch', 'hallowfield', 'howlmoor',
+      'ironmoot', 'pikewold', 'stormreach', 'swornhold', 'thornwild',
+    ]);
   });
 
   it('a SPLIT shortlist promises no type, and shows the fork instead', () => {
@@ -298,12 +461,21 @@ describe('two shortlisted bosses of different types cannot be promised as one', 
       for (const c of f.bossCandidates) {
         expect(boss.items, `${id} hid the face ${c.id}`).toContain(c.name);
         const own = realCountersOf(enemies[c.id]!);
-        const line = boss.items.find((i) => typesNamedIn(i).length > 0 && i.includes('+50%')
-          && typesNamedIn(i).join(',') === own.join(','));
-        expect(line, `${id}/${c.id}: its own counters ${own.join('/')} are not shown`).toBeDefined();
+        // A face with NO counter is the reason this band splits at all, so its
+        // line has to say that in words rather than be absent — the same rule
+        // the MOBS block follows. (`arrowfell/deadeye_stalker` is pure bow.)
+        const line = own.length === 0
+          ? boss.items.find((i) => i === 'nothing counters it')
+          : boss.items.find((i) => i.includes('+50%') && typesNamedIn(i).join(',') === own.join(','));
+        expect(line, `${id}/${c.id}: its own counters [${own.join('/')}] are not shown`).toBeDefined();
       }
-      // The union is exposed on the model but never stated as a promise.
-      expect(f.bossCounter.types.length).toBeGreaterThan(1);
+      // The union is exposed on the model but never stated as a promise. It can
+      // be a SINGLE type and still be a split: the Arrowfell's union is ['fire'],
+      // true of one face and false of the other, which is exactly why no promise
+      // may be printed.
+      expect(f.bossCounter.types.length).toBeGreaterThan(0);
+      const faceCounters = f.bossCandidates.map((c) => c.counterTypes.join(','));
+      expect(new Set(faceCounters).size, `${id}'s faces do not actually disagree`).toBeGreaterThan(1);
     }
   });
 
@@ -345,6 +517,88 @@ describe('two shortlisted bosses of different types cannot be promised as one', 
         }
       }
     }
+  });
+});
+
+describe('the BOW band reads honestly — the one lean nothing counters', () => {
+  /**
+   * THE KNOWN WRINKLE, PINNED BY NAME. `WEAPON_BEATS` maps sword->axe->lance->
+   * sword and bow->beast; NO entry maps to bow, so bow is the only one of the
+   * eleven card types with no counter at all. A bow band therefore has nothing
+   * true to print under its mobs, and the three ways that could go are:
+   *   (a) print nothing — HEAD's `if (counterType)` guard, and indistinguishable
+   *       from a renderer bug to the person reading the card;
+   *   (b) print the lean itself, or the boss's counter, as if it were the mobs' —
+   *       a false promise, the exact class of bug `3881717` closed one level up;
+   *   (c) SAY SO. "nothing counters these mobs." is real information: this is
+   *       the one route where the type wheel offers no shortcut, which is worth
+   *       knowing BEFORE committing five waves to it.
+   * (c) shipped. This test is what stops it drifting back to (a) or (b).
+   */
+  const BOW_BAND = 'arrowfell';
+
+  it('the catalog still has a bow band, and bow still has no counter', () => {
+    // Non-vacuity for everything below: if either half stops being true this
+    // whole section is testing nothing.
+    expect(biomeIds, 'the bow band is gone').toContain(BOW_BAND);
+    expect(biomeCatalog[BOW_BAND]!.lean).toEqual({ kind: 'weapon', type: 'bow' });
+    expect(counterTypeFor({ kind: 'weapon', type: 'bow' })).toBeUndefined();
+    for (const t of COUNTER_VOCABULARY) {
+      expect(weaponMatchup(t as WeaponType, 'bow'), `${t} counters bow now`).not.toBe('advantage');
+    }
+  });
+
+  it('its MOBS block says no type counters them — not an empty line, not a false promise', () => {
+    const { seed, band } = findBand(BOW_BAND);
+    const f = forecastBand(createRun(seed), band);
+    const text = renderBandForecast(f);
+    expect(f.counterType, 'the bow band somehow has a counter type').toBeUndefined();
+    const mobs = blockNamed(text, 'MOBS');
+    expect(mobs.claim, 'the bow band printed no mob claim at all').not.toBe('');
+    expect(mobs.claim).toBe('nothing counters these mobs.');
+    // (b) guarded directly: no type word may appear in the claim, including the
+    // lean itself and the counter of the BOSS standing above it.
+    expect(typesNamedIn(mobs.claim), 'the bow band promised a type').toEqual([]);
+    // Every mob it lists really is uncounterable — the claim is checked against
+    // the roster, not just against the lean it was derived from.
+    for (const m of f.mobs) {
+      expect(realCountersOf(enemies[m.id]!), `${m.id} is counterable`).toEqual([]);
+    }
+  });
+
+  it('its BOSS block is still allowed to name a counter, because its boss really has one', () => {
+    // The asymmetry is the interesting part and it must survive: the band's
+    // signature boss `greenwood_sovereign` is the roster's only dual-affinity
+    // boss (nature + bow) precisely so a bow band is not counter-PROOF, so fire
+    // farms it off the nature half while nothing farms its mobs. A renderer that
+    // shared one claim across both blocks would have to get one of them wrong.
+    const faces = biomeCatalog[BOW_BAND]!.bosses;
+    expect(faces).toContain('greenwood_sovereign');
+    const dual = enemies['greenwood_sovereign']!;
+    expect(dual.elementAffinity).toBe('nature');
+    expect(dual.weaponAffinity).toBe('bow');
+    expect(realCountersOf(dual)).toEqual(['fire']);
+
+    let sawDual = false;
+    let sawPureBow = false;
+    for (let seed = 1; seed <= 200 && !(sawDual && sawPureBow); seed++) {
+      const run = createRun(seed);
+      for (const band of SWEEP_BANDS) {
+        const f = forecastBand(run, band);
+        if (f.biomeId !== BOW_BAND) continue;
+        const boss = blockNamed(renderBandForecast(f), 'BOSS');
+        if (f.boss!.enemyId === 'greenwood_sovereign') {
+          sawDual = true;
+          expect(typesNamedIn(boss.claim), 'the dual-affinity boss lost its counter').toEqual(['fire']);
+        } else {
+          sawPureBow = true;
+          expect(boss.claim, 'a pure-bow boss face promised a counter').toBe('nothing counters this boss.');
+        }
+      }
+    }
+    // BOTH faces must have been observed, or the asymmetry above is half-tested.
+    expect(sawDual, 'the dual-affinity boss face never rolled').toBe(true);
+    expect(sawPureBow, 'the pure-bow boss face never rolled').toBe(true);
   });
 });
 

@@ -52,6 +52,52 @@
   "family the brief called out: exploit (poison), shieldBurst (own shield),",
   "stackBonus (burn), stackBonus (bleed). Every board is real catalog cards",
   "only, Bronze floor, small 2-card board \u2014 same rule as every enemy above.",
+  "WHAT WAS MISSING, and it was a DESIGN hole rather than a content wish.",
+  "`src/data/biomes.ts` makes a wave band declarable: five waves whose mobs,",
+  "boss, stalls and events all point at ONE of the game's eleven card types,",
+  "read BEFORE the player commits. Six bands existed against eleven types --",
+  "frost, lightning, dark, bow and lance had no band, so those five identities",
+  "could not be DECLARED, only stumbled into (docs/run-structure-patterns.md",
+  "Q12). The blocker was never biome data: the roster fielded 0 or 1 mobs for",
+  "each of those five, so a \"Frostmarch\" would have been a name with no",
+  "monsters behind it, and `rime_tyrant`/`galewright` rode as guests in bands",
+  "whose declared identity was something else.",
+  "AND IT WAS A LIVE BUG ONE LEVEL DOWN. The band forecast prints \"<counter>",
+  "hits these mobs for +50%\", derived from the biome's declared LEAN. Five of",
+  "the six shipped `mobs` lists carried BORROWED off-type members purely",
+  "because on-type ones did not exist -- the Hallowfield's `necromancer`",
+  "(dark) and `knight` (sword) take nothing extra from dark -- so that line was",
+  "false of them. The mobs below are what let those lists be cleaned to",
+  "on-type members only, which is what makes the line true (asserted in",
+  "`tests/run/biomeForecastCounter.test.ts`).",
+  "THIRTEEN mobs: three each for frost / lightning / dark / bow / lance",
+  "(counting the one existing kit each of the last four already had --",
+  "`mage`, `necromancer`, `hunter`, `rogue`), plus one HOLY and one NATURE kit",
+  "so the Hallowfield and the Thornwild do not lose depth coverage when their",
+  "borrowed members go. Every band ends with >= 2 on-type mobs and 8 of the 11",
+  "span three of `computeEnemyDepthBands`'s four depth tiers.",
+  "THE SHAPE IS THE MOB SHAPE, NOT THE BOSS SHAPE. A signature boss is a",
+  "MONO-TYPE TRIAD with the mono type authored as its affinity (see the boss",
+  "block below, and `tests/run/bossRoster.test.ts` which pins that contract).",
+  "These are MOBS: 2-3 real catalog cards, Bronze floor, no gem, no tier",
+  "override, the universal Level-1 statline, `boardSize` an EXACT fit of the",
+  "pieces' sizes -- exactly like every mob above. What they DO share with the",
+  "boss rule is a single-type board: each one's cards are all of its declared",
+  "type, so the affinity the counter line reads is never contradicted by the",
+  "board (the legibility bug the 2026-08-18 Warden/Lancer re-themes closed).",
+  "NEW CARDS ONLY WHERE IT SERVES THE KIT. 34 of the 156 catalog cards had",
+  "never been fielded by any enemy; these thirteen boards field 26 of them,",
+  "including the roster's first uses of `swift_march` and `spotters_mark` (two",
+  "of the six AURA cards in the whole catalog -- the largest built-and-unused",
+  "surface in the game per docs/run-structure-patterns.md Q2). Where a card is",
+  "shared with an existing kit the per-monster note says which and why.",
+  "GOLD SEATS THEM ON THE EXISTING LADDER. `computeEnemyDepthBands` derives",
+  "depth tiers from `goldReward` RANK, so adding 13 ids re-splits the tiers and",
+  "legitimately moves which enemy an existing draw indexes into (the same",
+  "expected shift the 2026-08-19 depth-gating pass documented). Values 13-33",
+  "stay strictly inside the fight pool's existing 12-33 range, so the bosses",
+  "(46-74) still sit entirely above it -- `tests/run/bossRoster.test.ts`",
+  "asserts exactly that.",
   "WHAT WAS MISSING. \"Boss\" in this game is a TITLE assigned by POSITION in",
   "the wave (`fightSpecFor` in src/run/runState.ts: pos <= 2 normal, <= 4",
   "elite, else boss), and `TITLE_PRESETS.boss` (+4 levels, +4 rank, +2 extra",
@@ -108,6 +154,54 @@
   "the Hollow Crown. ---------------------------------------------------------"
  ],
  "enemies": [
+  {
+   "id": "arc_adept",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Arc Adept",
+      "notes": [
+       "ARC ADEPT -- LIGHTNING, tier 0. The roster's first enemy that buffs its OWN",
+       "speed: Thunder Step chips 12 (+MATK) and takes +20% SPD for 2 turns, then",
+       "Chain Spark hits 16 (+MATK) and {{Slow}}s the hero's next action by +8",
+       "weight. Both halves of the readiness race move at once -- it gets faster",
+       "while the hero gets later -- which is a different lesson from the Rime",
+       "Wisp's pure SPD shred (the Wisp slows YOU; the Adept also hurries ITSELF,",
+       "and a buff is not something {{Cleanse}} can strip off you). Distinct from",
+       "`mage`, the pure flat-MATK blaster this band's mid tier already holds.",
+       "goldReward 15 seats it in tier 0. Counter-play: NATURE (+50%, nature beats",
+       "lightning), or out-damage it -- 28 total flat power across two cards is the",
+       "thinnest offense in tier 0 after `giant_rat`."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "lightning",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 2,
+      "pieces": [
+       {
+        "skillId": "thunder_step",
+        "slot": 0
+       },
+       {
+        "skillId": "chain_spark",
+        "slot": 1
+       }
+      ],
+      "goldReward": 15,
+      "xpReward": 10
+     }
+    }
+   ]
+  },
   {
    "id": "bandit_duelist",
    "versions": [
@@ -167,6 +261,63 @@
       ],
       "goldReward": 30,
       "xpReward": 20
+     }
+    }
+   ]
+  },
+  {
+   "id": "barrow_wight",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Barrow Wight",
+      "notes": [
+       "BARROW WIGHT -- DARK, tier 3, and the Duskbarrow's CHAMPION. Two things no",
+       "other mob on the roster does, on one board. (1) SWIFT MARCH is a PASSIVE",
+       "AURA -- adjacent cards cost -5 weight -- and it is authored in the MIDDLE",
+       "slot on purpose, so BOTH neighbours (Graveside Rite and the size-2 Soul",
+       "Rend) arrive sooner than their printed weight; the roster's only weight-",
+       "reduction aura, and one of the six aura cards in the entire catalog. (2)",
+       "SOUL REND is 27 (+best stat) TRUE damage -- it ignores DEF and MDEF",
+       "outright, so the armor-or-magic-resist answer that works on most of this",
+       "roster is worth literally nothing here. Graveside Rite's {{Affinity}} Dark",
+       "half is LIVE (the Wight's authored affinity opens it, the same way `mage`'s",
+       "lightning opens Arcane Bolt's), so it heals 10 (+MDEF) AND {{Cleanse}}s up",
+       "to 4 of its own ailments: a DoT deck does not answer it either. goldReward",
+       "33 seats it in tier 3, the fight pool's top rung beside `blood_duelist`.",
+       "Counter-play: HOLY for the +50%, raw maxHp/healing to survive a TRUE hit",
+       "the aura keeps arriving early, or {{Negate}} -- Soul Rend is one instance,",
+       "so one charge cancels the whole thing."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "dark",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 4,
+      "pieces": [
+       {
+        "skillId": "graveside_rite",
+        "slot": 0
+       },
+       {
+        "skillId": "swift_march",
+        "slot": 1
+       },
+       {
+        "skillId": "soul_rend",
+        "slot": 2
+       }
+      ],
+      "goldReward": 33,
+      "xpReward": 22
      }
     }
    ]
@@ -281,6 +432,64 @@
       ],
       "goldReward": 19,
       "xpReward": 13
+     }
+    }
+   ]
+  },
+  {
+   "id": "blight_shambler",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Blight Shambler",
+      "notes": [
+       "BLIGHT SHAMBLER -- NATURE, tier 2. The other CLEANUP kit: the Thornwild",
+       "borrowed three beast mobs and a lance one, and nature's own two",
+       "(`stone_beetle`, `toxic_druid`) both sit in tier 0. This is its mid-depth",
+       "member, and its loop is the catalog's LARGEST poison read: Nettle Ward",
+       "stands {{Thorns}} 5 up and lays {{Poison}} 5 (which bypasses shields),",
+       "Blight Feast then deals 12 (+MATK) and +12 MORE because the target is",
+       "already poisoned, and Overgrowth heals 30 (+MDEF) behind an 18 (+MDEF)",
+       "magical shield. So the grind loses on both ends -- chip damage feeds the",
+       "thorns and the heal outpaces it -- while the poison keeps re-priming a",
+       "doubled hit. Distinct from `venom_stalker` (beast, +4 exploit, no sustain)",
+       "and `toxic_druid` (three poison hybrids, no payoff card). Shares Nettle Ward",
+       "with `bramble_matriarch`, whose own identity is Grove Communion's 64-HP",
+       "gated heal, not the poison read. goldReward 28 seats it in tier 2.",
+       "Counter-play: FIRE (+50%, fire beats nature), {{Cleanse}} the poison stack",
+       "before Blight Feast reads it (it checks BEFORE the card acts, so removing it",
+       "one beat early denies the whole +12), or BURST over chip -- out-damage one",
+       "Overgrowth rather than trading with it."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "nature",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 4,
+      "pieces": [
+       {
+        "skillId": "nettle_ward",
+        "slot": 0
+       },
+       {
+        "skillId": "blight_feast",
+        "slot": 1
+       },
+       {
+        "skillId": "overgrowth",
+        "slot": 2
+       }
+      ],
+      "goldReward": 28,
+      "xpReward": 19
      }
     }
    ]
@@ -499,6 +708,56 @@
    ]
   },
   {
+   "id": "cordon_archer",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Cordon Archer",
+      "notes": [
+       "CORDON ARCHER -- BOW, tier 1. One enormous arrow behind a door: Marksman",
+       "Shot is the catalog's largest single bow hit (48 (+ATK), size 2), and",
+       "Evasive Cordon is a {{Ward}} charge plus a 10 (+DEF) physical shield -- the",
+       "roster's first DEFENSIVE bow line at all. Where `hunter` is a marksman who",
+       "debilitates first and perforates after, the Cordon Archer simply survives",
+       "one exchange and then lands the biggest arrow in the book. goldReward 21",
+       "seats it in tier 1, the rung the bow band had nothing on. Counter-play:",
+       "NOTHING counters bow on the weapon triangle (`WEAPON_BEATS` maps",
+       "sword->axe->lance->sword and bow->beast, with no entry mapping TO bow) --",
+       "this is a fight the type wheel does not help with, and that is the honest",
+       "read the Arrowfell's banner prints. What DOES answer it is flat ARMOR (one",
+       "big physical hit is exactly what flat DEF subtracts best) or a shieldBreak",
+       "opener onto the Cordon before the shot arrives."
+      ],
+      "baseDepth": 1,
+      "weaponAffinity": "bow",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 3,
+      "pieces": [
+       {
+        "skillId": "marksman_shot",
+        "slot": 0
+       },
+       {
+        "skillId": "evasive_cordon",
+        "slot": 2
+       }
+      ],
+      "goldReward": 21,
+      "xpReward": 14
+     }
+    }
+   ]
+  },
+  {
    "id": "dawn_arbiter",
    "versions": [
     {
@@ -548,6 +807,60 @@
       ],
       "goldReward": 70,
       "xpReward": 47
+     }
+    }
+   ]
+  },
+  {
+   "id": "deadeye_stalker",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Deadeye Stalker",
+      "notes": [
+       "DEADEYE STALKER -- BOW, tier 3, and the Arrowfell's CHAMPION. The board is",
+       "a SANDWICH and the slot order is the whole kit: Spotter's Mark sits in slot",
+       "1, physically touching BOTH shots, so its \"adjacent Offense cards deal +10\"",
+       "passive pays on each of them -- Piercing Arrow lands 18 and {{Expose}}s the",
+       "hero for +30% from every direct hit, and Hunter's Shot then lands 30 into",
+       "that window. Same aura mechanic `greenwood_sovereign` is built around, at",
+       "mob scale and with the roster's cheapest possible frame (three size-1",
+       "cards). It is also the only kit fielding Hunter's Shot, which the 2026-08-21",
+       "legacy refresh swapped OFF `hunter` -- the card came back where its flat 20",
+       "is the payoff of a mark rather than a plain opener. goldReward 31 seats it",
+       "in tier 3. Counter-play: nothing on the wheel (see the Cordon Archer);",
+       "ARMOR blunts three small physical hits well, and {{Cleanse}} strips the",
+       "Expose before the marked shot arrives."
+      ],
+      "baseDepth": 1,
+      "weaponAffinity": "bow",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 3,
+      "pieces": [
+       {
+        "skillId": "piercing_arrow",
+        "slot": 0
+       },
+       {
+        "skillId": "spotters_mark",
+        "slot": 1
+       },
+       {
+        "skillId": "hunter_shot",
+        "slot": 2
+       }
+      ],
+      "goldReward": 31,
+      "xpReward": 21
      }
     }
    ]
@@ -694,6 +1007,108 @@
    ]
   },
   {
+   "id": "glacial_warden",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Glacial Warden",
+      "notes": [
+       "GLACIAL WARDEN -- FROST, tier 3, and the Frostmarch's CHAMPION (the second",
+       "face of that band's boss shortlist, the same way `blood_duelist` is the",
+       "Ironmoot's -- a boss-TITLED mob needs no new statline, since the title",
+       "supplies the power). Deep Freeze is -40% SPD for THREE turns on a 24",
+       "(+MATK) hit, Glacial Spike stacks another -20% for two, and Frost Ward",
+       "(-50% incoming magical) is what buys the time for both to compound. Where",
+       "the Wisp shaves a turn, the Warden takes the fight's tempo away entirely.",
+       "Shares Deep Freeze with `rime_tyrant` on purpose -- it is the band's own",
+       "signature line, and the Warden is what the Tyrant's country produces --",
+       "but not one of the Tyrant's two gated cards, which stay its alone.",
+       "goldReward 32 seats it in tier 3. Counter-play: LIGHTNING, or PHYSICAL",
+       "burst inside the first rotation -- Frost Ward answers magic only, and the",
+       "Warden has no answer at all to a fight that ends before its third cast."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "frost",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 4,
+      "pieces": [
+       {
+        "skillId": "deep_freeze",
+        "slot": 0
+       },
+       {
+        "skillId": "frost_ward",
+        "slot": 2
+       },
+       {
+        "skillId": "glacial_spike",
+        "slot": 3
+       }
+      ],
+      "goldReward": 32,
+      "xpReward": 21
+     }
+    }
+   ]
+  },
+  {
+   "id": "grave_acolyte",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Grave Acolyte",
+      "notes": [
+       "GRAVE ACOLYTE -- DARK, tier 0. A self-sustaining dark caster, and the",
+       "roster's first MAGICAL lifesteal (Wolf King's Leeching Fang is the physical",
+       "beast one): Poison Ritual lays {{Poison}} 5 -- which BYPASSES SHIELDS, so a",
+       "plated opening does not answer it -- and cleanses up to 2 of the Acolyte's",
+       "own ailments in the same breath; Siphon Life then deals 16 (+MATK) and",
+       "heals it 45% of what landed. It goes UP while the hero goes down, and a DoT",
+       "trade specifically loses to it. Distinct from `necromancer`, the band's",
+       "mid-tier curse/debuff caster (Hex of Frailty, Dulling Hex): no card is",
+       "shared and neither steals the other's mechanic. goldReward 16 seats it in",
+       "tier 0. Counter-play: HOLY (+50%, holy and dark are mutually strong), or",
+       "BURST -- out-damage one Siphon Life cycle rather than trading with it."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "dark",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 2,
+      "pieces": [
+       {
+        "skillId": "poison_ritual",
+        "slot": 0
+       },
+       {
+        "skillId": "siphon_life",
+        "slot": 1
+       }
+      ],
+      "goldReward": 16,
+      "xpReward": 11
+     }
+    }
+   ]
+  },
+  {
    "id": "greenwood_sovereign",
    "versions": [
     {
@@ -745,6 +1160,57 @@
       ],
       "goldReward": 50,
       "xpReward": 33
+     }
+    }
+   ]
+  },
+  {
+   "id": "hoarfrost_adept",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Hoarfrost Adept",
+      "notes": [
+       "HOARFROST ADEPT -- FROST, tier 2. The roster's ANTI-CASTER, and its only",
+       "MATK debuff: Mind Frost halves the hero's magicPower for 2 turns, Frost",
+       "Shackle {{Slow}}s the hero's next action by +12 weight while chipping 14",
+       "(+MATK), and Mana Ward banks a 20 (+MDEF) magical shield in front of",
+       "whatever survives the halving. A magical build therefore pays twice --",
+       "half the power, and a shield eating what is left -- which is the exact",
+       "mirror of `warded_sentinel`'s physical wall and a matchup the roster had no",
+       "answer to before. goldReward 24 seats it in tier 2 next to `berserker`.",
+       "Counter-play: PHYSICAL damage walks past both halves (Mind Frost touches",
+       "MATK only, and Mana Ward is a magical shield), or LIGHTNING for the +50%."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "frost",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 3,
+      "pieces": [
+       {
+        "skillId": "frost_shackle",
+        "slot": 0
+       },
+       {
+        "skillId": "mind_frost",
+        "slot": 1
+       },
+       {
+        "skillId": "mana_ward",
+        "slot": 2
+       }
+      ],
+      "goldReward": 24,
+      "xpReward": 16
      }
     }
    ]
@@ -1011,6 +1477,108 @@
    ]
   },
   {
+   "id": "phalanx_veteran",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Phalanx Veteran",
+      "notes": [
+       "PHALANX VETERAN -- LANCE, tier 2, and the Pikewold's CHAMPION. A physical",
+       "attacker pays THREE TIMES and the board says so in order: Retaliation",
+       "Stance stands {{Thorns}} 6 up behind -20% incoming physical, Impaling",
+       "Charge hits 36 (+ATK) and deepens the guard to -30%, and Bramblemend adds",
+       "5 MORE thorns while healing 10 (+DEF). Eleven standing thorns bill every",
+       "landed direct hit (physical, so the attacker's own DEF applies -- the",
+       "2026-08-21 thorns ruling in docs/enemy-design.md) on top of a third of the",
+       "damage being refused at the door, and the wall repairs itself. It is the",
+       "Thornpike Marshal's doctrine without the Marshal's gated cards. Distinct",
+       "from `thorn_beast` (beast, thorns behind a big flat SHIELD and almost no",
+       "offense): the Veteran's mitigation is a % GUARD, which no shieldBreak can",
+       "strip. goldReward 28 seats it in tier 2. Counter-play: AXE, or go MAGICAL /",
+       "DoT -- neither the physical guard nor thorns touches a magic card or a",
+       "poison tick (thorns answers a landed DIRECT hit only, never a tick)."
+      ],
+      "baseDepth": 1,
+      "weaponAffinity": "lance",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 4,
+      "pieces": [
+       {
+        "skillId": "retaliation_stance",
+        "slot": 0
+       },
+       {
+        "skillId": "impaling_charge",
+        "slot": 1
+       },
+       {
+        "skillId": "bramblemend",
+        "slot": 3
+       }
+      ],
+      "goldReward": 28,
+      "xpReward": 19
+     }
+    }
+   ]
+  },
+  {
+   "id": "pike_conscript",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Pike Conscript",
+      "notes": [
+       "PIKE CONSCRIPT -- LANCE, tier 0. The cheapest \"hit and hold\" board in the",
+       "game and the roster's first tier-0 lance: Lance Thrust is a flat 20 (+ATK),",
+       "Braced Pike is 12 (+ATK) that also refuses 20% of incoming PHYSICAL for 2",
+       "turns. Nothing clever -- deliberately, because the Pikewold needs a rung a",
+       "fight-1 hero can meet, and the band's identity (a line you have to break",
+       "rather than out-damage) should be legible in its weakest member. Lance",
+       "Thrust is the card the 2026-08-21 refresh swapped off `rogue`; it comes",
+       "back here, where a plain thrust is the point. goldReward 14 seats it in",
+       "tier 0. Counter-play: AXE (+50%, axe beats lance), or MAGICAL damage --",
+       "Braced Pike's guard is physical-only."
+      ],
+      "baseDepth": 1,
+      "weaponAffinity": "lance",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 2,
+      "pieces": [
+       {
+        "skillId": "lance_thrust",
+        "slot": 0
+       },
+       {
+        "skillId": "braced_pike",
+        "slot": 1
+       }
+      ],
+      "goldReward": 14,
+      "xpReward": 9
+     }
+    }
+   ]
+  },
+  {
    "id": "pyre_acolyte",
    "versions": [
     {
@@ -1113,6 +1681,56 @@
       ],
       "goldReward": 64,
       "xpReward": 43
+     }
+    }
+   ]
+  },
+  {
+   "id": "rime_wisp",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Rime Wisp",
+      "notes": [
+       "RIME WISP -- FROST, tier 0. The roster's FIRST frost enemy, and the first",
+       "enemy whose whole board attacks the READINESS economy instead of the HP",
+       "bar: Glacial Spike is 12 (+MATK) and -20% SPD, Slow Hex is 8 (+MATK) and",
+       "-30% SPD. Readiness is gained per turn AT SPD (src/engine/combat/simulate.ts),",
+       "so a 30% cut is a 30% cut to how often the hero acts at all -- the Rime",
+       "Tyrant's doctrine at mob scale and a fifth of the price. Distinct from",
+       "`mage` (flat MATK burst, no rider) and `ember_imp` (burn attrition): the",
+       "Wisp's damage is almost incidental. goldReward 13 seats it in tier 0",
+       "alongside `giant_rat`, deliberately -- frost is the type the run should",
+       "meet in its first four fights, since that is where a Frostmarch band is",
+       "first dealt. Counter-play: LIGHTNING (+50%, lightning beats frost), or",
+       "simply killing it inside two casts -- nothing here hits hard enough to",
+       "race, and the SPD debuff is a stat effect, so {{Ward}} does NOT stop it."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "frost",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 2,
+      "pieces": [
+       {
+        "skillId": "glacial_spike",
+        "slot": 0
+       },
+       {
+        "skillId": "slow_hex",
+        "slot": 1
+       }
+      ],
+      "goldReward": 13,
+      "xpReward": 9
      }
     }
    ]
@@ -1449,6 +2067,59 @@
    ]
   },
   {
+   "id": "tempest_herald",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Tempest Herald",
+      "notes": [
+       "TEMPEST HERALD -- LIGHTNING, tier 3, and the Stormreach's CHAMPION. Every",
+       "card is the same axis, escalating: Storm Surge is the roster's largest",
+       "single lightning hit (36 (+MATK)) AND +30% SPD for 2 turns, Arc Cascade",
+       "taxes +8 weight on the card the hero is about to play and {{Splash}}es that",
+       "tax onto the pieces either side of it (up to 3 at once), and Storm Guard",
+       "adds another +20% SPD behind -30% incoming magical. So it acts more often",
+       "while the hero's whole next band of plays costs more -- the compounding",
+       "version of what the Arc Adept does once. Distinct from `warbreaker`, the",
+       "roster's other burden+splash kit, which is a slow AXE brute with no speed",
+       "of its own. goldReward 30 seats it in tier 3. Counter-play: NATURE, or a",
+       "board of FEW, CHEAP, LOW-WEIGHT pieces -- a burden tax is only as large as",
+       "the weight it lands on, and Storm Guard does nothing at all about physical."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "lightning",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 4,
+      "pieces": [
+       {
+        "skillId": "storm_surge",
+        "slot": 0
+       },
+       {
+        "skillId": "arc_cascade",
+        "slot": 2
+       },
+       {
+        "skillId": "storm_guard",
+        "slot": 3
+       }
+      ],
+      "goldReward": 30,
+      "xpReward": 20
+     }
+    }
+   ]
+  },
+  {
    "id": "thorn_beast",
    "versions": [
     {
@@ -1667,6 +2338,62 @@
       ],
       "goldReward": 25,
       "xpReward": 17
+     }
+    }
+   ]
+  },
+  {
+   "id": "vigil_keeper",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Vigil Keeper",
+      "notes": [
+       "VIGIL KEEPER -- HOLY, tier 3. Authored for the CLEANUP, not for a new band:",
+       "the Hallowfield's mob list borrowed `knight` (sword) and `necromancer`",
+       "(dark) to span the depth tiers, and dropping them left holy with two tier-0/1",
+       "kits and nothing deep. This is the deep one, and it is the roster's {{Ward}}",
+       "SHOWCASE: Aegis of the Unbroken banks 2 charges and heals 28 (+MDEF),",
+       "Warding Prayer adds the third -- exactly `MAX_WARD_CHARGES` -- plus a",
+       "2-charge {{Cleanse}}. Three ward charges blank the first three affliction",
+       "APPLICATIONS outright regardless of their stack counts, so the burn/poison/",
+       "bleed half of the card book simply does not land on this monster. Its own",
+       "offense is Purging Strike, 9 (+best stat) TRUE, which ignores whatever the",
+       "hero plated in response. Distinct from `cleric` (heal/guard support, zero",
+       "ward) and `seraph` (the roster's only {{Negate}}, which cancels a HIT rather",
+       "than an ailment). goldReward 31 seats it in tier 3. Counter-play: DARK",
+       "(+50%), or {{Stun}} -- stun is NOT in the wardable set, so it lands through",
+       "all three charges; burst also works, since 9 TRUE per rotation cannot race."
+      ],
+      "baseDepth": 1,
+      "elementAffinity": "holy",
+      "stats": {
+       "maxHp": 100,
+       "hp": 100,
+       "attack": 1,
+       "magicPower": 1,
+       "armor": 1,
+       "magicResist": 1,
+       "speed": 10
+      },
+      "boardSize": 4,
+      "pieces": [
+       {
+        "skillId": "aegis_of_the_unbroken",
+        "slot": 0
+       },
+       {
+        "skillId": "warding_prayer",
+        "slot": 2
+       },
+       {
+        "skillId": "purging_strike",
+        "slot": 3
+       }
+      ],
+      "goldReward": 31,
+      "xpReward": 21
      }
     }
    ]

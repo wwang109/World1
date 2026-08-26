@@ -143,12 +143,18 @@ describe('biome shop preference: the band supplies the type its banner names', (
   it('PREFER, NOT SILO: every shop theme still reaches the run, and the un-named types are not starved', () => {
     // The regression this catches is real and was measured mid-build: with the
     // biome shop lists holding only their own lean's stall, the three types no
-    // biome leans on (frost, lightning, dark — the roster fields no mob for any
-    // of them) fell from 2.1-2.5 offers per 10 waves to 0.96-1.19, P(>=3) from
-    // 29-34% to 10-16%. Preference crowds out whatever it does not name, and
+    // biome leaned on at the time (frost, lightning, dark — the roster fielded
+    // no mob for any of them, so there was no honest band to build around them)
+    // fell from 2.1-2.5 offers per 10 waves to 0.96-1.19, P(>=3) from 29-34% to
+    // 10-16%. Preference crowds out whatever it does not name, and
     // `affinityReachability.test.ts` measures per-SHELF density so it never saw
-    // it. Fixed by giving each homeless stall a priority-1 home in the biome it
-    // reads beside; asserted here so it cannot come back.
+    // it. Phase 1 fixed it by giving each homeless stall a priority-1 home in the
+    // biome it read beside; the ELEVEN-BAND pass (2026-08-26) retired that patch
+    // by giving every type a band, so each single-type stall now sits at priority
+    // 0 of its own. Re-measured over the same 400-seed harness after that pass:
+    // mean fixed-type supply 2.73 -> 2.72 offers and P(>=3) 37% -> 36% (i.e.
+    // unchanged), with P(zero) IMPROVING for all eleven types. The floor below is
+    // what keeps the give-up honest either way.
     const seen = new Set<string>();
     const totals: Record<string, number> = {};
     for (const seed of SEEDS) {
@@ -191,6 +197,24 @@ describe('biome shop preference: the band supplies the type its banner names', (
       if (!carrier) uncovered.push(`${type} (${shopId})`);
     }
     expect(uncovered, `no biome carries the stall for: ${uncovered.join(', ')}`).toEqual([]);
+  });
+
+  it('EVERY card type is DECLARABLE: it is the lean of some band', () => {
+    // The Q12 invariant (docs/run-structure-patterns.md): a band's identity is
+    // the mechanism by which a player declares a build, so an archetype with no
+    // band cannot be declared — only stumbled into. Coverage of the DECLARATION
+    // surface is therefore a design requirement, not a content nicety, and it is
+    // a different claim from the shop-coverage invariant below: a type whose
+    // stall is merely carried at priority 1 of someone else's band is SUPPLIED
+    // but not DECLARABLE. Five types (frost, lightning, dark, bow, lance) were
+    // in exactly that state until the mob roster that staffs them landed.
+    const leans = biomeIds.map((id) => {
+      const lean = biomeCatalog[id]!.lean;
+      return `${lean.kind}:${lean.type}`;
+    }).sort();
+    expect([...new Set(leans)], 'two bands lean the same type — some other type is now undeclarable')
+      .toEqual(leans);
+    expect(leans, 'a card type has no band of its own').toEqual(ALL_TYPES);
   });
 
   it('a biome never breaks a stall\'s own minWave gate (the preference is filtered, not forced)', () => {

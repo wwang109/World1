@@ -30,9 +30,12 @@ import { enemies } from '../../src/data/enemies';
  *      `weaponAffinity: 'axe'` as `ruin_warlord`, so the band's "AXE, countered
  *      by SWORD" telegraph is true for both of its faces).
  *   2. `dawn_arbiter` and `hollow_crown` were reported as UNREACHABLE through
- *      any band. They are not: `hallowfield` shortlists both, and both appear
+ *      any band. They were not: `hallowfield` shortlisted both, and both appeared
  *      across the sweep below. But nothing asserted it either way — which is the
- *      actual defect, and §BOSS REACHABILITY closes it.
+ *      actual defect, and §BOSS REACHABILITY closes it. (Since the eleven-band
+ *      pass of 2026-08-26 the two no longer share a shortlist: `hollow_crown` is
+ *      the Duskbarrow's headliner, the dark band it was authored for. The
+ *      assertion is what makes that move safe to have made.)
  *
  * So this suite deliberately does NOT assert `isBoss` on shortlist entries —
  * that would enforce a rule the design does not have and would fail a working

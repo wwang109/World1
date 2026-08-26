@@ -232,6 +232,58 @@ export const MONSTER_PROFILES: Record<string, StatProfile> = {
   galewright: profile({ magicPower: 5, speed: 2 }),
   dawn_arbiter: profile({ magicPower: 3, magicResist: 2, maxHp: 2 }),
   hollow_crown: profile({ magicPower: 5, maxHp: 1 }),
+
+  // --- TYPELESS-BAND MOB ROSTER (2026-08-26) ---
+  // Thirteen mobs for the five card types that had no wave band (frost,
+  // lightning, dark, bow, lance) plus the two CLEANUP kits (holy, nature) —
+  // see the same-named block in `src/data/enemies.ts` for why. EVERY new
+  // monster id needs an entry here: an unlisted id silently falls through to
+  // DEFAULT_PROFILE (a flat 2/2/1/1/1/1 spend), which is exactly how a kit's
+  // authored identity evaporates as the run deepens — a previous content pass
+  // shipped ten ids with no profile and a human added them by hand afterwards.
+  // Same reading as the roster above: DOMINANT weight = the stat the deck
+  // actually spends, secondary = how the kit wants to be fought.
+  //
+  // FROST. All three are MATK casters whose real weapon is the SPD/tempo
+  // debuff, which is a flat percentage and carries no stat term at all — so
+  // magicPower is what their damage lines scale off, and the secondary weight
+  // is whatever keeps them alive long enough for a 2-3 turn debuff to compound.
+  rime_wisp: profile({ magicPower: 4, speed: 1 }),
+  hoarfrost_adept: profile({ magicPower: 3, magicResist: 2, maxHp: 1 }),
+  glacial_warden: profile({ magicPower: 3, magicResist: 3, maxHp: 2 }),
+  // LIGHTNING. Both kits BUY THEIR OWN SPEED on the board (Thunder Step,
+  // Storm Surge, Storm Guard), so speed is weighted level-for-level with the
+  // damage stat rather than as a residual — the profile has to agree with the
+  // deck or a levelled Herald stops out-acting anything.
+  arc_adept: profile({ magicPower: 3, speed: 3 }),
+  tempest_herald: profile({ magicPower: 4, speed: 3, maxHp: 1 }),
+  // DARK. `grave_acolyte` heals a PERCENTAGE of damage dealt (Siphon Life), so
+  // magicPower buys its sustain as well as its damage — no maxHp needed beyond
+  // a token. `barrow_wight`'s Soul Rend scales off "+best stat", which for this
+  // profile IS magicPower; Graveside Rite's heal scales off MDEF, hence the
+  // single magicResist point rather than none.
+  grave_acolyte: profile({ magicPower: 4, maxHp: 1 }),
+  barrow_wight: profile({ magicPower: 3, maxHp: 2, magicResist: 1 }),
+  // BOW. Both are (+ATK) shooters. `cordon_archer` carries a little armor
+  // because Evasive Cordon's shield scales off DEF (the same reason the roster's
+  // shielded kits weight it); `deadeye_stalker` takes speed instead, because its
+  // whole payoff is landing the Expose and then the marked shot inside its
+  // 2-turn window.
+  cordon_archer: profile({ attack: 4, armor: 1, maxHp: 1 }),
+  deadeye_stalker: profile({ attack: 4, speed: 2 }),
+  // LANCE. Both hit with (+ATK) and mitigate with a flat % guard, but
+  // `phalanx_veteran` also HEALS off DEF (Bramblemend) and is authored as the
+  // wall, so armor leads there — same shape as `warded_sentinel`, the roster's
+  // other authored wall — while the tier-0 conscript stays attack-led.
+  pike_conscript: profile({ attack: 3, armor: 2, maxHp: 1 }),
+  phalanx_veteran: profile({ armor: 4, maxHp: 2, attack: 2 }),
+  // CLEANUP KITS. `vigil_keeper`'s ward charges are flat (no stat term) and its
+  // heal scales off MDEF, so magicResist leads and magicPower stays a token for
+  // Purging Strike's "+best stat" line; `blight_shambler` is a nature caster
+  // whose damage AND poison read scale off MATK, with MDEF behind Overgrowth's
+  // heal+shield and enough maxHp to actually win a grind.
+  vigil_keeper: profile({ magicResist: 3, maxHp: 3, magicPower: 1 }),
+  blight_shambler: profile({ magicPower: 3, magicResist: 2, maxHp: 2 }),
 };
 
 /** Profile lookup for an enemy id, falling back to DEFAULT_PROFILE. */

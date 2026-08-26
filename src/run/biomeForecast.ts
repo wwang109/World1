@@ -314,9 +314,20 @@ export function renderBandForecast(f: BandForecast): string {
   lines.push('');
   lines.push('MOBS');
   for (const m of f.mobs) lines.push(`  ${m.name}`);
-  if (f.counterType) {
-    lines.push(`${f.counterType} hits these`);
-    lines.push('mobs for +50%.');
+  // THE ABSENT COUNTER IS A FACT, NOT A MISSING LINE (fixed 2026-08-26). This
+  // used to be `if (f.counterType) { ... }`, so a band whose lean nothing
+  // counters printed NO claim under its mobs at all — and there is exactly such
+  // a band: `WEAPON_BEATS` maps sword->axe->lance->sword and bow->beast, with no
+  // entry mapping TO bow, so the Arrowfell's `counterTypeFor` is `undefined`.
+  // A silently absent line is the worst of the three options: the player cannot
+  // tell "no type helps here" (real, route-choosing information — this is the
+  // one band the type wheel offers no shortcut in) from "the renderer dropped
+  // something". It now goes through the SAME `counterSentence` the boss block
+  // uses, whose zero-type branch already says so in words; for every band that
+  // does have a counter the two output lines are character-identical to what
+  // they were before, which `biomeForecastCounter.test.ts` pins verbatim.
+  for (const line of counterSentence('these mobs', f.counterType === undefined ? [] : [f.counterType])) {
+    lines.push(line);
   }
   lines.push('');
   lines.push('SHOPS');
