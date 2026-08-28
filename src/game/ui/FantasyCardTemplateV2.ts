@@ -23,7 +23,7 @@ import {
   buildWeightPlateText,
   type FantasyArtAnchor,
 } from './fantasyCardTemplateModel';
-import { FANTASY_CARD_TEMPLATE_SPEC, type RegionBox } from './fantasyCardTemplateSpec';
+import { FANTASY_CARD_TEMPLATE_SPEC, fantasyTitleLayout, type RegionBox } from './fantasyCardTemplateSpec';
 import { isAoeSkill } from './skillPresentation';
 
 export interface FantasyCardTemplateV2Options {
@@ -589,7 +589,12 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     halfH: number,
   ): Phaser.GameObjects.Text {
     const region = this.region(model.regions.titleBox);
-    const rule = FANTASY_CARD_TEMPLATE_SPEC.textRules[model.titleRule];
+    // Type AND line budget both come from `fantasyTitleLayout`, which derives
+    // the budget from the DIVIDER the title has to clear — see that function's
+    // doc comment for the overflow it closes. This used to read
+    // `Math.max(13, px(rule.fontSize))` + `maxLines: rule.maxLines`, a font
+    // floor with no matching floor on the geometry.
+    const layout = fantasyTitleLayout(model.titleRule, this.cardScale);
     const title = scene.add.text(
       -halfW + region.x + region.w / 2,
       -halfH + region.y,
@@ -597,17 +602,17 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
       {
         fontFamily: FONT.display,
         fontStyle: 'bold',
-        fontSize: `${Math.max(13, this.px(rule.fontSize))}px`,
+        fontSize: `${layout.fontSize}px`,
         color: '#ffffff',
         align: 'center',
         fixedWidth: region.w,
-        maxLines: rule.maxLines,
+        maxLines: layout.maxLines,
         wordWrap: { width: region.w, useAdvancedWrap: true },
         stroke: '#111722',
         strokeThickness: Math.max(1, this.px(2)),
       },
     ).setOrigin(0.5, 0);
-    title.setLineSpacing(Math.round(rule.lineSpacing * this.cardScale));
+    title.setLineSpacing(layout.lineSpacing);
     return title;
   }
 
