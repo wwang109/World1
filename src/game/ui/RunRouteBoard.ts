@@ -1,46 +1,22 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { DESKTOP_PROFILE, MOBILE_PROFILE } from '../layoutProfile';
-import { type RunState } from '../runStore';
-import { ELEMENT_COLOR, FONT, SCREEN, UI, WEAPON_COLOR } from '../theme';
+import { FONT, SCREEN, UI } from '../theme';
 import { auditTextBlock } from './controlLayoutAudit';
 import { attachButtonFeel } from './motion';
-import type { BandClaimKind, BandCounterClaim, BandBannerViewModel } from './bandBannerViewModel';
+import {
+  bandBannerLayout,
+  leanColor,
+  type BandBannerRowStyle,
+  type BandBannerViewModel,
+} from './bandBannerViewModel';
+import { MARKER_CELLS, MIN_CELL_PX, moreLabel, runRouteLayout, type RunRouteSnapshot } from './runRouteLayout';
 
-export interface RunRouteColumnSnapshot {
-  depth: number;
-  wave: number;
-  nodeCount: number;
-  state: 'cleared' | 'current' | 'future';
-}
-
-export interface RunRouteSnapshot {
-  columns: readonly RunRouteColumnSnapshot[];
-  currentDepth: number;
-  nextDepth: number;
-}
+export { snapshotRunRoute } from './runRouteLayout';
+export type { RunRouteColumnSnapshot, RunRouteSnapshot } from './runRouteLayout';
 
 function trackObject(track: Phaser.GameObjects.GameObject[] | undefined, object: Phaser.GameObjects.GameObject): void {
   track?.push(object);
-}
-
-export function snapshotRunRoute(run: Readonly<RunState>): RunRouteSnapshot {
-  const actionableDepth = run.depth + 1;
-  const columns = run.map.depths.slice(1).map((nodes, index) => {
-    const depth = index + 1;
-    return {
-      depth,
-      wave: nodes[0]?.wave ?? 1,
-      nodeCount: nodes.length,
-      state: depth < actionableDepth ? 'cleared' : depth === actionableDepth ? 'current' : 'future',
-    } satisfies RunRouteColumnSnapshot;
-  });
-
-  return {
-    columns,
-    currentDepth: run.depth,
-    nextDepth: run.depth + 1,
-  };
 }
 
 export function renderRunRouteBoard(
@@ -50,8 +26,7 @@ export function renderRunRouteBoard(
   opts: { mode: 'desktop' | 'mobile'; track?: Phaser.GameObjects.GameObject[] },
 ): void {
   const profile = opts.mode === 'desktop' ? DESKTOP_PROFILE : MOBILE_PROFILE;
-  const columns = route.columns;
-  if (columns.length === 0) return;
+  if (route.columns.length === 0) return;
 
   const horizontal = opts.mode === 'desktop';
   const primaryStart = horizontal ? bounds.x : bounds.y;
@@ -60,26 +35,34 @@ export function renderRunRouteBoard(
   const crossSize = horizontal ? bounds.h : bounds.w;
   const inset = profile.gap;
   const usablePrimary = Math.max(0, primarySize - inset * 2);
-  const cellSize = usablePrimary / columns.length;
-  const centerPrimary = (index: number): number => primaryStart + inset + cellSize * (index + 0.5);
+  // WHICH depths get drawn, and how big each cell is, is decided in the pure
+  // `runRouteLayout` — including the case this board could not survive before,
+  // a route too long for its lane (see that module's header). Unwindowed, the
+  // slot list IS the column list and `cellSize` is the number this function
+  // used to compute itself.
+  const layout = runRouteLayout(route.columns, usablePrimary, MIN_CELL_PX[opts.mode], MARKER_CELLS[opts.mode]);
+  const { slots, cellSize } = layout;
+  /** Centre of a slot along the primary axis — a depth spans one cell, a
+   * `'more'` marker spans several because its label is a sentence. */
+  const centerPrimary = (slot: { cell: number; span: number }): number => primaryStart + inset + cellSize * (slot.cell + slot.span / 2);
   const routeCross = crossStart + Math.max(profile.font.label + profile.gap * 2, crossSize * 0.58);
   const place = (primary: number, cross: number): { x: number; y: number } => horizontal
     ? { x: primary, y: cross }
     : { x: cross, y: primary };
 
-  let waveStart = 0;
-  for (let index = 0; index < columns.length; index++) {
-    const column = columns[index]!;
-    const nextWave = columns[index + 1]?.wave;
-    if (nextWave === column.wave) continue;
-
-    const bandStart = primaryStart + inset + cellSize * waveStart;
-    const bandSize = cellSize * (index - waveStart + 1);
+  // --- wave bands ----------------------------------------------------------
+  // One band per run of consecutive VISIBLE depths sharing a wave. A windowed
+  // trail can open or close mid-wave, so the band is a run of slots rather than
+  // a run of depths: a half-shown wave gets a half-height band under the same
+  // label, which is the honest drawing of "you are part-way through wave 7".
+  const drawBand = (fromCell: number, cells: number, wave: number): void => {
+    const bandStart = primaryStart + inset + cellSize * fromCell;
+    const bandSize = cellSize * cells;
     const band = horizontal
-      ? scene.add.rectangle(bandStart, bounds.y, bandSize, bounds.h, column.wave % 2 === 0 ? UI.panelMuted : UI.panelAlt, 0.2).setOrigin(0, 0)
-      : scene.add.rectangle(bounds.x, bandStart, bounds.w, bandSize, column.wave % 2 === 0 ? UI.panelMuted : UI.panelAlt, 0.2).setOrigin(0, 0);
+      ? scene.add.rectangle(bandStart, bounds.y, bandSize, bounds.h, wave % 2 === 0 ? UI.panelMuted : UI.panelAlt, 0.2).setOrigin(0, 0)
+      : scene.add.rectangle(bounds.x, bandStart, bounds.w, bandSize, wave % 2 === 0 ? UI.panelMuted : UI.panelAlt, 0.2).setOrigin(0, 0);
     const waveLabelPos = place(bandStart + bandSize / 2, crossStart + profile.gap);
-    const waveLabel = scene.add.text(waveLabelPos.x, waveLabelPos.y, horizontal ? `WAVE ${column.wave}` : `— WAVE ${column.wave} —`, {
+    const waveLabel = scene.add.text(waveLabelPos.x, waveLabelPos.y, horizontal ? `WAVE ${wave}` : `— WAVE ${wave} —`, {
       fontFamily: FONT.body,
       fontStyle: 'bold',
       fontSize: `${profile.font.tiny}px`,
@@ -88,25 +71,67 @@ export function renderRunRouteBoard(
     trackObject(opts.track, band);
     trackObject(opts.track, waveLabel);
     auditTextBlock(waveLabel, {
-      name: `Run route wave ${column.wave}`,
+      name: `Run route wave ${wave}`,
       maxWidth: horizontal ? Math.max(profile.font.tiny * 5, bandSize - profile.gap * 2) : Math.max(profile.font.tiny * 6, crossSize - profile.gap * 2),
       maxHeight: profile.font.tiny * 2,
       minFontSize: 8,
     });
-    waveStart = index + 1;
+  };
+
+  let bandFrom = -1;
+  let bandCells = 0;
+  let bandWave = -1;
+  for (let index = 0; index <= slots.length; index++) {
+    const slot = slots[index];
+    const wave = slot?.kind === 'column' ? slot.column.wave : -1;
+    if (wave === bandWave) { bandCells += 1; continue; }
+    if (bandFrom >= 0) drawBand(bandFrom, bandCells, bandWave);
+    bandFrom = wave >= 0 && slot ? slot.cell : -1;
+    bandCells = 1;
+    bandWave = wave;
   }
 
-  const routeStart = place(centerPrimary(0), routeCross);
-  const routeEnd = place(centerPrimary(columns.length - 1), routeCross);
+  const first = slots[0];
+  const last = slots[slots.length - 1];
+  if (!first || !last) return;
+  const routeStart = place(centerPrimary(first), routeCross);
+  const routeEnd = place(centerPrimary(last), routeCross);
   const routeLine = horizontal
     ? scene.add.rectangle(routeStart.x, routeCross, routeEnd.x - routeStart.x, 1, UI.border, 0.42).setOrigin(0, 0.5)
     : scene.add.rectangle(routeCross, routeStart.y, 1, routeEnd.y - routeStart.y, UI.border, 0.42).setOrigin(0.5, 0);
   trackObject(opts.track, routeLine);
 
-  columns.forEach((column, index) => {
-    const primary = centerPrimary(index);
+  for (const slot of slots) {
+    const primary = centerPrimary(slot);
     const point = place(primary, routeCross);
     const labelPos = place(primary, routeCross - (horizontal ? profile.font.label + profile.gap : crossSize * 0.34));
+
+    // A truncated end SAYS how much it is hiding, in its own cell. A trail that
+    // silently started at D14 would be a lie about where the run began; "+13
+    // BEHIND" is the same class of fact as "NOTHING COUNTERS THESE MOBS" — the
+    // answer, not an absence.
+    if (slot.kind === 'more') {
+      const marker = scene.add.text(labelPos.x, labelPos.y, moreLabel(slot), {
+        fontFamily: FONT.body,
+        fontStyle: 'bold',
+        fontSize: `${profile.font.tiny}px`,
+        color: UI.textAccent,
+      }).setOrigin(horizontal ? 0.5 : 0, horizontal ? 1 : 0.5);
+      trackObject(opts.track, marker);
+      auditTextBlock(marker, {
+        name: `Run route hidden ${slot.side}`,
+        maxWidth: horizontal ? Math.max(profile.font.tiny * 7, cellSize * slot.span) : Math.max(profile.font.tiny * 7, routeCross - crossStart - profile.gap),
+        maxHeight: profile.font.tiny * 2,
+        minFontSize: 8,
+      });
+      const tick = horizontal
+        ? scene.add.rectangle(point.x, point.y, 1, 7, UI.border, 0.6)
+        : scene.add.rectangle(point.x, point.y, 7, 1, UI.border, 0.6);
+      trackObject(opts.track, tick);
+      continue;
+    }
+
+    const column = slot.column;
     const depthLabel = scene.add.text(labelPos.x, labelPos.y, `D${column.depth}`, {
       fontFamily: FONT.body,
       fontStyle: 'bold',
@@ -124,14 +149,14 @@ export function renderRunRouteBoard(
     if (column.state === 'cleared') {
       const pip = scene.add.circle(point.x, point.y, horizontal ? 5 : 4, UI.chip, 0.62);
       trackObject(opts.track, pip);
-      return;
+      continue;
     }
     if (column.state === 'current') {
       const ring = scene.add.circle(point.x, point.y, horizontal ? 7 : 6, 0, 0).setStrokeStyle(2, UI.chip, 1);
       const pip = scene.add.circle(point.x, point.y, horizontal ? 3 : 2, UI.chip, 1);
       trackObject(opts.track, ring);
       trackObject(opts.track, pip);
-      return;
+      continue;
     }
 
     const previewGap = horizontal ? 16 : 12;
@@ -142,7 +167,7 @@ export function renderRunRouteBoard(
         : scene.add.rectangle(point.x + offset, point.y, 8, 8, UI.panelMuted, 0.38).setStrokeStyle(1, UI.border, 0.22);
       trackObject(opts.track, preview);
     }
-  });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -163,74 +188,16 @@ export function renderRunRouteBoard(
 // closed.
 // ---------------------------------------------------------------------------
 
-interface BandBannerMetrics {
-  pad: number;
-  name: number;
-  lean: number;
-  wave: number;
-  heading: number;
-  bossName: number;
-  sub: number;
-  claim: number;
-  button: number;
-  lineGap: number;
-  blockGap: number;
-}
-
-const BANNER_METRICS: Record<'desktop' | 'mobile', BandBannerMetrics> = {
-  desktop: { pad: 14, name: 18, lean: 11, wave: 11, heading: 10, bossName: 15, sub: 10, claim: 12, button: 26, lineGap: 4, blockGap: 8 },
-  mobile: { pad: 8, name: 13, lean: 9, wave: 9, heading: 8, bossName: 12, sub: 9, claim: 10, button: 24, lineGap: 3, blockGap: 7 },
-};
-
-/** Colour of a COUNTER type — element first, then weapon (the two key spaces
- * never collide), falling back to the generic chip bronze. */
-function counterColor(type: string | undefined): number {
-  if (type === undefined) return UI.chip;
-  return ELEMENT_COLOR[type] ?? WEAPON_COLOR[type] ?? UI.chip;
-}
-
-/** Text colour per certainty. `'none'` deliberately gets the SAME danger red
- * the boss-countdown headline uses — "no type helps you here" is a loud fact,
- * not a greyed-out blank. */
-function claimTextColor(kind: BandClaimKind): string {
-  if (kind === 'none') return '#e0654a';
-  if (kind === 'unsure') return UI.textAccent;
-  return UI.text;
-}
-
-function claimBarColor(claim: BandCounterClaim): number {
-  if (claim.kind === 'none') return UI.bad;
-  if (claim.kind === 'unsure') return UI.waiting;
-  return counterColor(claim.types[0]);
-}
-
-/** Exact height `renderRunBandBanner` will occupy for THIS model — claim lines
- * vary (a long type list flips to two lines), so callers reserve the real
- * number instead of guessing one. */
-export function bandBannerHeight(vm: BandBannerViewModel, mode: 'desktop' | 'mobile'): number {
-  const m = BANNER_METRICS[mode];
-  const bossBody = vm.boss.resolved
-    ? m.sub + m.lineGap
-    : vm.boss.entries.length * (m.sub + m.lineGap);
-  return m.pad
-    + m.name + m.lineGap
-    + m.wave + m.blockGap
-    + 1 + m.blockGap
-    + m.heading + m.lineGap
-    + m.bossName + m.lineGap
-    + bossBody
-    + vm.bossClaim.lines.length * (m.claim + m.lineGap)
-    + 1 + m.blockGap
-    + m.heading + m.lineGap
-    + vm.mobsClaim.lines.length * (m.claim + m.lineGap)
-    + m.button
-    + m.pad;
-}
-
 /**
  * Draws the band banner into `rect`. Identical BLOCKS on both platforms (the
  * both-platforms rule is about the information, and a phone must not be told
  * less than a desktop) — only the type ladder differs.
+ *
+ * NO CURSOR OF ITS OWN. Every y, every height and every colour comes from
+ * `bandBannerLayout` (pure, tested), which is also what `bandBannerHeight`
+ * sums — so the height a caller reserves and the space this function fills are
+ * the same walk of the same list. The mobile run map divides its lane by that
+ * number, and when the two disagreed the trail silently lost half its height.
  */
 export function renderRunBandBanner(
   scene: Phaser.Scene,
@@ -238,126 +205,90 @@ export function renderRunBandBanner(
   vm: BandBannerViewModel,
   opts: { mode: 'desktop' | 'mobile'; track?: Phaser.GameObjects.GameObject[]; onOpenRead?: () => void },
 ): void {
-  const m = BANNER_METRICS[opts.mode];
-  const leanColor = counterColor(vm.leanType);
+  const layout = bandBannerLayout(vm, opts.mode);
+  const m = layout.metrics;
+  const bandColor = leanColor(vm);
   const panel = scene.add.rectangle(rect.x, rect.y, rect.w, rect.h, UI.panelMuted, 0.55).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4);
   trackObject(opts.track, panel);
   // A hairline in the band's own colour along the top edge: the lean is the
   // first thing the panel says, before a word is read.
-  const leanEdge = scene.add.rectangle(rect.x, rect.y, rect.w, 2, leanColor, 0.85).setOrigin(0, 0);
+  const leanEdge = scene.add.rectangle(rect.x, rect.y, rect.w, 2, bandColor, 0.85).setOrigin(0, 0);
   trackObject(opts.track, leanEdge);
 
   const innerX = rect.x + m.pad;
   const innerW = rect.w - m.pad * 2;
-  let cursor = rect.y + m.pad;
 
-  const add = (x: number, y: number, text: string, size: number, color: string, style?: { bold?: boolean; display?: boolean; wrap?: number }): Phaser.GameObjects.Text => {
+  const add = (x: number, y: number, text: string, size: number, color: string, style?: { bold?: boolean; display?: boolean }): Phaser.GameObjects.Text => {
     const t = scene.add.text(x, y, text, {
       fontFamily: style?.display ? FONT.display : FONT.body,
       fontStyle: style?.bold ? 'bold' : 'normal',
       fontSize: `${size}px`,
       color,
-      ...(style?.wrap !== undefined ? { wordWrap: { width: style.wrap } } : {}),
     });
     trackObject(opts.track, t);
     return t;
   };
 
-  // --- identity -----------------------------------------------------------
-  // The lean pill is measured FIRST so the band name gets the width that is
-  // actually left over and shrinks into it rather than running under the pill.
+  // --- the lean pill ------------------------------------------------------
+  // Measured FIRST so the band name gets the width that is actually left over
+  // and shrinks into it rather than running under the pill. Measured, then
+  // drawn UNDER a rectangle added afterwards would hide it — Phaser draws in
+  // insertion order — so the pill's fill goes down first and the label is
+  // re-added on top once its width is known.
   const pillPadX = 6;
-  // Measured, then drawn UNDER a rectangle added afterwards would hide it —
-  // Phaser draws in insertion order — so the pill's fill goes down first and
-  // the label is re-added on top once its width is known.
+  const nameTop = rect.y + (layout.rows[0]?.y ?? m.pad);
   const measure = add(0, 0, vm.leanChip, m.lean, '#12202c', { bold: true });
   const pillW = measure.width + pillPadX * 2;
-  const pillH = m.lean + 6;
   measure.destroy();
-  const pill = scene.add.rectangle(rect.x + rect.w - m.pad - pillW, cursor, pillW, pillH, leanColor, 0.95).setOrigin(0, 0);
+  const pill = scene.add.rectangle(rect.x + rect.w - m.pad - pillW, nameTop, pillW, m.lean + 6, bandColor, 0.95).setOrigin(0, 0);
   trackObject(opts.track, pill);
-  add(pill.x + pillPadX, cursor + 3, vm.leanChip, m.lean, '#12202c', { bold: true });
+  add(pill.x + pillPadX, nameTop + 3, vm.leanChip, m.lean, '#12202c', { bold: true });
 
-  const nameText = add(innerX, cursor, vm.name, m.name, UI.text, { bold: true, display: true });
-  auditTextBlock(nameText, {
-    name: `Band banner name (${opts.mode})`,
-    maxWidth: Math.max(m.name * 4, innerW - pillW - 8),
-    maxHeight: m.name * 1.6,
-    minFontSize: 9,
-  });
-  cursor += m.name + m.lineGap;
-
-  const waveText = add(innerX, cursor, vm.waveRange, m.wave, UI.textDim, { bold: true });
-  auditTextBlock(waveText, { name: `Band banner wave range (${opts.mode})`, maxWidth: innerW, maxHeight: m.wave * 2, minFontSize: 8 });
-  cursor += m.wave + m.blockGap;
-
-  const rule = (): void => {
-    const line = scene.add.rectangle(innerX, cursor, innerW, 1, UI.border, 0.45).setOrigin(0, 0);
-    trackObject(opts.track, line);
-    cursor += 1 + m.blockGap;
+  /** Per-style drawing rules — the ONLY thing this renderer decides. */
+  const STYLE: Record<Exclude<BandBannerRowStyle, 'rule' | 'button'>, { bold: boolean; display: boolean; name: string; heightFactor: number; minFontSize: number; reservePill?: boolean }> = {
+    name: { bold: true, display: true, name: 'name', heightFactor: 1.6, minFontSize: 9, reservePill: true },
+    wave: { bold: true, display: false, name: 'wave range', heightFactor: 2, minFontSize: 8 },
+    heading: { bold: true, display: false, name: 'block heading', heightFactor: 2, minFontSize: 8 },
+    bossName: { bold: true, display: true, name: 'boss name', heightFactor: 1.7, minFontSize: 9 },
+    bossSub: { bold: false, display: false, name: 'boss rank', heightFactor: 2, minFontSize: 8 },
+    bossEntry: { bold: false, display: false, name: 'boss candidate', heightFactor: 2, minFontSize: 8 },
+    claim: { bold: true, display: false, name: 'counter claim', heightFactor: 2, minFontSize: 8 },
   };
 
-  /** A claim, drawn as its own stacked lines behind a colour bar. The bar is
-   * decoration; the SENTENCE carries the subject, so the block can be read
-   * with the colour ignored entirely. */
-  const drawClaim = (claim: BandCounterClaim): void => {
-    const top = cursor;
-    const color = claimTextColor(claim.kind);
-    for (const line of claim.lines) {
-      const t = add(innerX + 6, cursor, line, m.claim, color, { bold: true });
-      auditTextBlock(t, {
-        name: `Band banner ${claim.subject.toLowerCase()} counter (${opts.mode})`,
-        maxWidth: innerW - 6,
-        maxHeight: m.claim * 2,
-        minFontSize: 8,
-      });
-      cursor += m.claim + m.lineGap;
+  for (const row of layout.rows) {
+    const y = rect.y + row.y;
+    if (row.style === 'rule') {
+      const line = scene.add.rectangle(innerX, y, innerW, row.height, UI.border, 0.45).setOrigin(0, 0);
+      trackObject(opts.track, line);
+      continue;
     }
-    const bar = scene.add.rectangle(innerX, top, 3, cursor - top - m.lineGap, claimBarColor(claim), 0.95).setOrigin(0, 0);
-    trackObject(opts.track, bar);
-  };
-
-  // --- BOSS ---------------------------------------------------------------
-  rule();
-  const bossHeading = add(innerX, cursor, 'BOSS', m.heading, UI.textSoft, { bold: true });
-  auditTextBlock(bossHeading, { name: `Band banner boss heading (${opts.mode})`, maxWidth: innerW, maxHeight: m.heading * 2, minFontSize: 8 });
-  cursor += m.heading + m.lineGap;
-
-  const bossName = add(innerX, cursor, vm.boss.headline, m.bossName, UI.text, { bold: true, display: true });
-  auditTextBlock(bossName, { name: `Band banner boss name (${opts.mode})`, maxWidth: innerW, maxHeight: m.bossName * 1.7, minFontSize: 9 });
-  cursor += m.bossName + m.lineGap;
-
-  if (vm.boss.resolved) {
-    const sub = add(innerX, cursor, vm.boss.sub, m.sub, UI.textDim, {});
-    auditTextBlock(sub, { name: `Band banner boss rank (${opts.mode})`, maxWidth: innerW, maxHeight: m.sub * 2, minFontSize: 8 });
-    cursor += m.sub + m.lineGap;
-  } else {
-    for (const entry of vm.boss.entries) {
-      const t = add(innerX, cursor, entry, m.sub, UI.textDim, {});
-      auditTextBlock(t, { name: `Band banner boss candidate (${opts.mode})`, maxWidth: innerW, maxHeight: m.sub * 2, minFontSize: 8 });
-      cursor += m.sub + m.lineGap;
+    if (row.style === 'button') {
+      const btn = scene.add.rectangle(innerX, y, innerW, row.height, UI.panelAlt, 0.9).setOrigin(0, 0)
+        .setStrokeStyle(1, UI.border, 0.7);
+      const btnLabel = add(innerX + innerW / 2, y + row.height / 2, row.text, m.claim, row.color, { bold: true }).setOrigin(0.5);
+      trackObject(opts.track, btn);
+      auditTextBlock(btnLabel, { name: `Band banner read button (${opts.mode})`, maxWidth: innerW - 8, maxHeight: row.height, minFontSize: 8 });
+      if (opts.onOpenRead) {
+        const open = opts.onOpenRead;
+        btn.setInteractive({ useHandCursor: true });
+        attachButtonFeel(scene, btn, { fill: UI.panelAlt, hover: UI.chipDark, follow: [btnLabel], onPress: () => { open(); } });
+      }
+      continue;
     }
-  }
-  drawClaim(vm.bossClaim);
-
-  // --- MOBS ---------------------------------------------------------------
-  rule();
-  const mobHeading = add(innerX, cursor, 'MOBS', m.heading, UI.textSoft, { bold: true });
-  auditTextBlock(mobHeading, { name: `Band banner mobs heading (${opts.mode})`, maxWidth: innerW, maxHeight: m.heading * 2, minFontSize: 8 });
-  cursor += m.heading + m.lineGap;
-  drawClaim(vm.mobsClaim);
-
-  // --- the full read ------------------------------------------------------
-  const btnTop = rect.y + rect.h - m.pad - m.button;
-  const btn = scene.add.rectangle(innerX, btnTop, innerW, m.button, UI.panelAlt, 0.9).setOrigin(0, 0)
-    .setStrokeStyle(1, UI.border, 0.7);
-  const btnLabel = add(innerX + innerW / 2, btnTop + m.button / 2, 'READ THE BAND ›', m.claim, UI.textAccent, { bold: true }).setOrigin(0.5);
-  trackObject(opts.track, btn);
-  auditTextBlock(btnLabel, { name: `Band banner read button (${opts.mode})`, maxWidth: innerW - 8, maxHeight: m.button, minFontSize: 8 });
-  if (opts.onOpenRead) {
-    const open = opts.onOpenRead;
-    btn.setInteractive({ useHandCursor: true });
-    attachButtonFeel(scene, btn, { fill: UI.panelAlt, hover: UI.chipDark, follow: [btnLabel], onPress: () => { open(); } });
+    if (row.bar) {
+      const bar = scene.add.rectangle(innerX, y, 3, row.bar.height, row.bar.color, 0.95).setOrigin(0, 0);
+      trackObject(opts.track, bar);
+    }
+    const style = STYLE[row.style];
+    const text = add(innerX + row.indent, y, row.text, row.height, row.color, { bold: style.bold, display: style.display });
+    auditTextBlock(text, {
+      name: `Band banner ${style.name} (${opts.mode})`,
+      maxWidth: style.reservePill === true
+        ? Math.max(row.height * 4, innerW - pillW - 8)
+        : innerW - row.indent,
+      maxHeight: row.height * style.heightFactor,
+      minFontSize: style.minFontSize,
+    });
   }
 }
 

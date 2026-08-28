@@ -8,8 +8,8 @@ import { rebuildScene } from '../sceneRebuild';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
-import { bandBannerHeight, renderBandReadOverlay, renderRunBandBanner, renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
-import { bandBannerForWave, type BandBannerViewModel } from '../ui/bandBannerViewModel';
+import { renderBandReadOverlay, renderRunBandBanner, renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
+import { bandBannerForWave, bandBannerHeight, type BandBannerViewModel } from '../ui/bandBannerViewModel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addRunArt, eventArtKey, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
@@ -35,6 +35,19 @@ const F = MOBILE_PROFILE.font;
 // CURRENT viewport (the canvas fills the window -- see game/viewport.ts).
 const TEMPLATE = runScreenLayoutRef('mobile');
 const EMPTY_HUD_SNAPSHOT = { day: 0, wave: 1, gold: 0, heroLevel: 1, lives: 0, bossesCleared: 0, wins: 0, losses: 0 };
+
+/** The TALLEST the choice stack can ever be: the planner heading, then three
+ * panels at the 94px ceiling with a 10px gap between them. A one-option stop
+ * adds a MANDATORY label but drops two panels, so it is far shorter; three is
+ * the worst case and therefore the only number the map lane has to respect.
+ *
+ * The template's `choices` slot is 386px tall and this stack has never needed
+ * more than 319 of it, so ~67px sat empty at the bottom of every phone run map
+ * (visible as the gap under the third card). BOTTOM-ANCHORING the stack inside
+ * its slot hands that back to the map lane above, where the trail lives — and
+ * because the number is a constant, not a measurement of the current options,
+ * the block still sits at a FIXED y and does not move between stops. */
+const CHOICE_STACK_H = MOBILE_PROFILE.font.tiny + 8 + 94 * 3 + 10 * 2;
 
 /** Steel-blue / gold-bronze / green / red — same palette as the desktop map. */
 const KIND_COLOR: Record<RunNodeKind, number> = {
@@ -183,9 +196,18 @@ export class MobileRunMapScene extends Phaser.Scene {
     // THE BAND BANNER takes the top of the map lane on mobile exactly as it
     // takes the left of it on desktop — same blocks, same claims, same words
     // (both-platforms rule): a phone is not told less about the band it is
-    // standing in than a desktop is. The trail keeps the rest of the lane —
-    // measured down to the fixed choices block rather than the old hardcoded
-    // 310, so it reclaims the dead 28px that used to sit between them.
+    // standing in than a desktop is.
+    //
+    // THE TRAIL KEEPS THE REST, and the rest is now measured honestly. When the
+    // banner first landed, this lane was 100..426 and the banner took 163 of
+    // it: the trail dropped from 310px to 155px and its cell at wave 10 (36
+    // depths) went 8.2px -> 3.9px, which is a smear, not a map. The commit
+    // message claimed the banner "reclaims the dead 28px the hardcoded 310
+    // left"; it took 155. Two things fix it and neither removes the banner:
+    // the choice stack is bottom-anchored in its slot, which gives this lane
+    // ~67px it was never using (see CHOICE_STACK_H), and the trail WINDOWS
+    // itself so a depth is never drawn smaller than it can be read at
+    // (runRouteLayout.ts). The second is the one that still holds at wave 30.
     const band = bandBannerForWave(run, snapshotRunProgress(run).wave);
     this.band = band;
     const laneTop = TEMPLATE.regions.content.y;
@@ -194,16 +216,18 @@ export class MobileRunMapScene extends Phaser.Scene {
       mode: 'mobile',
       onOpenRead: () => { this.bandReadOpen = true; this.rerender(); },
     });
+    // FIXED position (a constant offset from the template slot, not a
+    // measurement of this stop's options) so the choices never move between
+    // stops — same reasoning as desktop.
+    const slot = TEMPLATE.contentSlots.choices;
+    const choicesTop = slot.y + slot.height - CHOICE_STACK_H;
     const routeTop = laneTop + bannerH + 8;
-    const routeBounds = { x: 10, y: routeTop, w: this.W - 20, h: Math.max(60, TEMPLATE.contentSlots.choices.y - 12 - routeTop) };
+    const routeBounds = { x: 10, y: routeTop, w: this.W - 20, h: Math.max(60, choicesTop - 12 - routeTop) };
     const route = snapshotRunRoute(run);
     renderRunRouteBoard(this, routeBounds, route, { mode: 'mobile' });
 
     if (route.columns.length === 0) return;
-    // FIXED position from the template (was derived from the route lane) so the
-    // choices never move between stops — same reasoning as desktop.
-    const slot = TEMPLATE.contentSlots.choices;
-    this.renderChoiceBlock(slot.x, slot.y, slot.width, slot.height);
+    this.renderChoiceBlock(slot.x, choicesTop, slot.width, CHOICE_STACK_H);
   }
 
   private renderChoiceBlock(x: number, top: number, w: number, availableH: number): void {

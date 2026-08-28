@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BAND_BANNER_METRICS,
   BAND_LINE_WIDTH,
   bandBannerForWave,
+  bandBannerHeight,
+  bandBannerLayout,
   bandBannerViewModel,
+  claimBarColor,
+  claimTextColor,
+  leanColor,
+  type BandBannerMode,
+  type BandBannerViewModel,
 } from '../../src/game/ui/bandBannerViewModel';
+import { UI } from '../../src/game/theme';
 import { bossCounterFor, forecastBand, renderBandForecast, type BandForecast } from '../../src/run/biomeForecast';
 import { biomeIds } from '../../src/data/biomes';
 import { createRun } from '../../src/run/runState';
@@ -44,7 +53,7 @@ describe('bandBannerViewModel', () => {
     const vm = bandBannerForWave(run, 1);
     expect(vm.name).toBe('THE THORNWILD');
     expect(vm.leanChip).toBe('NATURE');
-    expect(vm.leanKind).toBe('element');
+    expect(vm.leanType).toBe('nature');
     expect(vm.waveRange).toBe('WAVES 1-5');
     expect(vm.boss.resolved).toBe(true);
     expect(vm.boss.headline).toBe('THE BRAMBLE MATRIARCH');
@@ -55,7 +64,7 @@ describe('bandBannerViewModel', () => {
     const run = createRun(1);
     expect(bandBannerForWave(run, 5).waveRange).toBe('WAVES 1-5');
     expect(bandBannerForWave(run, 6).waveRange).toBe('WAVES 6-10');
-    expect(bandBannerForWave(run, 6).band).toBe(1);
+    expect(bandBannerForWave(run, 11).waveRange).toBe('WAVES 11-15');
   });
 
   it('EVERY claim names its own subject inside the sentence (3881717)', () => {
@@ -108,7 +117,6 @@ describe('bandBannerViewModel', () => {
     const vm = bandBannerForWave(createRun(36), 1);
     expect(vm.boss.headline).toBe('DEADEYE STALKER');
     expect(vm.bossClaim.kind).toBe('none');
-    expect(vm.bossClaim.chip).toBe('NO COUNTER');
     expect(vm.bossClaim.lines).toEqual(['NOTHING COUNTERS THIS BOSS']);
     expect(vm.mobsClaim.lines).toEqual(['NOTHING COUNTERS THESE MOBS']);
   });
@@ -122,7 +130,6 @@ describe('bandBannerViewModel', () => {
     const frost = bandBannerForWave(createRun(20), 1);
     expect(frost.name).toBe('THE FROSTMARCH');
     expect(frost.mobsClaim.lines).toEqual(['+50% ON THESE MOBS:', 'LIGHTNING']);
-    expect(frost.mobsClaim.chip).toBe('LIGHTNING +50%');
   });
 
   describe('an unresolved boss column', () => {
@@ -147,7 +154,6 @@ describe('bandBannerViewModel', () => {
       expect(f.bossCounter.basis).toBe('split');
       const vm = bandBannerViewModel(f);
       expect(vm.bossClaim.kind).toBe('unsure');
-      expect(vm.bossClaim.chip).toBe('NO SURE COUNTER');
       expect(vm.bossClaim.lines).toEqual(['NO COUNTER IS SURE FOR', 'THIS BOSS.']);
       // The union is carried for callers that need it, but NEVER stated as a
       // sentence: no line names a type.
@@ -193,6 +199,26 @@ describe('bandBannerViewModel', () => {
     }
   });
 
+  it('says nothing about MOBS that it does not show', () => {
+    // DECIDED (2026-08-28): the banner used to print a MOBS heading over a
+    // block holding no mob names — the names live only in the forecast card
+    // behind `READ THE BAND ›`. The mob claim already NAMES ITS OWN SUBJECT
+    // ("... THESE MOBS ..."), which is the whole point of 3881717, so the
+    // heading carried no information and promised a list that was not under
+    // it. Listing the names instead would cost four to six lines of the mobile
+    // map lane the trail is fighting for. The heading goes; `vm.mobs` with it.
+    // The BOSS heading stays — it labels the boss NAME on the very next row.
+    const vm = bandBannerForWave(createRun(1), 1);
+    for (const mode of MODES) {
+      const rows = bandBannerLayout(vm, mode).rows;
+      const headings = rows.filter((r) => r.style === 'heading').map((r) => r.text);
+      expect(headings).toEqual(['BOSS']);
+      expect(rows.some((r) => r.style === 'bossName')).toBe(true);
+    }
+    // ...and the mobs are still one tap away, in the card the overlay prints.
+    expect(vm.card.join('\n')).toContain('MOBS');
+  });
+
   it('covers every biome in the catalog with a non-empty claim on both blocks', () => {
     const seen = new Set<string>();
     for (let seed = 1; seed < 400 && seen.size < biomeIds.length; seed++) {
@@ -203,9 +229,221 @@ describe('bandBannerViewModel', () => {
         seen.add(f.biomeId);
         expect(vm.bossClaim.lines.length).toBeGreaterThan(0);
         expect(vm.mobsClaim.lines.length).toBeGreaterThan(0);
-        expect(vm.mobs.length).toBeGreaterThan(0);
       }
     }
     expect(seen.size).toBe(biomeIds.length);
+  });
+});
+
+/**
+ * The banner's VERTICAL LAYOUT.
+ *
+ * WHY THIS EXISTS. `bandBannerHeight` used to live in `RunRouteBoard.ts`, which
+ * imports Phaser, so nothing here could reach it — and it is the number the
+ * MOBILE run map divides its lane by: banner first, trail gets the remainder.
+ * It was a hand-kept second copy of the renderer's own cursor arithmetic, and
+ * the only thing checking the two agreed was somebody's eye. They did not: the
+ * banner shipped claiming to reclaim 28px of a 310px lane and took 155 of it,
+ * which cut the wave-10 trail cell from 8.2px to 3.9px.
+ *
+ * There is now ONE walk. `bandBannerLayout` emits the rows; the renderer draws
+ * them and keeps no cursor; `bandBannerHeight` is that walk's total. These
+ * tests pin the properties the renderer depends on.
+ */
+const MODES: readonly BandBannerMode[] = ['desktop', 'mobile'];
+
+/** Real models, including the shapes that change the row count: a resolved
+ * boss, a two-line claim, and a shortlist. */
+function layoutSamples(): BandBannerViewModel[] {
+  const out: BandBannerViewModel[] = [];
+  for (const seed of [1, 2, 14, 20, 36, 55]) {
+    const run = createRun(seed);
+    for (let band = 0; band < 3; band++) out.push(bandBannerViewModel(forecastBand(run, band)));
+  }
+  const split = (() => {
+    for (let seed = 1; seed < 400; seed++) {
+      const f = forecastBand(createRun(seed), 0);
+      if (f.biomeId !== 'arrowfell') continue;
+      return bandBannerViewModel({ ...f, boss: null, bossCounter: bossCounterFor(null, f.bossCandidates) });
+    }
+    throw new Error('no arrowfell band 0 in 1..399');
+  })();
+  out.push(split);
+  return out;
+}
+
+describe('bandBannerLayout: the height and the renderer agree by construction', () => {
+  it('the LAST row ends exactly one pad above the reported height', () => {
+    // This is the assertion the regression needed. The renderer bottom-anchors
+    // nothing and measures nothing: it draws row.y for every row and stops. If
+    // a row were ever added without the height following it, this fails.
+    for (const vm of layoutSamples()) {
+      for (const mode of MODES) {
+        const layout = bandBannerLayout(vm, mode);
+        const last = layout.rows[layout.rows.length - 1];
+        expect(last).toBeDefined();
+        expect(last?.style).toBe('button');
+        expect((last?.y ?? 0) + (last?.height ?? 0) + layout.metrics.pad).toBe(layout.height);
+        expect(bandBannerHeight(vm, mode)).toBe(layout.height);
+      }
+    }
+  });
+
+  it('every row is inside the banner, in order, and never overlaps the next', () => {
+    for (const vm of layoutSamples()) {
+      for (const mode of MODES) {
+        const { rows, height, metrics } = bandBannerLayout(vm, mode);
+        expect(rows[0]?.y).toBe(metrics.pad);
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i]!;
+          expect(row.y).toBeGreaterThanOrEqual(metrics.pad);
+          expect(row.y + row.height).toBeLessThanOrEqual(height - metrics.pad);
+          const next = rows[i + 1];
+          if (next) expect(next.y).toBeGreaterThanOrEqual(row.y + row.height);
+        }
+      }
+    }
+  });
+
+  it('draws every WORD the model carries, and invents none', () => {
+    // The renderer has no text of its own except the button label, so the row
+    // list is the whole banner. A word that stops being emitted here stops
+    // being drawn — and a row emitted here is a row the height paid for.
+    for (const vm of layoutSamples()) {
+      for (const mode of MODES) {
+        const rows = bandBannerLayout(vm, mode).rows;
+        const texts = rows.filter((r) => r.style !== 'rule').map((r) => r.text);
+        const expected = [
+          vm.name,
+          vm.waveRange,
+          'BOSS',
+          vm.boss.headline,
+          ...(vm.boss.resolved ? [vm.boss.sub] : vm.boss.entries),
+          ...vm.bossClaim.lines,
+          ...vm.mobsClaim.lines,
+          'READ THE BAND ›',
+        ];
+        expect(texts).toEqual(expected);
+      }
+    }
+  });
+
+  it('a claim that wraps to two lines makes the banner taller, on both platforms', () => {
+    // The Frostmarch's mob counter is `lightning`, which does not fit the 28
+    // and flips to the two-line colon form — the case a fixed height would get
+    // wrong and the reason `bandBannerHeight` takes the model at all.
+    const one = bandBannerForWave(createRun(1), 1);
+    const two = bandBannerForWave(createRun(20), 1);
+    expect(two.mobsClaim.lines).toHaveLength(2);
+    expect(one.mobsClaim.lines).toHaveLength(1);
+    const claimLines = (vm: BandBannerViewModel): number => vm.bossClaim.lines.length + vm.mobsClaim.lines.length;
+    for (const mode of MODES) {
+      const m = BAND_BANNER_METRICS[mode];
+      const extraLines = claimLines(two) - claimLines(one);
+      expect(extraLines).toBeGreaterThan(0);
+      expect(bandBannerHeight(two, mode) - bandBannerHeight(one, mode)).toBe(extraLines * (m.claim + m.lineGap));
+    }
+  });
+
+  it('an unresolved boss pays for every candidate line it lists', () => {
+    const resolved = bandBannerForWave(createRun(2), 1);
+    const forked = layoutSamples()[layoutSamples().length - 1]!;
+    expect(forked.boss.resolved).toBe(false);
+    expect(forked.boss.entries.length).toBeGreaterThan(1);
+    for (const mode of MODES) {
+      const m = BAND_BANNER_METRICS[mode];
+      const rows = bandBannerLayout(forked, mode).rows;
+      expect(rows.filter((r) => r.style === 'bossEntry')).toHaveLength(forked.boss.entries.length);
+      expect(rows.filter((r) => r.style === 'bossSub')).toHaveLength(0);
+      // entries instead of the one `sub` line, plus the extra claim line the
+      // 'unsure' shape needs.
+      const delta = (forked.boss.entries.length - 1) * (m.sub + m.lineGap) + (m.claim + m.lineGap);
+      expect(bandBannerHeight(forked, mode) - bandBannerHeight(resolved, mode)).toBe(delta);
+    }
+  });
+});
+
+/**
+ * FIELDS THAT BECOME A COLOUR.
+ *
+ * The rest of this suite constrains every field that becomes TEXT — so an audit
+ * that mutated `leanType` to garbage left all 12 tests green while turning all
+ * 11 bands the same fallback bronze, because `leanType` is never printed. It is
+ * the sole input to the band's hairline and its lean pill. Same for the claim
+ * `kind` (text colour) and the claim's first `type` (bar colour): wrong colour,
+ * right words, silent.
+ */
+describe('the colour a band is drawn in', () => {
+  it('every biome in the catalog has its OWN lean colour — none falls back to chip bronze', () => {
+    const byBiome = new Map<string, number>();
+    for (let seed = 1; seed < 400 && byBiome.size < biomeIds.length; seed++) {
+      const run = createRun(seed);
+      for (let band = 0; band < 3; band++) {
+        const f = forecastBand(run, band);
+        const vm = bandBannerViewModel(f);
+        // The lean type is a REAL type key, so it resolves in the element or
+        // weapon table. `UI.chip` is what `counterTypeColor` returns when it
+        // resolves in NEITHER — i.e. the silent failure.
+        expect(vm.leanType).toBe(f.lean.type);
+        expect(leanColor(vm)).not.toBe(UI.chip);
+        byBiome.set(f.biomeId, leanColor(vm));
+      }
+    }
+    expect(byBiome.size).toBe(biomeIds.length);
+    // Eleven bands, and the colour actually distinguishes them: the lean types
+    // are distinct across the catalog, so the colours are too.
+    expect(new Set(byBiome.values()).size).toBe(new Set(biomeIds).size);
+  });
+
+  it('a garbage leanType is exactly what this catches', () => {
+    const vm = bandBannerForWave(createRun(1), 1);
+    expect(leanColor(vm)).not.toBe(UI.chip);
+    expect(leanColor({ ...vm, leanType: 'not-a-type' })).toBe(UI.chip);
+  });
+
+  it('the three claim certainties are three different colours, and none is the body text colour twice', () => {
+    expect(claimTextColor('none')).toBe('#e0654a');
+    expect(claimTextColor('unsure')).toBe(UI.textAccent);
+    expect(claimTextColor('definite')).toBe(UI.text);
+    expect(new Set([claimTextColor('none'), claimTextColor('unsure'), claimTextColor('definite')]).size).toBe(3);
+  });
+
+  it('a claim bar is red for none, amber for unsure, and the TYPE’s own colour for a promise', () => {
+    const arrowfell = bandBannerForWave(createRun(36), 1);
+    expect(arrowfell.bossClaim.kind).toBe('none');
+    expect(claimBarColor(arrowfell.bossClaim)).toBe(UI.bad);
+
+    const thornwild = bandBannerForWave(createRun(1), 1);
+    expect(thornwild.mobsClaim.kind).toBe('definite');
+    expect(claimBarColor(thornwild.mobsClaim)).not.toBe(UI.bad);
+    expect(claimBarColor(thornwild.mobsClaim)).not.toBe(UI.waiting);
+    expect(claimBarColor(thornwild.mobsClaim)).not.toBe(UI.chip);
+
+    for (const vm of layoutSamples()) {
+      for (const claim of [vm.bossClaim, vm.mobsClaim]) {
+        if (claim.kind === 'unsure') expect(claimBarColor(claim)).toBe(UI.waiting);
+        // A DEFINITE claim always names a real type, so its bar is never the
+        // "unknown type" bronze.
+        if (claim.kind === 'definite') expect(claimBarColor(claim)).not.toBe(UI.chip);
+      }
+    }
+  });
+
+  it('the layout carries the colour so the renderer never re-derives it', () => {
+    for (const vm of layoutSamples()) {
+      for (const mode of MODES) {
+        const rows = bandBannerLayout(vm, mode).rows;
+        const claims = rows.filter((r) => r.style === 'claim');
+        expect(claims).toHaveLength(vm.bossClaim.lines.length + vm.mobsClaim.lines.length);
+        expect(claims[0]?.color).toBe(claimTextColor(vm.bossClaim.kind));
+        expect(claims[0]?.bar?.color).toBe(claimBarColor(vm.bossClaim));
+        const firstMob = claims[vm.bossClaim.lines.length];
+        expect(firstMob?.color).toBe(claimTextColor(vm.mobsClaim.kind));
+        expect(firstMob?.bar?.color).toBe(claimBarColor(vm.mobsClaim));
+        // Only the FIRST line of each claim carries the bar — the bar spans the
+        // whole block, so a second one would double-draw it.
+        expect(claims.filter((r) => r.bar !== undefined)).toHaveLength(2);
+      }
+    }
   });
 });
