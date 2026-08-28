@@ -338,8 +338,28 @@ export function renderRunHud(scene: Phaser.Scene, opts: RunHudOptions): void {
   drawSlotButton(scene, t.actionSlots.primary, a.primary, 'primary', opts.compact ? 13 : F.action + 2, opts.track);
 
   // Divider under the header, at the content region's top edge.
+  //
+  // IT MUST CLEAR THE ACTION BAND, not sit a hardcoded 14px above the content
+  // top (fixed 2026-08-28). `content.y - 14` was authored against DESKTOP,
+  // where the action row ends at y=108 and content starts at 130 — 8px of
+  // clearance. On MOBILE the same arithmetic lands the line INSIDE the
+  // buttons: the action band is y=74..96 and content starts at 100, so
+  // `content.y - 14` = 86 is 1px off the exact vertical centre of a 22px-tall
+  // button, and the rule was drawn straight through the DECK/BAG and RETIRE
+  // labels — it read as strikethrough text on EVERY mobile run screen that
+  // draws those buttons (map, event, prep, shop…), not just one. Deriving the
+  // y from the band that actually has to be cleared fixes every platform and
+  // every future template edit at once; desktop is unchanged (116), mobile
+  // moves 86 -> 98, which is still above `content.y` so no scene's content
+  // top moves. `runScreenTemplate.ts` stays the sole owner of the rects — this
+  // only reads them (the same idiom `renderRunStatsStrip` below already uses).
   const content = t.regions.content;
-  scene.add.rectangle(content.x, content.y - 14, content.width, 1, UI.border, 0.55).setOrigin(0, 0);
+  const headerBottom = Math.max(
+    t.regions.actions.y + t.regions.actions.height,
+    t.regions.badge.y + t.regions.badge.height,
+  );
+  const dividerY = Math.max(content.y - 14, headerBottom + 2);
+  scene.add.rectangle(content.x, dividerY, content.width, 1, UI.border, 0.55).setOrigin(0, 0);
 }
 
 export interface RunStatsStripOptions {
