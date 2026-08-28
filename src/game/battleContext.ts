@@ -71,8 +71,11 @@ function runBattleInput(): BattleTimelineInput | null {
     enemyTitle: primary.title,
     enemyRank: primary.rank,
     enemyModifiers: primary.modifiers,
+    enemyAffix: primary.affix,
+    // `u.affix` travels with the unit: the FIGHT button must resolve the same
+    // affix RunPrep previewed off this identical `rollEncounter` call.
     enemyTeam: pack.units.map((u) => ({
-      enemyId: u.enemyId, level: u.level, title: u.title, rank: u.rank, modifiers: [...u.modifiers],
+      enemyId: u.enemyId, level: u.level, title: u.title, rank: u.rank, modifiers: [...u.modifiers], affix: u.affix,
     })),
     seed: node.encounterSeed!,
   };

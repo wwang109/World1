@@ -40,6 +40,17 @@ export interface EnemyFightConfig {
   title: EnemyTitle;
   rank: number;
   modifiers: string[];
+  /**
+   * The ONE behavioural ELITE AFFIX this foe carries (`EncounterUnit.affix`),
+   * or null/omitted for none. Structural twin of `BattleFoeConfig.affix`
+   * (src/run/resolveBattle.ts), so a foe config travels prep -> timeline ->
+   * battle request with its affix intact: the prep screens present it
+   * (`ui/affixPresentation.ts`) and the battle service re-resolves the SAME
+   * field, which is what stops the preview chip from naming a card the fight
+   * does not contain. Optional, so every existing literal (and the sandbox's
+   * own defaults) stays valid and affix-free.
+   */
+  affix?: string | null;
 }
 
 export interface DemoState {

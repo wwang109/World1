@@ -6,6 +6,7 @@ import { enemies } from '../../data/enemies';
 import { setDeckBuildContext } from '../deckBuildContext';
 import type { SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup, buildEnemyEncounter, ENEMY_MODIFIER_IDS, ENEMY_TITLES, maxRankFor, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../../run/encounter';
+import { affixBlockLines, ELITE_AFFIX_IDS, presentEliteAffix } from '../ui/affixPresentation';
 import { bankedPL, LEVEL_STAT_COST, spentPL, totalLevelPL, type LevelStat } from '../../run/leveling';
 import { cachedDamageBand } from '../battleApi';
 import { setBattleContext } from '../battleContext';
@@ -58,7 +59,7 @@ export class MobilePrepScene extends Phaser.Scene {
     const foe = this.activeFoe();
     const title = foe.title;
     const level = foe.level;
-    const encounter = buildEnemyEncounter(foe.enemyId, level, title, foe.rank, foe.modifiers);
+    const encounter = buildEnemyEncounter(foe.enemyId, level, title, foe.rank, foe.modifiers, foe.affix ?? null);
     const enemyDef = enemies[foe.enemyId]!;
 
     this.renderTabs();
@@ -199,7 +200,23 @@ export class MobilePrepScene extends Phaser.Scene {
 
   private renderEnemySheet(encounter: ReturnType<typeof buildEnemyEncounter>, name: string, title: EnemyTitle, rosterBottom: number): number {
     const top = rosterBottom + 8;
-    const h = 164;
+    // The sheet grows for the ELITE AFFIX block (chip row, then what it does
+    // and what answers it) — the mobile twin of the desktop prep panel's
+    // affix row. The chip row is always drawn (it is a dial, like MODIFIERS
+    // above it); only the two text blocks are conditional on a live affix.
+    // GATED ON THE ELITE RUNG, exactly like the run's own deal
+    // (`rollEncounter`: `unitAffix = memberTitle === 'elite' ? nodeAffix : null`)
+    // and like the desktop prep panel — every other title draws this sheet
+    // byte-identically to before, at its original 164px.
+    const showAffix = title === 'elite';
+    const affix = showAffix ? presentEliteAffix(encounter.affix) : null;
+    const affixLines = affix ? affixBlockLines(affix, this.W - 40, F.tiny) : null;
+    const affixTextRows = affixLines ? affixLines.answer.length : 0;
+    const affixRowY = top + 134;
+    const stepperY = showAffix
+      ? affixRowY + 22 + 4 + affixTextRows * (F.tiny + 2) + 8
+      : top + 136;
+    const h = showAffix ? (stepperY + 24 + 8) - top : 164;
     this.add.rectangle(this.x(10), this.y(top), this.W - 20, h, 0x101a2a).setOrigin(0, 0).setStrokeStyle(1, 0x2a3a52);
     this.add.rectangle(this.x(10), this.y(top), 5, h, 0xc9a15a).setOrigin(0, 0);
     this.text(20, top + 8, name, F.title, UI.textBright, { display: true, bold: true });
@@ -224,7 +241,10 @@ export class MobilePrepScene extends Phaser.Scene {
       const active = t === title;
       const w = 44;
       this.button(kx, top + 82, w, 22, t.slice(0, 4).toUpperCase(), active ? 0xc9a15a : 0x16233a, active ? UI.textOnChip : UI.textDim, () => {
-        foe.title = t; foe.rank = TITLE_PRESETS[t].rank; syncPrimaryFoe(); this.rerender();
+        foe.title = t; foe.rank = TITLE_PRESETS[t].rank;
+        // Only an ELITE carries an affix — leaving that rung drops it.
+        if (t !== 'elite') foe.affix = null;
+        syncPrimaryFoe(); this.rerender();
       }, F.tiny);
       kx += w + 5;
     }
@@ -245,13 +265,43 @@ export class MobilePrepScene extends Phaser.Scene {
       mx += modChipW + modGap;
     }
 
-    // LV + RANK steppers (row 3) — edit the ACTIVE foe entry.
-    this.stepper(20, top + 136, 'LV', foe.level, (d) => { foe.level = Math.max(1, foe.level + d); syncPrimaryFoe(); this.rerender(); });
+    // AFFIX chips (row 3) — the ELITE AFFIX pool, SINGLE-select (an elite
+    // carries exactly one; tapping the live chip clears it), in the danger
+    // accent because an affix is a threat rather than a dial. The two lines
+    // under it are what a bare name cannot carry: what it does (the preset's
+    // own blurb) and what answers it.
+    if (showAffix) {
+      const affixGap = 5;
+      const affixChipW = (this.W - 40 - affixGap * (ELITE_AFFIX_IDS.length - 1)) / ELITE_AFFIX_IDS.length;
+      let ax = 20;
+      for (const id of ELITE_AFFIX_IDS) {
+        const active = foe.affix === id;
+        this.button(ax, affixRowY, affixChipW, 22, MODIFIER_PRESETS[id]!.name, active ? UI.bad : 0x16233a, active ? UI.textBright : UI.textDim, () => {
+          foe.affix = active ? null : id;
+          syncPrimaryFoe();
+          this.rerender();
+        }, F.tiny);
+        ax += affixChipW + affixGap;
+      }
+      // The ANSWER line only — the affix's own card face is in ENEMY SKILLS
+      // just below, so "what it does" is already on this screen. Both halves
+      // are drawn on the player-facing prep screen (MobileRunPrepScene).
+      if (affixLines) {
+        let ay = affixRowY + 22 + 4;
+        for (const line of affixLines.answer) {
+          this.text(20, ay, line, F.tiny, UI.textAccent, { bold: true });
+          ay += F.tiny + 2;
+        }
+      }
+    }
+
+    // LV + RANK steppers (row 4) — edit the ACTIVE foe entry.
+    this.stepper(20, stepperY, 'LV', foe.level, (d) => { foe.level = Math.max(1, foe.level + d); syncPrimaryFoe(); this.rerender(); });
     // Rank caps at deckSize × 3; a tier-forcing modifier (DIAMOND-POWERED)
     // pins it there, so show the RESOLVED rank and freeze the stepper.
     const rankCap = maxRankFor(encounter.setup.pieces.length);
     const tierForced = foe.modifiers.some((id) => MODIFIER_PRESETS[id]?.forceTier !== undefined);
-    this.stepper(150, top + 136, 'RANK', encounter.rank, (d) => {
+    this.stepper(150, stepperY, 'RANK', encounter.rank, (d) => {
       if (tierForced) return;
       foe.rank = Math.max(0, Math.min(rankCap, encounter.rank + d));
       syncPrimaryFoe();

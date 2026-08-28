@@ -1,5 +1,5 @@
 import { enemies } from '../data/enemies';
-import { defaultTitleFor, ENEMY_TITLES, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../run/encounter';
+import { defaultTitleFor, ELITE_AFFIX_IDS, ENEMY_TITLES, MODIFIER_PRESETS, TITLE_PRESETS, type EnemyTitle } from '../run/encounter';
 import { demoState, EMPTY_BOARD_OVERRIDES, MAX_FOES, MAX_GOLD, resetDemoState, type DemoState, type EnemyFightConfig, type PrepView } from './demoState';
 
 export type LaunchScene = 'prep' | 'battle' | 'uikit' | 'mprep' | 'mdeck' | 'mbattle' | 'mwiki'
@@ -21,6 +21,11 @@ export interface DevLaunchConfig {
   enemyTitle: EnemyTitle;
   enemyRank: number;
   enemyModifiers: string[];
+  /** `?affix=braced` — the ELITE AFFIX dealt to the PRIMARY foe, or null.
+   * The sandbox twin of the run's `eliteAffixIdFor` deal, so an affix can be
+   * deep-linked into the prep screens (and the sandbox fight) without
+   * clicking a chip. */
+  affix: string | null;
   /** `?gold=N` dev override for the starting wallet, clamped 0..MAX_GOLD. */
   gold: number;
 }
@@ -126,6 +131,16 @@ function parseModifiers(value: string | null): string[] {
     .filter((id, index, ids) => id in MODIFIER_PRESETS && ids.indexOf(id) === index);
 }
 
+/** `?affix=braced` (with `&title=elite`) — an id from the ELITE AFFIX pool only. Anything else
+ * (unknown, or a DEEP-RUN escalation modifier like `swift`, which is never
+ * dealt to an elite) yields null rather than throwing: a dev deep-link must
+ * not break boot, and `?mods=` is where escalation modifiers belong. */
+function parseAffix(value: string | null): string | null {
+  if (!value) return null;
+  const id = value.trim().toLowerCase();
+  return ELITE_AFFIX_IDS.includes(id) ? id : null;
+}
+
 function stateOverridesFromConfig(config: DevLaunchConfig): Partial<DemoState> {
   return {
     ...(config.board === 'empty' ? EMPTY_BOARD_OVERRIDES : {}),
@@ -156,6 +171,7 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
     ? Math.max(0, Math.floor(Number(rankParam)))
     : TITLE_PRESETS[enemyTitle].rank;
   const enemyModifiers = parseModifiers(params.get('mods'));
+  const affix = parseAffix(params.get('affix'));
   const enemyTeam = enemyIds.map((id, index): EnemyFightConfig => {
     const definition = enemies[id]!;
     const title = index === 0 || params.has('title') ? enemyTitle : defaultTitleFor(definition);
@@ -165,6 +181,11 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
       title,
       rank: index === 0 || rankParam !== null ? enemyRank : TITLE_PRESETS[title].rank,
       modifiers: index === 0 ? [...enemyModifiers] : [],
+      // Only an ELITE carries an affix, the same gate `rollEncounter` applies
+      // (`unitAffix = memberTitle === 'elite' ? nodeAffix : null`), so
+      // `?affix=` needs `&title=elite` — anything else would deep-link a fight
+      // the prep screens deliberately do not show an affix row for.
+      affix: index === 0 && title === 'elite' ? affix : null,
     };
   });
   return {
@@ -181,6 +202,7 @@ export function readDevLaunchConfig(search = window.location.search): DevLaunchC
     // Rank defaults to the title's preset rank unless explicitly overridden.
     enemyRank,
     enemyModifiers,
+    affix,
     gold: parseGold(params.get('gold')),
   };
 }

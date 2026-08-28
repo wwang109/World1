@@ -11,6 +11,7 @@ import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addHoverTipZone } from '../ui/hoverTip';
+import { affixBlockLines, presentEliteAffix } from '../ui/affixPresentation';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import { gemStatSuffix, STAT_TOKEN } from '../ui/statLabels';
 import { setDeckBuildContext } from '../deckBuildContext';
@@ -145,7 +146,34 @@ export class MobileRunPrepScene extends Phaser.Scene {
       fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body,
     });
     addHoverTipZone(this, { x: 10, y: y + 22, w: this.W - 20, h: 32 }, ALL_STAT_ENTRIES);
-    return y + h + 8;
+
+    // THE AFFIX STRIP — the mobile twin of desktop's affix chip, and the same
+    // "modifier chip" vocabulary: the chip label, what it does (the preset's
+    // own blurb), and what answers it. Drawn as its OWN card under the foe
+    // card because that card is fixed-height; present ONLY when this unit
+    // carries an affix (`EncounterUnit.affix`), so a normal fight is
+    // pixel-identical to before and the columns keep their full height.
+    const affix = presentEliteAffix(encounter.affix);
+    if (!affix) return y + h + 8;
+    const lines = affixBlockLines(affix, this.W - 40, F.tiny);
+    const rows = lines.effect.length + lines.answer.length;
+    const stripTop = y + h + 6;
+    const stripH = 6 + F.tiny + 5 + rows * (F.tiny + 3) + 6;
+    this.add.rectangle(10, stripTop, this.W - 20, stripH, 0x1b1118, 0.96)
+      .setOrigin(0, 0).setStrokeStyle(2, affix.accent, 0.95);
+    this.add.text(20, stripTop + 6, affix.chipLabel, {
+      fontSize: `${F.tiny}px`, color: affix.accentText, fontFamily: FONT.body, fontStyle: 'bold',
+    });
+    let ay = stripTop + 6 + F.tiny + 5;
+    for (const line of lines.effect) {
+      this.add.text(20, ay, line, { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body });
+      ay += F.tiny + 3;
+    }
+    for (const line of lines.answer) {
+      this.add.text(20, ay, line, { fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold' });
+      ay += F.tiny + 3;
+    }
+    return stripTop + stripH + 8;
   }
 
   /** Slim hero counterpart to the foe card — SAME stat grammar, so the

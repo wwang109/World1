@@ -26,6 +26,20 @@ export interface BattleFoeConfig {
   rank: number;
   /** Modifier ids from MODIFIER_PRESETS; omitted/[] = none. */
   modifiers?: readonly string[];
+  /**
+   * The ELITE AFFIX this foe carries (`EncounterUnit.affix`), or omitted/null
+   * for none — the ONE behavioural affix `eliteAffixIdFor` deals to an elite
+   * fight (see the ELITE AFFIXES block in `encounter.ts`).
+   *
+   * WHY IT IS ON THE REQUEST. The client never ships a resolved board: it
+   * ships the DIALS and the service re-resolves them (`buildEnemyEncounter`
+   * below). Every other dial — level, title, rank, modifiers — was already
+   * here; the affix was not, so an elite the prep screen previewed as BRACED
+   * was re-resolved WITHOUT its affix card and fought as a plain elite. Both
+   * halves of that (preview and fight) now read the same field, which is the
+   * only thing that makes the prep chip honest.
+   */
+  affix?: string | null;
 }
 
 /** The prep information a battle is resolved from — the request payload. */
@@ -60,7 +74,7 @@ export function resolveBattle(request: BattleRequest): BattleLog {
     request.heroAllocation,
   ).setup;
   const foeSetups = request.foes.map(
-    (f) => buildEnemyEncounter(f.enemyId, f.level, f.title, f.rank, f.modifiers ?? []).setup,
+    (f) => buildEnemyEncounter(f.enemyId, f.level, f.title, f.rank, f.modifiers ?? [], f.affix ?? null).setup,
   );
   const { result, turns, events } = simulate(
     { playerTeam: [hero], enemyTeam: foeSetups, skillBook },

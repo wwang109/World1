@@ -134,6 +134,9 @@ export interface BattleTimelineInput {
   enemyRank: number;
   /** Modifier ids from MODIFIER_PRESETS (rogue-like affixes); [] = none. */
   enemyModifiers?: readonly string[];
+  /** The single-enemy twin of `EnemyFightConfig.affix` — the ELITE AFFIX the
+   * 1v1 foe carries, or null/omitted. Overridden by `enemyTeam` when present. */
+  enemyAffix?: string | null;
   /**
    * Multi-foe fights: when present (non-empty), OVERRIDES the single-enemy
    * fields above — one encounter per entry, in order. The singular fields
@@ -511,8 +514,11 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const hero = heroEncounter.setup;
   const teamConfigs: readonly EnemyFightConfig[] = input.enemyTeam && input.enemyTeam.length > 0
     ? input.enemyTeam
-    : [{ enemyId: input.enemyId, level: input.enemyLevel, title: input.enemyTitle, rank: input.enemyRank, modifiers: [...(input.enemyModifiers ?? [])] }];
-  const encs = teamConfigs.map((cfg) => buildEnemyEncounter(cfg.enemyId, cfg.level, cfg.title, cfg.rank, cfg.modifiers));
+    : [{ enemyId: input.enemyId, level: input.enemyLevel, title: input.enemyTitle, rank: input.enemyRank, modifiers: [...(input.enemyModifiers ?? [])], affix: input.enemyAffix ?? null }];
+  // `cfg.affix` is the elite affix (see `EnemyFightConfig`): the board rendered
+  // mid-battle must contain the affix card the service actually resolved with,
+  // or the enemy's card column would disagree with its own event log.
+  const encs = teamConfigs.map((cfg) => buildEnemyEncounter(cfg.enemyId, cfg.level, cfg.title, cfg.rank, cfg.modifiers, cfg.affix ?? null));
   const foeSetups = encs.map((e) => e.setup);
   const heroName = hero.name;
   const heroStats: ScalingStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower, armor: hero.stats.armor, magicResist: hero.stats.magicResist };

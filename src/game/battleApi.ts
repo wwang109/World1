@@ -21,7 +21,7 @@ const BASE_URL: string = (import.meta.env?.VITE_BATTLE_API as string | undefined
 export function battleRequestOf(input: BattleTimelineInput): BattleRequest {
   const foes: BattleFoeConfig[] = input.enemyTeam && input.enemyTeam.length > 0
     ? input.enemyTeam.map((c) => ({
-      enemyId: c.enemyId, level: c.level, title: c.title, rank: c.rank, modifiers: [...(c.modifiers ?? [])],
+      enemyId: c.enemyId, level: c.level, title: c.title, rank: c.rank, modifiers: [...(c.modifiers ?? [])], affix: c.affix ?? null,
     }))
     : [{
       enemyId: input.enemyId,
@@ -29,6 +29,7 @@ export function battleRequestOf(input: BattleTimelineInput): BattleRequest {
       title: input.enemyTitle,
       rank: input.enemyRank,
       modifiers: [...(input.enemyModifiers ?? [])],
+      affix: input.enemyAffix ?? null,
     }];
   return {
     pieces: input.pieces.map((p) => ({ ...p })),

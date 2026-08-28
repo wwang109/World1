@@ -12,6 +12,7 @@ import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addHoverTipZone } from '../ui/hoverTip';
+import { affixBlockLines, presentEliteAffix } from '../ui/affixPresentation';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import { gemStatSuffix, STAT_TOKEN } from '../ui/statLabels';
 import { setDeckBuildContext } from '../deckBuildContext';
@@ -33,6 +34,10 @@ const CONTENT_TOP = TEMPLATE.regions.content.y;
 const PANEL_W = 436;
 const PANEL_PAD = 20;
 const CONTENT_BOTTOM = 876;
+/** The affix chip's box — sized for the longest label the pool can deal
+ * ("AFFIX · VENOMOUS"), matching the TITLE chip's height above it. */
+const AFFIX_CHIP_W = 168;
+const AFFIX_CHIP_H = 26;
 
 const KIND_COLOR: Record<RunNodeKind, number> = {
   fight: 0x4a7ab5, event: UI.chip, shop: UI.good, boss: UI.bad,
@@ -142,8 +147,18 @@ export class DesktopRunPrepScene extends Phaser.Scene {
       .map((p) => skillBook[p.skillId]?.name)
       .filter((n): n is string => Boolean(n));
     const cardListRows = Math.ceil(cardNames.length / 1);
+    // ELITE AFFIX — present ONLY when this unit carries one (`EncounterUnit.affix`;
+    // normal fights, bosses and packs carry none), so the block is conditional
+    // and costs a plain fight zero height. Lines are wrapped HERE, before the
+    // panel rect is sized, because this panel is content-fit — see
+    // `affixBlockLines`' note on why the wrap is ours and not Phaser's.
+    const affix = presentEliteAffix(encounter.affix);
+    const affixLines = affix ? affixBlockLines(affix, innerW, F.small) : null;
+    const affixH = affixLines
+      ? AFFIX_CHIP_H + 8 + (affixLines.effect.length + affixLines.answer.length) * (F.small + 3) + 12
+      : 0;
     const panelH = PANEL_PAD * 2 + F.label + 10 + 16 + 26 + 12 + F.name + 6 + F.small + 14
-      + rosterLines.length * (F.small + 4)
+      + rosterLines.length * (F.small + 4) + affixH
       + F.body + 7 + F.small + 7 + F.body + 16 + F.tiny + 6 + cardListRows * (F.small + 4);
 
     this.add.rectangle(panelX, panelTop, PANEL_W, panelH, UI.panel, 0.92).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
@@ -186,6 +201,29 @@ export class DesktopRunPrepScene extends Phaser.Scene {
         fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textSoft,
       });
       cursor += F.small + 4;
+    }
+
+    // THE AFFIX CHIP — the same "modifier chip" vocabulary the sandbox Prep
+    // screen uses for rogue-like modifiers (a filled chip + its preset name),
+    // in the danger accent and followed by the two lines a name alone cannot
+    // carry: what it does (the preset's own blurb) and what answers it. Drawn
+    // directly under the foe's identity, above the statline, because it IS
+    // identity — an affixed elite is a different problem, not a bigger one.
+    if (affix && affixLines) {
+      this.add.rectangle(innerX, cursor, AFFIX_CHIP_W, AFFIX_CHIP_H, affix.accent, 1).setOrigin(0, 0);
+      this.add.text(innerX + AFFIX_CHIP_W / 2, cursor + AFFIX_CHIP_H / 2, affix.chipLabel, {
+        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textBright,
+      }).setOrigin(0.5);
+      cursor += AFFIX_CHIP_H + 8;
+      for (const line of affixLines.effect) {
+        this.add.text(innerX, cursor, line, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.text });
+        cursor += F.small + 3;
+      }
+      for (const line of affixLines.answer) {
+        this.add.text(innerX, cursor, line, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textAccent });
+        cursor += F.small + 3;
+      }
+      cursor += 12;
     }
 
     const s = encounter.setup.stats;

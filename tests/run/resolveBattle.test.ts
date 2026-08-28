@@ -53,7 +53,33 @@ describe('run/resolveBattle', () => {
   it('the request the client would send matches a hand-built one', () => {
     // battleRequestOf is what the client POSTs; if it drifts from the request
     // shape the service expects, every battle silently resolves differently.
-    expect(battleRequestOf(TIMELINE_INPUT)).toEqual({ ...REQUEST, foes: [{ ...REQUEST.foes[0], modifiers: [] }] });
+    // `affix` rides along with the other per-foe dials: the service rebuilds
+    // the foe from these fields alone, so an elite previewed as BRACED would
+    // otherwise be re-resolved as a plain elite and fight without its card.
+    expect(battleRequestOf(TIMELINE_INPUT)).toEqual({ ...REQUEST, foes: [{ ...REQUEST.foes[0], modifiers: [], affix: null }] });
+  });
+
+  it('carries the ELITE AFFIX onto the request, and it changes the resolved deck', () => {
+    const affixed: BattleRequest = {
+      ...REQUEST,
+      foes: [{ ...REQUEST.foes[0]!, affix: 'braced' }],
+    };
+    const plain = resolveBattle(REQUEST);
+    const braced = resolveBattle(affixed);
+    // The affix installs `braced_pike` in place of the title's generic filler,
+    // so the foe casts a card the plain elite never has.
+    const cardsOf = (log: ReturnType<typeof resolveBattle>): string[] =>
+      log.events.filter((e) => e.kind === 'play' && e.side === 'enemy').map((e) => (e as { skillId: string }).skillId);
+    expect(cardsOf(braced)).toContain('braced_pike');
+    expect(cardsOf(plain)).not.toContain('braced_pike');
+  });
+
+  it('the affix survives the client -> request hop', () => {
+    const request = battleRequestOf({
+      ...TIMELINE_INPUT,
+      enemyTeam: [{ enemyId: 'bandit_duelist', level: 1, title: 'elite', rank: 2, modifiers: [], affix: 'venomous' }],
+    });
+    expect(request.foes[0]!.affix).toBe('venomous');
   });
 
   it('a served log folds into a complete playback model', () => {
