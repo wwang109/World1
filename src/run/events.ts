@@ -176,6 +176,34 @@ export type EventOutcome =
       | { fellBack: true; skillId?: undefined; from?: undefined; to?: undefined }
       | { fellBack?: false; skillId: string; from: SkillTier; to: SkillTier }
     ))
+  // `mergeCards`'s deferred offer (2026-08-26 run layer, PROMOTED INTO THIS
+  // UNION 2026-08-28 by the UI phase) — the FIFTH deferred picker, and shaped
+  // exactly like the four above it: roll/derive the question now, resolve the
+  // player's tap later (`applyMergeCardsPick`, which re-derives the plan from
+  // state and produces the FINAL `grantCard` outcome — no new final shape,
+  // only the offer is new, same as `gemChoicePick`).
+  //
+  // IT USED TO RIDE BESIDE THE OUTCOME. `resolveEventChoice` returned this as
+  // an OPTIONAL `merge` field next to `outcome: {kind:'nothing'}`, because the
+  // pass that built the mechanic could not add a union member without editing
+  // `src/game/ui/eventOutcomeText.ts` (its switch closes on
+  // `const exhaustive: never`) and that file was outside its ownership. That
+  // was a boundary workaround, and it is now paid off rather than kept: the
+  // side channel made this the ONE deferred picker a scene could not reach
+  // through the `switch (outcome.kind)` dispatch every other picker uses, and
+  // it forced `resolveCurrentEventChoice` (runStore.ts) to widen its return
+  // type from `EventOutcome | undefined` to a compound object to carry it.
+  // Promoting keeps that signature untouched and makes the `never` guard do
+  // its actual job: a sixth picker cannot ship half-wired again.
+  //
+  // The "nothing has happened yet" truth the old shape was defending is not
+  // lost — it is the same truth `bonusDraft`/`upgradeCardPick`/`gemChoicePick`/
+  // `sellGemPick` already carry: this union is what the event screen shows
+  // NEXT, not a log of state changes, and four of its members already change
+  // nothing. `tests/run/cardMerge.test.ts` still asserts the run state is
+  // byte-identical after the offer resolves, which is where that guarantee
+  // actually lives.
+  | ({ kind: 'mergeCardsPick' } & MergeCardsOffer)
   | { kind: 'nothing' };
 
 /** Draw `count` DISTINCT items from `pool` via `rng.int`, fixed call order
@@ -744,30 +772,17 @@ function sellGemOutcome(state: RunState): EventOutcome {
 //      carrying this outcome keep another non-`nothing` choice, so the EVENT
 //      still appears in either case; only the merge rung is dark.
 //
-// WHY THE OFFER RIDES BESIDE THE OUTCOME, NOT INSIDE IT. `resolveEventChoice`
-// returns an OPTIONAL `merge` alongside `outcome: {kind:'nothing'}` for this
-// choice, instead of adding a `mergeCardsPick` member to `EventOutcome`. Two
-// reasons, one principled and one practical:
-//   - PRINCIPLED: `EventOutcome` means "what happened to the run state". At
-//     offer time NOTHING has happened — no gold, no cards, no removal (the
-//     `nothing` is the literal truth, not a placeholder). The four existing
-//     deferred pickers (`bonusDraft`/`upgradeCardPick`/`gemChoicePick`/
-//     `sellGemPick`) carry a QUESTION through the outcome channel; this one
-//     keeps the question in its own field.
-//   - PRACTICAL: `src/game/ui/eventOutcomeText.ts#outcomeHeadline` closes its
-//     switch with `const exhaustive: never = outcome`, so ANY new `EventOutcome`
-//     member fails `npm run typecheck` in a file this pass is not permitted to
-//     touch (the Phaser side of this mechanic is a separate phase). An optional
-//     field on the RETURN OBJECT is invisible to every existing consumer, so the
-//     run layer ships complete and green, and a client that ignores `merge` gets
-//     an inert no-op — it cannot leak a free card, consume an input, or strand a
-//     picker with nothing in it.
-// THE UI PHASE'S PATCH, in full: read `merge` off `resolveEventChoice`'s result
-// (thread it through `runStore.resolveCurrentEventChoice`), render
-// `merge.consumed` + `merge.from`->`merge.to` above `merge.candidates`, and call
-// `applyMergeCardsPick(state, skillId)` on a tap instead of
-// `applyBonusDraftPick`. `choiceOutcomeHint` needs one case (`mergeCards` ->
-// '3 CARDS -> 1 BETTER'); its `default` already returns '' until then.
+// THE OFFER IS AN `EventOutcome` MEMBER (`mergeCardsPick`), NOT A SIDE FIELD.
+// It shipped (2026-08-26) as an optional `merge` riding beside
+// `outcome: {kind:'nothing'}`, because the pass that built the mechanic could
+// not add a union member without editing `src/game/ui/eventOutcomeText.ts` —
+// its switch closes on `const exhaustive: never` — and that file was outside
+// its ownership. The UI phase (2026-08-28) owns both sides and paid the
+// workaround off instead of building on it; see the `mergeCardsPick` member's
+// own comment in the `EventOutcome` union above for the full argument. What
+// matters here: `mergeCardsOutcome` changes NOTHING about the run state, and
+// the state-unchanged assertions in `tests/run/cardMerge.test.ts` are what
+// hold that line — not the shape of the return value.
 // ---------------------------------------------------------------------------
 
 /** How many same-tier cards one merge consumes. Exported so the tests (and a
@@ -974,12 +989,14 @@ function mergeCardsOffer(state: RunState, rng: Rng): MergeCardsOffer | null {
 function mergeCardsOutcome(
   state: RunState,
   rng: Rng,
-): { state: RunState; outcome: EventOutcome; merge: MergeCardsOffer } {
+): { state: RunState; outcome: EventOutcome } {
   const offer = mergeCardsOffer(state, rng);
   if (!offer) {
     throw new Error('mergeCards: no mergeable trio (should be gated unusable before resolve — see isEventChoiceUsable)');
   }
-  return { state, outcome: { kind: 'nothing' }, merge: offer };
+  // `state` is returned UNTOUCHED beside the question — the removal happens in
+  // `applyMergeCardsPick` and nowhere else.
+  return { state, outcome: { kind: 'mergeCardsPick', ...offer } };
 }
 
 /**
@@ -1041,7 +1058,7 @@ function applySpec(
   rng: Rng,
   spec: EventOutcomeSpec,
   depth: number,
-): { state: RunState; outcome: EventOutcome; merge?: MergeCardsOffer } {
+): { state: RunState; outcome: EventOutcome } {
   switch (spec.kind) {
     case 'grantCard':
       return grantCardOutcome(state, rng, spec);
@@ -1104,17 +1121,17 @@ function applySpec(
  * no active event node, or `eventId`/`choiceId` don't resolve to a real
  * catalog choice.
  *
- * The optional `merge` in the return is present for a `mergeCards` choice ONLY
- * — the pending trade, beside `outcome: {kind:'nothing'}`, because at that
- * point nothing has happened to the run yet (see `mergeCardsOutcome`'s block
- * comment for why the offer rides beside the outcome instead of inside it).
- * A caller that ignores it resolves the event as an inert no-op.
+ * A `mergeCards` choice resolves to the DEFERRED `mergeCardsPick` outcome (the
+ * pending trade: which three go in, which tier comes back, which three cards it
+ * could be) and leaves the run state untouched — like every other deferred
+ * picker in this union, the question is what comes back and
+ * `applyMergeCardsPick` is what changes anything.
  */
 export function resolveEventChoice(
   state: RunState,
   eventId: string,
   choiceId: string,
-): { state: RunState; outcome: EventOutcome; merge?: MergeCardsOffer } {
+): { state: RunState; outcome: EventOutcome } {
   const node = currentEventNode(state);
   if (!node) {
     throw new Error('resolveEventChoice: no event node is currently active');
@@ -1140,15 +1157,10 @@ export function resolveEventChoice(
   }
 
   const rng = new Rng(hashSeed('event', node.eventSeed!, choiceId));
-  const { state: nextState, outcome, merge } = applySpec(working, rng, choice.outcome, shopStockDepthForWave(node.wave));
+  const { state: nextState, outcome } = applySpec(working, rng, choice.outcome, shopStockDepthForWave(node.wave));
   return {
     state: { ...nextState, stats: { ...nextState.stats, eventsResolved: nextState.stats.eventsResolved + 1 } },
     outcome,
-    // Present ONLY for a `mergeCards` choice (see that outcome's block comment):
-    // the pending trade, beside an `outcome` of `nothing` because at this point
-    // nothing has happened to the run yet. A caller that ignores it resolves the
-    // event as a no-op and loses nothing.
-    ...(merge ? { merge } : {}),
   };
 }
 

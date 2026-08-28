@@ -11,7 +11,8 @@ import { eventThemeArea } from '../ui/eventThemeBlurb';
 import { eventArtHeight, eventBodyMaxHeight, eventChoiceBlockHeight, eventStoryLimit } from '../ui/runEventStoryLayout';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
-import { renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunRewardPanel, renderRunSellGemPicker, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
+import { renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunMergeCardsPicker, renderRunRewardPanel, renderRunSellGemPicker, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
+import { buildRunMergeViewModel, type RunMergeViewModel } from '../ui/runMergeViewModel';
 import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { rebuildScene } from '../sceneRebuild';
@@ -19,8 +20,10 @@ import { setDeckBuildContext } from '../deckBuildContext';
 import {
   applyCurrentBonusDraftPick,
   applyCurrentGemChoicePick,
+  applyCurrentMergeCardsPick,
   applyCurrentUpgradeCardPick,
   currentEventDef,
+  currentRunPieces,
   getActiveRun,
   leaveCurrentEvent,
   resolveCurrentEventChoice,
@@ -59,12 +62,17 @@ interface StoryLayout { px: number; pw: number; innerX: number; innerW: number; 
  * ?scene=desktop-runevent.
  */
 export class DesktopRunEventScene extends Phaser.Scene {
-  private phase: 'choosing' | 'bonusDraftPick' | 'upgradeCardPick' | 'gemChoicePick' | 'sellGemPick' | 'outcome' = 'choosing';
+  private phase: 'choosing' | 'bonusDraftPick' | 'upgradeCardPick' | 'gemChoicePick' | 'sellGemPick' | 'mergeCardsPick' | 'outcome' = 'choosing';
   private outcome: EventOutcome | null = null;
   private bonusDraftCards: DraftCard[] = [];
   private upgradeCardOptions: UpgradeCardOption[] = [];
   private gemChoiceOptions: string[] = [];
   private sellGemOptions: SellGemOption[] = [];
+  /** The PENDING merge trade, built once when the offer arrives (while the run
+   * state is still the one the offer was derived from, so the board slots it
+   * names are the slots the player is looking at) and held across rebuilds like
+   * every other picker's options. Null in every other phase. */
+  private mergeOffer: RunMergeViewModel | null = null;
   private retireConfirmOpen = false;
 
   constructor() { super('DesktopRunEvent'); }
@@ -76,6 +84,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
     this.upgradeCardOptions = [];
     this.gemChoiceOptions = [];
     this.sellGemOptions = [];
+    this.mergeOffer = null;
     this.retireConfirmOpen = false;
   }
 
@@ -147,6 +156,19 @@ export class DesktopRunEventScene extends Phaser.Scene {
           if (!result.ok) return;
           this.phase = 'outcome';
           this.outcome = { kind: 'sellGem', gemId: option.gemId, price: result.goldReceived };
+          this.rerender();
+        },
+      });
+    } else if (this.phase === 'mergeCardsPick' && this.mergeOffer) {
+      renderRunMergeCardsPicker(this, TEMPLATE, this.mergeOffer, {
+        font: F,
+        eventTitle: event.title,
+        onPick: (candidate) => {
+          const outcome = applyCurrentMergeCardsPick(candidate.skillId);
+          if (!outcome) return;
+          this.phase = 'outcome';
+          this.outcome = outcome;
+          this.mergeOffer = null;
           this.rerender();
         },
       });
@@ -338,6 +360,12 @@ export class DesktopRunEventScene extends Phaser.Scene {
           } else if (outcome.kind === 'sellGemPick') {
             this.phase = 'sellGemPick';
             this.sellGemOptions = [...outcome.options];
+          } else if (outcome.kind === 'mergeCardsPick') {
+            // The offer is a QUESTION — nothing has been consumed yet, and the
+            // view model is built against the board as it stands right now so
+            // the three "BOARD n" labels point at the slots the player can see.
+            this.phase = 'mergeCardsPick';
+            this.mergeOffer = buildRunMergeViewModel(outcome, currentRunPieces());
           } else {
             this.phase = 'outcome';
             this.outcome = outcome;

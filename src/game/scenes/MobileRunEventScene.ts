@@ -10,7 +10,8 @@ import { eventThemeArea } from '../ui/eventThemeBlurb';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { addRunArt, choiceArtKey, eventArtKey } from '../ui/runArt';
-import { renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunRewardPanel, renderRunSellGemPicker, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
+import { renderRunBonusDraftPicker, renderRunGemChoicePicker, renderRunMergeCardsPicker, renderRunRewardPanel, renderRunSellGemPicker, renderRunUpgradeCardPicker } from '../ui/RunRewardPanel';
+import { buildRunMergeViewModel, type RunMergeViewModel } from '../ui/runMergeViewModel';
 import { buildRunRewardViewModel } from '../ui/runRewardViewModel';
 import { eventChoiceBlockHeight } from '../ui/runEventStoryLayout';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
@@ -19,8 +20,10 @@ import { setDeckBuildContext } from '../deckBuildContext';
 import {
   applyCurrentBonusDraftPick,
   applyCurrentGemChoicePick,
+  applyCurrentMergeCardsPick,
   applyCurrentUpgradeCardPick,
   currentEventDef,
+  currentRunPieces,
   getActiveRun,
   leaveCurrentEvent,
   resolveCurrentEventChoice,
@@ -65,12 +68,17 @@ interface StoryLayout { innerX: number; innerW: number; contentTop: number }
 export class MobileRunEventScene extends Phaser.Scene {
   private W = SCREEN.width;
   private H = SCREEN.height;
-  private phase: 'choosing' | 'bonusDraftPick' | 'upgradeCardPick' | 'gemChoicePick' | 'sellGemPick' | 'outcome' = 'choosing';
+  private phase: 'choosing' | 'bonusDraftPick' | 'upgradeCardPick' | 'gemChoicePick' | 'sellGemPick' | 'mergeCardsPick' | 'outcome' = 'choosing';
   private outcome: EventOutcome | null = null;
   private bonusDraftCards: DraftCard[] = [];
   private upgradeCardOptions: UpgradeCardOption[] = [];
   private gemChoiceOptions: string[] = [];
   private sellGemOptions: SellGemOption[] = [];
+  /** The PENDING merge trade, built once when the offer arrives (while the run
+   * state is still the one the offer was derived from, so the board slots it
+   * names are the slots the player is looking at) and held across rebuilds like
+   * every other picker's options. Null in every other phase. */
+  private mergeOffer: RunMergeViewModel | null = null;
   private retireConfirmOpen = false;
   /** Which grid index is under the ⓘ inspect overlay in the bonus-draft/
    * upgrade-card picker, `null` when closed — mirrors `MobileDraftScene`'s
@@ -82,6 +90,11 @@ export class MobileRunEventScene extends Phaser.Scene {
    * never silently reappear against the WRONG array. */
   private inspectedDraftIndex: number | null = null;
   private inspectedUpgradeIndex: number | null = null;
+  /** Same per-picker inspect index for the MERGE picker's three candidates —
+   * its own field for the same reason the two above are separate: only one
+   * phase is ever live, but a stale index must never reappear against another
+   * picker's array. */
+  private inspectedMergeIndex: number | null = null;
 
   constructor() { super('MobileRunEvent'); }
 
@@ -92,9 +105,11 @@ export class MobileRunEventScene extends Phaser.Scene {
     this.upgradeCardOptions = [];
     this.gemChoiceOptions = [];
     this.sellGemOptions = [];
+    this.mergeOffer = null;
     this.retireConfirmOpen = false;
     this.inspectedDraftIndex = null;
     this.inspectedUpgradeIndex = null;
+    this.inspectedMergeIndex = null;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -170,6 +185,21 @@ export class MobileRunEventScene extends Phaser.Scene {
           this.outcome = { kind: 'sellGem', gemId: option.gemId, price: result.goldReceived };
           this.rerender();
         },
+      });
+    } else if (this.phase === 'mergeCardsPick' && this.mergeOffer) {
+      renderRunMergeCardsPicker(this, TEMPLATE, this.mergeOffer, {
+        font: F,
+        eventTitle: event.title,
+        onPick: (candidate) => {
+          const outcome = applyCurrentMergeCardsPick(candidate.skillId);
+          if (!outcome) return;
+          this.phase = 'outcome';
+          this.outcome = outcome;
+          this.mergeOffer = null;
+          this.rerender();
+        },
+        inspectedIndex: this.inspectedMergeIndex,
+        onInspect: (index) => { this.inspectedMergeIndex = index; this.rerender(); },
       });
     } else {
       const story = this.renderStory(event, event.choices.length);
@@ -383,6 +413,12 @@ export class MobileRunEventScene extends Phaser.Scene {
           } else if (outcome.kind === 'sellGemPick') {
             this.phase = 'sellGemPick';
             this.sellGemOptions = [...outcome.options];
+          } else if (outcome.kind === 'mergeCardsPick') {
+            // The offer is a QUESTION — nothing has been consumed yet, and the
+            // view model is built against the board as it stands right now so
+            // the three "BOARD n" labels point at the slots the player can see.
+            this.phase = 'mergeCardsPick';
+            this.mergeOffer = buildRunMergeViewModel(outcome, currentRunPieces());
           } else {
             this.phase = 'outcome';
             this.outcome = outcome;

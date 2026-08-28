@@ -44,6 +44,16 @@ export function choiceOutcomeHint(outcome: EventOutcomeSpec): string {
     // front so this doesn't read like every other "GEM" hint above (a gain),
     // which would misrepresent a choice that spends a gem to earn gold.
     case 'sellGem': return 'SELL A GEM';
+    // `mergeCards` (2026-08-26 run layer, wired up 2026-08-28) — the only
+    // DESTRUCTIVE card outcome in the vocabulary, and the hint has to say so
+    // before the row is tapped: "3 CARDS" is what LEAVES, "1 BETTER" is what
+    // arrives. Deliberately not "UPGRADE" (that's `upgradeCard`, which costs
+    // gold and destroys nothing) and not a bare "MERGE", which names the verb
+    // without naming the price. The exact trade (which tier, which three
+    // instances, which three candidates) is not knowable from the SPEC — it is
+    // a function of what the player owns at that moment — so it is shown on the
+    // picker screen the tap opens, before anything is spent.
+    case 'mergeCards': return '3 CARDS → 1 BETTER';
     case 'nothing': return '—';
     default: return '';
   }
@@ -91,6 +101,16 @@ export function outcomeHeadline(outcome: EventOutcome): { headline: string; deta
       return { headline: 'Choose a gem to sell', detail: '' };
     case 'sellGem':
       return { headline: `Sold a gem for ${outcome.price} gold`, detail: '' };
+    // Unreachable in practice — same reason as `upgradeCardPick`/
+    // `gemChoicePick`/`sellGemPick` above: the scenes render `mergeCardsPick`
+    // through `renderRunMergeCardsPicker` directly, never through this
+    // resolved-outcome headline. Kept so the exhaustiveness guard below stays
+    // meaningful — and it is exactly this guard that kept the merge event from
+    // shipping half-wired: the run-layer pass could not add the union member
+    // without landing a case here, so it parked the offer on a side field
+    // instead. The case now exists; the side field is gone.
+    case 'mergeCardsPick':
+      return { headline: `Choose what your three ${outcome.from.toUpperCase()} cards become`, detail: '' };
     case 'upgradeCard':
       return outcome.fellBack
         ? { headline: 'Nothing eligible to upgrade — took gold instead', detail: '' }

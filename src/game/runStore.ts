@@ -2,7 +2,7 @@ import { enemies } from '../data/enemies';
 import type { EventDef } from '../data/events';
 import type { DraftCard, DraftSetKey } from '../run/draft';
 import type { EncounterPack } from '../run/encounter';
-import { applyBonusDraftPick, applyGemChoicePick, applyUpgradeCardPick, resolveEventChoice, rollEventForNode, type EventOutcome } from '../run/events';
+import { applyBonusDraftPick, applyGemChoicePick, applyMergeCardsPick, applyUpgradeCardPick, resolveEventChoice, rollEventForNode, type EventOutcome } from '../run/events';
 import { bankedPL, type Allocation } from '../run/leveling';
 import { battleStatsFromEvents } from '../run/logAnalysis';
 import { battleGoldReward, type BattleFoeSummary } from '../run/shop';
@@ -496,6 +496,21 @@ export function applyCurrentUpgradeCardPick(instanceId: string): EventOutcome | 
 export function applyCurrentGemChoicePick(gemId: string): EventOutcome | undefined {
   if (!activeRun) return undefined;
   const { state, outcome } = applyGemChoicePick(activeRun, gemId);
+  setActiveRun(state);
+  return outcome;
+}
+
+/** Finalizes a `mergeCards` outcome's deferred pick (the picker overlay) —
+ * consumes the three same-tier inputs the offer named and inserts the tapped
+ * card at tier+1. ATOMIC: `applyMergeCardsPick` re-derives the plan from state
+ * and returns the ORIGINAL state (plus a fallback coin) if anything is wrong,
+ * so there is no ordering in which this store call leaves the run short three
+ * cards and up nothing. Same one-line shape as its four sibling finalizers
+ * above — the run layer owns every rule; this only swaps the active run for
+ * whatever it computed. */
+export function applyCurrentMergeCardsPick(skillId: string): EventOutcome | undefined {
+  if (!activeRun) return undefined;
+  const { state, outcome } = applyMergeCardsPick(activeRun, skillId);
   setActiveRun(state);
   return outcome;
 }

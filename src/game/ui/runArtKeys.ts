@@ -72,6 +72,16 @@ export function choiceArtKey(kind: string): string {
     // `bonusDraft` siblings, same idiom as `upgradeCardPick` above reusing
     // `upgradeCard`'s icon for its own deferred-pick shape.
     case 'cardChoice':
+    // `mergeCards` is the pre-resolution spec kind on the event's own choice
+    // row; `mergeCardsPick` is the deferred-pick `EventOutcome` shape shown
+    // while `renderRunMergeCardsPicker` is up (its header icon) — both are
+    // about CARDS, same as every sibling above, so they read as the same card
+    // icon rather than inventing a merge-specific glyph the asset set does not
+    // have. (The trade's destructive half is carried by the picker's own
+    // "SPENT" strip and the choice row's "3 CARDS → 1 BETTER" hint, not by the
+    // icon.)
+    case 'mergeCards':
+    case 'mergeCardsPick':
       return RUN_ART_KEYS.icon.choiceCard;
     case 'grantGem':
     // `gemChoice` is the pre-resolution spec kind; `gemChoicePick` is the

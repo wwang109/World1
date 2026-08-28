@@ -7,7 +7,7 @@ import type { SkillDef } from '../../engine/types';
 import type { DraftCard } from '../../run/draft';
 import type { SellGemOption, UpgradeCardOption } from '../../run/events';
 import { DESKTOP_PROFILE, MOBILE_PROFILE, type LayoutProfile } from '../layoutProfile';
-import { FONT, GEM_RARITY_COLOR, UI } from '../theme';
+import { FONT, GEM_RARITY_COLOR, TIER_COLOR, UI } from '../theme';
 import { CardToken } from './CardToken';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { addHoverTipZone, attachHoverTip } from './hoverTip';
@@ -16,6 +16,10 @@ import { renderCardDetailOverlay } from './cardDetailOverlay';
 import { gemHoverEntry } from './gemGlossary';
 import { addRunArt, choiceArtKey } from './runArt';
 import { centeredBox, FEATURE_CARD_SIZE, layoutFeatureGrid, type Box } from './runRewardGeometry';
+import {
+  layoutMergePicker, MERGE_CHIP_SIZE,
+  type MergeCandidateEntry, type MergeSpentEntry, type RunMergeViewModel,
+} from './runMergeViewModel';
 import type { RunRewardFeature, RunRewardViewModel } from './runRewardViewModel';
 import type { Rect, RunScreenTemplate, RunTemplatePlatform } from './runScreenTemplate';
 import { attachButtonFeel } from './motion';
@@ -644,4 +648,148 @@ export function renderRunSellGemPicker(
       attachHoverTip(scene, hit, box, [gemHoverEntry(gem)]);
     }
   });
+}
+
+/**
+ * ONE consumed card's chip in the merge picker's SPENT strip — the visual
+ * counterpart of `renderGemChip` above, for a card the trade is about to
+ * destroy rather than a gem it is about to grant. Deliberately NOT a
+ * `CardToken`: these three are not choices and not rewards, they are the price,
+ * and drawing them at the same weight as the three tappable candidates below
+ * would invite a tap on the wrong half of the screen. A chip says everything
+ * identification needs — name, grade, and where it is sitting right now — in
+ * one row.
+ *
+ * The plate is stroked in the INPUT tier's own colour (`TIER_COLOR`) so the
+ * "three of one grade" rule is visible as three matching frames, and carries a
+ * left rail in `UI.bad` — the palette's "this is a loss" colour, the same one
+ * the RETIRE action uses — because nothing else on a reward screen ever
+ * subtracts. Every internal offset is a fraction of `box`'s own height, the
+ * same rule `renderGemChip` follows, so the chip scales with whatever
+ * `layoutFeatureGrid` hands it.
+ */
+function renderMergeSpentChip(scene: Phaser.Scene, box: Box, entry: MergeSpentEntry): void {
+  const rail = Math.max(3, Math.round(box.h * 0.09));
+  scene.add.rectangle(box.x, box.y, box.w, box.h, UI.panelMuted, 0.92)
+    .setOrigin(0, 0)
+    .setStrokeStyle(1, TIER_COLOR[entry.tier], 0.85);
+  scene.add.rectangle(box.x, box.y, rail, box.h, UI.bad, 0.9).setOrigin(0, 0);
+  const pad = Math.max(6, Math.round(box.h * 0.16));
+  const textX = box.x + rail + pad;
+  const textW = Math.max(0, box.w - rail - pad * 2);
+  // TWO LINES, not one row of three columns: a card name is the long part and a
+  // one-row chip made it compete with its own metadata for width, which cost
+  // exactly the thing this strip exists to show (the first cut of this rendered
+  // "Aegis C…" and "Arc Cas…" — two cards the player could no longer identify).
+  // Name gets the full width; grade and place share the quieter line below.
+  const namePx = Math.max(9, Math.round(box.h * 0.30));
+  const metaPx = Math.max(8, Math.round(box.h * 0.23));
+  const name = scene.add.text(textX, box.y + box.h * 0.28, entry.name, {
+    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${namePx}px`, color: UI.text,
+  }).setOrigin(0, 0.5);
+  const meta = scene.add.text(textX, box.y + box.h * 0.71, `${entry.tierLabel} · ${entry.whereLabel}`, {
+    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${metaPx}px`, color: UI.textSoft,
+  }).setOrigin(0, 0.5);
+  auditTextBlock(name, { name: 'Run merge spent card name', maxWidth: textW, maxHeight: box.h * 0.5, minFontSize: 8 });
+  auditTextBlock(meta, { name: 'Run merge spent card place', maxWidth: textW, maxHeight: box.h * 0.45, minFontSize: 7 });
+}
+
+/** Small centered caption drawn at the top of one of the merge picker's two
+ * bands. Returns the y the band's own content should start at, so the caption
+ * can never overlap what it labels. */
+function renderMergeBandCaption(
+  scene: Phaser.Scene,
+  rect: Rect,
+  text: string,
+  font: LayoutProfile['font'],
+  color: string,
+  auditName: string,
+): number {
+  const label = scene.add.text(rect.x + rect.width / 2, rect.y, text, {
+    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${font.tiny}px`, color, align: 'center',
+  }).setOrigin(0.5, 0);
+  auditTextBlock(label, { name: auditName, maxWidth: rect.width, maxHeight: font.tiny * 2, minFontSize: 7 });
+  return rect.y + label.height + 4;
+}
+
+/**
+ * THE CARD MERGE PICKER — `mergeCards`'s counterpart to the four pickers above,
+ * called by both `DesktopRunEventScene` and `MobileRunEventScene` for a
+ * resolved `mergeCardsPick` outcome. Same `renderPickHeader` + grid shell as
+ * its siblings, with the one thing none of them needs: the PRICE, shown beside
+ * the reward.
+ *
+ * Three owned cards leave and one arrives, and this is the only screen in the
+ * run where tapping destroys something. So the spent strip is not behind a
+ * confirm and not on a second page — the three named instances (`buildRunMerge
+ * ViewModel`, which resolves each one's board slot) sit directly above the
+ * three candidates, both visible when the tap happens. `layoutMergePicker`
+ * hands the strip the otherwise-unused `detail` rect and lets it borrow from
+ * the top of `feature` only when it must, so on desktop the candidate cards
+ * still render at the bonus-draft picker's exact size.
+ *
+ * The candidates keep the SAME inspect affordance as the other two card
+ * pickers (`attachCellInspect`: a desktop hover-tip, a mobile ⓘ badge) — an
+ * irreversible three-for-one trade that showed less about its output than the
+ * reversible turn-zero draft would be the same information gap that helper was
+ * written to close.
+ */
+export function renderRunMergeCardsPicker(
+  scene: Phaser.Scene,
+  template: RunScreenTemplate,
+  model: RunMergeViewModel,
+  opts: {
+    font: LayoutProfile['font'];
+    eventTitle: string;
+    onPick: (candidate: MergeCandidateEntry) => void;
+    inspectedIndex?: number | null;
+    onInspect?: (index: number | null) => void;
+  },
+): void {
+  renderPickHeader(scene, template, choiceArtKey('mergeCardsPick'), model.title, opts.eventTitle, opts.font, 'Run reward merge picker title');
+
+  const { detail, feature } = template.contentSlots.reward;
+  const bands = layoutMergePicker(detail, feature, template.platform, model.spent.length);
+
+  // ---- what LEAVES ----
+  const spentTop = renderMergeBandCaption(scene, bands.spent, model.spentCaption, opts.font, UI.textSoft, 'Run reward merge spent caption');
+  const spentRect: Rect = {
+    x: bands.spent.x,
+    y: spentTop,
+    width: bands.spent.width,
+    height: Math.max(0, bands.spent.y + bands.spent.height - spentTop),
+  };
+  const chipIdeal = MERGE_CHIP_SIZE[template.platform];
+  const chipCells = layoutFeatureGrid(spentRect, model.spent.length, chipIdeal.w, chipIdeal.h, GRID_GAP[template.platform]);
+  model.spent.forEach((entry, i) => {
+    const cell = chipCells[i];
+    if (!cell) return;
+    renderMergeSpentChip(scene, cell, entry);
+  });
+
+  // ---- what ARRIVES ----
+  const pickTop = renderMergeBandCaption(scene, bands.candidates, model.pickCaption, opts.font, UI.textAccent, 'Run reward merge pick caption');
+  const gridRect: Rect = {
+    x: bands.candidates.x,
+    y: pickTop,
+    width: bands.candidates.width,
+    height: Math.max(0, bands.candidates.y + bands.candidates.height - pickTop),
+  };
+  const cardIdeal = FEATURE_CARD_SIZE[template.platform];
+  const cells = layoutFeatureGrid(gridRect, model.candidates.length, cardIdeal.w, cardIdeal.h, GRID_GAP[template.platform]);
+  let inspecting: SkillDef | undefined;
+  model.candidates.forEach((candidate, i) => {
+    const cell = cells[i];
+    if (!cell) return;
+    const cx = cell.x + cell.w / 2;
+    const cy = cell.y + cell.h / 2;
+    new CardToken(scene, cx, cy, candidate.skill, { width: cell.w, height: cell.h, side: 'left' });
+    const hit = scene.add.rectangle(cx, cy, cell.w, cell.h, 0xffffff, 0).setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(candidate); });
+    attachCellInspect(scene, template, cell, candidate.skill, opts.onInspect ? () => opts.onInspect?.(i) : undefined);
+    if (opts.inspectedIndex === i) inspecting = candidate.skill;
+  });
+  if (inspecting) {
+    renderCardDetailOverlay(scene, inspecting, { font: opts.font, onClose: () => opts.onInspect?.(null) });
+  }
 }

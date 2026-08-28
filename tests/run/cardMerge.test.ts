@@ -5,6 +5,7 @@ import { gemBook } from '../../src/data/gems';
 import {
   applyBonusDraftPick, applyGemChoicePick, applyMergeCardsPick, applyUpgradeCardPick,
   EVENT_CHOICE_SIZE, isEventChoiceUsable, MERGE_INPUT_COUNT, resolveEventChoice, rollEventForNode,
+  type EventOutcome, type MergeCardsOffer,
 } from '../../src/run/events';
 import {
   applyDraftResult, availableChoices, chooseNode, createRun, leaveEvent, leaveShop,
@@ -50,6 +51,27 @@ const DOORS: readonly Door[] = (() => {
   }
   return out;
 })();
+
+/**
+ * The pending offer out of a resolved merge door.
+ *
+ * UPDATED 2026-08-28 (the UI phase): the offer used to ride as an optional
+ * `merge` field BESIDE `outcome: {kind:'nothing'}`, a workaround for a
+ * `src/game` file the run-layer pass was not allowed to edit. It is now the
+ * `mergeCardsPick` member of `EventOutcome` — the fifth deferred picker,
+ * dispatched exactly like `bonusDraft`/`upgradeCardPick`/`gemChoicePick`/
+ * `sellGemPick`. Every assertion below is unchanged in substance; only the
+ * channel the offer arrives on moved. THROWS on any other kind, so a merge
+ * door that silently stopped offering fails loudly instead of reading as an
+ * absent optional.
+ */
+function offerFrom(result: { outcome: EventOutcome }): MergeCardsOffer {
+  const { outcome } = result;
+  if (outcome.kind !== 'mergeCardsPick') {
+    throw new Error(`expected a mergeCardsPick offer, got "${outcome.kind}"`);
+  }
+  return outcome;
+}
 
 function startedRun(seed: number): RunState {
   const draft = rollStartDraft(seed);
@@ -219,25 +241,29 @@ describe('run/events: the offer is legible before it is taken', () => {
       [{ skillId: SIZE1[0]!, tier: 'bronze', slot: 0 }],
       [{ skillId: SIZE1[1]!, tier: 'bronze', at: 1 }, { skillId: SIZE1[2]!, tier: 'bronze', at: 2 }],
     );
-    const { merge, outcome, state: after } = resolveEventChoice(state, MERGE_DOOR.eventId, MERGE_DOOR.choiceId);
-    expect(merge, 'no merge offer came back').toBeDefined();
-    expect(merge!.from).toBe('bronze');
-    expect(merge!.to).toBe('silver');
-    expect(merge!.consumed).toHaveLength(MERGE_INPUT_COUNT);
-    expect(merge!.candidates).toHaveLength(EVENT_CHOICE_SIZE);
+    const result = resolveEventChoice(state, MERGE_DOOR.eventId, MERGE_DOOR.choiceId);
+    const { outcome, state: after } = result;
+    const merge = offerFrom(result);
+    expect(merge.from).toBe('bronze');
+    expect(merge.to).toBe('silver');
+    expect(merge.consumed).toHaveLength(MERGE_INPUT_COUNT);
+    expect(merge.candidates).toHaveLength(EVENT_CHOICE_SIZE);
     // The three named instances are really owned, really that tier, really
     // addressable — a display that shows them cannot be showing phantoms.
     const ownedIds = owned(state).map((o) => o.instanceId);
-    for (let i = 0; i < merge!.consumed.length; i += 1) {
-      const input = merge!.consumed[i]!;
+    for (let i = 0; i < merge.consumed.length; i += 1) {
+      const input = merge.consumed[i]!;
       expect(ownedIds).toContain(input.instanceId);
       expect(input.tier).toBe('bronze');
       const at = input.location === 'board' ? state.pieces[input.index] : state.bagSlots[input.index];
       expect(at?.instanceId, 'consumed card is not at the index the offer gives').toBe(input.instanceId);
     }
-    expect(new Set(merge!.consumed.map((c) => c.instanceId)).size).toBe(MERGE_INPUT_COUNT);
-    // AND NOTHING HAS HAPPENED YET: the offer is a question, not a change.
-    expect(outcome.kind).toBe('nothing');
+    expect(new Set(merge.consumed.map((c) => c.instanceId)).size).toBe(MERGE_INPUT_COUNT);
+    // AND NOTHING HAS HAPPENED YET: the offer is a question, not a change. The
+    // outcome KIND says "here is a question" (`mergeCardsPick`, the deferred
+    // picker shape) — what proves nothing happened is the state below, which is
+    // byte-identical to what went in.
+    expect(outcome.kind).toBe('mergeCardsPick');
     expect(owned(after)).toEqual(owned(state));
     expect(after.gold).toBe(state.gold);
   });
@@ -254,7 +280,7 @@ describe('run/events: the offer is legible before it is taken', () => {
         { skillId: SIZE1[3]!, tier: 'bronze', at: 2 },
       ],
     );
-    const offer = resolveEventChoice(bagHeavy, MERGE_DOOR.eventId, MERGE_DOOR.choiceId).merge!;
+    const offer = offerFrom(resolveEventChoice(bagHeavy, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
     expect(offer.consumed.every((c) => c.location === 'bag')).toBe(true);
     const spared = bagHeavy.pieces[0]!.instanceId;
     expect(offer.consumed.map((c) => c.instanceId), 'the equipped board piece was taken anyway').not.toContain(spared);
@@ -272,7 +298,7 @@ describe('run/events: the offer is legible before it is taken', () => {
       ],
       [{ skillId: SIZE1[3]!, tier: 'bronze', at: 7 }],
     );
-    const mixed = resolveEventChoice(boardHeavy, MERGE_DOOR.eventId, MERGE_DOOR.choiceId).merge!;
+    const mixed = offerFrom(resolveEventChoice(boardHeavy, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
     expect(mixed.consumed[0]!.location).toBe('bag');
     expect(mixed.consumed[1]!.location).toBe('board');
     expect(boardHeavy.pieces[mixed.consumed[1]!.index]!.slot).toBe(1);
@@ -291,7 +317,7 @@ describe('run/events: the offer is legible before it is taken', () => {
           { skillId: SIZE1[1]!, tier: 'silver', at: 1 },
           { skillId: SIZE1[2]!, tier: 'silver', at: 2 },
         ]);
-      const offer = resolveEventChoice(state, MERGE_DOOR.eventId, MERGE_DOOR.choiceId).merge!;
+      const offer = offerFrom(resolveEventChoice(state, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
       expect(offer.from).toBe('silver');
       expect(offer.to).toBe('gold');
       for (let i = 0; i < offer.candidates.length; i += 1) {
@@ -321,12 +347,12 @@ describe('run/events: the offer is legible before it is taken', () => {
       ]);
       const one = resolveEventChoice(mkA, MERGE_DOOR.eventId, MERGE_DOOR.choiceId);
       const two = resolveEventChoice(mkB, MERGE_DOOR.eventId, MERGE_DOOR.choiceId);
-      expect(two.merge).toEqual(one.merge);
+      expect(two.outcome).toEqual(one.outcome);
       // and the SECOND door draws its own candidates (own choice id -> own Rng),
       // so the two rungs are not the same three cards under different labels.
       const other = resolveEventChoice(mkA, 'ember_pit', 'feed_the_coals');
-      expect(other.merge!.consumed).toEqual(one.merge!.consumed);
-      expect(other.merge!.candidates).not.toEqual(one.merge!.candidates);
+      expect(offerFrom(other).consumed).toEqual(offerFrom(one).consumed);
+      expect(offerFrom(other).candidates).not.toEqual(offerFrom(one).candidates);
     }
   });
 });
@@ -344,7 +370,7 @@ describe('run/events: applying it is destructive, atomic, and leaves the strips 
         { skillId: SIZE3[1]!, tier: 'silver', at: 4 },
       ],
     );
-    const offer = resolveEventChoice(before, MERGE_DOOR.eventId, MERGE_DOOR.choiceId).merge!;
+    const offer = offerFrom(resolveEventChoice(before, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
     const pick = offer.candidates[1]!;
     const { state: after, outcome, merged } = applyMergeCardsPick(before, pick.skillId);
 
@@ -382,7 +408,7 @@ describe('run/events: applying it is destructive, atomic, and leaves the strips 
         { skillId: SIZE1[2]!, tier: 'gold', slot: 2 },
       ], []);
     const pouchBefore = before.gemInventory.length;
-    const offer = resolveEventChoice(before, MERGE_DOOR.eventId, MERGE_DOOR.choiceId).merge!;
+    const offer = offerFrom(resolveEventChoice(before, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
     expect(offer.to).toBe('diamond');
     const { state: after } = applyMergeCardsPick(before, offer.candidates[0]!.skillId);
     expect(after.gemInventory).toHaveLength(pouchBefore + 1);
@@ -402,7 +428,7 @@ describe('run/events: applying it is destructive, atomic, and leaves the strips 
       { skillId: SIZE1[3]!, tier: 'diamond', at: 9 },
     ]);
     // The bag is FULL (3 + 3 + 3 + 1 = 10) and the only trio is the bronze one.
-    const offer = resolveEventChoice(before, MERGE_DOOR.eventId, MERGE_DOOR.choiceId).merge!;
+    const offer = offerFrom(resolveEventChoice(before, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
     const big = offer.candidates.find((c) => skillBook[c.skillId]!.size === 3);
     const pick = big ?? offer.candidates[0]!;
     const { state: after, outcome } = applyMergeCardsPick(before, pick.skillId);
@@ -456,7 +482,7 @@ describe('run/events: the trade is never offered when it cannot be honoured', ()
       { skillId: SIZE1[5]!, tier: 'bronze', at: 5 },
     ]);
     expect(isEventChoiceUsable(mixed, choice)).toBe(true);
-    const offer = resolveEventChoice(mixed, MERGE_DOOR.eventId, MERGE_DOOR.choiceId).merge!;
+    const offer = offerFrom(resolveEventChoice(mixed, MERGE_DOOR.eventId, MERGE_DOOR.choiceId));
     expect(offer.from).toBe('bronze');
     expect(offer.consumed.every((c) => c.tier === 'bronze')).toBe(true);
     const after = applyMergeCardsPick(mixed, offer.candidates[0]!.skillId).state;
@@ -561,8 +587,8 @@ describe('the merge event fires in real runs, and concentrates a collection when
           const beforeCount = owned(state).length;
           const res = resolveEventChoice(state, rolled.event.id, pick.id);
           state = res.state;
-          if (res.merge) {
-            const applied = applyMergeCardsPick(state, res.merge.candidates[0]!.skillId);
+          if (res.outcome.kind === 'mergeCardsPick') {
+            const applied = applyMergeCardsPick(state, res.outcome.candidates[0]!.skillId);
             state = applied.state;
             if (applied.outcome.kind === 'grantGold' && applied.outcome.fellBack) out.fallbacks += 1;
             else {
