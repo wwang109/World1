@@ -8,7 +8,8 @@ import { rebuildScene } from '../sceneRebuild';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
-import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
+import { bandBannerHeight, renderBandReadOverlay, renderRunBandBanner, renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
+import { bandBannerForWave, type BandBannerViewModel } from '../ui/bandBannerViewModel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addRunArt, eventArtKey, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
@@ -62,6 +63,11 @@ export class MobileRunMapScene extends Phaser.Scene {
   private statPanelOpen = false;
   private retireConfirmOpen = false;
   private statsOverlayOpen = false;
+  /** The band banner's "READ THE BAND ›" overlay — the full forecast card. */
+  private bandReadOpen = false;
+  /** The band model this render drew, kept so the overlay shows the SAME read
+   * the banner summarised (one forecast per render, never a second roll). */
+  private band: BandBannerViewModel | null = null;
 
   constructor() { super('MobileRunMap'); }
 
@@ -69,6 +75,8 @@ export class MobileRunMapScene extends Phaser.Scene {
     this.statPanelOpen = false;
     this.retireConfirmOpen = false;
     this.statsOverlayOpen = false;
+    this.bandReadOpen = false;
+    this.band = null;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -108,8 +116,14 @@ export class MobileRunMapScene extends Phaser.Scene {
     // bounds overlap check (rightly) flags, since it has no notion of one
     // object being drawn UNDER another. Skipping the trail while a modal owns
     // the screen is the honest fix: nothing is drawn that could never be seen.
-    const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.statsOverlayOpen;
+    const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.statsOverlayOpen || this.bandReadOpen;
+    // The banner is what normally composes `this.band` (a class field, which
+    // `rebuildScene` deliberately preserves), but the trail is skipped while a
+    // modal owns the screen — so the read is composed straight from the run
+    // instead. Without this, an overlay opened on a rebuild that skipped the
+    // trail would render nothing behind its scrim.
     if (!modalOpen) this.renderTrail(run);
+    else if (this.bandReadOpen) this.band = bandBannerForWave(run, snapshotRunProgress(run).wave);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
         compact: true,
@@ -137,6 +151,12 @@ export class MobileRunMapScene extends Phaser.Scene {
         onClose: () => { this.statsOverlayOpen = false; this.rerender(); },
       });
     }
+    if (this.bandReadOpen && this.band) {
+      renderBandReadOverlay(this, this.band, {
+        compact: true,
+        onClose: () => { this.bandReadOpen = false; this.rerender(); },
+      });
+    }
   }
 
   /** THE run HUD — identical header on every run screen (`runScreenTemplate`).
@@ -160,7 +180,22 @@ export class MobileRunMapScene extends Phaser.Scene {
   // ---------- the trail ----------
 
   private renderTrail(run: NonNullable<ReturnType<typeof getActiveRun>>): void {
-    const routeBounds = { x: 10, y: TEMPLATE.regions.content.y, w: this.W - 20, h: 310 };
+    // THE BAND BANNER takes the top of the map lane on mobile exactly as it
+    // takes the left of it on desktop — same blocks, same claims, same words
+    // (both-platforms rule): a phone is not told less about the band it is
+    // standing in than a desktop is. The trail keeps the rest of the lane —
+    // measured down to the fixed choices block rather than the old hardcoded
+    // 310, so it reclaims the dead 28px that used to sit between them.
+    const band = bandBannerForWave(run, snapshotRunProgress(run).wave);
+    this.band = band;
+    const laneTop = TEMPLATE.regions.content.y;
+    const bannerH = bandBannerHeight(band, 'mobile');
+    renderRunBandBanner(this, { x: 10, y: laneTop, w: this.W - 20, h: bannerH }, band, {
+      mode: 'mobile',
+      onOpenRead: () => { this.bandReadOpen = true; this.rerender(); },
+    });
+    const routeTop = laneTop + bannerH + 8;
+    const routeBounds = { x: 10, y: routeTop, w: this.W - 20, h: Math.max(60, TEMPLATE.contentSlots.choices.y - 12 - routeTop) };
     const route = snapshotRunRoute(run);
     renderRunRouteBoard(this, routeBounds, route, { mode: 'mobile' });
 

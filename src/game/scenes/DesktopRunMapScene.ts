@@ -8,7 +8,8 @@ import { rebuildScene } from '../sceneRebuild';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
-import { renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
+import { bandBannerHeight, renderBandReadOverlay, renderRunBandBanner, renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
+import { bandBannerForWave, type BandBannerViewModel } from '../ui/bandBannerViewModel';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addRunArt, eventArtKey, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
@@ -68,12 +69,19 @@ const KIND_LABEL: Record<RunNodeKind, string> = {
 export class DesktopRunMapScene extends Phaser.Scene {
   private statPanelOpen = false;
   private retireConfirmOpen = false;
+  /** The band banner's "READ THE BAND ›" overlay — the full forecast card. */
+  private bandReadOpen = false;
+  /** The band model this render drew, kept so the overlay shows the SAME read
+   * the banner summarised (one forecast per render, never a second roll). */
+  private band: BandBannerViewModel | null = null;
 
   constructor() { super('DesktopRunMap'); }
 
   init(): void {
     this.statPanelOpen = false;
     this.retireConfirmOpen = false;
+    this.bandReadOpen = false;
+    this.band = null;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -114,14 +122,26 @@ export class DesktopRunMapScene extends Phaser.Scene {
     // UNDER another. Skipping the trail while a modal owns the screen is the
     // honest fix: nothing is drawn that could never be seen. (Mirrors
     // MobileRunMapScene's identical guard.)
-    const modalOpen = this.statPanelOpen || this.retireConfirmOpen;
+    const modalOpen = this.statPanelOpen || this.retireConfirmOpen || this.bandReadOpen;
+    // The banner is what normally composes `this.band` (a class field, which
+    // `rebuildScene` deliberately preserves), but the trail is skipped while a
+    // modal owns the screen — so the read is composed straight from the run
+    // instead. Without this, an overlay opened on a rebuild that skipped the
+    // trail would render nothing behind its scrim.
     if (!modalOpen) this.renderTrail(run);
+    else if (this.bandReadOpen) this.band = bandBannerForWave(run, snapshotRunProgress(run).wave);
     if (this.statPanelOpen) {
       renderRunStatPanel(this, {
         compact: false,
         onCancel: () => { this.statPanelOpen = false; this.rerender(); },
         onConfirm: () => { this.statPanelOpen = false; this.rerender(); },
         onChanged: () => this.rerender(),
+      });
+    }
+    if (this.bandReadOpen && this.band) {
+      renderBandReadOverlay(this, this.band, {
+        compact: false,
+        onClose: () => { this.bandReadOpen = false; this.rerender(); },
       });
     }
     if (this.retireConfirmOpen) {
@@ -167,8 +187,23 @@ export class DesktopRunMapScene extends Phaser.Scene {
     // the map progress). Now nothing overlaps it.
     const slot = TEMPLATE.contentSlots.choices;
     const laneTop = slot.y + slot.height + 16;
-    const bounds = { x: GX, y: laneTop, w: area, h: bottom - laneTop };
-    renderRunRouteBoard(this, bounds, route, { mode: 'desktop' });
+    const laneH = bottom - laneTop;
+    // THE BAND BANNER shares the route lane with the trail: the trail says
+    // where you are, the banner says what you are IN (name, lean, wave range,
+    // the boss it promises and what counters boss and mobs — each claim naming
+    // its own subject). Before this the band was dealt, staffed the fights and
+    // ended in its boss with nothing on screen ever mentioning it, which is the
+    // feature not existing (docs/biome-paths-proposal.md §0).
+    const band = bandBannerForWave(run, snapshotRunProgress(run).wave);
+    this.band = band;
+    const bannerW = Math.min(360, Math.round(area * 0.28));
+    const bannerH = Math.min(bandBannerHeight(band, 'desktop'), laneH);
+    renderRunBandBanner(this, { x: GX, y: laneTop, w: bannerW, h: bannerH }, band, {
+      mode: 'desktop',
+      onOpenRead: () => { this.bandReadOpen = true; this.rerender(); },
+    });
+    const trailX = GX + bannerW + 16;
+    renderRunRouteBoard(this, { x: trailX, y: laneTop, w: area - bannerW - 16, h: laneH }, route, { mode: 'desktop' });
 
     // FIXED position from the template — the choices used to be centred on the
     // player's current depth, so they slid across the screen as the run
