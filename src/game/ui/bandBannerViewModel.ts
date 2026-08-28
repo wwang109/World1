@@ -254,7 +254,7 @@ export function leanColor(vm: Pick<BandBannerViewModel, 'leanType'>): number {
  * the boss-countdown headline uses — "no type helps you here" is a loud fact,
  * not a greyed-out blank. */
 export function claimTextColor(kind: BandClaimKind): string {
-  if (kind === 'none') return '#e0654a';
+  if (kind === 'none') return UI.textAlarm;
   if (kind === 'unsure') return UI.textAccent;
   return UI.text;
 }

@@ -5,7 +5,7 @@ import type { SkillDef } from '../../engine/types';
 import { buildAutoHeroSetup } from '../../run/encounter';
 import { setBattleContext } from '../battleContext';
 import { MOBILE_PROFILE } from '../layoutProfile';
-import { FONT, SCREEN, UI } from '../theme';
+import { FONT, SCREEN, textRole, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
@@ -13,7 +13,8 @@ import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { affixBlockLines, presentEliteAffix } from '../ui/affixPresentation';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
-import { gemStatSuffix, STAT_TOKEN } from '../ui/statLabels';
+import { capabilityStatRun, foeSecondaryStatRun } from '../ui/statRunModel';
+import { renderStatRun } from '../ui/statRunStrip';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene } from '../sceneRebuild';
 import {
@@ -127,9 +128,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
     const nameSuffix = isPack
       ? `   ·   LV ${encounter.effectiveLevel}   ·   +${pack.units.length - 1} MORE`
       : `   ·   ${encounter.title.toUpperCase()}   ·   LV ${encounter.effectiveLevel}`;
-    const nameText = this.add.text(20, y + 8, `${name}${nameSuffix}`, {
-      fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold',
-    });
+    const nameText = this.add.text(20, y + 8, `${name}${nameSuffix}`, textRole('section'));
     // GUARD CONTRACT: enemy names (and future modifier-bearing titles) can be
     // arbitrarily long; this single Text object has no wordWrap and the card
     // is fixed-height, so an overlong string would otherwise run off the
@@ -139,11 +138,16 @@ export class MobileRunPrepScene extends Phaser.Scene {
     // every enemy name in the game today.
     truncateNameKeepingSuffix(nameText, name, nameSuffix, this.W - 40);
     const s = encounter.setup.stats;
-    this.add.text(20, y + 26, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower}`, {
-      fontSize: `${F.tiny}px`, color: UI.textFootnote, fontFamily: FONT.body, fontStyle: 'bold',
+    // THE FOE'S NUMBERS, as label/value pairs rather than one flat 9px string.
+    // HP leads (it is the number that decides whether this fight is
+    // survivable); DEF/MDEF/cards drop to the second row and CARDS goes quiet.
+    // `'tight'` density: this card is fixed-height at 62px and the two rows sit
+    // 14px apart, which cannot hold two value sizes without going ragged.
+    renderStatRun(this, capabilityStatRun(s, { keys: ['maxHp', 'speed', 'attack', 'magicPower'] }), {
+      x: 20, y: y + 24, maxWidth: this.W - 40, density: 'tight',
     });
-    this.add.text(20, y + 40, `${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${encounter.setup.pieces.length} cards`, {
-      fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body,
+    renderStatRun(this, foeSecondaryStatRun(s, encounter.setup.pieces.length), {
+      x: 20, y: y + 39, maxWidth: this.W - 40, density: 'tight',
     });
     addHoverTipZone(this, { x: 10, y: y + 22, w: this.W - 20, h: 32 }, ALL_STAT_ENTRIES);
 
@@ -166,11 +170,11 @@ export class MobileRunPrepScene extends Phaser.Scene {
     });
     let ay = stripTop + 6 + F.tiny + 5;
     for (const line of lines.effect) {
-      this.add.text(20, ay, line, { fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body });
+      this.add.text(20, ay, line, textRole('micro', { ink: 'secondary' }));
       ay += F.tiny + 3;
     }
     for (const line of lines.answer) {
-      this.add.text(20, ay, line, { fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold' });
+      this.add.text(20, ay, line, textRole('kicker'));
       ay += F.tiny + 3;
     }
     return stripTop + stripH + 8;
@@ -183,16 +187,19 @@ export class MobileRunPrepScene extends Phaser.Scene {
     this.add.rectangle(10, top, this.W - 20, h, 0x101a2a, 0.94).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.7);
     const heroSetup = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation).setup;
     // Hero-scope stat gems fold in here too (`resolveDisplayHeroStats`), each
-    // bumped stat getting its own "(+N)" attribution (`gemStatSuffix`).
+    // bumped stat getting its own "◆+N" delta (see `capabilityStatRun`).
     const s = resolveDisplayHeroStats(heroSetup.stats, heroSetup.pieces);
     const gemAdds = gemHeroStats(heroSetup.pieces);
-    this.add.text(20, top + h / 2, `YOU · LV ${run.heroLevel}`, {
-      fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(0, 0.5);
-    this.add.text(this.W - 20, top + h / 2,
-      `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.attack} ${s.attack}${gemStatSuffix('attack', gemAdds)} · ${STAT_TOKEN.magicPower} ${s.magicPower}${gemStatSuffix('magicPower', gemAdds)} · ${STAT_TOKEN.armor} ${s.armor}${gemStatSuffix('armor', gemAdds)} · ${STAT_TOKEN.magicResist} ${s.magicResist}${gemStatSuffix('magicResist', gemAdds)} · ${STAT_TOKEN.speed} ${s.speed}${gemStatSuffix('speed', gemAdds)}`, {
-        fontSize: `${F.tiny}px`, color: UI.textFootnote, fontFamily: FONT.body, fontStyle: 'bold',
-      }).setOrigin(1, 0.5);
+    this.add.text(20, top + h / 2, `YOU · LV ${run.heroLevel}`, textRole('kicker')).setOrigin(0, 0.5);
+    // SAME grammar as the foe card above (`capabilityStatRun`, same order, same
+    // kinds) so the matchup reads as two comparable runs — that was already the
+    // intent of writing the two lines in one order; now the two lines are one
+    // model. A gem's contribution becomes a `delta` inked as a GAIN instead of
+    // a "(+4)" swallowed by the number it modifies.
+    const heroRun = capabilityStatRun(s, { gemAdds });
+    renderStatRun(this, heroRun, {
+      x: this.W - 20, y: top + h / 2 - 7, maxWidth: this.W - 130, align: 'right', density: 'tight',
+    });
     addHoverTipZone(this, { x: 10, y: top, w: this.W - 20, h }, ALL_STAT_ENTRIES);
     return top + h + 8;
   }
@@ -213,8 +220,8 @@ export class MobileRunPrepScene extends Phaser.Scene {
     const leftX = 10;
     const rightX = 10 + colW + gap;
 
-    this.add.text(leftX + colW / 2, top - 14, 'YOUR DECK', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0);
-    this.add.text(rightX + colW / 2, top - 14, `ENEMY SKILLS${isPack ? ` (1 OF ${pack.units.length})` : ''}`, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(0.5, 0);
+    this.add.text(leftX + colW / 2, top - 14, 'YOUR DECK', textRole('kicker', { ink: 'label' })).setOrigin(0.5, 0);
+    this.add.text(rightX + colW / 2, top - 14, `ENEMY SKILLS${isPack ? ` (1 OF ${pack.units.length})` : ''}`, textRole('kicker', { ink: 'label' })).setOrigin(0.5, 0);
 
     const heroSkills: SkillDef[] = [];
     const heroPieces: ColumnPiece[] = [];

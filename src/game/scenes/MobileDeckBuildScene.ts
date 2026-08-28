@@ -20,7 +20,8 @@ import { powerLevelEntry } from '../ui/cardGlossary';
 import { renderCardInfoBox } from '../ui/cardInfoBox';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import type { ScalingStats } from '../ui/skillPresentation';
-import { gemStatSuffix, STAT_TOKEN } from '../ui/statLabels';
+import { deckMetaStatRun } from '../ui/statRunModel';
+import { renderStatRun } from '../ui/statRunStrip';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
@@ -310,7 +311,9 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     });
   }
 
-  /** Mockup header meta: "LV 1 · HP 150 · ATK 12 · MATK 12 · SPD 12  ·  6/10 slots · PL 54 · 2 gems". */
+  /** Header meta: the hero's live statline plus slots/PL/gems, drawn as
+   * label/value pairs by the shared `statRunModel`/`statRunStrip` pair rather
+   * than one flat string. */
   private renderHeader(): void {
     const used = this.deckOccupied().filter(Boolean).length;
     let plDeci = 0;
@@ -320,8 +323,21 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
     const s = resolveDisplayHeroStats(hero.stats, hero.pieces);
     const gemAdds = gemHeroStats(hero.pieces);
-    const meta = `LV ${this.heroLevel} · ${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.attack} ${s.attack}${gemStatSuffix('attack', gemAdds)} · ${STAT_TOKEN.magicPower} ${s.magicPower}${gemStatSuffix('magicPower', gemAdds)} · ${STAT_TOKEN.speed} ${s.speed}${gemStatSuffix('speed', gemAdds)}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
-    this.add.text(12, 50 + this.headerOffset, meta, { fontSize: `${F.small}px`, color: UI.textFootnote, fontFamily: FONT.body });
+    // THE LINE THE USER CALLED PLAIN: "LV 1 · HP 100 · ATK 1 · MATK 1 · SPD 10
+    // · 0/10 slots · PL 0 · 0 gems" — 74 characters of one colour at one
+    // weight in a 412px header, so nothing in it led. `deckMetaStatRun` splits
+    // it into label/value pairs, gives SLOTS the lead (it is the one number a
+    // deck edit is actually about), inks PL as a `cost` and gems as
+    // `capacity`, and drops DEF/MDEF — see the builder for why those two.
+    renderStatRun(this, deckMetaStatRun({
+      heroLevel: this.heroLevel,
+      stats: s,
+      gemAdds,
+      used,
+      slots: SLOTS,
+      powerLevel: Math.round(plDeci / 10),
+      gems,
+    }), { x: 12, y: 48 + this.headerOffset, maxWidth: this.W - 24 });
   }
 
   /** Dashed 1px border (the mockup's transfer/trash strip style). */

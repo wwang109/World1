@@ -6,7 +6,7 @@ import { buildAutoHeroSetup } from '../../run/encounter';
 import { cachedDamageBand } from '../battleApi';
 import { setBattleContext } from '../battleContext';
 import { DESKTOP_PROFILE } from '../layoutProfile';
-import { FONT, SCREEN, UI } from '../theme';
+import { FONT, SCREEN, textRole, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
@@ -14,7 +14,8 @@ import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { affixBlockLines, presentEliteAffix } from '../ui/affixPresentation';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
-import { gemStatSuffix, STAT_TOKEN } from '../ui/statLabels';
+import { capabilityStatRun, foeSecondaryStatRun } from '../ui/statRunModel';
+import { renderStatRun } from '../ui/statRunStrip';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene } from '../sceneRebuild';
 import {
@@ -227,16 +228,20 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     }
 
     const s = encounter.setup.stats;
-    this.add.text(innerX, cursor, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed} · ${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower}`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.text,
+    // Same `capabilityStatRun` the mobile foe card draws (both-platforms rule:
+    // the desktop reader is told the same six facts, in the same order, with
+    // the same kinds) — only the density differs, because a desktop panel has
+    // the room to give HP the full value size.
+    const foePrimary = renderStatRun(this, capabilityStatRun(s, { keys: ['maxHp', 'speed', 'attack', 'magicPower'] }), {
+      x: innerX, y: cursor, maxWidth: innerW,
     });
-    addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: F.body + 4 }, ALL_STAT_ENTRIES);
-    cursor += F.body + 7;
-    this.add.text(innerX, cursor, `${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${encounter.setup.pieces.length} cards`, {
-      fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
+    addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: foePrimary.height + 4 }, ALL_STAT_ENTRIES);
+    cursor += foePrimary.height + 5;
+    const foeSecondary = renderStatRun(this, foeSecondaryStatRun(s, encounter.setup.pieces.length), {
+      x: innerX, y: cursor, maxWidth: innerW, density: 'tight',
     });
-    addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: F.small + 4 }, ALL_STAT_ENTRIES);
-    cursor += F.small + 7;
+    addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: foeSecondary.height + 4 }, ALL_STAT_ENTRIES);
+    cursor += foeSecondary.height + 5;
     const bandText = this.add.text(innerX, cursor, 'DMG/turn …', {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.textAccent,
     });
@@ -273,13 +278,11 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     const panelH = PANEL_PAD * 2 + F.label + 10 + 16 + F.small + 12 + F.body + 7 + F.small + 4;
     this.add.rectangle(GX, panelTop, PANEL_W, panelH, UI.panel, 0.92).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.8);
     let cursor = panelTop + PANEL_PAD;
-    this.add.text(innerX, cursor, 'YOU', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: UI.textAccent });
+    this.add.text(innerX, cursor, 'YOU', textRole('kicker'));
     cursor += F.label + 10;
     this.add.rectangle(innerX, cursor, innerW, 1, UI.border, 0.6).setOrigin(0, 0);
     cursor += 16;
-    this.add.text(innerX, cursor, `LV ${run.heroLevel} · ${run.pieces.length} cards`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textDim,
-    });
+    this.add.text(innerX, cursor, `LV ${run.heroLevel} · ${run.pieces.length} cards`, textRole('statLabelTight'));
     cursor += F.small + 12;
     const heroSetup = buildAutoHeroSetup(run.heroLevel, run.pieces.map((p) => ({ ...p })), run.heroAllocation).setup;
     // Hero-scope stat gems fold in here too (`resolveDisplayHeroStats`), and
@@ -287,15 +290,15 @@ export class DesktopRunPrepScene extends Phaser.Scene {
     // gem-boosted number reads differently from a naturally level-bought one.
     const s = resolveDisplayHeroStats(heroSetup.stats, heroSetup.pieces);
     const gemAdds = gemHeroStats(heroSetup.pieces);
-    this.add.text(innerX, cursor, `${STAT_TOKEN.maxHp} ${s.maxHp} · ${STAT_TOKEN.speed} ${s.speed}${gemStatSuffix('speed', gemAdds)} · ${STAT_TOKEN.attack} ${s.attack}${gemStatSuffix('attack', gemAdds)} · ${STAT_TOKEN.magicPower} ${s.magicPower}${gemStatSuffix('magicPower', gemAdds)}`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.text,
+    const heroPrimary = renderStatRun(this, capabilityStatRun(s, { keys: ['maxHp', 'speed', 'attack', 'magicPower'], gemAdds }), {
+      x: innerX, y: cursor, maxWidth: innerW,
     });
-    addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: F.body + 4 }, ALL_STAT_ENTRIES);
-    cursor += F.body + 7;
-    this.add.text(innerX, cursor, `${STAT_TOKEN.armor} ${s.armor}${gemStatSuffix('armor', gemAdds)} · ${STAT_TOKEN.magicResist} ${s.magicResist}${gemStatSuffix('magicResist', gemAdds)}`, {
-      fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
+    addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: heroPrimary.height + 4 }, ALL_STAT_ENTRIES);
+    cursor += heroPrimary.height + 5;
+    const heroSecondary = renderStatRun(this, capabilityStatRun(s, { keys: ['armor', 'magicResist'], gemAdds }), {
+      x: innerX, y: cursor, maxWidth: innerW, density: 'tight',
     });
-    addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: F.small + 4 }, ALL_STAT_ENTRIES);
+    addHoverTipZone(this, { x: innerX, y: cursor, w: innerW, h: heroSecondary.height + 4 }, ALL_STAT_ENTRIES);
   }
 
   /** PACK FIGHTS: the ENEMY SKILLS board renders the PRIMARY member's board

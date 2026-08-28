@@ -214,31 +214,38 @@ const REWARD_PANEL_PAD: Record<RunTemplatePlatform, number> = { desktop: 24, mob
  * Capping the panel (and centering it in `content`, see `buildRewardSlot`)
  * makes the reward read as a deliberately-sized announcement card again.
  *
- * WIDTH (850): generous enough for the bonus-draft's 5-card row at its own
- * natural, un-bumped ideal size (`RunRewardPanel.ts`'s
- * `FEATURE_CARD_SIZE.desktop` — reverted alongside this cap, see that
- * file's doc comment — 142px wide) plus its inter-card gap and this
- * module's own side padding: `5*142 + 4*DESKTOP_PROFILE.gap(12) +
- * 2*REWARD_PANEL_PAD(24) = 806`, rounded up to 850 for a comfortable
- * (not razor-thin) margin either side of that row.
+ * WIDTH (850): unchanged, but its DERIVATION changed with the card-row pass
+ * (2026-08-28). It used to be "the bonus-draft's 5-card row at
+ * `FEATURE_CARD_SIZE.desktop`'s 142px width, plus gaps and padding"; the
+ * pickers no longer put cards side by side at all (see
+ * `runRewardGeometry.ts`'s `FEATURE_CARD_ROW_H`), so what the width now buys
+ * is the card ROW's reading measure: 850 - 2*`REWARD_PANEL_PAD`(24) = 802px
+ * of row, wide enough for a name + effects + affinity line with the weight
+ * badge clear at the far end, and no wider than the deck screen's own
+ * 620px-wide rows by more than a comfortable margin.
  *
- * HEIGHT (480): the tight icon+headline+detail+feature stack at a SINGLE
- * card's natural height (233) plus top/bottom padding:
- * `56+14+64+14+28+14+233 + 2*24 = 471`, rounded up to 480. The SAME height
- * fits the 5-card bonus-draft row — one row is exactly as tall as one card,
- * it only needs the WIDTH above — so this ceiling never squeezes it.
+ * HEIGHT (660): RE-DERIVED for the card-row pass. It used to be the tight
+ * icon+headline+detail+feature stack at a SINGLE PORTRAIT card's height
+ * (233): `56+14+64+14+28+14+233 + 2*24 = 471`, rounded to 480. That number
+ * was a function of the portrait card, so replacing the portrait cell with a
+ * row had to move it or the widest picker would have been squeezed below
+ * `TOKEN_COMPACT_HEIGHT` — 5 rows in the old 242px `feature` rect comes out
+ * at 38.8px each, i.e. every card face silently collapsing to its one-line
+ * COMPACT variant. The stack's fixed rows are unchanged, so the feature rect
+ * this leaves is `660 - 238 = 422`, and the tallest picker — `bonusDraft`'s
+ * five rows — needs `5*72 + 4*DESKTOP_PROFILE.gap(12) = 408` of it. Still a
+ * CAP, not a fill: `availableH` at 1440x900 is 682, so the panel keeps a
+ * 22px slack above it rather than running flush into the header rule.
  *
- * Mobile is deliberately NOT capped here: its bonus-draft row wraps into 2-3
- * STACKED rows (its narrow column only fits 2 cards across), which already
- * needs more height than a tight single-card stack provides — capping it as
- * tight as desktop's single-card case would only shrink that wrapped grid.
- * A single feature on mobile instead gets a dedicated top-anchor in
- * `RunRewardPanel.ts`'s `renderFeature` (see its doc comment) so it still
- * sits close under the headline instead of centering in that leftover
- * height, without taking room away from the grid.
+ * Mobile is deliberately NOT capped here: its `feature` rect (544) already
+ * holds the widest picker's five rows (`5*92 + 4*MOBILE_PROFILE.gap(8) =
+ * 492`) without one. A single feature on mobile instead gets a dedicated
+ * top-anchor in `RunRewardPanel.ts`'s `renderFeature` (see its doc comment)
+ * so it still sits close under the headline instead of centering in that
+ * leftover height, without taking room away from the grid.
  */
 const REWARD_PANEL_MAX_W: Partial<Record<RunTemplatePlatform, number>> = { desktop: 850 };
-const REWARD_PANEL_MAX_H: Partial<Record<RunTemplatePlatform, number>> = { desktop: 480 };
+const REWARD_PANEL_MAX_H: Partial<Record<RunTemplatePlatform, number>> = { desktop: 660 };
 
 /**
  * `outcome` sub-shape geometry (task #41 density pass — see the `reward` doc

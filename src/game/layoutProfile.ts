@@ -21,6 +21,17 @@ export interface LayoutProfile {
      * mobile-scene theme migration; kept out of order in the source object below
      * only where noted, values are unchanged from their prior literal px. */
     lead: number; heading: number; subtitle: number; xlarge: number;
+    /**
+     * The TOP rung — the one word a full-screen moment is about (DEFEAT / RUN
+     * RETIRED), and the only size above `big`. Added 2026-08-28 with the
+     * `TEXT_ROLE` system so `display` has a ladder rung to name instead of the
+     * two hand-written literals it used to be: mobile's banner was a hardcoded
+     * `'26px'` and desktop's was the expression `F.big * 1.6` (= 57.6). Both
+     * numbers are preserved here (desktop rounded to 56), so nothing on screen
+     * changed size when the roles took over — the sizes just stopped being
+     * invented at the call site.
+     */
+    display: number;
   };
   gap: number;
   /** Minimum comfortable tap target on its short axis. */
@@ -31,7 +42,7 @@ export const MOBILE_PROFILE: LayoutProfile = {
   id: 'mobile',
   canvas: { width: 412, height: 892 },
   safe: { x: 10, top: 8, bottom: 10 },
-  font: { tiny: 9, small: 10, body: 12, label: 11, name: 13, title: 16, big: 22, lead: 14, heading: 15, subtitle: 17, xlarge: 18 },
+  font: { tiny: 9, small: 10, body: 12, label: 11, name: 13, title: 16, big: 22, lead: 14, heading: 15, subtitle: 17, xlarge: 18, display: 26 },
   gap: 8,
   minTap: 40,
 };
@@ -40,7 +51,7 @@ export const DESKTOP_PROFILE: LayoutProfile = {
   id: 'desktop',
   canvas: { width: 1440, height: 900 },
   safe: { x: 32, top: 24, bottom: 24 },
-  font: { tiny: 10, small: 11, body: 14, label: 12, name: 16, title: 26, big: 36, lead: 17, heading: 19, subtitle: 22, xlarge: 24 },
+  font: { tiny: 10, small: 11, body: 14, label: 12, name: 16, title: 26, big: 36, lead: 17, heading: 19, subtitle: 22, xlarge: 24, display: 56 },
   gap: 12,
   minTap: 40,
 };

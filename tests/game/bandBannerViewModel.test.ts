@@ -402,7 +402,12 @@ describe('the colour a band is drawn in', () => {
   });
 
   it('the three claim certainties are three different colours, and none is the body text colour twice', () => {
-    expect(claimTextColor('none')).toBe('#e0654a');
+    // Was a pinned literal `'#e0654a'`; that hex is now `UI.textAlarm` (the
+    // ONE danger-text tone, nudged to clear WCAG AA on `panelAlt` — see
+    // theme.ts and tests/game/textRoleAudit.test.ts). Naming the token instead
+    // of the hex is the point: this test asserts "none is the ALARM colour",
+    // not "none is this particular orange".
+    expect(claimTextColor('none')).toBe(UI.textAlarm);
     expect(claimTextColor('unsure')).toBe(UI.textAccent);
     expect(claimTextColor('definite')).toBe(UI.text);
     expect(new Set([claimTextColor('none'), claimTextColor('unsure'), claimTextColor('definite')]).size).toBe(3);

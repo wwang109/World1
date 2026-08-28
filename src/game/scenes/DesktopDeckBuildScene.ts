@@ -22,7 +22,8 @@ import { cardHoverEntries } from '../ui/cardHoverEntries';
 import { powerLevelEntry } from '../ui/cardGlossary';
 import { renderCardInfoBox } from '../ui/cardInfoBox';
 import type { ScalingStats } from '../ui/skillPresentation';
-import { gemStatSuffix, STAT_TOKEN } from '../ui/statLabels';
+import { deckMetaStatRun } from '../ui/statRunModel';
+import { renderStatRun } from '../ui/statRunStrip';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
@@ -293,8 +294,8 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
   /** Header meta line: LV / HP / ATK / MATK / SPD  ·  slots / PL / gems.
    *  `stats` is already the GEM-FOLDED hero stat sheet (see `create()`'s
    *  `resolveDisplayHeroStats` call) — each stat a hero-scope gem bumps gets
-   *  its own `(+N)` attribution via `gemStatSuffix` so a gem-boosted number
-   *  reads differently from a naturally level-bought one. */
+   *  its own `◆+N` GAIN-inked delta (see `deckMetaStatRun`) so a gem-boosted
+   *  number reads differently from a naturally level-bought one. */
   private renderMeta(stats: { maxHp: number; attack: number; magicPower: number; speed: number }): void {
     const gx = DESKTOP_LAYOUT.gutter;
     const used = this.deckOccupied().filter(Boolean).length;
@@ -302,13 +303,21 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     for (const p of this.pieces) { const s = skillBook[p.skillId]; if (s) plDeci += instancePowerLevelDeci(s, { gem: p.gem ?? null }); }
     const gems = this.pieces.filter((p) => p.gem).length;
     const gemAdds = gemHeroStats(this.pieces);
-    const meta = `LV ${this.heroLevel} · ${STAT_TOKEN.maxHp} ${stats.maxHp} · ${STAT_TOKEN.attack} ${stats.attack}${gemStatSuffix('attack', gemAdds)} · ${STAT_TOKEN.magicPower} ${stats.magicPower}${gemStatSuffix('magicPower', gemAdds)} · ${STAT_TOKEN.speed} ${stats.speed}${gemStatSuffix('speed', gemAdds)}   ·   ${used}/${SLOTS} slots · PL ${(plDeci / 10).toFixed(0)} · ${gems} gem${gems === 1 ? '' : 's'}`;
     // Right-aligned; in run context this sits just under the HUD (which
     // already owns the tab row's old position) instead of on top of it.
-    const y = this.runContext ? TEMPLATE.regions.content.y + 2 : 102 + DESKTOP_LAYOUT.tabH / 2;
-    this.add.text(SCREEN.width - gx, y, meta, {
-      fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body,
-    }).setOrigin(1, this.runContext ? 0 : 0.5);
+    // SAME `deckMetaStatRun` as mobile (both-platforms rule) — the desktop
+    // reader sees the same eight facts, the same lead on SLOTS, the same PL
+    // `cost` ink, just at desktop's own role sizes.
+    const y = this.runContext ? TEMPLATE.regions.content.y + 2 : 102 + DESKTOP_LAYOUT.tabH / 2 - 10;
+    renderStatRun(this, deckMetaStatRun({
+      heroLevel: this.heroLevel,
+      stats,
+      gemAdds,
+      used,
+      slots: SLOTS,
+      powerLevel: Math.round(plDeci / 10),
+      gems,
+    }), { x: SCREEN.width - gx, y, maxWidth: SCREEN.width - gx * 2, align: 'right' });
   }
 
   /** Dashed rectangle border (matches mobile's transfer/trash strip style). */

@@ -3,7 +3,7 @@ import { shopCatalog } from '../../data/shopTypes';
 import { shopMapFooter } from '../ui/shopMapFooter';
 import { eventThemeBlurb } from '../ui/eventThemeBlurb';
 import { MOBILE_PROFILE } from '../layoutProfile';
-import { FONT, SCREEN, UI } from '../theme';
+import { FONT, SCREEN, textRole, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
@@ -237,9 +237,7 @@ export class MobileRunMapScene extends Phaser.Scene {
     // without this panel the run dead-ends here.
     const pending = currentNode();
     if (pending) {
-      const heading = this.add.text(x + w / 2, top, 'STOP IN PROGRESS', {
-        fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
-      }).setOrigin(0.5, 0);
+      const heading = this.add.text(x + w / 2, top, 'STOP IN PROGRESS', textRole('kicker')).setOrigin(0.5, 0);
       auditTextBlock(heading, { name: 'Mobile run map stop-in-progress heading', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
       renderRunChoicePanel(this, { x, y: top + F.tiny + 8, w, h: 94 }, {
         nodeId: pending.id,
@@ -266,21 +264,15 @@ export class MobileRunMapScene extends Phaser.Scene {
     }
     const options = choices();
     if (options.length === 0) {
-      this.add.text(x + w / 2, top + 20, '···', {
-        fontSize: `${F.label}px`, color: UI.textSoft, fontFamily: FONT.body,
-      }).setOrigin(0.5, 0);
+      this.add.text(x + w / 2, top + 20, '···', textRole('label', { ink: 'disabled' })).setOrigin(0.5, 0);
       return;
     }
-    const planner = this.add.text(x + w / 2, top, 'CHOOSE YOUR NEXT STOP', {
-      fontSize: `${F.tiny}px`, color: UI.textAccent, fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(0.5, 0);
+    const planner = this.add.text(x + w / 2, top, 'CHOOSE YOUR NEXT STOP', textRole('kicker')).setOrigin(0.5, 0);
     auditTextBlock(planner, { name: 'Mobile run map choice planner', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
     top += F.tiny + 8;
     availableH -= F.tiny + 8;
     if (options.length === 1) {
-      const mandatory = this.add.text(x + w / 2, top, 'MANDATORY', {
-        fontSize: `${F.tiny}px`, color: UI.textSoft, fontFamily: FONT.body, fontStyle: 'bold',
-      }).setOrigin(0.5, 0);
+      const mandatory = this.add.text(x + w / 2, top, 'MANDATORY', textRole('kicker', { ink: 'label' })).setOrigin(0.5, 0);
       auditTextBlock(mandatory, { name: 'Mobile run map mandatory label', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
       top += F.tiny + 6;
       availableH -= F.tiny + 6;
@@ -366,22 +358,22 @@ export class MobileRunMapScene extends Phaser.Scene {
     const retired = status === 'retired';
     this.add.rectangle(0, 0, this.W, this.H, retired ? 0x1c2430 : 0x352019, 1).setOrigin(0, 0);
     const cx = this.W / 2;
-    this.add.text(cx, 64, retired ? 'RUN RETIRED' : 'DEFEAT', {
-      fontSize: '26px', color: '#e8e0c8', fontFamily: FONT.display, fontStyle: 'bold',
-    }).setOrigin(0.5, 0);
+    // THE ONE FIRST THING on this screen — `display` is spent here and nowhere
+    // else in the scene, which is what gives the banner a reading order at all.
+    this.add.text(cx, 64, retired ? 'RUN RETIRED' : 'DEFEAT', textRole('display')).setOrigin(0.5, 0);
     const run = getActiveRun()!;
-    this.add.text(cx, 110, `DAYS SURVIVED ${run.depth}`, {
-      fontSize: '13px', color: '#c69948', fontFamily: FONT.body, fontStyle: 'bold', align: 'center',
+    this.add.text(cx, 106, `DAYS SURVIVED ${run.depth}`, {
+      ...textRole('statValue', { ink: 'accent' }), align: 'center',
     }).setOrigin(0.5, 0);
-    this.add.text(cx, 132, `GOLD ${run.gold} · HERO LV ${run.heroLevel}`, {
-      fontSize: '11px', color: '#9aa4b6', fontFamily: FONT.body, align: 'center', wordWrap: { width: this.W - 60 },
+    this.add.text(cx, 130, `GOLD ${run.gold} · HERO LV ${run.heroLevel}`, {
+      ...textRole('micro'), align: 'center', wordWrap: { width: this.W - 60 },
     }).setOrigin(0.5, 0);
     const gridW = this.W - 60;
     const gridTop = 158;
     const gridH = renderRunStatsGrid(this, cx - gridW / 2, gridTop, gridW, runStatsPairs(run), { compact: true });
     const btnY = gridTop + gridH + 30;
     const btn = this.add.rectangle(cx, btnY, 180, 44, 0xb78a46, 1).setOrigin(0.5, 0).setStrokeStyle(2, UI.border, 1).setInteractive({ useHandCursor: true });
-    const btnLabel = this.add.text(cx, btnY + 22, 'MAIN MENU ›', { fontSize: '14px', color: '#1a1208', fontFamily: FONT.display, fontStyle: 'bold' }).setOrigin(0.5);
+    const btnLabel = this.add.text(cx, btnY + 22, 'MAIN MENU ›', textRole('label', { ink: 'onAccent' })).setOrigin(0.5);
     // Every run ends back at the ONE front door (Start scene), never a
     // map-local start panel — flow consistency per user direction 2026-08-04.
     // Shared feel (ui/motion) — this button had neither hover nor press

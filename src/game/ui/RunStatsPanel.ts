@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { getActiveRun, type RunState } from '../runStore';
-import { FONT, UI } from '../theme';
+import { FONT, textRole, textRoleSize, UI } from '../theme';
 import { auditTextBlock } from './controlLayoutAudit';
 import type { Rect } from './runScreenTemplate';
 import { runScreenLayout } from './runScreenLayout';
+import { ledgerStatRows, type StatSegment } from './statRunModel';
+import { renderStatCell } from './statRunStrip';
 
 /**
  * Run stats — a read-only ledger view over `RunState.stats`/`wins`/`losses`/
@@ -25,10 +27,13 @@ import { runScreenLayout } from './runScreenLayout';
  * accumulated by `src/run`. This module only formats and lays it out.
  */
 
-export interface RunStatsRow {
-  label: string;
-  value: string;
-}
+/**
+ * A ledger row is now a `StatSegment` (`statRunModel.ts`) — the SAME token the
+ * header strips use, so a `cost` in the ledger and a `cost` in a header cannot
+ * end up different colours. Kept as an alias because six call sites and a test
+ * name this type.
+ */
+export type RunStatsRow = StatSegment;
 
 /** The minimal shape the grid needs off a `RunState` (or the equivalent end-
  * of-run snapshot) — structural, so the end-summary banner and the live
@@ -43,13 +48,22 @@ export type RunStatsSource = Pick<RunState, 'wins' | 'losses' | 'bossesCleared' 
  */
 export function runStatsPairs(run: RunStatsSource): ReadonlyArray<readonly [RunStatsRow, RunStatsRow]> {
   const s = run.stats;
-  return [
-    [{ label: 'FIGHTS WON', value: `${run.wins}` }, { label: 'FIGHTS LOST', value: `${run.losses}` }],
-    [{ label: 'BOSSES CLEARED', value: `${run.bossesCleared}` }, { label: 'DEEPEST WAVE', value: `${s.deepestWave}` }],
-    [{ label: 'GOLD EARNED', value: `${s.goldEarned}` }, { label: 'GOLD SPENT', value: `${s.goldSpent}` }],
-    [{ label: 'DAMAGE DEALT', value: `${s.damageDealt}` }, { label: 'DAMAGE TAKEN', value: `${s.damageTaken}` }],
-    [{ label: 'HEALING DONE', value: `${s.healingDone}` }, { label: 'PURCHASES', value: `${s.cardsBought}C / ${s.gemsBought}G` }],
-  ];
+  // Every WORD and every KIND is decided in `ledgerStatRows` — this function
+  // only unpacks `RunState` for it. Same split as `bandBannerViewModel`: the
+  // renderer below may not re-derive an ink from a label it recognises.
+  return ledgerStatRows({
+    wins: run.wins,
+    losses: run.losses,
+    bossesCleared: run.bossesCleared,
+    deepestWave: s.deepestWave,
+    goldEarned: s.goldEarned,
+    goldSpent: s.goldSpent,
+    damageDealt: s.damageDealt,
+    damageTaken: s.damageTaken,
+    healingDone: s.healingDone,
+    cardsBought: s.cardsBought,
+    gemsBought: s.gemsBought,
+  });
 }
 
 /** Total pixel height `renderRunStatsGrid` will occupy for a given row count
@@ -74,29 +88,27 @@ export function renderRunStatsGrid(
   pairs: ReadonlyArray<readonly [RunStatsRow, RunStatsRow]>,
   opts: { compact: boolean; depth?: number },
 ): number {
-  const labelSize = opts.compact ? 9 : 11;
-  const valueSize = opts.compact ? 13 : 16;
+  // ROLES, not sizes. `compact` used to pick 9/13 vs 11/16 px by hand on this
+  // one surface; now the label/value pair comes from `STAT_PAIR_ROLES.grid`,
+  // whose per-profile numbers happen to be exactly those two pairs — so the
+  // VALUES here are pixel-identical to what shipped and only the LABEL changes
+  // (unbolded, cooled) plus the per-kind ink. `'grid'` rather than `'roomy'`
+  // because a boxed cell must not vary its value size by tone; see the role.
+  const density = 'grid' as const;
   const rowH = opts.compact ? 36 : 42;
   const rowGap = 6;
   const colGap = 12;
   const colW = (w - colGap) / 2;
   const cellPad = 10;
 
-  const stamp = <T extends { setDepth(d: number): unknown }>(obj: T): T => {
-    if (opts.depth !== undefined) obj.setDepth(opts.depth);
-    return obj;
-  };
-
   const drawCell = (row: RunStatsRow, cx: number, cy: number, name: string): void => {
-    stamp(scene.add.rectangle(cx, cy, colW, rowH, UI.panelMuted, 0.6).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.35));
-    const label = stamp(scene.add.text(cx + cellPad, cy + cellPad, row.label, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${labelSize}px`, color: UI.textDim,
-    }).setOrigin(0, 0));
-    auditTextBlock(label, { name: `${name} label`, maxWidth: colW - cellPad * 2, maxHeight: labelSize + 6, minFontSize: 7 });
-    const value = stamp(scene.add.text(cx + colW - cellPad, cy + rowH - cellPad, row.value, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${valueSize}px`, color: UI.textAccent,
-    }).setOrigin(1, 1));
-    auditTextBlock(value, { name: `${name} value`, maxWidth: colW - cellPad * 2, maxHeight: valueSize + 6, minFontSize: 8 });
+    const plate = scene.add.rectangle(cx, cy, colW, rowH, UI.panelMuted, 0.6).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.35);
+    if (opts.depth !== undefined) plate.setDepth(opts.depth);
+    const { label, value } = renderStatCell(scene, row, {
+      x: cx, y: cy, width: colW, height: rowH, pad: cellPad, density, depth: opts.depth, name,
+    });
+    auditTextBlock(label, { name: `${name} label`, maxWidth: colW - cellPad * 2, maxHeight: label.height + 6, minFontSize: 7 });
+    auditTextBlock(value, { name: `${name} value`, maxWidth: colW - cellPad * 2, maxHeight: value.height + 6, minFontSize: 8 });
   };
 
   let cursor = y;
@@ -136,9 +148,7 @@ export function renderRunStatsFlankPanel(
   const blockH = 24 + 14 + runStatsGridHeight(pairs.length, false);
   let cursor = y + Math.max(pad, (h - blockH) / 2);
 
-  const header = scene.add.text(innerX, cursor, 'RUN LEDGER', {
-    fontFamily: FONT.display, fontStyle: 'bold', fontSize: '17px', color: UI.text,
-  });
+  const header = scene.add.text(innerX, cursor, 'RUN LEDGER', textRole('section'));
   auditTextBlock(header, { name: 'Desktop run map ledger header', maxWidth: innerW, maxHeight: 22, minFontSize: 12 });
   cursor += 24;
 
@@ -181,35 +191,38 @@ export function renderRunBossCountdownPanel(
   // Vertically centered content block — this panel's copy is short by
   // design (a callout, not a dense grid), so it's centered in its bordered
   // box rather than stretched, the same idiom a "highlight card" would use.
-  const blockH = 17 + 8 + 30 + 8 + 13 + 14 + 1 + 12 + 13;
+  const blockH = textRoleSize('kicker') + 8 + textRoleSize('title') + 12 + 13 + 14 + 1 + 12 + 13;
   let cursor = y + Math.max(pad, (h - blockH) / 2);
 
-  const kicker = scene.add.text(innerX, cursor, 'NEXT MILESTONE', {
-    fontFamily: FONT.display, fontStyle: 'bold', fontSize: '17px', color: UI.text,
-  });
-  auditTextBlock(kicker, { name: 'Desktop run map boss countdown header', maxWidth: innerW, maxHeight: 22, minFontSize: 12 });
-  cursor += 25;
+  // THE HIERARCHY THIS PANEL ACTUALLY HAS: 'NEXT MILESTONE' is a LABEL and
+  // the countdown is the VALUE, so it is a `kicker` over a `title` — the same
+  // grammar as the run header's own 'WORLD1 / RUN MODE' over 'RUN'. It used to
+  // be a 17px serif header over a 20px figure, which is barely a hierarchy at
+  // all: the two competed and the panel had no first thing to read. (The first
+  // pass of this conversion made it worse — `section` at 19px over a 16px
+  // figure INVERTED the order — which is exactly why this is verified in a
+  // screenshot and not in prose.)
+  const kicker = scene.add.text(innerX, cursor, 'NEXT MILESTONE', textRole('kicker'));
+  auditTextBlock(kicker, { name: 'Desktop run map boss countdown header', maxWidth: innerW, maxHeight: 22, minFontSize: 9 });
+  cursor += textRoleSize('kicker') + 8;
 
+  // `alarm` is the ACT-NOW ink and it is spent here on purpose: a boss landing
+  // THIS wave is one of the only two live alarms in the game (the other is the
+  // last life). Otherwise it is a `resource`-toned countdown, not a warning.
   const big = scene.add.text(innerX, cursor, bossNow ? 'BOSS THIS WAVE' : `${info.wavesRemaining} WAVE${info.wavesRemaining === 1 ? '' : 'S'} TO GO`, {
-    // Danger red matches the RETIRE/last-life tint elsewhere in the HUD, not
-    // `UI.bad` (a numeric fill color, not a valid CSS text color).
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: '20px', color: bossNow ? '#e0654a' : UI.textAccent,
+    ...textRole('title', { ink: bossNow ? 'alarm' : 'resource' }), fontFamily: FONT.body,
   });
-  auditTextBlock(big, { name: 'Desktop run map boss countdown headline', maxWidth: innerW, maxHeight: 28, minFontSize: 13 });
-  cursor += 38;
+  auditTextBlock(big, { name: 'Desktop run map boss countdown headline', maxWidth: innerW, maxHeight: textRoleSize('title') + 10, minFontSize: 13 });
+  cursor += textRoleSize('title') + 12;
 
-  const sub = scene.add.text(innerX, cursor, `BOSS AT WAVE ${info.bossWave}`, {
-    fontFamily: FONT.body, fontSize: '11px', color: UI.textSoft,
-  });
+  const sub = scene.add.text(innerX, cursor, `BOSS AT WAVE ${info.bossWave}`, textRole('micro'));
   auditTextBlock(sub, { name: 'Desktop run map boss countdown sub-line', maxWidth: innerW, maxHeight: 16, minFontSize: 8 });
   cursor += 27;
 
   scene.add.rectangle(innerX, cursor, innerW, 1, UI.border, 0.5).setOrigin(0, 0);
   cursor += 13;
 
-  const clearedLine = scene.add.text(innerX, cursor, `BOSSES CLEARED ${bossesCleared}`, {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: '12px', color: UI.textDim,
-  });
+  const clearedLine = scene.add.text(innerX, cursor, `BOSSES CLEARED ${bossesCleared}`, textRole('label', { ink: 'label' }));
   auditTextBlock(clearedLine, { name: 'Desktop run map bosses-cleared line', maxWidth: innerW, maxHeight: 16, minFontSize: 8 });
 }
 
@@ -238,8 +251,8 @@ export function renderRunStatsOverlay(
 
   const pairs = runStatsPairs(run);
   const gridH = runStatsGridHeight(pairs.length, opts.compact);
-  const nameSize = opts.compact ? 15 : 18;
-  const smallSize = opts.compact ? 9 : 11;
+  const nameSize = textRoleSize('section');
+  const smallSize = textRoleSize('micro');
   const btnH = opts.compact ? 34 : 38;
 
   const pw = Math.min(W - 40, opts.compact ? W - 32 : 460);
@@ -254,14 +267,10 @@ export function renderRunStatsOverlay(
   const innerW = pw - 40;
   let cursor = py + 18;
 
-  scene.add.text(innerX, cursor, 'RUN STATS', {
-    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${nameSize}px`, color: UI.text,
-  }).setDepth(5502);
+  scene.add.text(innerX, cursor, 'RUN STATS', textRole('section')).setDepth(5502);
   cursor += nameSize + 6;
 
-  scene.add.text(innerX, cursor, "This run's ledger so far.", {
-    fontFamily: FONT.body, fontSize: `${smallSize}px`, color: UI.textSoft,
-  }).setDepth(5502);
+  scene.add.text(innerX, cursor, "This run's ledger so far.", textRole('micro')).setDepth(5502);
   cursor += smallSize + 10;
   scene.add.rectangle(innerX, cursor, innerW, 1, UI.border, 0.5).setOrigin(0, 0).setDepth(5502);
   cursor += 14;
@@ -271,8 +280,6 @@ export function renderRunStatsOverlay(
 
   const closeBtn = scene.add.rectangle(innerX, cursor, innerW, btnH, UI.panelMuted, 1).setOrigin(0, 0)
     .setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true }).setDepth(5502);
-  scene.add.text(innerX + innerW / 2, cursor + btnH / 2, 'CLOSE', {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize + 2}px`, color: UI.text,
-  }).setOrigin(0.5).setDepth(5502);
+  scene.add.text(innerX + innerW / 2, cursor + btnH / 2, 'CLOSE', textRole('label')).setOrigin(0.5).setDepth(5502);
   closeBtn.on('pointerdown', () => { playSfx('uiBack'); opts.onClose(); });
 }

@@ -3,7 +3,7 @@ import { shopCatalog } from '../../data/shopTypes';
 import { shopMapFooter } from '../ui/shopMapFooter';
 import { eventThemeBlurb } from '../ui/eventThemeBlurb';
 import { DESKTOP_PROFILE } from '../layoutProfile';
-import { FONT, SCREEN, UI } from '../theme';
+import { FONT, SCREEN, textRole, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
@@ -395,13 +395,12 @@ export class DesktopRunMapScene extends Phaser.Scene {
     const retired = status === 'retired';
     this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, retired ? UI.panelMuted : UI.badSoft, 1).setOrigin(0, 0);
     const cx = SCREEN.width / 2;
-    this.add.text(cx, 56, retired ? 'RUN RETIRED' : 'DEFEAT', {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.big * 1.6}px`, color: UI.text,
-    }).setOrigin(0.5, 0);
+    // THE ONE FIRST THING on this screen — `display` is spent here and nowhere
+    // else in the scene, and its 56px is the ladder rung that replaced this
+    // line's old `F.big * 1.6` expression (see layoutProfile.ts#font.display).
+    this.add.text(cx, 56, retired ? 'RUN RETIRED' : 'DEFEAT', textRole('display')).setOrigin(0.5, 0);
     const run = getActiveRun()!;
-    this.add.text(cx, 128, `DAYS SURVIVED ${run.depth}`, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent,
-    }).setOrigin(0.5, 0);
+    this.add.text(cx, 128, `DAYS SURVIVED ${run.depth}`, textRole('statValue', { ink: 'accent' })).setOrigin(0.5, 0);
     this.add.text(cx, 156, `GOLD ${run.gold}   ·   HERO LV ${run.heroLevel}`, {
       fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
     }).setOrigin(0.5, 0);

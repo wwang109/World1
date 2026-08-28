@@ -3,7 +3,7 @@ import { playSfx } from '../audio/sfxSynth';
 import { gemHeroStats } from '../../engine/cards';
 import { LEVEL_STAT_COST, totalLevelPL, type Allocation, type LevelStat } from '../../run/leveling';
 import { commitHeroAllocation, currentBankedPL, currentHeroAllocation, currentHeroLevel, currentRunPieces, heroAllocationScratchCost } from '../runStore';
-import { FONT, SCREEN, UI } from '../theme';
+import { FONT, SCREEN, textRole, textRoleSize, UI } from '../theme';
 import { addHoverTipZone } from './hoverTip';
 import { statHoverEntry } from './statGlossary';
 import { STAT_TOKEN } from './statLabels';
@@ -71,9 +71,12 @@ export function renderRunStatPanel(
   const px = (SCREEN.width - pw) / 2;
   const py = Math.max(compact ? 16 : 30, (SCREEN.height - ph) / 2);
 
-  const nameSize = compact ? 15 : 18;
-  const smallSize = compact ? 9 : 11;
-  const labelSize = compact ? 10 : 12;
+  // Sizes come from the ROLES now (`theme.ts`), not from a per-panel
+  // `compact ? a : b` ladder — the three numbers this panel used to invent
+  // were already trying to be `section` / `micro` / `label`.
+  const nameSize = textRoleSize('section');
+  const smallSize = textRoleSize('micro');
+  const labelSize = textRoleSize('label');
 
   const cancelAndClose = (): void => { playSfx('uiBack'); discardStatPanelScratch(); onCancel(); };
 
@@ -86,16 +89,16 @@ export function renderRunStatPanel(
   const innerW = pw - 40;
   let cursor = py + 18;
 
-  scene.add.text(innerX, cursor, 'STAT ALLOCATION', {
-    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${nameSize}px`, color: UI.text,
-  }).setDepth(5002);
+  scene.add.text(innerX, cursor, 'STAT ALLOCATION', textRole('section')).setDepth(5002);
   cursor += nameSize + 8;
 
-  scene.add.text(innerX, cursor, `HERO LV ${level}`, {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${labelSize}px`, color: UI.textAccent,
-  }).setDepth(5002);
+  scene.add.text(innerX, cursor, `HERO LV ${level}`, textRole('label', { ink: 'accent' })).setDepth(5002);
+  // BANKED PL is a `resource` when there is any to spend (it is the thing this
+  // panel exists to let you spend) and a plain `label` when there is not —
+  // which is the whole "a zero is not neutral" rule, applied to the one number
+  // that changes what this panel is for.
   const plLineText = scene.add.text(px + pw - 20, cursor, `PL ${spent}/${total} SPENT · ${banked} BANKED`, {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: banked > 0 ? UI.textAccent : UI.textDim,
+    ...textRole('statLabelTight', { ink: banked > 0 ? 'resource' : 'label' }), fontStyle: 'bold',
   }).setOrigin(1, 0).setDepth(5002);
   addHoverTipZone(scene, { x: plLineText.x - plLineText.width, y: plLineText.y, w: plLineText.width, h: plLineText.height }, [
     { title: 'PL spent / banked', body: 'Every hero level grants 3 PL. Buy stats with +/-, then CONFIRM to spend it — nothing is written to the run until you confirm. Unaffordable buys are disabled.' },
@@ -124,30 +127,33 @@ export function renderRunStatPanel(
 
     const labelW = cellW - (btn * 2 + 8);
     scene.add.rectangle(cx + btn + 4, cy, labelW, cellH, UI.panelMuted, 0.7).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.4).setDepth(5002);
-    scene.add.text(cx + btn + 14, cy + cellH / 2 - 8, label, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: UI.textDim,
-    }).setDepth(5002);
+    scene.add.text(cx + btn + 14, cy + cellH / 2 - 8, label, textRole('statLabel')).setDepth(5002);
     // 5003: above the modal panel/scrim, else the pointer never reaches it.
     addHoverTipZone(scene, { x: cx + btn + 4, y: cy, w: labelW, h: cellH }, [statHoverEntry(label)], 5003);
     // Buy gain bottom-right, gem bonus (if any) further right of it — moved
     // the "NPL" cost tag up beside the label to free this row's right side.
+    // A level BUY is a `gain` (it is a delta you paid for), so it stops
+    // reading as the same bronze as everything else on this panel; nothing
+    // bought is `disabled`, not a dimmer bronze.
     const buyStr = gained > 0 ? `+${gained}` : '·';
-    const buyColor = gained > 0 ? UI.textAccent : UI.textSoft;
+    const buyInk = gained > 0 ? 'gain' as const : 'disabled' as const;
     const rightEdge = cx + btn + 4 + labelW - 6;
     if (gemAdd > 0) {
       const gemText = scene.add.text(rightEdge, cy + cellH / 2 + 6, `◆+${gemAdd}`, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: UI.textGem,
+        ...textRole('statValueTight', { ink: 'gain' }),
       }).setOrigin(1, 0).setDepth(5002);
       scene.add.text(rightEdge - gemText.width - 4, cy + cellH / 2 + 6, buyStr, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: buyColor,
+        ...textRole('statValueTight', { ink: buyInk }),
       }).setOrigin(1, 0).setDepth(5002);
     } else {
       scene.add.text(rightEdge, cy + cellH / 2 + 6, buyStr, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${smallSize}px`, color: buyColor,
+        ...textRole('statValueTight', { ink: buyInk }),
       }).setOrigin(1, 0).setDepth(5002);
     }
+    // The PRICE of the stat — a `cost`, which is exactly the distinction the
+    // old single bronze tone erased next to the "+N" GAIN beside it.
     scene.add.text(rightEdge, cy + cellH / 2 - 8, `${cost.pl}PL`, {
-      fontFamily: FONT.body, fontSize: `${smallSize - 1}px`, color: UI.textSoft,
+      ...textRole('micro', { ink: 'cost' }),
     }).setOrigin(1, 0).setDepth(5002);
 
     // MINUS (left)
@@ -155,7 +161,7 @@ export function renderRunStatPanel(
     const minusBtn = scene.add.rectangle(cx, cy, btn, cellH, minusFill, canSell ? 1 : 0.4).setOrigin(0, 0)
       .setStrokeStyle(1, UI.border, canSell ? 0.7 : 0.25).setDepth(5002);
     scene.add.text(cx + btn / 2, cy + cellH / 2, '−', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${labelSize + 2}px`, color: canSell ? UI.text : UI.textSoft,
+      ...textRole('section', { ink: canSell ? 'primary' : 'disabled' }), fontFamily: FONT.body,
     }).setOrigin(0.5).setDepth(5002);
     if (canSell) {
       minusBtn.setInteractive({ useHandCursor: true });
@@ -173,7 +179,7 @@ export function renderRunStatPanel(
     const plusBtn = scene.add.rectangle(plusX, cy, btn, cellH, plusFill, canBuy ? 1 : 0.4).setOrigin(0, 0)
       .setStrokeStyle(1, UI.border, canBuy ? 0.7 : 0.25).setDepth(5002);
     scene.add.text(plusX + btn / 2, cy + cellH / 2, '+', {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${labelSize + 2}px`, color: canBuy ? UI.text : UI.textSoft,
+      ...textRole('section', { ink: canBuy ? 'primary' : 'disabled' }), fontFamily: FONT.body,
     }).setOrigin(0.5).setDepth(5002);
     if (canBuy) {
       plusBtn.setInteractive({ useHandCursor: true });
@@ -192,17 +198,13 @@ export function renderRunStatPanel(
   const btnW = (innerW - 10) / 2;
   const cancelBtn = scene.add.rectangle(innerX, cursor, btnW, btnH, UI.panelMuted, 1).setOrigin(0, 0)
     .setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true }).setDepth(5002);
-  scene.add.text(innerX + btnW / 2, cursor + btnH / 2, 'CANCEL', {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${labelSize}px`, color: UI.text,
-  }).setOrigin(0.5).setDepth(5002);
+  scene.add.text(innerX + btnW / 2, cursor + btnH / 2, 'CANCEL', textRole('label')).setOrigin(0.5).setDepth(5002);
   cancelBtn.on('pointerdown', cancelAndClose);
 
   const confirmX = innerX + btnW + 10;
   const confirmBtn = scene.add.rectangle(confirmX, cursor, btnW, btnH, UI.chip, 1).setOrigin(0, 0)
     .setStrokeStyle(1, UI.border, 1).setInteractive({ useHandCursor: true }).setDepth(5002);
-  scene.add.text(confirmX + btnW / 2, cursor + btnH / 2, 'CONFIRM', {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${labelSize}px`, color: UI.textOnChip,
-  }).setOrigin(0.5).setDepth(5002);
+  scene.add.text(confirmX + btnW / 2, cursor + btnH / 2, 'CONFIRM', textRole('label', { ink: 'onAccent' })).setOrigin(0.5).setDepth(5002);
   confirmBtn.on('pointerdown', () => {
     playSfx(spent > 0 ? 'levelUp' : 'uiClick');
     commitHeroAllocation(ensureScratch());
@@ -212,7 +214,7 @@ export function renderRunStatPanel(
   cursor += btnH + 6;
 
   scene.add.text(innerX, cursor, 'Add or subtract freely, then CONFIRM to spend. CANCEL discards.', {
-    fontFamily: FONT.body, fontSize: `${smallSize - 1}px`, color: UI.textSoft, wordWrap: { width: innerW },
+    ...textRole('micro'), wordWrap: { width: innerW },
   }).setDepth(5002);
 }
 
@@ -233,13 +235,13 @@ export function renderBankedPlBadge(
   const padX = 10;
   const h = fontSize + 12;
   const text = scene.add.text(0, 0, label, {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${fontSize}px`, color: UI.textOnChip,
+    ...textRole('label', { ink: 'onAccent' }), fontSize: `${fontSize}px`,
   }).setVisible(false);
   const w = text.width + padX * 2;
   text.destroy();
   const badge = scene.add.rectangle(x, y, w, h, UI.chip, 1).setOrigin(1, 0).setStrokeStyle(1, UI.border, 1).setInteractive({ useHandCursor: true });
   scene.add.text(x - w / 2, y + h / 2, label, {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${fontSize}px`, color: UI.textOnChip,
+    ...textRole('label', { ink: 'onAccent' }), fontSize: `${fontSize}px`,
   }).setOrigin(0.5);
   badge.on('pointerdown', () => { playSfx('uiClick'); onPress(); });
   scene.tweens.add({ targets: badge, alpha: 0.75, duration: 650, yoyo: true, repeat: -1 });
