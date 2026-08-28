@@ -9,15 +9,17 @@ import type { SellGemOption, UpgradeCardOption } from '../../run/events';
 import { DESKTOP_PROFILE, MOBILE_PROFILE, type LayoutProfile } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, TIER_COLOR, UI } from '../theme';
 import { CardToken } from './CardToken';
+import { FantasyCardTemplateV2 } from './FantasyCardTemplateV2';
+import { FANTASY_CARD_TEMPLATE_SPEC } from './fantasyCardTemplateSpec';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { addHoverTipZone, attachHoverTip } from './hoverTip';
 import { cardHoverEntries } from './cardHoverEntries';
 import { renderCardDetailOverlay } from './cardDetailOverlay';
 import { gemHoverEntry } from './gemGlossary';
 import { addRunArt, choiceArtKey } from './runArt';
-import { centeredBox, FEATURE_CARD_SIZE, layoutFeatureGrid, type Box } from './runRewardGeometry';
+import { cardRowIdeal, centeredBox, layoutFeatureGrid, rowIdeal, type Box } from './runRewardGeometry';
 import {
-  layoutMergePicker, MERGE_CHIP_SIZE,
+  layoutMergePicker, mergeChipIdeal,
   type MergeCandidateEntry, type MergeSpentEntry, type RunMergeViewModel,
 } from './runMergeViewModel';
 import type { RunRewardFeature, RunRewardViewModel } from './runRewardViewModel';
@@ -33,45 +35,50 @@ import { attachButtonFeel } from './motion';
  * small inside the (then still full-region-sized) reward panel; now that
  * the panel is capped and centered to hug its content
  * (`runScreenTemplate.ts`'s `REWARD_PANEL_MAX_W`/`_H`), the bump is no
- * longer needed — see `runRewardGeometry.ts`'s `FEATURE_CARD_SIZE` doc
- * comment for the full rationale (the card variant lives there, reverted
- * alongside these).
+ * longer needed.
  *
- * The CARD variant (`FEATURE_CARD_SIZE`) lives in `runRewardGeometry.ts`
- * instead of here — it's imported above — because that pure module also
- * doubles as the per-card ideal size for the bonus-draft grid AND the
- * upgrade-card grid (`renderRunBonusDraftPicker`/`renderRunUpgradeCardPicker`
- * below, so a picker card reads at a consistent visual weight across both)
- * and is unit-tested directly against the template's real `feature` rects in
- * `tests/game/runRewardGeometry.test.ts` — a single source of truth instead
- * of a hand-synced duplicate. `FEATURE_*_SOLO` below are a SEPARATE, BIGGER
- * ideal size used ONLY by the resolved-outcome screen's single feature (see
- * `renderBigFeature`) — deliberately not shared with the grids: a picker
- * has to fit 4-5 cards across the SAME width a solo reward has all to
- * itself, so the two ideals cannot be the same number without either
- * cramming the grid or under-using the solo screen.
+ * NO CARD entry here, and none in `runRewardGeometry.ts` either any more —
+ * this module no longer sizes a card at all (2026-08-28). A card on a reward
+ * surface is now one of exactly TWO shapes, and both derive their size from
+ * the rect they are given rather than from a per-screen constant:
+ *
+ *   a card in a LIST of cards (all three pickers) is a `CardToken` ROW, as
+ *   wide as its band — `runRewardGeometry.ts`'s `cardRowIdeal` /
+ *   `FEATURE_CARD_ROW_H`, the same shape the deck, bag, board, shop shelf and
+ *   turn-zero draft already draw;
+ *
+ *   a card as the SUBJECT (the resolved-outcome screen's single feature,
+ *   `renderBigFeature` below) is a `FantasyCardTemplateV2` at its own
+ *   `420x690` aspect, the same full card the ⓘ inspect overlay, the wiki and
+ *   the shop's detail view already show.
+ *
+ * What is gone is the third thing that was neither: a `CardToken` — a ROW
+ * component whose text block sits at fixed `dy`s around its vertical centre —
+ * stretched into the fantasy card's portrait aspect. See
+ * `runRewardGeometry.ts`'s `FEATURE_CARD_ROW_H` for the full write-up.
  */
-const FEATURE_GEM_CHIP_SIZE: Record<RunTemplatePlatform, { w: number; h: number }> = {
-  desktop: { w: 260, h: 56 },
-  mobile: { w: 260, h: 52 },
-};
+/** Height of ONE gem chip ROW in the gem pickers' grids, per platform. Like
+ * the card rows and the merge picker's spent chips, the WIDTH is the band's own
+ * (`rowIdeal`) — WAS a `260x56`/`260x52` two-dimensional ideal (2026-08-28),
+ * which on desktop's 802px-wide band fitted TWO chips abreast and so laid a
+ * three-gem offer out as "2 + 1 orphan centred underneath", the same wrap the
+ * card pass removed from the three card pickers. Every picker in the run is now
+ * one stack of full-width rows. */
+const FEATURE_GEM_CHIP_H: Record<RunTemplatePlatform, number> = { desktop: 56, mobile: 52 };
 const FEATURE_ICON_SIZE: Record<RunTemplatePlatform, number> = { desktop: 96, mobile: 80 };
 
 /**
  * Task #41 density pass (2026-08-08) — the resolved-outcome screen's OWN,
  * LARGER feature ideal (see `runScreenTemplate.ts`'s `reward.outcome` doc
- * comment): once a card/gem/icon is the ONLY thing in the feature column
- * (not one of 4-5 in a grid), it can afford to be the visual anchor of the
- * whole panel instead of matching the grid's cramped size. `FEATURE_CARD_SIZE
- * _SOLO` keeps the SAME aspect ratio as the grid's `FEATURE_CARD_SIZE`
- * (~0.61) at roughly 1.5x the linear size — big enough to read as "the
- * subject," small enough to still leave the backdrop plate (`renderFeature
- * Backdrop`) visible around it.
+ * comment): once a gem/icon is the ONLY thing in the feature column (not one
+ * of several in a grid), it can afford to be the visual anchor of the whole
+ * panel instead of matching the grid's cramped size.
+ *
+ * The CARD variant that used to live here (`FEATURE_CARD_SIZE_SOLO`,
+ * `210x345`/`195x320`) is gone: the solo card now fills its column as a
+ * `FantasyCardTemplateV2` at that template's own aspect, so there is no
+ * hand-tuned portrait size left to keep in sync. See `renderBigFeature`.
  */
-const FEATURE_CARD_SIZE_SOLO: Record<RunTemplatePlatform, { w: number; h: number }> = {
-  desktop: { w: 210, h: 345 },
-  mobile: { w: 195, h: 320 },
-};
 const FEATURE_GEM_CHIP_SIZE_SOLO: Record<RunTemplatePlatform, { w: number; h: number }> = {
   desktop: { w: 340, h: 76 },
   mobile: { w: 300, h: 68 },
@@ -154,13 +161,22 @@ function renderGemChip(scene: Phaser.Scene, box: Box, gem: GemDef, priceLabel?: 
  */
 function renderBigFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, feature: RunRewardFeature, iconKey: string, rect: Rect): void {
   if (feature.kind === 'card') {
-    const ideal = FEATURE_CARD_SIZE_SOLO[platform];
-    // Preserve the card's aspect ratio while clamping to the rect — shrink
-    // by whichever axis is tighter rather than distorting the token.
-    const scale = Math.min(1, rect.width / ideal.w, rect.height / ideal.h);
-    const box = centeredBox(rect, ideal.w * scale, ideal.h * scale);
-    renderFeatureBackdrop(scene, rect, box, UI.chip);
-    new CardToken(scene, box.x + box.w / 2, box.y + box.h / 2, feature.skill, { width: box.w, height: box.h, side: 'left' });
+    // THE CARD AS SUBJECT (see the ideal-sizes doc block above): the same
+    // `FantasyCardTemplateV2` the ⓘ inspect overlay, the wiki and the shop's
+    // detail view already show, filling this column at the template's own
+    // `420x690` aspect. It replaces a portrait-stretched `CardToken`
+    // (2026-08-28) — the column was already cut to the fantasy card's aspect,
+    // so the card it now holds is the one that shape was for, and the same
+    // card the player meets on tapping ⓘ anywhere else. No
+    // `renderFeatureBackdrop` here: the fantasy frame carries its own border
+    // and corner art, and the card now fills the column it used to float in,
+    // so a spotlight plate behind it would just be a second frame 1px away.
+    const base = FANTASY_CARD_TEMPLATE_SPEC.baseSize;
+    const scale = Math.min(rect.width / base.width, rect.height / base.height);
+    const box = centeredBox(rect, base.width * scale, base.height * scale);
+    new FantasyCardTemplateV2(scene, box.x + box.w / 2, box.y + box.h / 2, feature.skill, {
+      width: box.w, height: box.h, tier: feature.skill.tier, glossary: false,
+    });
     return;
   }
   if (feature.kind === 'gem') {
@@ -384,46 +400,71 @@ function renderPickHeader(
 }
 
 /**
- * Attaches ONE cell's inspect affordance in a bonus-draft/upgrade-card
- * picker grid — desktop gets a mouse hover-tip (`cardHoverEntries`, the SAME
- * entries `DesktopDraftScene`'s own start-draft grid already shows); mobile
- * gets a small "ⓘ" corner badge (mirrors `MobileDraftScene`'s own badge)
- * that opens `renderCardDetailOverlay` instead of picking. Before this, a
- * mid-run, irreversible 5-wide pick carried strictly LESS information than
- * the reversible turn-zero draft — this is the one place both pickers below
- * pick up that parity, instead of each re-deriving it.
+ * A bonus-draft/upgrade-card/merge picker cell's DESKTOP hover-tip
+ * (`cardHoverEntries`, the SAME entries `DesktopDraftScene`'s own start-draft
+ * grid already shows). No-op on mobile.
  *
- * The badge is a second, smaller interactive object drawn ON TOP of the
- * cell's own PICK hit-rectangle (`hit`) — Phaser dispatches only the topmost
- * hit-testing object under the pointer, so the badge's own `stopPropagation`
- * is what keeps the PICK handler underneath it silent on an inspect tap.
- * No-op on mobile if the caller has no `onInspect` wired (never true today,
- * but keeps this helper honest about being opt-in).
+ * FIXED 2026-08-28: this used to add its OWN transparent rect and hand THAT to
+ * `attachHoverTip`, without ever calling `setInteractive()` on it — and
+ * `attachHoverTip` only subscribes to `pointerover`/`pointerout`/`pointerdown`,
+ * which a non-interactive object never emits. So no desktop picker has ever
+ * actually shown a tip, and since `DesktopRunEventScene` passes no `onInspect`
+ * either, desktop had NO way to read a card before an irreversible pick. It
+ * now hooks the cell's REAL, already-interactive PICK rect (`target`), which
+ * also avoids stacking a second interactive rect on top of the pick surface —
+ * Phaser's `topOnly` dispatch means that would have swallowed the pick click.
+ * A tip opened by the same `pointerdown` that commits the pick is harmless:
+ * the pick rerenders the scene, which destroys it.
+ *
+ * The MOBILE half of what this used to do — a hand-rolled 22px "ⓘ" badge drawn
+ * at the CELL's top-right corner — is gone (2026-08-28). `CardToken` already
+ * owns an inspect button (`CardTokenOptions.onInspect`, the one the shop's
+ * owned board/bag columns use), and `cardTokenSpec.ts` places it in the token's
+ * OUTWARD top corner with a full-height reserved text strip beside it. The
+ * hand-rolled badge instead landed in the token's INWARD top corner, which is
+ * where `CardToken` already draws the slot number / `×N SLOTS` span label — so
+ * the two overlapped and printed "×2 SLO[i]", losing the one thing that label
+ * exists to say (how many board slots a tap commits to). The pickers now pass
+ * `onInspect` to the token itself: same affordance, correct corner, and the
+ * text clamps account for it, so there is nothing left to collide.
  */
-function attachCellInspect(
+function attachCellHoverTip(
   scene: Phaser.Scene,
   template: RunScreenTemplate,
+  target: Phaser.GameObjects.GameObject,
   cell: Box,
   skill: SkillDef,
-  onInspect: (() => void) | undefined,
 ): void {
-  if (template.platform === 'desktop') {
-    const hit = scene.add.rectangle(cell.x + cell.w / 2, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0);
-    attachHoverTip(scene, hit, { x: cell.x, y: cell.y, w: cell.w, h: cell.h }, cardHoverEntries(skill));
-    return;
-  }
-  if (!onInspect) return;
-  const badgeSize = 22;
-  const bx = cell.x + cell.w - badgeSize / 2 - 4;
-  const by = cell.y + badgeSize / 2 + 4;
-  const badge = scene.add.rectangle(bx, by, badgeSize, badgeSize, 0x0b1420, 0.85)
-    .setOrigin(0.5).setStrokeStyle(1, UI.chip, 0.9).setInteractive({ useHandCursor: true });
-  scene.add.text(bx, by, 'i', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: '11px', color: UI.textAccent }).setOrigin(0.5);
-  badge.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
-    event.stopPropagation();
-    playSfx('uiClick');
-    onInspect();
+  if (template.platform !== 'desktop') return;
+  attachHoverTip(scene, target, { x: cell.x, y: cell.y, w: cell.w, h: cell.h }, cardHoverEntries(skill));
+}
+
+/**
+ * The clickable PICK surface under one picker cell, plus the `CardToken` on top
+ * of it — in THAT order, deliberately. Phaser hit-tests only the TOPMOST
+ * interactive object under the pointer (`topOnly`), and the token's own ⓘ
+ * inspect button is interactive: adding the pick rect FIRST leaves the button
+ * above it, so an inspect tap opens the overlay and does NOT also commit the
+ * pick, while every other pixel of the row falls through to the pick rect (the
+ * token's remaining children are inert). The old hand-rolled badge got the same
+ * effect by being drawn after the pick rect and calling `stopPropagation`;
+ * ordering is the same guarantee with nothing to remember.
+ */
+function renderPickableCardRow(
+  scene: Phaser.Scene,
+  cell: Box,
+  cardBox: Box,
+  skill: SkillDef,
+  onPick: () => void,
+  onInspect: (() => void) | undefined,
+): Phaser.GameObjects.Rectangle {
+  const hit = scene.add.rectangle(cell.x + cell.w / 2, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0)
+    .setInteractive({ useHandCursor: true });
+  hit.on('pointerdown', () => { playSfx('uiClick'); onPick(); });
+  new CardToken(scene, cardBox.x + cardBox.w / 2, cardBox.y + cardBox.h / 2, skill, {
+    width: cardBox.w, height: cardBox.h, side: 'left', onInspect,
   });
+  return hit;
 }
 
 /**
@@ -433,10 +474,10 @@ function attachCellInspect(
  * math (which had already drifted — see the module doc above and
  * `runRewardGeometry.ts`'s doc comment). Uses `renderPickHeader` (panel/icon/
  * headline = "PICK ONE TO KEEP"), then fills `feature` with a
- * `layoutFeatureGrid` of `cards.length` card-sized cells —
- * `FEATURE_CARD_SIZE[platform]` is the same ideal card size the
- * upgrade-card picker's own grid uses, so the two pickers' cards read as the
- * same visual weight. No `detail` row (the picker never has one) — left
+ * `layoutFeatureGrid` of `cards.length` full-width CARD ROWS —
+ * `cardRowIdeal` is the same row shape the upgrade-card and merge pickers'
+ * grids use, so all three pickers read as the same shape at the same visual
+ * weight, and as the same shape the deck/bag/board/shelf already draw. No `detail` row (the picker never has one) — left
  * blank exactly like every other outcome that has no detail text, not a
  * special case.
  *
@@ -462,7 +503,7 @@ export function renderRunBonusDraftPicker(
   renderPickHeader(scene, template, choiceArtKey('bonusDraft'), 'PICK ONE TO KEEP', opts.eventTitle, opts.font, 'Run reward bonus draft title');
 
   const { feature } = template.contentSlots.reward;
-  const ideal = FEATURE_CARD_SIZE[template.platform];
+  const ideal = cardRowIdeal(feature, template.platform);
   const cells = layoutFeatureGrid(feature, cards.length, ideal.w, ideal.h, GRID_GAP[template.platform]);
   let inspecting: SkillDef | undefined;
   cards.forEach((card, i) => {
@@ -470,12 +511,9 @@ export function renderRunBonusDraftPicker(
     const skill = skillBook[card.skillId];
     if (!cell || !skill) return;
     const shown = card.tier === skill.tier ? skill : applyTier(skill, card.tier);
-    const cx = cell.x + cell.w / 2;
-    const cy = cell.y + cell.h / 2;
-    new CardToken(scene, cx, cy, shown, { width: cell.w, height: cell.h, side: 'left' });
-    const hit = scene.add.rectangle(cx, cy, cell.w, cell.h, 0xffffff, 0).setInteractive({ useHandCursor: true });
-    hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(card); });
-    attachCellInspect(scene, template, cell, shown, opts.onInspect ? () => opts.onInspect?.(i) : undefined);
+    const hit = renderPickableCardRow(scene, cell, cell, shown, () => opts.onPick(card),
+      opts.onInspect ? () => opts.onInspect?.(i) : undefined);
+    attachCellHoverTip(scene, template, hit, cell, shown);
     if (opts.inspectedIndex === i) inspecting = shown;
   });
   if (inspecting) {
@@ -526,7 +564,7 @@ export function renderRunUpgradeCardPicker(
   renderPickHeader(scene, template, choiceArtKey('upgradeCard'), 'CHOOSE A CARD TO UPGRADE', opts.eventTitle, opts.font, 'Run reward upgrade picker title');
 
   const { feature } = template.contentSlots.reward;
-  const cardIdeal = FEATURE_CARD_SIZE[template.platform];
+  const cardIdeal = cardRowIdeal(feature, template.platform);
   const labelH = UPGRADE_TIER_LABEL_H[template.platform];
   const idealH = cardIdeal.h + labelH;
   const cells = layoutFeatureGrid(feature, options.length, cardIdeal.w, idealH, GRID_GAP[template.platform]);
@@ -549,16 +587,13 @@ export function renderRunUpgradeCardPicker(
     }).setOrigin(0.5);
     auditTextBlock(tierLabel, { name: 'Run reward upgrade tier label', maxWidth: cell.w, maxHeight: Math.max(1, cellLabelH), minFontSize: 7 });
 
-    const cy = cell.y + cellLabelH + cardH / 2;
-    new CardToken(scene, cx, cy, shown, { width: cell.w, height: cardH, side: 'left' });
-    const hit = scene.add.rectangle(cx, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0).setInteractive({ useHandCursor: true });
-    hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(option); });
-    // Inspect target is the CARD sub-rect (excludes the tier-label strip
-    // above it) so a mobile badge sits at the card's own top-right corner,
-    // matching every other card's badge position, rather than floating
-    // above the card in the label strip.
+    // The card is the CARD sub-rect of the cell (the tier-label strip above it
+    // is not part of the row), while the PICK surface stays the whole cell so
+    // the label is tappable too.
     const cardCell: Box = { x: cell.x, y: cell.y + cellLabelH, w: cell.w, h: cardH };
-    attachCellInspect(scene, template, cardCell, shown, opts.onInspect ? () => opts.onInspect?.(i) : undefined);
+    const hit = renderPickableCardRow(scene, cell, cardCell, shown, () => opts.onPick(option),
+      opts.onInspect ? () => opts.onInspect?.(i) : undefined);
+    attachCellHoverTip(scene, template, hit, cardCell, shown);
     if (opts.inspectedIndex === i) inspecting = shown;
   });
   if (inspecting) {
@@ -575,8 +610,8 @@ export function renderRunUpgradeCardPicker(
  * here, same as every other surface that only carries a gem id). Same
  * `renderPickHeader` + `layoutFeatureGrid` shape as the other two pickers,
  * with `renderGemChip` (the SAME chip visual `renderBigFeature`'s solo gem
- * feature draws, at the grid's own `FEATURE_GEM_CHIP_SIZE` ideal instead of
- * the solo `_SOLO` size) filling each cell instead of a `CardToken`.
+ * feature draws, as a full-width row at the grid's own `FEATURE_GEM_CHIP_H`
+ * instead of the solo `_SOLO` size) filling each cell instead of a `CardToken`.
  *
  * No mobile ⓘ badge (unlike the two card pickers above): a gem chip already
  * shows its own full name up front — unlike a face-down draft card, there is
@@ -595,7 +630,7 @@ export function renderRunGemChoicePicker(
   renderPickHeader(scene, template, choiceArtKey('gemChoicePick'), 'PICK ONE TO KEEP', opts.eventTitle, opts.font, 'Run reward gem choice title');
 
   const { feature } = template.contentSlots.reward;
-  const ideal = FEATURE_GEM_CHIP_SIZE[template.platform];
+  const ideal = rowIdeal(feature, FEATURE_GEM_CHIP_H[template.platform]);
   const cells = layoutFeatureGrid(feature, gemIds.length, ideal.w, ideal.h, GRID_GAP[template.platform]);
   gemIds.forEach((gemId, i) => {
     const cell = cells[i];
@@ -633,7 +668,7 @@ export function renderRunSellGemPicker(
   renderPickHeader(scene, template, choiceArtKey('sellGemPick'), 'PICK ONE TO SELL', opts.eventTitle, opts.font, 'Run reward sell-gem choice title');
 
   const { feature } = template.contentSlots.reward;
-  const ideal = FEATURE_GEM_CHIP_SIZE[template.platform];
+  const ideal = rowIdeal(feature, FEATURE_GEM_CHIP_H[template.platform]);
   const cells = layoutFeatureGrid(feature, options.length, ideal.w, ideal.h, GRID_GAP[template.platform]);
   options.forEach((option, i) => {
     const cell = cells[i];
@@ -759,7 +794,7 @@ export function renderRunMergeCardsPicker(
     width: bands.spent.width,
     height: Math.max(0, bands.spent.y + bands.spent.height - spentTop),
   };
-  const chipIdeal = MERGE_CHIP_SIZE[template.platform];
+  const chipIdeal = mergeChipIdeal(spentRect, template.platform);
   const chipCells = layoutFeatureGrid(spentRect, model.spent.length, chipIdeal.w, chipIdeal.h, GRID_GAP[template.platform]);
   model.spent.forEach((entry, i) => {
     const cell = chipCells[i];
@@ -775,18 +810,15 @@ export function renderRunMergeCardsPicker(
     width: bands.candidates.width,
     height: Math.max(0, bands.candidates.y + bands.candidates.height - pickTop),
   };
-  const cardIdeal = FEATURE_CARD_SIZE[template.platform];
+  const cardIdeal = cardRowIdeal(gridRect, template.platform);
   const cells = layoutFeatureGrid(gridRect, model.candidates.length, cardIdeal.w, cardIdeal.h, GRID_GAP[template.platform]);
   let inspecting: SkillDef | undefined;
   model.candidates.forEach((candidate, i) => {
     const cell = cells[i];
     if (!cell) return;
-    const cx = cell.x + cell.w / 2;
-    const cy = cell.y + cell.h / 2;
-    new CardToken(scene, cx, cy, candidate.skill, { width: cell.w, height: cell.h, side: 'left' });
-    const hit = scene.add.rectangle(cx, cy, cell.w, cell.h, 0xffffff, 0).setInteractive({ useHandCursor: true });
-    hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(candidate); });
-    attachCellInspect(scene, template, cell, candidate.skill, opts.onInspect ? () => opts.onInspect?.(i) : undefined);
+    const hit = renderPickableCardRow(scene, cell, cell, candidate.skill, () => opts.onPick(candidate),
+      opts.onInspect ? () => opts.onInspect?.(i) : undefined);
+    attachCellHoverTip(scene, template, hit, cell, candidate.skill);
     if (opts.inspectedIndex === i) inspecting = candidate.skill;
   });
   if (inspecting) {

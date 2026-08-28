@@ -17,28 +17,75 @@ import type { Rect, RunTemplatePlatform } from './runScreenTemplate';
 export interface Box { x: number; y: number; w: number; h: number }
 
 /**
- * Ideal (never-exceeded) feature-visual size for a reward/bonus-draft CARD,
- * per platform — the card's own natural board-slot size (a `CardToken` on
- * the prep board or a shop shelf uses the same proportions). Lives here
- * (moved 2026-08-06, was a same-named literal inside `RunRewardPanel.ts`) so
- * `RunRewardPanel.ts` and `tests/game/runRewardGeometry.test.ts`'s "real
- * reward feature rect" checks share the ONE constant — drift between the
- * renderer and the test that's supposed to catch its regressions is no
- * longer possible by construction.
+ * Height of ONE reward/picker CARD ROW, per platform — the reward surfaces'
+ * half of the project's single card-list shape.
  *
- * REVERTED 2026-08-06 from a ~35% bump (142x233 -> 192x315 desktop) that a
- * same-day earlier pass introduced to keep a card from looking small inside
- * the (then still full-region-sized) reward panel. That was treating the
- * symptom: once the panel itself is capped and centered to hug its content
- * (`runScreenTemplate.ts`'s `REWARD_PANEL_MAX_W`/`_H`), the card no longer
- * sits in a stadium and the bump is no longer needed — keeping both changes
- * stacked would just make the card the largest thing in the frame for no
- * reason. Back to the card's own natural size.
+ * WAS a PORTRAIT `FEATURE_CARD_SIZE` (`142x233` desktop / `126x207` mobile,
+ * i.e. exactly `FantasyCardTemplateV2`'s own `420x690` aspect) fed to
+ * `layoutFeatureGrid` as a two-dimensional ideal. That was the defect
+ * (2026-08-28): the cell was cut to the FANTASY CARD's shape but filled with a
+ * `CardToken`, which is a ROW component — every region `cardTokenSpec.ts`
+ * places is either edge-anchored or sits at a FIXED `dy` around the token's
+ * vertical centre (`name -14`, `effects +1`, `affinity +15`), so stretching one
+ * to portrait does not make a portrait card, it makes a row with ~170px of
+ * dead art above and below a 40px text block. On mobile it also wrapped: three
+ * candidates became "2 + 1 orphan", and the picker's own ⓘ badge landed on top
+ * of the token's `×N SLOTS` label in the shared top-inward corner.
+ *
+ * A `CardToken` is now given the shape it was built for on every reward
+ * surface, which is the shape the player already reads everywhere else a LIST
+ * of cards appears — deck (mobile `192x60`, desktop `620x43`), bag, battle/prep
+ * board, shop shelf (mobile `392x92`, desktop `260x130`) and the turn-zero
+ * draft (mobile `392x80`). Before this the three reward pickers were the ONLY
+ * portrait `CardToken` callers in the game.
+ *
+ * Only the HEIGHT is a constant: a row's ideal WIDTH is its container's own
+ * width (see `cardRowIdeal`), so a picker can never wrap or orphan a card by
+ * construction — one card, one row, however many there are.
+ *
+ * The numbers are derived from what has to fit UNSCALED, the same rule the
+ * old portrait ideal followed:
+ *   mobile (92)  — the mobile shop shelf's own card row height, the closest
+ *                  analogue (a card being offered, full width). Five rows —
+ *                  `bonusDraft`, the widest picker — need `5*92 + 4*gap(8) =
+ *                  492` of the real `feature` rect's 544.
+ *   desktop (72) — five rows need `5*72 + 4*gap(12) = 408` of the real
+ *                  `feature` rect's 422, which is what `runScreenTemplate.ts`'s
+ *                  re-derived `REWARD_PANEL_MAX_H` now reserves. Well clear of
+ *                  `cardTokenSpec.ts`'s `TOKEN_COMPACT_HEIGHT` (42), below
+ *                  which a token drops to its one-line COMPACT variant and the
+ *                  card face loses its effects and affinity lines.
  */
-export const FEATURE_CARD_SIZE: Record<RunTemplatePlatform, { w: number; h: number }> = {
-  desktop: { w: 142, h: 233 },
-  mobile: { w: 126, h: 207 },
+export const FEATURE_CARD_ROW_H: Record<RunTemplatePlatform, number> = {
+  desktop: 72,
+  mobile: 92,
 };
+
+/**
+ * THE full-width ROW ideal — the one definition of "one item, one row" every
+ * reward/picker band uses (card rows, the merge picker's spent chips, the gem
+ * pickers' chips). `height` tall, as wide as `rect` itself.
+ *
+ * Feed it straight to `layoutFeatureGrid`: an ideal width equal to the rect's
+ * own width makes that function pick exactly ONE column
+ * (`maxCols = floor((w+gap)/(w+gap)) = 1`), so N items always lay out as N
+ * full-width rows, top to bottom, with its existing centering / containment /
+ * non-overlap guarantees unchanged — and, crucially, with no wrap and so no
+ * short last row centred under the others. If more rows are asked for than
+ * `rect` can hold at `height`, its uniform scale shrinks them together (aspect
+ * preserved, so a short row stays a row) rather than wrapping into a second
+ * column.
+ */
+export function rowIdeal(rect: Rect, height: number): { w: number; h: number } {
+  return { w: rect.width, h: height };
+}
+
+/** `rowIdeal` at the platform's CARD row height — what the three card pickers
+ * (`renderRunBonusDraftPicker` / `renderRunUpgradeCardPicker` /
+ * `renderRunMergeCardsPicker`) size their cells with. */
+export function cardRowIdeal(rect: Rect, platform: RunTemplatePlatform): { w: number; h: number } {
+  return rowIdeal(rect, FEATURE_CARD_ROW_H[platform]);
+}
 
 /** Centers a `{w,h}` box (clamped to never exceed `rect`) inside `rect`,
  * returning its top-left — the one place that does this arithmetic, so every

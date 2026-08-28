@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { skillBook } from '../../src/data/skills';
 import { cardOfferableAtTier, type SkillTier } from '../../src/engine/types';
 import {
-  buildRunMergeViewModel, layoutMergePicker, MERGE_CHIP_SIZE,
+  buildRunMergeViewModel, layoutMergePicker, MERGE_CHIP_H, mergeChipIdeal,
 } from '../../src/game/ui/runMergeViewModel';
-import { layoutFeatureGrid, FEATURE_CARD_SIZE, type Box } from '../../src/game/ui/runRewardGeometry';
+import { TOKEN_COMPACT_HEIGHT } from '../../src/game/ui/cardTokenSpec';
+import { cardRowIdeal, FEATURE_CARD_ROW_H, layoutFeatureGrid, type Box } from '../../src/game/ui/runRewardGeometry';
 import { runScreenTemplate, type Rect, type RunTemplatePlatform } from '../../src/game/ui/runScreenTemplate';
 import { MERGE_INPUT_COUNT, resolveEventChoice, type MergeCardsOffer } from '../../src/run/events';
 import { DRAFT_SET_KEYS, rollStartDraft } from '../../src/run/draft';
@@ -155,38 +156,82 @@ describe('layoutMergePicker: both halves of the trade fit the real template, on 
       expect(bands.candidates.height).toBeGreaterThan(t.feature.height * 0.5);
     });
 
-    it(`${platform}: all three chips get a real, positive-size cell inside the strip`, () => {
+    // The spent strip and the candidate grid are BOTH stacks of full-width
+    // rows now (2026-08-28) — one chip per row, one card per row, on both
+    // platforms. That single shape is what these two cases pin: the previous
+    // pair asserted only "a positive-size cell" / "wider than 60px and taller
+    // than 90px", which the OLD portrait grid satisfied while wrapping mobile's
+    // three candidates into a 2 + 1-orphan grid and squeezing desktop's three
+    // chips side by side. Height floors moved with the shape (a card ROW is
+    // ~72-92px tall, not 90+); what replaces them is stronger, not weaker —
+    // full band width, one column, strictly stacked, and above
+    // `TOKEN_COMPACT_HEIGHT` so a candidate still renders its full card face.
+    it(`${platform}: all three chips stack as full-width rows inside the strip`, () => {
       const bands = layoutMergePicker(t.detail, t.feature, platform, MERGE_INPUT_COUNT);
-      const ideal = MERGE_CHIP_SIZE[platform];
+      const ideal = mergeChipIdeal(bands.spent, platform);
       const cells = layoutFeatureGrid(bands.spent, MERGE_INPUT_COUNT, ideal.w, ideal.h, 6);
       expect(cells).toHaveLength(MERGE_INPUT_COUNT);
       for (const cell of cells) {
         expect(cell.w).toBeGreaterThan(40);
         expect(cell.h).toBeGreaterThan(10);
         expect(within(cell, bands.spent)).toBe(true);
+        // Full width of the band, and a row (wider than tall) — never two or
+        // three chips abreast.
+        expect(cell.w).toBeCloseTo(bands.spent.width, 6);
+        expect(cell.w).toBeGreaterThan(cell.h);
+        expect(cell.x).toBeCloseTo(cells[0]!.x, 6);
+      }
+      // Strictly stacked, top to bottom.
+      for (let i = 1; i < cells.length; i++) {
+        expect(cells[i]!.y).toBeGreaterThan(cells[i - 1]!.y + cells[i - 1]!.h - 1e-6);
       }
     });
 
-    it(`${platform}: all three candidate cards get a readable cell inside the grid band`, () => {
+    it(`${platform}: all three candidate cards stack as full-width rows — no wrap, no orphan`, () => {
       const bands = layoutMergePicker(t.detail, t.feature, platform, MERGE_INPUT_COUNT);
-      const ideal = FEATURE_CARD_SIZE[platform];
+      const ideal = cardRowIdeal(bands.candidates, platform);
       const cells = layoutFeatureGrid(bands.candidates, 3, ideal.w, ideal.h, 8);
       expect(cells).toHaveLength(3);
       for (const cell of cells) {
         // A card token below ~60px wide stops being a card and starts being a
         // swatch — this is the floor that catches a future template shrink.
         expect(cell.w).toBeGreaterThan(60);
-        expect(cell.h).toBeGreaterThan(90);
         expect(within(cell, bands.candidates)).toBe(true);
+        // The row spans the whole band, at the platform's own unscaled row
+        // height, and stays tall enough for `CardToken`'s full card face
+        // (below `TOKEN_COMPACT_HEIGHT` it collapses to one line).
+        expect(cell.w).toBeCloseTo(bands.candidates.width, 6);
+        expect(cell.h).toBeCloseTo(FEATURE_CARD_ROW_H[platform], 6);
+        expect(cell.h).toBeGreaterThan(TOKEN_COMPACT_HEIGHT);
+        expect(cell.w).toBeGreaterThan(cell.h);
+      }
+      // ONE COLUMN: same x for all three, each strictly below the last. A
+      // wrapped short last row would sit centred at a DIFFERENT x — the
+      // orphaned third card this pass exists to remove.
+      for (const cell of cells) expect(cell.x).toBeCloseTo(cells[0]!.x, 6);
+      for (let i = 1; i < cells.length; i++) {
+        expect(cells[i]!.y).toBeGreaterThan(cells[i - 1]!.y + cells[i - 1]!.h - 1e-6);
       }
     });
 
     it(`${platform}: a 1-candidate offer still lays out (a nearly-full bag is a real state)`, () => {
       const bands = layoutMergePicker(t.detail, t.feature, platform, MERGE_INPUT_COUNT);
-      const ideal = FEATURE_CARD_SIZE[platform];
+      const ideal = cardRowIdeal(bands.candidates, platform);
       const cells = layoutFeatureGrid(bands.candidates, 1, ideal.w, ideal.h, 8);
       expect(cells).toHaveLength(1);
       expect(cells[0]!.w).toBeGreaterThan(60);
+      expect(cells[0]!.h).toBeCloseTo(FEATURE_CARD_ROW_H[platform], 6);
+    });
+
+    it(`${platform}: the spent strip reserves room for its own caption, so a chip is never scaled down`, () => {
+      // `renderMergeBandCaption` draws the caption INSIDE `bands.spent` and
+      // hands the chips only what is left below it. `layoutMergePicker` now
+      // includes `MERGE_CAPTION_H` in the height it asks for, so the chips get
+      // their full ideal height at full band width instead of being uniformly
+      // shrunk (which shipped as visibly narrow mobile chips).
+      const bands = layoutMergePicker(t.detail, t.feature, platform, MERGE_INPUT_COUNT);
+      const chipsOnly = MERGE_INPUT_COUNT * MERGE_CHIP_H[platform] + (MERGE_INPUT_COUNT - 1) * 6;
+      expect(bands.spent.height).toBeGreaterThan(chipsOnly);
     });
   }
 });

@@ -2,6 +2,7 @@ import type { MergeCardsOffer, MergeInputCard } from '../../run/events';
 import type { SkillDef, SkillTier } from '../../engine/types';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
+import { rowIdeal } from './runRewardGeometry';
 import type { Rect, RunTemplatePlatform } from './runScreenTemplate';
 
 /**
@@ -23,18 +24,47 @@ import type { Rect, RunTemplatePlatform } from './runScreenTemplate';
  * spend three cards they cannot see.
  */
 
-/** Ideal (never-exceeded) size of ONE spent-card chip, per platform — fed to
- * `layoutFeatureGrid` exactly like `FEATURE_CARD_SIZE`/`FEATURE_GEM_CHIP_SIZE`
- * are, so the strip wraps by the same rule every other reward grid wraps by:
- * three across on a wide desktop panel, one per row on a narrow phone (which is
- * also the more readable stacking — one card, one line). */
-export const MERGE_CHIP_SIZE: Record<RunTemplatePlatform, { w: number; h: number }> = {
-  desktop: { w: 250, h: 46 },
-  mobile: { w: 250, h: 40 },
+/** Height of ONE spent-card chip row, per platform. The chip's WIDTH is its
+ * band's own width — see `mergeChipIdeal` — exactly like the candidate card
+ * rows below it (`runRewardGeometry.ts`'s `cardRowIdeal`), so the whole merge
+ * screen is one stack of full-width rows on both platforms.
+ *
+ * WAS a two-dimensional `MERGE_CHIP_SIZE` of `250x46`/`250x40` (2026-08-28):
+ * mobile already stacked one chip per row (250 does not fit twice in 360), but
+ * DESKTOP's 802px band fitted three of them side by side, so the price read as
+ * a row of three small plates above a grid of cards — and once the candidates
+ * became full-width rows, that was the last thing on the screen still laid out
+ * across. One card, one row, price or reward. */
+export const MERGE_CHIP_H: Record<RunTemplatePlatform, number> = {
+  desktop: 46,
+  mobile: 40,
 };
+
+/** The ideal `{w,h}` of ONE spent-card chip inside `rect` — full width, one per
+ * row (see `MERGE_CHIP_H`). The chip-row counterpart of `cardRowIdeal`, and fed
+ * to the same `layoutFeatureGrid`. */
+export function mergeChipIdeal(rect: Rect, platform: RunTemplatePlatform): { w: number; h: number } {
+  return rowIdeal(rect, MERGE_CHIP_H[platform]);
+}
 
 /** Gap between chips in the spent strip, per platform. */
 const MERGE_CHIP_GAP: Record<RunTemplatePlatform, number> = { desktop: 10, mobile: 6 };
+
+/**
+ * Height reserved for ONE band caption ("THESE THREE ARE SPENT") inside the
+ * band it labels — `RunRewardPanel.ts`'s `renderMergeBandCaption` draws the
+ * caption at the top of `bands.spent` and hands the chips only what is left
+ * below it, so a spent height that did NOT account for the caption made
+ * `layoutFeatureGrid` scale every chip down to fit (visibly: the mobile chips
+ * shipped at ~85% width, narrower than the strip they sat in, for no reason a
+ * player could see). This is a RESERVATION, not a measurement — the pure layer
+ * cannot measure a Phaser text — so it is deliberately a few px MORE than
+ * `font.tiny` (9 mobile / 10 desktop) plus the renderer's own 4px trailing gap
+ * can come to. If a caption ever does exceed it the only cost is the old
+ * behaviour (a slightly scaled chip), never an overlap: the renderer still
+ * positions the chips below the caption it actually drew.
+ */
+const MERGE_CAPTION_H: Record<RunTemplatePlatform, number> = { desktop: 20, mobile: 18 };
 
 /** Share of the `feature` rect the spent strip may take when `detail` alone
  * cannot hold it (mobile, where the chips stack). A hard ceiling: the CANDIDATE
@@ -157,9 +187,9 @@ export function buildRunMergeViewModel(
  * narrow-phone case where the chips stack one per row. The borrow is capped at
  * `MERGE_SPENT_MAX_FEATURE_SHARE` of `feature`, so however many rows the strip
  * wants, the cards the player is actually choosing between keep the majority of
- * the space. On a wide desktop panel the three chips fit across `detail` alone
- * and `feature` is handed to the candidate grid untouched — the merge picker's
- * cards then read at exactly the same size as the bonus-draft picker's.
+ * the space. Both platforms now stack one chip per row (see `MERGE_CHIP_H`), so both
+ * borrow; the candidate rows that remain still read at exactly the same size as
+ * the bonus-draft picker's rows, which is what the cap is protecting.
  *
  * Pure geometry, no Phaser, unit-tested against the REAL template rects in
  * `tests/game/runMergeViewModel.test.ts` (the same discipline
@@ -171,11 +201,12 @@ export function layoutMergePicker(
   platform: RunTemplatePlatform,
   count: number,
 ): { spent: Rect; candidates: Rect } {
-  const chip = MERGE_CHIP_SIZE[platform];
   const gap = MERGE_CHIP_GAP[platform];
-  const cols = Math.max(1, Math.min(count, Math.floor((detail.width + gap) / (chip.w + gap))));
-  const rows = count > 0 ? Math.ceil(count / cols) : 0;
-  const wanted = rows > 0 ? rows * chip.h + (rows - 1) * gap : 0;
+  // One chip per row on BOTH platforms now (see `MERGE_CHIP_H`), so `rows` is
+  // just the count — no column arithmetic left to get wrong — and the band has
+  // to hold its own caption as well as the chips (see `MERGE_CAPTION_H`).
+  const rows = Math.max(0, count);
+  const wanted = rows > 0 ? MERGE_CAPTION_H[platform] + rows * MERGE_CHIP_H[platform] + (rows - 1) * gap : 0;
   const ceiling = detail.height + feature.height * MERGE_SPENT_MAX_FEATURE_SHARE;
   const spentH = Math.max(0, Math.min(wanted, ceiling));
   const borrowed = Math.max(0, spentH - detail.height);
