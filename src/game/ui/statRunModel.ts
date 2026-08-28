@@ -219,13 +219,20 @@ export function runProgressStatRun(facts: RunProgressFacts, compact: boolean): S
   const critical = livesAreCritical(facts.lives);
   return {
     separator: compact ? ' · ' : '   ·   ',
+    // NO TRAILING SPACE on the desktop labels. They carried one while this run
+    // was still concatenated into a single string by hand
+    // (`RunProgressStrip.statsStripText`); `statRunStrip.renderStatRun` now
+    // draws the value as its own Text with a leading space, so a label that
+    // also ended in one rendered "DAY  3" with a visible double gap. The GAP
+    // BELONGS TO THE RENDERER — a label is just the word. (`statRunPlainText`
+    // already normalised this, which is why it is byte-identical either way.)
     segments: [
-      { label: compact ? 'D' : 'DAY ', value: `${facts.day}`, kind: 'identity', tone: 'quiet' },
-      { label: compact ? 'W' : 'WAVE ', value: `${facts.wave}`, kind: 'identity', tone: 'quiet' },
-      { label: compact ? 'G' : 'GOLD ', value: `${facts.gold}`, kind: 'resource', tone: 'lead' },
-      { label: compact ? 'LV' : 'LV ', value: `${facts.heroLevel}`, kind: 'identity', tone: 'quiet' },
-      { label: compact ? '♥' : 'LIVES ', value: `${facts.lives}`, kind: 'vital', tone: 'lead', alarm: critical },
-      { label: compact ? 'B' : 'BOSSES ', value: `${facts.bossesCleared}`, kind: 'tally', tone: 'quiet' },
+      { label: compact ? 'D' : 'DAY', value: `${facts.day}`, kind: 'identity', tone: 'quiet' },
+      { label: compact ? 'W' : 'WAVE', value: `${facts.wave}`, kind: 'identity', tone: 'quiet' },
+      { label: compact ? 'G' : 'GOLD', value: `${facts.gold}`, kind: 'resource', tone: 'lead' },
+      { label: 'LV', value: `${facts.heroLevel}`, kind: 'identity', tone: 'quiet' },
+      { label: compact ? '♥' : 'LIVES', value: `${facts.lives}`, kind: 'vital', tone: 'lead', alarm: critical },
+      { label: compact ? 'B' : 'BOSSES', value: `${facts.bossesCleared}`, kind: 'tally', tone: 'quiet' },
     ],
   };
 }

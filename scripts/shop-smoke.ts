@@ -135,19 +135,30 @@ async function collectTexts(page: Page): Promise<TextBound[]> {
   });
 }
 
-/** Reconstructs the HUD's label/value stat pair (`GOLD `/`GOLD`/`G` + the
- * NEXT text strictly to its right on the same row) — the run HUD draws them
- * as separate sibling Text nodes (`RunProgressStrip.ts`'s `statsStripSegments`),
- * never one "GOLD 7" string, on both platforms (desktop: 'GOLD ', mobile
- * compact: 'G'). Returns null (not a guess) if unreadable, so a caller can
- * hard-fail the step instead of silently comparing against garbage. */
+/** Reconstructs the HUD's label/value stat pair (`GOLD`/`G` + the NEXT text
+ * strictly to its right on the same row) — the run HUD draws them as separate
+ * sibling Text nodes (`ui/statRunModel.ts` builds the run,
+ * `ui/statRunStrip.ts#renderStatRun` draws it), never one "GOLD 7" string, on
+ * both platforms (desktop: 'GOLD', mobile compact: 'G'). Returns null (not a
+ * guess) if unreadable, so a caller can hard-fail the step instead of silently
+ * comparing against garbage.
+ *
+ * TWO THINGS THE STAT-RUN RENDERER CHANGED, and why this reads the way it does
+ * now. (1) The halves no longer share a `y`: a 9px label beside a 13px value is
+ * BOTTOM-ALIGNED, so `y` differs by a few px while `y + height` is identical —
+ * same-row is therefore tested on the bottom edge, which is the baseline a
+ * reader actually sees. (2) The value carries a LEADING SPACE (' 137'), which
+ * is how the renderer owns the gap between the two halves — so the figure is
+ * trimmed before it is parsed. Both of these silently returned null before
+ * they were handled, which would have hard-failed every gold assertion here. */
 function readGold(texts: TextBound[]): number | null {
   const label = texts.find((t) => t.text === 'GOLD ' || t.text === 'GOLD' || t.text === 'G');
   if (!label) return null;
-  const sameRow = texts.filter((t) => t !== label && Math.abs(t.y - label.y) <= 3 && t.x > label.x);
+  const bottom = (t: TextBound): number => t.y + t.height;
+  const sameRow = texts.filter((t) => t !== label && Math.abs(bottom(t) - bottom(label)) <= 3 && t.x > label.x);
   sameRow.sort((a, b) => a.x - b.x);
   const value = sameRow[0];
-  if (value && /^\d+$/.test(value.text)) return Number(value.text);
+  if (value && /^\d+$/.test(value.text.trim())) return Number(value.text.trim());
   return null;
 }
 

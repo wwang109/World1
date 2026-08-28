@@ -232,8 +232,10 @@ const FONT_SIZE_LITERAL = /fontSize: (?:'[0-9]+px'|`\$\{[^}]*\}px`)/g;
  * this system landed (`RunProgressStrip.ts`, `RunRewardPanel.ts`,
  * `CardToken.ts`, `runScreenTemplate.ts`, `*RunEventScene.ts`,
  * `*DraftScene.ts`) — the system was deliberately shaped so those can adopt it
- * later without changing it. The rest is honest backlog: battle, shop and wiki
- * are the three biggest surfaces and were not in this pass's scope.
+ * later without changing it. `RunProgressStrip.ts` has since done exactly that
+ * (3 hex + 12 fontSize -> 0 + 2), which is what the mechanism is for. The rest
+ * is honest backlog: battle, shop and wiki are the three biggest surfaces and
+ * were not in this pass's scope.
  */
 const ALLOWLIST: Record<string, { hex?: number; fontSize?: number }> = {
   'scenes/BootScene.ts': { fontSize: 1 },
@@ -262,7 +264,12 @@ const ALLOWLIST: Record<string, { hex?: number; fontSize?: number }> = {
   'ui/DesktopNav.ts': { fontSize: 4 },
   'ui/FantasyCardTemplateV2.ts': { hex: 14, fontSize: 9 },
   'ui/RunChoicePanel.ts': { fontSize: 4 },
-  'ui/RunProgressStrip.ts': { hex: 3, fontSize: 12 },
+  // Down from `{ hex: 3, fontSize: 12 }`: the run HUD strip now takes its stat
+  // run from `ui/statRunModel.ts` + `ui/statRunStrip.ts` and its kicker/title/
+  // dialog type from roles. The two survivors are the action-slot label (its px
+  // is a PER-SLOT argument — mobile primary is 13 against the row's 8) and the
+  // mobile disclosure chevron sized off the stats row.
+  'ui/RunProgressStrip.ts': { fontSize: 2 },
   'ui/RunRewardPanel.ts': { fontSize: 11 },
   'ui/RunRouteBoard.ts': { hex: 2, fontSize: 7 },
   'ui/RunStatPanel.ts': { fontSize: 2 },
@@ -363,7 +370,7 @@ describe('src/game: the type-system ratchet', () => {
   it('the whole-codebase total is at or below the recorded high-water mark', () => {
     // One number to watch in review. It may only ever go DOWN — raise it and
     // you are consciously undoing the pass this test exists to protect.
-    const HIGH_WATER = { hex: 197, fontSize: 422 };
+    const HIGH_WATER = { hex: 194, fontSize: 412 };
     const totals = [...counts.values()].reduce((a, c) => ({ hex: a.hex + c.hex, fontSize: a.fontSize + c.fontSize }), { hex: 0, fontSize: 0 });
     expect(totals.hex, 'raw colour literals in src/game (excluding theme.ts)').toBeLessThanOrEqual(HIGH_WATER.hex);
     expect(totals.fontSize, 'inline fontSize literals in src/game').toBeLessThanOrEqual(HIGH_WATER.fontSize);

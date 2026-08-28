@@ -1,12 +1,14 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { type RunState } from '../runStore';
-import { FONT, UI } from '../theme';
+import { FONT, INK, UI, textRole } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { renderBankedPlBadge } from './RunStatPanel';
 import type { Rect, RunActionRole, RunScreenTemplate } from './runScreenTemplate';
 import { runScreenLayout } from './runScreenLayout';
 import { attachButtonFeel, hoverFillFor } from './motion';
+import { runProgressStatRun } from './statRunModel';
+import { renderStatRun } from './statRunStrip';
 
 /**
  * THE run HUD — one identical header drawn on EVERY Run Mode screen (map,
@@ -122,7 +124,12 @@ function drawSlotButton(
   const disabled = spec.disabled ?? false;
   const fill = disabled ? UI.panelMuted : spec.danger ? UI.badSoft : role === 'primary' ? UI.chip : UI.panelAlt;
   const strokeColor = spec.danger ? UI.bad : role === 'primary' ? UI.border : UI.chip;
-  const textColor = disabled ? UI.textSoft : spec.danger ? '#e0906f' : role === 'primary' ? UI.textOnChip : UI.textAccent;
+  // The danger slot's label takes the ALARM ink role (`textRole('label',
+  // { ink: 'alarm' }).color` resolves to this exact value) rather than the raw
+  // orange hex it shipped with. Only the colour is taken from the role: the
+  // px size is a PER-SLOT argument (mobile primary is 13 against the row's 8),
+  // so spreading the whole role here would flatten the action band.
+  const textColor = disabled ? UI.textSoft : spec.danger ? INK.alarm : role === 'primary' ? UI.textOnChip : UI.textAccent;
   const btn = scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, fill, disabled ? 0.5 : 1)
     .setOrigin(0, 0).setStrokeStyle(1, strokeColor, disabled ? 0.35 : 0.9);
   const label = scene.add.text(rect.x + rect.width / 2, rect.y + rect.height / 2, spec.label, {
@@ -148,80 +155,42 @@ function drawSlotButton(
   }
 }
 
-/** Builds the stats-strip text — the ONE stat string every run screen shows
- * (DAY · WAVE · GOLD · LV · LIVES · BOSSES), so `renderRunHud` and
- * `renderRunStatsStrip` (battle's reduced chrome) can never diverge. Used
- * ONLY as a hidden measuring string now (see `drawKickerTitleStats`) — the
- * actual on-screen line is drawn as colored label/value segments below, but
- * they must always read identically to this plain concatenation. */
-function statsStripText(compact: boolean, s: RunProgressSnapshot): string {
-  return compact
-    ? `D${s.day} · W${s.wave} · G${s.gold} · LV${s.heroLevel} · ♥${s.lives} · B${s.bossesCleared}`
-    : `DAY ${s.day}   ·   WAVE ${s.wave}   ·   GOLD ${s.gold}   ·   LV ${s.heroLevel}   ·   LIVES ${s.lives}   ·   BOSSES ${s.bossesCleared}`;
-}
-
-/** Which color rule a segment's VALUE half follows — labels are always
- * `UI.textMuted`. `gold` is the currency tint used everywhere else in the UI;
- * `lives` goes danger-red at exactly 1 remaining (see the note below), plain
- * `UI.textBright` otherwise. */
-type StatValueKind = 'default' | 'gold' | 'lives';
-
-interface StatSegment {
-  label: string;
-  value: string;
-  kind: StatValueKind;
-}
-
-/** Same six stats, same order, as `statsStripText` — split into label/value
- * pairs so each half can carry its own color. */
-function statsStripSegments(compact: boolean, s: RunProgressSnapshot): StatSegment[] {
-  return compact
-    ? [
-      { label: 'D', value: `${s.day}`, kind: 'default' },
-      { label: 'W', value: `${s.wave}`, kind: 'default' },
-      { label: 'G', value: `${s.gold}`, kind: 'gold' },
-      { label: 'LV', value: `${s.heroLevel}`, kind: 'default' },
-      { label: '♥', value: `${s.lives}`, kind: 'lives' },
-      { label: 'B', value: `${s.bossesCleared}`, kind: 'default' },
-    ]
-    : [
-      { label: 'DAY ', value: `${s.day}`, kind: 'default' },
-      { label: 'WAVE ', value: `${s.wave}`, kind: 'default' },
-      { label: 'GOLD ', value: `${s.gold}`, kind: 'gold' },
-      { label: 'LV ', value: `${s.heroLevel}`, kind: 'default' },
-      { label: 'LIVES ', value: `${s.lives}`, kind: 'lives' },
-      { label: 'BOSSES ', value: `${s.bossesCleared}`, kind: 'default' },
-    ];
-}
-
-/**
- * Alarm colour for the last life. Exactly 1 — NOT `<= 1`: the pre-run "START A
- * NEW RUN" state reports 0 lives (there is no run yet), and `<= 1` painted that
- * whole strip red as if the player were about to die. In a real run 0 lives
- * means the run is already over and the end banner has replaced the strip, so 0
- * is never a live in-run value.
- */
-function statSegmentValueColor(kind: StatValueKind, lives: number): string {
-  if (kind === 'gold') return UI.textAccent;
-  if (kind === 'lives') return lives === 1 ? '#e0654a' : UI.textBright;
-  return UI.textBright;
-}
-
 /** Draws kicker + title + the stats string at `t`'s rects — shared by
  * `renderRunHud` (full chrome) and `renderRunStatsStrip` (battle's statsOnly
  * chrome). Kicker/title/stats sit at IDENTICAL rects in both chrome variants
  * (`runScreenTemplate`'s guarantee), so this one function is the only place
  * either of them is drawn from.
  *
- * The stats line is drawn as SEQUENTIAL label/value Text objects (Phaser text
- * is single-color) rather than one string: labels in `UI.textMuted`, values in
- * `UI.textBright` bold, with GOLD's value in the currency accent and LIVES'
- * value in danger-red at exactly 1 remaining. A hidden measuring pass with the
- * plain (`statsStripText`) string runs through the same `auditTextBlock`
- * shrink policy FIRST so every segment shares one font size — shrinking
- * segments independently could give mismatched sizes on a borderline-width
- * screen. Returns the x the drawn line ends at (compact/left-aligned mode)
- * so `renderRunHud` can hang its mobile disclosure hint right after it.
+ * THE STATS LINE IS A STAT RUN, not a string this file builds. The six stats,
+ * their labels, their kinds and — critically — the last-life alarm rule all
+ * live in `ui/statRunModel.ts#runProgressStatRun`, and `ui/statRunStrip.ts`
+ * draws them. This file used to own all of that: a plain measuring string, a
+ * `StatValueKind` union, a segment builder and a `statSegmentValueColor`
+ * lookup, plus a hidden `auditTextBlock` pass whose only job was to find ONE
+ * shrunk font size for the whole segmented line. Every one of those was a
+ * hand-rolled local copy of something `renderStatRun` now does for the four
+ * other stat runs in the game — it measures with real Phaser Text, shares one
+ * shrink factor across the run, floors at `TEXT_SHRINK_FLOOR_PX` and
+ * bottom-aligns mixed sizes onto one reading line — so the hidden pass is gone
+ * with the rest of it.
+ *
+ * DENSITY IS LOAD-BEARING ON MOBILE, and these numbers are MEASURED in a real
+ * browser (Chromium, both profiles), not modelled. The mobile stats rect is
+ * `y=40 h=14` (bottom 54) and the badge slot starts at `y=56`. A run is as tall
+ * as its tallest piece, and Phaser's line box for this face measures 13px at
+ * 11px type and 15px at 13px type:
+ *
+ *   'tight'  11px value -> row 40..53   inside its own rect, 3px clear of badge
+ *   'roomy'  13px value -> row 40..55   1px OUT of its rect, 1px from the badge
+ *
+ * So `'tight'` is the honest fit and `'roomy'` is the 1px-clearance layout that
+ * `2f9fb2a` and `2ca972a` both shipped unnoticed. Desktop's rect is `y=20 h=20`
+ * with the badge at `y=46`: `'roomy'` there measures 20..39 — inside the rect,
+ * 7px clear — so GOLD and LIVES get their size lead on desktop.
+ *
+ * Returns the x the drawn line ends at (compact/left-aligned mode) so
+ * `renderRunHud` can hang its mobile disclosure hint right after it; the
+ * right-aligned desktop line ends at its rect's right edge by construction.
  */
 function drawKickerTitleStats(
   scene: Phaser.Scene,
@@ -231,15 +200,14 @@ function drawKickerTitleStats(
   compact: boolean,
   track_: Phaser.GameObjects.GameObject[] | undefined,
 ): { statsEndX: number } {
-  const F = compact ? { kicker: 9, title: 16, stats: 9 } : { kicker: 12, title: 26, stats: 12 };
-
   // ---- kicker + title ----
-  const kicker = scene.add.text(t.regions.kicker.x, t.regions.kicker.y, 'WORLD1 / RUN MODE', {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.kicker}px`, color: UI.textAccent,
-  });
-  const title = scene.add.text(t.regions.title.x, t.regions.title.y, screen, {
-    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: UI.text,
-  });
+  // Both roles resolve to the exact px this header already used (kicker 9/12,
+  // title 16/26 mobile/desktop) — a zero-GEOMETRY move. The one thing that
+  // does move is the title's ink: `UI.text` (#ecd7a4) -> `INK.primary`
+  // (#f2e4c0), which is the role's own colour and the same one every other
+  // converted screen title now takes. The kicker's accent is byte-identical.
+  const kicker = scene.add.text(t.regions.kicker.x, t.regions.kicker.y, 'WORLD1 / RUN MODE', textRole('kicker'));
+  const title = scene.add.text(t.regions.title.x, t.regions.title.y, screen, textRole('title'));
   track(track_, kicker);
   track(track_, title);
   auditTextBlock(kicker, { name: 'Run HUD kicker', maxWidth: t.regions.kicker.width, maxHeight: t.regions.kicker.height + 6, minFontSize: 7 });
@@ -247,49 +215,18 @@ function drawKickerTitleStats(
 
   // ---- stats strip — ALWAYS this order, ALWAYS this slot ----
   const statsRect = t.regions.stats;
-  const baseStyle = { fontFamily: FONT.body, fontStyle: 'bold' as const, fontSize: `${F.stats}px` };
-
-  // Hidden measuring pass: same shrink-then-truncate policy as every other
-  // audited label, run ONCE against the plain string so the whole segmented
-  // line shares a single (possibly shrunk) font size.
-  const measure = scene.add.text(0, 0, statsStripText(compact, snapshot), baseStyle).setVisible(false);
-  auditTextBlock(measure, { name: 'Run HUD stats', maxWidth: statsRect.width, maxHeight: statsRect.height + 6, minFontSize: 7 });
-  const fontSize = Number.parseFloat(String(measure.style.fontSize));
-  measure.destroy();
-
-  const sep = compact ? ' · ' : '   ·   ';
-  const segments = statsStripSegments(compact, snapshot);
-  const segmentTexts: Phaser.GameObjects.Text[] = [];
-  let cursor = 0;
-  segments.forEach((seg, i) => {
-    const label = scene.add.text(cursor, statsRect.y, seg.label, {
-      ...baseStyle, fontSize: `${fontSize}px`, color: UI.textMuted,
-    });
-    segmentTexts.push(label);
-    cursor += label.width;
-    const value = scene.add.text(cursor, statsRect.y, seg.value, {
-      ...baseStyle, fontSize: `${fontSize}px`, color: statSegmentValueColor(seg.kind, snapshot.lives),
-    });
-    segmentTexts.push(value);
-    cursor += value.width;
-    if (i < segments.length - 1) {
-      const sepText = scene.add.text(cursor, statsRect.y, sep, { ...baseStyle, fontSize: `${fontSize}px`, color: UI.textMuted });
-      segmentTexts.push(sepText);
-      cursor += sepText.width;
-    }
+  const statsRight = statsRect.x + statsRect.width;
+  const drawn = renderStatRun(scene, runProgressStatRun(snapshot, compact), {
+    // Left-aligned (compact) from the rect's left edge; full chrome stays
+    // right-aligned to the rect's right edge (unchanged behaviour).
+    x: compact ? statsRect.x : statsRight,
+    y: statsRect.y,
+    maxWidth: statsRect.width,
+    align: compact ? 'left' : 'right',
+    density: compact ? 'tight' : 'roomy',
+    track: track_,
   });
-  const totalWidth = cursor;
-  // Left-aligned (compact) starts at the rect's left edge; full chrome stays
-  // right-aligned to the rect's right edge (unchanged from the old single-
-  // string `stats.setOrigin(1, 0)` behavior).
-  const startX = compact ? statsRect.x : statsRect.x + statsRect.width - totalWidth;
-  let x = startX;
-  for (const obj of segmentTexts) {
-    obj.setX(x);
-    x += obj.width;
-    track(track_, obj);
-  }
-  return { statsEndX: startX + totalWidth };
+  return { statsEndX: compact ? drawn.endX : statsRight };
 }
 
 /**
@@ -426,29 +363,29 @@ export function renderRetireConfirm(
   const py = (H - ph) / 2;
   scene.add.rectangle(px, py, pw, ph, UI.panelAlt, 0.98).setOrigin(0, 0).setStrokeStyle(2, UI.bad, 0.9).setInteractive().setDepth(6001);
 
-  const nameSize = opts.compact ? 15 : 18;
-  const bodySize = opts.compact ? 11 : 13;
-  scene.add.text(px + pw / 2, py + 22, 'RETIRE THIS RUN?', {
-    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${nameSize}px`, color: UI.text,
-  }).setOrigin(0.5, 0).setDepth(6002);
+  // A dialog is a `section` heading over `body` copy over two `label` buttons —
+  // the same three roles every other panel in the game now takes, so the sizes
+  // come off the profile ladder instead of a local 15/18 + 11/13 pair.
+  scene.add.text(px + pw / 2, py + 22, 'RETIRE THIS RUN?', textRole('section'))
+    .setOrigin(0.5, 0).setDepth(6002);
   scene.add.text(px + pw / 2, py + 52, 'This ends the run right now — bosses cleared, days\nsurvived, gold, and hero level are locked in.', {
-    fontFamily: FONT.body, fontSize: `${bodySize}px`, color: UI.textDim, align: 'center', wordWrap: { width: pw - 48 },
+    ...textRole('body'), align: 'center', wordWrap: { width: pw - 48 },
   }).setOrigin(0.5, 0).setDepth(6002);
 
   const btnW = (pw - 48 - 12) / 2;
   const btnY = py + ph - 56;
   const cancelBtn = scene.add.rectangle(px + 24, btnY, btnW, 40, UI.panelMuted, 1).setOrigin(0, 0)
     .setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true }).setDepth(6002);
-  scene.add.text(px + 24 + btnW / 2, btnY + 20, 'CANCEL', {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${bodySize}px`, color: UI.text,
-  }).setOrigin(0.5).setDepth(6002);
+  scene.add.text(px + 24 + btnW / 2, btnY + 20, 'CANCEL', textRole('label'))
+    .setOrigin(0.5).setDepth(6002);
   cancelBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => opts.onCancel(pointer));
 
   const retireX = px + 24 + btnW + 12;
   const retireBtn = scene.add.rectangle(retireX, btnY, btnW, 40, UI.bad, 1).setOrigin(0, 0)
     .setStrokeStyle(1, UI.bad, 1).setInteractive({ useHandCursor: true }).setDepth(6002);
-  scene.add.text(retireX + btnW / 2, btnY + 20, 'RETIRE', {
-    fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${bodySize}px`, color: '#2a0d06',
-  }).setOrigin(0.5).setDepth(6002);
+  // Dark ink ON the danger fill — `INK.onAlarm` is the token for exactly that
+  // (and is contrast-checked against `UI.bad` in `textRoleAudit.test.ts`).
+  scene.add.text(retireX + btnW / 2, btnY + 20, 'RETIRE', textRole('label', { ink: 'onAlarm' }))
+    .setOrigin(0.5).setDepth(6002);
   retireBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => opts.onConfirm(pointer));
 }

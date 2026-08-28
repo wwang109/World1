@@ -203,16 +203,23 @@ function overlaps(a: TextBound, b: TextBound): number {
  * `DAY \d` will never match any SINGLE object's `.text` under that scheme —
  * "DAY " and "0" are two different nodes — so naively testing each text node
  * in isolation flags every required stat "missing" even when the HUD is
- * rendering them correctly. Every segment in one stats line shares the exact
- * same `y` (see `drawKickerTitleStats`), so grouping by (scene, y) and
- * concatenating left-to-right by `x` reconstructs the line the audit actually
- * needs to test against, with no dependency on the rendering internals beyond
- * "same row, same y".
+ * rendering them correctly. So the segments are grouped back into rows and
+ * concatenated left-to-right by `x`, which reconstructs the line the audit
+ * actually needs to test against.
+ *
+ * GROUPED BY THE ROW'S BOTTOM EDGE, not by `y`. Segments used to share one `y`
+ * because they shared one font size; since the HUD adopted the stat-run
+ * renderer (`ui/statRunStrip.ts`) a row mixes an 11px label with a 13px value
+ * and every piece is BOTTOM-ALIGNED onto a single reading line — so the tops
+ * differ by a few px while `y + height` is identical. Grouping on the top edge
+ * split each line into a labels-only row and a values-only row, and every
+ * required stat read as missing on every run screen. The bottom edge is also
+ * the more honest definition of "same row": it is the baseline a reader sees.
  */
 function reconstructRows(texts: TextBound[]): string[] {
   const groups = new Map<string, TextBound[]>();
   for (const t of texts) {
-    const key = `${t.scene}|${Math.round(t.y)}`;
+    const key = `${t.scene}|${Math.round(t.y + t.height)}`;
     const g = groups.get(key);
     if (g) g.push(t); else groups.set(key, [t]);
   }
@@ -461,9 +468,13 @@ async function shot(page: Page, name: string, platform: Platform): Promise<void>
 async function runPlatform(page: Page, platform: Platform): Promise<void> {
   const { width, height } = VIEWPORTS[platform];
   const desktop = platform === 'desktop';
+  // `\s*` between token and figure: the stat-run renderer draws the value as
+  // its own Text with a leading space (' 137'), so the reconstructed row reads
+  // "GOLD 137" on desktop and "G 137" on mobile. The label/figure PAIRING is
+  // what this check is about, not how many spaces sit between the two halves.
   const REQUIRED_STATS = desktop
-    ? ['DAY \\d', 'WAVE \\d', 'GOLD \\d', 'LV \\d', 'LIVES \\d', 'BOSSES \\d']
-    : ['D\\d', 'W\\d', 'G\\d', 'LV\\d', '♥\\d', 'B\\d'];
+    ? ['DAY\\s*\\d', 'WAVE\\s*\\d', 'GOLD\\s*\\d', 'LV\\s*\\d', 'LIVES\\s*\\d', 'BOSSES\\s*\\d']
+    : ['D\\s*\\d', 'W\\s*\\d', 'G\\s*\\d', 'LV\\s*\\d', '♥\\s*\\d', 'B\\s*\\d'];
 
   const DRAFT_SCENE = desktop ? 'DesktopDraft' : 'MobileDraft';
   const MAP_SCENE_KEY = desktop ? 'DesktopRunMap' : 'MobileRunMap';
