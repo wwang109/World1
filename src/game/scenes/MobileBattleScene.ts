@@ -17,6 +17,10 @@ import { playSfx } from '../audio/sfxSynth';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { footerY, renderActionBar, type ActionButton } from '../ui/ActionBar';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
+import {
+  MOBILE_HP_BLOCK, mobileHpBlockLayout,
+  type HpBlockLabel, type HpBlockLabelKey,
+} from '../ui/battleHpBlockLayout';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
@@ -317,18 +321,25 @@ export class MobileBattleScene extends Phaser.Scene {
     this.playTimer = undefined;
   }
 
+  /** Clamp an ALREADY-CREATED text to `maxW`, cutting overflow with an ellipsis.
+   * Split out of `boundedText` because the HP strip has to MEASURE its labels
+   * before it knows their budgets (the badge chain sets them) — see
+   * `battleHpBlockLayout.ts`. */
+  private clampTextWidth(t: Phaser.GameObjects.Text, maxW: number): Phaser.GameObjects.Text {
+    if (t.width > maxW && t.text.length > 1) {
+      let s = t.text;
+      while (s.length > 1 && t.width > maxW) { s = s.slice(0, -1); t.setText(`${s}\u2026`); }
+    }
+    return t;
+  }
+
   /** Add a single-line text clamped to `maxW`; overflow is cut with an ellipsis. */
   private boundedText(
     x: number, y: number, str: string,
     style: Phaser.Types.GameObjects.Text.TextStyle, maxW: number,
     originX = 0, originY = 0,
   ): Phaser.GameObjects.Text {
-    const t = this.add.text(x, y, str, style).setOrigin(originX, originY);
-    if (t.width > maxW && str.length > 1) {
-      let s = str;
-      while (s.length > 1 && t.width > maxW) { s = s.slice(0, -1); t.setText(`${s}…`); }
-    }
-    return t;
+    return this.clampTextWidth(this.add.text(x, y, str, style).setOrigin(originX, originY), maxW);
   }
 
   /** Runs the shared `buildBattleTimeline` transform and copies its model
@@ -505,17 +516,20 @@ export class MobileBattleScene extends Phaser.Scene {
     const focusChanged = this.focusedFoe !== this.lastFocusedFoe;
     this.lastFocusedFoe = this.focusedFoe;
 
-    const hpY = dockBottom + 10; // ABSOLUTE — always 168 regardless of dockTop, so the reserved strip band above the dock never pushes the HP block/boards down.
-    const barRowH = 36;
+    const hpY = dockBottom + 10; // ABSOLUTE — always the same regardless of dockTop, so the reserved strip band above the dock never pushes the HP block/boards down.
+    // One owner for the strip's pitch: it grew from 36 when SHIELD/EXPOSE/GUARD
+    // got a row of their own instead of walking across the bar.
+    const barRowH = MOBILE_HP_BLOCK.rowHeight;
+    // The statline is drawn by `hpBar` itself now, with its own hover tip — it
+    // shares a block with the status row, so one function has to own both.
     const heroBar = this.hpBar(
       hpY, this.heroName, hp.player, hp.playerMax, shield.player, UI.good ?? 0x4f9e57, status.player,
+      this.heroStatLine,
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
       shieldPoolsLabel(shield.playerPools),
       exposePct.player,
       guardPct.player,
     );
-    this.boundedText(120, hpY + 17, this.heroStatLine, { fontSize: `${F.tiny}px`, color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
-    addHoverTipZone(this, { x: 120, y: hpY + 17, w: this.W - 120 - 84, h: 12 }, ALL_STAT_ENTRIES);
     const foeBars: Array<HpBarHandles | undefined> = [];
     /** Tab-mode float anchor for foes whose full bar isn't on screen. */
     const tabAnchors: Array<{ x: number; y: number } | undefined> = [];
@@ -532,13 +546,12 @@ export class MobileBattleScene extends Phaser.Scene {
       const foePools = shield.enemiesPools?.[u] ?? (u === 0 ? shield.enemyPools : undefined);
       foeBars[u] = this.hpBar(
         barY, foeModel.name, foeHp, foeMax, foeShield, UI.bad ?? 0xb0483c, foeStatus,
+        foeModel.statLine,
         animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
         shieldPoolsLabel(foePools),
         foeExposePct,
         foeGuardPct,
       );
-      this.boundedText(120, barY + 17, foeModel.statLine, { fontSize: `${F.tiny}px`, color: '#7a8699', fontFamily: FONT.body }, this.W - 120 - 84);
-      addHoverTipZone(this, { x: 120, y: barY + 17, w: this.W - 120 - 84, h: 12 }, ALL_STAT_ENTRIES);
     };
     let boardsTop: number;
     if (!tabbed) {
@@ -772,6 +785,12 @@ export class MobileBattleScene extends Phaser.Scene {
   private hpBar(
     y: number, name: string, hp: number, max: number, shield: number, color: number,
     ailments: string[],
+    /**
+     * The combatant's full statline. Drawn INSIDE the strip now, not by the
+     * caller, for the same reason desktop's is: the strip's rows are shared and
+     * one function has to own where each label lands.
+     */
+    statLine: string,
     prev?: { hp: number; shield: number },
     /** "20 P · 30 M" — present only once >1 shield pool is nonzero, so a
      * stacked physical+magical shield never reads as one merged number. */
@@ -787,13 +806,17 @@ export class MobileBattleScene extends Phaser.Scene {
      * each compounded from its OWN piles independently. */
     guardPct?: GuardBadgeEntry[],
   ): HpBarHandles {
-    const barX = 120; const barW = this.W - barX - 84;
+    const R = MOBILE_HP_BLOCK;
+    const barX = R.barX;
+    const barW = this.W - barX - R.barRightPad;
     const frac = (v: number): number => barW * Math.max(0, Math.min(1, v / max));
-    const nameText = this.boundedText(12, y, name.toUpperCase(), { fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }, barX - 20);
     // Afflicted bars shift color toward their ailment (poison → green cast…)
     // and carry a colored border + one pip per ailment under the bar's end.
     const firstAilment = ailments.find((a) => AILMENT_TINT[a] !== undefined);
     const fillColor = firstAilment ? this.blendColor(color, AILMENT_TINT[firstAilment]!, 45) : color;
+
+    // ---- rects first, texts second, so no label can be painted over by a
+    // rect added after it.
     const border = this.add.rectangle(barX, y + 7, barW, 12, 0x1b2431).setOrigin(0, 0.5);
     border.setStrokeStyle(1, firstAilment ? AILMENT_TINT[firstAilment]! : 0x3a4a62, firstAilment ? 1 : 0.7);
     ailments.forEach((a, i) => {
@@ -816,39 +839,71 @@ export class MobileBattleScene extends Phaser.Scene {
       this.tweens.add({ targets: shieldRect, width: shieldTarget, duration: 400, ease: 'Cubic.Out' });
     }
 
-    const hpText = this.add.text(this.W - 12, y, `${hp}/${max}`, { fontSize: `${F.body}px`, color: UI.textBright, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
-    // Shield as a floating number in the strip's blue — no emoji (tofu in canvas fonts).
-    // When more than one shield pool is stacked, break the total out by pool
-    // (physical/magical/true) instead of one merged number.
+    // ---- labels. Created UNPLACED so the layout can chain off real measured
+    // widths, then positioned and clamped in one pass.
+    // Shield as a floating number in the strip's blue — no emoji (tofu in
+    // canvas fonts). When more than one shield pool is stacked, break the total
+    // out by pool (physical/magical/true) instead of one merged number. It sits
+    // on the STATUS row with EXPOSE/GUARD now: chained leftward along the head
+    // row it was drawn straight across the bar (see `battleHpBlockLayout.ts`).
     const shieldLabel = shield > 0 ? (poolsLabel ? `+${shield} (${poolsLabel})` : `+${shield}`) : '';
-    const shieldText = shield > 0 ? this.add.text(hpText.x - hpText.width - 6, y, shieldLabel, { fontSize: `${F.label}px`, color: '#5fa8d3', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0) : undefined;
+    const bold = { fontFamily: FONT.body, fontStyle: 'bold' } as const;
+    const nameText = this.add.text(0, 0, name.toUpperCase(), { ...bold, fontSize: `${F.body}px`, color: UI.textBright });
+    const hpText = this.add.text(0, 0, `${hp}/${max}`, { ...bold, fontSize: `${F.body}px`, color: UI.textBright });
+    const shieldText = shield > 0
+      ? this.add.text(0, 0, shieldLabel, { ...bold, fontSize: `${F.label}px`, color: '#5fa8d3' })
+      : undefined;
+    const statText = this.add.text(0, 0, statLine, { fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted });
     // Expose badge number — the EFFECTIVE (strongest-standing) amplification,
     // never the last application's own pct (see the `exposePct` param doc).
-    // Stacks to the left of whichever of shield/hp is currently the row's
-    // leftmost label, same idiom as `shieldText` stacking left of `hpText`.
-    const anchorText = shieldText ?? hpText;
     const exposeText = (exposePct ?? 0) > 0
-      ? this.add.text(anchorText.x - anchorText.width - 6, y, `EXPOSE +${exposePct}%`, {
-          fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#a678d8', fontFamily: FONT.body, fontStyle: 'bold',
-        }).setOrigin(1, 0)
+      ? this.add.text(0, 0, `EXPOSE +${exposePct}%`, { ...bold, fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#a678d8' })
       : undefined;
-    // Guard badge — the EFFECTIVE (compounded) per-property mitigation (see
-    // the `guardPct` param doc + `formatGuardBadge`). Stacks one slot further
-    // LEFT than the expose badge, same chained idiom `exposeText` already uses
-    // to stack left of `shieldText`/`hpText` — the two badges are independent
-    // statuses a unit can carry at once, so neither may overwrite the other.
-    const guardAnchor = exposeText ?? anchorText;
-    const guardBadgeText = formatGuardBadge(guardPct ?? []);
-    const guardText = guardBadgeText
-      ? this.add.text(guardAnchor.x - guardAnchor.width - 6, y, guardBadgeText, {
-          fontSize: `${F.tiny}px`, color: AILMENT_COLOR.guard ?? '#7a9cc9', fontFamily: FONT.body, fontStyle: 'bold',
-        }).setOrigin(1, 0)
+    // Guard badge — the EFFECTIVE (compounded) per-property mitigation (see the
+    // `guardPct` param doc + `formatGuardBadge`). Chained off the expose badge:
+    // the two are independent statuses a unit can carry at once, so neither may
+    // overwrite the other.
+    const guardBadge = formatGuardBadge(guardPct ?? []);
+    const guardText = guardBadge
+      ? this.add.text(0, 0, guardBadge, { ...bold, fontSize: `${F.tiny}px`, color: AILMENT_COLOR.guard ?? '#7a9cc9' })
       : undefined;
+
+    const measured = (t: Phaser.GameObjects.Text, fontSize: number): HpBlockLabel => ({ text: t.text, width: t.width, fontSize });
+    const geo = mobileHpBlockLayout({
+      screenW: this.W,
+      rowY: y,
+      name: measured(nameText, F.body),
+      hp: measured(hpText, F.body),
+      statLine: measured(statText, F.tiny),
+      shield: shieldText ? measured(shieldText, F.label) : undefined,
+      expose: exposeText ? measured(exposeText, F.tiny) : undefined,
+      guard: guardText ? measured(guardText, F.tiny) : undefined,
+    });
+    const apply = (t: Phaser.GameObjects.Text | undefined, key: HpBlockLabelKey): void => {
+      const placed = geo.byKey[key];
+      if (!t || !placed) return;
+      t.setOrigin(placed.originX, 0).setPosition(placed.x, placed.y);
+      this.clampTextWidth(t, placed.maxWidth);
+    };
+    apply(nameText, 'name');
+    apply(hpText, 'hp');
+    apply(shieldText, 'shield');
+    apply(statText, 'statLine');
+    apply(exposeText, 'expose');
+    apply(guardText, 'guard');
+
+    const statBox = geo.byKey.statLine!;
+    addHoverTipZone(this, { x: statBox.left, y: statBox.top, w: statBox.maxWidth, h: statBox.height }, ALL_STAT_ENTRIES);
 
     return {
       fillRect,
       shieldRect,
-      shakeTargets: [nameText, fillRect, hpText, ...(shieldText ? [shieldText] : []), ...(exposeText ? [exposeText] : []), ...(guardText ? [guardText] : [])],
+      shakeTargets: [
+        nameText, fillRect, hpText,
+        ...(shieldText ? [shieldText] : []),
+        ...(exposeText ? [exposeText] : []),
+        ...(guardText ? [guardText] : []),
+      ],
       floatX: barX + barW / 2,
       floatY: y + 7,
     };

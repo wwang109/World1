@@ -481,7 +481,7 @@ export function formatDmg(c: NonNullable<Extract<CombatEvent, { kind: 'damage' }
   const add = (label: string, v: number): void => { if (v) terms.push(`${v > 0 ? '+' : '−'} (${Math.abs(v)} ${label})`); };
   add(stat, c.baseStat);
   add('BUFF', c.statBonusDamage);
-  add('SKILL', c.effectBonusDamage);
+  add('BONUS', c.effectBonusDamage);
   add(def, -c.defense);
   add('MIN', c.minimumDamageBonus);
   add('AFFINITY', c.matchupBonusDamage);
@@ -528,7 +528,7 @@ export function formatHeal(e: Extract<CombatEvent, { kind: 'heal' }>): string | 
   const request = e.amount + e.overheal + reduced;
   const terms = [c && !e.flat ? `base ${c.power}` : `${e.flat ? 'flat' : 'heal'} ${request}`];
   if (c && c.statBonus > 0) terms.push(`+ (${c.statBonus} ${defStatToken(c.property)})`);
-  if (c && c.healFlat > 0) terms.push(`+ (${c.healFlat} SKILL)`);
+  if (c && c.healFlat > 0) terms.push(`+ (${c.healFlat} BONUS)`);
   // A TRUE heal opens with the whole `flat N` request, which already INCLUDES the
   // bonus, so adding the term again would double-count it in the printed sum.
   if (c && !e.flat && (c.bonus ?? 0) > 0) terms.push(`+ (${c.bonus} RIDER)`);

@@ -17,6 +17,10 @@ import { playSfx } from '../audio/sfxSynth';
 import { renderDesktopBackground } from '../ui/DesktopNav';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
+import {
+  DESKTOP_HP_BLOCK, desktopHpBlockLayout,
+  type HpBlockLabel, type HpBlockLabelKey,
+} from '../ui/battleHpBlockLayout';
 import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
@@ -104,7 +108,7 @@ const FOOTER_H = 44;
 const FOOTER_BOTTOM = 24;
 const SCRUBBER_H = 28;
 const PANEL_W = 380;
-const HP_BLOCK_H = 76;
+const HP_BLOCK_H = DESKTOP_HP_BLOCK.blockHeight;
 
 /**
  * Desktop Battle — landscape: player board panel LEFT · enemy board panel
@@ -306,18 +310,25 @@ export class DesktopBattleScene extends Phaser.Scene {
     this.playTimer = undefined;
   }
 
+  /** Clamp an ALREADY-CREATED text to `maxW`, cutting overflow with an ellipsis.
+   * Split out of `boundedText` because the HP block has to MEASURE its labels
+   * before it knows their budgets (the badge chain sets them) — see
+   * `battleHpBlockLayout.ts`. */
+  private clampTextWidth(t: Phaser.GameObjects.Text, maxW: number): Phaser.GameObjects.Text {
+    if (t.width > maxW && t.text.length > 1) {
+      let s = t.text;
+      while (s.length > 1 && t.width > maxW) { s = s.slice(0, -1); t.setText(`${s}\u2026`); }
+    }
+    return t;
+  }
+
   /** Add a single-line text clamped to `maxW`; overflow is cut with an ellipsis. */
   private boundedText(
     x: number, y: number, str: string,
     style: Phaser.Types.GameObjects.Text.TextStyle, maxW: number,
     originX = 0, originY = 0,
   ): Phaser.GameObjects.Text {
-    const t = this.add.text(x, y, str, style).setOrigin(originX, originY);
-    if (t.width > maxW && str.length > 1) {
-      let s = str;
-      while (s.length > 1 && t.width > maxW) { s = s.slice(0, -1); t.setText(`${s}…`); }
-    }
-    return t;
+    return this.clampTextWidth(this.add.text(x, y, str, style).setOrigin(originX, originY), maxW);
   }
 
   /** Runs the shared `buildBattleTimeline` transform and copies its model
@@ -424,17 +435,18 @@ export class DesktopBattleScene extends Phaser.Scene {
       comboLive: isComboLive(p.skill, lastCast),
     }));
 
+    // The full statline (the stat-sheet spend — e.g. DEF buys — must be VISIBLE
+    // in battle, not only inferable from the D: math expansions) is now drawn
+    // by `hpBar` itself, with its own hover tip: it shares a block with the
+    // status badges, so one function has to own where both land.
     const heroBar = this.hpBar(
       leftX, contentTop, PANEL_W, this.heroName, hp.player, hp.playerMax, shield.player, UI.good ?? 0x4f9e57, status.player,
+      this.heroStatLine,
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
       shieldPoolsLabel(shield.playerPools),
       exposePct.player,
       guardPct.player,
     );
-    // Full statline under the bar — the stat-sheet spend (e.g. DEF buys) must
-    // be VISIBLE in battle, not only inferable from the D: math expansions.
-    this.add.text(leftX, contentTop + 46, this.heroStatLine, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim });
-    addHoverTipZone(this, { x: leftX, y: contentTop + 46, w: PANEL_W, h: F.small + 4 }, ALL_STAT_ENTRIES);
     const heroCol = new BoardColumn(this, { x: leftX, y: boardTop, width: PANEL_W, height: boardH, side: 'left', pieces: mark(this.heroPieces, comboSnap.player, slots.player), deck: this.heroSkills, stats: this.heroStats });
     if (forwardStep && slots.player !== undefined) this.pulseTokenAt(heroCol, this.heroPieces, slots.player, this.castFxFor('player', 0));
 
@@ -468,13 +480,12 @@ export class DesktopBattleScene extends Phaser.Scene {
       const foePools = shield.enemiesPools?.[u] ?? (u === 0 ? shield.enemyPools : undefined);
       foeBars[u] = this.hpBar(
         rightX, top, PANEL_W, foeModel.name, foeHp, foeMax, foeShield, UI.bad ?? 0xb0483c, foeStatus,
+        foeModel.statLine,
         animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
         shieldPoolsLabel(foePools),
         foeExposePct,
         foeGuardPct,
       );
-      this.add.text(rightX, top + 46, foeModel.statLine, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim });
-      addHoverTipZone(this, { x: rightX, y: top + 46, w: PANEL_W, h: F.small + 4 }, ALL_STAT_ENTRIES);
       const foeSlot = slots.enemyUnits?.[u] ?? (u === 0 ? slots.enemy : undefined);
       const foeLastCast = comboSnap.enemyUnits?.[u] ?? (u === 0 ? comboSnap.enemy : []);
       const foeCol = new BoardColumn(this, {
@@ -838,6 +849,14 @@ export class DesktopBattleScene extends Phaser.Scene {
     panelX: number, panelY: number, panelW: number,
     name: string, hp: number, max: number, shield: number, color: number,
     ailments: string[],
+    /**
+     * The combatant's full statline. Drawn INSIDE the block now, not by the
+     * caller: it used to be added at `contentTop + 46` two hundred lines away
+     * while the badges below hardcoded the same y, and the two rendered on top
+     * of each other on every panel that carried a status. `battleHpBlockLayout`
+     * owns the whole block's geometry so that cannot recur.
+     */
+    statLine: string,
     prev?: { hp: number; shield: number },
     /** "20 P · 30 M" — present only once >1 shield pool is nonzero, so a
      * stacked physical+magical shield never reads as one merged number. */
@@ -853,38 +872,23 @@ export class DesktopBattleScene extends Phaser.Scene {
      * each compounded from its OWN piles independently. */
     guardPct?: GuardBadgeEntry[],
   ): HpBarHandles {
-    const nameText = this.boundedText(panelX, panelY, name.toUpperCase(), { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.text }, panelW - 90);
-    const hpLabelText = this.add.text(panelX + panelW, panelY, `${hp}/${max}`, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.text }).setOrigin(1, 0);
-    const barY = panelY + 26;
+    const R = DESKTOP_HP_BLOCK;
+    const barY = panelY + R.barRowDy;
     const barW = panelW;
     const frac = (v: number): number => barW * Math.max(0, Math.min(1, v / max));
     const firstAilment = ailments.find((a) => AILMENT_TINT[a] !== undefined);
     const fillColor = firstAilment ? this.blendColor(color, AILMENT_TINT[firstAilment]!, 45) : color;
+
+    // ---- rects first, texts second, so no label can be painted over by a rect
+    // added after it. Note the pip row is FILTERED before it is walked: an
+    // untinted ailment used to consume an index and leave a hole, and
+    // `desktopPipLeft` measures the row from its COUNT.
     const border = this.add.rectangle(panelX, barY + 8, barW, 16, 0x1b2431).setOrigin(0, 0.5);
     border.setStrokeStyle(1, firstAilment ? AILMENT_TINT[firstAilment]! : 0x3a4a62, firstAilment ? 1 : 0.7);
-    ailments.forEach((a, i) => {
-      const tint = AILMENT_TINT[a];
-      if (tint !== undefined) this.add.rectangle(panelX + barW - 6 - i * 12, barY + 20, 8, 4, tint).setOrigin(1, 0.5);
+    const pipAilments = ailments.filter((a) => AILMENT_TINT[a] !== undefined);
+    pipAilments.forEach((a, i) => {
+      this.add.rectangle(panelX + barW - R.pip.inset - i * R.pip.pitch, panelY + R.statRowDy, R.pip.width, 4, AILMENT_TINT[a]!).setOrigin(1, 0.5);
     });
-    // Expose badge number — the EFFECTIVE (strongest-standing) amplification,
-    // never the last application's own pct (see the `exposePct` param doc).
-    let ailmentBadgeRight = panelX;
-    if ((exposePct ?? 0) > 0) {
-      const exposeText = this.add.text(panelX, barY + 20, `EXPOSE +${exposePct}%`, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#a678d8',
-      });
-      ailmentBadgeRight = exposeText.x + exposeText.width + 8;
-    }
-    // Guard badge — the EFFECTIVE (compounded) per-property mitigation (see
-    // the `guardPct` param doc + `formatGuardBadge`). Stacks to the RIGHT of
-    // the expose badge on the same row (never both at panelX) — the two are
-    // independent statuses a unit can carry at once.
-    const guardBadgeText = formatGuardBadge(guardPct ?? []);
-    if (guardBadgeText) {
-      this.add.text(ailmentBadgeRight, barY + 20, guardBadgeText, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: AILMENT_COLOR.guard ?? '#7a9cc9',
-      });
-    }
 
     const hpTarget = frac(hp);
     const hpStart = prev ? frac(prev.hp) : hpTarget;
@@ -901,15 +905,71 @@ export class DesktopBattleScene extends Phaser.Scene {
       this.tweens.add({ targets: shieldRect, width: shieldTarget, duration: 400, ease: 'Cubic.Out' });
     }
 
+    // ---- labels. Created UNPLACED so the layout can chain off real measured
+    // widths (mobile's idiom), then positioned and clamped in one pass.
     // When more than one shield pool is stacked, break the total out by pool
     // (physical/magical/true) instead of one merged number.
     const shieldLabel = shield > 0 ? (poolsLabel ? `+${shield} (${poolsLabel})` : `+${shield}`) : '';
-    const shieldText = shield > 0 ? this.add.text(panelX + barW, panelY + 24, shieldLabel, { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: '#5fa8d3' }).setOrigin(1, 0) : undefined;
+    const bold = { fontFamily: FONT.body, fontStyle: 'bold' } as const;
+    const nameText = this.add.text(0, 0, name.toUpperCase(), { ...bold, fontSize: `${F.name}px`, color: UI.text });
+    const hpLabelText = this.add.text(0, 0, `${hp}/${max}`, { ...bold, fontSize: `${F.name}px`, color: UI.text });
+    // The shield total joins EXPOSE/GUARD on the status row (it used to be
+    // right-aligned two px above the bar, i.e. drawn across it), so it takes
+    // that row's type size rather than keeping its own.
+    const shieldText = shield > 0
+      ? this.add.text(0, 0, shieldLabel, { ...bold, fontSize: `${F.tiny}px`, color: '#5fa8d3' })
+      : undefined;
+    const statText = this.add.text(0, 0, statLine, { fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim });
+    // Expose badge number — the EFFECTIVE (strongest-standing) amplification,
+    // never the last application's own pct (see the `exposePct` param doc).
+    const exposeText = (exposePct ?? 0) > 0
+      ? this.add.text(0, 0, `EXPOSE +${exposePct}%`, { ...bold, fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#a678d8' })
+      : undefined;
+    // Guard badge — the EFFECTIVE (compounded) per-property mitigation (see
+    // the `guardPct` param doc + `formatGuardBadge`). Chained off the expose
+    // badge, never both at panelX — the two are independent statuses a unit
+    // can carry at once, so neither may overwrite the other.
+    const guardBadge = formatGuardBadge(guardPct ?? []);
+    const guardText = guardBadge
+      ? this.add.text(0, 0, guardBadge, { ...bold, fontSize: `${F.tiny}px`, color: AILMENT_COLOR.guard ?? '#7a9cc9' })
+      : undefined;
+
+    const measured = (t: Phaser.GameObjects.Text, fontSize: number): HpBlockLabel => ({ text: t.text, width: t.width, fontSize });
+    const geo = desktopHpBlockLayout({
+      panelX, panelY, panelW,
+      name: measured(nameText, F.name),
+      hp: measured(hpLabelText, F.name),
+      statLine: measured(statText, F.small),
+      shield: shieldText ? measured(shieldText, F.tiny) : undefined,
+      expose: exposeText ? measured(exposeText, F.tiny) : undefined,
+      guard: guardText ? measured(guardText, F.tiny) : undefined,
+      ailmentPips: pipAilments.length,
+    });
+    const apply = (t: Phaser.GameObjects.Text | undefined, key: HpBlockLabelKey): void => {
+      const placed = geo.byKey[key];
+      if (!t || !placed) return;
+      t.setOrigin(placed.originX, 0).setPosition(placed.x, placed.y);
+      this.clampTextWidth(t, placed.maxWidth);
+    };
+    apply(nameText, 'name');
+    apply(hpLabelText, 'hp');
+    apply(shieldText, 'shield');
+    apply(statText, 'statLine');
+    apply(exposeText, 'expose');
+    apply(guardText, 'guard');
+
+    const statBox = geo.byKey.statLine!;
+    addHoverTipZone(this, { x: statBox.left, y: statBox.top, w: panelW, h: statBox.height }, ALL_STAT_ENTRIES);
 
     return {
       fillRect,
       shieldRect,
-      shakeTargets: [nameText, fillRect, hpLabelText, ...(shieldText ? [shieldText] : [])],
+      shakeTargets: [
+        nameText, fillRect, hpLabelText,
+        ...(shieldText ? [shieldText] : []),
+        ...(exposeText ? [exposeText] : []),
+        ...(guardText ? [guardText] : []),
+      ],
       floatX: panelX + barW / 2,
       floatY: barY + 8,
     };
