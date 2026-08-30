@@ -2,7 +2,7 @@ import { enemies } from '../data/enemies';
 import type { EventDef } from '../data/events';
 import type { DraftCard, DraftSetKey } from '../run/draft';
 import type { EncounterPack } from '../run/encounter';
-import { applyBonusDraftPick, applyGemChoicePick, applyMergeCardsPick, applyUpgradeCardPick, resolveEventChoice, rollEventForNode, type EventOutcome } from '../run/events';
+import { applyBonusDraftPick, applyGemChoicePick, applyMergeCardsPick, applySellGemPick, applyUpgradeCardPick, resolveEventChoice, rollEventForNode, type EventOutcome, type MergeCardsReceipt } from '../run/events';
 import { bankedPL, type Allocation } from '../run/leveling';
 import { battleStatsFromEvents } from '../run/logAnalysis';
 import { battleGoldReward, type BattleFoeSummary } from '../run/shop';
@@ -500,17 +500,56 @@ export function applyCurrentGemChoicePick(gemId: string): EventOutcome | undefin
   return outcome;
 }
 
+/** What `applyCurrentMergeCardsPick` hands back: the resolved outcome, plus
+ * the RECEIPT for the trade that produced it.
+ *
+ * The receipt is the reason this one finalizer does not share its four
+ * siblings' bare `EventOutcome | undefined` shape. A merge resolves to an
+ * ordinary `grantCard`, so the outcome alone cannot say that three owned cards
+ * were destroyed to make it — and the run layer's `MergeCardsReceipt` is the
+ * only record of which three. Dropping it here (which is exactly what this
+ * function did until the receipt was wired through) leaves the outcome screen
+ * announcing "Gained a SILVER card" for the one outcome in the vocabulary that
+ * takes something away. `merged` is absent only on the fallback path, where the
+ * outcome is a `grantGold` coin and no trade happened.
+ *
+ * ATOMIC, unchanged: `applyMergeCardsPick` re-derives the plan from state and
+ * returns the ORIGINAL state (plus a fallback coin) if anything is wrong, so
+ * there is no ordering in which this store call leaves the run short three
+ * cards and up nothing. The run layer still owns every rule; this only swaps
+ * the active run for whatever it computed and CARRIES BOTH halves of what it
+ * computed to the caller. */
+export interface MergeCardsPickResult {
+  outcome: EventOutcome;
+  merged?: MergeCardsReceipt;
+}
+
 /** Finalizes a `mergeCards` outcome's deferred pick (the picker overlay) —
  * consumes the three same-tier inputs the offer named and inserts the tapped
- * card at tier+1. ATOMIC: `applyMergeCardsPick` re-derives the plan from state
- * and returns the ORIGINAL state (plus a fallback coin) if anything is wrong,
- * so there is no ordering in which this store call leaves the run short three
- * cards and up nothing. Same one-line shape as its four sibling finalizers
- * above — the run layer owns every rule; this only swaps the active run for
- * whatever it computed. */
-export function applyCurrentMergeCardsPick(skillId: string): EventOutcome | undefined {
+ * card at tier+1. See `MergeCardsPickResult` for why this returns a pair. */
+export function applyCurrentMergeCardsPick(skillId: string): MergeCardsPickResult | undefined {
   if (!activeRun) return undefined;
-  const { state, outcome } = applyMergeCardsPick(activeRun, skillId);
+  const { state, outcome, merged } = applyMergeCardsPick(activeRun, skillId);
+  setActiveRun(state);
+  return { outcome, merged };
+}
+
+/** Finalizes a `sellGem` outcome's deferred pick (the picker overlay) — sells
+ * the tapped pouch gem and produces the FINAL `sellGem` outcome.
+ *
+ * Straight through to the run layer's `applySellGemPick`, like all five of its
+ * sibling finalizers above. The event scenes used to call `sellCurrentRunGem`
+ * (the Deck/Bag screen's SELL wrapper) and then HAND-BUILD
+ * `{kind:'sellGem', gemId, price}` themselves from the gold it returned — a
+ * second copy of a rule the run layer already owned, kept honest only by
+ * coincidence (both routes bottom out in `sellRunGem`/`sellPriceOfGem`), and
+ * with four tests in tests/run/events.test.ts exercising a finalizer the game
+ * never actually called. `sellCurrentRunGem` remains for what it is really
+ * for: the Deck/Bag SELL button, which is not an event outcome and builds no
+ * outcome at all. */
+export function applyCurrentSellGemPick(pouchIndex: number): EventOutcome | undefined {
+  if (!activeRun) return undefined;
+  const { state, outcome } = applySellGemPick(activeRun, pouchIndex);
   setActiveRun(state);
   return outcome;
 }

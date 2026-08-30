@@ -1,10 +1,10 @@
-import type { EventOutcome } from '../../run/events';
+import type { EventOutcome, MergeCardsReceipt } from '../../run/events';
 import type { SkillDef } from '../../engine/types';
 import { applyTier } from '../../engine/cards';
 import { skillBook } from '../../data/skills';
 import { gemBook, type GemDef } from '../../data/gems';
 import { choiceArtKey } from './runArtKeys';
-import { outcomeHeadline } from './eventOutcomeText';
+import { mergeReceiptText, outcomeHeadline } from './eventOutcomeText';
 
 /**
  * The reward's own feature visual — the ONE part `RunRewardPanel.ts` branches
@@ -43,9 +43,25 @@ export interface RunRewardViewModel {
  * case added HERE, never in either scene. No Phaser import anywhere in this
  * module's dependency chain (deliberately imports `choiceArtKey` from
  * `runArtKeys.ts`, not the Phaser-touching `runArt.ts`) — unit tested
- * directly in tests/game/runRewardViewModel.test.ts. */
-export function buildRunRewardViewModel(outcome: EventOutcome): RunRewardViewModel {
-  const { headline, detail } = outcomeHeadline(outcome);
+ * directly in tests/game/runRewardViewModel.test.ts.
+ *
+ * `merged` is `applyMergeCardsPick`'s RECEIPT (`runStore.ts`'s
+ * `applyCurrentMergeCardsPick` returns it beside the outcome), present only
+ * when this `grantCard` is the far side of a CARD MERGE. It is what makes the
+ * one destructive outcome in the vocabulary legible after the fact: the same
+ * `grantCard` that means "a free card arrived" also means "three of your cards
+ * were eaten and this is what they became", and only the receipt can tell the
+ * two apart. When it is present the headline/detail come from
+ * `mergeReceiptText` instead of `outcomeHeadline`; the FEATURE is unchanged —
+ * the card that arrived is still the subject of the screen.
+ *
+ * Nothing here recomputes any part of the trade (which three cards, which
+ * tiers): the receipt is read, never re-derived, exactly as the picker reads
+ * `MergeCardsOffer.consumed` rather than working out what would be spent. */
+export function buildRunRewardViewModel(outcome: EventOutcome, merged?: MergeCardsReceipt): RunRewardViewModel {
+  const { headline, detail } = merged && outcome.kind === 'grantCard' && !outcome.fellBack
+    ? mergeReceiptText(merged)
+    : outcomeHeadline(outcome);
   const iconKey = choiceArtKey(outcome.kind);
 
   let feature: RunRewardFeature = { kind: 'icon' };

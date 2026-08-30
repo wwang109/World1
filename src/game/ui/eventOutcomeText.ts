@@ -1,6 +1,7 @@
 import type { EventOutcomeSpec } from '../../data/events';
-import type { EventOutcome } from '../../run/events';
+import type { EventOutcome, MergeCardsReceipt } from '../../run/events';
 import { skillBook } from '../../data/skills';
+import { mergeTradeLine } from './runMergeViewModel';
 
 /** Display name for a skill id — falls back to the raw id if somehow unknown
  * (should never happen for a live event outcome, but never crash a scene over it). */
@@ -57,6 +58,39 @@ export function choiceOutcomeHint(outcome: EventOutcomeSpec): string {
     case 'nothing': return '—';
     default: return '';
   }
+}
+
+/**
+ * Headline + detail for a merge that HAS BEEN TAKEN, read straight off
+ * `applyMergeCardsPick`'s `MergeCardsReceipt` — never recomputed here. The run
+ * layer already decided which three instances were consumed and which card
+ * arrived; this only words it.
+ *
+ * WHY IT EXISTS AT ALL: merge is the only DESTRUCTIVE card outcome in the
+ * vocabulary, and its resolved outcome is a plain `grantCard`, so without the
+ * receipt the outcome screen said exactly what a free card says — "Gained a
+ * SILVER card" — for a trade that just ate three of the player's cards. A
+ * mis-tap had no confirmation of what was lost.
+ *
+ * SAME VOCABULARY AS THE PICKER, deliberately: the headline is the picker's own
+ * `mergeTradeLine` ("3 BRONZE → 1 SILVER"), and the detail opens on SPENT — the
+ * word the picker's own `spentCaption` ("THESE THREE ARE SPENT") uses for the
+ * same three cards. The screen that asked and the screen that confirms say the
+ * same thing about the same trade; no second phrasing was invented.
+ *
+ * The three spent cards are listed by NAME (not by name + where they sat, which
+ * is what the picker chips show): the location was there to disambiguate WHICH
+ * copy is about to be eaten while it could still be avoided. Afterwards there is
+ * nothing left to disambiguate — what is owed the player is the identity of
+ * what left.
+ */
+export function mergeReceiptText(receipt: MergeCardsReceipt): { headline: string; detail: string } {
+  const spent: string[] = [];
+  for (let i = 0; i < receipt.consumed.length; i += 1) spent.push(skillName(receipt.consumed[i]!.skillId));
+  return {
+    headline: mergeTradeLine(receipt.consumed.length, receipt.from, receipt.to),
+    detail: `SPENT ${spent.join(' · ')}\nARRIVED ${skillName(receipt.taken.skillId)}`,
+  };
 }
 
 /** Headline + detail line for a RESOLVED outcome (what actually happened),

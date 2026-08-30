@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { EventChoiceDef, EventDef } from '../../data/events';
 import type { DraftCard } from '../../run/draft';
-import { isEventChoiceUsable, type EventOutcome, type SellGemOption, type UpgradeCardOption } from '../../run/events';
+import { isEventChoiceUsable, type EventOutcome, type MergeCardsReceipt, type SellGemOption, type UpgradeCardOption } from '../../run/events';
 import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
@@ -21,6 +21,7 @@ import {
   applyCurrentBonusDraftPick,
   applyCurrentGemChoicePick,
   applyCurrentMergeCardsPick,
+  applyCurrentSellGemPick,
   applyCurrentUpgradeCardPick,
   currentEventDef,
   currentRunPieces,
@@ -28,7 +29,6 @@ import {
   leaveCurrentEvent,
   resolveCurrentEventChoice,
   retireActiveRun,
-  sellCurrentRunGem,
 } from '../runStore';
 
 const F = MOBILE_PROFILE.font;
@@ -79,6 +79,14 @@ export class MobileRunEventScene extends Phaser.Scene {
    * names are the slots the player is looking at) and held across rebuilds like
    * every other picker's options. Null in every other phase. */
   private mergeOffer: RunMergeViewModel | null = null;
+  /** The TAKEN merge's receipt (`applyCurrentMergeCardsPick`'s `merged`), held
+   * beside `outcome` for the outcome phase and null for every outcome that is
+   * not a merge. It is what lets the resolved screen name the three cards the
+   * anvil ate — a merge resolves to a plain `grantCard`, so the outcome alone
+   * cannot tell "a card arrived" apart from "three cards were destroyed to make
+   * this one". Held as SCENE STATE, not re-derived: by the time this renders,
+   * the cards it names are already gone from the run. */
+  private mergeReceipt: MergeCardsReceipt | null = null;
   private retireConfirmOpen = false;
   /** Which grid index is under the ⓘ inspect overlay in the bonus-draft/
    * upgrade-card picker, `null` when closed — mirrors `MobileDraftScene`'s
@@ -106,6 +114,7 @@ export class MobileRunEventScene extends Phaser.Scene {
     this.gemChoiceOptions = [];
     this.sellGemOptions = [];
     this.mergeOffer = null;
+    this.mergeReceipt = null;
     this.retireConfirmOpen = false;
     this.inspectedDraftIndex = null;
     this.inspectedUpgradeIndex = null;
@@ -129,7 +138,7 @@ export class MobileRunEventScene extends Phaser.Scene {
 
     this.renderHud(run);
     if (this.phase === 'outcome' && this.outcome) {
-      renderRunRewardPanel(this, TEMPLATE, buildRunRewardViewModel(this.outcome), {
+      renderRunRewardPanel(this, TEMPLATE, buildRunRewardViewModel(this.outcome, this.mergeReceipt ?? undefined), {
         font: F,
         eventTitle: event.title,
         onContinue: () => this.continueToMap(),
@@ -178,11 +187,19 @@ export class MobileRunEventScene extends Phaser.Scene {
       renderRunSellGemPicker(this, TEMPLATE, this.sellGemOptions, {
         font: F,
         eventTitle: event.title,
+        // The run layer builds the `sellGem` outcome (`applySellGemPick`, via
+        // the store), not this scene — the sale price and the gem it names are
+        // ONE rule owned in ONE place, the same way every other picker here
+        // finalizes. `option.pouchIndex` is an index this same phase just
+        // rendered from the offer, and nothing between the offer and this tap
+        // can touch the pouch (leaving for DECK / BAG restarts the scene, which
+        // resets `phase` and re-resolves), so the finalizer's defensive throw
+        // on a stale index is unreachable from here.
         onPick: (option) => {
-          const result = sellCurrentRunGem(option.pouchIndex);
-          if (!result.ok) return;
+          const outcome = applyCurrentSellGemPick(option.pouchIndex);
+          if (!outcome) return;
           this.phase = 'outcome';
-          this.outcome = { kind: 'sellGem', gemId: option.gemId, price: result.goldReceived };
+          this.outcome = outcome;
           this.rerender();
         },
       });
@@ -190,11 +207,15 @@ export class MobileRunEventScene extends Phaser.Scene {
       renderRunMergeCardsPicker(this, TEMPLATE, this.mergeOffer, {
         font: F,
         eventTitle: event.title,
+        // BOTH halves of what the finalizer returned are kept: the outcome
+        // (a plain `grantCard`) AND the RECEIPT naming the three cards it
+        // cost. Dropping the receipt here is the whole bug this wiring closed.
         onPick: (candidate) => {
-          const outcome = applyCurrentMergeCardsPick(candidate.skillId);
-          if (!outcome) return;
+          const result = applyCurrentMergeCardsPick(candidate.skillId);
+          if (!result) return;
           this.phase = 'outcome';
-          this.outcome = outcome;
+          this.outcome = result.outcome;
+          this.mergeReceipt = result.merged ?? null;
           this.mergeOffer = null;
           this.rerender();
         },

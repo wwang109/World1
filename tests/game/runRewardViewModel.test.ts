@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { buildRunRewardViewModel } from '../../src/game/ui/runRewardViewModel';
 import { choiceArtKey } from '../../src/game/ui/runArtKeys';
-import type { EventOutcome } from '../../src/run/events';
+import type { EventOutcome, MergeCardsReceipt } from '../../src/run/events';
 import { skillBook } from '../../src/data/skills';
+import { buildRunMergeViewModel } from '../../src/game/ui/runMergeViewModel';
 import { gemBook } from '../../src/data/gems';
 import { applyTier } from '../../src/engine/cards';
 
@@ -129,6 +130,66 @@ describe('buildRunRewardViewModel', () => {
     expect(model.headline).toBe('Nothing happens');
     expect(model.detail).toBeUndefined();
     expect(model.feature).toEqual({ kind: 'icon' });
+  });
+
+
+  // -------------------------------------------------------------------------
+  // THE MERGE RECEIPT — the second argument. A merge resolves to an ordinary
+  // `grantCard`, so the outcome alone cannot say that three owned cards were
+  // destroyed to produce it; only `applyMergeCardsPick`'s receipt can. These
+  // two cases are a PAIR on purpose: the same outcome with and without the
+  // receipt, so what the field is carrying is visible as the difference
+  // between them (without it, the destructive outcome is word-for-word the
+  // free-card one).
+  // -------------------------------------------------------------------------
+
+  const RECEIPT: MergeCardsReceipt = {
+    from: 'bronze',
+    to: 'silver',
+    consumed: [
+      { instanceId: 'c_1', skillId: 'sword_slash', tier: 'bronze', location: 'bag', index: 0 },
+      { instanceId: 'c_2', skillId: 'sword_slash', tier: 'bronze', location: 'bag', index: 1 },
+      { instanceId: 'c_3', skillId: SKILL_ID, tier: 'bronze', location: 'board', index: 0 },
+    ],
+    taken: { skillId: 'crushing_blow', tier: 'silver' },
+  };
+
+  it('grantCard WITH a merge receipt: headline is the trade, detail names every card spent and the one that arrived', () => {
+    const outcome: EventOutcome = { kind: 'grantCard', skillId: 'crushing_blow', tier: 'silver' };
+    const model = buildRunRewardViewModel(outcome, RECEIPT);
+    expect(model.headline).toBe('3 BRONZE → 1 SILVER');
+    expect(model.detail).toBeDefined();
+    for (const card of RECEIPT.consumed) {
+      expect(model.detail!, `spent ${card.skillId} is not named`).toContain(skillBook[card.skillId]!.name);
+    }
+    expect(model.detail!).toContain(skillBook['crushing_blow']!.name);
+    // The card that arrived is still the subject of the screen — the receipt
+    // changes the WORDS, never the feature.
+    expect(model.feature).toEqual({ kind: 'card', skill: applyTier(skillBook['crushing_blow']!, 'silver') });
+  });
+
+  it('grantCard WITHOUT the receipt: the identical outcome reads as a free card — this is exactly what dropping the field looks like', () => {
+    const outcome: EventOutcome = { kind: 'grantCard', skillId: 'crushing_blow', tier: 'silver' };
+    const model = buildRunRewardViewModel(outcome);
+    expect(model.headline).toBe('Gained a SILVER card');
+    expect(model.detail).toBeUndefined();
+  });
+
+  it('the receipt headline and the PICKER headline are the same sentence — one trade, one phrasing', () => {
+    const picker = buildRunMergeViewModel({
+      from: RECEIPT.from,
+      to: RECEIPT.to,
+      consumed: RECEIPT.consumed,
+      candidates: [RECEIPT.taken],
+    });
+    const taken = buildRunRewardViewModel({ kind: 'grantCard', skillId: 'crushing_blow', tier: 'silver' }, RECEIPT);
+    expect(taken.headline).toBe(picker.title);
+  });
+
+  it('a merge receipt is ignored on the FALLBACK path (a full bag paid a coin — nothing was consumed)', () => {
+    const outcome: EventOutcome = { kind: 'grantGold', amount: 3, fellBack: true };
+    const model = buildRunRewardViewModel(outcome, RECEIPT);
+    expect(model.headline).toBe('Bag was full — gained 3 gold instead');
   });
 
 });

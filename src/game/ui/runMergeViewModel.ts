@@ -111,6 +111,19 @@ export interface RunMergeViewModel {
   candidates: readonly MergeCandidateEntry[];
 }
 
+/**
+ * "3 BRONZE → 1 SILVER" — THE one phrasing of the trade, shared by the picker's
+ * headline (before the trade is taken) and the resolved-outcome screen's
+ * headline (after it is, via `eventOutcomeText.ts`'s `mergeReceiptText`). One
+ * function, so the screen that asks and the screen that confirms cannot end up
+ * describing the same trade in two different vocabularies — the exact drift the
+ * receipt exists to close (the outcome screen used to say only "Gained a SILVER
+ * card", which names neither the price nor the tier that was spent).
+ */
+export function mergeTradeLine(count: number, from: SkillTier, to: SkillTier): string {
+  return `${count} ${from.toUpperCase()} → 1 ${to.toUpperCase()}`;
+}
+
 /** Where one consumed instance is sitting, in the player's own vocabulary.
  * BOARD pieces name their SLOT (1-based, the `SLOT ${slot + 1}` convention the
  * shop's buy-destination label already uses) when the caller passes the board,
@@ -168,7 +181,7 @@ export function buildRunMergeViewModel(
   return {
     from: offer.from,
     to: offer.to,
-    title: `${offer.consumed.length} ${offer.from.toUpperCase()} → 1 ${offer.to.toUpperCase()}`,
+    title: mergeTradeLine(offer.consumed.length, offer.from, offer.to),
     spentCaption: `THESE ${offer.consumed.length === 3 ? 'THREE' : offer.consumed.length} ARE SPENT`,
     pickCaption: `PICK ONE — IT ARRIVES AT ${offer.to.toUpperCase()}`,
     spent,
