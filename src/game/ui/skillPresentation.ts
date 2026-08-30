@@ -280,6 +280,36 @@ export function summarizeEffectSegments(raw: SkillDef, stats?: ScalingStats, mod
       case 'buffStat': extras.push({ text: `+${action.pct}% ${STAT_TOKEN[action.stat]}` }); break;
       case 'debuffStat': extras.push({ text: `-${action.pct}% ${STAT_TOKEN[action.stat]}` }); break;
       case 'expose': extras.push({ text: `EXPOSE ${action.pct}%`, keyword: 'expose' }); break;
+      // ATTUNED SHIELD — plating tuned to this card's OWN type (`cardType`, never
+      // authored separately, see engine/types.ts), which the wall then spends at
+      // TWO damage per point against that type and one-for-one against
+      // everything else. This case was entirely missing until 2026-08-30, so the
+      // keyword printed NOTHING on any card face on either platform: `oathplate`
+      // (its only affinity-gated user) rendered the gate's own label with an
+      // empty payload after it — the literal string `SHLD 14 · SWORD: ` — and
+      // `bulwark_of_the_line`/`riposte_guard`/`emberguard` simply dropped the
+      // bigger half of their kit off the face.
+      //
+      // NOT folded into the `shield` accumulator above: a card can carry BOTH
+      // (oathplate is 14 plain + 8 attuned) and they are different currencies,
+      // so summing them would print a wall the card never builds. Same
+      // `effectLine` treatment as the plain shield line, because the interpreter
+      // gives it the same `scaleDefStat` add (interpreter.ts's `attunedShield`
+      // case) — so composition mode shows `+DEF` and summed mode adds the live
+      // stat, exactly as `SHLD` does. Then the two facts that make it a
+      // different card from a plain shield: the RATE and the TYPE it is tuned
+      // to. Takes the `attuned` keyword colour the flavour text's own
+      // `{{Attuned}}` markup already uses, so the face token and the card text
+      // highlight the same word in the same colour.
+      case 'attunedShield': {
+        const attunedType = skill.element ?? skill.weapon;
+        const attunedLine = effectLine('ATTUNED SHLD', action.power, skill.property, stats, skill.property !== 'true', mode, 'defense');
+        extras.push({
+          text: attunedType === undefined ? attunedLine : `${attunedLine} (2x vs ${attunedType.toUpperCase()})`,
+          keyword: 'attuned',
+        });
+        break;
+      }
       // A guard covers ONE property, carried by the ACTION (not by the card —
       // a gem can graft a differently-typed guard onto any card), so the face
       // token names it: P.GUARD / M.GUARD / T.GUARD, mirroring the battle

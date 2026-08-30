@@ -279,7 +279,7 @@ export class MobileRunEventScene extends Phaser.Scene {
    *
    * `choiceCount` (not a pre-computed height) so the reserve is always the
    * SAME formula `renderChoices` below actually lays rows out with
-   * (`runChoicePanelMinHeight(F, true)` × count + gaps) — this used to be a
+   * (`runChoicePanelMinHeight(F)` × count + gaps) — this used to be a
    * hand-picked `count * (80 + 8) - 8` that under-counted the real ~90px row
    * height by 20-30px per screen (2026-08-19 audit alongside the desktop
    * sibling's off-canvas "FREE" label bug), silently giving the body more
@@ -287,7 +287,7 @@ export class MobileRunEventScene extends Phaser.Scene {
    * footer text sit UNDER the fixed bottom action bar rather than fully
    * above it. */
   private renderStory(event: EventDef, choiceCount: number): StoryLayout {
-    const rowH = runChoicePanelMinHeight(F, true);
+    const rowH = runChoicePanelMinHeight(F);
     const rowGap = 8;
     const reserveBelowH = eventChoiceBlockHeight(choiceCount, rowH, rowGap);
     const innerX = 12;
@@ -392,7 +392,7 @@ export class MobileRunEventScene extends Phaser.Scene {
     // ASK the panel how tall it needs to be; never guess. The old hand-picked
     // 80 was short of its own content, so `detail` collapsed to an ellipsis
     // (see `runChoicePanelMinHeight`) — same bug as desktop's 84.
-    const rowH = runChoicePanelMinHeight(F, true);
+    const rowH = runChoicePanelMinHeight(F);
     const gap = 8;
     event.choices.forEach((choice: EventChoiceDef, choiceIndex: number) => {
       const cost = choice.cost ?? 0;

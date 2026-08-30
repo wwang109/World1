@@ -266,7 +266,11 @@ export class DesktopRunMapScene extends Phaser.Scene {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
       }).setOrigin(0.5, 0);
       auditTextBlock(heading, { name: 'Desktop run map stop-in-progress heading', maxWidth: w, maxHeight: F.tiny * 2, minFontSize: 8 });
-      renderRunChoicePanel(this, { x, y: top + F.tiny + 8, w, h: 94 }, {
+      // ASK the panel how tall it needs to be (the hand-picked 94 this
+      // replaced was under the stack's real height on desktop, and the panel
+      // reserves a bottom row for its SELECT affordance whether or not the
+      // model carries a footer — see `runChoicePanelMinHeight`).
+      renderRunChoicePanel(this, { x, y: top + F.tiny + 8, w, h: runChoicePanelMinHeight(F) }, {
         nodeId: pending.id,
         kind: pending.kind,
         title: `RETURN TO ${KIND_LABEL[pending.kind]}`,
@@ -317,7 +321,7 @@ export class DesktopRunMapScene extends Phaser.Scene {
     // needs: shop rows carry a footer, and under the floor the detail line
     // silently ellipsizes rather than overflowing (see `runChoicePanelMinHeight`).
     const panelH = Math.max(
-      runChoicePanelMinHeight(F, true),
+      runChoicePanelMinHeight(F),
       Math.min(92, (availableH - gap * (options.length - 1)) / options.length),
     );
     let y = top;

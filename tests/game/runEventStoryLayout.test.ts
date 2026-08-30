@@ -91,7 +91,7 @@ const ALL_EVENTS = Object.values(eventCatalog);
 
 describe('DesktopRunEventScene story layout — every catalog event', () => {
   const F = DESKTOP_PROFILE.font;
-  const rowH = runChoicePanelMinHeight(F, true); // must match DesktopRunEventScene.renderChoicePanel
+  const rowH = runChoicePanelMinHeight(F); // must match DesktopRunEventScene.renderChoicePanel
   const rowGap = 10; // must match DesktopRunEventScene.renderChoicePanel
   const bottomGap = 20; // the gap `renderStory` leaves before the choice block starts
   const py = runScreenTemplate('desktop').regions.content.y + 10; // DesktopRunEventScene.panelGeometry
@@ -125,7 +125,7 @@ describe('DesktopRunEventScene story layout — every catalog event', () => {
 
 describe('MobileRunEventScene story layout — every catalog event', () => {
   const F = MOBILE_PROFILE.font;
-  const rowH = runChoicePanelMinHeight(F, true); // must match MobileRunEventScene.renderChoices
+  const rowH = runChoicePanelMinHeight(F); // must match MobileRunEventScene.renderChoices
   const rowGap = 8; // must match MobileRunEventScene.renderChoices
   const footerY = runScreenTemplate('mobile').regions.footer.y;
   const maxBottom = footerY - 10; // MobileRunEventScene.renderStory's own `maxBottom`
@@ -187,7 +187,7 @@ describe('bound derivation — synthetic events at and past the max-choices limi
 
   describe('desktop', () => {
     const F = DESKTOP_PROFILE.font;
-    const rowH = runChoicePanelMinHeight(F, true);
+    const rowH = runChoicePanelMinHeight(F);
     const rowGap = 10;
     const bottomGap = 20;
     const py = runScreenTemplate('desktop').regions.content.y + 10;
@@ -227,7 +227,7 @@ describe('bound derivation — synthetic events at and past the max-choices limi
 
   describe('mobile — the binding platform for the 3-choice catalog bound', () => {
     const F = MOBILE_PROFILE.font;
-    const rowH = runChoicePanelMinHeight(F, true);
+    const rowH = runChoicePanelMinHeight(F);
     const rowGap = 8;
     const footerY = runScreenTemplate('mobile').regions.footer.y;
     const maxBottom = footerY - 10;

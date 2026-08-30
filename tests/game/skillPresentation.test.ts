@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SkillDef } from '../../src/engine/types';
-import { summarizeEffects } from '../../src/game/ui/skillPresentation';
+import { skillBook } from '../../src/data/skills';
+import { summarizeEffects, summarizeEffectSegments } from '../../src/game/ui/skillPresentation';
 
 function makeSkill(overrides: Partial<SkillDef>): SkillDef {
   return {
@@ -287,5 +288,103 @@ describe('summarizeEffects — ruled token forms', () => {
   it('comboBonus renders COMBO +N (user-ruled 2026-08-20, paired with battle-playback greying)', () => {
     const skill = makeSkill({ effects: [{ kind: 'comboBonus', amount: 20 }] });
     expect(summarizeEffects(skill)).toBe('COMBO +20');
+  });
+});
+
+
+/**
+ * ATTUNED SHIELD — the keyword that printed NOTHING (2026-08-30).
+ *
+ * `summarizeEffectSegments` had no `case 'attunedShield'`, so the action fell
+ * through every branch and contributed no token at all. That is not a cosmetic
+ * gap: `CardToken` draws this line on EVERY card surface in the game — shop,
+ * board, bag, draft, merge offers, wiki, both platforms — so four shipped
+ * cards showed only the smaller half of their kit (`bulwark_of_the_line`
+ * "SHLD 12" with its 24-point Lance wall missing, `riposte_guard` "DMG 24",
+ * `emberguard` "DMG 12"), and `oathplate` — the one card where the action is
+ * `affinity`-gated — rendered its gate label with an EMPTY payload after it:
+ * the literal string "SHLD 14 · SWORD: ". A label with nothing after it is
+ * the loudest possible form of this bug, and it is what these tests pin.
+ */
+describe('summarizeEffects — ATTUNED SHIELD', () => {
+  it('prints the plating, the 2-for-1 rate, and the type it is tuned to', () => {
+    const skill = makeSkill({ weapon: 'lance', effects: [{ kind: 'attunedShield', power: 24 }] });
+    expect(summarizeEffects(skill)).toBe('ATTUNED SHLD 24 (2x vs LANCE)');
+  });
+
+  it('takes the defensive stat, exactly like the plain shield line beside it', () => {
+    // The interpreter adds `scaleDefStat` to an attuned pool the same way it
+    // does to a plain `shield` (see its `attunedShield` case), so the face's
+    // summed number must add Armor for a physical card and Magic Resist for a
+    // magical one — never Attack.
+    const physical = makeSkill({ weapon: 'lance', effects: [{ kind: 'attunedShield', power: 24 }] });
+    expect(summarizeEffects(physical, { attack: 99, magicPower: 0, armor: 6, magicResist: 0 }))
+      .toBe('ATTUNED SHLD 30 (2x vs LANCE)');
+    const magical = makeSkill({ property: 'magical', element: 'fire', effects: [{ kind: 'attunedShield', power: 24 }] });
+    expect(summarizeEffects(magical, { attack: 0, magicPower: 99, armor: 0, magicResist: 4 }))
+      .toBe('ATTUNED SHLD 28 (2x vs FIRE)');
+  });
+
+  it("composition mode names the stat, the same as the plain shield line", () => {
+    const skill = makeSkill({ weapon: 'lance', effects: [{ kind: 'attunedShield', power: 24 }] });
+    expect(summarizeEffects(skill, undefined, 'composition')).toBe('ATTUNED SHLD 24 +DEF (2x vs LANCE)');
+  });
+
+  it('does NOT fold into the plain shield total — they are different currencies', () => {
+    // `oathplate`'s shape. Summing 14 + 8 would print a 22-point wall the card
+    // never builds: the attuned points spend at a different rate and are held
+    // in a separate pool (`combatant.attunedShields`).
+    const skill = makeSkill({
+      weapon: 'sword',
+      effects: [{ kind: 'shield', power: 14 }, { kind: 'attunedShield', power: 8 }],
+    });
+    expect(summarizeEffects(skill)).toBe('SHLD 14 · ATTUNED SHLD 8 (2x vs SWORD)');
+  });
+
+  it('an AFFINITY-gated attuned shield fills its gate label instead of dangling', () => {
+    const skill = makeSkill({
+      weapon: 'sword',
+      effects: [{ kind: 'shield', power: 14 }, { kind: 'attunedShield', power: 8, affinity: true }],
+    });
+    expect(summarizeEffects(skill)).toBe('SHLD 14 · SWORD: ATTUNED SHLD 8 (2x vs SWORD)');
+  });
+
+  it('every shipped card carrying the keyword actually prints it', () => {
+    const cards = Object.values(skillBook).filter((c) => c.effects.some((a) => a.kind === 'attunedShield'));
+    expect(cards.length, 'the keyword has shipped content — this test is not vacuous').toBeGreaterThan(0);
+    for (const card of cards) {
+      expect(summarizeEffects(card), card.id).toContain('ATTUNED SHLD');
+    }
+  });
+});
+
+describe('summarizeEffectSegments — no token may be empty or dangle', () => {
+  it('NO card in the book prints a segment that ends in a colon or is blank', () => {
+    // The general form of `oathplate`'s "SWORD: " — an affinity gate whose
+    // payload produced no tokens. Any future keyword that lands without a case
+    // in `summarizeEffectSegments` reopens exactly this hole, on every card
+    // face in the game at once, so it is checked across the whole book rather
+    // than card by card.
+    const offenders: string[] = [];
+    for (const card of Object.values(skillBook)) {
+      for (const segment of summarizeEffectSegments(card)) {
+        const text = segment.text.trim();
+        if (text.length === 0 || text.endsWith(':')) offenders.push(`${card.id}: ${JSON.stringify(segment.text)}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("no card falls back to 'PASSIVE' while actually carrying effects", () => {
+    // The other shape the same hole takes: a card whose ONLY action has no
+    // case renders the empty-kit placeholder instead of its kit (this is how
+    // the missing `statStrike` case was found in 2026-08).
+    const offenders: string[] = [];
+    for (const card of Object.values(skillBook)) {
+      if (card.effects.length === 0 || card.aura) continue;
+      const segments = summarizeEffectSegments(card);
+      if (segments.length === 1 && segments[0]!.text === 'PASSIVE') offenders.push(card.id);
+    }
+    expect(offenders).toEqual([]);
   });
 });

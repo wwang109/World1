@@ -19,6 +19,31 @@ export function gemHoverEntry(gem: GemDef): HoverTipEntry {
   };
 }
 
+/**
+ * THE THREE LINES A GEM CHIP SHOWS — name, rarity + kind, and what it does.
+ *
+ * `gemHoverEntry` above is the same three facts formatted for a TOOLTIP; this
+ * is them formatted for a CHIP the player is looking at without hovering.
+ * Same fields, same source, one builder each, so the two surfaces cannot drift
+ * into telling a player different amounts about one gem.
+ *
+ * WHY IT EXISTS (2026-08-30). `RunRewardPanel.ts`'s gem chip drew a coloured
+ * rarity marker and a NAME. Everything else about the gem lived only in the
+ * `gemHoverEntry` tooltip that `renderRunGemChoicePicker` wired for
+ * `template.platform === 'desktop'` — so "PICK ONE TO KEEP" offered a phone
+ * three names and no effect, no rarity and no stats, for a choice that cannot
+ * be taken back. The shop shelf had always printed the same gem's effect
+ * verbatim; only this surface withheld it. `RunRewardPanel.ts`'s
+ * `renderGemChip` prints all three rows on BOTH platforms now.
+ */
+export function gemChipLines(gem: GemDef): { name: string; meta: string; effect: string } {
+  return {
+    name: gem.name,
+    meta: `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT RIDER'}`,
+    effect: stripCardTextMarkup(gem.text),
+  };
+}
+
 // Exhaustive over `Rarity` by construction: tsc fails here if the union grows,
 // which is the point — a new rarity must be placed deliberately, not defaulted.
 const GEM_RARITY_RANK: Record<Rarity, number> = {

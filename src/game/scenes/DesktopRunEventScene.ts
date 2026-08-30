@@ -269,9 +269,9 @@ export class DesktopRunEventScene extends Phaser.Scene {
     const innerW = pw - inset * 2;
 
     // Reserve the choice block's own footprint FIRST — see the doc comment
-    // above. `rowGap`/`runChoicePanelMinHeight(F, true)` here MUST stay
+    // above. `rowGap`/`runChoicePanelMinHeight(F)` here MUST stay
     // identical to `renderChoicePanel`'s own — same call, same constant.
-    const rowH = runChoicePanelMinHeight(F, true);
+    const rowH = runChoicePanelMinHeight(F);
     const rowGap = 10;
     const reserveBelowH = eventChoiceBlockHeight(choiceCount, rowH, rowGap);
     const maxBottom = SCREEN.height - DESKTOP_PROFILE.safe.bottom;
@@ -337,7 +337,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
     const { innerX, innerW } = story;
     // ASK the panel how tall it needs to be; never guess. The old hand-picked
     // 84 was ~15px short of its own content and silently ate the REWARD hint.
-    const rowH = runChoicePanelMinHeight(F, true);
+    const rowH = runChoicePanelMinHeight(F);
     const rowGap = 10;
     let cursor = story.contentTop;
 

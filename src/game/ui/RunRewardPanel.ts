@@ -7,7 +7,7 @@ import type { SkillDef } from '../../engine/types';
 import type { DraftCard } from '../../run/draft';
 import type { SellGemOption, UpgradeCardOption } from '../../run/events';
 import { DESKTOP_PROFILE, MOBILE_PROFILE, type LayoutProfile } from '../layoutProfile';
-import { FONT, GEM_RARITY_COLOR, TIER_COLOR, UI } from '../theme';
+import { FONT, GEM_RARITY_COLOR, TEXT_SHRINK_FLOOR_PX, TIER_COLOR, textRoleFor, UI } from '../theme';
 import { CardToken } from './CardToken';
 import { FantasyCardTemplateV2 } from './FantasyCardTemplateV2';
 import { FANTASY_CARD_TEMPLATE_SPEC } from './fantasyCardTemplateSpec';
@@ -15,7 +15,7 @@ import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { addHoverTipZone, attachHoverTip } from './hoverTip';
 import { cardHoverEntries } from './cardHoverEntries';
 import { renderCardDetailOverlay } from './cardDetailOverlay';
-import { gemHoverEntry } from './gemGlossary';
+import { gemChipLines, gemHoverEntry } from './gemGlossary';
 import { addRunArt, choiceArtKey } from './runArt';
 import { cardRowIdeal, centeredBox, layoutFeatureGrid, rowIdeal, type Box } from './runRewardGeometry';
 import {
@@ -64,7 +64,7 @@ import { attachButtonFeel } from './motion';
  * three-gem offer out as "2 + 1 orphan centred underneath", the same wrap the
  * card pass removed from the three card pickers. Every picker in the run is now
  * one stack of full-width rows. */
-const FEATURE_GEM_CHIP_H: Record<RunTemplatePlatform, number> = { desktop: 56, mobile: 52 };
+const FEATURE_GEM_CHIP_H: Record<RunTemplatePlatform, number> = { desktop: 84, mobile: 84 };
 const FEATURE_ICON_SIZE: Record<RunTemplatePlatform, number> = { desktop: 96, mobile: 80 };
 
 /**
@@ -80,8 +80,8 @@ const FEATURE_ICON_SIZE: Record<RunTemplatePlatform, number> = { desktop: 96, mo
  * hand-tuned portrait size left to keep in sync. See `renderBigFeature`.
  */
 const FEATURE_GEM_CHIP_SIZE_SOLO: Record<RunTemplatePlatform, { w: number; h: number }> = {
-  desktop: { w: 340, h: 76 },
-  mobile: { w: 300, h: 68 },
+  desktop: { w: 420, h: 112 },
+  mobile: { w: 340, h: 108 },
 };
 const FEATURE_ICON_SIZE_SOLO: Record<RunTemplatePlatform, number> = { desktop: 176, mobile: 150 };
 
@@ -109,44 +109,106 @@ function renderFeatureBackdrop(scene: Phaser.Scene, rect: Rect, box: Box, color:
 }
 
 /**
- * Draws ONE gem chip's visual (background plate, rarity marker, name label)
- * into `box` — extracted (2026-08-18) so `renderBigFeature`'s solo gem
- * feature and `renderRunGemChoicePicker`'s grid cells (below) share the
- * IDENTICAL chip, rather than the picker re-deriving its own. Every internal
- * offset is a fraction of `box`'s OWN height, not a fixed pixel tuned to one
- * caller's size — so this scales cleanly from the picker's smaller grid cell
- * up to the solo feature's much larger box. Leaves the chip's own click/hover
- * wiring to the caller (the two callers want different affordances: the solo
- * feature is inert but hoverable, the picker is a clickable pick target).
+ * Draws ONE gem chip's visual — background plate, rarity marker, and the SAME
+ * three facts `gemHoverEntry` (ui/gemGlossary.ts) puts in a desktop hover tip:
+ * the gem's NAME, its RARITY + kind, and WHAT IT DOES. Extracted (2026-08-18)
+ * so `renderBigFeature`'s solo gem feature and `renderRunGemChoicePicker` /
+ * `renderRunSellGemPicker`'s grid cells share the IDENTICAL chip rather than
+ * each re-deriving one. Leaves the chip's own click/hover wiring to the
+ * caller (the callers want different affordances: the solo feature is inert
+ * but hoverable, a picker cell is a clickable pick target).
+ *
+ * THE EFFECT LINE IS NEW (2026-08-30) AND IS THE POINT. The chip used to draw
+ * a marker and a NAME, nothing else — so "PICK ONE TO KEEP" offered
+ * `Ripple Sliver` / `Opening Sliver` / `Judgment Sliver` with no effect, no
+ * rarity and no stats anywhere on screen, and the ONLY place that information
+ * existed was an `attachHoverTip` the picker wired for
+ * `template.platform === 'desktop'` only. A phone has no hover, so a phone got
+ * NOTHING: an irreversible choice made blind, on the one device the game is
+ * read on. The shop shelf has always printed the same gem's effect verbatim
+ * (`MobileShopScene`'s gem rows), so the text was never missing — only this
+ * surface's willingness to show it was.
+ *
+ * SIZES. The name still scales with `box.h` (it is the chip's headline and the
+ * chip ranges from a picker cell to the much larger solo feature); the two
+ * information rows take fixed TEXT ROLES (`kicker`/`micro` via `textRoleFor`,
+ * resolved for THIS template's platform rather than the live profile) because
+ * small type must not shrink with its container — 9px is the floor, and a
+ * fraction of a shrunken cell would go under it.
+ *
+ * DEGRADES INSTEAD OF OVERFLOWING. `layoutFeatureGrid` scales cells down
+ * uniformly when a picker has more rows than fit (the sell picker maps the
+ * WHOLE gem pouch, which is unbounded), so each row is drawn only if the
+ * remaining height inside the chip can actually hold it, and each is
+ * `auditTextBlock`-clamped to that remainder. A cramped chip loses the tail of
+ * its effect text rather than spilling out of its plate — and loses it on BOTH
+ * platforms, never on the phone alone.
  *
  * `priceLabel` (added 2026-08-20 for `renderRunSellGemPicker`) draws a small
  * right-aligned gold-colored tag ("SELL 2g") inside the chip's own right
- * edge — optional and omitted by every OTHER caller (`renderBigFeature`'s
- * solo gem feature, `renderRunGemChoicePicker`'s grid), which keep the
- * original name-only chip untouched. The name's own wordWrap width shrinks to
- * leave room for it so a long gem name can never run under the tag.
+ * edge — optional and omitted by every OTHER caller. The text column's own
+ * wrap width shrinks to leave room for it, so nothing can run under the tag.
  */
-function renderGemChip(scene: Phaser.Scene, box: Box, gem: GemDef, priceLabel?: string): void {
+function renderGemChip(
+  scene: Phaser.Scene,
+  box: Box,
+  gem: GemDef,
+  platform: RunTemplatePlatform,
+  priceLabel?: string,
+): void {
   scene.add.rectangle(box.x, box.y, box.w, box.h, UI.panelAlt, 0.9)
     .setOrigin(0, 0)
     .setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.9);
-  const markerSize = box.h * 0.28;
-  const markerCx = box.x + markerSize * 1.5;
-  const textX = markerCx + markerSize * 1.3;
-  const fontPx = Math.round(box.h * 0.28);
-  scene.add.rectangle(markerCx, box.y + box.h / 2, markerSize, markerSize, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
+  const markerSize = box.h * 0.2;
+  const markerCx = box.x + markerSize * 1.7;
+  const textX = markerCx + markerSize * 1.5;
+  const pad = Math.max(5, Math.round(box.h * 0.11));
+  const namePx = Math.max(TEXT_SHRINK_FLOOR_PX, Math.round(box.h * 0.2));
   let priceW = 0;
   if (priceLabel) {
     const priceText = scene.add.text(box.x + box.w - 10, box.y + box.h / 2, priceLabel, {
-      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${Math.round(box.h * 0.24)}px`, color: UI.textAccent,
+      fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${Math.round(box.h * 0.18)}px`, color: UI.textAccent,
     }).setOrigin(1, 0.5);
     priceW = priceText.width + 12;
   }
-  const gemName = scene.add.text(textX, box.y + box.h / 2, gem.name, {
-    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${fontPx}px`, color: UI.text,
-    wordWrap: { width: Math.max(0, box.x + box.w - textX - 10 - priceW) },
-  }).setOrigin(0, 0.5);
-  auditTextBlock(gemName, { name: 'Run reward gem name', maxWidth: Math.max(0, box.x + box.w - textX - 10 - priceW), maxHeight: box.h - 8, minFontSize: 9 });
+  const textW = Math.max(0, box.x + box.w - textX - 10 - priceW);
+  const chipBottom = box.y + box.h - pad;
+  // The marker sits on the NAME's own line rather than the chip's vertical
+  // centre: the chip is a top-anchored stack of rows now, so a centred diamond
+  // would float beside the effect text instead of the thing it marks.
+  scene.add.rectangle(markerCx, box.y + pad + namePx * 0.6, markerSize, markerSize, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
+
+  const lines = gemChipLines(gem);
+  let cursor = box.y + pad;
+  const gemName = scene.add.text(textX, cursor, lines.name, {
+    fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${namePx}px`, color: UI.text,
+    wordWrap: { width: textW },
+  }).setOrigin(0, 0);
+  auditTextBlock(gemName, { name: 'Run reward gem name', maxWidth: textW, maxHeight: Math.max(namePx, chipBottom - cursor), minFontSize: 9 });
+  cursor += gemName.height + 2;
+
+  // RARITY + KIND — the hover tip's own title suffix and body prefix, in the
+  // words `gemHoverEntry` already uses so the two surfaces cannot drift.
+  const metaStyle = textRoleFor(platform, 'kicker');
+  const metaLineH = Number.parseFloat(metaStyle.fontSize) * 1.4;
+  if (chipBottom - cursor >= metaLineH) {
+    const meta = scene.add.text(textX, cursor, lines.meta, {
+      ...metaStyle, wordWrap: { width: textW },
+    }).setOrigin(0, 0);
+    auditTextBlock(meta, { name: 'Run reward gem rarity', maxWidth: textW, maxHeight: chipBottom - cursor, minFontSize: 9 });
+    cursor += meta.height + 2;
+  }
+
+  // WHAT IT DOES — the same `stripCardTextMarkup(gem.text)` the shop shelf and
+  // the hover tip print, so all three surfaces say one thing about one gem.
+  const effectStyle = textRoleFor(platform, 'micro');
+  const effectLineH = Number.parseFloat(effectStyle.fontSize) * 1.4;
+  if (chipBottom - cursor >= effectLineH) {
+    const effect = scene.add.text(textX, cursor, lines.effect, {
+      ...effectStyle, wordWrap: { width: textW }, lineSpacing: 1,
+    }).setOrigin(0, 0);
+    auditTextBlock(effect, { name: 'Run reward gem effect', maxWidth: textW, maxHeight: chipBottom - cursor, minFontSize: 9 });
+  }
 }
 
 /**
@@ -185,7 +247,7 @@ function renderBigFeature(scene: Phaser.Scene, platform: RunTemplatePlatform, fe
     const box = centeredBox(rect, ideal.w * scale, ideal.h * scale);
     const gem = feature.gem;
     renderFeatureBackdrop(scene, rect, box, GEM_RARITY_COLOR[gem.rarity]);
-    renderGemChip(scene, box, gem);
+    renderGemChip(scene, box, gem, platform);
     addHoverTipZone(scene, { x: box.x, y: box.y, w: box.w, h: box.h }, [gemHoverEntry(gem)]);
     return;
   }
@@ -613,13 +675,17 @@ export function renderRunUpgradeCardPicker(
  * feature draws, as a full-width row at the grid's own `FEATURE_GEM_CHIP_H`
  * instead of the solo `_SOLO` size) filling each cell instead of a `CardToken`.
  *
- * No mobile ⓘ badge (unlike the two card pickers above): a gem chip already
- * shows its own full name up front — unlike a face-down draft card, there is
- * no "peek before you commit" gap for a badge to close — but it STILL wants
- * the fuller effect-text tooltip on desktop, where a mouse makes a hover
- * genuinely free (no extra tap), so `attachHoverTip`/`gemHoverEntry` (the
- * SAME hover the solo resolved-outcome gem feature already shows) is wired
- * for `template.platform === 'desktop'` only.
+ * NO INSPECT AFFORDANCE IS NEEDED HERE — because the chip itself now carries
+ * the information, on both platforms. That claim used to be made and was
+ * false: the chip drew a marker and a name, and the effect/rarity lived ONLY
+ * in the `attachHoverTip` wired below for `template.platform === 'desktop'`,
+ * so the phone — the device this game is read on — was asked to make an
+ * irreversible pick with nothing but three names to go on. `renderGemChip`
+ * prints the rarity, the kind and the effect text inline now (see its doc
+ * comment), which is what the two card pickers' ⓘ badge exists to reach and
+ * what the shop shelf has always shown. The desktop hover stays: it costs a
+ * mouse user nothing and is the same tip the solo resolved-outcome gem
+ * feature shows, so the two surfaces still agree.
  */
 export function renderRunGemChoicePicker(
   scene: Phaser.Scene,
@@ -637,7 +703,7 @@ export function renderRunGemChoicePicker(
     const gem = gemBook[gemId];
     if (!cell || !gem) return;
     const box: Box = { x: cell.x, y: cell.y, w: cell.w, h: cell.h };
-    renderGemChip(scene, box, gem);
+    renderGemChip(scene, box, gem, template.platform);
     const hit = scene.add.rectangle(cell.x + cell.w / 2, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(gemId); });
@@ -675,7 +741,7 @@ export function renderRunSellGemPicker(
     const gem = gemBook[option.gemId];
     if (!cell || !gem) return;
     const box: Box = { x: cell.x, y: cell.y, w: cell.w, h: cell.h };
-    renderGemChip(scene, box, gem, `SELL ${option.price}g`);
+    renderGemChip(scene, box, gem, template.platform, `SELL ${option.price}g`);
     const hit = scene.add.rectangle(cell.x + cell.w / 2, cell.y + cell.h / 2, cell.w, cell.h, 0xffffff, 0)
       .setInteractive({ useHandCursor: true });
     hit.on('pointerdown', () => { playSfx('uiClick'); opts.onPick(option); });
