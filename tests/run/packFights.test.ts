@@ -17,29 +17,44 @@ import {
   capPackTitle,
   MIN_PACK_FIGHT_NUMBER,
   MODIFIER_PRESETS,
-  PACK_ACTION_ECONOMY_TAX_PCT,
   PACK_SIZE,
   PACK_VARIANT_WEIGHTS,
-  packBudgetDeci,
+  packRosterCostDeci,
+  packThreatDeci,
+  REFERENCE_ENEMY_DECK_SIZE,
   resolvePackMemberLevel,
+  resolvePackRosterLevel,
+  rosterDeckDeci,
   soloThreatDeci,
   type PackVariant,
 } from '../../src/run/encounter';
 import { Rng } from '../../src/engine/rng';
+import { enemies } from '../../src/data/enemies';
 import { TIER_BUDGET_DECI } from '../../src/engine/balance';
-import { monsterLevelPL } from '../../src/run/leveling';
+import { monsterLevelPL, PL_PER_LEVEL } from '../../src/run/leveling';
 
 /**
- * PACK FIGHTS (2026-08-04, re-priced onto PL budgets 2026-08-04) — a
- * fight-column node can roll 1-3 foes (see `rollEncounter` in
+ * PACK FIGHTS (2026-08-04, re-priced onto PL budgets 2026-08-04, re-shaped
+ * 2026-08-30) — a fight-column node can roll 1-3 foes (see `rollEncounter` in
  * `src/run/runState.ts` + the `PACK_*`/budget helpers in
  * `src/run/encounter.ts`). These tests cover the roll's own contract:
  * variant mix (at levels where the budget solve can't distort it), the
- * BUDGET math (pack total PL vs the taxed solo-equivalent budget, across a
- * level sweep), the early-game gate (fight 1 is always solo), the
- * floor-fallback-to-solo invariant, the boss-is-always-solo invariant, and
- * the preview/committed determinism a pack's map preview and battle-input
- * rely on being byte-identical.
+ * BUDGET math (the ledger identity `packThreatDeci === soloThreatDeci`,
+ * across a level sweep), the early-game gate (fight 1 is always solo), the
+ * floor-fallback-to-solo invariant, the boss-is-always-solo invariant, the
+ * COLUMN PROMISE (a higher risk tier is never materially easier than a lower
+ * one — the invariant the map shows the player), and the preview/committed
+ * determinism a pack's map preview and battle-input rely on being
+ * byte-identical.
+ *
+ * WHY THE COLUMN PROMISE IS PINNED HERE (2026-08-30). The 2026-08-04 solve
+ * charged every member a FULL board out of a taxed 1/K share, so a pack's
+ * level collapsed to LV1-14 regardless of wave and a HARD pack column shipped
+ * less threat than its own EASY solo — 116 such columns across a 15-seed,
+ * 80-wave sweep, the worst 1170 deci under. Every assertion below is stated
+ * against the model's own currency and derived constants; none of them pins a
+ * level number, so a future retune moves the levels freely and still cannot
+ * bring the inversion back.
  */
 
 function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
@@ -51,6 +66,56 @@ function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
 
 function startedRun(seed: number): RunState {
   return applyDraftResult(createRun(seed), draftPicksFor(seed));
+}
+
+/** Every enemy id in the roster, index-ordered (no Set/Map iteration). */
+const ROSTER_IDS: readonly string[] = Object.keys(enemies);
+
+/** The lowest node level at which a `size`-member pack is affordable at all —
+ * read off the ledger, so it moves with the model instead of being a magic
+ * wave number a retune would silently invalidate. */
+function firstAffordable(title: 'mob' | 'normal' | 'elite' | 'boss', size: number): number {
+  for (let level = 1; level <= 400; level += 1) {
+    if (resolvePackMemberLevel(level, title, size) !== null) return level;
+  }
+  throw new Error(`firstAffordable: no ${size}-pack is ever affordable at ${title}`);
+}
+
+/** Every COMPLETE three-option fight column (easy + standard + hard node ids)
+ * among `nodeIds`, in wave order — iterated by index, never by Map order. */
+function fightColumns(
+  state: RunState,
+  nodeIds: readonly string[],
+): { easy: string; standard: string; hard: string }[] {
+  const byWave: { wave: number; easy?: string; standard?: string; hard?: string }[] = [];
+  const all = state.map.depths.flat();
+  for (const nodeId of nodeIds) {
+    const node = all.find((n) => n.id === nodeId)!;
+    if (node.kind !== 'fight' || !node.fightOption) continue;
+    let row = byWave.find((r) => r.wave === node.fightNumber!);
+    if (!row) { row = { wave: node.fightNumber! }; byWave.push(row); }
+    row[node.fightOption] = nodeId;
+  }
+  const out: { easy: string; standard: string; hard: string }[] = [];
+  for (const row of byWave) {
+    if (row.easy && row.standard && row.hard) out.push({ easy: row.easy, standard: row.standard, hard: row.hard });
+  }
+  return out;
+}
+
+/** A resolved encounter's TOTAL threat PL (deci) — the sum over every foe it
+ * actually fields, in the same currency `soloThreatDeci` quotes a node in.
+ * This is what a fight-column's three risk options must be ordered by. */
+function encounterThreatDeci(pack: { units: readonly { level: number; setup: { pieces: readonly { tier?: string }[] }; modifiers: readonly string[] }[] }): number {
+  let deci = 0;
+  for (let i = 0; i < pack.units.length; i += 1) {
+    const unit = pack.units[i]!;
+    const modifierBonus = unit.modifiers.reduce((sum, id) => sum + (MODIFIER_PRESETS[id]?.bonusPL ?? 0) * 10, 0);
+    let deck = 0;
+    for (const piece of unit.setup.pieces) deck += TIER_BUDGET_DECI[(piece.tier ?? 'bronze') as keyof typeof TIER_BUDGET_DECI];
+    deci += Math.max(0, monsterLevelPL(unit.level)) * 10 + modifierBonus + deck;
+  }
+  return deci;
 }
 
 /** Every fight/boss node across waves 1..throughWave for `seed`, alongside a
@@ -188,7 +253,7 @@ describe('run/runState: PACK FIGHTS — variant mix (deep enough that the budget
   });
 });
 
-describe('run/runState: PACK FIGHTS — BUDGET math (resolvePackMemberLevel + packBudgetDeci)', () => {
+describe('run/runState: PACK FIGHTS — BUDGET math (the ledger identity)', () => {
   /** Independently recompute a resolved unit's threat PL (deci) from its
    * ACTUAL scaled setup — stat PL via `monsterLevelPL` (title delta is 0 for
    * both mob/normal, the only pack-member titles, so `unit.level ===
@@ -203,9 +268,17 @@ describe('run/runState: PACK FIGHTS — BUDGET math (resolvePackMemberLevel + pa
     return statDeci + deckDeci;
   }
 
-  it('a pack roll never ships over its taxed solo-equivalent budget, across a level sweep (waves 1..70)', () => {
+  /** The largest amount of a node's budget an integer level solve can leave
+   * unspent: the roster is homogeneous, so each of its up-to-`MAX_PACK_SIZE`
+   * members can be short by at most one level's worth of PL, plus the even
+   * split's own remainder (< size). Derived, never hand-picked. */
+  const MAX_PACK_SIZE = Math.max(...Object.values(PACK_SIZE));
+  const LEDGER_SLACK_DECI = MAX_PACK_SIZE * PL_PER_LEVEL * 10 + MAX_PACK_SIZE;
+
+  it('THE LEDGER IDENTITY: a pack ships its node\'s FULL solo budget, to within one member level of integer rounding (waves 1..70)', () => {
     let sawPair = false;
     let sawTrio = false;
+    let checked = 0;
     for (const seed of WIDE_SEEDS) {
       const { state, nodeIds } = combatNodesThrough(seed, 70);
       for (const nodeId of nodeIds) {
@@ -215,52 +288,112 @@ describe('run/runState: PACK FIGHTS — BUDGET math (resolvePackMemberLevel + pa
         if (pack.variant === 'solo') continue;
         const entry = fightTableEntryForNode(node);
         const size = PACK_SIZE[pack.variant];
-        const budgetDeci = packBudgetDeci(soloThreatDeci(entry.level, entry.title, entry.modifiers), size);
+        // The BUDGET is what a SOLO foe at this node costs — one number, the
+        // same one the map's other two options are priced against.
+        const budgetDeci = soloThreatDeci(entry.level, entry.title, entry.modifiers);
 
         expect(pack.units).toHaveLength(size);
-        // Every member is homogeneous (same solved level, capped title).
-        const expectedLevel = resolvePackMemberLevel(entry.level, entry.title, size, entry.modifiers);
-        expect(expectedLevel).not.toBeNull();
         const expectedTitle = capPackTitle(entry.title);
         let totalDeci = 0;
         for (const unit of pack.units) {
-          expect(unit.level).toBe(expectedLevel);
+          // Homogeneous roster: one solved level, one capped title.
+          expect(unit.level).toBe(pack.units[0]!.level);
           expect(unit.title).toBe(expectedTitle);
           totalDeci += unitThreatDeci(unit.level, unit.setup.pieces, unit.modifiers);
         }
-        // The ONE hard invariant: never ship a pack over its taxed budget.
-        // (No tight lower bound here on purpose — `REFERENCE_ENEMY_DECK_SIZE`
-        // conservatively prices every member's deck cost off the WORST CASE
-        // base card count in the roster, so a pack of actually-smaller-decked
-        // enemies can land well under budget; that slack is intentional, see
-        // `REFERENCE_ENEMY_DECK_SIZE`'s rationale in encounter.ts.)
-        expect(totalDeci).toBeLessThanOrEqual(budgetDeci);
 
+        // UPPER BOUND — never ship a pack over its node's budget. (This was
+        // the model's only invariant before 2026-08-30, and it was satisfied
+        // vacuously: nothing stopped a pack landing 50% under.)
+        expect(totalDeci, `${seed} w${node.wave} ${pack.variant} over budget`).toBeLessThanOrEqual(budgetDeci);
+        // LOWER BOUND — and this is the half that was missing. A pack must
+        // SPEND the budget, not merely stay under it.
+        expect(budgetDeci - totalDeci, `${seed} w${node.wave} ${pack.variant} under-spent`).toBeLessThanOrEqual(LEDGER_SLACK_DECI);
+
+        // The production helper prices the same roster the same way.
+        expect(packThreatDeci(pack.units[0]!.level, size, expectedTitle, entry.modifiers)
+          - packRosterCostDeci(size, expectedTitle, entry.modifiers)
+          + rosterDeckDeci(pack.units.map((u) => u.enemyId), expectedTitle, entry.modifiers)
+          + size * entry.modifiers.reduce((sum, id) => sum + (MODIFIER_PRESETS[id]?.bonusPL ?? 0) * 10, 0),
+        ).toBe(totalDeci);
+
+        checked += 1;
         if (pack.variant === 'pair') sawPair = true;
         if (pack.variant === 'trio') sawTrio = true;
       }
     }
+    expect(checked).toBeGreaterThan(100);
     expect(sawPair).toBe(true);
     expect(sawTrio).toBe(true);
   });
 
-  it('worked examples: normal-titled fight track LV2/LV6/LV12 all floor to solo (a 2-3 card Bronze board is already most of an early solo\'s whole budget); pairs/trios only engage much deeper (LV18/LV40)', () => {
-    expect(PACK_ACTION_ECONOMY_TAX_PCT).toBe(30);
+  it('the generic solve is CONSERVATIVE: pricing every board at REFERENCE_ENEMY_DECK_SIZE can only under-state the level the drawn roster affords, never over-state it', () => {
+    // This is what lets `rollEncounter` decide pack-vs-solo BEFORE it draws a
+    // single enemy id (so the draw count never moves) and still re-solve the
+    // level exactly afterwards.
+    for (const seed of WIDE_SEEDS.slice(0, 20)) {
+      const { state, nodeIds } = combatNodesThrough(seed, 70);
+      for (const nodeId of nodeIds) {
+        const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
+        if (node.kind !== 'fight') continue;
+        const pack = rollEncounter({ ...state, currentNodeId: nodeId });
+        if (pack.variant === 'solo') continue;
+        const entry = fightTableEntryForNode(node);
+        const size = PACK_SIZE[pack.variant];
+        const generic = resolvePackMemberLevel(entry.level, entry.title, size, entry.modifiers);
+        const exact = resolvePackRosterLevel(pack.units.map((u) => u.enemyId), entry.level, entry.title, entry.modifiers);
+        expect(generic).not.toBeNull();
+        expect(exact).not.toBeNull();
+        expect(exact!).toBeGreaterThanOrEqual(generic!);
+        expect(pack.units[0]!.level).toBe(exact);
+      }
+    }
+  });
+
+  it('every enemy in the roster fits the generic worst case, so the conservative solve is actually conservative', () => {
+    for (const title of ['mob', 'normal'] as const) {
+      for (const modifiers of [[], ['diamond'], ['diamond', 'swift']]) {
+        for (const id of ROSTER_IDS) {
+          expect(rosterDeckDeci([id], title, modifiers))
+            .toBeLessThanOrEqual(packRosterCostDeci(1, title, modifiers)
+              - modifiers.reduce((sum, m) => sum + (MODIFIER_PRESETS[m]?.bonusPL ?? 0) * 10, 0));
+        }
+      }
+    }
+    expect(REFERENCE_ENEMY_DECK_SIZE).toBeGreaterThanOrEqual(2);
+  });
+
+  it('worked examples: the ledger, not a level number — an early node cannot afford two boards at all, and the first affordable pair/trio lands exactly on its budget', () => {
+    // A LV2 normal node is worth 330 deci: 30 of stats over one 300-deci
+    // Bronze board. Two boards cost 600 — already double the whole node — so
+    // no pair exists here, whatever the variant roll said.
     expect(soloThreatDeci(2, 'normal')).toBe(330);
+    expect(packRosterCostDeci(2, 'normal', [])).toBeGreaterThan(soloThreatDeci(2, 'normal'));
     expect(resolvePackMemberLevel(2, 'normal', 2)).toBeNull();
     expect(resolvePackMemberLevel(2, 'normal', 3)).toBeNull();
 
-    expect(soloThreatDeci(6, 'normal')).toBe(450);
-    expect(resolvePackMemberLevel(6, 'normal', 2)).toBeNull();
-    expect(resolvePackMemberLevel(6, 'normal', 3)).toBeNull();
+    // The floor is the ledger's own, not a hand-picked wave: a pair becomes
+    // affordable exactly when the node is worth two boards, a trio at three.
+    const firstPair = firstAffordable('normal', 2);
+    const firstTrio = firstAffordable('normal', 3);
+    expect(soloThreatDeci(firstPair, 'normal')).toBeGreaterThanOrEqual(packRosterCostDeci(2, 'normal', []));
+    expect(soloThreatDeci(firstPair - 1, 'normal')).toBeLessThan(packRosterCostDeci(2, 'normal', []));
+    expect(firstTrio).toBeGreaterThan(firstPair);
+    expect(resolvePackMemberLevel(firstPair, 'normal', 2)).toBe(1);
+    expect(resolvePackMemberLevel(firstTrio, 'normal', 3)).toBe(1);
 
-    expect(soloThreatDeci(12, 'normal')).toBe(630);
-    expect(resolvePackMemberLevel(12, 'normal', 2)).toBeNull();
-    expect(resolvePackMemberLevel(12, 'normal', 3)).toBeNull();
-
-    // Pairs first become viable at LV18 (member LV1); trios not until LV40.
-    expect(resolvePackMemberLevel(18, 'normal', 2)).toBe(1);
-    expect(resolvePackMemberLevel(40, 'normal', 3)).toBe(1);
+    // And once affordable, the solve SPENDS the budget: the shortfall at any
+    // depth is only the integer-level remainder, never a structural gap.
+    for (const level of [firstPair, 25, 40, 62, 90]) {
+      for (const size of [2, 3] as const) {
+        const solved = resolvePackMemberLevel(level, 'normal', size, []);
+        if (solved === null) continue;
+        const shipped = packThreatDeci(solved, size, 'normal', []);
+        const budget = soloThreatDeci(level, 'normal', []);
+        expect(shipped).toBeLessThanOrEqual(budget);
+        expect(budget - shipped).toBeLessThanOrEqual(size * PL_PER_LEVEL * 10 + size);
+      }
+    }
   });
 
   it("a 'hard' fight-option's +1 level (and any title bump) still feeds the budget solve for every pack member", () => {
@@ -274,8 +407,16 @@ describe('run/runState: PACK FIGHTS — BUDGET math (resolvePackMemberLevel + pa
         if (pack.variant === 'solo') continue;
         sawPack = true;
         const entry = fightTableEntryForNode(node); // already the hard-bumped spec
-        const expectedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[pack.variant], entry.modifiers);
+        const ids = pack.units.map((u) => u.enemyId);
+        const expectedLevel = resolvePackRosterLevel(ids, entry.level, entry.title, entry.modifiers);
         for (const unit of pack.units) expect(unit.level).toBe(expectedLevel);
+        // and the hard bump is what moved it: the same roster at the STANDARD
+        // spec must solve no higher.
+        const standardSpec = fightTableEntryForNode({ fightNumber: node.fightNumber, fightOption: 'standard' });
+        const standardLevel = resolvePackRosterLevel(ids, standardSpec.level, standardSpec.title, standardSpec.modifiers);
+        // `null` = the standard spec cannot even afford this roster, which is
+        // itself the hard option being the bigger budget.
+        if (standardLevel !== null) expect(expectedLevel!).toBeGreaterThanOrEqual(standardLevel);
       }
     }
     expect(sawPack).toBe(true);
@@ -292,7 +433,7 @@ describe('run/runState: PACK FIGHTS — BUDGET math (resolvePackMemberLevel + pa
         if (pack.variant === 'solo') continue;
         sawPack = true;
         const entry = fightTableEntryForNode(node); // already the easy-shrunk spec (-1 level, title capped at normal)
-        const expectedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[pack.variant], entry.modifiers);
+        const expectedLevel = resolvePackRosterLevel(pack.units.map((u) => u.enemyId), entry.level, entry.title, entry.modifiers);
         for (const unit of pack.units) {
           expect(unit.level).toBe(expectedLevel);
           expect(unit.title).toBe('normal'); // capPackTitle('normal') === 'normal'; easy's own cap already forces normal
@@ -302,36 +443,100 @@ describe('run/runState: PACK FIGHTS — BUDGET math (resolvePackMemberLevel + pa
     expect(sawPack).toBe(true);
   });
 
-  it("an easy pack's taxed budget never exceeds the EASY solo-equivalent cost, and is <= the standard/hard node's own budget at the same wave (the tier gradient survives the pack solve)", () => {
+  it('the SPEC gradient is monotone before any pack solve runs: easy <= standard <= hard, every column', () => {
     for (const seed of WIDE_SEEDS.slice(0, 15)) {
       const { state, nodeIds } = combatNodesThrough(seed, 40);
-      const byWave = new Map<number, { easy?: string; standard?: string; hard?: string }>();
-      for (const nodeId of nodeIds) {
-        const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
-        if (node.kind !== 'fight' || !node.fightOption) continue;
-        const entry = byWave.get(node.fightNumber!) ?? {};
-        entry[node.fightOption] = nodeId;
-        byWave.set(node.fightNumber!, entry);
-      }
-      for (const [, tiers] of byWave) {
-        if (!tiers.easy || !tiers.standard || !tiers.hard) continue;
-        const easyNode = state.map.depths.flat().find((n) => n.id === tiers.easy)!;
-        const standardNode = state.map.depths.flat().find((n) => n.id === tiers.standard)!;
-        const hardNode = state.map.depths.flat().find((n) => n.id === tiers.hard)!;
-        const easyEntry = fightTableEntryForNode(easyNode);
-        const standardEntry = fightTableEntryForNode(standardNode);
-        const hardEntry = fightTableEntryForNode(hardNode);
-        // soloThreatDeci is the same "vs player" reference the pack budget
-        // solve taxes — the monotonic gradient must hold BEFORE any pack tax
-        // is applied, since the tax (packBudgetDeci) scales every tier's
-        // budget by the identical factor for a given pack size.
-        const easyDeci = soloThreatDeci(easyEntry.level, easyEntry.title, easyEntry.modifiers);
-        const standardDeci = soloThreatDeci(standardEntry.level, standardEntry.title, standardEntry.modifiers);
-        const hardDeci = soloThreatDeci(hardEntry.level, hardEntry.title, hardEntry.modifiers);
-        expect(easyDeci).toBeLessThanOrEqual(standardDeci);
-        expect(standardDeci).toBeLessThanOrEqual(hardDeci);
+      for (const tiers of fightColumns(state, nodeIds)) {
+        const specs = (['easy', 'standard', 'hard'] as const).map((opt) => {
+          const node = state.map.depths.flat().find((n) => n.id === tiers[opt]!)!;
+          const entry = fightTableEntryForNode(node);
+          return soloThreatDeci(entry.level, entry.title, entry.modifiers);
+        });
+        expect(specs[0]!).toBeLessThanOrEqual(specs[1]!);
+        expect(specs[1]!).toBeLessThanOrEqual(specs[2]!);
       }
     }
+  });
+});
+
+/**
+ * THE COLUMN PROMISE (2026-08-30) — the invariant the MAP shows the player,
+ * pinned against what a column actually ships rather than what its spec says.
+ *
+ * A fight column offers three risk tiers side by side. Whatever each of them
+ * rolls — one foe, a pair, a trio — the higher tier must not be the easier
+ * fight. This is the assertion the 2026-08-04 pack solve broke and no existing
+ * test could see: the old gradient test compared the three options' SPECS,
+ * which are monotone by construction (`fightTableEntryForNode` just adds a
+ * level and bumps a title), and never looked at what the pack solve then
+ * turned that spec into.
+ *
+ * TWO TOLERANCES, BOTH DERIVED, NEITHER TUNED:
+ *   • `ROUNDING_SLACK_DECI` — a homogeneous roster's level is an integer, so
+ *     up to one level per member of its budget is unspendable.
+ *   • `ROSTER_JITTER_DECI` — the roster is not PL-flat: enemies ship 2 or 3
+ *     authored cards, and the DIAMOND escalation modifier prices every card at
+ *     the top tier, so two SOLO foes at the same level can differ by one card
+ *     at `TIER_BUDGET_DECI.diamond`. That variance is pre-existing, has
+ *     nothing to do with packs (it shows up on solo-only columns at exactly
+ *     the same magnitude), and is owned by `src/data`.
+ * Nothing here pins a level, a wave, or a tax rate.
+ */
+describe('run/runState: PACK FIGHTS — THE COLUMN PROMISE (a higher risk tier is never materially easier)', () => {
+  const MAX_PACK_SIZE = Math.max(...Object.values(PACK_SIZE));
+  const ROUNDING_SLACK_DECI = MAX_PACK_SIZE * PL_PER_LEVEL * 10 + MAX_PACK_SIZE;
+  const ROSTER_JITTER_DECI = TIER_BUDGET_DECI.diamond;
+  const TOLERANCE_DECI = ROUNDING_SLACK_DECI + ROSTER_JITTER_DECI;
+
+  it("HARD never ships less threat than its own column's EASY, across a seed x wave sweep", () => {
+    let columns = 0;
+    let packColumns = 0;
+    for (const seed of WIDE_SEEDS) {
+      const { state, nodeIds } = combatNodesThrough(seed, 70);
+      for (const tiers of fightColumns(state, nodeIds)) {
+        const rolled = (['easy', 'standard', 'hard'] as const).map((opt) =>
+          rollEncounter({ ...state, currentNodeId: tiers[opt]! }));
+        const [easy, standard, hard] = rolled.map(encounterThreatDeci) as [number, number, number];
+        const wave = state.map.depths.flat().find((n) => n.id === tiers.easy)!.wave;
+        const shape = rolled.map((p) => p.variant).join('/');
+
+        // THE HEADLINE: the option the map labels riskiest is never the soft one.
+        expect(hard, `s${seed} w${wave} [${shape}] HARD ${hard} < EASY ${easy}`)
+          .toBeGreaterThanOrEqual(easy - ROUNDING_SLACK_DECI);
+        // And the gradient holds step by step, within the roster's own variance.
+        expect(standard, `s${seed} w${wave} [${shape}] STANDARD ${standard} < EASY ${easy}`)
+          .toBeGreaterThanOrEqual(easy - TOLERANCE_DECI);
+        expect(hard, `s${seed} w${wave} [${shape}] HARD ${hard} < STANDARD ${standard}`)
+          .toBeGreaterThanOrEqual(standard - TOLERANCE_DECI);
+
+        columns += 1;
+        if (rolled.some((p) => p.units.length > 1)) packColumns += 1;
+      }
+    }
+    // The sweep has to actually contain packs, or it proves nothing.
+    expect(columns).toBeGreaterThan(500);
+    expect(packColumns).toBeGreaterThan(100);
+  });
+
+  it('a PACK column is no more prone to an inversion than a solo-only one — packs add no jitter of their own', () => {
+    // The 2026-08-04 solve failed exactly here: pack columns inverted by up to
+    // 1170 deci while solo-only columns never exceeded the roster's own card
+    // variance. Both must now sit inside the SAME bound.
+    let worstPack = 0;
+    let worstSolo = 0;
+    for (const seed of WIDE_SEEDS) {
+      const { state, nodeIds } = combatNodesThrough(seed, 70);
+      for (const tiers of fightColumns(state, nodeIds)) {
+        const rolled = (['easy', 'standard', 'hard'] as const).map((opt) =>
+          rollEncounter({ ...state, currentNodeId: tiers[opt]! }));
+        const [easy, standard, hard] = rolled.map(encounterThreatDeci) as [number, number, number];
+        const worst = Math.max(easy - standard, standard - hard, easy - hard, 0);
+        if (rolled.some((p) => p.units.length > 1)) worstPack = Math.max(worstPack, worst);
+        else worstSolo = Math.max(worstSolo, worst);
+      }
+    }
+    expect(worstSolo).toBeLessThanOrEqual(TOLERANCE_DECI);
+    expect(worstPack).toBeLessThanOrEqual(TOLERANCE_DECI);
   });
 });
 

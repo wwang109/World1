@@ -719,14 +719,17 @@ export const PRICE = {
    *
    * 1.32 is a CEILING on the honest number, not the number itself, so pricing
    * exactly here errs on the side of NOT under-pricing (never the direction
-   * that re-opens the silent zero this closes): a pack roll that can't afford
-   * even level 1 of its taxed budget (`resolvePackMemberLevel`) silently
-   * falls back to solo, and that floor is a LEVEL GATE most of a run sits
-   * below, not a rare edge case — measured directly against the shipped
-   * curve, a pair only becomes affordable at monster level 9 (elite) / 17
-   * (normal), and a trio not until level 31 (elite) / 39 (normal); `level`
-   * tracks fight number 1:1 (`fightSpecFor`), so real play skews meaningfully
-   * more solo than 1.32 implies. Quantifying exactly how much more would mean
+   * that re-opens the silent zero this closes): a pack roll whose roster costs
+   * more than the node's whole PL budget (`resolvePackMemberLevel`) silently
+   * falls back to solo, and that floor is a LEVEL GATE the early game sits
+   * below, not a rare edge case — measured directly against the shipped curve,
+   * a pair only becomes affordable at monster level 3 (elite) / 11 (normal),
+   * and a trio not until level 13 (elite) / 21 (normal); `level` tracks fight
+   * number 1:1 (`fightSpecFor`), so real play still skews more solo than 1.32
+   * implies, by less than it did before the 2026-08-30 pack re-shape (which
+   * lowered those gates from 9/17 and 31/39 by retiring a double charge on the
+   * roster's boards — see the "BUDGET-DERIVED PACK MEMBERS" block in
+   * `src/run/encounter.ts`). Quantifying exactly how much more would mean
    * assuming a typical run's length — precisely the winrate-shaped tuning
    * input CLAUDE.md's "PL is the balance unit, not winrate" rule forbids — so
    * 1.32 stands as the honest, reproducible anchor built only from the game's

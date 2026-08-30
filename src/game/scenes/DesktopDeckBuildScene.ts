@@ -30,8 +30,9 @@ import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/Ru
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import {
   currentHeroAllocation, currentHeroLevel,
-  currentRunBagSlots, currentRunGemInventory, currentRunPieces, getActiveRun, retireActiveRun,
-  setCurrentRunBagSlots, setCurrentRunGemInventory, setCurrentRunPieces,
+  commitRunDeckEdit,
+  currentRunBagSlots, currentRunGemInventory, currentRunHeld, currentRunPieces, getActiveRun, retireActiveRun,
+  setCurrentRunBagSlots, setCurrentRunGemInventory, setCurrentRunHeld, setCurrentRunPieces,
 } from '../runStore';
 
 const SLOTS = 10;
@@ -62,7 +63,12 @@ interface ColLayout { top: number; colH: number; colW: number; rowH: number; gap
  * `run/loadout.ts` helpers and mutates `demoState` in place.
  */
 export class DesktopDeckBuildScene extends Phaser.Scene {
-  private hold: OwnedCard | null = null;
+  /** SANDBOX ONLY backing store for the TEMP HOLDING strip. In RUN context
+   *  the held card is `RunState.held` (persisted, survives a refresh) — see
+   *  the `hold` accessor below; the Sandbox never saves anything, so a scene
+   *  field is the whole story there, exactly as `demoState` is for the deck
+   *  and bag. */
+  private sandboxHold: OwnedCard | null = null;
   private pendingTrash: Source | null = null;
   /** Open MERGE? confirm dialog — set when a drag ends on another instance of
    *  the SAME skill at the SAME tier (see `canStackMerge`). Survives the
@@ -102,6 +108,12 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
   private set gemInventory(next: string[]) { if (this.runContext) setCurrentRunGemInventory(next); else demoState.gemInventory = next; }
   private get heroLevel(): number { return this.runContext ? currentHeroLevel() : demoState.heroLevel; }
   private get heroAllocation() { return this.runContext ? currentHeroAllocation() : demoState.heroAllocation; }
+  /** The TEMP HOLDING card — run state in run context, scene state in the
+   *  Sandbox. Same context split as `pieces`/`bagSlots` above, and the reason
+   *  it exists: a card on the strip is still OWNED, so in a run it has to be
+   *  persisted or a refresh deletes it. */
+  private get hold(): OwnedCard | null { return this.runContext ? currentRunHeld() : this.sandboxHold; }
+  private set hold(next: OwnedCard | null) { if (this.runContext) setCurrentRunHeld(next); else this.sandboxHold = next; }
 
   init(): void {
     // NOTE: re-renders happen via rerender() → rebuildScene(this), which
@@ -274,18 +286,65 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     return undefined;
   }
 
-  // ---------- moves (real demoState) ----------
+  // ---------- moves (real demoState / the active run) ----------
+
+  /** The deck + bag arrays with `src` taken OUT — pure, writes nothing. Every
+   *  move computes its removal through here so the removal and the card's new
+   *  home can be committed together (see `commitTransfer`). */
+  private without(src: Source): { pieces: OwnedBoardPiece[]; bagSlots: InventorySlot[] } {
+    return {
+      pieces: src.where === 'deck' ? this.pieces.filter((p) => p.instanceId !== src.instanceId) : this.pieces,
+      bagSlots: src.where === 'bag' ? this.bagSlots.map((card, i) => (i === src.index ? null : card)) : this.bagSlots,
+    };
+  }
+
+  /** A socketed gem the move would otherwise DESTROY. Only a deck piece can
+   *  carry one — neither the bag nor the holding strip has a socket — so a
+   *  deck source landing anywhere else pops its gem back to the pouch, the
+   *  same `displacedGem` idiom `stackMergePieces` already uses. `undefined`
+   *  (pouch untouched) when there is nothing to displace. */
+  private displacedGemPouch(src: Source): string[] | undefined {
+    if (src.where !== 'deck') return undefined;
+    const gem = this.pieces.find((p) => p.instanceId === src.instanceId)?.gem;
+    return gem ? [...this.gemInventory, gem.id] : undefined;
+  }
+
+  /**
+   * Commit ONE card move — the source removal and the card's new home land
+   * together. In run context that is a single persisted write
+   * (`commitRunDeckEdit`), so no snapshot that reaches storage can own the
+   * card in neither place; in the Sandbox it is the same in-memory
+   * assignments as before. `next.held` omitted means "derive it": a move OUT
+   * of the holding strip empties it, anything else leaves it alone.
+   */
+  private commitTransfer(src: Source, next: { pieces?: OwnedBoardPiece[]; bagSlots?: InventorySlot[]; gemInventory?: string[]; held?: OwnedCard | null }): void {
+    const removed = this.without(src);
+    const pieces = next.pieces ?? removed.pieces;
+    const bagSlots = next.bagSlots ?? removed.bagSlots;
+    const held = next.held === undefined ? (src.where === 'hold' ? null : this.hold) : next.held;
+    if (this.runContext) {
+      commitRunDeckEdit({ pieces, bagSlots, gemInventory: next.gemInventory, held });
+      return;
+    }
+    this.pieces = pieces;
+    this.bagSlots = bagSlots;
+    if (next.gemInventory) this.gemInventory = next.gemInventory;
+    this.hold = held;
+  }
 
   private removeSource(src: Source): void {
-    if (src.where === 'deck') this.pieces = this.pieces.filter((p) => p.instanceId !== src.instanceId);
-    else if (src.where === 'bag') this.bagSlots[src.index] = null;
+    if (src.where === 'deck') this.pieces = this.without(src).pieces;
+    else if (src.where === 'bag') this.bagSlots = this.without(src).bagSlots;
     else this.hold = null;
   }
 
+  /** Park `src` on the TEMP HOLDING strip. The card is STILL OWNED there —
+   *  in run context it moves to `RunState.held` in the SAME write that takes
+   *  it off the board/out of the bag, so a page refresh finds it on the strip
+   *  instead of deleting it (it used to live in this scene's field alone). */
   private toHold(src: Source): boolean {
     if (this.hold) return false;
-    this.removeSource(src);
-    this.hold = { ...src.card };
+    this.commitTransfer(src, { held: { ...src.card }, gemInventory: this.displacedGemPouch(src) });
     return true;
   }
 
@@ -556,11 +615,14 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const others = this.pieces.map((p) => ({ id: p.instanceId, start: p.slot, size: this.sizeOf(p.skillId) }));
     const plan = shiftInsert(others, size, preferRow, SLOTS);
     if (!plan) return false;
-    this.removeSource(src);
-    this.pieces = this.pieces
+    // `src` is a BAG or HOLDING card here (a deck source took the branch
+    // above), so `this.pieces` still reads correctly pre-removal — the
+    // removal rides along in the same `commitTransfer` write.
+    const nextPieces = this.pieces
       .map((p) => { const moved = plan.moved.find((item) => item.id === p.instanceId); return moved ? { ...p, slot: moved.start } : p; })
       .concat({ instanceId: src.card.instanceId, skillId: src.card.skillId, tier: src.card.tier, slot: plan.movedStart })
       .sort((a, b) => a.slot - b.slot);
+    this.commitTransfer(src, { pieces: nextPieces });
     return true;
   }
 
@@ -587,7 +649,10 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       ? [{ id: String(index), start: index, size: this.sizeOf(card.skillId) }] : []);
     const plan = shiftInsert(others, size, preferRow, SLOTS);
     if (!plan) return false;
-    this.removeSource(src);
+    // `src` is a DECK or HOLDING card here (a bag source took the branch
+    // above), so `this.bagSlots` still reads correctly pre-removal — the
+    // removal rides along in the same `commitTransfer` write, and a deck
+    // source's socketed gem returns to the pouch instead of vanishing.
     const next: Array<OwnedCard | null> = Array(SLOTS).fill(null);
     for (const item of this.bagSlots) {
       if (!item) continue;
@@ -596,7 +661,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       if (moved) next[moved.start] = item;
     }
     next[plan.movedStart] = { ...src.card };
-    this.bagSlots = next;
+    this.commitTransfer(src, { bagSlots: next, gemInventory: this.displacedGemPouch(src) });
     return true;
   }
 

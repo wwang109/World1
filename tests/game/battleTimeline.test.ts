@@ -327,7 +327,7 @@ describe('game/battleTimeline', () => {
 
     it('names the PHYSICAL defensive stat DEF and a flat aura/gem bonus SKILL', () => {
       const line = lines.find((l) => l.text.includes('+30 HP'));
-      expect(line!.detail).toBe('H: base 20 + (6 DEF) + (4 SKILL) = 30');
+      expect(line!.detail).toBe('H: base 20 + (6 DEF) + (4 BONUS) = 30');
       expect(line!.detail).not.toContain('ATK');
     });
 

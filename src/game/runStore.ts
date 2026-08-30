@@ -43,6 +43,7 @@ import {
   type MergeTarget,
   type RunBagSlot,
   type RunBoardPiece,
+  type RunCard,
   type RunNode,
   type RunNodeKind,
   type RunShopShelf,
@@ -593,6 +594,51 @@ export function currentRunBagSlots(): RunBagSlot[] {
 export function setCurrentRunBagSlots(bagSlots: RunBagSlot[]): void {
   if (!activeRun) return;
   setActiveRun({ ...activeRun, bagSlots });
+}
+
+/** The card parked on the Deck Build TEMP HOLDING strip, or null (also null
+ * with no active run). Persisted like everything else on `RunState` — see
+ * `RunState.held`. */
+export function currentRunHeld(): RunCard | null {
+  return activeRun?.held ?? null;
+}
+
+/** Replaces the held card (null empties the strip). No-op with no active run. */
+export function setCurrentRunHeld(held: RunCard | null): void {
+  if (!activeRun) return;
+  setActiveRun({ ...activeRun, held });
+}
+
+/** One card move's worth of run state — any subset of the four places a Deck
+ * Build drag can move a card between. */
+export interface RunDeckEdit {
+  pieces?: RunBoardPiece[];
+  bagSlots?: RunBagSlot[];
+  gemInventory?: string[];
+  held?: RunCard | null;
+}
+
+/**
+ * Apply a whole Deck Build move in ONE persisted write.
+ *
+ * The deck scenes' TEMP HOLDING bug was not only "the held card wasn't in
+ * `RunState`" — it is also structurally wrong to persist a card's REMOVAL
+ * and its new home as two separate saves, because the snapshot in between
+ * owns neither. Every hold-involving move therefore commits through here:
+ * the board/bag removal and the held card land in the same `setActiveRun`,
+ * so no state that ever reaches storage is missing the card.
+ *
+ * Omitted keys are left as they are; `held: null` explicitly empties the
+ * strip (it is a real value, not "unchanged").
+ */
+export function commitRunDeckEdit(edit: RunDeckEdit): void {
+  if (!activeRun) return;
+  const next: RunState = { ...activeRun };
+  if (edit.pieces) next.pieces = edit.pieces;
+  if (edit.bagSlots) next.bagSlots = edit.bagSlots;
+  if (edit.gemInventory) next.gemInventory = edit.gemInventory;
+  if ('held' in edit) next.held = edit.held ?? null;
+  setActiveRun(next);
 }
 
 /** The run's current gem pouch (ids, may repeat). Empty with no active run. */

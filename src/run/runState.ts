@@ -21,6 +21,7 @@ import {
   PACK_SIZE,
   PACK_VARIANT_WEIGHTS,
   resolvePackMemberLevel,
+  resolvePackRosterLevel,
   TITLE_PRESETS,
   type EncounterPack,
   type EncounterUnit,
@@ -152,6 +153,29 @@ export interface RunState {
   currentNodeId: string | null;
   pieces: RunBoardPiece[];
   bagSlots: RunBagSlot[];
+  /**
+   * The ONE card parked on the Deck Build screens' TEMP HOLDING strip, or
+   * null/absent when the strip is empty. It is a THIRD place a run card can
+   * be owned, alongside `pieces` and `bagSlots` — the player put it there
+   * mid-rearrange and it is still theirs, so it belongs in run state rather
+   * than in a scene field (it used to live only in `MobileDeckBuildScene`/
+   * `DesktopDeckBuildScene`'s own `hold`, which meant a page refresh deleted
+   * the card outright: the board/bag removal persisted, the card itself did
+   * not).
+   *
+   * No gem: the holding strip has no socket, so a gemmed board piece pops its
+   * gem back to `gemInventory` on the way in (the same `displacedGem` idiom
+   * `stackMergePieces` uses) — a held card is a plain `RunCard`.
+   *
+   * OPTIONAL, exactly like `eventThemeBags` below: absent means "nothing
+   * held", so an in-progress save written before this field existed loads
+   * unchanged and needs no schema bump (`src/meta/runSave.ts`).
+   *
+   * Deliberately NOT part of the board: it is not equipped, contributes no
+   * PL, and is invisible to `findMergeTarget`/shop merge scans, exactly like
+   * the pre-existing behaviour of a card sitting on the strip.
+   */
+  held?: RunCard | null;
   gemInventory: string[];
   nextCardInstanceId: number;
   /** Per-shop-NODE persisted shelf (bought offers stay gone; REROLL replaces
@@ -436,6 +460,7 @@ export function createRun(seed: number): RunState {
     currentNodeId: null,
     pieces: [],
     bagSlots: [],
+    held: null,
     gemInventory: [],
     nextCardInstanceId: 1,
     shopShelves: {},
@@ -590,18 +615,24 @@ function rollPackVariant(rng: Rng): PackVariant {
  * (repeated calls for the same node return the identical encounter). Throws
  * if the current node isn't a combat node (e.g. mid-shop, mid-event, or idle).
  *
- * PACK FIGHTS (2026-08-04, re-priced onto PL budgets 2026-08-04): non-boss
- * fight nodes first roll a `PackVariant` (`rollPackVariant`) — BOSS nodes,
- * and any fight node before `MIN_PACK_FIGHT_NUMBER` (the very first fight is
- * ALWAYS solo — see `encounter.ts`'s early-gate doc comment), skip that roll
- * entirely and are always `'solo'`, so those enemy picks stay byte-identical
- * to before packs existed. For a pack roll, `resolvePackMemberLevel`
- * (`encounter.ts`) solves the ONE shared member level whose total pack threat
- * (stat PL + board PL, taxed by `PACK_ACTION_ECONOMY_TAX_PCT` per extra
- * member) lands on the node's solo-equivalent PL budget — see the "BUDGET-
- * DERIVED PACK MEMBERS" block in `encounter.ts` for the full model and
- * worked rationale. If that solve can't even afford level 1 within its
- * share, the roll FALLS BACK TO SOLO (never ships an over-budget pack). Each
+ * PACK FIGHTS (2026-08-04, re-priced onto PL budgets 2026-08-04, re-shaped
+ * 2026-08-30): non-boss fight nodes first roll a `PackVariant`
+ * (`rollPackVariant`) — BOSS nodes, and any fight node before
+ * `MIN_PACK_FIGHT_NUMBER` (the very first fight is ALWAYS solo — see
+ * `encounter.ts`'s early-gate doc comment), skip that roll entirely and are
+ * always `'solo'`, so those enemy picks stay byte-identical to before packs
+ * existed. For a pack roll, `resolvePackMemberLevel` (`encounter.ts`) solves
+ * the ONE shared member level at which the roster's total threat — K bodies'
+ * stat PL plus the K boards and K modifier auto-spends they ship
+ * (`packRosterCostDeci`) — lands on the node's own solo PL budget
+ * (`soloThreatDeci`). The K-1 extra boards ARE the pack's action economy and
+ * they are bought out of that budget at list price; there is no percentage
+ * tax any more (the 2026-08-04 one charged for them twice and collapsed
+ * member level to LV1-14 regardless of wave — see the "BUDGET-DERIVED PACK
+ * MEMBERS" block in `encounter.ts` for the full model and worked rationale).
+ * If the roster's fixed cost alone would exceed the node's budget — not even
+ * level 1 fits — the roll FALLS BACK TO SOLO (never ships an over-budget
+ * pack). Each
  * pack member then rolls its OWN enemy id independently (can repeat) from the
  * SAME node Rng, at the solved level and `capPackTitle(entry.title)`
  * (mob/normal only — no elite/boss packs in v1); a `'hard'` fight-option's +1
@@ -706,11 +737,28 @@ export function rollEncounter(state: RunState): EncounterPack {
   // `resolvePackMemberLevel`'s member-deck term above matches that exactly.
   const unitAffix = memberTitle === 'elite' ? nodeAffix : null;
 
-  const units: EncounterUnit[] = [];
+  // THE DRAWS COME FIRST, THE EXACT LEVEL SECOND (2026-08-30). Every enemy id
+  // is drawn here, in the SAME order and count as before — the pool a slot
+  // indexes into never depended on the member level, and the pack/solo
+  // decision (the only thing that changes how many draws a node spends) was
+  // already settled above by the generic solve. With the roster known, the
+  // pack's level is re-solved against the boards it ACTUALLY ships
+  // (`resolvePackRosterLevel`), which retires the worst-case deck hedge that
+  // was costing a deep pack up to a fifth of its budget in cards it never
+  // fielded. It can only raise the level, never lower it — see the
+  // "BUDGET-DERIVED PACK MEMBERS" block in `encounter.ts`.
+  const enemyIds: string[] = [];
   for (let i = 0; i < size; i++) {
     const drawPool = i === 0 ? anchorPool : fillerPool;
-    const enemyId = drawPool[rng.int(drawPool.length)]!;
-    units.push(buildEnemyEncounter(enemyId, memberLevel, memberTitle, rank, entry.modifiers, unitAffix));
+    enemyIds.push(drawPool[rng.int(drawPool.length)]!);
+  }
+  if (size > 1) {
+    memberLevel = resolvePackRosterLevel(enemyIds, entry.level, entry.title, entry.modifiers, nodeAffix) ?? memberLevel;
+  }
+
+  const units: EncounterUnit[] = [];
+  for (let i = 0; i < size; i++) {
+    units.push(buildEnemyEncounter(enemyIds[i]!, memberLevel, memberTitle, rank, entry.modifiers, unitAffix));
   }
   return { variant, units };
 }
