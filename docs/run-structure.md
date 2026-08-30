@@ -224,15 +224,37 @@ only balance currency (see the comment block in `src/run/shop.ts`).
   level-over-hero + modifier count per foe, + extra-foe count). In run
   context a LOSS credits 0 fight gold (`resolveRunBattleResult`); the
   Sandbox's loss-still-pays-base behavior is unchanged.
-- **Prices**: cards by offered tier via `GOLD_PRICE_BY_TIER` (bronze 2 …
-  diamond 5, shop `priceDelta` folded by `goldPriceOfCardForShop`, floored at
-  1); gems via `goldPriceOfGem` (monotonic in the gem's own PL, one rung per
-  rarity band) — Common 1, Rare 2, Epic 3, Legendary 4 gold, each rung a flat
-  20 deci-PL/gold (Legendary bumped from 3, 2026-08-09: the 46→35 gem
-  migration left Legendary as a genuinely build-defining band, resonant_echo/
-  the Echo among them. Epic split out of the shared Rare/Epic rung,
-  2026-08-18: the shared rung had priced Epic at 30 deci-PL/gold, a 1.5x
-  outlier against the flat 20 everywhere else in the gold economy).
+- **BASE prices**: cards by offered tier via `GOLD_PRICE_BY_TIER` (bronze 2 …
+  diamond 5, shop `priceDelta` folded by `goldPriceOfCardForShop`); gems via
+  `goldPriceOfGem` (monotonic in the gem's own PL, one rung per rarity band) —
+  Common 1, Rare 2, Epic 3, Legendary 4 gold, each rung a flat 20 deci-PL/gold
+  (Legendary bumped from 3, 2026-08-09: the 46→35 gem migration left Legendary
+  as a genuinely build-defining band, resonant_echo/the Echo among them. Epic
+  split out of the shared Rare/Epic rung, 2026-08-18: the shared rung had
+  priced Epic at 30 deci-PL/gold, a 1.5x outlier against the flat 20 everywhere
+  else in the gold economy).
+- **Depth price scaling** (2026-08-30): every SHOP-side gold number — card
+  offers, gem offers and the REROLL toll — is the base above times
+  `priceScaleNum(wave) / PRICE_SCALE_DEN` (`src/run/shop.ts`), round-half-up,
+  keyed off the shop node's OWN wave (not the saturating
+  `shopStockDepthForWave` band). x1.0 through wave 5 · x3.0 at wave 25 · x6.0
+  at wave 100 · x10.0 at 200, and never flat. WHY: measured over real runs, a
+  run's income is essentially FLAT past wave 40 (~11 gold/wave) while spend
+  capacity is capped by the shelf, the 10-slot bag and the diamond merge
+  ceiling — so a small surplus banks every wave, forever. On the old flat table
+  that integrated to ~155 gold by wave 100 against a ~25-gold shelf: every
+  offer on every shelf affordable, and the shop stopped asking a question. A
+  higher flat table only moves the depth at which that happens. Gold remains an
+  economy-pacing knob, NOT a PL/balance number — `PRICE`/`TIER_BUDGET_DECI`/
+  `EFFECT_CAPS_DECI` are untouched. Invariants pinned in
+  `tests/run/depthPricing.test.ts`.
+- **Sell-back does NOT scale** — see "Selling" below.
+- **Event `choice.cost` does NOT scale** (deliberate, 2026-08-30): an event
+  toll is priced against a wave's INCOME, and income is flat, so a 2-gold toll
+  is the same ~25-35% bite of a shop-bound wallet at wave 100 as at wave 5 once
+  the shelf side stops hoarding. Scaling it too would double-tax the same flat
+  income, invert every authored gold-for-gold gamble (`stake 2 → get 3`), and
+  falsify the 32 catalog labels that state their own price in prose.
 
 ## Shops (`src/run/shop.ts`, themes in `src/data/shopTypes.ts`)
 
@@ -248,9 +270,10 @@ only balance currency (see the comment block in `src/run/shop.ts`).
   floor).
 - **Theme no-repeat**: draw-without-replacement bag per run, reshuffled when
   empty (shared `runMap.ts` logic).
-- **Stock**: `rollShopStock(shopId, seed, depth, rarityGated)` —
-  deterministic; REROLL costs 1 gold and re-rolls the same theme's shelf
-  (`baseSeed + rerollCount`). Tier split shifts with depth (depths 1-3 →
+- **Stock**: `rollShopStock(shopId, seed, depth, rarityGated, priceWave)` —
+  deterministic; REROLL costs `rerollCostForNode` (escalating `1 + rerollCount`
+  per node, then depth-scaled by the shop node's wave) and re-rolls the same
+  theme's shelf (`baseSeed + rerollCount`). Tier split shifts with depth (depths 1-3 →
   70/25/5 bronze/silver/gold · 4-6 → 45/45/10 · 7-9 → 25/55/20; Diamond never
   appears in shops). Sandbox callers omit depth and get 70/25/5 unchanged.
 - **Gem rarity distribution** (2026-08-09, gem ruleset v1 §9.6 + fork 5): a
@@ -272,9 +295,14 @@ only balance currency (see the comment block in `src/run/shop.ts`).
 - Per-NODE shelves persist in `RunState.shopShelves` (bought offers stay
   gone; reload-safe).
 - **Selling** (2026-08-04): `sellRunCard(state, 'board'|'bag', index)` /
-  `sellRunGem(state, pouchIndex)` — the reverse of a purchase. Half-price,
-  rounded down, floored at 1 gold (`sellPriceOfCard`/`sellPriceOfGem`,
-  `src/run/shop.ts`); a sold board piece's socketed gem returns to
+  `sellRunGem(state, pouchIndex)` — the reverse of a purchase. Half of the BASE
+  price, rounded down, floored at 1 gold (`sellPriceOfCard`/`sellPriceOfGem`,
+  `src/run/shop.ts`), and — unlike the buy side — NOT depth-scaled
+  (2026-08-30): sell-back is a scrap value, not a market price. A sell price
+  that tracked the current wave would let a run buy cheap early and cash out
+  dear deep, and the gem pouch is uncapped, so that pump would be unbounded.
+  Keeping it constant also makes "sell can never exceed buy" structural — buy
+  is non-decreasing in wave, sell is constant — at every depth, theme and tier; a sold board piece's socketed gem returns to
   `gemInventory` rather than being destroyed. Sold items do NOT return to any
   shelf — REROLL pricing/behavior is unaffected. Sandbox mirror:
   `sellCard`/`sellGem` in `src/game/shopActions.ts` (credits gold for

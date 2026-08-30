@@ -94,13 +94,128 @@ export function goldPriceOfCard(tier: SkillTier): number {
   return GOLD_PRICE_BY_TIER[tier];
 }
 
+// ---------------------------------------------------------------------------
+// DEPTH PRICE SCALING (2026-08-30) — the tables above are BASE prices, i.e.
+// the prices at the top of the ladder's first waves. Every SHOP-side gold
+// number (card offers, gem offers, the REROLL toll) is then multiplied by
+// `priceScaleNum(wave) / PRICE_SCALE_DEN` before it is charged or shown.
+//
+// STILL AN ECONOMY-PACING KNOB, NOT A PL NUMBER. A card's Power Level does
+// not move with depth; what a wave charges in GOLD for it does. `PRICE`,
+// `TIER_BUDGET_DECI` and `EFFECT_CAPS_DECI` (src/engine/balance.ts) are
+// untouched by this file, before and after.
+//
+// WHY THE LADDER NEEDS A CURVE AND NOT A BIGGER FIXED TABLE. Measured over
+// 25 real runs walked to wave 100 through this module + runState + events
+// (the "aggressive buyer" walk: buys every affordable offer cheapest-first,
+// merges when the bag is full, rerolls while it can), the run's EARNING
+// curve is essentially FLAT past wave 40 — 7.0 gold/wave at wave 5, 9.3 at
+// 20, 10.9 at 40, 11.0 at 60, 10.6 at 100 (DAILY_INCOME once per node, plus
+// `battleGoldReward`'s base 1 + a win bonus capped at 3, plus event grants).
+// Spend capacity, however, is capped by the shelf (6 cards / 5 gems), by the
+// 10-slot bag and by the diamond ceiling on merges, so a run banks a small
+// surplus EVERY wave, forever. Under the old flat table that surplus
+// integrated into a wallet of ~155 gold by wave 100 against a ~25-gold
+// shelf: 100% of every shelf affordable, and the shop stopped asking a
+// question. A flat table set higher only moves the depth at which that
+// happens; the surplus is structural, so the price of a shelf has to be a
+// function of depth or it is outgrown by arithmetic.
+//
+// THE SHAPE, DERIVED FROM THE WALLET (not from a winrate — see
+// docs/design-locked.md). Once prices scale at all, the wallet stops running
+// away and settles: measured gold-on-arrival at a shop is ~7 at wave 5, then
+// ~30-50 from wave 20 onward, flat. So the curve has two segments:
+//   • RAMP (waves 5 -> 25, +10% of base per wave, x1 -> x3) tracks the
+//     wallet's own climb out of the opening waves, where a run goes from
+//     ~7 gold to its ~35-gold steady state.
+//   • CREEP (wave 25 onward, +4% of base per wave, forever) is the restoring
+//     force. The steady state is only stable while prices out-run whatever
+//     residual surplus a given build banks; the creep guarantees that any
+//     hoard, from any build, is eventually taxed, at every depth — which a
+//     fixed table by definition cannot do.
+// Waves 1-5 are left at exactly the base table: the opening is the part of
+// the economy that already reads correctly (~40% of a shelf affordable, a
+// whole shelf almost never), and it is the calibration target the rest of
+// the curve is holding.
+//
+// SELL-BACK DOES NOT SCALE, ON PURPOSE — see `sellPriceOfCard`/
+// `sellPriceOfGem` below.
+// ---------------------------------------------------------------------------
+
+/** Denominator of the depth price multiplier. Prices are integers, so this is
+ * also the resolution of the curve: one `PRICE_SCALE_*` step is 1/50 of a
+ * card's base price. */
+export const PRICE_SCALE_DEN = 50;
+
+/** Last wave charged at exactly the base table (the opening the curve is
+ * calibrated against). */
+export const PRICE_RAMP_START_WAVE = 5;
+/** Wave the ramp segment ends on — `priceScaleNum` is exactly 3x here. */
+export const PRICE_RAMP_END_WAVE = 25;
+/** Ramp slope, in `PRICE_SCALE_DEN`ths of base per wave (5/50 = +10%/wave). */
+const PRICE_RAMP_PER_WAVE = 5;
+/** Creep slope past the ramp, in `PRICE_SCALE_DEN`ths of base per wave
+ * (2/50 = +4%/wave). Never zero — the ladder is endless, so the curve is. */
+const PRICE_CREEP_PER_WAVE = 2;
+
 /**
- * Card price with a shop's `priceDelta` markup/discount folded in (floored at
- * 1 gold so a discount can never make a card free). Omitted `priceDelta` ->
- * `goldPriceOfCard(tier)` byte-identically (today's behavior).
+ * Numerator of the depth price multiplier at `wave`, over `PRICE_SCALE_DEN`.
+ * Integer-only and monotonically non-decreasing, with no upper bound.
+ * x1.0 through wave 5 · x3.0 at wave 25 · x6.0 at wave 100 · x10.0 at 200.
  */
-export function goldPriceOfCardForShop(tier: SkillTier, priceDelta = 0): number {
-  return Math.max(1, goldPriceOfCard(tier) + priceDelta);
+export function priceScaleNum(wave: number): number {
+  const w = Math.max(1, Math.floor(wave));
+  const ramp = Math.min(Math.max(0, w - PRICE_RAMP_START_WAVE), PRICE_RAMP_END_WAVE - PRICE_RAMP_START_WAVE);
+  const creep = Math.max(0, w - PRICE_RAMP_END_WAVE);
+  return PRICE_SCALE_DEN + PRICE_RAMP_PER_WAVE * ramp + PRICE_CREEP_PER_WAVE * creep;
+}
+
+/**
+ * `base` gold, charged at `wave`'s depth. Integer math, ROUND-HALF-UP (not
+ * ceil): ceil would turn a 1-gold Common gem into 2 gold the instant the
+ * multiplier left 1.000, which is a 100% jump on the cheapest thing in the
+ * game and would move wave-6 prices for no reason. Half-up means a price only
+ * moves when the curve has genuinely earned the point. Floored at 1 so
+ * nothing a shop sells is ever free. `wave` defaults to 1 (multiplier 1.0),
+ * so every caller that has no wave — the Sandbox, and every test that omits
+ * it — gets the base table byte-identically.
+ */
+export function scaledGoldPrice(base: number, wave = 1): number {
+  if (base <= 0) return 0;
+  const num = priceScaleNum(wave);
+  return Math.max(1, Math.floor((base * num + PRICE_SCALE_DEN / 2) / PRICE_SCALE_DEN));
+}
+
+/**
+ * Card price with a shop's `priceDelta` markup/discount folded in and the
+ * depth multiplier for `wave` applied. Omitted `priceDelta`/`wave` ->
+ * `goldPriceOfCard(tier)` byte-identically (today's behavior).
+ *
+ * ORDER: the theme's `priceDelta` is folded in BEFORE scaling, so a markup
+ * stays proportional at depth instead of decaying into rounding noise (the
+ * Black Market's +1 is +1 at wave 1 and +6 at wave 100, i.e. still "this
+ * shop is dearer", which is the theme's whole identity).
+ *
+ * THE FLOOR IS THE SELL PRICE, NOT 1 (2026-08-30). `d1ac673` closed the
+ * clamped-tier/lower-price exploit; the matching hole on the discount side
+ * was that a `priceDelta` of -2 or worse could put a Gold/Diamond card's BUY
+ * price (floored at 1) below its own `sellPriceOfCard` (2) — buy it, sell it,
+ * profit, at any depth. No shop in `shopTypes.ts` has a negative delta today,
+ * so this floor never binds on live data; it exists so that it cannot, ever,
+ * and `tests/run/depthPricing.test.ts` proves it across every theme, tier and
+ * wave. Sell-back does not scale, so scaling the buy side can only widen this
+ * gap, never close it.
+ */
+export function goldPriceOfCardForShop(tier: SkillTier, priceDelta = 0, wave = 1): number {
+  const listed = scaledGoldPrice(goldPriceOfCard(tier) + priceDelta, wave);
+  return Math.max(sellPriceOfCard(tier), listed);
+}
+
+/** Gem price at `wave`'s depth — `goldPriceOfGem` (PL/rarity-derived) run
+ * through the same depth multiplier the card side uses, floored at its own
+ * sell-back price for the same no-arbitrage reason. */
+export function goldPriceOfGemForShop(gemId: string, wave = 1): number {
+  return Math.max(sellPriceOfGem(gemId), scaledGoldPrice(goldPriceOfGem(gemId), wave));
 }
 
 /**
@@ -152,7 +267,21 @@ export function goldPriceOfGem(gemId: string): 1 | 2 | 3 | 4 {
  * rounded down, floored at 1 gold. Does NOT fold a shop's `priceDelta` (a
  * sold card doesn't belong to any particular shop's markup/discount — it's
  * priced off the tier alone, the same table every shop's buy price derives
- * from before that shop's own delta is applied). */
+ * from before that shop's own delta is applied).
+ *
+ * AND IT DOES NOT SCALE WITH DEPTH (2026-08-30), unlike the buy side. This
+ * is the one asymmetry the depth curve deliberately introduces, and it is
+ * load-bearing: sell-back that scaled with the CURRENT wave would let a run
+ * buy inventory cheap at wave 20 and cash it out dear at wave 100 — and the
+ * gem pouch is uncapped, so that pump would be unbounded (buy Commons at x2.5
+ * all the way up, sell them at x6). Sell-back is a SCRAP value, not a market
+ * price: it is what the base table says the item was worth, forever. The
+ * consequence — selling converts less and less of a shelf's price back into
+ * gold as a run goes deep — is intended: gold must never be creatable by
+ * holding inventory, which is exactly the disease the depth curve is
+ * treating. It also makes the no-arbitrage invariant structural rather than
+ * tuned: buy price is non-decreasing in wave, sell price is constant in wave,
+ * so a gap that holds at wave 1 holds at every wave. */
 export function sellPriceOfCard(tier: SkillTier): number {
   return Math.max(1, Math.floor(goldPriceOfCard(tier) / 2));
 }
@@ -475,8 +604,19 @@ function offeredTierForCard(rng: Rng, skill: SkillDef, depth: number, tierBias?:
  * every rarity visible unconditionally, so it's the one caller that passes
  * `false` explicitly. Every real run call (`src/run/runState.ts`) always
  * passes an explicit `depth` and leaves `rarityGated` at its gated default.
+ *
+ * `priceWave` is the shop NODE'S OWN WAVE (`RunNode.wave`), and it is a
+ * separate argument from `depth` on purpose: `depth` is the
+ * `shopStockDepthForWave` BAND (1-3/4-6/7-9, saturating at 8 forever from
+ * wave 4 on) that shifts the tier/rarity split, while `priceWave` is the raw,
+ * unbounded wave number the depth PRICE curve reads (`priceScaleNum`). Using
+ * the band for pricing would be the bug this scaling exists to fix — a
+ * saturating input can only produce a fixed price table. Defaults to 1
+ * (multiplier x1.0), so the Sandbox and every wave-less test caller keep the
+ * base table byte-identically. Pricing spends NO `rng` draw: it is arithmetic
+ * on the tier/gem a draw already resolved, so the call order is unchanged.
  */
-export function rollShopStock(shopId: string, seed: number, depth = 1, rarityGated = true): ShopStock {
+export function rollShopStock(shopId: string, seed: number, depth = 1, rarityGated = true, priceWave = 1): ShopStock {
   const shop = shopCatalog[shopId];
   if (!shop) throw new Error(`rollShopStock: unknown shop id "${shopId}"`);
   const rng = new Rng(hashSeed('shop', shopId, seed));
@@ -492,13 +632,13 @@ export function rollShopStock(shopId: string, seed: number, depth = 1, rarityGat
     // keyed off tier, so pricing off the roll would sell a clamped Gold card at
     // the Bronze price.
     const tier = offeredTierForCard(rng, skill, depth, shop.tierBias);
-    cards.push({ skillId: skill.id, tier, price: goldPriceOfCardForShop(tier, shop.priceDelta) });
+    cards.push({ skillId: skill.id, tier, price: goldPriceOfCardForShop(tier, shop.priceDelta, priceWave) });
   }
 
   const gemPoolFull = gemPoolForShop(shopId);
   const gemPool = rarityGated ? gemPoolFull.filter((g) => gemRarityEligible(g.rarity, depth)) : gemPoolFull;
   const pickedGems = sampleGemsWeighted(rng, gemPool, shop.shelf.gems);
-  const gems: GemOffer[] = pickedGems.map((gem) => ({ gemId: gem.id, price: goldPriceOfGem(gem.id) }));
+  const gems: GemOffer[] = pickedGems.map((gem) => ({ gemId: gem.id, price: goldPriceOfGemForShop(gem.id, priceWave) }));
 
   return { shopId, seed, cards, gems };
 }

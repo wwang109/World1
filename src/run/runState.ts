@@ -45,6 +45,7 @@ import { Rng } from '../engine/rng';
 import {
   findMergeTarget,
   rollShopStock,
+  scaledGoldPrice,
   sellPriceOfCard,
   sellPriceOfGem,
   type CardOffer,
@@ -911,7 +912,7 @@ export function ensureRunShopShelf(state: RunState, nodeId: string): RunState {
   if (!node || node.kind !== 'shop' || !node.shopId || node.shopSeed === undefined) {
     throw new Error(`ensureRunShopShelf: "${nodeId}" is not a shop node`);
   }
-  const rolled = rollShopStock(node.shopId, node.shopSeed, shopStockDepthForWave(node.wave));
+  const rolled = rollShopStock(node.shopId, node.shopSeed, shopStockDepthForWave(node.wave), true, node.wave);
   const shelf: RunShopShelf = { cards: [...rolled.cards], gems: [...rolled.gems], rerollCount: 0 };
   return { ...state, shopShelves: { ...state.shopShelves, [nodeId]: shelf } };
 }
@@ -929,13 +930,24 @@ export function ensureRunShopShelf(state: RunState, nodeId: string): RunState {
  * pool/odds. Resets to 1 at the NEXT node automatically: `rerollCount` is
  * keyed per-node in `state.shopShelves`, never carried across nodes.
  *
+ * DEPTH-SCALED (2026-08-30) by the SAME curve the shelf's own prices use
+ * (`scaledGoldPrice`, src/run/shop.ts), against the shop node's own wave. A
+ * reroll that stayed 1 gold while a shelf climbed to six times the base table
+ * would be the free action the shelf no longer is — the auditor's wave-41 run
+ * held 382 gold against a 1-gold reroll, which is not a decision. Waves 1-5
+ * are still exactly 1, 2, 3, 4… (the curve is x1.0 there), so a player's early
+ * rerolls are byte-identical to before.
+ *
  * Exported so both shop scenes (`src/game/scenes/{Desktop,Mobile}ShopScene`)
  * can read the LIVE price for their button label/affordability check instead
  * of a hardcoded 1 — see `rerollRunShop`'s own doc comment for why this
- * matters.
+ * matters. That is also what keeps the label honest at depth: there is ONE
+ * reroll price, and it is this function.
  */
 export function rerollCostForNode(state: RunState, nodeId: string): number {
-  return 1 + (state.shopShelves[nodeId]?.rerollCount ?? 0);
+  const base = 1 + (state.shopShelves[nodeId]?.rerollCount ?? 0);
+  const node = findNode(state.map, nodeId);
+  return scaledGoldPrice(base, node?.wave ?? 1);
 }
 
 /** REROLL: costs `rerollCostForNode(state, nodeId)` gold (escalating 1, 2, 3,
@@ -952,7 +964,7 @@ export function rerollRunShop(state: RunState, nodeId: string): RunState {
   const cost = rerollCostForNode(state, nodeId);
   if (state.gold < cost) return state;
   const nextCount = (state.shopShelves[nodeId]?.rerollCount ?? 0) + 1;
-  const rolled = rollShopStock(node.shopId, node.shopSeed + nextCount, shopStockDepthForWave(node.wave));
+  const rolled = rollShopStock(node.shopId, node.shopSeed + nextCount, shopStockDepthForWave(node.wave), true, node.wave);
   const shelf: RunShopShelf = { cards: [...rolled.cards], gems: [...rolled.gems], rerollCount: nextCount };
   return {
     ...state,

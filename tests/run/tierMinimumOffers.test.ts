@@ -419,7 +419,17 @@ describe('owned instances', () => {
             // as bronze, and resolved in combat as gold.
             expect(funded.gold - bought.state.gold, `${offer.skillId} gold paid`).toBe(offer.price);
             expect(banked.tier, `${offer.skillId} banked tier`).toBe(offer.tier);
-            expect(offer.price, `${offer.skillId} priced as ${offer.tier}`).toBe(GOLD_PRICE_BY_TIER[offer.tier]);
+            // Depth-scaled since 2026-08-30 (`priceScaleNum`, src/run/shop.ts):
+            // the fact under test is still "priced at the CLAMPED tier, not the
+            // rolled one", so the expectation is that tier's price AT THIS
+            // NODE'S WAVE — not a wave-1 constant. The strict inequality below
+            // is the original trap restated depth-independently: a Gold/Diamond
+            // clamp must never be charged at the Bronze rung of the same wave.
+            const delta = shopCatalog[node.shopId!]?.priceDelta ?? 0;
+            expect(offer.price, `${offer.skillId} priced as ${offer.tier}`)
+              .toBe(goldPriceOfCardForShop(offer.tier, delta, node.wave));
+            expect(offer.price, `${offer.skillId} above the bronze rung at wave ${node.wave}`)
+              .toBeGreaterThan(goldPriceOfCardForShop('bronze', delta, node.wave));
             expect(whyUnofferable(banked.skillId, banked.tier)).toBeNull();
             state = bought.state;
           }
