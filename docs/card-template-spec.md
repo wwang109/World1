@@ -108,8 +108,11 @@ calm (per the locked anime-TCG art direction) so text reads over the scrim.
 
 ## 4. PNG asset manifest
 
-All template part PNGs live under **`public/game-art/template/`** (card art
-stays in `public/game-art/cards/`). All parts: PNG-24 with alpha, transparent
+All template part PNGs live under **`public/game-art/template/`** — these are
+tiny, loaded by name in `BootScene`, and have no WebP derivative, so they are
+the one PNG family that legitimately ships. Card art does NOT live here: its
+**masters** are in `art-src/cards/` (never served) and its **shipped**
+derivatives in `public/game-art/cards/` — see §4.1. All parts: PNG-24 with alpha, transparent
 background, **authored at exactly 2× the display canvas** so they stay crisp on
 high-DPI, optical center = canvas center, no baked outer drop shadows (the
 template owns shadows).
@@ -119,17 +122,45 @@ template owns shadows).
 | Type badge | `template/badge-{sword\|axe\|lance\|bow\|fangs\|fire\|frost\|lightning\|nature\|holy\|dark}.png` | 96 × 96 (80 × 80 accepted) | 48 × 48 | **Hexagonal plate** (pointy-top), beveled rim, emblem centered. The emblem MAY overflow the hexagon by ~10–15% (baked into the PNG; the renderer never clips badges) — but the artwork's bounding box stays inside the canvas and its optical center stays at canvas center. **All badges share the same 48×48 display size.** |
 | Archetype badge | `template/badge-{offense\|defensive\|healing\|support\|debuff}.png` | 96 × 96 (80 × 80 accepted) | 48 × 48 | **Octagonal plate** (flat top/bottom for clean stacking), same badge language and size as the type badge. |
 | Divider | `template/divider.png` | 600 × 16 | 300 × 8 | Symmetric ornament; horizontally centered flourish. Optional — the renderer draws a plain tier-colored rule when absent. |
-| Card art MASTER | `cards/<skill_id>.png` | preferred 1024 × 1536, min 840 × 1040 | never shipped | Authoring source only. File name is the **exact `SkillDef.id`** (e.g. `arcane_bolt.png`) so the art key is derivable — no hand-maintained name map, no `-anime`/`-spell` suffix variants. |
-| Card art SHIPPED | `cards/<skill_id>.webp` | max 1024 tall, WebP q82 (~95 KB) | cover-fit into `artFrame` | GENERATED from the master by `npm run art:encode` (`scripts/encode-card-art.ts`) — never hand-authored, never committed by hand. 1024 is 2.4× the tallest real draw (427 design px). Texture key: `card-art:<skill_id>`. **Not loaded at boot**: `cardArtLoader.ts` streams it on first use. |
+| Card art MASTER | `art-src/cards/<skill_id>.png` | preferred 1024 × 1536, min 840 × 1040 | never shipped | Authoring source only, and deliberately **outside `public/`** (see §4.1). File name is the **exact `SkillDef.id`** (e.g. `arcane_bolt.png`) so the art key is derivable — no hand-maintained name map, no `-anime`/`-spell` suffix variants. |
+| Card art SHIPPED | `public/game-art/cards/<skill_id>.webp` | max 1024 tall, WebP q82 (~95 KB) | cover-fit into `artFrame` | GENERATED from the master by `npm run art:encode` (`scripts/encode-card-art.ts`) — never hand-authored, but **committed** (§4.1). 1024 is 2.4× the tallest real draw (427 design px). Texture key: `card-art:<skill_id>`. **Not loaded at boot**: `cardArtLoader.ts` streams it on first use. |
 
-Deprecated once V2 assets land: `card-template-parts.png`,
-`card-template-parts-transparent.png` (monolithic sheets), the
+Deprecated once V2 assets land: `card-template-parts.png` (moved to
+`art-src/` 2026-08-30 — nothing loads it),
+`card-template-parts-transparent.png` (monolithic sheets; still loaded by
+`BootScene`), the
 suffixed card-art file names, and the procedurally drawn badge fallbacks in
 V1. Missing card art falls back to `cardArtPlaceholder.ts` — the card's own
 identity colour washed over the panel navy with its type badge ghosted in,
 NOT a neutral matte — and so does art that is still streaming, deliberately:
 "no art yet" and "art not here yet" must not be two different looks. Never a
 differently-positioned layout either way.
+
+### 4.1 Masters vs. shipped — `art-src/` is not served
+
+`vite build` copies `public/` **verbatim**. While the 1024×1536 PNG masters
+sat beside their derivatives, every deploy shipped 179 MB of art no code path
+requests (`dist` was 192 MB for a game that fetches ~13 MB). So:
+
+| | Masters | Shipped |
+|---|---|---|
+| Where | `art-src/cards/`, `art-src/placeholders/` | `public/game-art/**` |
+| Format | 1024×1536 PNG (cards), authored-size PNG (run art) | WebP |
+| Served by `vite build`? | **No** — outside `public/` | Yes |
+| In git? | **Yes** — tracked, never deleted, always re-encodable | **Yes** — see below |
+| Written by | a human / an image generator | `npm run art:encode` only |
+
+**The `.webp` under `public/game-art/` is GENERATED BUT COMMITTED.** It is not
+build output: `npm run build` does **not** run the encoder, because encoding
+drives a Chromium binary that neither `npm test` nor the Cloudflare Pages
+build has. Adding or changing card art is therefore a two-step commit — drop
+the master in `art-src/`, run `npm run art:encode`, and commit **both** the
+master and the `.webp` it wrote. Never hand-edit a `.webp`; re-encode it.
+
+`tests/game/cardArtBudget.test.ts` enforces both directions: every catalogue
+entry must resolve to a `.webp` that exists, and **no PNG master may appear
+under `public/`** (only the small `template/badge-*.png` chrome and
+`card-template-parts-transparent.png` are allowed there).
 
 Sizes here must equal `FANTASY_CARD_ASSET_RULES` (display-size values); update
 both together. Ready-to-use AI generation prompts (per-icon and sprite-sheet

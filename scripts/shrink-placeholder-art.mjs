@@ -3,6 +3,11 @@
  *
  *   node scripts/shrink-placeholder-art.mjs [--dry]
  *
+ * Operates on the PNG MASTERS in `art-src/placeholders/` (non-served). Follow
+ * it with `npm run art:encode` to regenerate the served
+ * `public/game-art/placeholders/*.webp`. Needs `sharp`, which is NOT a
+ * dependency of this repo — a historical one-off, kept for reference.
+ *
  * The generated placeholders land at generation resolution (1254² icons,
  * ~1672x941 scenes), which is 25-50x larger than anything actually renders at:
  * a 1.5 MB 1254x1254 icon is drawn into a 24px coin slot. All of it is loaded
@@ -21,7 +26,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
 
-const DIR = 'public/game-art/placeholders';
+const DIR = 'art-src/placeholders';
 const DRY = process.argv.includes('--dry');
 
 /** width -> target, chosen from the biggest slot each asset renders into. */

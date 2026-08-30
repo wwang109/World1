@@ -3,9 +3,12 @@
 //
 // Usage:  npx tsx scripts/gen-placeholder-art.ts
 //
-// Writes commit-ready PNGs into public/game-art/placeholders/. Each file's
-// path is the FINAL asset path — swapping in real art is a file replace (the
-// prompt for each real asset lives in docs/art-prompt-pack.md). Node built-ins
+// Writes commit-ready PNG MASTERS into art-src/placeholders/ — the non-served
+// master tree (`public/` is copied verbatim by `vite build`, so masters must
+// not live there). Each file's path is the FINAL master path: swapping in real
+// art is a file replace THEN `npm run art:encode`, which writes the served
+// public/game-art/placeholders/<file>.webp. No code change either way. (The
+// prompt for each real asset lives in docs/art-prompt-pack.md.) Node built-ins
 // only (zlib deflate + hand-rolled CRC32 over raw RGBA scanlines); no npm
 // deps, no Date/random — byte-identical output on every run.
 
@@ -177,7 +180,7 @@ const ALL: Asset[] = [...AREAS, ...CHOICE_ICONS, ...SHOP_FRONTS, ...MISC_ICONS];
 // ------------------------------------------------------------------------ run
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const outDir = join(root, 'public', 'game-art', 'placeholders');
+const outDir = join(root, 'art-src', 'placeholders');
 mkdirSync(outDir, { recursive: true });
 
 let total = 0;
@@ -188,4 +191,5 @@ for (const a of ALL) {
   total += png.length;
   console.log(`${a.file}  ${a.width}x${a.height}  ${png.length} B`);
 }
-console.log(`\n${ALL.length} placeholders -> public/game-art/placeholders/ (${total} B total)`);
+console.log(`\n${ALL.length} placeholders -> art-src/placeholders/ (${total} B total)`);
+console.log('run `npm run art:encode` to regenerate the served public/game-art/placeholders/*.webp');

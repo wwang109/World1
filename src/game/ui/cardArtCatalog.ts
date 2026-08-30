@@ -2,9 +2,13 @@
  * Card art catalogue — skill id -> the ONE texture key and the ONE file the
  * game loads for it. Nothing else in the codebase names a card-art path.
  *
- * The files are `.webp` DERIVATIVES, produced from the `.png` masters that
- * sit beside them by `scripts/encode-card-art.ts` (`npm run art:encode`):
- * max 1024 tall, WebP q82, ~95 KB each against the masters' ~2.3 MB. See
+ * The files are `.webp` DERIVATIVES, produced by `scripts/encode-card-art.ts`
+ * (`npm run art:encode`) from the `.png` masters in **`art-src/cards/`**:
+ * max 1024 tall, WebP q82, ~95 KB each against the masters' ~2.3 MB. The
+ * masters live OUTSIDE `public/` because `vite build` copies `public/`
+ * verbatim — while they sat beside their derivatives every deploy shipped
+ * 179 MB of PNG nothing fetches. The `.webp` here is generated but IS
+ * committed (encoding needs Chromium, which the build does not have). See
  * that script's header for why 1024 (2.4x the tallest real draw) and why the
  * masters are never modified.
  *
@@ -42,8 +46,9 @@ export const CARD_ART_CATALOG: Record<string, CardArtEntry> = {
   iron_bulwark: { textureKey: 'card-art:iron_bulwark_anime', fileName: 'iron-bulwark-anime.webp' },
   judgment_light: { textureKey: 'card-art:judgment_light_anime', fileName: 'judgment-light-anime.webp' },
   leeching_fang: { textureKey: 'card-art:leeching_fang_anime', fileName: 'leeching-fang-anime.webp' },
-  // lucky-charm-anime.png exists on disk but the 'lucky_charm' skill was
-  // removed 2026-07-23 — re-add the entry here if the card ever returns.
+  // NOTE: the 'lucky_charm' skill was removed 2026-07-23 and its art
+  // (lucky-charm-anime.png/.webp) was deleted with the 2026-08-30 art-src
+  // move — recover it from git history if the card ever returns.
   mana_ward: { textureKey: 'card-art:mana_ward_anime', fileName: 'mana-ward-anime.webp' },
   mending_light: { textureKey: 'card-art:mending_light_anime', fileName: 'mending-light-anime.webp' },
   prism_barrier: { textureKey: 'card-art:prism_barrier_anime', fileName: 'prism-barrier-anime.webp' },

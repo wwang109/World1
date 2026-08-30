@@ -11,7 +11,8 @@ export * from './runArtKeys';
 
 /**
  * Boot-time run art. The paths are `.webp` DERIVATIVES of the `.png` masters
- * beside them, produced by `scripts/encode-card-art.ts` (`npm run art:encode`)
+ * in `art-src/placeholders/` (non-served — `vite build` copies `public/`
+ * verbatim), produced by `scripts/encode-card-art.ts` (`npm run art:encode`)
  * at the masters' own dimensions — these are already authored at their draw
  * size, so only the container changed: 9.6 MB of PNG became 2.2 MB of WebP
  * with no resolution lost. Unlike card art this set stays EAGER: it is small

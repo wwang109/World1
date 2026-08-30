@@ -1,15 +1,30 @@
 /**
- * Art encoder — the derived-asset pipeline for `public/game-art`.
+ * Art encoder — the derived-asset pipeline that turns `art-src/` masters into
+ * the `public/game-art/` files the game actually streams.
  *
- * WHY THIS EXISTS. Card art shipped as 1024x1536 PNGs (~2.3 MB each) that no
- * screen ever draws larger than 260x427 design px. That is ~16x oversampled
+ * WHY THIS EXISTS. Card art was authored as 1024x1536 PNGs (~2.3 MB each) that
+ * no screen ever draws larger than 260x427 design px. That is ~16x oversampled
  * and in the wrong container: 72 files = 165 MB over the wire and ~450 MB of
- * VRAM if they all resolve to textures. This script turns each PNG master
- * into a right-sized WebP derivative the game actually loads.
+ * VRAM if they all resolve to textures. This script turns each PNG master into
+ * a right-sized WebP derivative the game actually loads.
  *
- * WHAT IT PRODUCES (masters are never modified, never deleted):
- *   public/game-art/cards/<name>.png        -> <name>.webp   (max 1024 tall)
- *   public/game-art/placeholders/<name>.png -> <name>.webp   (same size)
+ * WHERE THE FILES LIVE — masters are NOT served.
+ *   art-src/cards/<name>.png        -> public/game-art/cards/<name>.webp
+ *   art-src/placeholders/<name>.png -> public/game-art/placeholders/<name>.webp
+ *
+ * `art-src/` is deliberately OUTSIDE `public/`, because `vite build` copies
+ * `public/` verbatim: while the masters sat beside their derivatives, every
+ * deploy shipped 179 MB of PNG that no code path requests (`dist` was 192 MB).
+ * Masters are never modified and never deleted — they stay tracked in git so
+ * the derivatives can always be re-encoded.
+ *
+ * THE .webp OUTPUT IS COMMITTED. It is generated, but it is checked in, and
+ * that is on purpose: encoding needs a Chromium binary, and neither `npm test`
+ * nor the Cloudflare Pages build has one. `npm run build` therefore does NOT
+ * run this script — you run it by hand when a master changes, and you commit
+ * the .webp it writes alongside the master. `tests/game/cardArtBudget.test.ts`
+ * is the guard: it fails if a catalogue entry stops resolving to a .webp that
+ * exists on disk, and if a master ever reappears under `public/`.
  *
  * `MAX_HEIGHT = 1024` is 2.4x the tallest real draw (427 design px, the
  * desktop shop shelf's 260-wide card), so it still has retina headroom at a
@@ -29,21 +44,24 @@
  *   npm run art:encode -- --force   # re-encode everything
  *   npm run art:encode -- --group cards
  */
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { chromium } from 'playwright';
 
 interface Group {
   name: string;
-  dir: string;
+  /** PNG masters — non-served, never written to. */
+  srcDir: string;
+  /** WebP derivatives — served, and committed (see the header). */
+  outDir: string;
   /** 0 = keep the master's dimensions. */
   maxHeight: number;
   quality: number;
 }
 
 const GROUPS: Group[] = [
-  { name: 'cards', dir: 'public/game-art/cards', maxHeight: 1024, quality: 0.82 },
-  { name: 'placeholders', dir: 'public/game-art/placeholders', maxHeight: 0, quality: 0.84 },
+  { name: 'cards', srcDir: 'art-src/cards', outDir: 'public/game-art/cards', maxHeight: 1024, quality: 0.82 },
+  { name: 'placeholders', srcDir: 'art-src/placeholders', outDir: 'public/game-art/placeholders', maxHeight: 0, quality: 0.84 },
 ];
 
 /** Same resolution strategy as `scripts/shop-smoke.ts` — see that file. */
@@ -98,11 +116,12 @@ async function main(): Promise<void> {
   let skipped = 0;
 
   for (const group of groups) {
-    const files = readdirSync(group.dir).filter((f) => f.toLowerCase().endsWith('.png')).sort();
-    console.log(`\n== ${group.name} (${files.length} masters, ${group.dir}) ==`);
+    mkdirSync(group.outDir, { recursive: true });
+    const files = readdirSync(group.srcDir).filter((f) => f.toLowerCase().endsWith('.png')).sort();
+    console.log(`\n== ${group.name} (${files.length} masters, ${group.srcDir} -> ${group.outDir}) ==`);
     for (const file of files) {
-      const src = join(group.dir, file);
-      const out = join(group.dir, `${basename(file, '.png')}.webp`);
+      const src = join(group.srcDir, file);
+      const out = join(group.outDir, `${basename(file, '.png')}.webp`);
       const srcStat = statSync(src);
       masterBytes += srcStat.size;
       if (!force && existsSync(out) && statSync(out).mtimeMs >= srcStat.mtimeMs) {
