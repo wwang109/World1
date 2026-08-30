@@ -1,10 +1,9 @@
 import Phaser from 'phaser';
 import { type SkillDef, type SkillTier } from '../../engine/types';
 import { FONT, UI } from '../theme';
-import {
-  fantasyTemplateCardArtKey,
-  templateBadgeTextureKey,
-} from './cardArtPresentation';
+import { templateBadgeTextureKey } from './cardArtPresentation';
+import { buildCardArtPlaceholder } from './cardArtPlaceholder';
+import { whenCardArtReady } from './cardArtLoader';
 import { keywordTextColor, parseCardTextMarkup } from './cardTextMarkup';
 import {
   archetypeEntry,
@@ -260,26 +259,33 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
     const radius = this.px(spec.cornerRadius);
     const x = -halfW + artRegion.x;
     const y = -halfH + artRegion.y;
-    const fallback = scene.add.graphics();
-    fallback.fillStyle(0x1e2733, 1);
-    fallback.fillRoundedRect(x, y, artRegion.w, artRegion.h, radius);
-    fallback.fillStyle(model.skin.frameColor, 0.14);
-    fallback.fillRoundedRect(x + 6, y + 6, artRegion.w - 12, artRegion.h - 12, Math.max(4, radius - 6));
-    group.add(fallback);
 
-    const artKey = fantasyTemplateCardArtKey(model.skill);
-    if (artKey && scene.textures.exists(artKey)) {
-      // Geometry masks live in WORLD space, not container space: draw the mask
-      // at the container's world position and keep the graphics invisible.
-      // Track it (+ its card-local rect) so setPosition() can redraw it when
-      // the card moves — e.g. the wiki gallery scrolling its grid.
-      const maskShape = scene.add.graphics();
-      maskShape.fillStyle(0xffffff, 1);
-      maskShape.fillRoundedRect(this.x + x, this.y + y, artRegion.w, artRegion.h, radius);
-      maskShape.setVisible(false);
-      this.artMask = maskShape;
-      this.artMaskLocal = { x, y, w: artRegion.w, h: artRegion.h, r: radius };
-      this.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
+    // The clip is built UNCONDITIONALLY now, because the art region always has
+    // something in it: the placeholder first, then the real art on top of it
+    // whenever `cardArtLoader` delivers. Geometry masks live in WORLD space,
+    // not container space, so it is drawn at the container's world position
+    // and kept invisible; the card-local rect is tracked so setPosition() can
+    // redraw it when the card moves (e.g. the wiki gallery scrolling).
+    const maskShape = scene.add.graphics();
+    maskShape.fillStyle(0xffffff, 1);
+    maskShape.fillRoundedRect(this.x + x, this.y + y, artRegion.w, artRegion.h, radius);
+    maskShape.setVisible(false);
+    this.artMask = maskShape;
+    this.artMaskLocal = { x, y, w: artRegion.w, h: artRegion.h, r: radius };
+    this.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
+    const mask = maskShape.createGeometryMask();
+
+    // Placeholder — the card's own identity color + ghosted type badge. This
+    // replaces the flat 0x1e2733 slab that the 94 art-less skills used to get,
+    // and it is what a streaming card shows for the few frames before its
+    // texture lands. One look serves both cases on purpose.
+    const placeholder = buildCardArtPlaceholder(scene, model.skill, x, y, artRegion.w, artRegion.h);
+    placeholder.setMask(mask);
+    group.add(placeholder);
+
+    whenCardArtReady(scene, model.skill.id, (artKey) => {
+      // The card may have been destroyed while its art was in flight.
+      if (!this.scene || !group.scene) return;
       const image = scene.add.image(0, 0, artKey);
       const source = image.texture.getSourceImage() as { width: number; height: number };
       const fit = Math.max(artRegion.w / source.width, artRegion.h / source.height);
@@ -291,9 +297,11 @@ export class FantasyCardTemplateV2 extends Phaser.GameObjects.Container {
           ? y + artRegion.h - image.displayHeight / 2
           : y + artRegion.h / 2;
       image.setPosition(x + artRegion.w / 2, anchorY);
-      image.setMask(maskShape.createGeometryMask());
+      image.setMask(mask);
+      // Appended, so it covers the placeholder and nothing else: `group` is
+      // one child of the card, already at the right depth under the plate.
       group.add(image);
-    }
+    });
 
     return group;
   }

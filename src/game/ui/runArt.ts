@@ -9,41 +9,50 @@ import { RUN_ART_KEYS } from './runArtKeys';
 // the actual scene renderer.
 export * from './runArtKeys';
 
+/**
+ * Boot-time run art. The paths are `.webp` DERIVATIVES of the `.png` masters
+ * beside them, produced by `scripts/encode-card-art.ts` (`npm run art:encode`)
+ * at the masters' own dimensions — these are already authored at their draw
+ * size, so only the container changed: 9.6 MB of PNG became 2.2 MB of WebP
+ * with no resolution lost. Unlike card art this set stays EAGER: it is small
+ * now, and the run map / shop fronts are full-bleed backdrops where a
+ * placeholder would be conspicuous.
+ */
 export const RUN_ART_ASSETS = [
-  { key: RUN_ART_KEYS.shopBanner, path: '/game-art/placeholders/shop-banner.png' },
-  { key: RUN_ART_KEYS.runMap, path: '/game-art/placeholders/run-map.png' },
-  { key: RUN_ART_KEYS.icon.choiceCard, path: '/game-art/placeholders/icon-choice-card.png' },
-  { key: RUN_ART_KEYS.icon.choiceGamble, path: '/game-art/placeholders/icon-choice-gamble.png' },
-  { key: RUN_ART_KEYS.icon.choiceGem, path: '/game-art/placeholders/icon-choice-gem.png' },
-  { key: RUN_ART_KEYS.icon.choiceGold, path: '/game-art/placeholders/icon-choice-gold.png' },
-  { key: RUN_ART_KEYS.icon.choiceLevel, path: '/game-art/placeholders/icon-choice-level.png' },
-  { key: RUN_ART_KEYS.icon.choiceNothing, path: '/game-art/placeholders/icon-choice-nothing.png' },
-  { key: RUN_ART_KEYS.icon.coin, path: '/game-art/placeholders/icon-coin.png' },
-  { key: RUN_ART_KEYS.icon.lifeHeart, path: '/game-art/placeholders/icon-life-heart.png' },
-  { key: RUN_ART_KEYS.icon.bossSkull, path: '/game-art/placeholders/icon-boss-skull.png' },
-  { key: RUN_ART_KEYS.icon.storefront, path: '/game-art/placeholders/icon-storefront.png' },
-  { key: RUN_ART_KEYS.shop.armory, path: '/game-art/placeholders/shop-front-armory.png' },
-  { key: RUN_ART_KEYS.shop.wildworks, path: '/game-art/placeholders/shop-front-wildworks.png' },
-  { key: RUN_ART_KEYS.shop.arcanum, path: '/game-art/placeholders/shop-front-arcanum.png' },
-  { key: RUN_ART_KEYS.shop.sanctum, path: '/game-art/placeholders/shop-front-sanctum.png' },
-  { key: RUN_ART_KEYS.shop.alchemist, path: '/game-art/placeholders/shop-front-alchemist.png' },
-  { key: RUN_ART_KEYS.shop.gemcutter, path: '/game-art/placeholders/shop-front-gemcutter.png' },
-  { key: RUN_ART_KEYS.shop.caravan, path: '/game-art/placeholders/shop-front-caravan.png' },
-  { key: RUN_ART_KEYS.shop.bulwark, path: '/game-art/placeholders/shop-front-bulwark.png' },
-  { key: RUN_ART_KEYS.shop.assassins_den, path: '/game-art/placeholders/shop-front-assassins_den.png' },
-  { key: RUN_ART_KEYS.shop.relic_vault, path: '/game-art/placeholders/shop-front-relic_vault.png' },
-  { key: RUN_ART_KEYS.shop.emberworks, path: '/game-art/placeholders/shop-front-emberworks.png' },
-  { key: RUN_ART_KEYS.shop.frosthold, path: '/game-art/placeholders/shop-front-frosthold.png' },
-  { key: RUN_ART_KEYS.shop.stormspire, path: '/game-art/placeholders/shop-front-stormspire.png' },
-  { key: RUN_ART_KEYS.shop.grovekeep, path: '/game-art/placeholders/shop-front-grovekeep.png' },
-  { key: RUN_ART_KEYS.shop.reliquary, path: '/game-art/placeholders/shop-front-reliquary.png' },
-  { key: RUN_ART_KEYS.shop.umbral_stall, path: '/game-art/placeholders/shop-front-umbral_stall.png' },
-  { key: RUN_ART_KEYS.event.training, path: '/game-art/placeholders/area-hollow-yard.png' },
-  { key: RUN_ART_KEYS.event.cache, path: '/game-art/placeholders/area-silt-hollows.png' },
-  { key: RUN_ART_KEYS.event.recruit, path: '/game-art/placeholders/area-muster-road.png' },
-  { key: RUN_ART_KEYS.event.forge, path: '/game-art/placeholders/area-cinderworks.png' },
-  { key: RUN_ART_KEYS.event.market, path: '/game-art/placeholders/area-tolling-road.png' },
-  { key: RUN_ART_KEYS.event.omen, path: '/game-art/placeholders/area-crossroads-unquiet.png' },
+  { key: RUN_ART_KEYS.shopBanner, path: '/game-art/placeholders/shop-banner.webp' },
+  { key: RUN_ART_KEYS.runMap, path: '/game-art/placeholders/run-map.webp' },
+  { key: RUN_ART_KEYS.icon.choiceCard, path: '/game-art/placeholders/icon-choice-card.webp' },
+  { key: RUN_ART_KEYS.icon.choiceGamble, path: '/game-art/placeholders/icon-choice-gamble.webp' },
+  { key: RUN_ART_KEYS.icon.choiceGem, path: '/game-art/placeholders/icon-choice-gem.webp' },
+  { key: RUN_ART_KEYS.icon.choiceGold, path: '/game-art/placeholders/icon-choice-gold.webp' },
+  { key: RUN_ART_KEYS.icon.choiceLevel, path: '/game-art/placeholders/icon-choice-level.webp' },
+  { key: RUN_ART_KEYS.icon.choiceNothing, path: '/game-art/placeholders/icon-choice-nothing.webp' },
+  { key: RUN_ART_KEYS.icon.coin, path: '/game-art/placeholders/icon-coin.webp' },
+  { key: RUN_ART_KEYS.icon.lifeHeart, path: '/game-art/placeholders/icon-life-heart.webp' },
+  { key: RUN_ART_KEYS.icon.bossSkull, path: '/game-art/placeholders/icon-boss-skull.webp' },
+  { key: RUN_ART_KEYS.icon.storefront, path: '/game-art/placeholders/icon-storefront.webp' },
+  { key: RUN_ART_KEYS.shop.armory, path: '/game-art/placeholders/shop-front-armory.webp' },
+  { key: RUN_ART_KEYS.shop.wildworks, path: '/game-art/placeholders/shop-front-wildworks.webp' },
+  { key: RUN_ART_KEYS.shop.arcanum, path: '/game-art/placeholders/shop-front-arcanum.webp' },
+  { key: RUN_ART_KEYS.shop.sanctum, path: '/game-art/placeholders/shop-front-sanctum.webp' },
+  { key: RUN_ART_KEYS.shop.alchemist, path: '/game-art/placeholders/shop-front-alchemist.webp' },
+  { key: RUN_ART_KEYS.shop.gemcutter, path: '/game-art/placeholders/shop-front-gemcutter.webp' },
+  { key: RUN_ART_KEYS.shop.caravan, path: '/game-art/placeholders/shop-front-caravan.webp' },
+  { key: RUN_ART_KEYS.shop.bulwark, path: '/game-art/placeholders/shop-front-bulwark.webp' },
+  { key: RUN_ART_KEYS.shop.assassins_den, path: '/game-art/placeholders/shop-front-assassins_den.webp' },
+  { key: RUN_ART_KEYS.shop.relic_vault, path: '/game-art/placeholders/shop-front-relic_vault.webp' },
+  { key: RUN_ART_KEYS.shop.emberworks, path: '/game-art/placeholders/shop-front-emberworks.webp' },
+  { key: RUN_ART_KEYS.shop.frosthold, path: '/game-art/placeholders/shop-front-frosthold.webp' },
+  { key: RUN_ART_KEYS.shop.stormspire, path: '/game-art/placeholders/shop-front-stormspire.webp' },
+  { key: RUN_ART_KEYS.shop.grovekeep, path: '/game-art/placeholders/shop-front-grovekeep.webp' },
+  { key: RUN_ART_KEYS.shop.reliquary, path: '/game-art/placeholders/shop-front-reliquary.webp' },
+  { key: RUN_ART_KEYS.shop.umbral_stall, path: '/game-art/placeholders/shop-front-umbral_stall.webp' },
+  { key: RUN_ART_KEYS.event.training, path: '/game-art/placeholders/area-hollow-yard.webp' },
+  { key: RUN_ART_KEYS.event.cache, path: '/game-art/placeholders/area-silt-hollows.webp' },
+  { key: RUN_ART_KEYS.event.recruit, path: '/game-art/placeholders/area-muster-road.webp' },
+  { key: RUN_ART_KEYS.event.forge, path: '/game-art/placeholders/area-cinderworks.webp' },
+  { key: RUN_ART_KEYS.event.market, path: '/game-art/placeholders/area-tolling-road.webp' },
+  { key: RUN_ART_KEYS.event.omen, path: '/game-art/placeholders/area-crossroads-unquiet.webp' },
 ] as const;
 
 /** Adds a cropped image that fills the requested rect without distorting the source art. */

@@ -17,7 +17,8 @@
     "content:export": "tsx scripts/exportEnemies.ts && tsx scripts/exportModifiers.ts",
     "content:validate": "tsx scripts/validateContent.ts",
     "scaffold:card": "tsx scripts/scaffoldCard.ts",
-    "shop:smoke": "tsx scripts/shop-smoke.ts"
+    "shop:smoke": "tsx scripts/shop-smoke.ts",
+    "art:encode": "tsx scripts/encode-card-art.ts"
   },
   "dependencies": {
     "phaser": "^3.90.0"

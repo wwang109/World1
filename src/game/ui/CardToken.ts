@@ -3,7 +3,8 @@ import { weightOf, type SkillDef, type SkillTier } from '../../engine/types';
 import { ELEMENT_COLOR, FONT, PROPERTY_COLOR, TIER_COLOR, UI, WEAPON_COLOR } from '../theme';
 import { cardType, IDENTITY_THRESHOLD } from '../../engine/combat/typeIdentity';
 import { ACTIVE_PROFILE } from '../layoutProfile';
-import { fantasyTemplateCardArtKey } from './cardArtPresentation';
+import { buildCardArtPlaceholder } from './cardArtPlaceholder';
+import { whenCardArtReady } from './cardArtLoader';
 import { summarizeEffectSegments, type EffectSegment, type ScalingStats, type SkillFaceMode } from './skillPresentation';
 import { keywordTextColor } from './cardTextMarkup';
 import { cardTokenSpec, chipBox, type CardTokenSpec, type TokenBox, type TokenTextLine } from './cardTokenSpec';
@@ -152,26 +153,49 @@ export class CardToken extends Phaser.GameObjects.Container {
     const bg = scene.add.rectangle(0, 0, w, h, 0x121e30).setOrigin(0.5).setStrokeStyle(2, frameColor, opts.tier ? 0.95 : 0.9);
     this.add(bg);
 
-    // card art, cover-fit and masked to the token rect. Children are LOCAL
+    // Card art, cover-fit and masked to the token rect. Children are LOCAL
     // (0,0 = token center); the geometry mask uses WORLD coords (this.x/y).
-    const artKey = fantasyTemplateCardArtKey(skill);
-    if (artKey && scene.textures.exists(artKey)) {
+    //
+    // The art region is ALWAYS filled now. `buildCardArtPlaceholder` paints
+    // the card's own identity (element/weapon/property wash + ghosted type
+    // badge) straight away, and `whenCardArtReady` drops the real texture on
+    // top of it if and when the catalogue has one — the same code path for a
+    // skill with no art at all and one whose art is still streaming.
+    // `artHost` exists so that late-arriving art lands UNDER the legibility
+    // gradient and the text: a bare `this.add()` from an async callback would
+    // append it over the whole token.
+    const maskShape = scene.make.graphics({}, false);
+    maskShape.fillStyle(0xffffff);
+    maskShape.fillRect(x - w / 2, y - h / 2, w, h);
+    const artMask = maskShape.createGeometryMask();
+    this.artMask = maskShape;
+    this.maskW = w;
+    this.maskH = h;
+    this.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
+
+    const artHost = scene.add.container(0, 0);
+    this.add(artHost);
+    // The placeholder is drawn AT the token rect, so it needs no clip — only
+    // the cover-fit art below overflows. Leaving it unmasked keeps the number
+    // of stencil-masked objects exactly where it was before the placeholder
+    // existed (one per token that actually has art), which matters on the
+    // wiki's 166-card grid.
+    artHost.add(buildCardArtPlaceholder(scene, skill, -w / 2, -h / 2, w, h));
+    whenCardArtReady(scene, skill.id, (artKey) => {
+      // The token may have been destroyed while its art was in flight.
+      if (!this.scene || !artHost.scene) return;
       const img = scene.add.image(0, 0, artKey);
       const scale = Math.max(w / img.width, h / img.height);
       img.setScale(scale);
-      const maskShape = scene.make.graphics({}, false);
-      maskShape.fillStyle(0xffffff);
-      maskShape.fillRect(x - w / 2, y - h / 2, w, h);
-      img.setMask(maskShape.createGeometryMask());
-      this.artMask = maskShape;
-      this.maskW = w;
-      this.maskH = h;
-      this.add(img);
-      // legibility gradient (dark on the text side, fading toward the art)
-      const grad = scene.add.image(0, 0, this.ensureGradient(scene)).setDisplaySize(w, h);
-      if (side === 'right') grad.setFlipX(true);
-      this.add(grad);
-    }
+      img.setMask(artMask);
+      artHost.add(img);
+    });
+
+    // legibility gradient (dark on the text side, fading toward the art) —
+    // OUTSIDE `artHost`, so it stays above anything that lands inside it.
+    const grad = scene.add.image(0, 0, this.ensureGradient(scene)).setDisplaySize(w, h);
+    if (side === 'right') grad.setFlipX(true);
+    this.add(grad);
 
     // accent stripe — color straight from the theme maps (element > weapon > property)
     const type = cardType(skill);

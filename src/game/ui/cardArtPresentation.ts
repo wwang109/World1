@@ -8,7 +8,6 @@ import {
   UI,
   WEAPON_COLOR,
 } from '../theme';
-import { CARD_ART_CATALOG } from './cardArtCatalog';
 
 export type CardIconKey =
   | 'axe'
@@ -144,6 +143,29 @@ export function templateBadgeTextureKey(iconKey: CardIconKey): string | undefine
   return TEMPLATE_BADGE_TEXTURE_KEY[iconKey];
 }
 
-export function fantasyTemplateCardArtKey(skill: SkillDef): string | undefined {
-  return CARD_ART_CATALOG[skill.id]?.textureKey;
+/**
+ * The look of a card's art region when there is no art to draw — either the
+ * skill has no catalogue entry (94 of 166 skills today) or its texture is
+ * still streaming in (`cardArtLoader.ts`). ONE style function serves both,
+ * which is the point: "art not loaded yet" and "art does not exist" must not
+ * be two different-looking states.
+ *
+ * It is derived, never authored: the tint is the card's own identity color
+ * (element > weapon > property — the same precedence `cardTypeBadge` uses for
+ * the badge), and the emblem is that badge's already-boot-loaded texture. So
+ * a placeholder always reads as THIS card, not as a generic empty slab.
+ */
+export interface CardArtPlaceholderStyle {
+  /** Identity color the panel is tinted with. */
+  tint: number;
+  /** Ghosted emblem drawn over the panel, when the badge art exists. */
+  emblemTextureKey: string | undefined;
+}
+
+export function cardArtPlaceholderStyle(skill: SkillDef): CardArtPlaceholderStyle {
+  const badge = cardTypeBadge(skill);
+  return {
+    tint: badge.color,
+    emblemTextureKey: templateBadgeTextureKey(badge.iconKey),
+  };
 }

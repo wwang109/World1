@@ -5,7 +5,6 @@ import { ACTIVE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { applyRenderScale } from '../renderScale';
 import { brandMarkCenterY, renderBrandMark, type BrandMark } from '../ui/brandMark';
-import { CARD_ART_CATALOG } from '../ui/cardArtCatalog';
 import { RUN_ART_ASSETS } from '../ui/runArt';
 
 /** Where the wordmark block sits, as a fraction of viewport height. Boot
@@ -130,9 +129,13 @@ export class BootScene extends Phaser.Scene {
     this.load.image('card-badge:template:healing', '/game-art/template/badge-healing.png');
     this.load.image('card-badge:template:support', '/game-art/template/badge-support.png');
     this.load.image('card-badge:template:debuff', '/game-art/template/badge-debuff.png');
-    for (const entry of Object.values(CARD_ART_CATALOG)) {
-      this.load.image(entry.textureKey, `/game-art/cards/${entry.fileName}`);
-    }
+    // CARD ART IS NOT LOADED HERE. It used to be — every catalogue entry, 72
+    // files and 165 MB, before the Start screen (which shows no cards at all)
+    // could paint. It now streams in per card on first use via
+    // `cardArtLoader.ts`, with `cardArtPlaceholder.ts` standing in until it
+    // lands. What stays eager below is only what the FIRST screens actually
+    // need: the card template parts, the type badges (the placeholder's own
+    // emblem comes from these), and the run-art set.
     for (const asset of RUN_ART_ASSETS) {
       this.load.image(asset.key, asset.path);
     }
