@@ -1,8 +1,8 @@
-import { applyTier, resolveDisplaySkill } from '../engine/cards';
+import { resolveDisplaySkill } from '../engine/cards';
 import { skillBook } from '../data/skills';
 import type { CombatEvent } from '../engine/combat/events';
 import type { ShieldPools } from '../engine/combat/state';
-import type { Archetype, Element, Property, SkillDef, WeaponType } from '../engine/types';
+import type { Archetype, Element, Property, SkillDef, SkillTier, WeaponType } from '../engine/types';
 import { buildAutoHeroSetup, buildEnemyEncounter } from '../run/encounter';
 import type { EnemyTitle } from '../run/encounter';
 import type { BattleLog } from '../run/resolveBattle';
@@ -122,7 +122,21 @@ export interface CombatSummary {
 /** A card placed at a starting slot; a size-N card occupies N slots. Plain
  * data twin of `ui/BoardColumn`'s `ColumnPiece` (minus the render-only
  * `state` cursor field, which scenes add themselves at render time). */
-export interface BattlePiece { skill: SkillDef; slot: number; }
+export interface BattlePiece {
+  skill: SkillDef;
+  slot: number;
+  /**
+   * This INSTANCE's tier, carried through so the battle board's card frames read
+   * `TIER_COLOR[tier]` exactly like every other board that renders the same
+   * pieces (`ColumnPiece.tier` -> `CardTokenOptions.tier` -> the token's frame
+   * stroke). The shop's owned-board column has always passed it; battle never
+   * did, so a rank-tiered elite deck — two silver cards and two bronze — drew
+   * all four in one identical generic frame, with the numbers right and the tier
+   * signal missing. Undefined for an instance with no tier of its own, which is
+   * the same generic frame the shop gives that case.
+   */
+  tier?: SkillTier;
+}
 
 export interface BattleTimelineInput {
   pieces: OwnedBoardPiece[];
@@ -284,6 +298,46 @@ function shieldToken(property: Property): string {
  * `blocked > 0`; falls back to the plain pool token (no magnitude) on the
  * rare event that's missing (e.g. an older cached log).
  */
+/** The three shield pools in a fixed order — iterated by index, never by key. */
+export const SHIELD_PROPERTIES: readonly Property[] = ['physical', 'magical', 'true'];
+
+/** Total points held across the three pools. */
+export function poolsSum(pools: ShieldPools): number {
+  return pools.physical + pools.magical + pools.true;
+}
+
+/**
+ * POINTS the wall actually LOST to one blocked hit.
+ *
+ * NOT `blocked`. `blocked` is the DAMAGE the plating ate; the bar holds PLATING
+ * POINTS, and the two agree only where every pool that paid traded 1:1. They do
+ * not whenever a pool trades at another rate, and two shipped rules do exactly
+ * that:
+ *
+ *   - an ATTUNED pool eats 2 damage per point from its own type, so 30 blocked
+ *     can cost as little as 15 points;
+ *   - typed damage spilling into a TRUE pool burns 2 points per point blocked,
+ *     so 12 blocked costs 24 points.
+ *
+ * The engine already reports the answer per pool (`damage.shieldDrain`, "points
+ * actually REMOVED"), and `scripts/fight.ts` — the ground-truth log — has always
+ * summed exactly this. Subtracting `blocked` here instead made the battle-scene
+ * shield bar disagree with the log the moment attuned plating reached shipped
+ * content, under-reporting the wall on every attuned block and over-reporting it
+ * on every TRUE spill.
+ *
+ * DERIVED, NOT ASKED FOR: a `shieldAfter` on the damage event would touch every
+ * log ever emitted for a number the renderer can compute exactly — the same call
+ * `fight.ts` documents at its own `wall` tracker.
+ *
+ * Falls back to `blocked` only when `shieldDrain` is absent (an older cached
+ * log), which is precisely the 1:1 case those logs could ever have carried.
+ */
+export function shieldPointsDrained(e: { blocked: number; shieldDrain?: ShieldPools }): number {
+  const d = e.shieldDrain;
+  return d === undefined ? e.blocked : d.physical + d.magical + d.true;
+}
+
 function formatBlockedPools(property: Property, drain: ShieldPools | undefined): string {
   if (!drain) return shieldToken(property);
   const parts: string[] = [];
@@ -536,7 +590,7 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     // without this, an owned Gold AoE card would still show its Bronze,
     // single-target face mid-fight.
     const s = resolveDisplaySkill(base, p);
-    heroPieces.push({ skill: s, slot: p.slot }); heroSkills.push(s);
+    heroPieces.push({ skill: s, slot: p.slot, ...(p.tier ? { tier: p.tier } : {}) }); heroSkills.push(s);
   }
   const statLineOf = (s: { attack: number; magicPower: number; armor: number; magicResist: number; speed: number }): string =>
     `${STAT_TOKEN.attack} ${s.attack} · ${STAT_TOKEN.magicPower} ${s.magicPower} · ${STAT_TOKEN.armor} ${s.armor} · ${STAT_TOKEN.magicResist} ${s.magicResist} · ${STAT_TOKEN.speed} ${s.speed}`;
@@ -545,8 +599,24 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     const skills: SkillDef[] = [];
     for (const p of setup.pieces) {
       const base = skillBook[p.skillId]; if (!base) continue;
-      const s = p.tier ? applyTier(base, p.tier) : base;
-      pieces.push({ skill: s, slot: p.slot }); skills.push(s);
+      // ONE display-resolve for both boards (`resolveDisplaySkill`), not two.
+      // The foe path used to run `p.tier ? applyTier(base, p.tier) : base`, which
+      // differs from the hero path in two ways that are both live defects rather
+      // than latent ones:
+      //   - it drops a socketed GEM's face (no enemy carries one today, so this
+      //     half was latent — but the foe board would silently show the ungemmed
+      //     card the first time one did);
+      //   - it SKIPS `applyTier` entirely for an untiered piece. That is not a
+      //     no-op: `applyTier` is also where the TIER LOCK resolves (see
+      //     `resolveEffectiveSkill`, engine/cards.ts — "an untiered piece plays
+      //     the card's own tier, which must still drop any line locked above
+      //     it"). An untiered foe piece therefore rendered lines the card does
+      //     not actually cast.
+      // `setup.pieces` is `BoardPiece[]`, which is exactly what
+      // `resolveDisplaySkill` takes, so this is the same call the hero board and
+      // the shop's owned board already make.
+      const s = resolveDisplaySkill(base, p);
+      pieces.push({ skill: s, slot: p.slot, ...(p.tier ? { tier: p.tier } : {}) }); skills.push(s);
     }
     return {
       name: setup.name,
@@ -585,11 +655,69 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const curEnemies = [...enemyMaxes];
   let shieldPlayer = 0;
   const shieldEnemies = foes.map(() => 0);
-  // Per-pool breakdown — stays undefined per side until a shieldGain event
-  // actually reports `poolsAfter` (optional, land-order-agnostic); once set,
-  // this is what lets the UI show "20 P · 30 M" instead of one merged "50".
+  // Per-property breakdown of the SAME points the bar above shows — stays
+  // undefined per side/unit until the ledger can be seeded exactly (see
+  // `gainPoints`), and is dropped back to undefined the moment the log stops
+  // being able to say where the points went (see `breakPoints`). This is what
+  // lets the UI show "20 P · 30 M" instead of one merged "50".
+  //
+  // WHY IT IS A POINTS-PER-PROPERTY LEDGER AND NOT `shieldGain.poolsAfter`.
+  // `poolsAfter` is the engine's UNTYPED `CombatantState.shields` only; an
+  // ATTUNED pool (`attunedShields`) is deliberately not in it, but IS counted by
+  // `totalAfter` — which is the number the bar shows. So seeding the strip from
+  // `poolsAfter` made the strip disagree with the bar beside it by exactly the
+  // attuned points, and then `shieldDrain` (which buckets an attuned pool's
+  // spend into its OWN property, by the engine's own design note) decayed an
+  // untyped pool the damage had never come from. Accumulating `amount` per
+  // `property` instead is exact for both: every gain adds its points to one
+  // property, every drain removes them from one property, and the running sum
+  // is `totalAfter` on the nose (asserted at every authoritative event below).
   let shieldPoolsPlayer: ShieldPools | undefined;
   const shieldPoolsEnemies: Array<ShieldPools | undefined> = foes.map(() => undefined);
+  const shieldOf = (side: 'player' | 'enemy', u: number): number => (side === 'player' ? shieldPlayer : shieldEnemies[u] ?? 0);
+  const setShield = (side: 'player' | 'enemy', u: number, v: number): void => {
+    if (side === 'player') shieldPlayer = v; else shieldEnemies[u] = v;
+  };
+  const poolsOf = (side: 'player' | 'enemy', u: number): ShieldPools | undefined =>
+    (side === 'player' ? shieldPoolsPlayer : shieldPoolsEnemies[u]);
+  const setPools = (side: 'player' | 'enemy', u: number, v: ShieldPools | undefined): void => {
+    if (side === 'player') shieldPoolsPlayer = v; else shieldPoolsEnemies[u] = v;
+  };
+  /**
+   * Fold one `shieldGain` into the ledger, then RECONCILE against the engine's
+   * own `totalAfter`. Two guards keep the strip honest rather than plausible:
+   * a ledger that is not yet seeded only starts on a gain that lands on an EMPTY
+   * wall (`totalAfter === amount`, so the whole wall is this one property), and
+   * any ledger whose sum stops matching `totalAfter` is discarded — the bar keeps
+   * the exact number and the strip simply stops claiming a split it cannot prove.
+   */
+  const gainPoints = (side: 'player' | 'enemy', u: number, property: Property, amount: number, totalAfter: number): void => {
+    let pools = poolsOf(side, u);
+    if (pools === undefined && totalAfter - amount === 0) pools = { physical: 0, magical: 0, true: 0 };
+    if (pools === undefined) return;
+    pools[property] += amount;
+    setPools(side, u, poolsSum(pools) === totalAfter ? pools : undefined);
+  };
+  /**
+   * Fold one `shieldBroken` (a `shieldBreak` shatter or a `shieldBurst` spend)
+   * into the ledger. The event carries no property, so the split is knowable only
+   * when a single property is standing — then every broken point can only have
+   * come from it. Otherwise the breakdown is withheld until the wall empties
+   * (`totalAfter === 0`), which re-seeds it exactly at zero.
+   */
+  const breakPoints = (side: 'player' | 'enemy', u: number, amount: number, totalAfter: number): void => {
+    let pools = poolsOf(side, u);
+    if (pools) {
+      const live = SHIELD_PROPERTIES.filter((q) => pools![q] > 0);
+      const only = live.length === 1 ? live[0]! : undefined;
+      if (only === undefined) pools = undefined;
+      else {
+        pools[only] = Math.max(0, pools[only] - amount);
+        if (poolsSum(pools) !== totalAfter) pools = undefined;
+      }
+    }
+    setPools(side, u, totalAfter === 0 ? { physical: 0, magical: 0, true: 0 } : pools);
+  };
   const speed: SpeedSnap = { player: '', enemy: '', enemyUnits: foes.map(() => '') };
   // Shadow-mirror of the engine's `CombatantState.lastCastArchetypes`
   // (combat/state.ts) — see `ComboArchetypeSnap`'s doc comment for the full
@@ -1060,21 +1188,23 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         if (e.side === 'player') curPlayer = e.hpAfter; else curEnemies[u] = e.hpAfter;
         const drain = e.shieldDrain;
         if (e.blocked > 0) {
-          if (e.side === 'player') {
-            shieldPlayer = Math.max(0, shieldPlayer - e.blocked);
-            if (shieldPoolsPlayer && drain) {
-              shieldPoolsPlayer.physical = Math.max(0, shieldPoolsPlayer.physical - drain.physical);
-              shieldPoolsPlayer.magical = Math.max(0, shieldPoolsPlayer.magical - drain.magical);
-              shieldPoolsPlayer.true = Math.max(0, shieldPoolsPlayer.true - drain.true);
-            }
-          } else {
-            shieldEnemies[u] = Math.max(0, (shieldEnemies[u] ?? 0) - e.blocked);
-            const pools = shieldPoolsEnemies[u];
-            if (pools && drain) {
-              pools.physical = Math.max(0, pools.physical - drain.physical);
-              pools.magical = Math.max(0, pools.magical - drain.magical);
-              pools.true = Math.max(0, pools.true - drain.true);
-            }
+          // POINTS OUT, not damage eaten — see `shieldPointsDrained`. The bar
+          // holds plating points; `e.blocked` is the DAMAGE they stopped, and
+          // the two only agree when every pool that paid traded 1:1.
+          setShield(e.side, u, Math.max(0, shieldOf(e.side, u) - shieldPointsDrained(e)));
+          const pools = poolsOf(e.side, u);
+          // `shieldDrain` is bucketed BY PROPERTY and already includes whatever
+          // an attuned pool of that property paid, so it lines up exactly with
+          // the per-property ledger — and with nothing else.
+          if (pools && drain) {
+            pools.physical = Math.max(0, pools.physical - drain.physical);
+            pools.magical = Math.max(0, pools.magical - drain.magical);
+            pools.true = Math.max(0, pools.true - drain.true);
+          } else if (pools) {
+            // Blocked, but the event never said out of WHICH pool (an older
+            // cached log). The total above is still exact; the split is not,
+            // so withhold it rather than decay an arbitrary pool.
+            setPools(e.side, u, undefined);
           }
         }
         const hp = e.side === 'player' ? `${e.hpAfter}/${playerMax}` : `${e.hpAfter}/${enemyMaxes[u]}`;
@@ -1174,11 +1304,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       }
       case 'shieldGain': {
         const u = unitOf(e);
-        if (e.side === 'player') shieldPlayer = e.totalAfter; else shieldEnemies[u] = e.totalAfter;
-        if (e.poolsAfter) {
-          if (e.side === 'player') shieldPoolsPlayer = { ...e.poolsAfter };
-          else shieldPoolsEnemies[u] = { ...e.poolsAfter };
-        }
+        setShield(e.side, u, e.totalAfter);
+        gainPoints(e.side, u, e.property, e.amount, e.totalAfter);
         const shieldCard = activeCardByTurn.get(e.turn);
         if (shieldCard) shieldCard.shield += e.amount;
         // The token names which pool this is (TRUE shields drain 2:1 vs typed
@@ -1205,7 +1332,16 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       }
       case 'shieldBroken': {
         const u = unitOf(e);
-        if (e.side === 'player') shieldPlayer = e.totalAfter; else shieldEnemies[u] = e.totalAfter;
+        setShield(e.side, u, e.totalAfter);
+        // A shatter/burst reports ONE total and never which pool paid it (the
+        // engine strips in its own order — `shieldBreak`'s property-first walk,
+        // `spendShieldsForBurst`'s P→M→T-then-attuned walk). Re-deriving that
+        // order here would be a second copy of engine logic in the renderer, so
+        // this attributes it only where the log makes it unambiguous and
+        // otherwise WITHHOLDS the split — see `breakPoints`. Before this case
+        // existed the strip was simply left stale, still summing to a wall that
+        // had already been shattered.
+        breakPoints(e.side, u, e.amount, e.totalAfter);
         push(e.turn, 'DEBUFF', `${label(e)} · shield −${e.amount}`);
         break;
       }
