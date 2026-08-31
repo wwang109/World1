@@ -24,9 +24,11 @@ import {
   applyCurrentSellGemPick,
   applyCurrentUpgradeCardPick,
   currentEventDef,
+  currentEventResolution,
   currentRunPieces,
   getActiveRun,
   leaveCurrentEvent,
+  reopenCurrentEventPick,
   resolveCurrentEventChoice,
   retireActiveRun,
 } from '../runStore';
@@ -68,7 +70,7 @@ interface StoryLayout { innerX: number; innerW: number; contentTop: number }
 export class MobileRunEventScene extends Phaser.Scene {
   private W = SCREEN.width;
   private H = SCREEN.height;
-  private phase: 'choosing' | 'bonusDraftPick' | 'upgradeCardPick' | 'gemChoicePick' | 'sellGemPick' | 'mergeCardsPick' | 'outcome' = 'choosing';
+  private phase: 'choosing' | 'resolved' | 'bonusDraftPick' | 'upgradeCardPick' | 'gemChoicePick' | 'sellGemPick' | 'mergeCardsPick' | 'outcome' = 'choosing';
   private outcome: EventOutcome | null = null;
   private bonusDraftCards: DraftCard[] = [];
   private upgradeCardOptions: UpgradeCardOption[] = [];
@@ -87,6 +89,11 @@ export class MobileRunEventScene extends Phaser.Scene {
    * this one". Held as SCENE STATE, not re-derived: by the time this renders,
    * the cards it names are already gone from the run. */
   private mergeReceipt: MergeCardsReceipt | null = null;
+  /** The rung this node ALREADY took, adopted from `RunState.eventResolutions`
+   * when the screen is re-entered on a resolved node (`adoptRecordedResolution`
+   * below); `null` while the choice is still open. Read only by the
+   * `'resolved'` phase, to mark which of the rows was the one taken. */
+  private resolvedChoiceId: string | null = null;
   private retireConfirmOpen = false;
   /** Which grid index is under the ⓘ inspect overlay in the bonus-draft/
    * upgrade-card picker, `null` when closed — mirrors `MobileDraftScene`'s
@@ -115,6 +122,7 @@ export class MobileRunEventScene extends Phaser.Scene {
     this.sellGemOptions = [];
     this.mergeOffer = null;
     this.mergeReceipt = null;
+    this.resolvedChoiceId = null;
     this.retireConfirmOpen = false;
     this.inspectedDraftIndex = null;
     this.inspectedUpgradeIndex = null;
@@ -135,6 +143,11 @@ export class MobileRunEventScene extends Phaser.Scene {
       this.scene.start('MobileRunMap');
       return;
     }
+
+    // A RETURN TRIP, NOT A FRESH ARRIVAL: `init()` just reset `phase` to
+    // 'choosing', so ask the RUN whether this node's rungs were already
+    // taken before offering them again (see `adoptRecordedResolution`).
+    if (this.phase === 'choosing') this.adoptRecordedResolution();
 
     this.renderHud(run);
     if (this.phase === 'outcome' && this.outcome) {
@@ -250,6 +263,66 @@ export class MobileRunEventScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * THE RE-ENTRY GUARD. `init()` above rebuilds this screen's phase from
+   * nothing on every `scene.start` — the HUD's own DECK/BAG button is one, and
+   * so is a page reload — so the only thing that can remember a rung was
+   * already taken is the RUN, not this scene. `RunState.eventResolutions` is
+   * that memory (see `resolveEventChoice`, src/run/events.ts); without it the
+   * same node re-resolved every time the player came back, which is a
+   * repeatable free-gold loop on a paying rung and a second charge on a paid
+   * one.
+   *
+   * Two returns are possible. A rung whose outcome was DEFERRED and never
+   * picked (`pending`) re-opens ITS picker, free of charge — the player paid
+   * for that question and has not been answered yet. Anything else shows the
+   * node as done: the rungs render locked, with the one that was taken named,
+   * and CONTINUE › is the only action.
+   */
+  private adoptRecordedResolution(): void {
+    const resolution = currentEventResolution();
+    if (!resolution) return;
+    this.resolvedChoiceId = resolution.choiceId;
+    if (resolution.pending) {
+      const outcome = reopenCurrentEventPick();
+      if (outcome) {
+        this.enterOutcome(outcome);
+        return;
+      }
+    }
+    this.phase = 'resolved';
+  }
+
+  /** The ONE place an `EventOutcome` becomes a screen phase — used by the rung
+   * the player just tapped AND by a picker re-opened on re-entry, so the two
+   * can never disagree about which outcome kinds still owe the player a pick.
+   * The scene reads `outcome.kind`; it never mints one (see
+   * `tests/game/runEventSeams.test.ts`). */
+  private enterOutcome(outcome: EventOutcome): void {
+    if (outcome.kind === 'bonusDraft') {
+      this.phase = 'bonusDraftPick';
+      this.bonusDraftCards = [...outcome.cards];
+    } else if (outcome.kind === 'upgradeCardPick') {
+      this.phase = 'upgradeCardPick';
+      this.upgradeCardOptions = [...outcome.options];
+    } else if (outcome.kind === 'gemChoicePick') {
+      this.phase = 'gemChoicePick';
+      this.gemChoiceOptions = [...outcome.options];
+    } else if (outcome.kind === 'sellGemPick') {
+      this.phase = 'sellGemPick';
+      this.sellGemOptions = [...outcome.options];
+    } else if (outcome.kind === 'mergeCardsPick') {
+      // The offer is a QUESTION — nothing has been consumed yet, and the view
+      // model is built against the board as it stands right now so the three
+      // "BOARD n" labels point at the slots the player can see.
+      this.phase = 'mergeCardsPick';
+      this.mergeOffer = buildRunMergeViewModel(outcome, currentRunPieces());
+    } else {
+      this.phase = 'outcome';
+      this.outcome = outcome;
+    }
+  }
+
   /** THE run HUD — identical header on every run screen. The HUD's fixed
    * footer CONTINUE › is the ONLY continue action once the outcome resolves
    * (`renderRunRewardPanel` draws no in-panel one on mobile — see its module
@@ -263,7 +336,9 @@ export class MobileRunEventScene extends Phaser.Scene {
       actions: {
         secondary: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
-        primary: this.phase === 'outcome' && this.outcome
+        // 'resolved' gets one too: a node the player is only revisiting has
+        // nothing left to tap but the way out.
+        primary: (this.phase === 'outcome' && this.outcome) || this.phase === 'resolved'
           ? { label: 'CONTINUE ›', onPress: () => this.continueToMap() }
           : undefined,
       },
@@ -402,15 +477,22 @@ export class MobileRunEventScene extends Phaser.Scene {
       // kind still reduces to the plain cost check.
       const affordable = isEventChoiceUsable(run, choice);
       const costLabel = cost > 0 ? `COST ${cost} GOLD` : 'FREE';
+      // RESOLVED (`adoptRecordedResolution`): the rungs are still drawn, but as
+      // the RECORD of a decision already made — every row locked (the shared
+      // panel's own affordance then reads LOCKED and drops its handler), the
+      // one that was taken named and accented. A resolved node that showed a
+      // fresh-looking choice screen is the whole bug.
+      const done = this.phase === 'resolved';
+      const taken = done && choice.id === this.resolvedChoiceId;
       const model: RunChoiceViewModel = {
         nodeId: `event-${choice.id}`,
         kind: 'event',
         title: choice.label,
-        detail: `REWARD · ${choiceOutcomeHint(choice.outcome)}`,
-        footer: costLabel,
+        detail: `${taken ? 'TAKEN' : 'REWARD'} · ${choiceOutcomeHint(choice.outcome)}`,
+        footer: done ? (taken ? 'ALREADY TAKEN' : 'NOT TAKEN') : costLabel,
         image: { textureKey: choiceArtKey(choice.outcome.kind) },
-        accent: UI.chip,
-        enabled: affordable,
+        accent: taken ? UI.good : UI.chip,
+        enabled: !done && affordable,
       };
       renderRunChoicePanel(this, { x: 10, y, w: this.W - 20, h: rowH }, model, {
         font: F,
@@ -422,28 +504,7 @@ export class MobileRunEventScene extends Phaser.Scene {
         onSelect: () => {
           const outcome = resolveCurrentEventChoice(event.id, choice.id);
           if (!outcome) return;
-          if (outcome.kind === 'bonusDraft') {
-            this.phase = 'bonusDraftPick';
-            this.bonusDraftCards = [...outcome.cards];
-          } else if (outcome.kind === 'upgradeCardPick') {
-            this.phase = 'upgradeCardPick';
-            this.upgradeCardOptions = [...outcome.options];
-          } else if (outcome.kind === 'gemChoicePick') {
-            this.phase = 'gemChoicePick';
-            this.gemChoiceOptions = [...outcome.options];
-          } else if (outcome.kind === 'sellGemPick') {
-            this.phase = 'sellGemPick';
-            this.sellGemOptions = [...outcome.options];
-          } else if (outcome.kind === 'mergeCardsPick') {
-            // The offer is a QUESTION — nothing has been consumed yet, and the
-            // view model is built against the board as it stands right now so
-            // the three "BOARD n" labels point at the slots the player can see.
-            this.phase = 'mergeCardsPick';
-            this.mergeOffer = buildRunMergeViewModel(outcome, currentRunPieces());
-          } else {
-            this.phase = 'outcome';
-            this.outcome = outcome;
-          }
+          this.enterOutcome(outcome);
           this.rerender();
         },
       });

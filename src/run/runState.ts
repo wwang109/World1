@@ -135,6 +135,31 @@ export function emptyRunStats(): RunStats {
   };
 }
 
+/**
+ * What one event node's rungs resolved to — the record `RunState.eventResolutions`
+ * keys by node id.
+ *
+ * `pending` is the window between a DEFERRED rung (`bonusDraft`/`cardChoice`,
+ * `upgradeCard`, `gemChoice`, `sellGem`, `mergeCards` — the five outcomes that
+ * ask a second question) being taken and its picker being finalized. The cost
+ * is already paid and `eventsResolved` already counted at that point, so the
+ * node must never re-offer its rungs; but the player has not yet received
+ * anything either, so re-entering must re-open THAT picker rather than send
+ * them away empty-handed. `reopenEventChoice` (`src/run/events.ts`) is what
+ * re-derives it — free of charge, from the same `hashSeed('event', eventSeed,
+ * choiceId)` stream — and each of the five finalizers clears the flag.
+ * Absent/false means the node is fully done.
+ */
+export interface EventResolution {
+  /** The CATALOG event the rung belongs to. Recorded rather than re-read from
+   * `eventInstances` because `resolveEventChoice` takes the event id as an
+   * argument — the drawn event is what the UI passes, but the record must
+   * describe what was actually resolved, not what the node happened to draw. */
+  eventId: string;
+  choiceId: string;
+  pending?: boolean;
+}
+
 export interface RunState {
   seed: number;
   map: RunMap;
@@ -205,6 +230,24 @@ export interface RunState {
   /** Node id -> drawn event id, filled the first time `rollEventForNode` is
    * called for that node (idempotent thereafter — a reload never re-draws). */
   eventInstances: Record<string, string>;
+  /**
+   * Node id -> the CHOICE the player already committed to at that event node
+   * (see `EventResolution`), written by `resolveEventChoice` in
+   * `src/run/events.ts`. The SECOND half of an event node's memo: without it
+   * the run remembered which event a node DREW but not that its rungs were
+   * already taken, and every path that re-enters the event screen mid-node
+   * (the HUD's DECK/BAG button, which is a `scene.start`, a scene restart, a
+   * page reload) offered the same rungs again — a free-gold loop on a paying
+   * rung and a double charge on a paid one.
+   *
+   * OPTIONAL, exactly like `held` above and `eventThemeBags` below: absent
+   * means "no event node has resolved yet", so an in-progress save written
+   * before this field existed loads unchanged and needs no schema bump
+   * (`src/meta/runSave.ts` — bumping would make `loadRun` refuse every live
+   * v1 run). `createRun` sets `{}`; every reader goes through
+   * `eventResolutionAt` (`src/run/events.ts`), which treats absent as empty.
+   */
+  eventResolutions?: Record<string, EventResolution>;
   gold: number;
   heroLevel: number;
   heroAllocation: Allocation;
@@ -470,6 +513,7 @@ export function createRun(seed: number): RunState {
     eventThemeBags: {},
     eventThemeBagRefills: {},
     eventInstances: {},
+    eventResolutions: {},
     gold: 0,
     heroLevel: 1,
     heroAllocation: {},

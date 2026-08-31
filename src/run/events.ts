@@ -4,6 +4,14 @@
 // `resolveEventChoice` applies a chosen choice's outcome. No Phaser, no
 // Date.now/Math.random — every roll flows through the engine's seeded `Rng`
 // in a fixed call order, so replaying the same run+path is byte-identical.
+//
+// BOTH ENTRY POINTS ARE ONCE-PER-NODE. The draw memoizes into
+// `RunState.eventInstances`; the CHOICE memoizes into
+// `RunState.eventResolutions` (see `eventResolutionAt` below), which is what
+// stops a screen re-entry — the event HUD's DECK/BAG button is a
+// `scene.start`, and so is a page reload — from resolving the same rung a
+// second time. `reopenEventChoice` is the one exception, and it charges
+// nothing: it re-asks a deferred picker that was paid for and never answered.
 
 import { hashSeed, Rng } from '../engine/rng';
 import { cardOfferableAtTier, clampTierToCard } from '../engine/types';
@@ -20,6 +28,7 @@ import {
   sellRunGem,
   shopStockDepthForWave,
   tryInsertRunCard,
+  type EventResolution,
   type RunBagSlot,
   type RunBoardPiece,
   type RunNode,
@@ -205,6 +214,59 @@ export type EventOutcome =
   // actually lives.
   | ({ kind: 'mergeCardsPick' } & MergeCardsOffer)
   | { kind: 'nothing' };
+
+// ---------------------------------------------------------------------------
+// Per-node resolution memo — the CHOICE half of an event node's memory
+// (`RunState.eventResolutions`; `eventInstances` is the DRAW half). Every
+// reader goes through these four helpers so "absent means nothing resolved
+// yet" is decided in one place and an older save with no field at all reads
+// exactly like a fresh run.
+// ---------------------------------------------------------------------------
+
+/** What `nodeId` already resolved to, or `undefined` if its rungs are still
+ * open. THE predicate the UI asks before it offers a rung, and the guard
+ * `resolveEventChoice` itself trips on. */
+export function eventResolutionAt(state: RunState, nodeId: string): EventResolution | undefined {
+  return state.eventResolutions?.[nodeId];
+}
+
+/** The resolution of whatever event node is CURRENT, or `undefined` off an
+ * event node / on one with its rungs still open. */
+export function currentEventResolution(state: RunState): EventResolution | undefined {
+  const node = currentEventNode(state);
+  return node ? eventResolutionAt(state, node.id) : undefined;
+}
+
+function recordEventResolution(state: RunState, nodeId: string, resolution: EventResolution): RunState {
+  return { ...state, eventResolutions: { ...(state.eventResolutions ?? {}), [nodeId]: resolution } };
+}
+
+/** Whether `outcome` is one of the five that ask a SECOND question — the
+ * deferred pickers, whose rung is paid for but not yet delivered. Derived from
+ * the union rather than from the spec kind so a sixth picker cannot be added
+ * without this list seeing it (`applySpec` maps `cardChoice` onto
+ * `bonusDraft`, and `upgradeCard`/`mergeCards` can resolve straight to a
+ * non-deferred fallback, so the SPEC kind is not the answer). */
+function isDeferredOutcome(outcome: EventOutcome): boolean {
+  return outcome.kind === 'bonusDraft'
+    || outcome.kind === 'upgradeCardPick'
+    || outcome.kind === 'gemChoicePick'
+    || outcome.kind === 'sellGemPick'
+    || outcome.kind === 'mergeCardsPick';
+}
+
+/** Marks the current event node's pending pick as DELIVERED — every one of the
+ * five finalizers below ends with this, so a picker can never be re-opened for
+ * a second helping (see `reopenEventChoice`). A no-op off an event node or on
+ * a node with no pending record, which is what keeps the finalizers callable
+ * from tests that drive them against a hand-built state. */
+function clearPendingEventPick(state: RunState): RunState {
+  const node = currentEventNode(state);
+  if (!node) return state;
+  const resolution = eventResolutionAt(state, node.id);
+  if (!resolution?.pending) return state;
+  return recordEventResolution(state, node.id, { eventId: resolution.eventId, choiceId: resolution.choiceId });
+}
 
 /** Draw `count` DISTINCT items from `pool` via `rng.int`, fixed call order
  * (same idiom used by draft.ts/shop.ts/runMap.ts). */
@@ -1025,6 +1087,13 @@ export function applyMergeCardsPick(
   state: RunState,
   skillId: string,
 ): { state: RunState; outcome: EventOutcome; merged?: MergeCardsReceipt } {
+  return delivered(mergeCardsPickResult(state, skillId));
+}
+
+function mergeCardsPickResult(
+  state: RunState,
+  skillId: string,
+): { state: RunState; outcome: EventOutcome; merged?: MergeCardsReceipt } {
   const plan = mergeCardsPlan(state);
   const deliverable = plan ? plan.pool.some((s) => s.id === skillId) : false;
   const inserted = plan && deliverable ? tryInsertRunCard(plan.after, skillId, plan.to) : null;
@@ -1144,6 +1213,20 @@ export function resolveEventChoice(
   if (!choice) {
     throw new Error(`resolveEventChoice: unknown choice id "${choiceId}" on event "${eventId}"`);
   }
+  // ONE RUNG PER EVENT NODE, FOREVER. `eventInstances` already made the DRAW
+  // idempotent; this is the same guarantee for the CHOICE. Without it a
+  // re-entry (DECK/BAG is a `scene.start`, so `init()` rebuilds the screen's
+  // phase from nothing) re-ran this whole function on the same node — a
+  // repeatable free-gold loop on a paying rung, a repeat charge on a paid one.
+  // Throwing (rather than returning the state unchanged) because there is no
+  // legitimate second call: the UI now asks `eventResolutionAt` first, and the
+  // store wrapper refuses before it ever gets here.
+  const already = eventResolutionAt(state, node.id);
+  if (already) {
+    throw new Error(
+      `resolveEventChoice: node "${node.id}" already resolved choice "${already.choiceId}" — an event node offers its rungs exactly once`,
+    );
+  }
 
   let working = state;
   if (choice.cost) {
@@ -1159,9 +1242,63 @@ export function resolveEventChoice(
   const rng = new Rng(hashSeed('event', node.eventSeed!, choiceId));
   const { state: nextState, outcome } = applySpec(working, rng, choice.outcome, shopStockDepthForWave(node.wave));
   return {
-    state: { ...nextState, stats: { ...nextState.stats, eventsResolved: nextState.stats.eventsResolved + 1 } },
+    state: recordEventResolution(
+      { ...nextState, stats: { ...nextState.stats, eventsResolved: nextState.stats.eventsResolved + 1 } },
+      node.id,
+      { eventId, choiceId, ...(isDeferredOutcome(outcome) ? { pending: true } : {}) },
+    ),
     outcome,
   };
+}
+
+/**
+ * Re-derives the DEFERRED picker a resolved-but-unfinished event node is still
+ * waiting on — the `pending` window described on `EventResolution`
+ * (runState.ts). Returns `undefined` when there is no active event node, when
+ * its rung was never taken, or when the pick is already finalized (so a second
+ * trip through DECK/BAG cannot hand out a second card).
+ *
+ * FREE OF CHARGE and NOT re-counted: unlike `resolveEventChoice` this deducts
+ * no `choice.cost` and does not touch `stats.eventsResolved` — the player
+ * already paid for this question and it is the same question, re-asked. Same
+ * `hashSeed('event', node.eventSeed, choiceId)` stream, so a `bonusDraft`'s
+ * five cards and a `gemChoice`'s three gems come back IDENTICAL; the two
+ * state-reading kinds (`upgradeCard`, `mergeCards`) re-derive against the run
+ * as it stands NOW, which is what the player is looking at and what their
+ * finalizers would re-derive against anyway.
+ *
+ * The re-derivation can legitimately land on a NON-deferred outcome — a merge
+ * whose inputs the player sold in the Deck/Bag screen in between falls back to
+ * `applySpec`'s own consolation coin. That is a real resolution, so the
+ * `pending` flag is cleared and the caller shows it as the outcome.
+ */
+export function reopenEventChoice(state: RunState): { state: RunState; outcome: EventOutcome } | undefined {
+  const node = currentEventNode(state);
+  if (!node) return undefined;
+  const resolution = eventResolutionAt(state, node.id);
+  if (!resolution?.pending) return undefined;
+  const event = eventCatalog[resolution.eventId];
+  const choice = event?.choices.find((c) => c.id === resolution.choiceId);
+  if (!choice) return undefined;
+
+  const rng = new Rng(hashSeed('event', node.eventSeed!, resolution.choiceId));
+  const { state: nextState, outcome } = applySpec(state, rng, choice.outcome, shopStockDepthForWave(node.wave));
+  return {
+    state: isDeferredOutcome(outcome) ? nextState : clearPendingEventPick(nextState),
+    outcome,
+  };
+}
+
+/** THE ONE EXIT every deferred picker's finalizer takes — it stamps the
+ * current event node's pending pick as DELIVERED (`clearPendingEventPick`) on
+ * the way out, so the picker a re-entry re-opens (`reopenEventChoice`) can
+ * never be answered twice. Wrapping here rather than at each of the eight
+ * return sites inside the five finalizers is what makes that impossible to
+ * forget: a sixth picker's finalizer is wrong the moment it does not go
+ * through this function. `merged` (the merge receipt) rides through untouched
+ * — see `MergeCardsReceipt`. */
+function delivered<T extends { state: RunState }>(result: T): T {
+  return { ...result, state: clearPendingEventPick(result.state) };
 }
 
 /**
@@ -1171,6 +1308,10 @@ export function resolveEventChoice(
  * back to `grantGold(2)` (flagged `fellBack: true`) if the bag has no room.
  */
 export function applyBonusDraftPick(state: RunState, pick: DraftCard): { state: RunState; outcome: EventOutcome } {
+  return delivered(bonusDraftPickResult(state, pick));
+}
+
+function bonusDraftPickResult(state: RunState, pick: DraftCard): { state: RunState; outcome: EventOutcome } {
   const inserted = tryInsertRunCard(state, pick.skillId, pick.tier);
   if (!inserted) {
     return {
@@ -1199,6 +1340,10 @@ export function applyBonusDraftPick(state: RunState, pick: DraftCard): { state: 
  * it and nothing else can touch `state` in between.
  */
 export function applyUpgradeCardPick(state: RunState, instanceId: string): { state: RunState; outcome: EventOutcome } {
+  return delivered(upgradeCardPickResult(state, instanceId));
+}
+
+function upgradeCardPickResult(state: RunState, instanceId: string): { state: RunState; outcome: EventOutcome } {
   const boardIndex = state.pieces.findIndex((p) => p.instanceId === instanceId && p.tier !== 'diamond');
   if (boardIndex >= 0) {
     const target = state.pieces[boardIndex]!;
@@ -1230,6 +1375,10 @@ export function applyUpgradeCardPick(state: RunState, instanceId: string): { sta
  * `grantGem` take on an unknown/empty pool).
  */
 export function applyGemChoicePick(state: RunState, gemId: string): { state: RunState; outcome: EventOutcome } {
+  return delivered(gemChoicePickResult(state, gemId));
+}
+
+function gemChoicePickResult(state: RunState, gemId: string): { state: RunState; outcome: EventOutcome } {
   if (!gemBook[gemId]) {
     throw new Error(`applyGemChoicePick: unknown gem id "${gemId}"`);
   }
@@ -1259,6 +1408,10 @@ export function applyGemChoicePick(state: RunState, gemId: string): { state: Run
  * defensive checks).
  */
 export function applySellGemPick(state: RunState, pouchIndex: number): { state: RunState; outcome: EventOutcome } {
+  return delivered(sellGemPickResult(state, pouchIndex));
+}
+
+function sellGemPickResult(state: RunState, pouchIndex: number): { state: RunState; outcome: EventOutcome } {
   const gemId = state.gemInventory[pouchIndex];
   if (!gemId) {
     throw new Error(`applySellGemPick: no pouch gem at index ${pouchIndex}`);

@@ -2,7 +2,7 @@ import { enemies } from '../data/enemies';
 import type { EventDef } from '../data/events';
 import type { DraftCard, DraftSetKey } from '../run/draft';
 import type { EncounterPack } from '../run/encounter';
-import { applyBonusDraftPick, applyGemChoicePick, applyMergeCardsPick, applySellGemPick, applyUpgradeCardPick, resolveEventChoice, rollEventForNode, type EventOutcome, type MergeCardsReceipt } from '../run/events';
+import { applyBonusDraftPick, applyGemChoicePick, applyMergeCardsPick, applySellGemPick, applyUpgradeCardPick, currentEventResolution as eventResolutionOf, reopenEventChoice, resolveEventChoice, rollEventForNode, type EventOutcome, type MergeCardsReceipt } from '../run/events';
 import { bankedPL, type Allocation } from '../run/leveling';
 import { battleStatsFromEvents } from '../run/logAnalysis';
 import { battleGoldReward, type BattleFoeSummary } from '../run/shop';
@@ -46,6 +46,7 @@ import {
   type RunCard,
   type RunNode,
   type RunNodeKind,
+  type EventResolution,
   type RunShopShelf,
   type RunState,
 } from '../run/runState';
@@ -466,13 +467,40 @@ export function currentEventDef(): EventDef | undefined {
   return event;
 }
 
+/** What the CURRENT event node already resolved to — `undefined` off an event
+ * node, or on one whose rungs are still open. The event scenes ask this in
+ * `create()` (which runs again on every `scene.start`, so it is the only thing
+ * that can tell a fresh arrival from a return trip) and show the node as DONE
+ * rather than re-offering its rungs. */
+export function currentEventResolution(): EventResolution | undefined {
+  return activeRun ? eventResolutionOf(activeRun) : undefined;
+}
+
 /** Resolves a choice on the current event node: deducts cost, applies the
- * outcome. Undefined if there's no active event node. */
+ * outcome. Undefined if there's no active event node — OR if this node's rungs
+ * were already taken (the run layer throws on that; this refuses first, so a
+ * stale/duplicate tap is a no-op instead of an exception, which is what the
+ * scenes' existing `if (!outcome) return;` already handles). */
 export function resolveCurrentEventChoice(eventId: string, choiceId: string): EventOutcome | undefined {
   if (!activeRun) return undefined;
+  if (eventResolutionOf(activeRun)) return undefined;
   const { state, outcome } = resolveEventChoice(activeRun, eventId, choiceId);
   setActiveRun(state);
   return outcome;
+}
+
+/** Re-opens the DEFERRED picker a resolved-but-unfinished event node is still
+ * waiting on (the player took a `bonusDraft`/`upgradeCard`/`gemChoice`/
+ * `sellGem`/`mergeCards` rung and left for DECK/BAG before picking). Charges
+ * nothing and counts nothing — the run layer's `reopenEventChoice` owns that
+ * rule; this is the usual one-line store wrapper. Undefined when there is
+ * nothing pending. */
+export function reopenCurrentEventPick(): EventOutcome | undefined {
+  if (!activeRun) return undefined;
+  const reopened = reopenEventChoice(activeRun);
+  if (!reopened) return undefined;
+  setActiveRun(reopened.state);
+  return reopened.outcome;
 }
 
 /** Finalizes a `bonusDraft` outcome's deferred pick (the picker overlay). */
