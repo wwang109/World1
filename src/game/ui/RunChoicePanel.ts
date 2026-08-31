@@ -3,7 +3,7 @@ import { playSfx } from '../audio/sfxSynth';
 import type { SfxKey } from '../audio/sfxRecipes';
 import type { LayoutProfile } from '../layoutProfile';
 import type { RunNodeKind } from '../runStore';
-import { FONT, UI } from '../theme';
+import { FONT, INK, UI, type InkRole } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
 import { addRunArt } from './runArt';
 import { appearPanel, attachButtonFeel, flashConfirm } from './motion';
@@ -18,6 +18,17 @@ export interface RunChoiceViewModel {
   title: string;
   detail: string;
   footer?: string;
+  /**
+   * INK ROLE for the footer text. Omitted keeps the bronze `UI.textAccent` the
+   * footer has always used (the shop row's "N CARDS · N GEMS" cost line), so
+   * every pre-existing model draws byte-identically.
+   *
+   * It exists for the ELITE AFFIX line the run map puts in this slot
+   * (`affixMapFooter`, ui/affixPresentation.ts): a cost and a threat are not
+   * the same kind of fact and must not read as the same colour. A ROLE, not a
+   * colour — the call site may not invent one (tests/game/textRoleAudit.test.ts).
+   */
+  footerInk?: InkRole;
   image?: RunChoiceImage;
   accent: number;
   enabled: boolean;
@@ -262,7 +273,9 @@ export function renderRunChoicePanel(
       fontFamily: FONT.body,
       fontStyle: 'bold',
       fontSize: `${opts.font.tiny}px`,
-      color: model.enabled ? UI.textAccent : UI.textSoft,
+      // A DISABLED footer stays muted whatever its role says — an unreachable
+      // option's threat is not an alarm.
+      color: model.enabled ? (model.footerInk ? INK[model.footerInk] : UI.textAccent) : UI.textSoft,
       wordWrap: { width: footerW },
     }).setOrigin(0, 1);
   }

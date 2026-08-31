@@ -1,6 +1,7 @@
 import { ELITE_AFFIX_IDS, MODIFIER_PRESETS } from '../../data/modifiers';
 import { skillBook } from '../../data/skills';
-import { UI } from '../theme';
+import { UI, type InkRole } from '../theme';
+import type { EncounterPack } from '../../run/encounter';
 
 /**
  * ELITE AFFIX PRESENTATION — the pure, testable half of "the player can SEE
@@ -182,3 +183,85 @@ export function affixBlockLines(
  * all (the sandbox prep screens' AFFIX selector). Re-exported so a scene
  * imports its affix vocabulary from ONE module. */
 export { ELITE_AFFIX_IDS };
+
+// ---------------------------------------------------------------------------
+// THE RUN MAP's half — the affix named on the screen where the CHOICE is made.
+//
+// `76b3033` put the chip on RUN PREP, which is the screen AFTER the player has
+// committed to a fight. The easy/medium/hard pick happens one screen earlier,
+// on the run map, so until now a player chose a fight and only then learned
+// what it carried — the same defect as learning an affix by dying, one step
+// milder. This is the map's read of the same value.
+//
+// READ OFF THE PREVIEWED PACK, NEVER RE-DERIVED. The map already calls
+// `previewEncounter(node)` to build its hint line, and that pack's
+// `units[0].affix` is the FIELD `RunPrepScene` draws its chip from and the
+// field `battleContext.runBattleInput` ships to the battle service. Taking the
+// same field costs no extra roll, spends no `Rng` draw, and makes map/prep/
+// fight agree BY CONSTRUCTION rather than by two derivations happening to
+// match. It also inherits `rollEncounter`'s gate for free:
+//
+//   • only `title === 'elite'` carries one, so a normal fight and a boss draw
+//     byte-identically to before (they present `null`);
+//   • a column's `'hard'` option promotes elite -> boss and `'easy'` caps
+//     elite -> normal, so the three options of ONE column can disagree about
+//     whether they carry the affix even though they agree on WHICH affix that
+//     rung of the ladder holds (`eliteAffixIdFor` is keyed on the fight
+//     number). Re-deriving from (seed, fight number) would have named the
+//     affix on all three and lied on two of them;
+//   • a PACK drops the affix with the title (`capPackTitle`), and reading the
+//     unit rather than the node picks that up with no branch here at all.
+// ---------------------------------------------------------------------------
+
+/**
+ * NAME ONLY ON THE MAP — the ink and the reason, in one line: the map choice
+ * is WHICH RUNG to take and the affix name is the only part of it that varies
+ * between the rungs, while "what answers it" is a deck-building read that
+ * belongs on prep, where the deck is and where the full chip + effect + ANSWER
+ * block already lives one tap later.
+ *
+ * `alarm` is the ink because an affix is a threat, not a dial (it is the text
+ * twin of the `UI.bad` fill the prep chip uses, and unlike that fill it is a
+ * contrast-audited text role — `tests/game/textRoleAudit.test.ts`).
+ */
+export const AFFIX_MAP_INK: InkRole = 'alarm';
+
+/**
+ * The affix a previewed encounter carries, or `null`. The PRIMARY unit is the
+ * subject — the same `pack.units[0]` `Desktop/MobileRunPrepScene` present, so
+ * the map and prep cannot name two different things.
+ */
+export function presentPackAffix(
+  pack: Pick<EncounterPack, 'units'> | null | undefined,
+): AffixPresentation | null {
+  return presentEliteAffix(pack?.units[0]?.affix ?? null);
+}
+
+/** The two `RunChoiceViewModel` fields an affixed fight choice adds. */
+export interface AffixMapFooter {
+  footer: string;
+  footerInk: InkRole;
+}
+
+/**
+ * The run map's affix line, ready to SPREAD into a fight/boss
+ * `RunChoiceViewModel` — `undefined` for every option that carries no affix,
+ * which spreads to nothing and leaves that panel's model byte-identical to
+ * before this existed.
+ *
+ * It lands in the panel's FOOTER slot, which a fight choice has always left
+ * empty while `runChoicePanelLayout` reserved its row unconditionally (shop
+ * choices use it for "N CARDS · N GEMS"). So the chip costs the map ZERO extra
+ * height on a screen that has none to give — the band banner, the windowed
+ * trail and a 94px choice panel already share it — and it is wrapped to
+ * `footerW`, the width the SELECT/LOCKED affordance leaves free, so it cannot
+ * collide with anything the panel already draws.
+ *
+ * ONE function for both platforms: a phone is told exactly what a desktop is.
+ */
+export function affixMapFooter(
+  pack: Pick<EncounterPack, 'units'> | null | undefined,
+): AffixMapFooter | undefined {
+  const affix = presentPackAffix(pack);
+  return affix ? { footer: affix.chipLabel, footerInk: AFFIX_MAP_INK } : undefined;
+}

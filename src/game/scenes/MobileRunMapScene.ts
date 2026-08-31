@@ -6,6 +6,7 @@ import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, textRole, UI } from '../theme';
 import { rebuildScene } from '../sceneRebuild';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
+import { affixMapFooter } from '../ui/affixPresentation';
 import { auditTextBlock } from '../ui/controlLayoutAudit';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { renderBandReadOverlay, renderRunBandBanner, renderRunRouteBoard, snapshotRunRoute } from '../ui/RunRouteBoard';
@@ -336,6 +337,14 @@ export class MobileRunMapScene extends Phaser.Scene {
         kind: node.kind,
         title: titleLabel,
         detail: pack ? encounterHintDetail(pack, node.kind === 'fight' ? node.fightOption : undefined) : '',
+        // THE ELITE AFFIX, ON THE SCREEN WHERE THE CHOICE IS MADE. The chip
+        // shipped on RunPrep, one screen too late — the easy/medium/hard pick
+        // happens HERE. `affixMapFooter` reads `pack.units[0].affix` off the
+        // preview this panel already rolled, so it names exactly what prep and
+        // the fight will, spends no extra roll, and spreads to NOTHING for a
+        // normal fight, a boss or a pack (see its note for the gate, and for
+        // why a column's three rungs may legitimately differ).
+        ...affixMapFooter(pack),
         image: node.kind === 'boss' ? { textureKey: RUN_ART_KEYS.icon.bossSkull } : undefined,
         accent: KIND_COLOR[node.kind],
         enabled: true,
