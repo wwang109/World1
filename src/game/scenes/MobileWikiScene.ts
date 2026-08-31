@@ -15,6 +15,7 @@ import { FONT, GEM_RARITY_COLOR, SCREEN, textRole, TIER_COLOR, UI } from '../the
 import { CardToken } from '../ui/CardToken';
 import { captionCell, captionCellHeight, MOBILE_WIKI_TOKEN_H, WIKI_PL_ROW_H, WIKI_PL_ROW_INSET, type CellBox } from '../ui/cardCellLayout';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
+import { gridWindow, inGridWindow } from '../ui/gridWindow';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 
 const F = MOBILE_PROFILE.font;
@@ -37,6 +38,13 @@ const ROW_GAP = 8;
 const FILTER_BAND_H = 82;
 const GEM_ROW_H = 78;
 const GEM_ROW_GAP = 8;
+/**
+ * Catalogue rows kept live above and below the viewport (`ui/gridWindow.ts`).
+ * Two rows of a two-column grid is four cards of slack in each direction — more
+ * than one drag frame can cross at the ~92px row stride, so a fast flick never
+ * exposes an unbuilt cell.
+ */
+const OVERSCAN_ROWS = 2;
 type WikiCardFilter = 'all' | 'weapon' | 'magic';
 type WikiView = 'cards' | 'gems';
 const TIERS: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
@@ -60,6 +68,12 @@ interface GemRow {
   h: number;
 }
 
+/** What `ensureGemRow` needs to build one gem row on demand. */
+interface GemGrid {
+  rowStride: number;
+  mask?: Phaser.Display.Masks.GeometryMask;
+}
+
 /**
  * Mobile Wiki — a scrollable read-only catalog of every card in skillBook,
  * built for playtesting: tap a card to inspect it (with a tier selector) and
@@ -77,8 +91,30 @@ export class MobileWikiScene extends Phaser.Scene {
   private viewport = { top: 0, height: 0 };
   private scrollY = 0;
   private maxScroll = 0;
-  private rows: CatalogRow[] = [];
-  private gemRows: GemRow[] = [];
+  /**
+   * The catalogue is WINDOWED — `rows[i]` exists only once cell `i` has been
+   * scrolled within `OVERSCAN_ROWS` of the viewport, so the array is SPARSE
+   * until the reader has been everywhere. See `ui/gridWindow.ts` for the
+   * measurements that forced this; the short version is that Phaser does not
+   * frustum-cull, so all 166 cards used to be drawn (and stencil-masked) every
+   * frame no matter where they were scrolled to.
+   *
+   * Cells leaving the window are HIDDEN, never destroyed: `visible` is the one
+   * thing `willRender` checks, so hiding is the whole frame-rate win, while
+   * keeping the object means a card's art streams once and a fast drag never
+   * pays to rebuild a `CardToken`.
+   */
+  private rows: Array<CatalogRow | undefined> = [];
+  /** The filtered catalogue `rows` indexes into. */
+  private catalogSkills: SkillDef[] = [];
+  /** The viewport clip every catalogue cell shares (built once per render). */
+  private cellMask?: Phaser.Display.Masks.GeometryMask;
+  /** Column centres / card width / row stride — what `ensureRow` places from. */
+  private grid = { cardW: 0, colX: [0, 0] as [number, number], rowStride: CELL_H + ROW_GAP };
+  /** Windowed exactly like `rows` — 53 gem rows, ~9 on screen. */
+  private gemRows: Array<GemRow | undefined> = [];
+  private catalogGems: GemDef[] = [];
+  private gemGrid: GemGrid = { rowStride: GEM_ROW_H + GEM_ROW_GAP };
   private indicator?: Phaser.GameObjects.Rectangle;
   private detailOpen = false;
   private detailSkill?: SkillDef;
@@ -113,7 +149,10 @@ export class MobileWikiScene extends Phaser.Scene {
     this.detailSkill = undefined;
     this.detailGem = undefined;
     this.rows = [];
+    this.catalogSkills = [];
+    this.cellMask = undefined;
     this.gemRows = [];
+    this.catalogGems = [];
     this.detailObjects = [];
     this.toastObjects = [];
     this.cameras.main.setBackgroundColor(0x0b1420);
@@ -216,41 +255,105 @@ export class MobileWikiScene extends Phaser.Scene {
     const maskShape = this.make.graphics({}, false);
     maskShape.fillStyle(0xffffff);
     maskShape.fillRect(0, top, this.W, height);
-    const mask = maskShape.createGeometryMask();
+    this.cellMask = maskShape.createGeometryMask();
 
     const contentW = this.W - 20;
     const cardW = (contentW - ROW_GAP) / 2;
-    const colX = [10 + cardW / 2, 10 + cardW + ROW_GAP + cardW / 2];
+    this.grid = {
+      cardW,
+      colX: [10 + cardW / 2, 10 + cardW + ROW_GAP + cardW / 2],
+      rowStride: CELL_H + ROW_GAP,
+    };
 
     const skills = this.filteredSkills();
-    const rowStride = CELL_H + ROW_GAP;
-    for (const [index, skill] of skills.entries()) {
-      const col = index % 2;
-      const rowIndex = Math.floor(index / 2);
-      const baseX = colX[col]!;
-      const baseY = rowIndex * rowStride;
-      const token = new CardToken(this, baseX, 0, skill, { width: cardW, height: TOKEN_H, side: col === 0 ? 'left' : 'right' });
-      token.setMask(mask);
-      const plDeci = instancePowerLevelDeci(skill, { gem: null });
-      // CENTRED IN THE RESERVED ROW UNDER THE CARD, the same place the desktop
-      // gallery puts it — never in the token's own inward top corner, which
-      // belongs to the `xN SLOTS` badge (`ui/cardCellLayout.ts`). No scrim
-      // either: this row is scene ground, not card art.
-      const plText = this.add.text(baseX, 0, `PL ${(plDeci / 10).toFixed(0)}`, textRole('kicker', { ink: 'resource' }))
-        .setOrigin(0.5, 0);
-      plText.setMask(mask);
-      const row: CatalogRow = { skill, token, plText, baseX, baseY, w: cardW, h: CELL_H };
-      this.placeRow(row, top + baseY);
-      this.rows.push(row);
-    }
-    const contentHeight = Math.max(0, Math.ceil(skills.length / 2) * rowStride - ROW_GAP);
+    this.catalogSkills = skills;
+    this.rows = new Array<CatalogRow | undefined>(skills.length);
+    const contentHeight = Math.max(0, Math.ceil(skills.length / 2) * this.grid.rowStride - ROW_GAP);
     this.maxScroll = Math.max(0, contentHeight - height);
 
-    this.indicator = this.add.rectangle(this.W - 4, top, 3, height, 0x3a4a62, 0.8).setOrigin(0.5, 0);
+    // Depth 1 so the thumb stays above cells, which are now appended to the
+    // display list LATER than it is — a windowed cell is built the first time
+    // it scrolls into range, not in this pass.
+    this.indicator = this.add.rectangle(this.W - 4, top, 3, height, 0x3a4a62, 0.8).setOrigin(0.5, 0).setDepth(1);
     this.updateIndicator();
     if (skills.length === 0) {
       this.add.text(this.W / 2, top + 40, 'No cards in the catalog.', { fontSize: `${F.body}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0.5, 0);
     }
+    this.syncWindow();
+  }
+
+  /**
+   * Builds catalogue cell `index` if it does not exist yet, and returns it.
+   * The ONE place a catalogue `CardToken` is constructed — cells arrive as the
+   * reader scrolls to them, which is also what keeps the wiki from resolving
+   * all 72 card-art textures on entry.
+   */
+  private ensureRow(index: number): CatalogRow | undefined {
+    const existing = this.rows[index];
+    if (existing) return existing;
+    const skill = this.catalogSkills[index];
+    const mask = this.cellMask;
+    if (!skill || !mask) return undefined;
+    const col = index % 2;
+    const { cardW, colX, rowStride } = this.grid;
+    const baseX = colX[col]!;
+    const baseY = Math.floor(index / 2) * rowStride;
+    const token = new CardToken(this, baseX, 0, skill, { width: cardW, height: TOKEN_H, side: col === 0 ? 'left' : 'right' });
+    token.setMask(mask);
+    const plDeci = instancePowerLevelDeci(skill, { gem: null });
+    // CENTRED IN THE RESERVED ROW UNDER THE CARD, the same place the desktop
+    // gallery puts it — never in the token's own inward top corner, which
+    // belongs to the `xN SLOTS` badge (`ui/cardCellLayout.ts`). No scrim
+    // either: this row is scene ground, not card art.
+    const plText = this.add.text(baseX, 0, `PL ${(plDeci / 10).toFixed(0)}`, textRole('kicker', { ink: 'resource' }))
+      .setOrigin(0.5, 0);
+    plText.setMask(mask);
+    const row: CatalogRow = { skill, token, plText, baseX, baseY, w: cardW, h: CELL_H };
+    this.rows[index] = row;
+    return row;
+  }
+
+  /**
+   * Brings the live set of cells in line with the current scroll offset:
+   * everything inside the window is built (if new), placed and shown;
+   * everything outside it is hidden. Cheap enough to run every drag frame —
+   * the loop is over 166 array slots, not over 166 game objects.
+   */
+  private syncWindow(): void {
+    const { top, height } = this.viewport;
+    const win = gridWindow({
+      count: this.catalogSkills.length,
+      columns: 2,
+      rowStride: this.grid.rowStride,
+      cellH: CELL_H,
+      viewportHeight: height,
+      scrollY: this.scrollY,
+      overscanRows: OVERSCAN_ROWS,
+    });
+    for (let index = 0; index < this.rows.length; index++) {
+      if (inGridWindow(win, index)) {
+        const row = this.ensureRow(index);
+        if (!row) continue;
+        this.placeRow(row, top + this.scrollY + row.baseY);
+        row.token.setVisible(true);
+        row.plText.setVisible(true);
+        continue;
+      }
+      const row = this.rows[index];
+      if (!row) continue;
+      row.token.setVisible(false);
+      row.plText.setVisible(false);
+    }
+  }
+
+  /** The LIVE catalogue cell under a point, in scene x / content-space y. */
+  private rowAt(worldX: number, localY: number): CatalogRow | undefined {
+    for (const row of this.rows) {
+      if (!row || !row.token.visible) continue;
+      if (worldX < row.baseX - row.w / 2 || worldX > row.baseX + row.w / 2) continue;
+      if (localY >= row.baseY && localY < row.baseY + row.h) return row;
+    }
+    return undefined;
   }
 
   /** Single-column gem catalog: rarity diamond + name/rarity + prominent bonus text. */
@@ -263,37 +366,85 @@ export class MobileWikiScene extends Phaser.Scene {
     const maskShape = this.make.graphics({}, false);
     maskShape.fillStyle(0xffffff);
     maskShape.fillRect(0, top, this.W, height);
-    const mask = maskShape.createGeometryMask();
 
     const gems = gemCatalogOrder(Object.values(gemBook));
-    const rowStride = GEM_ROW_H + GEM_ROW_GAP;
-    gems.forEach((gem, index) => {
-      const baseY = index * rowStride;
-      const container = this.add.container(0, top + baseY);
-      const bg = this.add.rectangle(10, 0, this.W - 20, GEM_ROW_H, 0x101a2a, 0.9)
-        .setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.7);
-      const diamond = this.add.rectangle(28, 20, 13, 13, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
-      const name = this.add.text(44, 8, gem.name, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' });
-      const meta = this.add.text(44, 26, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT'}`, {
-        fontSize: `${F.tiny}px`, color: MobileWikiScene.rarityHex(gem), fontFamily: FONT.body, fontStyle: 'bold',
-      });
-      // The bonus itself is the headline — NOT its PL price (see detail overlay).
-      const body = this.add.text(20, 44, stripCardTextMarkup(gem.text), {
-        fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, wordWrap: { width: this.W - 60 }, lineSpacing: 2,
-      });
-      if (body.height > 26) {
-        let s = stripCardTextMarkup(gem.text);
-        while (s.length > 1 && body.height > 26) { s = s.slice(0, -1); body.setText(`${s}…`); }
-      }
-      container.add([bg, diamond, name, meta, body]);
-      container.setMask(mask);
-      this.gemRows.push({ gem, container, baseY, h: GEM_ROW_H });
-    });
-    const contentHeight = Math.max(0, gems.length * rowStride - GEM_ROW_GAP);
+    this.catalogGems = gems;
+    this.gemRows = new Array<GemRow | undefined>(gems.length);
+    this.gemGrid = { rowStride: GEM_ROW_H + GEM_ROW_GAP, mask: maskShape.createGeometryMask() };
+    const contentHeight = Math.max(0, gems.length * this.gemGrid.rowStride - GEM_ROW_GAP);
     this.maxScroll = Math.max(0, contentHeight - height);
 
-    this.indicator = this.add.rectangle(this.W - 4, top, 3, height, 0x3a4a62, 0.8).setOrigin(0.5, 0);
+    // Depth 1: same reason as the card catalogue's thumb — rows are appended
+    // to the display list as they scroll into range, after this line runs.
+    this.indicator = this.add.rectangle(this.W - 4, top, 3, height, 0x3a4a62, 0.8).setOrigin(0.5, 0).setDepth(1);
     this.updateIndicator();
+    this.syncGemWindow();
+  }
+
+  /** Builds gem row `index` if it does not exist yet. Twin of `ensureRow`. */
+  private ensureGemRow(index: number): GemRow | undefined {
+    const existing = this.gemRows[index];
+    if (existing) return existing;
+    const gem = this.catalogGems[index];
+    const mask = this.gemGrid.mask;
+    if (!gem || !mask) return undefined;
+    const baseY = index * this.gemGrid.rowStride;
+    const container = this.add.container(0, this.viewport.top + this.scrollY + baseY);
+    const bg = this.add.rectangle(10, 0, this.W - 20, GEM_ROW_H, 0x101a2a, 0.9)
+      .setOrigin(0, 0).setStrokeStyle(1, GEM_RARITY_COLOR[gem.rarity], 0.7);
+    const diamond = this.add.rectangle(28, 20, 13, 13, GEM_RARITY_COLOR[gem.rarity]).setOrigin(0.5).setAngle(45);
+    const name = this.add.text(44, 8, gem.name, { fontSize: `${F.label}px`, color: UI.textBright, fontFamily: FONT.display, fontStyle: 'bold' });
+    const meta = this.add.text(44, 26, `${gem.rarity.toUpperCase()} · ${gem.kind === 'stat' ? 'STAT MOD' : 'EFFECT'}`, {
+      fontSize: `${F.tiny}px`, color: MobileWikiScene.rarityHex(gem), fontFamily: FONT.body, fontStyle: 'bold',
+    });
+    // The bonus itself is the headline — NOT its PL price (see detail overlay).
+    const body = this.add.text(20, 44, stripCardTextMarkup(gem.text), {
+      fontSize: `${F.tiny}px`, color: UI.textBright, fontFamily: FONT.body, wordWrap: { width: this.W - 60 }, lineSpacing: 2,
+    });
+    if (body.height > 26) {
+      let clipped = stripCardTextMarkup(gem.text);
+      while (clipped.length > 1 && body.height > 26) { clipped = clipped.slice(0, -1); body.setText(`${clipped}…`); }
+    }
+    container.add([bg, diamond, name, meta, body]);
+    container.setMask(mask);
+    const row: GemRow = { gem, container, baseY, h: GEM_ROW_H };
+    this.gemRows[index] = row;
+    return row;
+  }
+
+  /** `syncWindow` for the single-column gem list. */
+  private syncGemWindow(): void {
+    const { top, height } = this.viewport;
+    const win = gridWindow({
+      count: this.catalogGems.length,
+      columns: 1,
+      rowStride: this.gemGrid.rowStride,
+      cellH: GEM_ROW_H,
+      viewportHeight: height,
+      scrollY: this.scrollY,
+      overscanRows: OVERSCAN_ROWS,
+    });
+    for (let index = 0; index < this.gemRows.length; index++) {
+      if (inGridWindow(win, index)) {
+        const row = this.ensureGemRow(index);
+        if (!row) continue;
+        row.container.setY(top + this.scrollY + row.baseY);
+        row.container.setVisible(true);
+        continue;
+      }
+      const row = this.gemRows[index];
+      if (!row) continue;
+      row.container.setVisible(false);
+    }
+  }
+
+  /** The LIVE gem row at a content-space y. */
+  private gemRowAt(localY: number): GemRow | undefined {
+    for (const row of this.gemRows) {
+      if (!row || !row.container.visible) continue;
+      if (localY >= row.baseY && localY < row.baseY + row.h) return row;
+    }
+    return undefined;
   }
 
   private static rarityHex(gem: GemDef): string {
@@ -317,13 +468,9 @@ export class MobileWikiScene extends Phaser.Scene {
     row.plText.setPosition(row.baseX, caption.y + WIKI_PL_ROW_INSET);
   }
 
-  /** Repositions every row's token/label to reflect the current scroll offset. */
+  /** Re-windows and repositions the catalogue for the current scroll offset. */
   private applyScroll(): void {
-    const { top } = this.viewport;
-    for (const row of this.rows) {
-      const worldTop = top + this.scrollY + row.baseY;
-      this.placeRow(row, worldTop);
-    }
+    this.syncWindow();
     this.updateIndicator();
   }
 
@@ -386,23 +533,19 @@ export class MobileWikiScene extends Phaser.Scene {
           // The tap region is the CELL, not the token — a tap on the PL row under
           // a card opens that card, which is what a reader aiming at the card's
           // bottom edge expects.
-          const row = this.rows.find((r) => p.worldX >= r.baseX - r.w / 2 && p.worldX <= r.baseX + r.w / 2 && localY >= r.baseY && localY < r.baseY + r.h);
+          const row = this.rowAt(p.worldX, localY);
           if (row) { playSfx('uiClick'); this.openDetail(row.skill); }
         } else {
-          const row = this.gemRows.find((r) => localY >= r.baseY && localY < r.baseY + r.h);
+          const row = this.gemRowAt(localY);
           if (row) { playSfx('uiClick'); this.openGemDetail(row.gem); }
         }
       }
     });
   }
 
-  /** Repositions every gem row's container (each row is a single container
-   *  holding its bg/diamond/name/meta/body children). */
+  /** Re-windows and repositions the gem list for the current scroll offset. */
   private applyGemScroll(): void {
-    const { top } = this.viewport;
-    for (const row of this.gemRows) {
-      row.container.setY(top + this.scrollY + row.baseY);
-    }
+    this.syncGemWindow();
     this.updateIndicator();
   }
 

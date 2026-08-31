@@ -14,12 +14,21 @@ import { FONT, GEM_RARITY_COLOR, SCREEN, TIER_COLOR, UI } from '../theme';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { captionCell, captionCellHeight, WIKI_PL_ROW_H, WIKI_PL_ROW_INSET, type CellBox } from '../ui/cardCellLayout';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
+import { gridWindow, inGridWindow } from '../ui/gridWindow';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 
 const F = DESKTOP_PROFILE.font;
 const SLOTS = 10;
 type CardFilter = 'all' | 'weapon' | 'magic';
 const TIERS: readonly SkillTier[] = ['bronze', 'silver', 'gold', 'diamond'];
+/** Columns in the scrollable gallery. */
+const COLUMNS = 5;
+/**
+ * Gallery rows kept live above and below the viewport (`ui/gridWindow.ts`).
+ * Two rows is ten cards of slack in each direction, which no single wheel
+ * notch or drag frame can cross at this row stride.
+ */
+const OVERSCAN_ROWS = 2;
 
 interface GalleryCard {
   skill: SkillDef;
@@ -50,11 +59,30 @@ export class DesktopWikiScene extends Phaser.Scene {
   private tier: SkillTier = 'bronze';
   private selectedGem?: GemDef;
   private filterObjects: Phaser.GameObjects.GameObject[] = [];
-  private galleryCards: GalleryCard[] = [];
+  /**
+   * The gallery is WINDOWED — `galleryCards[i]` exists only once cell `i` has
+   * been scrolled within `OVERSCAN_ROWS` of the viewport, so the array is
+   * SPARSE until the reader has been everywhere. See `ui/gridWindow.ts` for
+   * the measurements that forced this; the short version is that Phaser does
+   * not frustum-cull, so all 166 cards used to be drawn — each with its own
+   * stencil mask — every frame no matter where they were scrolled to.
+   *
+   * Cells leaving the window are HIDDEN, never destroyed: `visible` is the one
+   * thing `willRender` checks, so hiding is the whole frame-rate win, while
+   * keeping the object means a card's art streams once and a wheel notch never
+   * pays to rebuild a `FantasyCardTemplateV2`.
+   */
+  private galleryCards: Array<GalleryCard | undefined> = [];
+  /** The filtered catalogue `galleryCards` indexes into. */
+  private gallerySkills: SkillDef[] = [];
+  /** Card box and row stride — what `ensureGalleryCard` places a cell from. */
+  private galleryGrid = { cardW: 0, cardH: 0, rowStride: 0, left: 0, gapX: 0 };
   private gemObjects: Phaser.GameObjects.GameObject[] = [];
   private detailObjects: Phaser.GameObjects.GameObject[] = [];
   private toastObjects: Phaser.GameObjects.GameObject[] = [];
   private galleryMask?: Phaser.GameObjects.Graphics;
+  /** The ONE viewport clip every gallery cell shares (built per render). */
+  private galleryClip?: Phaser.Display.Masks.GeometryMask;
   private indicator?: Phaser.GameObjects.Rectangle;
   private viewport = { top: 0, height: 0, left: 0, width: 0 };
   private scrollY = 0;
@@ -73,10 +101,12 @@ export class DesktopWikiScene extends Phaser.Scene {
     this.selectedGem = undefined;
     this.filterObjects = [];
     this.galleryCards = [];
+    this.gallerySkills = [];
     this.gemObjects = [];
     this.detailObjects = [];
     this.toastObjects = [];
     this.galleryMask = undefined;
+    this.galleryClip = undefined;
     this.indicator = undefined;
     this.viewport = { top: 0, height: 0, left: 0, width: 0 };
     this.scrollY = 0;
@@ -108,10 +138,12 @@ export class DesktopWikiScene extends Phaser.Scene {
   private rerender(): void {
     this.filterObjects = [];
     this.galleryCards = [];
+    this.gallerySkills = [];
     this.gemObjects = [];
     this.detailObjects = [];
     this.toastObjects = [];
     this.galleryMask = undefined;
+    this.galleryClip = undefined;
     this.indicator = undefined;
     this.scrollY = 0;
     this.maxScroll = 0;
@@ -210,15 +242,18 @@ export class DesktopWikiScene extends Phaser.Scene {
 
   private clearGallery(): void {
     for (const row of this.galleryCards) {
+      if (!row) continue;
       row.card.destroy();
       row.hit.destroy();
       row.plText.destroy();
     }
     this.galleryCards = [];
+    this.gallerySkills = [];
     this.indicator?.destroy();
     this.indicator = undefined;
     this.galleryMask?.destroy();
     this.galleryMask = undefined;
+    this.galleryClip = undefined;
     this.scrollY = 0;
     this.maxScroll = 0;
   }
@@ -234,13 +269,12 @@ export class DesktopWikiScene extends Phaser.Scene {
     const maskShape = this.make.graphics({}, false);
     maskShape.fillStyle(0xffffff);
     maskShape.fillRect(left, top, width, height);
-    const mask = maskShape.createGeometryMask();
     this.galleryMask = maskShape;
+    this.galleryClip = maskShape.createGeometryMask();
 
-    const columns = 5;
     const gapX = 16;
     const gapY = 24;
-    const cardW = (width - (columns - 1) * gapX) / columns;
+    const cardW = (width - (COLUMNS - 1) * gapX) / COLUMNS;
     const cardH = Math.round(cardW * (690 / 420));
     // The PL row is a RESERVED strip under the card, not a chip drawn on it —
     // `ui/cardCellLayout.ts`. This gallery has always worked that way; routing
@@ -249,49 +283,116 @@ export class DesktopWikiScene extends Phaser.Scene {
     // wiki and shop cells instead of only the two that were broken.
     const cellH = captionCellHeight(cardH, WIKI_PL_ROW_H);
     const rowStride = cellH + gapY;
+    this.galleryGrid = { cardW, cardH, rowStride, left, gapX };
 
     const skills = this.filteredSkills();
-    for (const [index, skill] of skills.entries()) {
-      const col = index % columns;
-      const row = Math.floor(index / columns);
-      const baseX = left + col * (cardW + gapX) + cardW / 2;
-      const baseY = row * rowStride;
-      const card = new FantasyCardTemplateV2(this, baseX, top + baseY + cardH / 2, skill, {
-        width: cardW,
-        height: cardH,
-        tier: skill.tier,
-        glossary: false,
-      });
-      card.setMask(mask);
-      const hit = this.add.rectangle(baseX, top + baseY + cardH / 2, cardW, cardH, 0xffffff, 0)
-        .setInteractive({ useHandCursor: true });
-      hit.setMask(mask);
-      const plDeci = powerLevelDeci(skill);
-      const plText = this.add.text(baseX, 0, `PL ${(plDeci / 10).toFixed(0)}`, {
-        fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
-      }).setOrigin(0.5, 0);
-      plText.setMask(mask);
-      const entry: GalleryCard = { skill, card, hit, plText, baseX, baseY, w: cardW, h: cardH };
-      this.placeGalleryCard(entry, top + baseY);
-      this.galleryCards.push(entry);
-    }
+    this.gallerySkills = skills;
+    this.galleryCards = new Array<GalleryCard | undefined>(skills.length);
 
-    const rows = Math.ceil(skills.length / columns);
+    const rows = Math.ceil(skills.length / COLUMNS);
     const contentHeight = Math.max(0, rows * rowStride - gapY);
     this.maxScroll = Math.max(0, contentHeight - height);
 
-    this.indicator = this.add.rectangle(left + width + 4, top, 3, height, UI.border, 0.6).setOrigin(0.5, 0);
+    // Depth 1 so the thumb stays above cells, which are now appended to the
+    // display list LATER than it is — a windowed cell is built the first time
+    // it scrolls into range, not in this pass.
+    this.indicator = this.add.rectangle(left + width + 4, top, 3, height, UI.border, 0.6).setOrigin(0.5, 0).setDepth(1);
     this.updateIndicator();
 
     if (skills.length === 0) {
       const empty = this.add.text(left + width / 2, top + 40, 'No cards match this filter.', {
         fontFamily: FONT.body, fontSize: `${F.small}px`, color: UI.textDim,
       }).setOrigin(0.5, 0);
-      empty.setMask(mask);
+      empty.setMask(this.galleryClip);
       this.filterObjects.push(empty);
     }
 
     this.applyScroll();
+  }
+
+  /**
+   * Builds gallery cell `index` if it does not exist yet, and returns it. The
+   * ONE place a gallery `FantasyCardTemplateV2` is constructed — cells arrive
+   * as the reader scrolls to them, which is also what keeps the wiki from
+   * resolving all 72 card-art textures on entry.
+   */
+  private ensureGalleryCard(index: number): GalleryCard | undefined {
+    const existing = this.galleryCards[index];
+    if (existing) return existing;
+    const skill = this.gallerySkills[index];
+    const mask = this.galleryClip;
+    if (!skill || !mask) return undefined;
+    const { cardW, cardH, rowStride, left, gapX } = this.galleryGrid;
+    const { top } = this.viewport;
+    const col = index % COLUMNS;
+    const baseX = left + col * (cardW + gapX) + cardW / 2;
+    const baseY = Math.floor(index / COLUMNS) * rowStride;
+    const card = new FantasyCardTemplateV2(this, baseX, top + baseY + cardH / 2, skill, {
+      width: cardW,
+      height: cardH,
+      tier: skill.tier,
+      glossary: false,
+    });
+    card.setMask(mask);
+    const hit = this.add.rectangle(baseX, top + baseY + cardH / 2, cardW, cardH, 0xffffff, 0)
+      .setInteractive({ useHandCursor: true });
+    hit.setMask(mask);
+    const plDeci = powerLevelDeci(skill);
+    const plText = this.add.text(baseX, 0, `PL ${(plDeci / 10).toFixed(0)}`, {
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
+    }).setOrigin(0.5, 0);
+    plText.setMask(mask);
+    const entry: GalleryCard = { skill, card, hit, plText, baseX, baseY, w: cardW, h: cardH };
+    this.galleryCards[index] = entry;
+    return entry;
+  }
+
+  /**
+   * Brings the live set of cells in line with the current scroll offset:
+   * everything inside the window is built (if new), placed and shown;
+   * everything outside it is hidden. Cheap enough to run every scroll frame —
+   * the loop is over 166 array slots, not over 166 game objects.
+   */
+  private syncWindow(): void {
+    const { top, height } = this.viewport;
+    const win = gridWindow({
+      count: this.gallerySkills.length,
+      columns: COLUMNS,
+      rowStride: this.galleryGrid.rowStride,
+      cellH: captionCellHeight(this.galleryGrid.cardH, WIKI_PL_ROW_H),
+      viewportHeight: height,
+      scrollY: this.scrollY,
+      overscanRows: OVERSCAN_ROWS,
+    });
+    for (let index = 0; index < this.galleryCards.length; index++) {
+      if (inGridWindow(win, index)) {
+        const entry = this.ensureGalleryCard(index);
+        if (!entry) continue;
+        this.placeGalleryCard(entry, top + this.scrollY + entry.baseY);
+        entry.card.setVisible(true);
+        entry.hit.setVisible(true);
+        entry.plText.setVisible(true);
+        continue;
+      }
+      const entry = this.galleryCards[index];
+      if (!entry) continue;
+      entry.card.setVisible(false);
+      // Hiding the hit rect also takes it out of hit-testing, which is the
+      // point: an interactive rect parked off the viewport would still answer
+      // a click the mask says is not there.
+      entry.hit.setVisible(false);
+      entry.plText.setVisible(false);
+    }
+  }
+
+  /** The LIVE gallery cell under a point, in scene x / content-space y. */
+  private galleryCardAt(worldX: number, localY: number): GalleryCard | undefined {
+    for (const entry of this.galleryCards) {
+      if (!entry || !entry.card.visible) continue;
+      if (worldX < entry.baseX - entry.w / 2 || worldX > entry.baseX + entry.w / 2) continue;
+      if (localY >= entry.baseY && localY < entry.baseY + entry.h) return entry;
+    }
+    return undefined;
   }
 
   /**
@@ -311,10 +412,7 @@ export class DesktopWikiScene extends Phaser.Scene {
   }
 
   private applyScroll(): void {
-    const { top } = this.viewport;
-    for (const row of this.galleryCards) {
-      this.placeGalleryCard(row, top + this.scrollY + row.baseY);
-    }
+    this.syncWindow();
     this.updateIndicator();
   }
 
@@ -372,8 +470,7 @@ export class DesktopWikiScene extends Phaser.Scene {
       dragging = false;
       if (totalMove < 8) {
         const localY = p.worldY - this.viewport.top - this.scrollY;
-        const row = this.galleryCards.find((r) => p.worldX >= r.baseX - r.w / 2 && p.worldX <= r.baseX + r.w / 2
-          && localY >= r.baseY && localY < r.baseY + r.h);
+        const row = this.galleryCardAt(p.worldX, localY);
         if (row) { playSfx('uiClick'); this.selectCard(row.skill); }
       }
     });
