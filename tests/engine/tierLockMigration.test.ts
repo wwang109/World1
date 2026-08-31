@@ -109,7 +109,7 @@ function shapeOf(effects: readonly Action[]): unknown {
   });
 }
 
-/** Everything about a resolved card that the ENGINE reads — the behaviour bar. */
+/** Everything about a resolved card that the engine or the card face can read. */
 function observable(skill: SkillDef): unknown {
   return {
     effects: shapeOf(skill.effects),
@@ -117,6 +117,7 @@ function observable(skill: SkillDef): unknown {
     speedWeight: skill.speedWeight,
     cooldownTurns: skill.cooldownTurns,
     scope: skill.scope,
+    text: skill.text,
     property: skill.property,
     size: skill.size,
     element: skill.element,
@@ -128,48 +129,25 @@ function observable(skill: SkillDef): unknown {
 }
 
 /**
- * THE FACE TEXT IS COMPARED SEPARATELY, and with ONE named exception.
+ * THE FACE TEXT IS BACK INSIDE `observable`, at full strength, and the exception
+ * that briefly stood here is GONE.
  *
- * `text` used to sit inside `observable` above, on the correct principle that a
- * card face that changed is a card that changed. The CAST ORDER RULING
- * (user-locked 2026-08-31 — "any attack always come first before applying their
- * debuff effect") reordered the RESOLVED kit of 14 cards so that every hit lands
- * before every rider, and the face text of the affected cards was reordered to
- * match the log. Eight of those cards are in this migration set, so their Silver/
- * Gold/Diamond faces legitimately differ from the pre-migration document — for a
- * reason that has nothing to do with the migration this file is about.
+ * The one-class CAST ORDER RULING (2026-08-31) reordered the resolved kit of 14
+ * cards and retexted their faces to match, eight of which are in this migration
+ * set — so this file carried a `FACE_TEXT_REORDERED` allow-list whose members'
+ * faces were only required to match as a clause MULTISET. The user REFINED the
+ * ruling the same day ("posion/bleed/burn are after attacks but stats debuff/buff
+ * are applied before the atk"), which put all eight of those cards back to their
+ * pre-ruling order, and their faces back to their pre-migration wording byte for
+ * byte. The allow-list emptied out, so it was deleted rather than left standing
+ * as a zero-member exception: an exception nothing uses is an invitation.
  *
- * DELETING THE TEXT COMPARISON WOULD BE THE WRONG FIX (it is the only thing
- * pinning the retexter). Instead the bar SPLITS, and the weaker half is the
- * narrower one:
- *   • every non-text field stays BYTE-IDENTICAL for all 24 cards at all 4 tiers —
- *     the behaviour claim is untouched and is asserted below at full strength;
- *   • text stays byte-identical for every card NOT in `FACE_TEXT_REORDERED`;
- *   • for those eight, the text must differ ONLY BY CLAUSE ORDER — same clauses,
- *     same numbers, same keywords, permuted. A magnitude change, a dropped
- *     promise or a new one still fails.
- * A card added to `FACE_TEXT_REORDERED` that did NOT actually change is also a
- * failure, so the exception cannot quietly grow.
+ * The five cards the refinement did NOT put back (`gutting_cleave`, `hemorrhage`,
+ * `barbed_rampart`, `crippling_gore`, `sundering_roar` — DoT carriers, whose
+ * bleed still trails the hit) are not in `MIGRATED`: none of them carries a
+ * `minTier` lock, so none has a pre-migration restatement to compare against.
+ * That is why the bar can be whole again rather than merely smaller.
  */
-const FACE_TEXT_REORDERED: readonly string[] = [
-  'armor_break', 'disarming_blow', 'hex_of_frailty', 'judgment_light',
-  'mind_frost', 'ruinous_hex', 'stunning_smash', 'umbral_ward',
-];
-
-/**
- * A face split into its clauses, order discarded. Cards separate clauses with
- * ` · `; `stunning_smash` alone uses a sentence break, so both are cut and the
- * trailing full stop is dropped — otherwise "A. B" and "B · A." would read as
- * different texts when they are the same promise in the other order.
- */
-function clauseMultiset(text: string): string[] {
-  return text
-    .split(' · ')
-    .flatMap((part) => part.split(/(?<=\.) /))
-    .map((part) => part.trim().replace(/\.$/, ''))
-    .filter((part) => part !== '')
-    .sort();
-}
 
 describe('Q1 migration: the one-definition ladder reproduces the deleted restatements EXACTLY', () => {
   it('the before/after really is a before and an after — this suite is not vacuous', () => {
@@ -214,32 +192,24 @@ describe('Q1 migration: the one-definition ladder reproduces the deleted restate
     expect(compared, 'four tiers of every migrated card').toBe(MIGRATED.length * TIER_ORDER.length);
   });
 
-  it('...and the same FACE TEXT, except the eight the 2026-08-31 cast-order ruling reordered', () => {
-    // Split out of `observable` above, at full strength for every card the ruling
-    // did not touch. See `FACE_TEXT_REORDERED` for why the exception exists.
+  it('...and the same FACE TEXT — no allow-list, no clause-multiset softening', () => {
+    // `observable` above already compares `text` byte for byte, so this case is
+    // the SHARP ERROR MESSAGE for the one field most likely to drift, not a
+    // second bar. It exists because a face mismatch inside a whole-object diff
+    // reads as an unhelpful wall; here it names the card, the tier and both
+    // strings. See the block comment above for why the exception is gone.
     const drifted: string[] = [];
-    const reordered = new Set<string>();
+    let compared = 0;
     for (const id of MIGRATED) {
       for (const tier of TIER_ORDER) {
         const before = applyTier(BEFORE[id]!, tier).text;
         const after = applyTier(skillBook[id]!, tier).text;
-        if (before === after) continue;
-        if (!FACE_TEXT_REORDERED.includes(id)) {
-          drifted.push(`${id}@${tier}\n  before: ${before}\n  after : ${after}`);
-          continue;
-        }
-        reordered.add(id);
-        // The exception is ONLY a permutation: same clauses, same numbers, same
-        // keyword markup. Anything else is a content change wearing its clothes.
-        expect(clauseMultiset(after), `${id}@${tier}: the face changed by more than clause order`)
-          .toEqual(clauseMultiset(before));
+        compared += 1;
+        if (before !== after) drifted.push(`${id}@${tier}\n  before: ${before}\n  after : ${after}`);
       }
     }
-    expect(drifted, `a card face drifted for no stated reason:\n${drifted.join('\n')}`).toEqual([]);
-    // ...and the allow-list is exactly used up: an id parked here that no longer
-    // differs is a stale exception, and stale exceptions are how a bar rots.
-    expect([...reordered].sort(), 'every FACE_TEXT_REORDERED id must actually differ')
-      .toEqual([...FACE_TEXT_REORDERED].sort());
+    expect(drifted, `a card face drifted:\n${drifted.join('\n')}`).toEqual([]);
+    expect(compared, 'four faces of every migrated card').toBe(MIGRATED.length * TIER_ORDER.length);
   });
 
   it('...and the same PRICE, part by part, not merely the same total', () => {
@@ -263,13 +233,13 @@ describe('Q1 migration: the one-definition ladder reproduces the deleted restate
 
   it('...and the SKILL THE LOOP CASTS is identical too, normalizer and all', () => {
     // `applyTier` is not the last word: `resolveEffectiveSkill` runs
-    // `orderCastRiders` over the assembled kit (THE CAST ORDER RULE — every hit
-    // of a cast resolves before every rider it lands). Six cards in this
-    // migration set are reordered there (`leeching_fang`'s leech since
-    // 2026-08-26, plus `armor_break`/`hex_of_frailty`/`judgment_light`/
-    // `mind_frost`/`ruinous_hex`/`stunning_smash`/`umbral_ward`'s riders since
-    // 2026-08-31), so the comparison has to be made at the layer the combat loop
-    // actually reads. BOTH SIDES go through today's normalizer, which is the
+    // `orderCastRiders` over the assembled kit (THE CAST ORDER RULE — a cast's
+    // AFTERMATH riders, the DoTs and the `lifesteal` sink, trail its every hit;
+    // its SETUP lines do not move). `leeching_fang` is the one card in this
+    // migration set reordered there — its leech, since 2026-08-26 — because the
+    // 2026-08-31 refinement put every stat/control line back where it was
+    // authored. So the comparison still has to be made at the layer the combat
+    // loop actually reads. BOTH SIDES go through today's normalizer, which is the
     // point: the migration must not have changed the kit, and it did not.
     const diffs: string[] = [];
     for (const id of MIGRATED) {

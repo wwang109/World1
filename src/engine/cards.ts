@@ -414,14 +414,16 @@ function weightWithGemIncrease(base: number, pct: number): number {
  * SCOPE: this decides only where GEM actions splice in — `spliceGemActions`
  * keeps `base` intact and contiguous between the two gem blocks.
  *
- * IT IS ALSO READ FROM THE OTHER SIDE. `orderCastRiders` (below) asks this table
- * whether a kind PREPARES the hit (`pre`) or follows it (`post`) in order to
- * normalize a CARD's own authored order to the same answer — every hit of a cast
- * first, then every rider it lands on the target (user-locked 2026-08-31). So a
- * `post` row here is not just "where a gem goes"; it is the phase the keyword
- * has, whoever supplied it. The rows below say `pre`/`post` for reasons that
- * hold either way, and the two that used to be gem-only judgement calls
- * (`debuffStat`/`expose`/`bleed`, and `lifesteal`) are now the rule.
+ * IT IS ALSO READ FROM THE OTHER SIDE, BUT ONLY THE `pre` ROWS ARE.
+ * `castPhaseOf` (below) asks this table one question — does this kind PREPARE a
+ * hit? — because a `pre` kind must never be pushed behind the hit it feeds: that
+ * would DELETE it, not delay it. A `post` row here still means only "where a GEM
+ * splices", and it is deliberately NOT read as "where a card's own line belongs":
+ * a gem is ADDITIVE to the host's kit (see `damage`/`statStrike` below, "never
+ * ahead of it"), whereas a card's own setup line is part of the swing it sets up.
+ * The 2026-08-31 cast-order ruling and its same-day refinement live in
+ * `castPhaseOf`, which classifies a kind as ANCHOR / SETUP / AFTERMATH from
+ * `isHit`, this table's `pre` rows, and `KEYWORD_PRICING[k].family === 'dot'`.
  *
  * EXPORTED so a test can re-derive the rider class from this table and
  * `KEYWORD_PRICING` rather than hand-listing kinds beside the implementation —
@@ -522,17 +524,22 @@ export const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
   // no attacker-side bonus and no stat split — see `GemAppended`).
   damage: 'post',
   statStrike: 'post',
-  // Offensive statuses. They would amplify the host's own hit if hoisted, and
-  // as of 2026-08-31 that is settled rather than deferred: the user ruled that
-  // "any attack always come first before applying their debuff effect", and
-  // "if attack cause bleed or poison the attack happens first then bleed or
-  // poison get applied". `orderCastRiders` reads this row to enforce it on
-  // AUTHORED order too, so a gem and a card now land in the same place by
-  // construction instead of by convention. (The catalog's own habit already
-  // mostly agreed — debuffStat 6/6, expose 1/1, bleed 1/1 trailed the hit before
-  // the ruling; the ruling is what moved the other 13 kits.) `bleed`
-  // additionally cannot be applied while the victim holds a shield, so trailing
-  // the hit (which may have spent that shield) is also its STRONGER placement.
+  // Offensive statuses, and the place the two 2026-08-31 rulings SPLIT.
+  //
+  // `bleed` is AFTERMATH by the refined ruling ("posion/bleed/burn are after
+  // attacks"), so `post` here agrees with `castPhaseOf` and with every authored
+  // bleed card. It is also bleed's STRONGER placement: bleed cannot be applied
+  // while the victim holds a shield, and behind the hit that shield may already
+  // have been spent.
+  //
+  // `debuffStat`/`expose` are SETUP by the refined ruling ("stats debuff/buff are
+  // applied before the atk"), and the user confirmed a card's own stat debuff
+  // SHOULD amplify its own hit. They are kept at `post` ANYWAY, and the gap is
+  // deliberate: a gem is additive to the host's kit, so hoisting these rows would
+  // hand every debuff gem the host's own hit to amplify — a rise in what the gem
+  // is worth, i.e. a pricing decision (balance-designer), not the ordering
+  // question the rulings answered. `post` is also the shipped behaviour on both
+  // sides of both rulings. FLAGGED FOR THE USER, not taken here.
   debuffStat: 'post',
   expose: 'post',
   bleed: 'post',
@@ -711,53 +718,90 @@ function hasCardTargeting(actions: readonly Action[]): boolean {
  * THE CAST-ORDER RULE — the read-side twin of `GEM_ACTION_PHASE`, and the one
  * place a card's OWN authored order is normalized.
  *
- *     WITHIN ONE CAST: EVERY HIT RESOLVES FIRST, THEN EVERY RIDER LANDS.
+ *     SETUP BEFORE THE ATTACK. AFTERMATH BEHIND IT.
  *
- * USER-LOCKED 2026-08-31, verbatim: *"I think gems or card affect should be
- * clear when it happens and debuff usually should happen at the end so any
- * attack always come first before applying their debuff effect if it applies
- * one"*, and — on whether a DoT counts — *"like if attack cause bleed or poison
- * the attack happens first then bleed or poison get applied"*. A card's rider
- * sets up the NEXT card; it never sets up its own later hits.
+ * USER-LOCKED 2026-08-31, in two passes. The first ruling was general — *"debuff
+ * usually should happen at the end so any attack always come first before
+ * applying their debuff effect if it applies one"* — and it was REFINED the same
+ * day, verbatim: *"maybe we should split the type of debuff like posion/bleed/burn
+ * are after attacks but stats debuff/buff are applied before the atk"*. Asked
+ * whether a card's own stat debuff should therefore amplify its OWN hit, the user
+ * answered YES. So there are two classes, not one:
  *
- * WHAT COUNTS AS A RIDER — DERIVED, NEVER HAND-LISTED (`mustTrailHits` below).
- * Three exhaustive-by-type tables already in the engine answer it between them,
- * so a NEW `Action` kind is classified the moment its author fills in the rows
- * the compiler already demands, and there is no fourth list to rot:
+ *   • AFTERMATH — poison / bleed / burn. A DoT is what the attack LEAVES BEHIND,
+ *     so it lands after every hit of the cast. This is the class that moves.
+ *   • SETUP — stat debuffs and buffs (and every control, guard, heal and ward
+ *     line beside them). A stat effect PREPARES the swing, so the card's own
+ *     later hits are meant to cash it in. This is the class that does NOT move.
+ *
+ * WHICH CLASS A KIND IS IN IS DERIVED, NEVER HAND-LISTED (`castPhaseOf` below).
+ * Tables the compiler already forces exhaustive answer it between them, so a NEW
+ * `Action` kind is classified the moment its author fills in the rows the
+ * compiler demands, and there is no fourth list to rot:
+ *   • `KEYWORD_PRICING[k].isHit` — `damage`/`statStrike` ARE the attack. They are
+ *     the ANCHOR the aftermath trails, not members of either class.
  *   • `GEM_ACTION_PHASE` (above) — `pre` means "this PREPARES the hit"
  *     (`shieldBreak` opens the plating; `comboBonus`/`chainBonus`/`exploit`/
  *     `stackBonus`/`taxBonus`/`desperation`/`shieldBurst`/`wardRelease` arm a
- *     bonus only a `damage` arm can read). A `pre` kind is NEVER a rider: moving
- *     it behind the hit would not delay it, it would DELETE it.
- *   • `KEYWORD_PRICING[k].isHit` — `damage`/`statStrike` ARE the attack, so they
- *     are what the riders trail, not riders themselves.
- *   • `KEYWORD_PRICING[k].offensive` — the same partition `isOffensiveAction`
- *     (combat/interpreter.ts) runs on, and the one that separates "the cast
- *     applies this TO THE TARGET" from "the caster does this to itself". It is
- *     what keeps SELF-BUFFS out: `guard`, `negate`, `ward`, `thorns`,
- *     `buffStat`, `heal`, `shield` stay exactly where their card authored them
- *     (`braced_pike` still guards before it lunges; `storm_surge` still buffs
- *     before it swings). The user ruled on debuffs — the mirror ruling for a
- *     card that amplifies its OWN later hits has not been made, and this rule
- *     does not pre-empt it.
- * Two named exceptions, each for a reason its own type doc already states:
- *   • `splash` is offensive and `post` but APPLIES NOTHING and is read
- *     cast-scoped (`castSpreadsBand`, combat/interpreter.ts — "CAST-SCOPED, NOT
- *     POSITIONAL"), so moving it would be pure churn on a position that decides
- *     nothing;
- *   • `lifesteal` is `offensive: false` — it heals the CASTER — but it is a SINK
- *     that reads what the cast accumulated (`cast.damageDealt`) and so has
- *     trailed every hit since 2026-08-26 (566bea1). It is a member of this one
- *     rule rather than a second ordering pass beside it.
+ *     bonus only a `damage` arm can read). A `pre` kind is also an ANCHOR, and
+ *     for a stronger reason than the others: behind the hit it would not be
+ *     delayed, it would be DELETED. That is what keeps `second_bite` honest.
+ *   • `KEYWORD_PRICING[k].family === 'dot'` — the AFTERMATH class, exactly. The
+ *     cap family is already the engine's own name for "this is a damage-over-time
+ *     keyword", and `KeywordPricingTable` is a mapped type over `Action['kind']`,
+ *     so the next DoT joins the class by filling in a row it cannot omit.
+ * One named member beyond the derivation:
+ *   • `lifesteal` is `offensive: false` and `family: 'empower'` — it heals the
+ *     CASTER — but it is a SINK that reads what the cast accumulated
+ *     (`cast.damageDealt`), so ahead of the hits it leeches from nothing. It has
+ *     trailed every hit since 2026-08-26 (566bea1) and is a member of this one
+ *     rule rather than a second ordering pass beside it. THE REFINEMENT DOES NOT
+ *     TOUCH IT: it is aftermath in the only sense that matters — it reads a total
+ *     the hits produce.
  *
- * THE BEHAVIOUR IT CHANGES, STATED AS A NERF (it is one). Before this rule a
- * card's own debuff softened its own later hits — `judgment_light` at Diamond
- * read `hit 27 -DEF10 / MDEF -20% / hit 32 -DEF8`, the second hit cashing in the
- * debuff the first one bought. It now reads `hit 27 -DEF10 / hit 32 -DEF10 /
- * MDEF -20%`. `GEM_ACTION_PHASE` had already called this out in writing on its
- * `debuffStat`/`expose`/`bleed` row — "they would amplify the host's own hit if
- * hoisted — that is a balance change, not an ordering defect" — and left it for
- * a ruling. This IS that ruling, so the row is corrected below.
+ * `splash` needs no exception any more. It is `family: 'control'`, so the
+ * derivation calls it setup and leaves it alone — which is the right answer for
+ * a keyword that applies nothing and is read cast-scoped (`castSpreadsBand`,
+ * combat/interpreter.ts: "CAST-SCOPED, NOT POSITIONAL"). The hand-written
+ * `kind === 'splash'` line the one-class rule needed is gone.
+ *
+ * THE NORMALIZER ONLY EVER DEFERS — IT DOES NOT HOIST, AND THAT IS A DELIBERATE
+ * LIMIT. "Setup comes before the attack" is satisfied by AUTHORING here, not by
+ * rewriting: every shipped card that pairs a stat effect with a hit and means it
+ * as setup already writes it first (`armor_break`, `hex_of_frailty`, `mind_frost`,
+ * `disarming_blow`, `ruinous_hex`, `umbral_ward`, `crippling_gore`,
+ * `judgment_light`, `sundering_roar`, `stunning_smash`, `storm_surge`,
+ * `battle_howl`), and this rule's whole job is to stop the one-class version from
+ * moving them. The cards that write a stat line AFTER their hit (`deep_freeze`,
+ * `glacial_spike`, `piercing_arrow`, `silencing_slash`, `slow_hex`,
+ * `crippling_strike`, `scorching_brand`, `rustbind_hex`, `rimebound_pact`,
+ * `hoarfrost_creed`, `marksmans_creed`, `stormrank_relay`, `hemorrhage` at Gold+)
+ * are LEFT EXACTLY AS AUTHORED. Hoisting them would hand 13 more cards a strict
+ * power increase at an unchanged price — a balance decision (balance-designer),
+ * not the ordering question this rule answers. It is flagged for the user, not
+ * taken here.
+ *
+ * A GEM'S ACTIONS ARE NOT HOISTED EITHER, for the same reason plus one of its
+ * own: `GEM_ACTION_PHASE`'s default is `post` because a gem is ADDITIVE to the
+ * host's kit — "never ahead of it". Its `pre` rows exist only for actions that
+ * would be a priced NO-OP behind the host, never as a power grant. So a gem
+ * `debuffStat` still lands behind the host's hits while the host's own
+ * `debuffStat` lands where the card wrote it. That asymmetry is the shipped
+ * behaviour on both sides of this ruling; moving those rows to `pre` would raise
+ * what those gems are worth, which is again pricing, not ordering.
+ *
+ * WHAT THE REFINEMENT CHANGED, STATED AS THE NUMBERS. `judgment_light@diamond`
+ * goes back to `hit 27 -DEF6 / MDEF -20% / hit 32 -DEF4` — its second hit cashing
+ * in the debuff its first hit bought, which is the self-amplification the user
+ * confirmed they want. `ruinous_hex@diamond` goes back to 37 damage,
+ * `armor_break@diamond` to 21, `hex_of_frailty@diamond` to 28. The DoTs do NOT
+ * go back: `hemorrhage`, `gutting_cleave`, `barbed_rampart` and the bleed halves
+ * of `crippling_gore`/`sundering_roar` still trail their hit.
+ *
+ * `crippling_gore` is the card that shows both classes at once, and it is the
+ * proof the split is real rather than a relabelling: authored `bleed, debuffStat,
+ * damage`, it resolves `debuffStat, damage, bleed` — the DEF debuff ahead of its
+ * own lance, the bleed behind it, out of one kit in one cast.
  *
  * PL IS UNAFFECTED, so nothing needs re-solving: `actionsPriceDeci` sums each
  * action's own price and no term reads a sibling's position, so a reordered kit
@@ -767,41 +811,50 @@ function hasCardTargeting(actions: readonly Action[]): boolean {
  * WHY THE RESOLVER, NOT THE LOOP (CLAUDE.md, "the resolver seam"): the order is
  * a property of the RESOLVED card, so it folds in before the loop runs and
  * `applyCast` stays feature-agnostic — no deferred-action queue, no second pass,
- * no `kind === 'debuffStat'` branch in the walk. It also covers all three ways a
- * kit is assembled at once — authored effects, a `tierUpgrades` override, and a
- * GEM SPLICE (the user said "gems or card affect", and a gem's `post` actions
- * land behind the host's, so a gem rider on a host whose own hit trails it was
- * reachable with no card edit at all).
+ * no `kind === 'bleed'` branch in the walk. It also covers all three ways a kit is
+ * assembled at once — authored effects, a `tierUpgrades` override, and a GEM
+ * SPLICE (the user said "gems or card affect", and a gem's `post` DoT on a host
+ * whose own hit trails it was reachable with no card edit at all).
  *
  * MINIMAL AND STABLE: an offending rider moves to immediately AFTER the last hit
  * and NOTHING ELSE MOVES — relative order is otherwise preserved, so hit
  * ordinals (the multi-hit stat split), the one-bonus-per-cast spend, every
- * `pre` arm and every self-buff line stay exactly where the card authored them.
- * A kit already in order returns the SAME array reference, so it resolves
- * byte-identically (the `toBe(def)` identity contract in gems.test.ts).
+ * `pre` arm, every setup line and every self-buff stay exactly where the card
+ * authored them. A kit already in order returns the SAME array reference, so it
+ * resolves byte-identically (the `toBe(def)` identity contract in gems.test.ts).
  *
  * KNOWN CONSEQUENCES, both of them the locked rules winning:
- *   • a cast whose LAST hit wipes the enemy side now applies no rider at all —
+ *   • a cast whose LAST hit wipes the enemy side applies no AFTERMATH rider —
  *     `castCutShort` (combat/interpreter.ts, user-locked 2026-08-04) stops the
- *     walk, so the debuff/DoT/leech on a killing blow is simply not spent. That
- *     is the same consequence 566bea1 accepted for `lifesteal`, now general.
+ *     walk, so the DoT or leech on a killing blow is simply not spent. That is
+ *     the same consequence 566bea1 accepted for `lifesteal`. Setup lines are
+ *     unaffected, because they resolve before the hit that would end the fight.
  *   • `bleed` gets STRONGER, not weaker: it "cannot be applied while the target
  *     holds any active shield", and behind the hit the shield it could not cut
  *     through may already have been spent. `GEM_ACTION_PHASE`'s `bleed` row said
  *     so before this change existed.
  */
+type CastPhase = 'anchor' | 'setup' | 'aftermath';
+
+function castPhaseOf(kind: Action['kind']): CastPhase {
+  // ANCHOR (a). It PREPARES a hit — behind one it would be deleted, not delayed.
+  if (GEM_ACTION_PHASE[kind] === 'pre') return 'anchor';
+  // ANCHOR (b). It IS the attack. Hits are what the aftermath trails.
+  if (KEYWORD_PRICING[kind].isHit) return 'anchor';
+  // AFTERMATH (a). The DoT class, named by the engine's own cap family:
+  // `poison`, `bleed`, `burn`. "posion/bleed/burn are after attacks".
+  if (KEYWORD_PRICING[kind].family === 'dot') return 'aftermath';
+  // AFTERMATH (b). The one caster-side member — a SINK that reads
+  // `cast.damageDealt`, so it is meaningless ahead of the hits (566bea1).
+  if (kind === 'lifesteal') return 'aftermath';
+  // SETUP. Stat debuffs and buffs — "stats debuff/buff are applied before the
+  // atk" — plus every control, guard, ward, heal, shield and taunt line beside
+  // them. Not moved: see THE NORMALIZER ONLY EVER DEFERS, above.
+  return 'setup';
+}
+
 function mustTrailHits(kind: Action['kind']): boolean {
-  // Prepares the hit — behind it, it would be deleted rather than delayed.
-  if (GEM_ACTION_PHASE[kind] === 'pre') return false;
-  // It IS the attack. Hits are what riders trail.
-  if (KEYWORD_PRICING[kind].isHit) return false;
-  // Applies nothing and is read cast-scoped, so its index decides nothing.
-  if (kind === 'splash') return false;
-  // The caster-side SINK that reads `cast.damageDealt` (566bea1).
-  if (kind === 'lifesteal') return true;
-  // Everything the cast lands ON THE TARGET. Self-buffs are `offensive: false`
-  // and stay where they were authored — the mirror ruling has not been made.
-  return KEYWORD_PRICING[kind].offensive;
+  return castPhaseOf(kind) === 'aftermath';
 }
 
 function orderCastRiders(effects: readonly Action[]): readonly Action[] {

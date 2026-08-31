@@ -8,32 +8,43 @@ import type { Action, SkillTier } from '../../src/engine/types';
 import { cfg, tc, NO_ENDGAME } from '../helpers';
 
 /**
- * THE CAST ORDER RULE — within one cast, every HIT resolves before every RIDER.
+ * THE CAST ORDER RULE — SETUP BEFORE THE ATTACK, AFTERMATH BEHIND IT.
  *
- * USER-LOCKED 2026-08-31, verbatim: *"I think gems or card affect should be
- * clear when it happens and debuff usually should happen at the end so any
- * attack always come first before applying their debuff effect if it applies
- * one"*, and, on whether a DoT is in scope: *"like if attack cause bleed or
- * poison the attack happens first then bleed or poison get applied"*.
+ * USER-LOCKED 2026-08-31, in two passes. The first ruling was general: *"I think
+ * gems or card affect should be clear when it happens and debuff usually should
+ * happen at the end so any attack always come first before applying their debuff
+ * effect if it applies one"*. It was REFINED the same day, verbatim: *"maybe we
+ * should split the type of debuff like posion/bleed/burn are after attacks but
+ * stats debuff/buff are applied before the atk"* — and, asked whether a card's own
+ * stat debuff should therefore amplify its OWN hit, the user answered YES.
  *
- * IT IS A BALANCE CHANGE, NOT A BUG FIX, and a nerf where it bites. Before it,
- * `judgment_light` at Diamond read `hit 27 -DEF10 / MDEF -20% / hit 32 -DEF8` —
- * its second hit cashing in the debuff its first hit bought. `GEM_ACTION_PHASE`
- * (src/engine/cards.ts) had already written down that this was a live question
- * and not an ordering defect ("that is a balance change, not an ordering
- * defect"); this is the ruling that answered it.
+ * So there are TWO classes, not one:
+ *
+ *   • AFTERMATH — `poison`/`bleed`/`burn`, plus the `lifesteal` sink. What the
+ *     attack LEAVES BEHIND. It trails every hit of the cast. THIS is what moves.
+ *   • SETUP — stat debuffs and buffs, and every control/guard/ward/heal line
+ *     beside them. What the attack is BUILT ON. It stays exactly where the card
+ *     authored it, so a card's own `debuffStat`/`expose` amplifies its own later
+ *     hits again.
+ *
+ * IT IS A BALANCE DECISION, NOT A BUG FIX, in both directions. `judgment_light`
+ * at Diamond reads `hit 27 -DEF6 / MDEF -20% / hit 32 -DEF4` — its second hit
+ * cashing in the debuff its first hit bought. The one-class rule briefly made that
+ * `hit 27 -DEF6 / hit 32 -DEF6 / MDEF -20%`; the refinement put it back, and the
+ * user was shown both numbers and chose this one.
  *
  * ENFORCED AT THE RESOLVER SEAM, once, for all three assembly routes: authored
  * effects, a `tierUpgrades` override, and a gem splice (`orderCastRiders`,
  * src/engine/cards.ts). Nothing in `applyCast` or the interpreter loop knows the
  * rule exists — see CLAUDE.md, "Additive features — the resolver seam".
  *
- * WHAT COUNTS AS A RIDER IS DERIVED, never hand-listed: `pre`-phase kinds
- * PREPARE the hit and never move; `isHit` kinds ARE the hit; `offensive` is what
- * separates a rider the cast lands on the TARGET from a self-buff the caster
- * gives itself. The two named exceptions are `splash` (applies nothing, read
- * cast-scoped) and `lifesteal` (caster-side, but a sink reading
- * `cast.damageDealt` — the 2026-08-26 rule this one absorbs).
+ * WHICH CLASS A KIND IS IN IS DERIVED, never hand-listed: `isHit` kinds and
+ * `pre`-phase kinds are the ANCHOR (they ARE the attack, or they PREPARE one and
+ * behind it would be DELETED rather than delayed); `family === 'dot'` is the
+ * AFTERMATH class exactly; everything else is SETUP. `lifesteal` is the one named
+ * member — caster-side, but a sink reading `cast.damageDealt`, the 2026-08-26
+ * rule (566bea1) this one absorbs. `splash` needs no exception any more: it is
+ * `family: 'control'`, so the derivation leaves it alone by itself.
  *
  * DAMAGE AND DEFENSE ARE READ OUT OF THE EVENT LOG (`calculation.defense` /
  * `calculation.hpDamage` / `calculation.exposeBonus` — the same numbers
@@ -59,32 +70,92 @@ function lastHitIndex(kinds: readonly string[]): number {
 }
 
 /**
- * The rider kinds sitting AHEAD of the last hit — i.e. the rule's violations.
- * Derived from the same three tables the resolver reads, so this assertion
- * cannot drift from the implementation's idea of what a rider is; the point of
- * the sweep is that the ANSWER is "none", on every kit in the book.
+ * THE CLASSIFICATION, re-derived here from the same exhaustive tables the
+ * resolver reads, so an assertion cannot drift from the implementation's idea of
+ * what an aftermath rider is — and pinned as a literal partition below, so a
+ * changed `family` or a new `Action` kind is a visible, reviewed event.
  */
-function isRider(kind: Action['kind']): boolean {
-  if (GEM_ACTION_PHASE[kind] === 'pre') return false;      // PREPARES the hit
-  if (KEYWORD_PRICING[kind].isHit) return false;           // IS the hit
-  if (kind === 'splash') return false;                     // applies nothing, cast-scoped
-  if (kind === 'lifesteal') return true;                   // caster-side sink (566bea1)
-  return KEYWORD_PRICING[kind].offensive;                  // landed on the target
+type CastPhase = 'anchor' | 'setup' | 'aftermath';
+
+function phaseOf(kind: Action['kind']): CastPhase {
+  if (GEM_ACTION_PHASE[kind] === 'pre') return 'anchor';   // PREPARES the hit
+  if (KEYWORD_PRICING[kind].isHit) return 'anchor';        // IS the hit
+  if (KEYWORD_PRICING[kind].family === 'dot') return 'aftermath';
+  if (kind === 'lifesteal') return 'aftermath';            // caster-side sink (566bea1)
+  return 'setup';
 }
 
-function ridersAheadOfHits(kinds: readonly string[]): string[] {
+/** The AFTERMATH riders sitting AHEAD of the last hit — i.e. the rule's violations. */
+function aftermathAheadOfHits(kinds: readonly string[]): string[] {
   const last = lastHitIndex(kinds);
   if (last < 0) return [];
   const bad: string[] = [];
   for (let i = 0; i < last; i += 1) {
     const k = kinds[i] as Action['kind'];
-    if (isRider(k)) bad.push(`${k}@${i}`);
+    if (phaseOf(k) === 'aftermath') bad.push(`${k}@${i}`);
   }
   return bad;
 }
 
-describe('cast order: every hit resolves before every rider', () => {
-  it('THE SWEEP — no shipped kit, at any of the four tiers, lands a rider ahead of a hit', () => {
+/** The kit with every aftermath line removed — what the rule must NOT have touched. */
+function withoutAftermath(kinds: readonly string[]): string[] {
+  return kinds.filter((k) => phaseOf(k as Action['kind']) !== 'aftermath');
+}
+
+describe('cast order: the two classes', () => {
+  it('THE PARTITION — every Action kind is anchor, setup or aftermath, and the split is the ruling', () => {
+    // Pinned as a literal because the derivation reads `family`, and `family` is
+    // a PRICING field: someone re-homing a keyword's cap family would silently
+    // move it between classes. Here that is a failing test with a name on it.
+    const byPhase: Record<CastPhase, string[]> = { anchor: [], setup: [], aftermath: [] };
+    for (const kind of Object.keys(KEYWORD_PRICING) as Action['kind'][]) byPhase[phaseOf(kind)].push(kind);
+    for (const list of Object.values(byPhase)) list.sort();
+
+    // "posion/bleed/burn are after attacks" — plus the one caster-side sink.
+    expect(byPhase.aftermath).toEqual(['bleed', 'burn', 'lifesteal', 'poison']);
+    // "stats debuff/buff are applied before the atk" — and everything that is
+    // neither a DoT nor part of the attack sits with them.
+    expect(byPhase.setup).toEqual([
+      'attunedShield', 'buffStat', 'burden', 'cleanse', 'curse', 'debuffStat',
+      'disrupt', 'empowerNext', 'expose', 'guard', 'heal', 'negate', 'shield',
+      'slow', 'splash', 'stun', 'taunt', 'thorns', 'ward',
+    ]);
+    expect(byPhase.anchor).toEqual([
+      'chainBonus', 'cleanseConvert', 'comboBonus', 'damage', 'desperation',
+      'exploit', 'overhealShield', 'shieldBreak', 'shieldBurst', 'stackBonus',
+      'statStrike', 'taxBonus', 'wardRelease',
+    ]);
+    // ...and the partition is total: no kind is unclassified or double-counted.
+    expect(byPhase.anchor.length + byPhase.setup.length + byPhase.aftermath.length)
+      .toBe(Object.keys(KEYWORD_PRICING).length);
+  });
+
+  it('THE NAMED CASES — the four kinds the user ruled on land where they were ruled', () => {
+    // The user's own words, as four assertions, so the rule cannot drift away
+    // from the sentence it came from.
+    expect(phaseOf('poison')).toBe('aftermath');
+    expect(phaseOf('bleed')).toBe('aftermath');
+    expect(phaseOf('burn')).toBe('aftermath');
+    expect(phaseOf('debuffStat')).toBe('setup');
+    expect(phaseOf('buffStat')).toBe('setup');
+    // `expose` is a damage AMPLIFIER, so it reads as a stat debuff and NOT as a
+    // DoT — the reading `ruinous_hex`'s and `sundering_roar`'s confirmed numbers
+    // require (both amplify their own hit again).
+    expect(phaseOf('expose')).toBe('setup');
+    // Control changes the victim's FUTURE tempo and no term of this cast, so it
+    // is not aftermath either; it stays where the card authored it.
+    for (const k of ['stun', 'slow', 'burden', 'curse', 'disrupt'] as Action['kind'][]) {
+      expect(phaseOf(k), `${k} is control, not a DoT`).toBe('setup');
+    }
+    // `shieldBreak` OPENS the plating for the hit — setup in the user's sense and
+    // a `pre` arm in the engine's, so both readings keep it ahead of the hit.
+    expect(phaseOf('shieldBreak')).toBe('anchor');
+    expect(GEM_ACTION_PHASE['shieldBreak']).toBe('pre');
+  });
+});
+
+describe('cast order: aftermath trails every hit', () => {
+  it('THE SWEEP — no shipped kit, at any of the four tiers, lands a DoT or leech ahead of a hit', () => {
     const violations: string[] = [];
     let kitsWithAHit = 0;
     for (const id of Object.keys(skillBook)) {
@@ -92,13 +163,33 @@ describe('cast order: every hit resolves before every rider', () => {
         const kinds = resolvedKinds(id, tier);
         if (lastHitIndex(kinds) < 0) continue;
         kitsWithAHit += 1;
-        const bad = ridersAheadOfHits(kinds);
+        const bad = aftermathAheadOfHits(kinds);
         if (bad.length > 0) violations.push(`${id}@${tier}: ${bad.join(', ')} ahead of the hit — [${kinds.join(', ')}]`);
       }
     }
-    expect(violations, `a rider resolves ahead of a hit:\n${violations.join('\n')}`).toEqual([]);
+    expect(violations, `an aftermath rider resolves ahead of a hit:\n${violations.join('\n')}`).toEqual([]);
     // NON-VACUITY: a book with no attacking kits would pass the loop above.
     expect(kitsWithAHit, 'the sweep must actually have swept attacking kits').toBeGreaterThan(300);
+  });
+
+  it('THE OTHER HALF OF THE SPLIT — no SETUP line is ever moved, whole book x 4 tiers', () => {
+    // The regression the refinement exists to prevent, stated positively: strip
+    // the aftermath lines out of both the authored kit and the resolved one, and
+    // what is left must be IDENTICAL, in order. So a stat debuff, an expose, a
+    // stun, a self-buff and a guard all resolve exactly where the card wrote
+    // them — including ahead of the card's own later hits, which is the
+    // self-amplification the user confirmed.
+    const moved: string[] = [];
+    for (const id of Object.keys(skillBook)) {
+      for (const tier of TIERS) {
+        const authored = withoutAftermath(applyTier(skillBook[id]!, tier).effects.map((a) => a.kind));
+        const resolved = withoutAftermath(resolvedKinds(id, tier));
+        if (authored.join(',') !== resolved.join(',')) {
+          moved.push(`${id}@${tier}: [${authored.join(',')}] -> [${resolved.join(',')}]`);
+        }
+      }
+    }
+    expect(moved, `a setup line was moved:\n${moved.join('\n')}`).toEqual([]);
   });
 
   it('...and it is NOT vacuous — these are the exact kits the resolver reorders', () => {
@@ -109,7 +200,10 @@ describe('cast order: every hit resolves before every rider', () => {
     //
     // Pinned as a literal so the sweep above cannot pass because the normalizer
     // quietly stopped normalizing, and so that authoring a card that needs
-    // reordering is a visible, reviewed event rather than a silent one.
+    // reordering is a visible, reviewed event rather than a silent one. Under the
+    // one-class rule this list held 43 kits across 13 cards; the refinement cut it
+    // to the DoT carriers and the one leech, and every kit that left the list is a
+    // stat/control line put back where its card authored it.
     const reordered: string[] = [];
     for (const id of Object.keys(skillBook)) {
       for (const tier of TIERS) {
@@ -118,46 +212,42 @@ describe('cast order: every hit resolves before every rider', () => {
       }
     }
     expect(reordered.sort()).toEqual([
-      'armor_break@diamond', 'armor_break@gold', 'armor_break@silver',
       'barbed_rampart@bronze', 'barbed_rampart@diamond', 'barbed_rampart@gold', 'barbed_rampart@silver',
       'crippling_gore@bronze', 'crippling_gore@diamond', 'crippling_gore@gold', 'crippling_gore@silver',
-      'disarming_blow@diamond', 'disarming_blow@gold', 'disarming_blow@silver',
       'gutting_cleave@bronze', 'gutting_cleave@diamond', 'gutting_cleave@gold', 'gutting_cleave@silver',
       'hemorrhage@bronze', 'hemorrhage@diamond', 'hemorrhage@gold', 'hemorrhage@silver',
-      'hex_of_frailty@diamond', 'hex_of_frailty@gold', 'hex_of_frailty@silver',
-      'judgment_light@diamond',
       'leeching_fang@diamond',
-      'mind_frost@diamond', 'mind_frost@gold', 'mind_frost@silver',
-      'ruinous_hex@diamond', 'ruinous_hex@gold', 'ruinous_hex@silver',
-      'stunning_smash@diamond', 'stunning_smash@gold', 'stunning_smash@silver',
       'sundering_roar@bronze', 'sundering_roar@diamond', 'sundering_roar@gold', 'sundering_roar@silver',
-      'umbral_ward@diamond', 'umbral_ward@gold', 'umbral_ward@silver',
     ].sort());
   });
 
-  it('THE KNOWN CASE — judgment_light@diamond authors a debuff BETWEEN its two hits', () => {
-    // The card the ruling was made on, stated as the two orders.
+  it('THE KNOWN CASE — judgment_light@diamond keeps its debuff BETWEEN its two hits', () => {
+    // The card the whole ruling was argued on, stated as the two orders — which
+    // under the refinement are the SAME order. Its second hit is meant to cash in
+    // the debuff its first hit bought ("stats debuff/buff are applied before the
+    // atk", plus the user's explicit YES on self-amplification).
     expect(skillBook['judgment_light']!.effects.map((a) => a.kind)).toEqual(['damage', 'debuffStat', 'damage']);
-    expect(resolvedKinds('judgment_light', 'diamond')).toEqual(['damage', 'damage', 'debuffStat']);
-    // ...and the content was deliberately NOT re-authored: the resolver is the
-    // one normalizer, so a future card written the same way is fixed for free.
-    expect(skillBook['judgment_light']!.effects[1]!.kind, 'authored order is untouched on purpose').toBe('debuffStat');
+    expect(resolvedKinds('judgment_light', 'diamond')).toEqual(['damage', 'debuffStat', 'damage']);
   });
 
-  it('SELF-BUFFS AND `pre` ARMS DO NOT MOVE — the ruling was about debuffs', () => {
+  it('SELF-BUFFS AND `pre` ARMS DO NOT MOVE — and now neither do stat debuffs', () => {
     // The class boundary, asserted as the cards that sit on the other side of it.
-    // A future widening of the rule to self-buffs (the mirror ruling, not made)
-    // would fail here rather than sliding in unnoticed.
+    // The bottom block is what the refinement restored: under the one-class rule
+    // every one of those `debuffStat`/`expose`/`stun` openers was pushed behind
+    // the hit, and this case is what fails if that ever comes back.
     const staysFirst: Record<string, string> = {
       braced_pike: 'guard',        // self guard, ahead of its own lunge
       impaling_charge: 'guard',
       storm_surge: 'buffStat',     // self buff, so its own hit swings buffed
       thunder_step: 'buffStat',
+      battle_howl: 'buffStat',
       bramblewrath: 'thorns',      // self reflect pile
       iron_riposte: 'negate',      // self denial charge
       verdant_rebuke: 'ward',      // self ward charge
       shield_splitter: 'shieldBreak',  // PREPARES the hit
       piercing_reach: 'shieldBreak',
+      gutting_cleave: 'shieldBreak',
+      sundering_roar: 'shieldBreak',
       follow_through: 'comboBonus',    // ARMS the hit
       thermal_shock: 'chainBonus',
       second_bite: 'exploit',
@@ -166,6 +256,13 @@ describe('cast order: every hit resolves before every rider', () => {
       cornered_beast: 'desperation',
       aegis_charge: 'shieldBurst',
       vow_broken: 'wardRelease',
+      // SETUP, restored by the 2026-08-31 refinement — the stat/control openers.
+      armor_break: 'debuffStat',
+      hex_of_frailty: 'debuffStat',
+      mind_frost: 'debuffStat',
+      disarming_blow: 'debuffStat',
+      ruinous_hex: 'expose',
+      stunning_smash: 'stun',
     };
     for (const [id, firstKind] of Object.entries(staysFirst)) {
       for (const tier of TIERS) {
@@ -180,15 +277,32 @@ describe('cast order: every hit resolves before every rider', () => {
   });
 
   it('A CARD CAN HAVE BOTH — barbed_rampart keeps its guard first and sends its bleed last', () => {
-    // The single clearest proof that the normalizer moves the rider and NOTHING
-    // else: one card, two non-damage lines, exactly one of them relocated.
+    // One card, two non-damage lines, exactly one of them relocated.
     expect(skillBook['barbed_rampart']!.effects.map((a) => a.kind)).toEqual(['bleed', 'guard', 'damage']);
     expect(resolvedKinds('barbed_rampart', 'bronze')).toEqual(['guard', 'damage', 'bleed']);
+  });
+
+  it('THE MIXED CARD — crippling_gore splits a DoT and a stat debuff around its own lance', () => {
+    // THE proof the split is real rather than a relabelling: one authored kit,
+    // both classes, and the resolver sends them in OPPOSITE directions around the
+    // same hit. Under the one-class rule this read [damage, bleed, debuffStat].
+    expect(skillBook['crippling_gore']!.effects.map((a) => a.kind)).toEqual(['bleed', 'debuffStat', 'damage']);
+    expect(resolvedKinds('crippling_gore', 'diamond')).toEqual(['debuffStat', 'damage', 'bleed']);
+    // `sundering_roar` is the same shape one keyword over, with a `pre` arm in
+    // front of it: the shatter opens the plating, the expose amplifies the roar's
+    // own hit, the bleed lands behind it.
+    expect(resolvedKinds('sundering_roar', 'diamond')).toEqual(['shieldBreak', 'expose', 'damage', 'bleed']);
   });
 
   it('AN ORDERED KIT COMES BACK BY REFERENCE (the byte-identical contract)', () => {
     // What keeps "an un-featured piece resolves to the same def" true, and with
     // it every frozen baseline. Asserted on identity, not on value.
+    //
+    // The cards the refinement PUT BACK cannot join this list, and not because
+    // the normalizer touches them: `armor_break`/`judgment_light`/`ruinous_hex`/
+    // `stunning_smash` all carry a `minTier` lock, so `tierResolved` builds a new
+    // def before the normalizer is ever asked. Their restoration is pinned by the
+    // reordered-kits literal above instead, which no longer names any of them.
     for (const id of ['sword_slash', 'second_bite', 'thorn_reckoning', 'braced_pike', 'siphon_life']) {
       expect(resolveEffectiveSkill(skillBook[id]!, { skillId: id, slot: 0 }), id).toBe(skillBook[id]!);
     }
@@ -196,7 +310,7 @@ describe('cast order: every hit resolves before every rider', () => {
 });
 
 describe('cast order: gems go through the same one rule', () => {
-  it('A GEM-APPLIED RIDER TRAILS every hit of the host — whole book x every effect gem x 4 tiers', () => {
+  it('A GEM-APPLIED DoT TRAILS every hit of the host — whole book x every effect gem x 4 tiers', () => {
     const violations: string[] = [];
     let combos = 0;
     for (const id of Object.keys(skillBook)) {
@@ -206,17 +320,17 @@ describe('cast order: gems go through the same one rule', () => {
           const kinds = resolvedKinds(id, tier, gemId);
           if (lastHitIndex(kinds) < 0) continue;
           combos += 1;
-          const bad = ridersAheadOfHits(kinds);
+          const bad = aftermathAheadOfHits(kinds);
           if (bad.length > 0) violations.push(`${id}@${tier} + ${gemId}: ${bad.join(', ')} — [${kinds.join(', ')}]`);
         }
       }
     }
-    expect(violations.slice(0, 10), `a gemmed kit lands a rider ahead of a hit:\n${violations.slice(0, 10).join('\n')}`).toEqual([]);
+    expect(violations.slice(0, 10), `a gemmed kit lands an aftermath rider ahead of a hit:\n${violations.slice(0, 10).join('\n')}`).toEqual([]);
     expect(violations.length).toBe(0);
     expect(combos, 'the gem sweep must actually have swept').toBeGreaterThan(10000);
   });
 
-  it('A GEM HIT RE-ANCHORS THE HOST\'S OWN RIDER — resonant_echo pushes a trailing bleed further back', () => {
+  it('A GEM HIT RE-ANCHORS THE HOST\'S OWN DoT — resonant_echo pushes a trailing bleed further back', () => {
     // The case that is UNREACHABLE without a gem, and the reason the anchor is
     // "the last hit" rather than "the last authored damage": `resonant_echo`
     // splices a `statStrike` at `post`, i.e. behind everything the host wrote —
@@ -230,12 +344,26 @@ describe('cast order: gems go through the same one rule', () => {
     expect(resolvedKinds('verdant_rebuke', 'gold', 'resonant_echo')).toEqual(['ward', 'damage', 'statStrike', 'lifesteal']);
   });
 
-  it('A GEM DEBUFF AND THE CARD\'S OWN DEBUFF LAND TOGETHER, behind both hits', () => {
-    // `judgment_light_echo` is a `debuffStat` gem on its own host: before the
-    // ruling the card's debuff sat between the two hits and the gem's behind
-    // them, so the same keyword resolved in two different places in one cast.
+  it('A GEM HIT DOES NOT RE-ANCHOR A SETUP LINE — deep_freeze\'s debuff now amplifies the extra hit', () => {
+    // The mirror of the case above, and the one place the refinement CHANGES a
+    // gemmed kit rather than restoring one: `deep_freeze` authors [damage,
+    // debuffStat], so under the one-class rule a spliced `statStrike` pushed the
+    // debuff behind it. It no longer does — the debuff is setup, so it sits ahead
+    // of the gem's hit and the gem's hit meets the reduced DEF.
+    expect(resolvedKinds('deep_freeze', 'bronze')).toEqual(['damage', 'debuffStat']);
+    expect(resolvedKinds('deep_freeze', 'bronze', 'resonant_echo')).toEqual(['damage', 'debuffStat', 'statStrike']);
+  });
+
+  it('A GEM DEBUFF LANDS BEHIND THE HOST, THE HOST\'S OWN DEBUFF DOES NOT — and that is deliberate', () => {
+    // `judgment_light_echo` is a `debuffStat` gem on its own host. The card's own
+    // debuff is SETUP and sits between the two hits; the gem's copy is spliced at
+    // `post` and stays behind both. The asymmetry is `GEM_ACTION_PHASE`'s default
+    // holding: a gem is ADDITIVE to the host's kit, never hoisted ahead of it, and
+    // moving those rows to `pre` would raise what every debuff gem is worth —
+    // pricing, not ordering. Pinned here so the choice is visible, not assumed.
+    expect(GEM_ACTION_PHASE['debuffStat']).toBe('post');
     expect(resolvedKinds('judgment_light', 'diamond', 'judgment_light_echo'))
-      .toEqual(['damage', 'damage', 'debuffStat', 'debuffStat']);
+      .toEqual(['damage', 'debuffStat', 'damage', 'debuffStat']);
   });
 
   it('THE `pre` ARMS SURVIVE THE GEM PATH TOO — no rider is ever pushed behind the action it feeds', () => {
@@ -309,25 +437,30 @@ describe('cast order: what the combat log shows', () => {
     return { shape, defenses, exposeBonuses, hp };
   }
 
-  it('judgment_light@diamond: BOTH hits eat the same MDEF, and the debuff lands after them', () => {
+  it('judgment_light@diamond: the debuff lands BETWEEN the hits, and the second hit cashes it in', () => {
     const cast = oneCast([
       { skillId: 'judgment_light', slot: 0, tier: 'diamond' },
       { skillId: 'purging_strike', slot: 1 },
       { skillId: 'purify', slot: 2 },
     ]);
-    expect(cast.shape, 'all damage, then the rider').toEqual(['damage', 'damage', 'debuff']);
+    expect(cast.shape, 'hit, debuff, hit').toEqual(['damage', 'debuff', 'damage']);
     expect(cast.defenses.length, 'the affinity hit must actually have fired').toBe(2);
-    // THE REGRESSION, stated as the number it confused: before the ruling the
-    // second hit met a REDUCED defense (its own debuff, already applied).
-    expect(cast.defenses[1], 'the second hit must not benefit from its own debuff')
-      .toBe(cast.defenses[0]);
-    expect(cast.defenses[0]).toBeGreaterThan(0);
+    // THE SELF-AMPLIFICATION, the thing the user said YES to: the second hit meets
+    // a REDUCED defense, because the first hit's debuff is already on the target.
+    expect(cast.defenses[0], 'the first hit meets full MDEF 6').toBe(6);
+    expect(cast.defenses[1], 'the second hit meets the MDEF its own card debuffed').toBe(4);
+    // HP is not asserted here: this wall's caster carries the suite's default
+    // stats, not `npm run fight`'s hero, so the absolute numbers differ from the
+    // ones in the commit message. DEFENSE is the fact the ruling is about, and it
+    // is read straight off `calculation`.
   });
 
-  it('ruinous_hex: its own expose no longer amplifies its own hit', () => {
+  it('ruinous_hex@diamond: its own expose amplifies its own hit', () => {
     const cast = oneCast([{ skillId: 'ruinous_hex', slot: 0, tier: 'diamond' }]);
-    expect(cast.shape).toEqual(['damage', 'expose']);
-    expect(cast.exposeBonuses[0], 'the hit predates the expose it applies').toBe(0);
+    expect(cast.shape).toEqual(['expose', 'damage']);
+    // Under the one-class rule this was exactly 0 — the hit predated the expose
+    // it applied. The bonus term existing at all IS the refinement.
+    expect(cast.exposeBonuses[0], 'the hit collects the expose it just applied').toBeGreaterThan(0);
   });
 
   it('hemorrhage: the attack happens first, then the bleed gets applied (the user\'s own example)', () => {
@@ -335,16 +468,26 @@ describe('cast order: what the combat log shows', () => {
     expect(cast.shape).toEqual(['damage', 'bleed']);
   });
 
-  it('crippling_gore: the lance eats FULL armor, then bleed and debuff both land', () => {
+  it('crippling_gore: THE MIXED PROOF — debuff before the lance, bleed after it', () => {
+    // One cast, one log, both classes: the DEF debuff resolves first (so the
+    // lance meets 12 armor, not 20), the lance lands, the bleed lands behind it.
     const cast = oneCast([{ skillId: 'crippling_gore', slot: 0 }]);
-    expect(cast.shape).toEqual(['damage', 'bleed', 'debuff']);
-    expect(cast.defenses[0], 'full armor 20, not the 12 its own -40% would leave').toBe(20);
+    expect(cast.shape).toEqual(['debuff', 'damage', 'bleed']);
+    expect(cast.defenses[0], 'armor 20 already cut to 12 by this card\'s own -40%').toBe(12);
   });
 
-  it('sundering_roar: `shieldBreak` still PREPARES the hit — only expose and bleed moved', () => {
+  it('sundering_roar: `shieldBreak` and `expose` both PREPARE the hit — only the bleed trails', () => {
     const cast = oneCast([{ skillId: 'sundering_roar', slot: 0 }]);
-    expect(cast.shape).toEqual(['damage', 'expose', 'bleed']);
-    expect(cast.exposeBonuses[0], 'the roar no longer amplifies itself').toBe(0);
+    expect(cast.shape).toEqual(['expose', 'damage', 'bleed']);
+    expect(cast.exposeBonuses[0], 'the roar amplifies itself again').toBeGreaterThan(0);
+  });
+
+  it('armor_break@diamond: the chop eats the DEF its own debuff just halved', () => {
+    // The plainest single-hit statement of the refinement, and the number the
+    // user was shown: DEF 20 -> 10 before the chop, not after it.
+    const cast = oneCast([{ skillId: 'armor_break', slot: 0, tier: 'diamond' }]);
+    expect(cast.shape).toEqual(['debuff', 'damage']);
+    expect(cast.defenses[0]).toBe(10);
   });
 
   it('second_bite is UNTOUCHED — an exploiter still cannot trigger the poison it applies', () => {

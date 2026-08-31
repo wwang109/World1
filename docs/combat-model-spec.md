@@ -32,14 +32,17 @@ the inverse of the retired "player wins ties" convention.
 
 ("RESOLVED order", not authored: the loop walks whatever `resolveEffectiveSkill`
 hands it, and since the **cast-order ruling of 2026-08-31** that is the card's
-authored list with every rider it lands on the target — debuff, expose, DoT,
-stun, and the `lifesteal` sink — folded behind every hit of the cast. The rule
-lives entirely in `orderCastRiders` at the resolver seam; the loop is unchanged
-and still just walks the list. One consequence worth naming HERE, because it is
-this section's own rule winning: a cast whose last hit wipes the enemy side now
-applies no rider at all — the debuff/DoT on a killing blow is simply not spent,
-exactly as the leech on a killing blow has not been since 2026-08-26. See
-`docs/design-locked.md`, 2026-08-31.)
+authored list with its AFTERMATH riders — `poison`/`burn`/`bleed` and the
+`lifesteal` sink — folded behind every hit of the cast. Its SETUP lines
+(`debuffStat`, `expose`, and every control/buff/guard/ward/heal line beside them)
+are NOT moved, so a debuff a card writes ahead of its own hit is cashed in by
+that hit. The rule lives entirely in `castPhaseOf`/`orderCastRiders` at the
+resolver seam; the loop is unchanged and still just walks the list. One
+consequence worth naming HERE, because it is this section's own rule winning: a
+cast whose last hit wipes the enemy side applies no aftermath rider at all — the
+DoT on a killing blow is simply not spent, exactly as the leech on a killing blow
+has not been since 2026-08-26. Setup lines are unaffected: they resolve ahead of
+the hit that ends the fight. See `docs/design-locked.md`, 2026-08-31.)
 
 See `sweep` /
 `decideOutcome` in `simulate.ts`, `applyCast` in `interpreter.ts`, and

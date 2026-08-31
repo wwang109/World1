@@ -219,15 +219,19 @@
        "survives, because a Bronze face cannot describe a line the Bronze copy",
        "does not have.",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card: the DEF debuff now lands AFTER the chop, so the chop eats full DEF (Silver, DEF 20: 31 -DEF10 = 15 -> 31 -DEF20 = 8 on the dummy). The debuff is for the NEXT card."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card: UNCHANGED by the refinement, and back to its pre-ruling behaviour. A DEF debuff is SETUP, so it lands ahead of the chop and the chop eats the HALVED DEF \u2014 on the DEF-20 dummy at Diamond that is `31 -DEF10` instead of the `31 -DEF20` the one-class rule briefly gave (15 HP vs 8 against `bandit_duelist`, whose axe affinity also takes 6)."
       ],
       "archetypes": [
        "debuff"
@@ -252,13 +256,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "Deal 10 (+ATK) Axe damage \u00b7 -50% enemy DEF (2 turns)."
+        "text": "-50% enemy DEF (2 turns) \u00b7 Deal 10 (+ATK) Axe damage."
        },
        "gold": {
-        "text": "Deal 20 (+ATK) Axe damage \u00b7 -50% enemy DEF (2 turns)."
+        "text": "-50% enemy DEF (2 turns) \u00b7 Deal 20 (+ATK) Axe damage."
        },
        "diamond": {
-        "text": "Deal 30 (+ATK) Axe damage \u00b7 -50% enemy DEF (2 turns)."
+        "text": "-50% enemy DEF (2 turns) \u00b7 Deal 30 (+ATK) Axe damage."
        }
       }
      }
@@ -1493,15 +1497,19 @@
        "(6/8/9/10, the same shape rupturing_strike uses), and damage \\u2014 the real",
        "growing sink \\u2014 climbs cleanly: silver 38, gold 54, diamond 68.",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card: `shieldBreak` is `pre` and does NOT move, so the teaching order above still holds \u2014 the shatter still opens the guard so this card's own bleed can land in the same cast. What moved is the bleed, from between the shatter and the hit to behind the hit, which if anything makes it land more often (the hit can spend plating the shatter left)."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card: UNCHANGED by the refinement \u2014 `bleed` is a DoT, i.e. AFTERMATH, so it still trails the chop. `shieldBreak` is a `pre` arm and still does NOT move, so the teaching order holds: the shatter opens the guard, the chop lands, and the bleed lands behind it on a target whose plating the chop may also have spent \u2014 if anything a better place for it than between the two."
       ],
       "archetypes": [
        "offense",
@@ -1639,15 +1647,19 @@
        "the exposure (30%\\u00d72t = 60): 100 + 60 + damage 24 (120) - 30 = 250",
        "exactly.",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card: the bleed now lands after the chop (the user's own example: \"if attack cause bleed or poison the attack happens first then bleed or poison get applied\"). Damage is unchanged \u2014 a bleed alters no damage term \u2014 and the bleed is slightly STRONGER, since it cannot be applied through a shield the hit may just have spent."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card: UNCHANGED by the refinement. `bleed` is a DoT, so it still lands after the chop (the user's own example). Damage is unchanged \u2014 a bleed alters no damage term \u2014 and the bleed is slightly STRONGER, since it cannot be applied through a shield the hit may just have spent. At Gold+ the `expose` line is SETUP but is AUTHORED behind the hit, so it does not move either; the resolved kit is damage, bleed, expose."
       ],
       "archetypes": [
        "debuff"
@@ -1748,15 +1760,19 @@
        "survives, because a Bronze face cannot describe a line the Bronze copy",
        "does not have.",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card: the MDEF debuff now lands AFTER the bolt, so the bolt eats full MDEF (Diamond, MDEF 6: 31 -DEF3 = 28 -> 31 -DEF6 = 25). The debuff is for the NEXT card."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card: UNCHANGED by the refinement, and back to its pre-ruling behaviour. An MDEF debuff is SETUP, so the bolt eats the halved MDEF (Diamond, MDEF 6 dummy: 31 -DEF3 = 28, not 31 -DEF6 = 25)."
       ],
       "archetypes": [
        "debuff"
@@ -1781,13 +1797,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "Deal 10 (+MATK) Dark damage \u00b7 -50% enemy MDEF (2 turns)."
+        "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
        },
        "gold": {
-        "text": "Deal 20 (+MATK) Dark damage \u00b7 -50% enemy MDEF (2 turns)."
+        "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
        },
        "diamond": {
-        "text": "Deal 30 (+MATK) Dark damage \u00b7 -50% enemy MDEF (2 turns)."
+        "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
        }
       }
      }
@@ -2139,7 +2155,7 @@
       ],
       "tierUpgrades": {
        "diamond": {
-        "text": "Deal 26 (+MATK) Holy damage \u00b7 {{Affinity}} Holy \u2014 hit again for 32 \u00b7 -20% enemy MDEF (2 turns)."
+        "text": "Deal 26 (+MATK) Holy damage \u00b7 -20% enemy MDEF (2 turns) \u00b7 {{Affinity}} Holy \u2014 hit again for 32."
        }
       },
       "notes": [
@@ -2170,15 +2186,19 @@
        "survives, because a Bronze face cannot describe a line the Bronze copy",
        "does not have.",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card (Diamond): the gated Holy hit no longer cashes in the MDEF debuff the base hit bought. Was `hit 27 -DEF10 / MDEF -20% / hit 32 -DEF8`; now `hit 27 -DEF10 / hit 32 -DEF10 / MDEF -20%`. This is the case the ruling was made on. The Diamond budget (250) is untouched."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card (Diamond) is the one the whole ruling was argued on, and the refinement puts it BACK: the gated Holy hit again cashes in the MDEF debuff the base hit bought. `hit 27 -DEF6 / MDEF -20% / hit 32 -DEF4` on the MDEF-6 dummy \u2014 21 then 28, where the one-class rule gave 21 then 26. The user was shown both and chose this one. The Diamond budget (250) is untouched."
       ]
      }
     }
@@ -3165,15 +3185,19 @@
        "survives, because a Bronze face cannot describe a line the Bronze copy",
        "does not have.",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card: the biggest single nerf of the ruling. Expose amplified this card's OWN hit (Diamond: 31 -DEF6 +EXPOSE12 = 37); it now lands behind it (31 -DEF6 = 25) and amplifies whatever swings NEXT. Expose is still frozen at the size-1 control cap, so the price is the same."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card: UNCHANGED by the refinement, and back to its pre-ruling behaviour. `expose` is a damage AMPLIFIER \u2014 a stat effect in everything but name \u2014 so it is SETUP and amplifies this card's own hit again (Diamond: 31 -DEF6 +EXPOSE12 = 37, not the 25 the one-class rule gave). Expose is still frozen at the size-1 control cap, so the price is the same."
       ],
       "archetypes": [
        "debuff"
@@ -3197,13 +3221,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "Deal 10 (+MATK) Dark damage \u00b7 {{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns)."
+        "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
        },
        "gold": {
-        "text": "Deal 20 (+MATK) Dark damage \u00b7 {{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns)."
+        "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
        },
        "diamond": {
-        "text": "Deal 30 (+MATK) Dark damage \u00b7 {{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns)."
+        "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
        }
       }
      }
@@ -4023,15 +4047,19 @@
        "survives, because a Bronze face cannot describe a line the Bronze copy",
        "does not have.",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card: the stun now lands AFTER the smash. Arithmetically identical (a stun changes no damage term); the one real delta is that a smash which KILLS applies no stun, because `castCutShort` stops the cast at the kill."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card: back to its pre-ruling behaviour. `stun` is CONTROL, not a DoT \u2014 it changes the victim's future tempo, never a term of this cast's own damage \u2014 so it is SETUP and lands ahead of the smash. Arithmetically identical; the one real delta is that a smash which KILLS applies its (wasted) stun again, instead of `castCutShort` swallowing it."
       ],
       "archetypes": [
        "debuff"
@@ -4054,13 +4082,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "Deal 10 (+ATK) Axe damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
+        "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 10 (+ATK) Axe damage."
        },
        "gold": {
-        "text": "Deal 20 (+ATK) Axe damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
+        "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 20 (+ATK) Axe damage."
        },
        "diamond": {
-        "text": "Deal 30 (+ATK) Axe damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
+        "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 30 (+ATK) Axe damage."
        }
       }
      }
@@ -4074,7 +4102,7 @@
      "version": 1,
      "def": {
       "name": "Sundering Roar",
-      "text": "{{Shatter}} 64 enemy shield \u00b7 Deal 56 (+ATK) Axe damage \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields.",
+      "text": "{{Shatter}} 64 enemy shield \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 Deal 56 (+ATK) Axe damage \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
        "Same teaching order as Gutting Cleave (shieldBreak before bleed), plus",
        "expose. shieldBreak (80 raw = 64*1.25) + expose 20%x2t (40 raw) = 120,",
@@ -4084,15 +4112,19 @@
        "cards: shieldBreak+expose frozen, bleed 8/10/11/12, damage climbing",
        "56/80/108/134.",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card: `shieldBreak` is `pre` and does NOT move \u2014 it still opens the guard ahead of the hit, which is the whole teaching point. Expose and bleed moved behind the hit, so the roar no longer amplifies itself (Bronze: 57 -DEF20 -AFFINITY10 +EXPOSE5 = 32 -> 27)."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card: the same mixed shape as `crippling_gore`, one keyword over. `shieldBreak` is a `pre` arm and opens the plating; `expose` is a damage AMPLIFIER, so it is SETUP and amplifies the roar's own hit again (Diamond on the DEF-20 dummy: 135 -DEF20 -AFFINITY29 +EXPOSE17 = 103, where the one-class rule gave 86 with no EXPOSE term); the `bleed` is a DoT and still trails. Resolved: shieldBreak, expose, damage, bleed."
       ],
       "archetypes": [
        "offense",
@@ -4143,7 +4175,7 @@
           "power": 80
          }
         ],
-        "text": "{{Shatter}} 64 enemy shield \u00b7 Deal 80 (+ATK) Axe damage \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields."
+        "text": "{{Shatter}} 64 enemy shield \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 Deal 80 (+ATK) Axe damage \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "gold": {
         "effects": [
@@ -4165,7 +4197,7 @@
           "power": 108
          }
         ],
-        "text": "{{Shatter}} 64 enemy shield \u00b7 Deal 108 (+ATK) Axe damage \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 {{Bleed}} 11 \u2014 ticks when the enemy performs; blocked by shields."
+        "text": "{{Shatter}} 64 enemy shield \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 Deal 108 (+ATK) Axe damage \u00b7 {{Bleed}} 11 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "diamond": {
         "effects": [
@@ -4187,7 +4219,7 @@
           "power": 134
          }
         ],
-        "text": "{{Shatter}} 64 enemy shield \u00b7 Deal 134 (+ATK) Axe damage \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 {{Bleed}} 12 \u2014 ticks when the enemy performs; blocked by shields."
+        "text": "{{Shatter}} 64 enemy shield \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 Deal 134 (+ATK) Axe damage \u00b7 {{Bleed}} 12 \u2014 ticks when the enemy performs; blocked by shields."
        }
       }
      }
@@ -5521,15 +5553,19 @@
        "survives, because a Bronze face cannot describe a line the Bronze copy",
        "does not have.",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card: `ward` is a SELF buff and does not move \u2014 it still comes up first. The DEF debuff moved behind the bolt, so the bolt eats full DEF."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card: back to its pre-ruling behaviour. The DEF debuff is SETUP and lands ahead of the bolt, behind the self-ward (which never moved). Arithmetically neutral here \u2014 the bolt is MAGICAL and the debuff is on DEF \u2014 but it is the ordering the face promises and the one every other debuff card now uses."
       ],
       "archetypes": [
        "defensive",
@@ -5559,13 +5595,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Deal 10 (+MATK) Dark damage \u00b7 -25% enemy DEF (2 turns)."
+        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
        },
        "gold": {
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Deal 20 (+MATK) Dark damage \u00b7 -25% enemy DEF (2 turns)."
+        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
        },
        "diamond": {
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Deal 30 (+MATK) Dark damage \u00b7 -25% enemy DEF (2 turns)."
+        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
        }
       }
      }
@@ -5746,15 +5782,19 @@
        "18 (90) = 200. Diamond bleed 8 (80) + damage 26 (130) = 250 (all + the",
        "frozen guard 40).",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card: `guard` is a SELF buff and does not move \u2014 it still comes up first, ahead of the hit that may draw a reflect. Only the bleed moved, to behind the hit."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card: UNCHANGED by the refinement. The self `guard` was never a rider and still opens the cast; the `bleed` is a DoT and still trails the lunge. Resolved: guard, damage, bleed."
       ],
       "archetypes": [
        "defensive",
@@ -5851,7 +5891,7 @@
      "version": 1,
      "def": {
       "name": "Crippling Gore",
-      "text": "Deal 60 (+ATK) Lance damage \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns).",
+      "text": "-40% enemy DEF (2 turns) \u00b7 Deal 60 (+ATK) Lance damage \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
        "bleed+debuffStat: a new pairing (weaken the guard further while it",
        "bleeds, distinct from the shieldBreak-then-bleed teaching cards).",
@@ -5865,15 +5905,19 @@
        "+ 80 = 770 - 570 = 200. Diamond: bleed 17 (170) + damage 132 (660) +",
        "80 = 910 - 660 = 250.",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card: the bleed AND the DEF debuff now both land behind the lance (Bronze, DEF 20: 61 -DEF12 +AFFINITY24 = 73 -> 61 -DEF20 +AFFINITY20 = 61). The bleed is also slightly STRONGER for the move, since the hit may have spent the shield that would have blocked it."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card is THE PROOF THE SPLIT IS REAL \u2014 it carries one of each class in one kit. Authored `bleed, debuffStat, damage`, it resolves `debuffStat, damage, bleed`: the DEF debuff is SETUP and lands ahead of the lance (which then eats the reduced DEF \u2014 Diamond on the DEF-20 dummy: 133 -DEF12 +AFFINITY60 = 181, where the one-class rule gave -DEF20 and 169), and the bleed is AFTERMATH and lands behind it. Same kit, same price, both directions in one cast."
       ],
       "archetypes": [
        "offense",
@@ -5918,7 +5962,7 @@
           "power": 82
          }
         ],
-        "text": "Deal 82 (+ATK) Lance damage \u00b7 {{Bleed}} 13 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns)."
+        "text": "-40% enemy DEF (2 turns) \u00b7 Deal 82 (+ATK) Lance damage \u00b7 {{Bleed}} 13 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "gold": {
         "effects": [
@@ -5937,7 +5981,7 @@
           "power": 108
          }
         ],
-        "text": "Deal 108 (+ATK) Lance damage \u00b7 {{Bleed}} 15 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns)."
+        "text": "-40% enemy DEF (2 turns) \u00b7 Deal 108 (+ATK) Lance damage \u00b7 {{Bleed}} 15 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "diamond": {
         "effects": [
@@ -5956,7 +6000,7 @@
           "power": 132
          }
         ],
-        "text": "Deal 132 (+ATK) Lance damage \u00b7 {{Bleed}} 17 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns)."
+        "text": "-40% enemy DEF (2 turns) \u00b7 Deal 132 (+ATK) Lance damage \u00b7 {{Bleed}} 17 \u2014 ticks when the enemy performs; blocked by shields."
        }
       }
      }
@@ -6395,15 +6439,19 @@
        "survives, because a Bronze face cannot describe a line the Bronze copy",
        "does not have.",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card: unchanged in practice \u2014 the ATK debuff never touched this card's own damage (it denies the VICTIM's output) \u2014 but it now resolves after the chop like every other rider."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card: back to its pre-ruling behaviour. An ATK debuff is SETUP, so it lands ahead of the swing. Arithmetically neutral either way \u2014 debuffing the VICTIM's attack changes no term of this card's own damage \u2014 but the ordering now matches every other stat debuff, and a killing blow applies the debuff again."
       ],
       "archetypes": [
        "debuff"
@@ -6428,13 +6476,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "Deal 10 (+ATK) Axe damage \u00b7 -50% enemy ATK (2 turns)."
+        "text": "-50% enemy ATK (2 turns) \u00b7 Deal 10 (+ATK) Axe damage."
        },
        "gold": {
-        "text": "Deal 20 (+ATK) Axe damage \u00b7 -50% enemy ATK (2 turns)."
+        "text": "-50% enemy ATK (2 turns) \u00b7 Deal 20 (+ATK) Axe damage."
        },
        "diamond": {
-        "text": "Deal 30 (+ATK) Axe damage \u00b7 -50% enemy ATK (2 turns)."
+        "text": "-50% enemy ATK (2 turns) \u00b7 Deal 30 (+ATK) Axe damage."
        }
       }
      }
@@ -6468,15 +6516,19 @@
        "survives, because a Bronze face cannot describe a line the Bronze copy",
        "does not have.",
        "",
-       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
-       "before applying their debuff effect if it applies one\", and \"if attack cause",
-       "bleed or poison the attack happens first then bleed or poison get applied\".",
-       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
-       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
-       "every rider, and the face text was reordered to match the log. PL IS",
-       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
-       "price and no term reads a sibling's position, so the numbers above still hold.",
-       "This card: unchanged in practice \u2014 the MATK debuff never touched this card's own damage (it denies the VICTIM's output) \u2014 but it now resolves after the bolt like every other rider."
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED) AND ITS SAME-DAY REFINEMENT.",
+       "The first ruling was general \u2014 \"any attack always come first before applying",
+       "their debuff effect if it applies one\". The user then SPLIT it, verbatim:",
+       "\"maybe we should split the type of debuff like posion/bleed/burn are after",
+       "attacks but stats debuff/buff are applied before the atk\", and confirmed that",
+       "a card's own stat debuff SHOULD therefore amplify its own hit. So DoTs are",
+       "AFTERMATH (they trail every hit of the cast) and stat/control lines are SETUP",
+       "(they stay exactly where the card authored them). The authored `effects` below",
+       "are UNCHANGED; `castPhaseOf`/`orderCastRiders` (src/engine/cards.ts) normalize",
+       "the RESOLVED kit, and the face text reads in the same direction as the log.",
+       "PL IS UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's",
+       "own price and no term reads a sibling's position, so the numbers above hold.",
+       "This card: back to its pre-ruling behaviour. A MATK debuff is SETUP, so it lands ahead of the bolt. Arithmetically neutral (the victim's MATK is no term of this card's damage); the point is that every stat debuff now reads the same way."
       ],
       "archetypes": [
        "debuff"
@@ -6501,13 +6553,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "Deal 10 (+MATK) Frost damage \u00b7 -50% enemy MATK (2 turns)."
+        "text": "-50% enemy MATK (2 turns) \u00b7 Deal 10 (+MATK) Frost damage."
        },
        "gold": {
-        "text": "Deal 20 (+MATK) Frost damage \u00b7 -50% enemy MATK (2 turns)."
+        "text": "-50% enemy MATK (2 turns) \u00b7 Deal 20 (+MATK) Frost damage."
        },
        "diamond": {
-        "text": "Deal 30 (+MATK) Frost damage \u00b7 -50% enemy MATK (2 turns)."
+        "text": "-50% enemy MATK (2 turns) \u00b7 Deal 30 (+MATK) Frost damage."
        }
       }
      }
