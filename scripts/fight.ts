@@ -14,12 +14,13 @@
 import { readFileSync } from 'node:fs';
 import { simulate } from '../src/engine/combat/simulate';
 import { fmtDamage } from './logFormat';
-import type { BoardPiece, CombatantSetup, Side } from '../src/engine/types';
+import type { BoardPiece, CombatantSetup, Gem, Side } from '../src/engine/types';
 import { hashSeed } from '../src/engine/rng';
 import { skillBook as shippedSkillBook } from '../src/data/skills';
 import { skillDefOfDocument, validateSkillDocument } from '../src/data/validateSkillContent';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../src/data/heroes';
 import { enemies } from '../src/data/enemies';
+import { gemBook } from '../src/data/gems';
 
 /**
  * Local copy of the foe cap (the shared constant lives in `src/game`, which the
@@ -148,33 +149,52 @@ const DEFAULT_HERO_PIECES = [
 ];
 
 /**
- * One board-spec entry: `skill_id`, or `skill_id@tier` to rank the card up
- * before the fight (`bronze`|`silver`|`gold`|`diamond`).
+ * One board-spec entry: `skill_id`, `skill_id@tier` to rank the card up before
+ * the fight (`bronze`|`silver`|`gold`|`diamond`), and/or `skill_id#gem_id` to
+ * socket a gem into it. Both suffixes may be combined, tier first:
+ * `judgment_light@diamond#judgment_light_echo`.
  *
- * The TIER SUFFIX exists so a tier-scaled card can be shown the same way every
- * other claim in this project is shown — by a real `npm run fight` log rather
- * than a second, hand-written renderer. `BoardPiece.tier` is the engine's own
- * per-piece override (`resolveEffectiveSkill` runs `applyTier` on it), so this
- * parses the spec and hands the engine the field it already has; no formatting
- * or resolution logic is duplicated here. No suffix = bronze = byte-identical
- * to the pre-suffix behavior.
+ * THE SUFFIXES EXIST so a tier-scaled or GEMMED card can be shown the same way
+ * every other claim in this project is shown — by a real `npm run fight` log
+ * rather than a second, hand-written renderer. `BoardPiece.tier` / `BoardPiece.gem`
+ * are the engine's own per-piece overrides (`resolveEffectiveSkill` runs
+ * `applyTier` and the gem splice on them), so this parses the spec and hands the
+ * engine fields it already has; no formatting or resolution logic is duplicated
+ * here. No suffix = bronze, un-gemmed = byte-identical to the pre-suffix behavior.
+ *
+ * The GEM suffix was added on 2026-08-31 for the cast-order ruling: a gem's
+ * actions splice in at the resolver (`GEM_ACTION_PHASE` / `orderCastRiders`,
+ * src/engine/cards.ts), so "a gem-applied debuff also trails the hit" is a claim
+ * about a SOCKETED piece and could not be shown from a log at all before this.
  */
 function parsePiece(raw: string, envName: string, slot: number): BoardPiece | null {
   const entry = raw.trim();
   if (entry === '') return null;
-  const at = entry.indexOf('@');
-  const skillId = at < 0 ? entry : entry.slice(0, at).trim();
-  const tierText = at < 0 ? '' : entry.slice(at + 1).trim();
+  const hash = entry.indexOf('#');
+  const gemId = hash < 0 ? '' : entry.slice(hash + 1).trim();
+  const head = hash < 0 ? entry : entry.slice(0, hash);
+  const at = head.indexOf('@');
+  const skillId = at < 0 ? head.trim() : head.slice(0, at).trim();
+  const tierText = at < 0 ? '' : head.slice(at + 1).trim();
   if (!skillBook[skillId]) {
     console.error(`${envName}: unknown skill '${skillId}'.`);
     process.exit(1);
   }
-  if (tierText === '') return { skillId, slot };
+  let gem: Gem | undefined;
+  if (gemId !== '') {
+    const def = gemBook[gemId];
+    if (!def) {
+      console.error(`${envName}: unknown gem '${gemId}' on '${skillId}'.`);
+      process.exit(1);
+    }
+    gem = def;
+  }
+  if (tierText === '') return { skillId, slot, ...(gem ? { gem } : {}) };
   if (tierText !== 'bronze' && tierText !== 'silver' && tierText !== 'gold' && tierText !== 'diamond') {
     console.error(`${envName}: unknown tier '${tierText}' on '${skillId}' — use bronze|silver|gold|diamond.`);
     process.exit(1);
   }
-  return { skillId, slot, tier: tierText };
+  return { skillId, slot, tier: tierText, ...(gem ? { gem } : {}) };
 }
 
 /**
@@ -182,6 +202,7 @@ function parsePiece(raw: string, envName: string, slot: number): BoardPiece | nu
  *
  *   FIGHT_HERO_BOARD=aegis_of_the_unbroken,vow_broken npm run fight -- knight 7
  *   FIGHT_HERO_BOARD=wildfire_rite@silver,cinder_dart npm run fight -- knight 7
+ *   FIGHT_HERO_BOARD=hemorrhage#resonant_echo npm run fight -- knight 7
  *   FIGHT_HERO_HP=40 FIGHT_HERO_BOARD=cornered_beast npm run fight
  *
  * A comma-separated list of skill ids, laid out left to right from slot 0 with

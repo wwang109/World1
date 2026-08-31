@@ -18,7 +18,7 @@ exact **application** that wipes a side, and nothing later in the same step ever
 applies — no DoT/attrition/fatigue tick after the killing blow, no bleed tick on
 a performer whose cast just won, no lifesteal-back off a killing blow. The
 application order is the one the loop already defines: a cast's effects in
-authored order → the performer's bleed tick; burn at the start of a turn, poison
+RESOLVED order → the performer's bleed tick; burn at the start of a turn, poison
 at the end; attrition in ascending initiative score, fatigue in canonical pool
 order — and both sweeps STOP at the tick that wipes a side, so the units later in
 the order are never reached that turn. Because one application only ever damages
@@ -28,7 +28,20 @@ now unreachable and kept in `decideOutcome` only as a documented defensive
 fallback for a future simultaneous-damage mechanic. One stated consequence: in a
 perfectly mirrored fight the score tie falls back to canonical order (player side
 first), so the PLAYER's unit takes the killing tick and the fight is a loss —
-the inverse of the retired "player wins ties" convention. See `sweep` /
+the inverse of the retired "player wins ties" convention.
+
+("RESOLVED order", not authored: the loop walks whatever `resolveEffectiveSkill`
+hands it, and since the **cast-order ruling of 2026-08-31** that is the card's
+authored list with every rider it lands on the target — debuff, expose, DoT,
+stun, and the `lifesteal` sink — folded behind every hit of the cast. The rule
+lives entirely in `orderCastRiders` at the resolver seam; the loop is unchanged
+and still just walks the list. One consequence worth naming HERE, because it is
+this section's own rule winning: a cast whose last hit wipes the enemy side now
+applies no rider at all — the debuff/DoT on a killing blow is simply not spent,
+exactly as the leech on a killing blow has not been since 2026-08-26. See
+`docs/design-locked.md`, 2026-08-31.)
+
+See `sweep` /
 `decideOutcome` in `simulate.ts`, `applyCast` in `interpreter.ts`, and
 `tests/engine/outcomeRule.test.ts`.
 

@@ -217,7 +217,17 @@
        "(pinned against the pre-migration defs read from git d695eaa by",
        "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
        "survives, because a Bronze face cannot describe a line the Bronze copy",
-       "does not have."
+       "does not have.",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card: the DEF debuff now lands AFTER the chop, so the chop eats full DEF (Silver, DEF 20: 31 -DEF10 = 15 -> 31 -DEF20 = 8 on the dummy). The debuff is for the NEXT card."
       ],
       "archetypes": [
        "debuff"
@@ -242,13 +252,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "-50% enemy DEF (2 turns) \u00b7 Deal 10 (+ATK) Axe damage."
+        "text": "Deal 10 (+ATK) Axe damage \u00b7 -50% enemy DEF (2 turns)."
        },
        "gold": {
-        "text": "-50% enemy DEF (2 turns) \u00b7 Deal 20 (+ATK) Axe damage."
+        "text": "Deal 20 (+ATK) Axe damage \u00b7 -50% enemy DEF (2 turns)."
        },
        "diamond": {
-        "text": "-50% enemy DEF (2 turns) \u00b7 Deal 30 (+ATK) Axe damage."
+        "text": "Deal 30 (+ATK) Axe damage \u00b7 -50% enemy DEF (2 turns)."
        }
       }
      }
@@ -1468,9 +1478,9 @@
      "version": 1,
      "def": {
       "name": "Gutting Cleave",
-      "text": "{{Shatter}} 40 enemy shield \u2014 opening the guard so the bleed below can land \u00b7 {{Bleed}} 6 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 26 (+ATK) Axe damage.",
+      "text": "{{Shatter}} 40 enemy shield \u2014 opening the guard so the bleed can land \u00b7 Deal 26 (+ATK) Axe damage \u00b7 {{Bleed}} 6 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
-       "TEACHING CARD: `shieldBreak` is authored BEFORE `bleed` in `effects` \\u2014",
+       "TEACHING CARD: `shieldBreak` is authored BEFORE `bleed` in `effects` and stays there (it is a `pre` keyword, so the 2026-08-31 cast-order ruling does not move it) \\u2014",
        "bleed cannot land on a shielded target, so opening the guard first is",
        "what lets this card's own bleed land in the SAME cast. Bronze: shieldBreak",
        "40 (control, 50 raw = 40*1.25) + bleed 6 (dot, 60 raw) + damage 26 (sink,",
@@ -1481,7 +1491,17 @@
        "and damage lurching 16 -> 0 -> 6 -> 22 (non-monotonic, briefly zero).",
        "Authored instead: shieldBreak stays frozen at 40, bleed grows MODERATELY",
        "(6/8/9/10, the same shape rupturing_strike uses), and damage \\u2014 the real",
-       "growing sink \\u2014 climbs cleanly: silver 38, gold 54, diamond 68."
+       "growing sink \\u2014 climbs cleanly: silver 38, gold 54, diamond 68.",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card: `shieldBreak` is `pre` and does NOT move, so the teaching order above still holds \u2014 the shatter still opens the guard so this card's own bleed can land in the same cast. What moved is the bleed, from between the shatter and the hit to behind the hit, which if anything makes it land more often (the hit can spend plating the shatter left)."
       ],
       "archetypes": [
        "offense",
@@ -1522,7 +1542,7 @@
           "power": 38
          }
         ],
-        "text": "{{Shatter}} 40 enemy shield \u2014 opening the guard so the bleed below can land \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 38 (+ATK) Axe damage."
+        "text": "{{Shatter}} 40 enemy shield \u2014 opening the guard so the bleed can land \u00b7 Deal 38 (+ATK) Axe damage \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "gold": {
         "effects": [
@@ -1539,7 +1559,7 @@
           "power": 54
          }
         ],
-        "text": "{{Shatter}} 40 enemy shield \u2014 opening the guard so the bleed below can land \u00b7 {{Bleed}} 9 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 54 (+ATK) Axe damage."
+        "text": "{{Shatter}} 40 enemy shield \u2014 opening the guard so the bleed can land \u00b7 Deal 54 (+ATK) Axe damage \u00b7 {{Bleed}} 9 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "diamond": {
         "effects": [
@@ -1556,7 +1576,7 @@
           "power": 68
          }
         ],
-        "text": "{{Shatter}} 40 enemy shield \u2014 opening the guard so the bleed below can land \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 68 (+ATK) Axe damage."
+        "text": "{{Shatter}} 40 enemy shield \u2014 opening the guard so the bleed can land \u00b7 Deal 68 (+ATK) Axe damage \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields."
        }
       }
      }
@@ -1601,7 +1621,7 @@
      "version": 1,
      "def": {
       "name": "Hemorrhage",
-      "text": "{{Bleed}} 6 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 14 (+ATK) Axe damage.",
+      "text": "Deal 14 (+ATK) Axe damage \u00b7 {{Bleed}} 6 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
        "\"Bought with extra weight\": speedWeight 16 (baseline 10, 6 heavier) is a",
        "-30 deci refund, buying more bleed+damage than the Bronze budget alone",
@@ -1617,7 +1637,17 @@
        "from the old damage-only 28, since expose now spends part of the",
        "budget). Diamond grows both the bleed (10, matching the old curve) and",
        "the exposure (30%\\u00d72t = 60): 100 + 60 + damage 24 (120) - 30 = 250",
-       "exactly."
+       "exactly.",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card: the bleed now lands after the chop (the user's own example: \"if attack cause bleed or poison the attack happens first then bleed or poison get applied\"). Damage is unchanged \u2014 a bleed alters no damage term \u2014 and the bleed is slightly STRONGER, since it cannot be applied through a shield the hit may just have spent."
       ],
       "archetypes": [
        "debuff"
@@ -1650,7 +1680,7 @@
           "power": 20
          }
         ],
-        "text": "{{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 20 (+ATK) Axe damage."
+        "text": "Deal 20 (+ATK) Axe damage \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "gold": {
         "effects": [
@@ -1668,7 +1698,7 @@
           "turns": 2
          }
         ],
-        "text": "{{Bleed}} 9 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 20 (+ATK) Axe damage \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns)."
+        "text": "Deal 20 (+ATK) Axe damage \u00b7 {{Bleed}} 9 \u2014 ticks when the enemy performs; blocked by shields \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns)."
        },
        "diamond": {
         "effects": [
@@ -1686,7 +1716,7 @@
           "turns": 2
          }
         ],
-        "text": "{{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 24 (+ATK) Axe damage \u00b7 {{Expose}} the enemy \u2014 +30% damage from all direct hits (2 turns)."
+        "text": "Deal 24 (+ATK) Axe damage \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields \u00b7 {{Expose}} the enemy \u2014 +30% damage from all direct hits (2 turns)."
        }
       }
      }
@@ -1716,7 +1746,17 @@
        "(pinned against the pre-migration defs read from git d695eaa by",
        "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
        "survives, because a Bronze face cannot describe a line the Bronze copy",
-       "does not have."
+       "does not have.",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card: the MDEF debuff now lands AFTER the bolt, so the bolt eats full MDEF (Diamond, MDEF 6: 31 -DEF3 = 28 -> 31 -DEF6 = 25). The debuff is for the NEXT card."
       ],
       "archetypes": [
        "debuff"
@@ -1741,13 +1781,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
+        "text": "Deal 10 (+MATK) Dark damage \u00b7 -50% enemy MDEF (2 turns)."
        },
        "gold": {
-        "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
+        "text": "Deal 20 (+MATK) Dark damage \u00b7 -50% enemy MDEF (2 turns)."
        },
        "diamond": {
-        "text": "-50% enemy MDEF (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
+        "text": "Deal 30 (+MATK) Dark damage \u00b7 -50% enemy MDEF (2 turns)."
        }
       }
      }
@@ -2099,7 +2139,7 @@
       ],
       "tierUpgrades": {
        "diamond": {
-        "text": "Deal 26 (+MATK) Holy damage \u00b7 -20% enemy MDEF (2 turns) \u00b7 {{Affinity}} Holy \u2014 hit again for 32."
+        "text": "Deal 26 (+MATK) Holy damage \u00b7 {{Affinity}} Holy \u2014 hit again for 32 \u00b7 -20% enemy MDEF (2 turns)."
        }
       },
       "notes": [
@@ -2128,7 +2168,17 @@
        "(pinned against the pre-migration defs read from git d695eaa by",
        "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
        "survives, because a Bronze face cannot describe a line the Bronze copy",
-       "does not have."
+       "does not have.",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card (Diamond): the gated Holy hit no longer cashes in the MDEF debuff the base hit bought. Was `hit 27 -DEF10 / MDEF -20% / hit 32 -DEF8`; now `hit 27 -DEF10 / hit 32 -DEF10 / MDEF -20%`. This is the case the ruling was made on. The Diamond budget (250) is untouched."
       ]
      }
     }
@@ -3113,7 +3163,17 @@
        "(pinned against the pre-migration defs read from git d695eaa by",
        "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
        "survives, because a Bronze face cannot describe a line the Bronze copy",
-       "does not have."
+       "does not have.",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card: the biggest single nerf of the ruling. Expose amplified this card's OWN hit (Diamond: 31 -DEF6 +EXPOSE12 = 37); it now lands behind it (31 -DEF6 = 25) and amplifies whatever swings NEXT. Expose is still frozen at the size-1 control cap, so the price is the same."
       ],
       "archetypes": [
        "debuff"
@@ -3137,13 +3197,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
+        "text": "Deal 10 (+MATK) Dark damage \u00b7 {{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns)."
        },
        "gold": {
-        "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
+        "text": "Deal 20 (+MATK) Dark damage \u00b7 {{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns)."
        },
        "diamond": {
-        "text": "{{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
+        "text": "Deal 30 (+MATK) Dark damage \u00b7 {{Expose}} the enemy \u2014 +50% damage from all direct hits (2 turns)."
        }
       }
      }
@@ -3961,7 +4021,17 @@
        "(pinned against the pre-migration defs read from git d695eaa by",
        "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
        "survives, because a Bronze face cannot describe a line the Bronze copy",
-       "does not have."
+       "does not have.",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card: the stun now lands AFTER the smash. Arithmetically identical (a stun changes no damage term); the one real delta is that a smash which KILLS applies no stun, because `castCutShort` stops the cast at the kill."
       ],
       "archetypes": [
        "debuff"
@@ -3984,13 +4054,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 10 (+ATK) Axe damage."
+        "text": "Deal 10 (+ATK) Axe damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
        },
        "gold": {
-        "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 20 (+ATK) Axe damage."
+        "text": "Deal 20 (+ATK) Axe damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
        },
        "diamond": {
-        "text": "{{Stun}} \u2014 the enemy's next performance is consumed. Deal 30 (+ATK) Axe damage."
+        "text": "Deal 30 (+ATK) Axe damage \u00b7 {{Stun}} \u2014 the enemy's next performance is consumed."
        }
       }
      }
@@ -4004,7 +4074,7 @@
      "version": 1,
      "def": {
       "name": "Sundering Roar",
-      "text": "{{Shatter}} 64 enemy shield \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 56 (+ATK) Axe damage.",
+      "text": "{{Shatter}} 64 enemy shield \u00b7 Deal 56 (+ATK) Axe damage \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
        "Same teaching order as Gutting Cleave (shieldBreak before bleed), plus",
        "expose. shieldBreak (80 raw = 64*1.25) + expose 20%x2t (40 raw) = 120,",
@@ -4012,7 +4082,17 @@
        "120 + bleed 8 (80) + damage 56 (280) = 480 raw - 380 (size-3 grant) =",
        "100 exactly. Hand-authored ladder, same trap/fix as the other two bleed",
        "cards: shieldBreak+expose frozen, bleed 8/10/11/12, damage climbing",
-       "56/80/108/134."
+       "56/80/108/134.",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card: `shieldBreak` is `pre` and does NOT move \u2014 it still opens the guard ahead of the hit, which is the whole teaching point. Expose and bleed moved behind the hit, so the roar no longer amplifies itself (Bronze: 57 -DEF20 -AFFINITY10 +EXPOSE5 = 32 -> 27)."
       ],
       "archetypes": [
        "offense",
@@ -4063,7 +4143,7 @@
           "power": 80
          }
         ],
-        "text": "{{Shatter}} 64 enemy shield \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 80 (+ATK) Axe damage."
+        "text": "{{Shatter}} 64 enemy shield \u00b7 Deal 80 (+ATK) Axe damage \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "gold": {
         "effects": [
@@ -4085,7 +4165,7 @@
           "power": 108
          }
         ],
-        "text": "{{Shatter}} 64 enemy shield \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 {{Bleed}} 11 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 108 (+ATK) Axe damage."
+        "text": "{{Shatter}} 64 enemy shield \u00b7 Deal 108 (+ATK) Axe damage \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 {{Bleed}} 11 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "diamond": {
         "effects": [
@@ -4107,7 +4187,7 @@
           "power": 134
          }
         ],
-        "text": "{{Shatter}} 64 enemy shield \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 {{Bleed}} 12 \u2014 ticks when the enemy performs; blocked by shields \u00b7 Deal 134 (+ATK) Axe damage."
+        "text": "{{Shatter}} 64 enemy shield \u00b7 Deal 134 (+ATK) Axe damage \u00b7 {{Expose}} the enemy \u2014 +20% damage from all direct hits (2 turns) \u00b7 {{Bleed}} 12 \u2014 ticks when the enemy performs; blocked by shields."
        }
       }
      }
@@ -5439,7 +5519,17 @@
        "(pinned against the pre-migration defs read from git d695eaa by",
        "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
        "survives, because a Bronze face cannot describe a line the Bronze copy",
-       "does not have."
+       "does not have.",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card: `ward` is a SELF buff and does not move \u2014 it still comes up first. The DEF debuff moved behind the bolt, so the bolt eats full DEF."
       ],
       "archetypes": [
        "defensive",
@@ -5469,13 +5559,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 10 (+MATK) Dark damage."
+        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Deal 10 (+MATK) Dark damage \u00b7 -25% enemy DEF (2 turns)."
        },
        "gold": {
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 20 (+MATK) Dark damage."
+        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Deal 20 (+MATK) Dark damage \u00b7 -25% enemy DEF (2 turns)."
        },
        "diamond": {
-        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 -25% enemy DEF (2 turns) \u00b7 Deal 30 (+MATK) Dark damage."
+        "text": "{{Ward}} 1 \u2014 prevent the next ailment outright \u00b7 Deal 30 (+MATK) Dark damage \u00b7 -25% enemy DEF (2 turns)."
        }
       }
      }
@@ -5643,7 +5733,7 @@
      "version": 1,
      "def": {
       "name": "Barbed Rampart",
-      "text": "{{Bleed}} 3 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -20% incoming physical damage (2 turns) \u00b7 Deal 6 (+ATK) Beast damage.",
+      "text": "-20% incoming physical damage (2 turns) \u00b7 Deal 6 (+ATK) Beast damage \u00b7 {{Bleed}} 3 \u2014 ticks when the enemy performs; blocked by shields.",
       "notes": [
        "bleed+guard: a new pairing for the Opened Wound (every other bleed",
        "card pairs with shieldBreak/expose/debuffStat/nothing) \u2014 a defensive",
@@ -5654,7 +5744,17 @@
        "+ damage (growing sink): Bronze bleed 3 (30) + damage 6 (30) = 100.",
        "Silver bleed 5 (50) + damage 12 (60) = 150. Gold bleed 7 (70) + damage",
        "18 (90) = 200. Diamond bleed 8 (80) + damage 26 (130) = 250 (all + the",
-       "frozen guard 40)."
+       "frozen guard 40).",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card: `guard` is a SELF buff and does not move \u2014 it still comes up first, ahead of the hit that may draw a reflect. Only the bleed moved, to behind the hit."
       ],
       "archetypes": [
        "defensive",
@@ -5699,7 +5799,7 @@
           "power": 12
          }
         ],
-        "text": "{{Bleed}} 5 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -20% incoming physical damage (2 turns) \u00b7 Deal 12 (+ATK) Beast damage."
+        "text": "-20% incoming physical damage (2 turns) \u00b7 Deal 12 (+ATK) Beast damage \u00b7 {{Bleed}} 5 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "gold": {
         "effects": [
@@ -5718,7 +5818,7 @@
           "power": 18
          }
         ],
-        "text": "{{Bleed}} 7 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -20% incoming physical damage (2 turns) \u00b7 Deal 18 (+ATK) Beast damage."
+        "text": "-20% incoming physical damage (2 turns) \u00b7 Deal 18 (+ATK) Beast damage \u00b7 {{Bleed}} 7 \u2014 ticks when the enemy performs; blocked by shields."
        },
        "diamond": {
         "effects": [
@@ -5737,7 +5837,7 @@
           "power": 26
          }
         ],
-        "text": "{{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -20% incoming physical damage (2 turns) \u00b7 Deal 26 (+ATK) Beast damage."
+        "text": "-20% incoming physical damage (2 turns) \u00b7 Deal 26 (+ATK) Beast damage \u00b7 {{Bleed}} 8 \u2014 ticks when the enemy performs; blocked by shields."
        }
       }
      }
@@ -5751,7 +5851,7 @@
      "version": 1,
      "def": {
       "name": "Crippling Gore",
-      "text": "{{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns) \u00b7 Deal 60 (+ATK) Lance damage.",
+      "text": "Deal 60 (+ATK) Lance damage \u00b7 {{Bleed}} 10 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns).",
       "notes": [
        "bleed+debuffStat: a new pairing (weaken the guard further while it",
        "bleeds, distinct from the shieldBreak-then-bleed teaching cards).",
@@ -5763,7 +5863,17 @@
        "480 raw - 380 (size-3 grant) = 100. Silver: bleed 13 (130) + damage 82",
        "(410) + 80 = 620 - 470 = 150. Gold: bleed 15 (150) + damage 108 (540)",
        "+ 80 = 770 - 570 = 200. Diamond: bleed 17 (170) + damage 132 (660) +",
-       "80 = 910 - 660 = 250."
+       "80 = 910 - 660 = 250.",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card: the bleed AND the DEF debuff now both land behind the lance (Bronze, DEF 20: 61 -DEF12 +AFFINITY24 = 73 -> 61 -DEF20 +AFFINITY20 = 61). The bleed is also slightly STRONGER for the move, since the hit may have spent the shield that would have blocked it."
       ],
       "archetypes": [
        "offense",
@@ -5808,7 +5918,7 @@
           "power": 82
          }
         ],
-        "text": "{{Bleed}} 13 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns) \u00b7 Deal 82 (+ATK) Lance damage."
+        "text": "Deal 82 (+ATK) Lance damage \u00b7 {{Bleed}} 13 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns)."
        },
        "gold": {
         "effects": [
@@ -5827,7 +5937,7 @@
           "power": 108
          }
         ],
-        "text": "{{Bleed}} 15 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns) \u00b7 Deal 108 (+ATK) Lance damage."
+        "text": "Deal 108 (+ATK) Lance damage \u00b7 {{Bleed}} 15 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns)."
        },
        "diamond": {
         "effects": [
@@ -5846,7 +5956,7 @@
           "power": 132
          }
         ],
-        "text": "{{Bleed}} 17 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns) \u00b7 Deal 132 (+ATK) Lance damage."
+        "text": "Deal 132 (+ATK) Lance damage \u00b7 {{Bleed}} 17 \u2014 ticks when the enemy performs; blocked by shields \u00b7 -40% enemy DEF (2 turns)."
        }
       }
      }
@@ -6283,7 +6393,17 @@
        "(pinned against the pre-migration defs read from git d695eaa by",
        "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
        "survives, because a Bronze face cannot describe a line the Bronze copy",
-       "does not have."
+       "does not have.",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card: unchanged in practice \u2014 the ATK debuff never touched this card's own damage (it denies the VICTIM's output) \u2014 but it now resolves after the chop like every other rider."
       ],
       "archetypes": [
        "debuff"
@@ -6308,13 +6428,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "-50% enemy ATK (2 turns) \u00b7 Deal 10 (+ATK) Axe damage."
+        "text": "Deal 10 (+ATK) Axe damage \u00b7 -50% enemy ATK (2 turns)."
        },
        "gold": {
-        "text": "-50% enemy ATK (2 turns) \u00b7 Deal 20 (+ATK) Axe damage."
+        "text": "Deal 20 (+ATK) Axe damage \u00b7 -50% enemy ATK (2 turns)."
        },
        "diamond": {
-        "text": "-50% enemy ATK (2 turns) \u00b7 Deal 30 (+ATK) Axe damage."
+        "text": "Deal 30 (+ATK) Axe damage \u00b7 -50% enemy ATK (2 turns)."
        }
       }
      }
@@ -6346,7 +6466,17 @@
        "(pinned against the pre-migration defs read from git d695eaa by",
        "tests/engine/tierLockMigration.test.ts). Only the per-tier `text` override",
        "survives, because a Bronze face cannot describe a line the Bronze copy",
-       "does not have."
+       "does not have.",
+       "",
+       "CAST ORDER RULING (2026-08-31, USER-LOCKED). \"any attack always come first",
+       "before applying their debuff effect if it applies one\", and \"if attack cause",
+       "bleed or poison the attack happens first then bleed or poison get applied\".",
+       "The authored `effects` below are UNCHANGED; `orderCastRiders`",
+       "(src/engine/cards.ts) normalizes the RESOLVED kit so every hit lands before",
+       "every rider, and the face text was reordered to match the log. PL IS",
+       "UNCHANGED and nothing was re-solved: `actionsPriceDeci` sums each action's own",
+       "price and no term reads a sibling's position, so the numbers above still hold.",
+       "This card: unchanged in practice \u2014 the MATK debuff never touched this card's own damage (it denies the VICTIM's output) \u2014 but it now resolves after the bolt like every other rider."
       ],
       "archetypes": [
        "debuff"
@@ -6371,13 +6501,13 @@
       ],
       "tierUpgrades": {
        "silver": {
-        "text": "-50% enemy MATK (2 turns) \u00b7 Deal 10 (+MATK) Frost damage."
+        "text": "Deal 10 (+MATK) Frost damage \u00b7 -50% enemy MATK (2 turns)."
        },
        "gold": {
-        "text": "-50% enemy MATK (2 turns) \u00b7 Deal 20 (+MATK) Frost damage."
+        "text": "Deal 20 (+MATK) Frost damage \u00b7 -50% enemy MATK (2 turns)."
        },
        "diamond": {
-        "text": "-50% enemy MATK (2 turns) \u00b7 Deal 30 (+MATK) Frost damage."
+        "text": "Deal 30 (+MATK) Frost damage \u00b7 -50% enemy MATK (2 turns)."
        }
       }
      }

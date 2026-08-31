@@ -122,6 +122,12 @@ describe('special ability riders', () => {
 /**
  * THE CAST-SINK ORDERING RULE — `lifesteal` must trail EVERY hit of its cast.
  *
+ * SUPERSEDED IN SCOPE, NOT IN SUBSTANCE (2026-08-31): `lifesteal` is now one
+ * member of the general CAST ORDER RULE — every hit of a cast resolves before
+ * every rider it lands — enforced by the same single normalizer, now called
+ * `orderCastRiders`. The block below is kept as the leech's own regression pin;
+ * the general rule and its whole-book sweep live in `castOrder.test.ts`.
+ *
  * `lifesteal` is the only action that reads a value the cast accumulates
  * (`cast.damageDealt`). `GEM_ACTION_PHASE` (src/engine/cards.ts) already states
  * the rule on its own row — "Reads `cast.damageDealt` — must trail every hit of
@@ -133,7 +139,7 @@ describe('special ability riders', () => {
  * the composition ("the affinity hit is part of that cast"). It was not — on a
  * Beast board the log read `hit 31 / heals 13 / hit 32`, i.e. 45% of 31 rather
  * than of 63, while the face printed the unqualified "heal 45% of damage dealt".
- * `orderCastSinks` in the resolver now folds the leech behind the last hit before
+ * `orderCastRiders` in the resolver now folds the leech behind the last hit before
  * the loop ever runs.
  *
  * DAMAGE DEALT IS READ OUT OF THE EVENT LOG (`calculation.hpDamage`, the same
@@ -197,7 +203,7 @@ describe('lifesteal trails every hit of the cast', () => {
     // off-type. NOTE the base hit is SMALLER on-type (35 vs 40) — the multi-hit
     // stat split halves the Attack share across the two hits — which is exactly
     // why the leech must read the cast SUBTOTAL and not its own first hit: before
-    // `orderCastSinks` the gate BOUGHT LESS HEALING than shutting the gate did.
+    // `orderCastRiders` the gate BOUGHT LESS HEALING than shutting the gate did.
     const on = firstFangCast(ON_TYPE, 'diamond');
     const off = firstFangCast(OFF_TYPE, 'diamond');
     expect(on.hpDamage.length, 'on-type: base hit + gated hit').toBe(2);
@@ -255,7 +261,7 @@ describe('lifesteal trails every hit of the cast', () => {
     // definition carrying `minTier: 'diamond'`, so `tierResolved` has a line to
     // STRIP at Bronze and must allocate. What still has to hold is the VALUE — the
     // Bronze kit is exactly the unlocked lines, in order, with the leech already
-    // trailing and therefore nothing for `orderCastSinks` to move.
+    // trailing and therefore nothing for `orderCastRiders` to move.
     const fang = skillBook[FANG]!;
     const bronze = resolveEffectiveSkill(fang, { skillId: FANG, slot: 0 });
     expect(bronze.effects).toEqual(fang.effects.filter((a) => a.minTier === undefined));

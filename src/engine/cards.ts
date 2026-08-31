@@ -412,16 +412,26 @@ function weightWithGemIncrease(base: number, pct: number): number {
  * both put them first, ahead of their damage line.
  *
  * SCOPE: this decides only where GEM actions splice in — `spliceGemActions`
- * keeps `base` intact and contiguous between the two gem blocks. A card's own
- * authored order is otherwise left alone, with ONE exception, and it is the read
- * side of this same table's `lifesteal` row: `orderCastSinks` (below) folds a
- * leech that authored itself AHEAD of one of its card's own hits back behind
- * them, because that row's rule ("must trail every hit of the cast") is a
- * property of the resolved kit, not of gems.
+ * keeps `base` intact and contiguous between the two gem blocks.
+ *
+ * IT IS ALSO READ FROM THE OTHER SIDE. `orderCastRiders` (below) asks this table
+ * whether a kind PREPARES the hit (`pre`) or follows it (`post`) in order to
+ * normalize a CARD's own authored order to the same answer — every hit of a cast
+ * first, then every rider it lands on the target (user-locked 2026-08-31). So a
+ * `post` row here is not just "where a gem goes"; it is the phase the keyword
+ * has, whoever supplied it. The rows below say `pre`/`post` for reasons that
+ * hold either way, and the two that used to be gem-only judgement calls
+ * (`debuffStat`/`expose`/`bleed`, and `lifesteal`) are now the rule.
+ *
+ * EXPORTED so a test can re-derive the rider class from this table and
+ * `KEYWORD_PRICING` rather than hand-listing kinds beside the implementation —
+ * the hand-maintained parallel list is exactly the thing this codebase keeps
+ * finding rotted (`fmtDamage`, `OFFENSIVE_KINDS`, the tier scaler's fourth
+ * mirror). Nothing else reads it; it is not a runtime knob.
  */
 type GemPhase = 'pre' | 'post';
 
-const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
+export const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
   // --- Runs BEFORE the host's effects: it PREPARES the ground for them. ---
   /** Arms `cast.bonusFlat` so the host's damage arm can read it. */
   comboBonus: 'pre',
@@ -512,12 +522,17 @@ const GEM_ACTION_PHASE: Record<Action['kind'], GemPhase> = {
   // no attacker-side bonus and no stat split — see `GemAppended`).
   damage: 'post',
   statStrike: 'post',
-  // Offensive statuses the CARD catalog also places after its own hit
-  // (debuffStat 6/6, expose 1/1, bleed 1/1). They would amplify the host's own
-  // hit if hoisted — that is a balance change, not an ordering defect, so a gem
-  // sits exactly where a card would put it. `bleed` additionally cannot be
-  // applied while the victim holds a shield, so trailing the hit (which may
-  // have spent that shield) is also its STRONGER placement.
+  // Offensive statuses. They would amplify the host's own hit if hoisted, and
+  // as of 2026-08-31 that is settled rather than deferred: the user ruled that
+  // "any attack always come first before applying their debuff effect", and
+  // "if attack cause bleed or poison the attack happens first then bleed or
+  // poison get applied". `orderCastRiders` reads this row to enforce it on
+  // AUTHORED order too, so a gem and a card now land in the same place by
+  // construction instead of by convention. (The catalog's own habit already
+  // mostly agreed — debuffStat 6/6, expose 1/1, bleed 1/1 trailed the hit before
+  // the ruling; the ruling is what moved the other 13 kits.) `bleed`
+  // additionally cannot be applied while the victim holds a shield, so trailing
+  // the hit (which may have spent that shield) is also its STRONGER placement.
   debuffStat: 'post',
   expose: 'post',
   bleed: 'post',
@@ -693,82 +708,137 @@ function hasCardTargeting(actions: readonly Action[]): boolean {
  * which can ask `splashSuppressionOn` directly.
  */
 /**
- * THE CAST-SINK ORDERING RULE — the read-side twin of `GEM_ACTION_PHASE`, and
- * the one place a card's OWN authored order is normalized.
+ * THE CAST-ORDER RULE — the read-side twin of `GEM_ACTION_PHASE`, and the one
+ * place a card's OWN authored order is normalized.
  *
- * `lifesteal` is the only action that reads a value the cast ACCUMULATES
- * (`cast.damageDealt`, written by every `damage` application — see the
- * `lifesteal` arm of `applyAction`, combat/interpreter.ts). Its own phase row
- * already says why: "Reads `cast.damageDealt` — must trail every hit of the
- * cast." That rule was enforced for GEM actions and nowhere else, so a kit that
- * authored a hit AFTER its own lifesteal line silently leeched off a partial
- * total.
+ *     WITHIN ONE CAST: EVERY HIT RESOLVES FIRST, THEN EVERY RIDER LANDS.
  *
- * THE DEFECT IT CLOSES (2026-08-26). `leeching_fang` at Diamond authors
- * `[damage 30, lifesteal 45, damage 32 (affinity)]`, and its own notes commit to
- * the composition: "lifesteal heals a percentage of the whole CAST's damage
- * dealt (`cast.damageDealt`), and the affinity hit is part of that cast".
- * It was not: on a Beast board the log showed `hit 31 / heals 13 / hit 32` —
- * 45% of 31, not of 63 — while the face printed the unqualified "heal 45% of
- * damage dealt". The same shape is reachable without any card edit, through the
- * splicer: `GEM_ACTION_PHASE` puts BOTH `damage` and `lifesteal` at `post`, so a
- * gem carrying a hit (or carrying `[lifesteal, damage]` in that order) lands a
- * hit behind a lifesteal host's own leech line.
+ * USER-LOCKED 2026-08-31, verbatim: *"I think gems or card affect should be
+ * clear when it happens and debuff usually should happen at the end so any
+ * attack always come first before applying their debuff effect if it applies
+ * one"*, and — on whether a DoT counts — *"like if attack cause bleed or poison
+ * the attack happens first then bleed or poison get applied"*. A card's rider
+ * sets up the NEXT card; it never sets up its own later hits.
  *
- * WHY THE RESOLVER, NOT THE LOOP (CLAUDE.md, "the resolver seam"): the fix is a
- * property of the RESOLVED card, so it folds in before the loop runs and
+ * WHAT COUNTS AS A RIDER — DERIVED, NEVER HAND-LISTED (`mustTrailHits` below).
+ * Three exhaustive-by-type tables already in the engine answer it between them,
+ * so a NEW `Action` kind is classified the moment its author fills in the rows
+ * the compiler already demands, and there is no fourth list to rot:
+ *   • `GEM_ACTION_PHASE` (above) — `pre` means "this PREPARES the hit"
+ *     (`shieldBreak` opens the plating; `comboBonus`/`chainBonus`/`exploit`/
+ *     `stackBonus`/`taxBonus`/`desperation`/`shieldBurst`/`wardRelease` arm a
+ *     bonus only a `damage` arm can read). A `pre` kind is NEVER a rider: moving
+ *     it behind the hit would not delay it, it would DELETE it.
+ *   • `KEYWORD_PRICING[k].isHit` — `damage`/`statStrike` ARE the attack, so they
+ *     are what the riders trail, not riders themselves.
+ *   • `KEYWORD_PRICING[k].offensive` — the same partition `isOffensiveAction`
+ *     (combat/interpreter.ts) runs on, and the one that separates "the cast
+ *     applies this TO THE TARGET" from "the caster does this to itself". It is
+ *     what keeps SELF-BUFFS out: `guard`, `negate`, `ward`, `thorns`,
+ *     `buffStat`, `heal`, `shield` stay exactly where their card authored them
+ *     (`braced_pike` still guards before it lunges; `storm_surge` still buffs
+ *     before it swings). The user ruled on debuffs — the mirror ruling for a
+ *     card that amplifies its OWN later hits has not been made, and this rule
+ *     does not pre-empt it.
+ * Two named exceptions, each for a reason its own type doc already states:
+ *   • `splash` is offensive and `post` but APPLIES NOTHING and is read
+ *     cast-scoped (`castSpreadsBand`, combat/interpreter.ts — "CAST-SCOPED, NOT
+ *     POSITIONAL"), so moving it would be pure churn on a position that decides
+ *     nothing;
+ *   • `lifesteal` is `offensive: false` — it heals the CASTER — but it is a SINK
+ *     that reads what the cast accumulated (`cast.damageDealt`) and so has
+ *     trailed every hit since 2026-08-26 (566bea1). It is a member of this one
+ *     rule rather than a second ordering pass beside it.
+ *
+ * THE BEHAVIOUR IT CHANGES, STATED AS A NERF (it is one). Before this rule a
+ * card's own debuff softened its own later hits — `judgment_light` at Diamond
+ * read `hit 27 -DEF10 / MDEF -20% / hit 32 -DEF8`, the second hit cashing in the
+ * debuff the first one bought. It now reads `hit 27 -DEF10 / hit 32 -DEF10 /
+ * MDEF -20%`. `GEM_ACTION_PHASE` had already called this out in writing on its
+ * `debuffStat`/`expose`/`bleed` row — "they would amplify the host's own hit if
+ * hoisted — that is a balance change, not an ordering defect" — and left it for
+ * a ruling. This IS that ruling, so the row is corrected below.
+ *
+ * PL IS UNAFFECTED, so nothing needs re-solving: `actionsPriceDeci` sums each
+ * action's own price and no term reads a sibling's position, so a reordered kit
+ * prices to the same deci-PL it did before. What changed is what the payload
+ * DELIVERS at that price, which is the ruling's whole point.
+ *
+ * WHY THE RESOLVER, NOT THE LOOP (CLAUDE.md, "the resolver seam"): the order is
+ * a property of the RESOLVED card, so it folds in before the loop runs and
  * `applyCast` stays feature-agnostic — no deferred-action queue, no second pass,
- * no `kind === 'lifesteal'` branch in the walk. It also covers all three ways a
- * kit is assembled at once (authored effects, a `tierUpgrades` override, a gem
- * splice) instead of one card's JSON.
+ * no `kind === 'debuffStat'` branch in the walk. It also covers all three ways a
+ * kit is assembled at once — authored effects, a `tierUpgrades` override, and a
+ * GEM SPLICE (the user said "gems or card affect", and a gem's `post` actions
+ * land behind the host's, so a gem rider on a host whose own hit trails it was
+ * reachable with no card edit at all).
  *
- * MINIMAL AND STABLE: an offending `lifesteal` moves to immediately AFTER the
- * last `damage` action and nothing else moves — relative order is otherwise
- * preserved, so hit ordinals (the multi-hit stat split), the one-bonus-per-cast
- * spend and every status line stay exactly where the card authored them. A kit
- * whose lifesteal already trails its hits (`siphon_life`, `verdant_rebuke`, base
- * `leeching_fang`, every gem-spliced lifesteal today) returns the SAME array
- * reference, so it resolves byte-identically.
+ * MINIMAL AND STABLE: an offending rider moves to immediately AFTER the last hit
+ * and NOTHING ELSE MOVES — relative order is otherwise preserved, so hit
+ * ordinals (the multi-hit stat split), the one-bonus-per-cast spend, every
+ * `pre` arm and every self-buff line stay exactly where the card authored them.
+ * A kit already in order returns the SAME array reference, so it resolves
+ * byte-identically (the `toBe(def)` identity contract in gems.test.ts).
  *
- * KNOWN CONSEQUENCE, and it is the locked rule winning: with the leech behind
- * the hits, a cast whose LAST hit wipes the enemy side now stops at that hit and
- * heals nothing — "no lifesteal-back off the killing blow" (`castCutShort`,
- * combat/interpreter.ts, user-locked 2026-08-04). Leeching Fang at Diamond used
- * to dodge that rule by leeching before its own gated hit; it no longer does,
- * and it now behaves exactly like the other lifesteal cards.
+ * KNOWN CONSEQUENCES, both of them the locked rules winning:
+ *   • a cast whose LAST hit wipes the enemy side now applies no rider at all —
+ *     `castCutShort` (combat/interpreter.ts, user-locked 2026-08-04) stops the
+ *     walk, so the debuff/DoT/leech on a killing blow is simply not spent. That
+ *     is the same consequence 566bea1 accepted for `lifesteal`, now general.
+ *   • `bleed` gets STRONGER, not weaker: it "cannot be applied while the target
+ *     holds any active shield", and behind the hit the shield it could not cut
+ *     through may already have been spent. `GEM_ACTION_PHASE`'s `bleed` row said
+ *     so before this change existed.
  */
-function orderCastSinks(effects: readonly Action[]): readonly Action[] {
+function mustTrailHits(kind: Action['kind']): boolean {
+  // Prepares the hit — behind it, it would be deleted rather than delayed.
+  if (GEM_ACTION_PHASE[kind] === 'pre') return false;
+  // It IS the attack. Hits are what riders trail.
+  if (KEYWORD_PRICING[kind].isHit) return false;
+  // Applies nothing and is read cast-scoped, so its index decides nothing.
+  if (kind === 'splash') return false;
+  // The caster-side SINK that reads `cast.damageDealt` (566bea1).
+  if (kind === 'lifesteal') return true;
+  // Everything the cast lands ON THE TARGET. Self-buffs are `offensive: false`
+  // and stay where they were authored — the mirror ruling has not been made.
+  return KEYWORD_PRICING[kind].offensive;
+}
+
+function orderCastRiders(effects: readonly Action[]): readonly Action[] {
   let lastHit = -1;
-  for (let i = 0; i < effects.length; i += 1) if (effects[i]!.kind === 'damage') lastHit = i;
+  for (let i = 0; i < effects.length; i += 1) {
+    if (KEYWORD_PRICING[effects[i]!.kind].isHit) lastHit = i;
+  }
   if (lastHit < 0) return effects;
   let needsMove = false;
   for (let i = 0; i < lastHit; i += 1) {
-    if (effects[i]!.kind === 'lifesteal') { needsMove = true; break; }
+    if (mustTrailHits(effects[i]!.kind)) { needsMove = true; break; }
   }
   if (!needsMove) return effects;
   const out: Action[] = [];
   const deferred: Action[] = [];
   for (let i = 0; i < effects.length; i += 1) {
     const action = effects[i]!;
-    if (i < lastHit && action.kind === 'lifesteal') {
+    if (i < lastHit && mustTrailHits(action.kind)) {
       deferred.push(action);
       continue;
     }
     out.push(action);
     // Every deferred index is < lastHit, so the list is complete by the time the
-    // last hit is pushed. Plain index walk: no Map/Set, no sort, no RNG.
+    // last hit is pushed, and the deferred riders keep their authored order
+    // among themselves. Plain index walk: no Map/Set, no sort, no RNG.
     if (i === lastHit) for (let d = 0; d < deferred.length; d += 1) out.push(deferred[d]!);
   }
   return out;
 }
 
 /**
- * `skill` with `orderCastSinks` applied — the SAME reference back when nothing
+ * `skill` with `orderCastRiders` applied — the SAME reference back when nothing
  * needed moving, which is what keeps `resolveEffectiveSkill`'s "un-gemmed piece
  * resolves to the same def" contract (pinned by tests/engine/gems.test.ts) true.
  */
-function withOrderedSinks(skill: SkillDef): SkillDef {
-  const ordered = orderCastSinks(skill.effects);
+function withOrderedRiders(skill: SkillDef): SkillDef {
+  const ordered = orderCastRiders(skill.effects);
   return ordered === skill.effects ? skill : { ...skill, effects: ordered as Action[] };
 }
 
@@ -825,18 +895,18 @@ export function resolveEffectiveSkill(def: SkillDef, piece: BoardPiece): SkillDe
   // card with no lock, so an un-featured piece resolves byte-identically.
   const tiered = applyTier(def, piece.tier ?? def.tier);
   const gem = piece.gem;
-  // THE CAST-SINK ORDER is fixed on the way OUT of every branch below (see
-  // `orderCastSinks`): whether a kit's `lifesteal` trails its hits is a property
-  // of the fully assembled card, and the three assembly routes — authored
-  // effects, a `tierUpgrades` override, a gem splice — must all land on the same
-  // answer. Same reference back when nothing moves, so the "un-gemmed piece
-  // resolves to the same def" contract survives.
-  if (!gem || gem.kind !== 'effect') return withOrderedSinks(tiered);
+  // THE CAST ORDER — every hit, then every rider — is fixed on the way OUT of
+  // every branch below (see `orderCastRiders`): whether a kit's debuffs, DoTs and
+  // leech trail its hits is a property of the fully assembled card, and the three
+  // assembly routes — authored effects, a `tierUpgrades` override, a gem splice —
+  // must all land on the same answer. Same reference back when nothing moves, so
+  // the "un-gemmed piece resolves to the same def" contract survives.
+  if (!gem || gem.kind !== 'effect') return withOrderedRiders(tiered);
   const cooldownReduction = gem.cooldownReduction ?? 0;
   const weightIncreasePct = gem.weightIncreasePct ?? 0;
-  if (gem.actions.length === 0 && cooldownReduction === 0 && weightIncreasePct <= 0) return withOrderedSinks(tiered);
+  if (gem.actions.length === 0 && cooldownReduction === 0 && weightIncreasePct <= 0) return withOrderedRiders(tiered);
 
-  const effects = orderCastSinks(gem.actions.length > 0
+  const effects = orderCastRiders(gem.actions.length > 0
     ? spliceGemActions(tiered, gem.actions)
     : tiered.effects) as Action[];
   if (cooldownReduction === 0 && weightIncreasePct <= 0) {
