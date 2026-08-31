@@ -11,7 +11,7 @@ import type { Gem, SkillTier } from '../engine/types';
 import { enemies } from '../data/enemies';
 import { skillBook } from '../data/skills';
 import { HERO_BOARD_SLOTS } from '../data/heroes';
-import { DRAFT_SET_KEYS, type DraftSetKey } from './draft';
+import { DRAFT_SET_KEYS, draftOffers, rollStartDraftAt, type DraftSetKey, type StartDraft } from './draft';
 import {
   buildEnemyEncounter,
   capPackTitle,
@@ -160,6 +160,41 @@ export interface EventResolution {
   pending?: boolean;
 }
 
+/**
+ * THE START DRAFT AS THE RUN SEES IT — the offer on screen and the picks made
+ * against it, while `status === 'drafting'`.
+ *
+ * Both halves used to be scene fields (`rerolls`/`picks` in
+ * `MobileDraftScene`/`DesktopDraftScene`), and both draft screens rebuild
+ * themselves from nothing in `init()` on every `scene.start`. So leaving the
+ * draft (or reloading the page, which resumes through the Run Map straight
+ * back into the draft) silently threw away every reroll the player had made
+ * and every pick they had committed, and handed them the seed's canonical
+ * roll again as if nothing had happened. Rerolls are free and unlimited, so
+ * there was no exploit and no gold lost — only work, lost silently, which is
+ * the same shape as `held` (`7dac1f0`) and `eventResolutions` (`d0d448c`).
+ *
+ * THE TWO FIELDS ARE ONE OBJECT ON PURPOSE. A pick names a card by skill id,
+ * and `applyDraftResult` does NOT check that the id was ever offered — it
+ * stamps whatever it is given onto an owned instance. So a `picks` recorded
+ * against roll N surviving into roll N+1 would silently hand the player a
+ * card the hand in front of them never contained: a worse bug than the one
+ * being fixed, and an invisible one. Keeping the counter and the picks in a
+ * SINGLE field makes "reroll clears the picks" a single assignment in a
+ * single `setActiveRun` write, so no snapshot that ever reaches storage can
+ * hold a roll and a pick that disagree (`rerollStartDraft` below). Reads go
+ * through `startDraftPicks`, which filters against the live roll a second
+ * time, and `pickStartDraftCard` refuses an unoffered id at the source.
+ */
+export interface RunDraftProgress {
+  /** Times the player has rerolled the whole 4x5 offer. Strides the roll seed
+   * by `DRAFT_REROLL_STRIDE` — see `rollStartDraftAt`. */
+  rerolls: number;
+  /** skillId picked per set so far — always a card `rollStartDraftAt(seed,
+   * rerolls)` is currently offering for that set. */
+  picks: Partial<Record<DraftSetKey, string>>;
+}
+
 export interface RunState {
   seed: number;
   map: RunMap;
@@ -202,6 +237,27 @@ export interface RunState {
    * the pre-existing behaviour of a card sitting on the strip.
    */
   held?: RunCard | null;
+  /**
+   * The in-progress START DRAFT — which reroll of the 4x5 offer is on screen
+   * and which card is picked in each set (see `RunDraftProgress`). Only
+   * meaningful while `status === 'drafting'`; `applyDraftResult` drops it on
+   * the way to `'active'`, so a run past its draft carries no stale picks.
+   *
+   * OPTIONAL, exactly like `held` above and `eventResolutions` below: absent
+   * means "no reroll, nothing picked", which is precisely what an
+   * in-progress save written before this field existed meant. So
+   * `SCHEMA_VERSION` stays 1 and every live v1 run still loads — bumping
+   * would make `loadRun` back up and refuse them all, trading one lost hand
+   * for whole lost runs (`7dac1f0`'s call, kept).
+   *
+   * A COUNTER, NOT THE 20 CARDS. `rollStartDraftAt` draws from an Rng it
+   * opens and closes itself, so re-deriving on rehydrate consumes nothing
+   * from the map/encounter/shop streams and cannot move their call order;
+   * the same two integers reproduce the same hand byte for byte. Storing the
+   * result instead would put a second source of truth for "what is being
+   * offered" into the save, free to drift from `rollStartDraft`.
+   */
+  draft?: RunDraftProgress;
   gemInventory: string[];
   nextCardInstanceId: number;
   /** Per-shop-NODE persisted shelf (bought offers stay gone; REROLL replaces
@@ -505,6 +561,7 @@ export function createRun(seed: number): RunState {
     pieces: [],
     bagSlots: [],
     held: null,
+    draft: { rerolls: 0, picks: {} },
     gemInventory: [],
     nextCardInstanceId: 1,
     shopShelves: {},
@@ -521,6 +578,99 @@ export function createRun(seed: number): RunState {
     losses: 0,
     stats: emptyRunStats(),
   };
+}
+
+// ---------------------------------------------------------------------------
+// START DRAFT PROGRESS — the roll on screen and the picks against it.
+// The RUN owns both; the draft scenes only render them (see `RunDraftProgress`).
+// ---------------------------------------------------------------------------
+
+/** `state.draft`, normalized: absent (a pre-`draft` v1 save, or a run past its
+ * draft) reads as "no reroll, nothing picked", and a corrupt `rerolls` reads
+ * as 0 rather than poisoning the roll seed. Always returns a fresh object, so
+ * callers cannot mutate run state through it. */
+export function startDraftProgress(state: Readonly<RunState>): RunDraftProgress {
+  const stored = state.draft;
+  if (!stored) return { rerolls: 0, picks: {} };
+  const rerolls = Number.isFinite(stored.rerolls) ? Math.max(0, Math.trunc(stored.rerolls)) : 0;
+  return { rerolls, picks: { ...stored.picks } };
+}
+
+/**
+ * THE HAND ON SCREEN — the 4x5 offer this run is currently drafting from.
+ *
+ * The single door for "what is the draft offering?", so the two draft scenes
+ * can no longer each derive it from a stride literal of their own (they used
+ * to: `rollStartDraft(seed + this.rerolls * 7919)`, typed out twice). Pure and
+ * cheap: a fresh `Rng` per call, nothing memoized, nothing consumed.
+ */
+export function currentStartDraft(state: Readonly<RunState>): StartDraft {
+  return rollStartDraftAt(state.seed, startDraftProgress(state).rerolls);
+}
+
+/**
+ * The picks recorded so far, FILTERED against the hand actually on offer.
+ *
+ * The second of the three guards on the stale-pick hazard `RunDraftProgress`
+ * describes (`pickStartDraftCard` refuses one at the source; `rerollStartDraft`
+ * clears them in the same write that changes the roll). This one covers the
+ * case neither of those can: the roll is derived from CONTENT, so a save made
+ * before a card was retired or re-archetyped can carry a pick that the same
+ * seed and reroll count no longer offer. Dropping it costs the player one
+ * re-pick — START simply is not offered until all four sets are picked again —
+ * where honouring it would hand them a card the screen never showed.
+ */
+export function startDraftPicks(state: Readonly<RunState>): Partial<Record<DraftSetKey, string>> {
+  const { picks } = startDraftProgress(state);
+  const offer = currentStartDraft(state);
+  const kept: Partial<Record<DraftSetKey, string>> = {};
+  for (const key of DRAFT_SET_KEYS) {
+    const skillId = picks[key];
+    if (skillId !== undefined && draftOffers(offer, key, skillId)) kept[key] = skillId;
+  }
+  return kept;
+}
+
+/**
+ * REROLL: a fresh 4x5 offer, and NO picks, in one returned state.
+ *
+ * The clearing is not a courtesy — it is the reason the counter and the picks
+ * are one field. Every pick points at a card of the roll it was made against;
+ * the new roll shares none of them by construction, and `applyDraftResult`
+ * would install a stale id without complaint. One assignment, therefore one
+ * `setActiveRun`, therefore one saved snapshot: there is no instant, in memory
+ * or on disk, where roll N+1 is showing and a pick from roll N is recorded.
+ */
+export function rerollStartDraft(state: RunState): RunState {
+  if (state.status !== 'drafting') {
+    throw new Error(`rerollStartDraft: run is not drafting (status "${state.status}")`);
+  }
+  return { ...state, draft: { rerolls: startDraftProgress(state).rerolls + 1, picks: {} } };
+}
+
+/**
+ * Record one set's pick. Refuses (throws) a skill the CURRENT roll does not
+ * offer for that set — the source-level guard on the stale-pick hazard, and
+ * the reason a scene can no longer hand the run an arbitrary id.
+ * Re-picking the same set replaces its previous pick, which is exactly what
+ * both draft screens have always allowed.
+ */
+export function pickStartDraftCard(state: RunState, key: DraftSetKey, skillId: string): RunState {
+  if (state.status !== 'drafting') {
+    throw new Error(`pickStartDraftCard: run is not drafting (status "${state.status}")`);
+  }
+  if (!draftOffers(currentStartDraft(state), key, skillId)) {
+    throw new Error(`pickStartDraftCard: "${skillId}" is not offered in the current ${key} set`);
+  }
+  const progress = startDraftProgress(state);
+  return { ...state, draft: { rerolls: progress.rerolls, picks: { ...progress.picks, [key]: skillId } } };
+}
+
+/** START: install the run's OWN recorded picks (`startDraftPicks`) and go
+ * `'active'`. The draft screens' START button goes through here rather than
+ * handing `applyDraftResult` a set of picks they were carrying themselves. */
+export function applyStartDraft(state: RunState): RunState {
+  return applyDraftResult(state, startDraftPicks(state));
 }
 
 /**
@@ -583,6 +733,11 @@ export function applyDraftResult(state: RunState, picks: Partial<Record<DraftSet
     status: 'active',
     pieces,
     bagSlots,
+    // The draft is over: drop the in-progress roll/picks rather than leave a
+    // stale `RunDraftProgress` on an active run's save forever (see
+    // `RunState.draft`). Absent is exactly what every reader treats as "no
+    // reroll, nothing picked".
+    draft: undefined,
     gold: 0,
     nextCardInstanceId: nextId,
   };

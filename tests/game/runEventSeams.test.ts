@@ -9,7 +9,8 @@ import type { RunBagSlot, RunNode } from '../../src/run/runState';
 import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
 import {
   applyCurrentMergeCardsPick, applyCurrentSellGemPick, applyRunDraft, choices, clearRun,
-  currentEventDef, getActiveRun, pickNode, resolveCurrentEventChoice, setCurrentRunBagSlots,
+  currentEventDef, getActiveRun, pickCurrentStartDraftCard, pickNode, resolveCurrentEventChoice,
+  setCurrentRunBagSlots,
   setCurrentRunGemInventory, setCurrentRunPieces, startRun,
 } from '../../src/game/runStore';
 import { buildRunRewardViewModel } from '../../src/game/ui/runRewardViewModel';
@@ -58,13 +59,22 @@ function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
   return picks;
 }
 
+/** The path the draft SCREENS take now that the reroll count and the picks are
+ * run state (`RunState.draft`): record each set's pick through the store, then
+ * START. Installs exactly the cards `draftPicksFor` names. */
+function draftRunThroughStore(seed: number): void {
+  const picks = draftPicksFor(seed);
+  for (const key of DRAFT_SET_KEYS) pickCurrentStartDraftCard(key, picks[key]!);
+  applyRunDraft();
+}
+
 /** Walks the STORE (not a hand-built `RunState`) onto a real event node, the
  * same three calls the scenes make: start → draft → pick the node. Searches
  * seeds only because which wave-1 nodes a seed offers is map-gen's business. */
 function storeOnEventNode(): RunNode {
   for (let seed = 1; seed <= 60; seed += 1) {
     startRun(seed);
-    applyRunDraft(draftPicksFor(seed));
+    draftRunThroughStore(seed);
     const node = choices().find((n) => n.kind === 'event');
     if (!node) continue;
     pickNode(node.id);

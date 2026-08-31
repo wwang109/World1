@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
 import { skillBook } from '../../data/skills';
 import { applyDraftPicks } from '../draftActions';
-import { DRAFT_SET_KEYS, rollStartDraft, type DraftSetKey, type StartDraft } from '../../run/draft';
+import { DRAFT_SET_KEYS, rollStartDraftAt, type DraftSetKey, type StartDraft } from '../../run/draft';
 import { demoState } from '../demoState';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
@@ -12,7 +12,10 @@ import { cardHoverEntries } from '../ui/cardHoverEntries';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
 import { renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { rebuildScene } from '../sceneRebuild';
-import { applyRunDraft, getActiveRun, isRunDrafting } from '../runStore';
+import {
+  applyRunDraft, currentStartDraftHand, currentStartDraftPicks, getActiveRun, isRunDrafting,
+  pickCurrentStartDraftCard, rerollCurrentStartDraft,
+} from '../runStore';
 
 const F = DESKTOP_PROFILE.font;
 
@@ -28,12 +31,10 @@ const SET_LABEL: Record<DraftSetKey, string> = {
  * picks and zeroes gold, then goes to Prep.
  */
 export class DesktopDraftScene extends Phaser.Scene {
-  private picks: Partial<Record<DraftSetKey, string>> = {};
+  /** The 4x5 offer this render is drawing — snapshotted once per `create()`
+   * from `currentHand()` so the four rows can never disagree about what is on
+   * screen. */
   private draft!: StartDraft;
-  /** Times the player rerolled the whole draft — strides the roll seed
-   * deterministically; scene-local on purpose (a fresh entry re-offers the
-   * seed's canonical draft). */
-  private rerolls = 0;
   /** True when a Run Mode run is sitting in 'drafting' status — the discriminator
    * between the sandbox draft (writes demoState) and the run-start draft
    * (writes the active run via `applyRunDraft`). No separate context flag/
@@ -43,16 +44,68 @@ export class DesktopDraftScene extends Phaser.Scene {
   constructor() { super('DesktopDraft'); }
 
   init(): void {
-    this.picks = {};
-    this.rerolls = 0;
+    // NOTHING DRAFT-RELATED IS RESET HERE. `init()` runs again on every
+    // `scene.start` — including the Run Map's bounce back into the draft after
+    // a page reload — and clearing the reroll count and the picks here is
+    // exactly how the player's work was thrown away. Both now live where they
+    // survive that: the run (`RunState.draft`), or a scene field the Sandbox
+    // keeps for its unsaved session.
     this.runContext = isRunDrafting();
   }
+
+  // ---------- draft state (RUN: persisted · SANDBOX: this scene) ----------
+  // BOTH PLATFORMS CARRY THIS BLOCK BYTE FOR BYTE — the bug was identical in
+  // the two draft scenes, so a one-sided fix is not a fix
+  // (`tests/game/draftRerollPersistence.test.ts` compares the two).
+
+  /** SANDBOX ONLY backing store for the reroll counter and the picks. In RUN
+   *  context both live on `RunState.draft` (persisted, survives a refresh) —
+   *  see the accessors below. The Sandbox never saves anything, so a scene
+   *  field is the whole story there, exactly as `sandboxHold` is for the deck
+   *  scenes' TEMP HOLDING strip (`7dac1f0`). Deliberately NOT reset in
+   *  `init()`: that reset is what threw the work away. */
+  private sandboxRerolls = 0;
+  private sandboxPicks: Partial<Record<DraftSetKey, string>> = {};
+
+  /** THE HAND ON SCREEN. In run context the RUN decides it — `init()` rebuilds
+   *  this scene from nothing on every `scene.start` (and a page reload resumes
+   *  through the Run Map straight back into the draft), so a reroll held in a
+   *  scene field was silently discarded and the seed's canonical roll served
+   *  again. The stride that turns a reroll count into a seed lives in
+   *  `src/run/draft.ts`, once, not in a literal on each platform. */
+  private currentHand(): StartDraft {
+    return this.runContext ? currentStartDraftHand()! : rollStartDraftAt(demoState.seed, this.sandboxRerolls);
+  }
+
+  /** The pick made in each set so far. Run context reads the run's own record,
+   *  already filtered to cards the current hand actually offers. */
+  private get picks(): Partial<Record<DraftSetKey, string>> {
+    return this.runContext ? currentStartDraftPicks() : this.sandboxPicks;
+  }
+
+  /** Pick (or re-pick) one set. The run layer refuses a card the current roll
+   *  does not offer, so the screen cannot install one. */
+  private pick(key: DraftSetKey, skillId: string): void {
+    if (this.runContext) pickCurrentStartDraftCard(key, skillId);
+    else this.sandboxPicks[key] = skillId;
+  }
+
+  /** REROLL — a fresh 4×5 offer AND the picks cleared, in ONE run-state write
+   *  (`rerollStartDraft`). They must move together: a pick names a card by
+   *  skill id and `applyDraftResult` installs whatever id it is given, so a
+   *  pick left over from the previous roll would silently hand the player a
+   *  card this hand never showed. */
+  private reroll(): void {
+    if (this.runContext) rerollCurrentStartDraft();
+    else { this.sandboxRerolls += 1; this.sandboxPicks = {}; }
+  }
+
+  // ---------- /draft state ----------
 
   private rerender(): void { rebuildScene(this); }
 
   create(): void {
-    const seed = this.runContext ? getActiveRun()!.seed : demoState.seed;
-    this.draft = rollStartDraft(seed + this.rerolls * 7919);
+    this.draft = this.currentHand();
     renderDesktopBackground(this);
     if (this.runContext) {
       // THE run HUD's kicker/title/stats — no DECK/BAG or RETIRE slot yet
@@ -112,7 +165,7 @@ export class DesktopDraftScene extends Phaser.Scene {
         // Hover-tip explains what the card does (name/tier/PL/text + every
         // abbreviation/keyword it prints) before the player commits a pick.
         attachHoverTip(this, hit, { x: cx, y: cy, w: cardW, h: cardH }, cardHoverEntries(skill));
-        hit.on('pointerdown', () => { playSfx('uiClick'); this.picks[key] = card.skillId; this.rerender(); });
+        hit.on('pointerdown', () => { playSfx('uiClick'); this.pick(key, card.skillId); this.rerender(); });
         if (isPicked) {
           this.add.text(cx + cardW - 6, cy + 6, '✓', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textAccent }).setOrigin(1, 0);
         }
@@ -129,13 +182,13 @@ export class DesktopDraftScene extends Phaser.Scene {
     const y = SCREEN.height - DESKTOP_PROFILE.safe.bottom - h;
     const ready = Object.keys(this.picks).length === DRAFT_SET_KEYS.length;
     // REROLL sits beside START: a fresh 4×5 offer off a deterministic seed
-    // stride; picks point at cards that no longer exist, so they clear.
+    // stride, with the picks cleared in the same write (`reroll()` above).
     const rw = 150;
     const rx = x - rw - 12;
     const reroll = this.add.rectangle(rx, y, rw, h, UI.panelAlt, 1)
       .setOrigin(0, 0).setStrokeStyle(2, UI.border, 0.8).setInteractive({ useHandCursor: true });
     this.add.text(rx + rw / 2, y + h / 2, 'REROLL', { fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.name}px`, color: UI.textBright }).setOrigin(0.5);
-    reroll.on('pointerdown', () => { playSfx('uiClick'); this.rerolls += 1; this.picks = {}; this.rerender(); });
+    reroll.on('pointerdown', () => { playSfx('uiClick'); this.reroll(); this.rerender(); });
     const btn = this.add.rectangle(x, y, w, h, ready ? UI.chip : UI.panelMuted, ready ? 1 : 0.5)
       .setOrigin(0, 0).setStrokeStyle(2, UI.border, ready ? 1 : 0.4);
     this.add.text(x + w / 2, y + h / 2, 'START', { fontFamily: FONT.display, fontStyle: 'bold', fontSize: `${F.title}px`, color: ready ? UI.textOnChip : UI.textSoft }).setOrigin(0.5);
@@ -144,7 +197,7 @@ export class DesktopDraftScene extends Phaser.Scene {
       btn.on('pointerdown', () => {
         playSfx('uiClick');
         if (this.runContext) {
-          applyRunDraft(this.picks);
+          applyRunDraft();
           this.scene.start('DesktopRunMap');
         } else {
           applyDraftPicks(this.picks);

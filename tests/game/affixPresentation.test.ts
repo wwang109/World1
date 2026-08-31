@@ -9,7 +9,7 @@ import { buildEnemyEncounter, eliteAffixIdFor, type EncounterPack } from '../../
 import { buildBattleTimeline, type BattleTimelineInput } from '../../src/game/battleTimeline';
 import { battleRequestOf } from '../../src/game/battleApi';
 import { resolveBattle } from '../../src/run/resolveBattle';
-import { applyRunDraft, clearRun, getActiveRun, previewEncounter, startRun } from '../../src/game/runStore';
+import { applyRunDraft, clearRun, getActiveRun, pickCurrentStartDraftCard, previewEncounter, startRun } from '../../src/game/runStore';
 import { DRAFT_SET_KEYS, rollStartDraft, type DraftSetKey } from '../../src/run/draft';
 import { fightTableEntryForNode, type RunNode } from '../../src/run/runState';
 import { runChoicePanelLayout } from '../../src/game/ui/RunChoicePanel';
@@ -166,11 +166,20 @@ function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
   return picks;
 }
 
+/** The path the draft SCREENS take now that the reroll count and the picks are
+ * run state (`RunState.draft`): record each set's pick through the store, then
+ * START. Installs exactly the cards `draftPicksFor` names. */
+function draftRunThroughStore(seed: number): void {
+  const picks = draftPicksFor(seed);
+  for (const key of DRAFT_SET_KEYS) pickCurrentStartDraftCard(key, picks[key]!);
+  applyRunDraft();
+}
+
 /** Every fight/boss node of a started run, grouped the way the map draws them:
  * one entry per COLUMN, which is the set of options a single stop offers. */
 function combatColumns(seed: number): RunNode[][] {
   startRun(seed);
-  applyRunDraft(draftPicksFor(seed));
+  draftRunThroughStore(seed);
   const run = getActiveRun()!;
   return run.map.depths
     .map((column) => column.filter((n) => n.kind === 'fight' || n.kind === 'boss'))

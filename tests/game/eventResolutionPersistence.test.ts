@@ -58,6 +58,16 @@ function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
   return picks;
 }
 
+/** The path the draft SCREENS take now that the reroll count and the picks are
+ * run state (`RunState.draft`): record each set's pick through the store, then
+ * START. Installs exactly the cards `draftPicksFor` names. Takes the freshly
+ * imported store module, since these tests re-import it to simulate a reload. */
+function draftThroughStore(store: typeof import('../../src/game/runStore'), seed: number): void {
+  const picks = draftPicksFor(seed);
+  for (const key of DRAFT_SET_KEYS) store.pickCurrentStartDraftCard(key, picks[key]!);
+  store.applyRunDraft();
+}
+
 type Store = typeof import('../../src/game/runStore');
 
 /** Walks the STORE (never a hand-built `RunState`) onto a real wave-1 event
@@ -66,7 +76,7 @@ type Store = typeof import('../../src/game/runStore');
 function storeOnEventNode(store: Store): RunNode {
   for (let seed = 1; seed <= 60; seed += 1) {
     store.startRun(seed);
-    store.applyRunDraft(draftPicksFor(seed));
+    draftThroughStore(store, seed);
     const node = store.choices().find((n) => n.kind === 'event');
     if (!node) continue;
     store.pickNode(node.id);

@@ -1,6 +1,6 @@
 import { enemies } from '../data/enemies';
 import type { EventDef } from '../data/events';
-import type { DraftCard, DraftSetKey } from '../run/draft';
+import type { DraftCard, DraftSetKey, StartDraft } from '../run/draft';
 import type { EncounterPack } from '../run/encounter';
 import { applyBonusDraftPick, applyGemChoicePick, applyMergeCardsPick, applySellGemPick, applyUpgradeCardPick, currentEventResolution as eventResolutionOf, reopenEventChoice, resolveEventChoice, rollEventForNode, type EventOutcome, type MergeCardsReceipt } from '../run/events';
 import { bankedPL, type Allocation } from '../run/leveling';
@@ -16,7 +16,11 @@ import {
 } from '../meta/runSave';
 import type { BattleTimelineInput } from './battleTimeline';
 import {
-  applyDraftResult,
+  applyStartDraft,
+  currentStartDraft,
+  pickStartDraftCard,
+  rerollStartDraft,
+  startDraftPicks,
   availableChoices,
   buyRunCard,
   buyRunCardTo,
@@ -158,13 +162,49 @@ export function startRun(seed: number): void {
   rerollPendingSeed();
 }
 
-/** Installs the player's actual draft picks (one per `DRAFT_SET_KEYS` set)
- * into the active run and moves it to `'active'`. The Draft scenes' START
- * button calls this INSTEAD of `applyDraftPicks`(demoState) when launched in
- * run context (an active run sitting in `'drafting'` status). */
-export function applyRunDraft(picks: Partial<Record<DraftSetKey, string>>): void {
+/**
+ * THE HAND THE RUN DRAFT IS OFFERING — `rollStartDraftAt(seed, rerolls)` for
+ * the active run, or `null` with no run. The draft scenes call this in
+ * `create()` INSTEAD of rolling it themselves off a stride literal, so a
+ * reroll the player made is still on screen when they come back: `init()`
+ * rebuilds a scene from nothing, and the only thing that can remember the
+ * reroll is the run (see `RunState.draft`).
+ */
+export function currentStartDraftHand(): StartDraft | null {
+  return activeRun ? currentStartDraft(activeRun) : null;
+}
+
+/** The run's recorded draft picks, already filtered against the hand above
+ * (`startDraftPicks`) — never a pick the current roll does not offer. Empty
+ * with no active run. */
+export function currentStartDraftPicks(): Partial<Record<DraftSetKey, string>> {
+  return activeRun ? startDraftPicks(activeRun) : {};
+}
+
+/** REROLL: next offer, picks cleared, ONE persisted write (`rerollStartDraft`
+ * owns that rule). No-op unless a run is actually drafting. */
+export function rerollCurrentStartDraft(): void {
+  if (!activeRun || activeRun.status !== 'drafting') return;
+  setActiveRun(rerollStartDraft(activeRun));
+}
+
+/** Record one set's pick on the active run. No-op unless a run is drafting;
+ * the run layer throws on a skill the current roll does not offer, so a
+ * stale/duplicate tap cannot install an unoffered card. */
+export function pickCurrentStartDraftCard(key: DraftSetKey, skillId: string): void {
+  if (!activeRun || activeRun.status !== 'drafting') return;
+  setActiveRun(pickStartDraftCard(activeRun, key, skillId));
+}
+
+/** Installs the run's OWN recorded draft picks (one per `DRAFT_SET_KEYS` set)
+ * and moves it to `'active'`. The Draft scenes' START button calls this
+ * INSTEAD of `applyDraftPicks`(demoState) when launched in run context (an
+ * active run sitting in `'drafting'` status). Takes no picks argument on
+ * purpose: the picks are run state, so a scene passing its own would be the
+ * scene-field bug all over again. */
+export function applyRunDraft(): void {
   if (!activeRun) return;
-  setActiveRun(applyDraftResult(activeRun, picks));
+  setActiveRun(applyStartDraft(activeRun));
 }
 
 /** Whether the active run is still waiting on its start-of-run draft — the

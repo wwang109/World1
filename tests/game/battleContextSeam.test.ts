@@ -2,7 +2,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { DRAFT_SET_KEYS, rollStartDraft, type DraftSetKey } from '../../src/run/draft';
 import {
   applyRunDraft, choices, clearRun, currentEncounter, currentNode, getActiveRun,
-  leaveCurrentEvent, leaveCurrentShop, pickNode, previewEncounter, resolveRunBattleResult, startRun,
+  leaveCurrentEvent, leaveCurrentShop, pickCurrentStartDraftCard, pickNode, previewEncounter,
+  resolveRunBattleResult, startRun,
 } from '../../src/game/runStore';
 import { getBattleTimelineInput, setBattleContext } from '../../src/game/battleContext';
 import type { BattleTimelineInput } from '../../src/game/battleTimeline';
@@ -49,6 +50,15 @@ function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
   return picks;
 }
 
+/** The path the draft SCREENS take now that the reroll count and the picks are
+ * run state (`RunState.draft`): record each set's pick through the store, then
+ * START. Installs exactly the cards `draftPicksFor` names. */
+function draftRunThroughStore(seed: number): void {
+  const picks = draftPicksFor(seed);
+  for (const key of DRAFT_SET_KEYS) pickCurrentStartDraftCard(key, picks[key]!);
+  applyRunDraft();
+}
+
 /**
  * Walks the STORE — start, draft, then node by node — until a combat node whose
  * encounter satisfies `want` is on offer, and commits to it. Combat is settled
@@ -58,7 +68,7 @@ function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
 function storeOnCombatNode(want: (pack: EncounterPack) => boolean, seed = 1, maxSteps = 200): EncounterPack {
   clearRun();
   startRun(seed);
-  applyRunDraft(draftPicksFor(seed));
+  draftRunThroughStore(seed);
   for (let step = 0; step < maxSteps; step += 1) {
     const opts = choices();
     if (opts.length === 0) break;

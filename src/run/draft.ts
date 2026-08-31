@@ -128,3 +128,59 @@ export function rollStartDraft(seed: number): StartDraft {
     wildcard: picks.wildcard.map(toDraftCard),
   };
 }
+
+// ---------------------------------------------------------------------------
+// REROLL — the run layer owns the stride, not the screens.
+// ---------------------------------------------------------------------------
+
+/**
+ * How far one REROLL walks the draft seed.
+ *
+ * This is a RUN RULE ("what does the reroll button offer next?"), and it used
+ * to be a bare `7919` typed out inside BOTH draft scenes' `create()`. That is
+ * the same shape `tests/game/runEventSeams.test.ts` bans for `EventOutcome`:
+ * a screen re-implementing something the run layer decides. Two copies of a
+ * rule are two chances for them to disagree, and here disagreement is
+ * invisible — the two platforms would simply offer different cards for the
+ * same run and reroll count, with nothing to notice it.
+ *
+ * A prime, so successive rerolls do not walk into each other's seeds for the
+ * small integer seeds this game hands out.
+ */
+export const DRAFT_REROLL_STRIDE = 7919;
+
+/** `rerolls` as the run layer will actually use it: a non-negative integer.
+ * A save is a JSON blob on someone's disk — a hand-edited (or truncated)
+ * `rerolls` must degrade to "the canonical roll", never to a `NaN` seed that
+ * would make `rollStartDraft` return a hand nobody can reproduce. */
+function normalizeRerolls(rerolls: number): number {
+  return Number.isFinite(rerolls) ? Math.max(0, Math.trunc(rerolls)) : 0;
+}
+
+/** The seed the `rerolls`-th reroll of run `seed`'s start draft rolls from. */
+export function draftSeedFor(seed: number, rerolls: number): number {
+  return seed + normalizeRerolls(rerolls) * DRAFT_REROLL_STRIDE;
+}
+
+/**
+ * The 4×5 offer a run at `seed` is looking at after `rerolls` rerolls.
+ *
+ * DETERMINISM, AND WHY REROLL IS PERSISTED AS A COUNTER RATHER THAN A RESULT:
+ * `rollStartDraft` opens its OWN `Rng(hashSeed('draft', seed))` and closes it
+ * again — it draws from no ambient stream, so a reroll consumes nothing that
+ * the map (`generateRunMap`), the encounter rolls or the shop stock will later
+ * draw from, and re-deriving the hand on rehydrate re-consumes nothing either.
+ * That makes the counter a complete description of the hand: this call with
+ * the same two integers IS the call that produced it, so the rehydrated 20
+ * cards are byte-identical by construction rather than by a stored copy.
+ */
+export function rollStartDraftAt(seed: number, rerolls: number): StartDraft {
+  return rollStartDraft(draftSeedFor(seed, rerolls));
+}
+
+/** Whether `skillId` is one of the five cards `draft[key]` is currently
+ * offering — the check that keeps a recorded pick honest (see
+ * `pickStartDraftCard`/`startDraftPicks` in `runState.ts`). */
+export function draftOffers(draft: StartDraft, key: DraftSetKey, skillId: string): boolean {
+  return draft[key].some((card) => card.skillId === skillId);
+}

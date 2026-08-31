@@ -54,6 +54,16 @@ function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
   return picks;
 }
 
+/** The path the draft SCREENS take now that the reroll count and the picks are
+ * run state (`RunState.draft`): record each set's pick through the store, then
+ * START. Installs exactly the cards `draftPicksFor` names. Takes the freshly
+ * imported store module, since these tests re-import it to simulate a reload. */
+function draftThroughStore(store: typeof import('../../src/game/runStore'), seed: number): void {
+  const picks = draftPicksFor(seed);
+  for (const key of DRAFT_SET_KEYS) store.pickCurrentStartDraftCard(key, picks[key]!);
+  store.applyRunDraft();
+}
+
 /** EVERY card instance the run owns, wherever it is sitting: the board, the
  * bag, or the holding strip. The holding strip is the third place — that is
  * the whole point. */
@@ -154,7 +164,7 @@ describe('runStore: TEMP HOLDING survives a page reload', () => {
     const store = await import('../../src/game/runStore');
     const seed = 31;
     store.startRun(seed);
-    store.applyRunDraft(draftPicksFor(seed));
+    draftThroughStore(store, seed);
 
     const before = store.getActiveRun()!;
     const beforeIds = ownedCardIds(before);
@@ -187,7 +197,7 @@ describe('runStore: TEMP HOLDING survives a page reload', () => {
     const store = await import('../../src/game/runStore');
     const seed = 31;
     store.startRun(seed);
-    store.applyRunDraft(draftPicksFor(seed));
+    draftThroughStore(store, seed);
     const before = store.getActiveRun()!;
     const parked = before.pieces[0]!;
 
@@ -219,7 +229,7 @@ describe('runStore: TEMP HOLDING survives a page reload', () => {
     const store = await import('../../src/game/runStore');
     const seed = 31;
     store.startRun(seed);
-    store.applyRunDraft(draftPicksFor(seed));
+    draftThroughStore(store, seed);
     const before = store.getActiveRun()!;
     const parked = before.pieces[0]!;
     store.commitRunDeckEdit({

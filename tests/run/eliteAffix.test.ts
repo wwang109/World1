@@ -6,7 +6,7 @@ import {
   rollEncounter,
   type RunState,
 } from '../../src/run/runState';
-import { applyRunDraft, clearRun, getActiveRun, previewEncounter, startRun } from '../../src/game/runStore';
+import { applyRunDraft, clearRun, getActiveRun, pickCurrentStartDraftCard, previewEncounter, startRun } from '../../src/game/runStore';
 import { BOSS_EVERY, ensureWavesThrough, type RunNode } from '../../src/run/runMap';
 import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
 import {
@@ -51,6 +51,15 @@ function draftPicksFor(seed: number): Partial<Record<DraftSetKey, string>> {
   const picks: Partial<Record<DraftSetKey, string>> = {};
   for (const key of DRAFT_SET_KEYS) picks[key] = draft[key][0]!.skillId;
   return picks;
+}
+
+/** The path the draft SCREENS take now that the reroll count and the picks are
+ * run state (`RunState.draft`): record each set's pick through the store, then
+ * START. Installs exactly the cards `draftPicksFor` names. */
+function draftRunThroughStore(seed: number): void {
+  const picks = draftPicksFor(seed);
+  for (const key of DRAFT_SET_KEYS) pickCurrentStartDraftCard(key, picks[key]!);
+  applyRunDraft();
 }
 
 function startedRun(seed: number): RunState {
@@ -301,7 +310,7 @@ describe('run/eliteAffix: the affix is visible in previewEncounter BEFORE the fi
     let previewed = 0;
     for (const seed of SEEDS) {
       startRun(seed);
-      applyRunDraft(draftPicksFor(seed));
+      draftRunThroughStore(seed);
       const run = getActiveRun()!;
       // A preview is by definition pre-commitment: nothing is the current node.
       expect(run.currentNodeId).toBeNull();
@@ -333,7 +342,7 @@ describe('run/eliteAffix: the affix is visible in previewEncounter BEFORE the fi
 
   it('previewEncounter returns null for a non-combat node (nothing to preview, no affix to invent)', () => {
     startRun(SEEDS[0]!);
-    applyRunDraft(draftPicksFor(SEEDS[0]!));
+    draftRunThroughStore(SEEDS[0]!);
     const run = getActiveRun()!;
     let checked = 0;
     for (const column of run.map.depths) {
