@@ -4,8 +4,8 @@
  * template spec (see `src/game/ui/runScreenTemplate.ts`):
  *
  *   1. Walks the LIVE `window.__game` scene graph on every run screen at
- *      both viewports, collecting every visible Text object's world bounds,
- *      and flags: (a) any text extending outside the canvas, (b) any two
+ *      both viewports, collecting the world bounds of every Text the browser
+ *      actually PAINTS (see MASKS below), and flags: (a) any text extending outside the canvas, (b) any two
  *      texts overlapping by more than a small tolerance, (c) required HUD
  *      strings (DAY/WAVE/GOLD/LV/LIVES/BOSSES) missing from the stats
  *      region.
@@ -13,25 +13,57 @@
  *      Build -> RETIRE -> end summary) against the scene graph (no hardcoded
  *      canvas coordinates for anything the HUD/game renders dynamically),
  *      screenshotting every screen. Text that carries a variable suffix
- *      (node titles, the front-door button) is matched by PREFIX
- *      (`clickPrefixText`); text that's genuinely fixed is matched exactly
- *      (`clickExactText`) — either way, a step whose target text isn't on
+ *      (node titles, the front-door button) is matched by predicate
+ *      (`clickMatchingText`); text that's genuinely fixed is matched exactly
+ *      (`clickExactText`). Every navigation click is retried up to 3x against
+ *      a real POSTCONDITION (`clickUntil`) — either way, a step whose target text isn't on
  *      screen fails LOUDLY, by the step's own name, instead of silently
  *      clicking nothing and leaving the walkthrough parked on the previous
  *      screen (repeat screenshot hashes are also checked directly, as a
  *      second, independent guard against exactly that failure mode).
  *
- * Usage: `npx tsx scripts/run-hud-audit.ts [outDir]`
- * Requires the Vite dev server running at :5173 (`npm run dev`) and the
+ * MASKS (2026-08-31). Layer 1 reports only what is DRAWN. Phaser CLIPS a
+ * masked object, so a shop-shelf row scrolled out of its viewport is never
+ * painted — yet `visible` stays `true`, `alpha` stays `1`, and `getBounds()`
+ * still reports the un-clipped rectangle. Ignoring that produced two
+ * confident, entirely fictional findings ("GEM POUCH" x "Frost Sliver"
+ * overlapping, "2 G" off-canvas at y928 on an 892px-tall viewport), both
+ * inside the shelf mask, both briefed onward to another agent as fact. See
+ * `scripts/sceneText.ts` and `src/game/ui/maskedTextBounds.ts`.
+ *
+ * CALIBRATION. Before any of its zeros are believed, this audit proves its own
+ * detector on the mobile/desktop `map-active` screen: an unmasked probe drawn
+ * across the DECK/BAG label (the shipped `2ca972a` geometry) MUST be reported;
+ * a probe inside a real `createGeometryMask()` viewport it falls outside of
+ * must NOT be, while its raw bounds still overlap; a straddling probe must be
+ * cut. Any of those failing is a hard failure — see `calibrateCollector`.
+ *
+ * `[layout-audit]` WARNINGS. `auditControlLabel`/`auditTextBlock` failures are
+ * drained off `window.__layoutAudit` on every screen and reported as
+ * violations, so a correct warning is no longer confined to a browser console
+ * nobody reads.
+ *
+ * Usage: `npm run audit:hud -- [outDir]` (or `npx tsx scripts/run-hud-audit.ts
+ * [outDir]`). Requires the Vite dev server at :5173 (`npm run dev`) and the
  * battle API at :8787 (`npm run api`) — neither is started by this script.
+ * Exits NON-ZERO on any violation or hard failure. Env knobs:
+ * `AUDIT_SHOW_MASKED=1` also prints what the old mask-blind collector would
+ * have said; `AUDIT_TRACE=1` prints a stack for a thrown run.
  */
 import { existsSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { chromium, type Page } from 'playwright';
+import { pinPageAgainstHmr } from './pageHarness';
 import { rollStartDraft, DRAFT_SET_KEYS } from '../src/run/draft';
 import { skillBook } from '../src/data/skills';
 import { runScreenTemplate } from '../src/game/ui/runScreenTemplate';
+import { escapesCanvas, overlapArea } from '../src/game/ui/maskedTextBounds';
+import {
+  collectRawSceneTexts as collectRawTexts,
+  collectSceneTexts as collectTexts,
+  type TextBound,
+} from './sceneText';
 
 const BASE = process.env.WORLD1_DEV_URL ?? 'http://localhost:5173';
 const OUT_DIR = process.argv[2] ?? '.';
@@ -119,15 +151,37 @@ const VIEWPORTS: Record<Platform, { width: number; height: number }> = {
 };
 const MAP_SCENE: Record<Platform, string> = { desktop: 'desktop-runmap', mobile: 'mrunmap' };
 
-interface TextBound { text: string; x: number; y: number; width: number; height: number; scene: string }
-
 interface AuditResult {
   screen: string;
   platform: Platform;
   offCanvas: TextBound[];
   overlaps: Array<{ a: TextBound; b: TextBound; overlapPx: number }>;
   missingStats: string[];
+  /** Drained from `window.__layoutAudit` — the shrink/truncate/gutting failures
+   * `src/game/ui/controlLayoutAudit.ts` used to only `console.warn` about. */
+  layoutAudit: Array<{ name: string; message: string; count: number }>;
   textCount: number;
+}
+
+/**
+ * Drains (and clears) the live layout-audit failure log — see the SINK comment
+ * in `src/game/ui/controlLayoutAudit.ts`. Those checks were already correct and
+ * already firing; their only outlet was a browser console nobody reads during a
+ * manual session, which is how a truncated run-event reward line went unheard
+ * for weeks. Reading them here puts them behind this script's exit code.
+ *
+ * Clearing after each read means each screen is credited with the failures
+ * produced since the previous screen, rather than every screen inheriting the
+ * whole run's backlog.
+ */
+async function drainLayoutAudit(page: Page): Promise<Array<{ name: string; message: string; count: number }>> {
+  return page.evaluate(() => {
+    const sink = (window as any).__layoutAudit;
+    if (!sink) return [];
+    const found = sink.failures();
+    sink.reset();
+    return found;
+  });
 }
 
 const violations: AuditResult[] = [];
@@ -158,42 +212,8 @@ const EXPECTED_SCREENS: Array<{ label: string; matches: (screen: string) => bool
   { label: 'end-summary', matches: (s) => s === 'end-summary' },
 ];
 
-/** Pulls every visible Text object's world bounds off the live scene graph
- * (recursing into Containers) — the ONLY thing this script trusts is what
- * the browser actually rendered. */
-async function collectTexts(page: Page): Promise<TextBound[]> {
-  // NOTE: deliberately iterative (no nested named function/const-arrow) —
-  // tsx/esbuild injects a `__name(...)` helper call around named functions
-  // that Playwright's `page.evaluate` serializes by source text alone, which
-  // throws `ReferenceError: __name is not defined` in the browser. An
-  // explicit stack avoids the recursive named helper entirely.
-  return page.evaluate(() => {
-    const game = (window as any).__game;
-    const out: Array<{ text: string; x: number; y: number; width: number; height: number; scene: string }> = [];
-    const stack: Array<{ obj: any; scene: string }> = [];
-    for (const scene of game.scene.scenes) {
-      if (!scene.sys.isActive()) continue;
-      const key = scene.sys.settings.key as string;
-      for (const obj of scene.children.list) stack.push({ obj, scene: key });
-    }
-    while (stack.length > 0) {
-      const { obj, scene } = stack.pop()!;
-      if (!obj || obj.visible === false || (obj.alpha ?? 1) === 0) continue;
-      if (obj.type === 'Text' && typeof obj.text === 'string' && obj.text.length > 0) {
-        const b = obj.getBounds();
-        out.push({ text: obj.text, x: b.x, y: b.y, width: b.width, height: b.height, scene });
-      }
-      if (Array.isArray(obj.list)) for (const child of obj.list) stack.push({ obj: child, scene });
-    }
-    return out;
-  });
-}
-
 function overlaps(a: TextBound, b: TextBound): number {
-  const ix = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
-  const iy = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
-  if (ix <= 0 || iy <= 0) return 0;
-  return ix * iy;
+  return overlapArea(a, b);
 }
 
 /**
@@ -237,7 +257,15 @@ async function auditScreen(page: Page, screen: string, platform: Platform, requi
   const { width, height } = VIEWPORTS[platform];
   const texts = await collectTexts(page);
   const TOL = 2;
-  const offCanvas = texts.filter((t) => t.x < -TOL || t.y < -TOL || t.x + t.width > width + TOL || t.y + t.height > height + TOL);
+  // A mask this script cannot model is an AUDIT failure, never a silent pass:
+  // its text is measured unclipped, so anything it says about that text — flag
+  // or no flag — is a guess. Say so by name instead of guessing quietly.
+  for (const t of texts) {
+    if (t.unresolvedMask) {
+      hardFailures.push(`[${platform}] screen "${screen}": text "${t.text}" [${t.scene}] sits under a mask this audit cannot model — its bounds are unclipped and every finding about it is unreliable`);
+    }
+  }
+  const offCanvas = texts.filter((t) => escapesCanvas(t, width, height, TOL));
   const overlapsFound: AuditResult['overlaps'] = [];
   for (let i = 0; i < texts.length; i++) {
     for (let j = i + 1; j < texts.length; j++) {
@@ -250,9 +278,210 @@ async function auditScreen(page: Page, screen: string, platform: Platform, requi
     const re = new RegExp(needle);
     return !texts.some((t) => re.test(t.text)) && !rows.some((r) => re.test(r));
   });
-  const result: AuditResult = { screen, platform, offCanvas, overlaps: overlapsFound, missingStats, textCount: texts.length };
+  const layoutAudit = await drainLayoutAudit(page);
+
+  // AUDIT_SHOW_MASKED=1 — the same two checks run against the MASK-BLIND
+  // reading, i.e. exactly what this script reported before 2026-08-31. Not a
+  // violation source (these are not on screen); a diagnostic, so the size of
+  // the false-positive population this fix removed stays measurable instead of
+  // becoming folklore.
+  if (process.env.AUDIT_SHOW_MASKED) {
+    const blind = (await collectRawTexts(page)).map((t) => ({
+      text: t.text, x: t.x, y: t.y, width: t.width, height: t.height, scene: t.scene,
+      clipped: false, unresolvedMask: false,
+    }));
+    const blindOff = blind.filter((t) => escapesCanvas(t, width, height, TOL));
+    let blindOverlaps = 0;
+    for (let i = 0; i < blind.length; i++) {
+      for (let j = i + 1; j < blind.length; j++) if (overlaps(blind[i]!, blind[j]!) > 36) blindOverlaps++;
+    }
+    const ghostOff = blindOff.length - offCanvas.length;
+    const ghostOverlap = blindOverlaps - overlapsFound.length;
+    if (ghostOff > 0 || ghostOverlap > 0) {
+      console.log(`  [mask-blind] ${platform}/${screen}: ${ghostOff} off-canvas + ${ghostOverlap} overlaps that are NOT drawn`);
+      for (const t of blindOff) {
+        if (!offCanvas.some((o) => o.text === t.text && Math.abs(o.y - t.y) < 1)) {
+          console.log(`    ghost OFF-CANVAS: "${t.text}" @ (${t.x.toFixed(0)},${t.y.toFixed(0)}) [${t.scene}]`);
+        }
+      }
+    }
+  }
+
+  const result: AuditResult = { screen, platform, offCanvas, overlaps: overlapsFound, missingStats, layoutAudit, textCount: texts.length };
   violations.push(result);
   return result;
+}
+
+/**
+ * CALIBRATION — the detector proves it can still see a real overlap BEFORE any
+ * of its zeros are believed, and proves it now drops a masked one.
+ *
+ * This runs inside every audit, on the mobile `map-active` screen, and any
+ * failure is a HARD failure: a green audit from an uncalibrated collector is
+ * exactly the thing that cost an agent a round trip on 2026-08-31 ("GEM POUCH
+ * x Frost Sliver", "2 G off-canvas at y928" — both inside the shop shelf's
+ * geometry mask, neither ever drawn). Precedent: the agent that swept 13 scenes
+ * for overlaps first pointed its detector at a known-broken expression and
+ * confirmed it reported 4 problems; only then did its zeros mean anything.
+ *
+ * THE POSITIVE CONTROL is the shipped bug from `2ca972a` — "the mobile header
+ * rule struck through its own buttons":
+ *
+ *     mobile actions band   74..96
+ *     mobile content.y      100
+ *     divider drawn at      content.y - 14 = 86
+ *     DECK/BAG label centre 85
+ *
+ * A hairline at 86 through a label centred at 85 read as strikethrough on
+ * EVERY mobile run screen. The probe is a Text placed at the measured centre of
+ * the live DECK/BAG label — the same collision, in the same coordinates, drawn
+ * for real into the live scene — and the collector must report it. (The rule
+ * itself is a `Graphics` line, which a TEXT collector cannot see at all; the
+ * probe is what makes that geometry visible to this detector. `2f9fb2a`'s
+ * `ruleClearanceAudit.test.ts` is what guards the rule-vs-label case proper.)
+ *
+ * THE NEGATIVE CONTROLS are built with the SAME construction every scroll
+ * viewport in this game ships (`make.graphics` -> `fillRect` ->
+ * `createGeometryMask` -> `container.setMask`, as in `DesktopShopScene.ts`,
+ * `MobileShopScene.ts` and `MobileDeckBuildScene.ts`), not a strawman:
+ *   - a probe scrolled fully outside the viewport rect must vanish from the
+ *     collector while its RAW bounds still overlap something (i.e. the old
+ *     collector would have flagged it — the false positive is reproduced and
+ *     then shown to be gone);
+ *   - a probe straddling the viewport edge must survive with bounds CUT to the
+ *     visible part.
+ */
+interface CalibrationProbe { text: string; rawOverlapPx: number }
+
+async function calibrateCollector(page: Page, platform: Platform): Promise<void> {
+  const step = `${platform} collector calibration`;
+  const anchorLabel = platform === 'desktop' ? 'DECK / BAG' : 'DECK/BAG';
+  const before = await collectTexts(page);
+  const anchor = before.find((t) => t.text === anchorLabel);
+  if (!anchor) {
+    hardFailures.push(`[${platform}] ${step}: no "${anchorLabel}" label on screen to calibrate against — the detector was never proven`);
+    return;
+  }
+
+  const geo = await page.evaluate((a: { x: number; y: number; width: number; height: number }) => {
+    const game = (window as any).__game;
+    const scene = game.scene.scenes.find((s: any) => s.sys.isActive() && s.children.list.length > 0);
+    if (!scene) return null;
+    const style = { fontSize: '10px', color: '#ff00ff', fontFamily: 'monospace', fontStyle: 'bold' };
+    const cx = a.x + a.width / 2;
+    const cy = a.y + a.height / 2;
+
+    // (1) POSITIVE: unmasked, drawn straight across the anchor label's centre.
+    const hit = scene.add.text(cx, cy, '⟦P1⟧————', style).setOrigin(0.5, 0.5).setDepth(9999);
+
+    // (2) NEGATIVE: the shipped scroll-viewport construction, with the probe
+    // laid out entirely OUTSIDE the viewport rect — a shelf row scrolled away.
+    const viewport = { x: cx - 60, y: cy + 200, w: 120, h: 40 };
+    const gAway = scene.make.graphics({}, false);
+    gAway.fillStyle(0xffffff);
+    gAway.fillRect(viewport.x, viewport.y, viewport.w, viewport.h);
+    const away = scene.add.container(0, 0).setDepth(9999);
+    const awayText = scene.add.text(cx, cy, '⟦P2⟧————', style).setOrigin(0.5, 0.5);
+    away.add(awayText);
+    away.setMask(gAway.createGeometryMask());
+
+    // (3) NEGATIVE: straddling the viewport's top edge — half drawn.
+    const gHalf = scene.make.graphics({}, false);
+    gHalf.fillStyle(0xffffff);
+    const halfTop = cy;
+    gHalf.fillRect(0, halfTop, 4000, 400);
+    const half = scene.add.container(0, 0).setDepth(9999);
+    const halfText = scene.add.text(cx, cy, '⟦P3⟧————', style).setOrigin(0.5, 0.5);
+    half.add(halfText);
+    half.setMask(gHalf.createGeometryMask());
+
+    const hb = halfText.getBounds();
+    return {
+      anchorCentreY: cy,
+      bandTop: a.y,
+      bandBottom: a.y + a.height,
+      probeY: hit.getBounds().y,
+      viewport,
+      halfTop,
+      halfRaw: { y: hb.y, height: hb.height },
+    };
+  }, { x: anchor.x, y: anchor.y, width: anchor.width, height: anchor.height });
+
+  if (!geo) {
+    hardFailures.push(`[${platform}] ${step}: no active scene to inject probes into`);
+    return;
+  }
+  await page.waitForTimeout(120);
+
+  const raw = await collectRawTexts(page);
+  const drawn = await collectTexts(page);
+
+  // How badly each probe overlaps the anchor when masks are IGNORED — i.e.
+  // what the pre-fix collector saw. Reproducing the false positive is what
+  // makes its absence below mean something.
+  const rawProbe = (needle: string): CalibrationProbe | null => {
+    const t = raw.find((r) => r.text.startsWith(needle));
+    if (!t) return null;
+    return { text: t.text, rawOverlapPx: overlapArea(t, anchor) };
+  };
+  const positiveRaw = rawProbe('⟦P1⟧');
+  const maskedRaw = rawProbe('⟦P2⟧');
+  const clippedRaw = rawProbe('⟦P3⟧');
+
+  const drawnOverlap = (needle: string): number => {
+    const t = drawn.find((d) => d.text.startsWith(needle));
+    return t ? overlapArea(t, anchor) : -1;
+  };
+  const positiveSeen = drawnOverlap('⟦P1⟧');
+  const maskedSeen = drawn.some((d) => d.text.startsWith('⟦P2⟧'));
+  const clippedProbe = drawn.find((d) => d.text.startsWith('⟦P3⟧'));
+
+  console.log(`\n--- CALIBRATION (${platform}) ---`);
+  console.log(`  anchor "${anchorLabel}"`);
+  console.log(`    band ${geo.bandTop.toFixed(0)}..${geo.bandBottom.toFixed(0)}`);
+  console.log(`    centre y ${geo.anchorCentreY.toFixed(0)}`);
+  console.log(`  P1 unmasked strike`);
+  console.log(`    raw overlap ${(positiveRaw?.rawOverlapPx ?? -1).toFixed(0)}px2`);
+  console.log(`    seen overlap ${positiveSeen.toFixed(0)}px2`);
+  console.log(`  P2 fully masked`);
+  console.log(`    raw overlap ${(maskedRaw?.rawOverlapPx ?? -1).toFixed(0)}px2`);
+  console.log(`    still reported: ${maskedSeen}`);
+  console.log(`  P3 half masked`);
+  console.log(`    raw y ${geo.halfRaw.y.toFixed(0)} h ${geo.halfRaw.height.toFixed(0)}`);
+  console.log(`    mask top y ${geo.halfTop.toFixed(0)}`);
+  console.log(`    seen y ${(clippedProbe?.y ?? -1).toFixed(0)} h ${(clippedProbe?.height ?? -1).toFixed(0)}`);
+  console.log(`    clipped flag: ${clippedProbe?.clipped}`);
+
+  if (positiveSeen <= 36) {
+    hardFailures.push(`[${platform}] ${step}: the UNMASKED strike probe over "${anchorLabel}" (the 2ca972a geometry) reported ${positiveSeen.toFixed(0)}px2 — this detector can no longer see a real overlap, so none of its zeros mean anything`);
+  }
+  if ((maskedRaw?.rawOverlapPx ?? 0) <= 36) {
+    hardFailures.push(`[${platform}] ${step}: the masked probe's RAW bounds did not overlap the anchor, so the false positive it is meant to reproduce was never staged — the negative control proves nothing`);
+  }
+  if (maskedSeen) {
+    hardFailures.push(`[${platform}] ${step}: a text a geometry mask hides entirely is STILL being reported — the mask fix is not in effect`);
+  }
+  if (!clippedProbe) {
+    hardFailures.push(`[${platform}] ${step}: the half-masked probe vanished entirely — the clip is over-eager and would hide real violations`);
+  } else if (!clippedProbe.clipped || clippedProbe.height >= geo.halfRaw.height - 0.5) {
+    hardFailures.push(`[${platform}] ${step}: the half-masked probe kept its full height (${clippedProbe.height.toFixed(1)} vs raw ${geo.halfRaw.height.toFixed(1)}) — partial clipping is not being modelled`);
+  }
+  if (clippedRaw === null) {
+    hardFailures.push(`[${platform}] ${step}: the half-masked probe was never injected`);
+  }
+
+  // Probes are torn down before the screen is audited or screenshotted, so the
+  // calibration can never leak into the violation list or a shot's md5.
+  await page.evaluate(() => {
+    const game = (window as any).__game;
+    for (const scene of game.scene.scenes) {
+      if (!scene.sys.isActive()) continue;
+      for (const obj of scene.children.list.slice()) {
+        if (obj.depth === 9999) obj.destroy();
+      }
+    }
+  });
+  await page.waitForTimeout(120);
 }
 
 /**
@@ -381,6 +610,78 @@ async function clickMatchingText(
   }
   await clickExactText(page, match.text, platform, step);
   return match.text;
+}
+
+/**
+ * Clicks the `occurrence`-th visible Text (top-to-bottom, then left-to-right)
+ * whose string equals `label` exactly. `clickExactText`'s "last match wins" is
+ * right for a confirm dialog stacked over the HUD, and WRONG for the draft:
+ * one seed's four rows can roll the SAME skill name twice, and "last match"
+ * then clicks the other row's copy, leaving this row unpicked with no thrown
+ * error. Ported from `shop-smoke.ts`, which hit exactly that.
+ */
+async function clickNthText(page: Page, label: string, occurrence: number, platform: Platform, step: string): Promise<boolean> {
+  const { width, height } = await page.evaluate(() => ({ width: (window as any).__gameDesignWidth, height: (window as any).__gameDesignHeight }));
+  const texts = await collectTexts(page);
+  const matches = texts.filter((t) => t.text === label).sort((a, b) => (a.y - b.y) || (a.x - b.x));
+  const target = matches[occurrence];
+  if (!target) {
+    hardFailures.push(`[${platform}] step "${step}": no visible text "${label}" at occurrence index ${occurrence} (found ${matches.length})`);
+    return false;
+  }
+  const canvas = page.locator('canvas');
+  const box = await canvas.boundingBox();
+  if (!box) {
+    hardFailures.push(`[${platform}] step "${step}": canvas has no bounding box — nothing was clickable`);
+    return false;
+  }
+  const dw = width || box.width;
+  const dh = height || box.height;
+  await page.mouse.click(box.x + ((target.x + target.width / 2) / dw) * box.width, box.y + ((target.y + target.height / 2) / dh) * box.height);
+  return true;
+}
+
+/**
+ * Click, then verify the POSTCONDITION, up to 3 times — the compensating
+ * control for the harness flake documented on `clickExactText` (task #62).
+ *
+ * This script used to refuse to retry on principle: "a step that doesn't take
+ * is meant to fail loudly by name". That principle is right about SILENCE and
+ * wrong about repetition. Under swiftshader the game loop measures 5-30fps
+ * against Phaser's 60fps target, and Phaser defers a dispatched pointer event's
+ * hit-test to its own next game step — so a click can be hit-tested 150-200ms
+ * later, after an unrelated rebuild has replaced the display list, and land on
+ * nothing. On 2026-08-31 two back-to-back runs of this audit failed in two
+ * DIFFERENT places for that reason and produced two different, equally
+ * worthless violation lists. A gate that fails at random is the same disease as
+ * a gate that reports fictional violations: nobody can act on either. So the
+ * loud failure now fires after three attempts instead of one, and names the
+ * postcondition that never held.
+ *
+ * Intermediate attempts' own failures are rolled back — recording a
+ * succeeded-on-attempt-2 step as broken is exactly the false report this is
+ * trying to remove. The rollback removes ONLY entries naming an attempt, so an
+ * unrelated `page error` pushed asynchronously during the retry window (by the
+ * `pageerror` handler in `main`) survives it: a blanket truncate would have
+ * silently eaten a real thrown exception.
+ */
+async function clickUntil(
+  page: Page,
+  platform: Platform,
+  step: string,
+  click: (attempt: number) => Promise<unknown>,
+  settled: () => Promise<boolean>,
+  why: string,
+): Promise<boolean> {
+  const mark = hardFailures.length;
+  let ok = false;
+  for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
+    await click(attempt);
+    ok = await waitUntil(page, settled, attempt < 3 ? 2500 : 8000);
+  }
+  hardFailures.splice(mark, hardFailures.length - mark, ...hardFailures.slice(mark).filter((f) => !f.includes('(attempt ')));
+  if (!ok) hardFailures.push(`[${platform}] step "${step}": ${why} after 3 click attempts`);
+  return ok;
 }
 
 async function activeSceneKey(page: Page): Promise<string> {
@@ -527,23 +828,62 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   // an EXACT text the scene actually rendered. Desktop shows all 4 rows at
   // once; mobile shows one set at a time (NEXT between sets).
   const draft = rollStartDraft(seed ?? 1);
+  // Each pick is verified against the scene's OWN pick counter — desktop draws
+  // "PICK ONE PER ROW · n/4" (`DesktopDraftScene.ts:75`), mobile "n/4 PICKED"
+  // (`MobileDraftScene.ts:108`) — rather than a fixed 150ms sleep. A sleep
+  // cannot tell "the click missed" from "the click is still queued", and both
+  // surface identically three steps later as an inscrutable "START did
+  // nothing".
+  const occurrenceUsed = new Map<string, number>();
   for (let i = 0; i < DRAFT_SET_KEYS.length; i++) {
     const key = DRAFT_SET_KEYS[i]!;
     const card = draft[key][0];
     const name = card ? skillBook[card.skillId]?.name : undefined;
-    if (name) { await clickExactText(page, name, platform, `draft -> pick ${key} (${name})`); await page.waitForTimeout(150); }
-    if (!desktop && i < DRAFT_SET_KEYS.length - 1) { await clickExactText(page, 'NEXT', platform, `draft -> NEXT (after ${key})`); await page.waitForTimeout(150); }
+    if (name) {
+      const occurrence = occurrenceUsed.get(name) ?? 0;
+      occurrenceUsed.set(name, occurrence + 1);
+      const step = `draft -> pick ${key} (${name})`;
+      await clickUntil(
+        page, platform, step,
+        (attempt) => clickNthText(page, name, occurrence, platform, `${step} (attempt ${attempt})`),
+        async () => (await collectTexts(page)).some((t) =>
+          t.text.startsWith(`PICK ONE PER ROW · ${i + 1}/`) || t.text.startsWith(`${i + 1}/${DRAFT_SET_KEYS.length} PICKED`)),
+        `the pick counter never reached ${i + 1}/${DRAFT_SET_KEYS.length}`,
+      );
+    }
+    if (!desktop && i < DRAFT_SET_KEYS.length - 1) {
+      // Mobile shows ONE row at a time; wait for the NEXT row's own header
+      // rather than a sleep, or this loop's next name-click genuinely has no
+      // matches on screen and reads like a missing-card bug.
+      const nextSet = i + 2;
+      const step = `draft -> NEXT (after ${key})`;
+      await clickUntil(
+        page, platform, step,
+        (attempt) => clickExactText(page, 'NEXT', platform, `${step} (attempt ${attempt})`),
+        async () => (await collectTexts(page)).some((t) => t.text.startsWith(`DRAFT · SET ${nextSet}/`)),
+        `SET ${nextSet}/${DRAFT_SET_KEYS.length} never appeared`,
+      );
+    }
   }
-  await clickExactText(page, 'START', platform, 'draft -> START');
   // The draft's START button is only INTERACTIVE once all 4 rows have a pick
   // (`DesktopDraftScene`/`MobileDraftScene`: `ready = picks.length === 4`) —
   // its Text label reads "START" either way, so a click that lands on a
   // disabled button finds its target text (no missing-selector failure) and
   // does nothing (no scene change, no thrown error). Checking the actual
   // postcondition — the scene left Draft — is the only way to catch that.
-  await waitForSceneChange(page, platform, 'draft -> START transition', [DRAFT_SCENE]);
+  await clickUntil(
+    page, platform, 'draft -> START',
+    (attempt) => clickExactText(page, 'START', platform, `draft -> START (attempt ${attempt})`),
+    async () => (await activeSceneKey(page)) !== DRAFT_SCENE,
+    'the Draft scene never closed (all 4 rows picked?)',
+  );
 
   // ---- 3. Map, active run ----
+  // CALIBRATE FIRST, on the screen the 2ca972a bug actually shipped on, and
+  // before anything on this screen is audited or screenshotted: an audit whose
+  // detector has not been proven on a known-broken geometry is an audit whose
+  // zeros mean nothing. Probes are torn down inside this call.
+  await calibrateCollector(page, platform);
   await shot(page, `${platform}-03-map-active`, platform);
   await auditScreen(page, 'map-active', platform, REQUIRED_STATS.filter(Boolean));
 
@@ -556,25 +896,41 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   // silently "picks" that stat label instead of a real node — no thrown
   // error, just a click on a non-interactive text that changes nothing.
   const NODE_KINDS = ['FIGHT', 'SHOP', 'EVENT', 'BOSS'];
-  const picked = await clickMatchingText(
+  let picked: string | null = null;
+  await clickUntil(
     page, platform, 'map-active -> pick a node',
-    (t) => NODE_KINDS.some((k) => t === k || t.startsWith(`${k} ·`)),
-    'a node title (KIND or KIND · SUFFIX)',
+    async (attempt) => {
+      picked = await clickMatchingText(
+        page, platform, `map-active -> pick a node (attempt ${attempt})`,
+        (t) => NODE_KINDS.some((k) => t === k || t.startsWith(`${k} ·`)),
+        'a node title (KIND or KIND · SUFFIX)',
+      );
+    },
+    async () => (await activeSceneKey(page)) !== MAP_SCENE_KEY,
+    'the run map never handed off to a node scene',
   );
-  const landedOn = await waitForSceneChange(page, platform, 'map-active -> node transition', [MAP_SCENE_KEY]);
+  const landedOn = await activeSceneKey(page);
   await shot(page, `${platform}-04-node-${landedOn}`, platform);
   await auditScreen(page, `node-${landedOn}`, platform, REQUIRED_STATS.filter(Boolean));
   console.log(`[${platform}] picked "${picked}" -> landed on scene "${landedOn}"`);
 
   // ---- 5. DECK / BAG (secondary HUD slot) ----
   const deckLabel = desktop ? 'DECK / BAG' : 'DECK/BAG';
-  const wentToDeck = await clickExactText(page, deckLabel, platform, `node-${landedOn} -> DECK/BAG`);
+  const wentToDeck = await clickUntil(
+    page, platform, `node-${landedOn} -> DECK/BAG`,
+    (attempt) => clickExactText(page, deckLabel, platform, `node-${landedOn} -> DECK/BAG (attempt ${attempt})`),
+    async () => (await activeSceneKey(page)) === DECK_SCENE,
+    'the deck screen never opened',
+  );
   if (wentToDeck) {
-    await waitForSceneChange(page, platform, `node-${landedOn} -> DECK/BAG transition`, [landedOn]);
     await shot(page, `${platform}-05-deck`, platform);
     await auditScreen(page, 'deck', platform, REQUIRED_STATS.filter(Boolean));
-    await clickExactText(page, '‹ MAP', platform, 'deck -> ‹ MAP');
-    await waitForSceneChange(page, platform, 'deck -> ‹ MAP transition', [DECK_SCENE]);
+    await clickUntil(
+      page, platform, 'deck -> ‹ MAP',
+      (attempt) => clickExactText(page, '‹ MAP', platform, `deck -> ‹ MAP (attempt ${attempt})`),
+      async () => (await activeSceneKey(page)) !== DECK_SCENE,
+      'the deck screen never closed',
+    );
   }
 
   // ---- 6. RETIRE (tertiary HUD slot) -> confirm -> end summary ----
@@ -582,12 +938,21 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
   // and re-render the SAME scene (`this.retireConfirmOpen = true; this.rerender()`
   // then `retireActiveRun(); this.rerender()`) — so the postcondition to wait
   // for is new TEXT appearing, not a scene-key change.
-  await clickExactText(page, 'RETIRE', platform, 'map-active -> RETIRE');
-  await waitForText(page, platform, 'map-active -> RETIRE confirm dialog', (t) => t === 'RETIRE THIS RUN?', '"RETIRE THIS RUN?"', 10_000);
+  await clickUntil(
+    page, platform, 'map-active -> RETIRE',
+    (attempt) => clickExactText(page, 'RETIRE', platform, `map-active -> RETIRE (attempt ${attempt})`),
+    async () => (await collectTexts(page)).some((t) => t.text === 'RETIRE THIS RUN?'),
+    'the retire confirm dialog never opened',
+  );
   await shot(page, `${platform}-06-retire-confirm`, platform);
   await auditScreen(page, 'retire-confirm', platform);
-  await clickExactText(page, 'RETIRE', platform, 'retire-confirm -> RETIRE (confirm)'); // last match = the dialog's red button
-  await waitForText(page, platform, 'retire-confirm -> end summary', (t) => t === 'RUN RETIRED' || t === 'DEFEAT', '"RUN RETIRED"/"DEFEAT"', 10_000);
+  await clickUntil(
+    page, platform, 'retire-confirm -> RETIRE (confirm)',
+    // last match = the dialog's red button, which is added after the HUD's
+    (attempt) => clickExactText(page, 'RETIRE', platform, `retire-confirm -> RETIRE (confirm, attempt ${attempt})`),
+    async () => (await collectTexts(page)).some((t) => t.text === 'RUN RETIRED' || t.text === 'DEFEAT'),
+    'the end summary never appeared',
+  );
   await shot(page, `${platform}-07-end-summary`, platform);
   await auditScreen(page, 'end-summary', platform);
 }
@@ -601,6 +966,10 @@ async function main(): Promise<void> {
   });
   for (const platform of PLATFORMS) {
     const page = await browser.newPage({ viewport: VIEWPORTS[platform] });
+    // Nothing but this script decides when the page navigates — see
+    // `pinPageAgainstHmr`. Without it a concurrent `src/` edit reloads the
+    // browser mid-walkthrough and the run reports nonsense.
+    await pinPageAgainstHmr(page);
     // Same precedent as scripts/smoke.mjs: a thrown exception inside the game
     // fails the run. A screen that renders while throwing is not a pass.
     page.on('pageerror', (err) => hardFailures.push(`[${platform}] page error: ${String(err)}`));
@@ -608,6 +977,7 @@ async function main(): Promise<void> {
       await runPlatform(page, platform);
     } catch (err) {
       hardFailures.push(`[${platform}] audit run threw: ${err instanceof Error ? err.message : String(err)}`);
+      if (process.env.AUDIT_TRACE && err instanceof Error) console.log(err.stack);
     }
     await page.close();
   }
@@ -622,13 +992,19 @@ async function main(): Promise<void> {
 
   let bad = 0;
   for (const v of violations) {
-    const problems = v.offCanvas.length + v.overlaps.length + v.missingStats.length;
+    const problems = v.offCanvas.length + v.overlaps.length + v.missingStats.length + v.layoutAudit.length;
     if (problems === 0) continue;
     bad += problems;
     console.log(`\n=== VIOLATIONS: ${v.platform} / ${v.screen} (${v.textCount} texts) ===`);
     for (const t of v.offCanvas) console.log(`  OFF-CANVAS: "${t.text}" @ (${t.x.toFixed(0)},${t.y.toFixed(0)}) ${t.width.toFixed(0)}x${t.height.toFixed(0)} [${t.scene}]`);
-    for (const o of v.overlaps) console.log(`  OVERLAP (${o.overlapPx.toFixed(0)}px^2): "${o.a.text}" [${o.a.scene}] <-> "${o.b.text}" [${o.b.scene}]`);
+    for (const o of v.overlaps) {
+      // Coordinates on the line: an overlap report with no geometry cannot be
+      // checked against a screenshot without re-running the whole audit.
+      const box = (t: TextBound): string => `(${t.x.toFixed(0)},${t.y.toFixed(0)}) ${t.width.toFixed(0)}x${t.height.toFixed(0)}${t.clipped ? ' clipped' : ''}`;
+      console.log(`  OVERLAP (${o.overlapPx.toFixed(0)}px^2): "${o.a.text}" ${box(o.a)} [${o.a.scene}] <-> "${o.b.text}" ${box(o.b)} [${o.b.scene}]`);
+    }
     for (const m of v.missingStats) console.log(`  MISSING STAT: "${m}"`);
+    for (const l of v.layoutAudit) console.log(`  LAYOUT-AUDIT (x${l.count}): ${l.message}`);
   }
   if (hardFailures.length > 0) {
     console.log(`\n=== AUDIT DID NOT COMPLETE (${hardFailures.length}) ===`);

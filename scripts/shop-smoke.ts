@@ -38,6 +38,8 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium, type Page } from 'playwright';
+import { pinPageAgainstHmr } from './pageHarness';
+import { collectSceneTexts as collectTexts, type TextBound } from './sceneText';
 import { rollStartDraft, DRAFT_SET_KEYS } from '../src/run/draft';
 import { skillBook } from '../src/data/skills';
 import { gemBook } from '../src/data/gems';
@@ -96,8 +98,6 @@ const MAP_SCENE_KEY: Record<Platform, string> = { desktop: 'DesktopRunMap', mobi
 const SHOP_SCENE_KEY: Record<Platform, string> = { desktop: 'DesktopShop', mobile: 'MobileShop' };
 const DRAFT_SCENE: Record<Platform, string> = { desktop: 'DesktopDraft', mobile: 'MobileDraft' };
 
-interface TextBound { text: string; x: number; y: number; width: number; height: number; scene: string }
-
 /** Every named-step failure — the ONLY thing that flips the exit code. Each
  * entry names exactly which step failed and why, per the brief's "fails BY
  * NAME, never silently" requirement. */
@@ -110,29 +110,6 @@ function fail(platform: Platform, step: string, why: string): void {
 function pass(platform: Platform, step: string): void {
   passed.push(`[${platform}] ${step}`);
   console.log(`  [${platform}] OK — ${step}`);
-}
-
-async function collectTexts(page: Page): Promise<TextBound[]> {
-  return page.evaluate(() => {
-    const game = (window as any).__game;
-    const out: Array<{ text: string; x: number; y: number; width: number; height: number; scene: string }> = [];
-    const stack: Array<{ obj: any; scene: string }> = [];
-    for (const scene of game.scene.scenes) {
-      if (!scene.sys.isActive()) continue;
-      const key = scene.sys.settings.key as string;
-      for (const obj of scene.children.list) stack.push({ obj, scene: key });
-    }
-    while (stack.length > 0) {
-      const { obj, scene } = stack.pop()!;
-      if (!obj || obj.visible === false || (obj.alpha ?? 1) === 0) continue;
-      if (obj.type === 'Text' && typeof obj.text === 'string' && obj.text.length > 0) {
-        const b = obj.getBounds();
-        out.push({ text: obj.text, x: b.x, y: b.y, width: b.width, height: b.height, scene });
-      }
-      if (Array.isArray(obj.list)) for (const child of obj.list) stack.push({ obj: child, scene });
-    }
-    return out;
-  });
 }
 
 /** Reconstructs the HUD's label/value stat pair (`GOLD`/`G` + the NEXT text
@@ -460,17 +437,60 @@ async function handleEvent(page: Page, platform: Platform, prefix: string): Prom
   const free = eventDef.choices.find((c) => (c.cost ?? 0) === 0);
   const pickLabel = (free ?? eventDef.choices[0])?.label;
   if (!pickLabel) { fail(platform, `${prefix} -> pick a choice`, `event "${eventDef.title}" has no choices to pick`); return false; }
-  await clickExactText(page, pickLabel, platform, `${prefix} -> choose "${pickLabel}"`);
-  await page.waitForTimeout(400);
+  // Retried against a real POSTCONDITION, not a fixed sleep. Both run-event
+  // scenes only draw CONTINUE › once `phase === 'outcome' && outcome` (or
+  // 'resolved') — see `DesktopRunEventScene.renderHud` — so a choice click that
+  // silently misses (the harness flake documented on `handleFight`'s CONTINUE
+  // retry, task #62) leaves the scene in `choosing` with no CONTINUE at all,
+  // and the failure surfaces one step later as the inscrutable "no visible text
+  // matching CONTINUE ›". Observed repeatedly on DESKTOP on 2026-08-31 while
+  // mobile passed 6/6 in the same runs: this was the last un-retried click in
+  // the script. Re-clicking is safe — once the choice resolves its label is
+  // gone from the scene, so a retry can only ever land while still choosing.
+  const mark = hardFailures.length;
+  let resolved = false;
+  for (let attempt = 1; attempt <= 3 && !resolved; attempt++) {
+    await clickExactText(page, pickLabel, platform, `${prefix} -> choose "${pickLabel}" (attempt ${attempt})`);
+    resolved = await waitUntil(page, async () => (await collectTexts(page)).some((t) =>
+      t.text.startsWith('CONTINUE') || /CHOOSE A CARD|CHOOSE A GEM|UPGRADE A CARD|PICK ONE/i.test(t.text)),
+      attempt < 3 ? 2500 : 6000);
+  }
+  // Removes ONLY entries naming an attempt, so an unrelated `page error`
+  // pushed asynchronously during the retry window survives the rollback.
+  hardFailures.splice(mark, hardFailures.length - mark, ...hardFailures.slice(mark).filter((f) => !f.includes('(attempt ')));
+  if (!resolved) { fail(platform, `${prefix} -> choose "${pickLabel}"`, 'the choice never resolved (no CONTINUE and no reward picker) after 3 attempts'); return false; }
   const after = await collectTexts(page);
   const isPicker = after.some((t) => /CHOOSE A CARD|CHOOSE A GEM|UPGRADE A CARD|PICK ONE/i.test(t.text));
   if (isPicker) {
     const rewardPick = after.find((t) => Object.values(skillBook).some((s) => s.name === t.text)) ?? after.find((t) => Object.values(gemBook).some((g) => g.name === t.text));
-    if (rewardPick) { await clickExactText(page, rewardPick.text, platform, `${prefix} -> pick reward "${rewardPick.text}"`); await page.waitForTimeout(300); }
+    if (rewardPick) {
+      // Same postcondition as the choice above — the reward pick is what moves
+      // the scene into `outcome`, and CONTINUE only exists after that.
+      const pickMark = hardFailures.length;
+      let picked = false;
+      for (let attempt = 1; attempt <= 3 && !picked; attempt++) {
+        await clickExactText(page, rewardPick.text, platform, `${prefix} -> pick reward "${rewardPick.text}" (attempt ${attempt})`);
+        picked = await waitUntil(page, async () => (await collectTexts(page)).some((t) => t.text.startsWith('CONTINUE')), attempt < 3 ? 2500 : 6000);
+      }
+      // Removes ONLY entries naming an attempt, so an unrelated `page error`
+      // pushed asynchronously during the retry window survives the rollback.
+      hardFailures.splice(pickMark, hardFailures.length - pickMark, ...hardFailures.slice(pickMark).filter((f) => !f.includes('(attempt ')));
+      if (!picked) { fail(platform, `${prefix} -> pick reward "${rewardPick.text}"`, 'CONTINUE never appeared after 3 attempts'); return false; }
+    }
   }
-  const contOk = await clickMatchingText(page, platform, `${prefix} -> CONTINUE`, (t) => t.startsWith('CONTINUE'), '"CONTINUE ›"');
-  if (!contOk) return false;
-  await waitForSceneChange(page, platform, `${prefix} -> CONTINUE transition`, ['DesktopRunEvent', 'MobileRunEvent']);
+  // CONTINUE gets the retry every other scene-changing click in this script
+  // has (task #62) — its target text is confirmed present a moment earlier, so
+  // a single no-effect click here would fail a step that is not broken.
+  const contMark = hardFailures.length;
+  let left = false;
+  for (let attempt = 1; attempt <= 3 && !left; attempt++) {
+    await clickMatchingText(page, platform, `${prefix} -> CONTINUE (attempt ${attempt})`, (t) => t.startsWith('CONTINUE'), '"CONTINUE ›"');
+    left = await waitUntil(page, async () => !['DesktopRunEvent', 'MobileRunEvent'].includes(await activeSceneKey(page)), attempt < 3 ? 3000 : 8000);
+  }
+  // Removes ONLY entries naming an attempt, so an unrelated `page error`
+  // pushed asynchronously during the retry window survives the rollback.
+  hardFailures.splice(contMark, hardFailures.length - contMark, ...hardFailures.slice(contMark).filter((f) => !f.includes('(attempt ')));
+  if (!left) { fail(platform, `${prefix} -> CONTINUE`, 'the event scene never closed after 3 click attempts'); return false; }
   return true;
 }
 
@@ -764,6 +784,10 @@ async function main(): Promise<void> {
   const PLATFORMS: Platform[] = ['desktop', 'mobile'];
   for (const platform of PLATFORMS) {
     const page = await browser.newPage({ viewport: VIEWPORTS[platform] });
+    // Nothing but this script decides when the page navigates — see
+    // `pinPageAgainstHmr`. Without it a concurrent `src/` edit reloads the
+    // browser mid-walkthrough and the run reports nonsense.
+    await pinPageAgainstHmr(page);
     page.on('pageerror', (err) => fail(platform, 'page error', String(err)));
     try {
       await runPlatform(page, platform);

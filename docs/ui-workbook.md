@@ -90,8 +90,84 @@ real browser, both viewports:
    — battle never renders those, by design, so the audit must not flag their
    absence there the way it would on every other run screen.
 
-Run: `npx tsx scripts/run-hud-audit.ts [outDir]` with dev (:5173) and api
-(:8787) already running.
+Run: `npm run audit:hud -- [outDir]` (or `npx tsx scripts/run-hud-audit.ts
+[outDir]`) with dev (:5173) and api (:8787) already running. **It exits
+non-zero** on any violation or hard failure — it is a gate, not a report. It
+cannot live inside `npm test`, which has no servers and no browser; the pure
+half of its geometry is covered there by `tests/game/maskedTextAudit.test.ts`.
+
+### Masks (2026-08-31)
+
+The collector respects geometry masks. Phaser CLIPS a masked object, so a shop
+shelf row scrolled out of its viewport is never painted — but `visible` stays
+`true`, `alpha` stays `1`, and `getBounds()` still reports the un-clipped
+rectangle. Ignoring that produced two confident, entirely fictional findings
+(`"GEM POUCH" × "Frost Sliver"` overlapping, `"2 G"` off-canvas at y928 on an
+892px-tall viewport), both inside the shelf mask, both briefed onward as fact.
+
+Texts a mask hides completely are dropped; texts it cuts are reported with the
+surviving bounds. The geometry is pure TypeScript in
+`src/game/ui/maskedTextBounds.ts`; the browser-side walk (`scripts/sceneText.ts`,
+shared with `shop-smoke.ts`) only reads bounds and raw mask command buffers. A
+mask the reducer cannot model becomes a HARD FAILURE by name — never a silent
+guess. `AUDIT_SHOW_MASKED=1` additionally prints what the old mask-blind
+collector would have reported, so the size of the false-positive population
+stays measurable.
+
+### Calibration (every run, not on request)
+
+Before any of its zeros are believed, the audit injects three probes into the
+live mobile/desktop `map-active` screen and checks the detector against them:
+
+1. an UNMASKED text drawn across the DECK/BAG label's centre — the shipped
+   `2ca972a` geometry (mobile band 74..96, label centre 85, rule at 86) — must
+   still be reported as an overlap;
+2. a text inside a real `createGeometryMask()` viewport it falls outside of must
+   NOT be reported, while its raw bounds still overlap (the false positive is
+   staged, then shown gone);
+3. a text straddling the viewport edge must survive with its bounds cut.
+
+Any of those failing is a hard failure. Probes are destroyed before the screen
+is audited or screenshotted.
+
+### `[layout-audit]` warnings
+
+`auditControlLabel` / `auditTextBlock` failures are recorded in a sink
+(`src/game/ui/controlLayoutAudit.ts`, published on `window.__layoutAudit`) as
+well as printed to the console. The audit drains that sink on every screen and
+reports what it finds as violations. Before this, the only outlet was a browser
+console during a manual session — which is how a correct warning about a
+truncated run-event reward line went unheard for weeks.
+
+### HMR
+
+Both browser scripts neuter Vite's HMR socket (`scripts/pageHarness.ts` — an
+init script that stubs the one WebSocket opened with the `vite-hmr`
+subprotocol). `npm run dev` full-page-reloads on every source change; with
+several agents editing `src/` at once that destroys the JS context
+mid-walkthrough and the run reports nonsense. Measured: 16 vite `page reload`
+lines in eight minutes, and `shop-smoke.ts` failing at the same point with and
+without any change of its own. Verified directly — with a `src/` file touched
+under the page, an unpinned context comes back `null` (reloaded) and a pinned
+one comes back alive.
+
+Not `page.route('**/@vite/client')`, which was the first cut: enabling
+Playwright routing sends every request through the driver and measured 25-40%
+slower on a boot that already has a timeout.
+
+### Flaky clicks
+
+Navigation clicks in BOTH scripts retry up to 3× against a real postcondition
+(the draft's own pick counter, a scene-key change, the confirm dialog's text,
+the event scene's CONTINUE › appearing) rather than a fixed sleep — the
+swiftshader frame-rate flake documented on `clickExactText`. Only the third
+failure is recorded, so a succeeded-on-attempt-2 step is not misreported as
+broken.
+
+`shop-smoke.ts`'s event choice and reward pick were the last un-retried clicks
+in either script; a missed choice click leaves the run-event scene in
+`choosing`, where neither scene draws CONTINUE › at all, and the failure
+surfaced one step later as "no visible text matching CONTINUE ›".
 
 Chromium resolution is environment-aware (`resolveChromiumPath` in the
 script), in priority order: `PW_CHROMIUM` (explicit path, always wins) →

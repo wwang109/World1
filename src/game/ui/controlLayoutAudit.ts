@@ -5,6 +5,60 @@ import { TEXT_SHRINK_FLOOR_PX } from '../theme';
  * `auditTextBlock`. Trimming a tail is fine; keeping one letter is a bug. */
 const GUT_RATIO = 1 / 3;
 
+/**
+ * A recorded layout-audit failure. `count` is how many times this exact message
+ * has been produced since the last reset — scenes rebuild on every rerender, so
+ * one broken label produces the same warning dozens of times a minute.
+ */
+export interface LayoutAuditFailure { name: string; message: string; count: number }
+
+/**
+ * THE SINK — where a failing layout audit goes so that something can FAIL on it.
+ *
+ * WHY (2026-08-31). `auditControlLabel` and `auditTextBlock` were correct: they
+ * detected a truncated run-event reward line and printed `[layout-audit] …` on
+ * every session for weeks. Nobody saw it, because the only place the finding
+ * went was a browser console during a manual session. A warning that reaches
+ * only a console is not a signal — it is a diary entry. (`vitest` cannot see
+ * these either: the console branch is gated behind `typeof window !==
+ * 'undefined'` and the suite runs `environment: 'node'`.)
+ *
+ * So every failure is ALSO recorded here, deduplicated by message, and
+ * published on `window.__layoutAudit`. `scripts/run-hud-audit.ts` drains it on
+ * every screen it visits and reports what it finds as violations — which flip
+ * that script's exit code. The console lines stay exactly as they were; this is
+ * a second, machine-readable outlet, not a replacement.
+ *
+ * Deliberately NOT capped by a "max entries" limit: the dedupe key is the
+ * message, so the table's size is bounded by the number of DISTINCT broken
+ * labels, which is the number a reader wants anyway.
+ */
+const failureLog = new Map<string, LayoutAuditFailure>();
+
+/** Every distinct layout-audit failure recorded since the last reset. */
+export function layoutAuditFailures(): LayoutAuditFailure[] {
+  return [...failureLog.values()];
+}
+
+/** Clears the log. Call before driving a screen you want a clean reading of. */
+export function resetLayoutAuditFailures(): void {
+  failureLog.clear();
+}
+
+function recordFailure(name: string, message: string): void {
+  const existing = failureLog.get(message);
+  if (existing) { existing.count += 1; return; }
+  failureLog.set(message, { name, message, count: 1 });
+  // Published lazily (not at module load) so importing this module never
+  // touches a global, and so the property exists the moment there is anything
+  // worth reading. `globalThis` rather than `window`: this module is imported
+  // by node-side tests too.
+  (globalThis as unknown as { __layoutAudit?: unknown }).__layoutAudit = {
+    failures: layoutAuditFailures,
+    reset: resetLayoutAuditFailures,
+  };
+}
+
 interface RectangleControl {
   displayWidth: number;
   displayHeight: number;
@@ -127,6 +181,7 @@ export function auditControlLabel(
     && new URLSearchParams(window.location.search).get('layoutAudit') === '1';
   if (!passed) {
     const message = `[layout-audit] ${options.name}: label clearance ${horizontalClearance.toFixed(1)}px x ${verticalClearance.toFixed(1)}px${truncated ? ' (still overflowing after truncation)' : ''}`;
+    recordFailure(options.name, message);
     if (auditMode) {
       rect.setStrokeStyle(2, 0xc94c3b, 1);
       console.error(message);
@@ -194,6 +249,7 @@ export function auditTextBlock(
     && new URLSearchParams(window.location.search).get('layoutAudit') === '1';
   if (!passed) {
     const message = `[layout-audit] ${options.name}: text ${text.width.toFixed(1)}px x ${text.height.toFixed(1)}px exceeds ${options.maxWidth}x${options.maxHeight}${truncated ? ' (still overflowing after truncation)' : ''}`;
+    recordFailure(options.name, message);
     if (auditMode) {
       console.error(message);
     } else {

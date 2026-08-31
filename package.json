@@ -18,6 +18,7 @@
     "content:validate": "tsx scripts/validateContent.ts",
     "scaffold:card": "tsx scripts/scaffoldCard.ts",
     "shop:smoke": "tsx scripts/shop-smoke.ts",
+    "audit:hud": "tsx scripts/run-hud-audit.ts",
     "art:encode": "tsx scripts/encode-card-art.ts"
   },
   "dependencies": {
