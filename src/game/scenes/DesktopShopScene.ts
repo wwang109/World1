@@ -25,6 +25,7 @@ import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, TIER_COLOR, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
+import { boxCenter, captionCell, captionCellHeight, DESKTOP_SHELF_CARD_TOKEN_H, SHELF_PRICE_STRIP_H, type CellBox } from '../ui/cardCellLayout';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
@@ -570,9 +571,14 @@ export class DesktopShopScene extends Phaser.Scene {
       const cardW = Math.min(260, (shelfRight - gx - cardGap * (gridCols - 1)) / gridCols);
       const rowW = gridCols * cardW + (gridCols - 1) * cardGap;
       const rowX = gx + (shelfRight - gx - rowW) / 2;
-      const cardH = 130;
-      const priceStripH = 24;
-      const rowStride = cardH + priceStripH + 16;
+      const cardH = DESKTOP_SHELF_CARD_TOKEN_H;
+      // The price strip is a RESERVED band under the card, never a chip on it
+      // — `ui/cardCellLayout.ts`. This shelf has always worked that way (which
+      // is why it never showed the `x2 SL 2 G` collision its mobile twin did);
+      // routing it through the shared split is what puts BOTH platforms' shop
+      // cells under one audit (`tests/game/cardChipClearanceAudit.test.ts`).
+      const cellH = captionCellHeight(cardH, SHELF_PRICE_STRIP_H);
+      const rowStride = cellH + 16;
       for (let i = 0; i < cardCols; i++) {
         const col = i % gridCols;
         const row = Math.floor(i / gridCols);
@@ -586,7 +592,9 @@ export class DesktopShopScene extends Phaser.Scene {
         }
         const base = skillBook[offer.skillId]!;
         const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
-        const tok = new CardToken(this, cx + cardW / 2, cy + cardH / 2, skill, { width: cardW, height: cardH, side: 'left', tier: offer.tier });
+        const cell: CellBox = { x: cx, y: cy, w: cardW, h: cellH };
+        const { token: tokenBox, caption } = captionCell(cell, SHELF_PRICE_STRIP_H);
+        const tok = new CardToken(this, tokenBox.x + tokenBox.w / 2, tokenBox.y + tokenBox.h / 2, skill, { width: tokenBox.w, height: tokenBox.h, side: 'left', tier: offer.tier });
         A(tok);
         this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cx, cy, cardW, cardH), src: { kind: 'shelfCard', index: i }, obj: tok });
         // MERGE affordance — same lookup the BUY confirm dialog already uses
@@ -598,12 +606,13 @@ export class DesktopShopScene extends Phaser.Scene {
         const shelfMergeTarget = runShop ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
         if (shelfMergeTarget) A(this.renderMergeBadge(cx + 4, cy + 4, shelfMergeTarget, F.tiny, i));
         const affordable = this.activeGold() >= offer.price;
-        A(this.add.rectangle(cx, cy + cardH, cardW, priceStripH, UI.panelMuted, 0.95).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.6));
-        A(this.add.text(cx + cardW / 2, cy + cardH + 12, `${offer.price} GOLD`, {
+        const priceAt = boxCenter(caption);
+        A(this.add.rectangle(caption.x, caption.y, caption.w, caption.h, UI.panelMuted, 0.95).setOrigin(0, 0).setStrokeStyle(1, UI.border, 0.6));
+        A(this.add.text(priceAt.x, priceAt.y, `${offer.price} GOLD`, {
           fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: affordable ? UI.textAccent : BAD_HEX,
         }).setOrigin(0.5));
       }
-      sectionTop += (rows - 1) * rowStride + cardH + priceStripH + 24;
+      sectionTop += (rows - 1) * rowStride + cellH + 24;
     }
 
     const gemCols = info.gemSlots;

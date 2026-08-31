@@ -24,8 +24,9 @@ import {
 import type { MergeTarget } from '../../run/shop';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { MOBILE_PROFILE } from '../layoutProfile';
-import { FONT, GEM_RARITY_COLOR, SCREEN, TIER_COLOR, UI } from '../theme';
+import { FONT, GEM_RARITY_COLOR, SCREEN, textRole, TIER_COLOR, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
+import { boxCenter, gutterCell, MOBILE_SHELF_CARD_CELL_H, SHELF_PRICE_GUTTER_W, type CellBox } from '../ui/cardCellLayout';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { addRunArt, RUN_ART_KEYS, shopArtKey } from '../ui/runArt';
@@ -479,7 +480,7 @@ export class MobileShopScene extends Phaser.Scene {
 
     const rowGap = 8;
     const labelH = 16;
-    const cardH = 92;
+    const cardH = MOBILE_SHELF_CARD_CELL_H;
     const gemH = 76;
 
     let y = contentTop;
@@ -496,17 +497,29 @@ export class MobileShopScene extends Phaser.Scene {
         }
         const base = skillBook[offer.skillId]!;
         const skill = offer.tier === base.tier ? base : applyTier(base, offer.tier);
-        const tok = new CardToken(this, 10 + (this.W - 20) / 2, y + cardH / 2, skill, { width: this.W - 20, height: cardH, side: 'left', tier: offer.tier });
+        // THE PRICE GETS ITS OWN COLUMN (`ui/cardCellLayout.ts`, 2026-08-31).
+        // It used to be drawn at `W - 16, y + 6, origin(1, 0)` — which is
+        // `CardToken`'s INWARD TOP corner, where the token draws an offer's
+        // `xN SLOTS` span badge — so a multi-slot offer read `x2 SL 2 G` and
+        // the one number that says "this eats two board slots" was buried.
+        // A GUTTER, not a strip under the row (the shape the DESKTOP shelf
+        // uses): this viewport is only ~205px tall and a 24px strip per row
+        // would cost it a fifth of what it can show, while a 392px-wide row
+        // has width to spare. Both reservations live in one module.
+        const cell: CellBox = { x: 10, y, w: this.W - 20, h: cardH };
+        const { token: tokenBox, gutter } = gutterCell(cell, SHELF_PRICE_GUTTER_W, 'left');
+        const tok = new CardToken(this, tokenBox.x + tokenBox.w / 2, tokenBox.y + tokenBox.h / 2, skill, { width: tokenBox.w, height: tokenBox.h, side: 'left', tier: offer.tier });
         A(tok);
-        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(10, y, this.W - 20, cardH), src: { kind: 'shelfCard', index: i }, obj: tok });
+        this.draggables.push({ bounds: new Phaser.Geom.Rectangle(cell.x, cell.y, cell.w, cell.h), src: { kind: 'shelfCard', index: i }, obj: tok });
         // MERGE affordance — same lookup the BUY confirm dialog already uses;
         // see `renderMergeBadge`'s doc comment (design rationale identical to
         // the desktop scene's twin) for why this is a corner tag in its OWN
         // color channel rather than a treatment on the card's tier frame.
         const shelfMergeTarget = runShop ? currentShopMergeTarget(offer.skillId) : mergeTargetFor(offer.skillId);
-        if (shelfMergeTarget) A(this.renderMergeBadge(14, y + 4, shelfMergeTarget, F.tiny, i));
+        if (shelfMergeTarget) A(this.renderMergeBadge(tokenBox.x + 4, tokenBox.y + 4, shelfMergeTarget, F.tiny, i));
         const affordable = this.activeGold() >= offer.price;
-        A(this.add.text(this.W - 16, y + 6, `${offer.price} G`, { fontSize: `${F.small}px`, color: affordable ? '#e8b446' : '#e08a7a', fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0).setBackgroundColor('#0b1420').setPadding(4, 2, 4, 2));
+        const priceAt = boxCenter(gutter);
+        A(this.add.text(priceAt.x, priceAt.y, `${offer.price} G`, textRole('label', { ink: affordable ? 'resource' : 'alarm' })).setOrigin(0.5));
         y += cardH + rowGap;
       }
     }

@@ -12,6 +12,7 @@ import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, GEM_RARITY_COLOR, SCREEN, TIER_COLOR, UI } from '../theme';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
+import { captionCell, captionCellHeight, WIKI_PL_ROW_H, WIKI_PL_ROW_INSET, type CellBox } from '../ui/cardCellLayout';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 
@@ -239,10 +240,15 @@ export class DesktopWikiScene extends Phaser.Scene {
     const columns = 5;
     const gapX = 16;
     const gapY = 24;
-    const plRowH = 20;
     const cardW = (width - (columns - 1) * gapX) / columns;
     const cardH = Math.round(cardW * (690 / 420));
-    const rowStride = cardH + plRowH + gapY;
+    // The PL row is a RESERVED strip under the card, not a chip drawn on it —
+    // `ui/cardCellLayout.ts`. This gallery has always worked that way; routing
+    // it through the shared split is what lets ONE audit
+    // (`tests/game/cardChipClearanceAudit.test.ts`) cover both platforms'
+    // wiki and shop cells instead of only the two that were broken.
+    const cellH = captionCellHeight(cardH, WIKI_PL_ROW_H);
+    const rowStride = cellH + gapY;
 
     const skills = this.filteredSkills();
     for (const [index, skill] of skills.entries()) {
@@ -261,11 +267,13 @@ export class DesktopWikiScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       hit.setMask(mask);
       const plDeci = powerLevelDeci(skill);
-      const plText = this.add.text(baseX, top + baseY + cardH + 4, `PL ${(plDeci / 10).toFixed(0)}`, {
+      const plText = this.add.text(baseX, 0, `PL ${(plDeci / 10).toFixed(0)}`, {
         fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textAccent,
       }).setOrigin(0.5, 0);
       plText.setMask(mask);
-      this.galleryCards.push({ skill, card, hit, plText, baseX, baseY, w: cardW, h: cardH });
+      const entry: GalleryCard = { skill, card, hit, plText, baseX, baseY, w: cardW, h: cardH };
+      this.placeGalleryCard(entry, top + baseY);
+      this.galleryCards.push(entry);
     }
 
     const rows = Math.ceil(skills.length / columns);
@@ -286,13 +294,26 @@ export class DesktopWikiScene extends Phaser.Scene {
     this.applyScroll();
   }
 
+  /**
+   * Places ONE gallery cell's card, hit rect and PL label for a cell whose top
+   * edge is at `worldTop` — the ONE definition, shared by the initial render
+   * and `applyScroll`. Its mobile twin (`MobileWikiScene.placeRow`) exists
+   * because the two call sites there had DRIFTED, putting the PL chip back on
+   * top of `CardToken`'s badge after any scroll; this side never drifted, and
+   * now cannot.
+   */
+  private placeGalleryCard(entry: GalleryCard, worldTop: number): void {
+    const cell: CellBox = { x: entry.baseX - entry.w / 2, y: worldTop, w: entry.w, h: captionCellHeight(entry.h, WIKI_PL_ROW_H) };
+    const { token, caption } = captionCell(cell, WIKI_PL_ROW_H);
+    entry.card.setPosition(entry.baseX, token.y + token.h / 2);
+    entry.hit.setPosition(entry.baseX, token.y + token.h / 2);
+    entry.plText.setPosition(entry.baseX, caption.y + WIKI_PL_ROW_INSET);
+  }
+
   private applyScroll(): void {
     const { top } = this.viewport;
     for (const row of this.galleryCards) {
-      const worldTop = top + this.scrollY + row.baseY;
-      row.card.setPosition(row.baseX, worldTop + row.h / 2);
-      row.hit.setPosition(row.baseX, worldTop + row.h / 2);
-      row.plText.setPosition(row.baseX, worldTop + row.h + 4);
+      this.placeGalleryCard(row, top + this.scrollY + row.baseY);
     }
     this.updateIndicator();
   }

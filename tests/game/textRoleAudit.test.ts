@@ -254,8 +254,16 @@ const ALLOWLIST: Record<string, { hex?: number; fontSize?: number }> = {
   'scenes/MobilePrepScene.ts': { hex: 9, fontSize: 5 },
   'scenes/MobileRunEventScene.ts': { fontSize: 3 },
   'scenes/MobileRunPrepScene.ts': { fontSize: 1 },
-  'scenes/MobileShopScene.ts': { hex: 19, fontSize: 48 },
-  'scenes/MobileWikiScene.ts': { hex: 7, fontSize: 26 },
+  // Down from `{ hex: 19, fontSize: 48 }` (2026-08-31): the shelf row's price
+  // chip moved out of `CardToken`'s inward corner into its own reserved gutter
+  // (`ui/cardCellLayout.ts`) and took a `label` ROLE with `resource`/`alarm`
+  // ink on the way, retiring its two hand-picked golds and its `#0b1420` scrim
+  // (the gutter is scene ground, so there is nothing to scrim against).
+  'scenes/MobileShopScene.ts': { hex: 16, fontSize: 47 },
+  // Down from `{ hex: 7, fontSize: 26 }` (2026-08-31): the catalogue's `PL n`
+  // chip moved into the reserved row under the card and took the `kicker` role
+  // with `resource` ink, retiring its raw gold and its `#0b1420` scrim.
+  'scenes/MobileWikiScene.ts': { hex: 5, fontSize: 25 },
   'scenes/StartScene.ts': { hex: 1, fontSize: 4 },
   'scenes/UiKitScene.ts': { hex: 5, fontSize: 31 },
   'ui/ActionBar.ts': { hex: 2, fontSize: 1 },
@@ -370,7 +378,7 @@ describe('src/game: the type-system ratchet', () => {
   it('the whole-codebase total is at or below the recorded high-water mark', () => {
     // One number to watch in review. It may only ever go DOWN — raise it and
     // you are consciously undoing the pass this test exists to protect.
-    const HIGH_WATER = { hex: 194, fontSize: 412 };
+    const HIGH_WATER = { hex: 189, fontSize: 410 };
     const totals = [...counts.values()].reduce((a, c) => ({ hex: a.hex + c.hex, fontSize: a.fontSize + c.fontSize }), { hex: 0, fontSize: 0 });
     expect(totals.hex, 'raw colour literals in src/game (excluding theme.ts)').toBeLessThanOrEqual(HIGH_WATER.hex);
     expect(totals.fontSize, 'inline fontSize literals in src/game').toBeLessThanOrEqual(HIGH_WATER.fontSize);

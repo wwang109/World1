@@ -11,14 +11,28 @@ import { gemCatalogOrder } from '../ui/gemGlossary';
 import { createOwnedCard, demoState } from '../demoState';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { MOBILE_PROFILE } from '../layoutProfile';
-import { FONT, GEM_RARITY_COLOR, SCREEN, TIER_COLOR, UI } from '../theme';
+import { FONT, GEM_RARITY_COLOR, SCREEN, textRole, TIER_COLOR, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
+import { captionCell, captionCellHeight, MOBILE_WIKI_TOKEN_H, WIKI_PL_ROW_H, WIKI_PL_ROW_INSET, type CellBox } from '../ui/cardCellLayout';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 
 const F = MOBILE_PROFILE.font;
 const SLOTS = 10;
-const ROW_H = 84;
+/**
+ * Height of the catalogue card's `CardToken` itself. NOT the row's height —
+ * see `CELL_H`.
+ */
+const TOKEN_H = MOBILE_WIKI_TOKEN_H;
+/**
+ * One catalogue cell: the token, plus the `PL n` row RESERVED underneath it
+ * (`ui/cardCellLayout.ts`). The PL chip used to be drawn INSIDE the token's
+ * inward top corner, which is where `CardToken` draws a multi-slot offer's
+ * `×N SLOTS` badge — see that module's header for the full write-up. This is
+ * the same split the DESKTOP gallery has always used (`plRowH` there), so both
+ * platforms now put PL in the same place relative to the card.
+ */
+const CELL_H = captionCellHeight(TOKEN_H, WIKI_PL_ROW_H);
 const ROW_GAP = 8;
 const FILTER_BAND_H = 82;
 const GEM_ROW_H = 78;
@@ -33,6 +47,9 @@ interface CatalogRow {
   plText: Phaser.GameObjects.Text;
   baseX: number;
   baseY: number;
+  /** Cell width (the token's width too — the caption strip is full-width). */
+  w: number;
+  /** Cell height: token + reserved PL row. The TAP region, hence the cell. */
   h: number;
 }
 
@@ -206,23 +223,25 @@ export class MobileWikiScene extends Phaser.Scene {
     const colX = [10 + cardW / 2, 10 + cardW + ROW_GAP + cardW / 2];
 
     const skills = this.filteredSkills();
-    const rowStride = ROW_H + ROW_GAP;
+    const rowStride = CELL_H + ROW_GAP;
     for (const [index, skill] of skills.entries()) {
       const col = index % 2;
       const rowIndex = Math.floor(index / 2);
       const baseX = colX[col]!;
       const baseY = rowIndex * rowStride;
-      const token = new CardToken(this, baseX, top + baseY + ROW_H / 2, skill, { width: cardW, height: ROW_H, side: col === 0 ? 'left' : 'right' });
+      const token = new CardToken(this, baseX, 0, skill, { width: cardW, height: TOKEN_H, side: col === 0 ? 'left' : 'right' });
       token.setMask(mask);
       const plDeci = instancePowerLevelDeci(skill, { gem: null });
-      // CardToken owns that same inward TOP corner for a multi-slot card's
-      // "xN SLOTS" badge, so drop PL a row below it rather than overlap.
-      const plY = top + baseY + (skill.size > 1 ? 24 : 8);
-      const plText = this.add.text(baseX + (col === 0 ? cardW / 2 - 8 : -cardW / 2 + 8), plY, `PL ${(plDeci / 10).toFixed(0)}`, {
-        fontSize: `${F.small}px`, color: '#e8b446', fontFamily: FONT.body, fontStyle: 'bold',
-      }).setOrigin(col === 0 ? 1 : 0, 0).setBackgroundColor('#0b1420').setPadding(4, 2, 4, 2);
+      // CENTRED IN THE RESERVED ROW UNDER THE CARD, the same place the desktop
+      // gallery puts it — never in the token's own inward top corner, which
+      // belongs to the `xN SLOTS` badge (`ui/cardCellLayout.ts`). No scrim
+      // either: this row is scene ground, not card art.
+      const plText = this.add.text(baseX, 0, `PL ${(plDeci / 10).toFixed(0)}`, textRole('kicker', { ink: 'resource' }))
+        .setOrigin(0.5, 0);
       plText.setMask(mask);
-      this.rows.push({ skill, token, plText, baseX, baseY, h: ROW_H });
+      const row: CatalogRow = { skill, token, plText, baseX, baseY, w: cardW, h: CELL_H };
+      this.placeRow(row, top + baseY);
+      this.rows.push(row);
     }
     const contentHeight = Math.max(0, Math.ceil(skills.length / 2) * rowStride - ROW_GAP);
     this.maxScroll = Math.max(0, contentHeight - height);
@@ -281,13 +300,29 @@ export class MobileWikiScene extends Phaser.Scene {
     return `#${GEM_RARITY_COLOR[gem.rarity].toString(16).padStart(6, '0')}`;
   }
 
+  /**
+   * Places ONE catalogue row's token and PL label for a cell whose top edge is
+   * at `worldTop`. The ONE definition of that geometry, called by BOTH the
+   * initial render and `applyScroll` — which is precisely the bug this closes:
+   * `renderCardCatalog` used to drop the PL chip 24px on a multi-slot card to
+   * dodge `CardToken`'s `xN SLOTS` badge while `applyScroll` re-placed it at a
+   * flat +8, so the dodge survived exactly until the player scrolled one
+   * pixel. There is no offset left to keep in sync — the strip is reserved,
+   * and both call sites now derive it from the same `captionCell` split.
+   */
+  private placeRow(row: CatalogRow, worldTop: number): void {
+    const cell: CellBox = { x: row.baseX - row.w / 2, y: worldTop, w: row.w, h: row.h };
+    const { token, caption } = captionCell(cell, WIKI_PL_ROW_H);
+    row.token.setPosition(row.baseX, token.y + token.h / 2);
+    row.plText.setPosition(row.baseX, caption.y + WIKI_PL_ROW_INSET);
+  }
+
   /** Repositions every row's token/label to reflect the current scroll offset. */
   private applyScroll(): void {
     const { top } = this.viewport;
     for (const row of this.rows) {
       const worldTop = top + this.scrollY + row.baseY;
-      row.token.setPosition(row.baseX, worldTop + row.h / 2);
-      row.plText.setPosition(row.baseX + (row.baseX < this.W / 2 ? row.token.width / 2 - 8 : -row.token.width / 2 + 8), worldTop + 8);
+      this.placeRow(row, worldTop);
     }
     this.updateIndicator();
   }
@@ -348,7 +383,10 @@ export class MobileWikiScene extends Phaser.Scene {
       if (totalMove < 8) {
         const localY = p.worldY - this.viewport.top - this.scrollY;
         if (this.view === 'cards') {
-          const row = this.rows.find((r) => p.worldX >= r.baseX - r.token.width / 2 && p.worldX <= r.baseX + r.token.width / 2 && localY >= r.baseY && localY < r.baseY + r.h);
+          // The tap region is the CELL, not the token — a tap on the PL row under
+          // a card opens that card, which is what a reader aiming at the card's
+          // bottom edge expects.
+          const row = this.rows.find((r) => p.worldX >= r.baseX - r.w / 2 && p.worldX <= r.baseX + r.w / 2 && localY >= r.baseY && localY < r.baseY + r.h);
           if (row) { playSfx('uiClick'); this.openDetail(row.skill); }
         } else {
           const row = this.gemRows.find((r) => localY >= r.baseY && localY < r.baseY + r.h);
