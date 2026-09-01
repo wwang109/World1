@@ -65,7 +65,7 @@ function walk(dir: string, out: string[] = []): string[] {
   }
   return out;
 }
-/** A right-sized card at max 1024 tall / WebP q82 lands around 95 KB. */
+/** A right-sized card at max 1024 tall / WebP q72 lands around 75 KB. */
 const MAX_FILE_BYTES = 400 * 1024;
 /** Whole catalogue, if something ever did load it all at once. */
 const MAX_CATALOG_BYTES = 12 * 1024 * 1024;
@@ -121,13 +121,11 @@ describe('card art budget', () => {
     }
   });
 
-  it('every skill gets a placeholder — art-less cards included', () => {
+  it('every skill has catalogue art and a placeholder fallback', () => {
     const skills = Object.values(skillBook);
     expect(skills.length).toBeGreaterThan(0);
     const withoutArt = skills.filter((skill) => CARD_ART_CATALOG[skill.id] === undefined);
-    // The whole reason the placeholder had to get good: most of the pool has
-    // no art yet. If that ever reaches zero this assertion can go.
-    expect(withoutArt.length).toBeGreaterThan(0);
+    expect(withoutArt).toEqual([]);
     for (const skill of skills) {
       const style = cardArtPlaceholderStyle(skill);
       expect(Number.isInteger(style.tint)).toBe(true);

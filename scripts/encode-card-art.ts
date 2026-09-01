@@ -60,7 +60,7 @@ interface Group {
 }
 
 const GROUPS: Group[] = [
-  { name: 'cards', srcDir: 'art-src/cards', outDir: 'public/game-art/cards', maxHeight: 1024, quality: 0.82 },
+  { name: 'cards', srcDir: 'art-src/cards', outDir: 'public/game-art/cards', maxHeight: 1024, quality: 0.72 },
   { name: 'placeholders', srcDir: 'art-src/placeholders', outDir: 'public/game-art/placeholders', maxHeight: 0, quality: 0.84 },
 ];
 

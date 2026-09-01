@@ -4,7 +4,11 @@ dist/
 .DS_Store
 
 # local tooling + scratch screenshots
-.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/world1-game-review/
+!.agents/skills/world1-game-review/SKILL.md
 .codex-remote-attachments/
 .playwright-mcp/
 .superpowers/
