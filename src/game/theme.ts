@@ -99,51 +99,80 @@ export const GEM_RARITY_COLOR: Record<Rarity, number> = {
 };
 
 export const UI = {
-  bg: 0x07131d,
-  bgBlobA: 0x14314a,
-  bgBlobB: 0x251a11,
-  bgBlobC: 0x102739,
-  panel: 0x10202f,
-  panelAlt: 0x142738,
-  panelMuted: 0x0d1b28,
-  battleFrame: 0x0f1d2b,
-  battleLog: 0x0b1620,
+  /*
+   * THE GROUNDS — lifted out of near-black (2026-09-02). The old ladder ran
+   * `bg` #07131d to `panelAlt` #142738, which READS as grey 18 -> 37: a page
+   * the player called too dark. Every dark fill in this block moved up by the
+   * same amount of LINEAR luminance (+0.0119, an ambient-light term) and shed
+   * 20% of its chroma on the way, so the family lifts as one — no pair
+   * inverts, warm fills stay warm, and a panel still sits visibly off its
+   * ground.
+   *
+   * HOW FAR IT GOES IS NOT A TASTE CALL. `TEXT_GROUNDS` feeds the contrast
+   * guard, so the LIGHTEST ground is capped by the DIMMEST ink:
+   * `L_ground <= (L_ink + 0.05) / 4.5 - 0.05`. Three measured numbers set the
+   * range `panelAlt` had to land in — grey 40 if no ink moved at all, grey 52
+   * with the inks as they now stand, grey 56 as the absolute cap before the
+   * brand bronze (`accent`, the string twin of `chip`) has to move too. But
+   * grey 56 is only reachable by putting `disabled`, `textSoft`, `textDim`,
+   * `textMuted` and `alarm` ALL at `accent`'s luminance: five muted ranks
+   * flattened into one, to buy four grey steps. Grey 49 keeps the ranks and
+   * still leaves 3 steps of guard headroom, and that is why this is a lift and
+   * not a light theme.
+   */
+  bg: 0x132636,
+  bgBlobA: 0x1f3b53,
+  bgBlobB: 0x35281d,
+  bgBlobC: 0x1b3347,
+  panel: 0x1b2e3f,
+  panelAlt: 0x1f3344,
+  panelMuted: 0x192b3b,
+  battleFrame: 0x1b2c3c,
+  battleLog: 0x182836,
   battlePlayer: 0xb78a46,
   battleEnemy: 0x995f3f,
   /** Board card token fills: DARK so the cream text reads; side identity stays in the chip/accent colors. */
-  battlePlayerCard: 0x2c3e58,
-  battleEnemyCard: 0x45291f,
-  battlePlayerSlot: 0x172739,
-  battleEnemySlot: 0x1b2431,
+  battlePlayerCard: 0x35465d,
+  battleEnemyCard: 0x4e3329,
+  battlePlayerSlot: 0x223345,
+  battleEnemySlot: 0x27313f,
   battleOutline: 0xb78a46,
-  lanePlayer: 0x182b22,
-  laneLog: 0x13202d,
-  laneEnemy: 0x2b1d17,
-  slot: 0x132536,
-  slotHover: 0x1d3950,
-  playerCard: 0x23384b,
-  enemyCard: 0x412e24,
-  playsCard: 0x122130,
+  lanePlayer: 0x23372d,
+  laneLog: 0x1f2e3c,
+  laneEnemy: 0x392a23,
+  slot: 0x1e3244,
+  slotHover: 0x284257,
+  playerCard: 0x2d4152,
+  enemyCard: 0x4a382e,
+  playsCard: 0x1d2f40,
   chip: 0xc69948,
-  chipDark: 0x1c3144,
+  chipDark: 0x263b4d,
   border: 0xb88a45,
-  shadow: 0x02060b,
+  /** NOT lifted with the family: the ambient term would have landed a drop
+   * shadow on the OLD `bg`, i.e. invisible. Held ~18 grey steps under the new
+   * `bg` instead, which is the separation it had before. */
+  shadow: 0x0d131a,
   good: 0x7cab63,
   waiting: 0xc59a45,
   bad: 0xc36a57,
-  goodSoft: 0x1b3123,
-  badSoft: 0x352019,
+  goodSoft: 0x263c2e,
+  badSoft: 0x422c24,
   text: '#ecd7a4',
-  textDim: '#b89460',
+  /** Nudged `#b89460` -> `#bb9661` with the 2026-09-02 ground lift. It still
+   * cleared AA unchanged (4.61), but that was the thinnest margin left in the
+   * palette AND it has to stay above `textSoft`, which the lift pushed past
+   * it. Held below `textAccent` so the bronze ladder keeps three rungs. 4.74 */
+  textDim: '#bb9661',
   /**
    * LEGIBILITY FIX (2026-08-28 type pass): was `#8d724a`, which measures 3.37:1
    * against `panelAlt` — below WCAG AA (4.5) for the 8-9px footnotes it is used
    * for, on a phone, and it was the WORST text colour in the whole palette.
-   * `#a68a5c` is the same bronze-grey at 4.66:1 worst-ground. Verified by
+   * `#a68a5c` was the same bronze-grey at 4.66:1 worst-ground. Verified by
    * `tests/game/textRoleAudit.test.ts`, which now holds every text colour in
-   * this block to the floor.
+   * this block to the floor — and which is what forced the second nudge, to
+   * `#b59764`, when the grounds lifted (2026-09-02). 4.69.
    */
-  textSoft: '#a68a5c',
+  textSoft: '#b59764',
   /** Bronze accent as a text color (string twin of `chip`). */
   textAccent: '#c69948',
   /**
@@ -159,28 +188,33 @@ export const UI = {
   textOnChip: '#1a1208',
   /** Mobile scenes' de-facto primary/heading text tone (cream, cooler than `text`). */
   textBright: '#e8e0c8',
-  /** Secondary/informational muted text (mobile scenes). */
-  textMuted: '#8a94a6',
+  /** Secondary/informational muted text (mobile scenes). Lifted with the
+   * grounds — `#8a94a6` falls to 4.25:1 on the new `panelAlt`. 4.82 */
+  textMuted: '#949eb2',
   /** A second, slightly lighter muted tone used for stat/footnote lines (mobile scenes). */
   textFootnote: '#9aa4b6',
   /**
    * Disabled-control text (mobile scenes). LEGIBILITY FIX (2026-08-28): was
    * `#5a6880` at 2.71:1 — WCAG exempts an inactive control from AA, but at 9px
-   * on a phone 2.71 is not "demoted", it is gone. `#8290aa` reads at 4.73:1
+   * on a phone 2.71 is not "demoted", it is gone. `#8c9cb8` reads at 4.68:1
    * and is still unmistakably subordinate: it clears the same floor as every
    * other text tone (so the guard test needs no carve-out for it) while
-   * staying cooler and 5 steps below `textBright`'s 11.6. Demotion here is
-   * carried by hue and weight, not by making the text unreadable.
+   * staying cooler and 5 steps below `textBright`'s 9.86. Demotion here is
+   * carried by hue and weight, not by making the text unreadable — and that
+   * now does more work than it used to: the 2026-09-02 ground lift squeezed
+   * its luminance gap to `textMuted` from 6% to 3%.
    */
-  textDisabled: '#8290aa',
+  textDisabled: '#8c9cb8',
   /**
    * THE danger/alarm text tone — the string twin of `bad`. Canonicalises the
    * raw `'#e0654a'` that had been hand-pasted into `RunProgressStrip` (last
    * life), `RunStatsPanel` (BOSS THIS WAVE) and `bandBannerViewModel`
    * (`claimTextColor('none')`). Nudged from `#e0654a` (4.45:1 on `panelAlt`,
-   * a hair under AA) to `#e8785e` (5.29:1) in the same pass.
+   * a hair under AA) to `#e8785e` (5.29:1) in the same pass — then to
+   * `#ef7b61` when the 2026-09-02 ground lift put `#e8785e` back on the line
+   * at 4.51. 4.75.
    */
-  textAlarm: '#e8785e',
+  textAlarm: '#ef7b61',
   hp: 0x3f8f4e,
   hpBack: 0xcbb894,
   shield: 0x5f83a6,
@@ -237,46 +271,53 @@ export const TEXT_GROUNDS = {
  * and this game renders 9px type on a phone, so the floor here is 4.5 for
  * everything that is not on an accent fill — including `disabled`, which WCAG
  * exempts but a phone does not.
+ *
+ * Every ratio below was RE-MEASURED on 2026-09-02, when the grounds were
+ * lifted out of near-black (see the `UI` block). They all fell — a lighter
+ * ground costs contrast — but the FLOOR went up, 4.66 (`textSoft`) to 4.68
+ * (`disabled`), because the four inks that would have dropped under AA were
+ * lifted with it. A lighter page did not cost legibility; it cost SPREAD, and
+ * these numbers are how much.
  */
 export const INK = {
   /** The ONE thing that leads a screen or a block. Nothing else gets this. */
   primary: '#f2e4c0',
   /** Foreground copy that supports the lead — a title's second line, a
-   * value that is real information but not the point of the screen. 11.57 */
+   * value that is real information but not the point of the screen. 9.86 */
   secondary: '#e8e0c8',
   /** A LABEL: the word that says WHICH fact this is. Never a value — the
-   * whole point of the label/value split is that these two differ. 5.96 */
+   * whole point of the label/value split is that these two differ. 5.08 */
   label: '#95a3b8',
-  /** Running prose, footnotes, hints. 6.07 */
+  /** Running prose, footnotes, hints. 5.18 */
   faint: '#9aa4b6',
   /** Text on a control the player cannot use right now — and the separator
    * between stat segments, which is exactly as important as a disabled
-   * control. 4.73 */
-  disabled: '#8290aa',
-  /** Brand/section identity (bronze) — kickers, "CHOOSE YOUR NEXT STOP". 5.85 */
+   * control. 4.68 */
+  disabled: '#8c9cb8',
+  /** Brand/section identity (bronze) — kickers, "CHOOSE YOUR NEXT STOP". 4.98 */
   accent: '#c69948',
-  /** A SPENDABLE resource's amount: gold. The number the player watches. 8.15 */
+  /** A SPENDABLE resource's amount: gold. The number the player watches. 6.95 */
   resource: '#e0b866',
-  /** What keeps the run alive: LIVES, HP. 7.68 */
+  /** What keeps the run alive: LIVES, HP. 6.55 */
   vital: '#7cc98a',
   /**
    * A price, an outlay, a thing taken from you: PL cost, GOLD SPENT, DAMAGE
-   * TAKEN, FIGHTS LOST. Distinct from `alarm`, which means ACT NOW. 6.02
+   * TAKEN, FIGHTS LOST. Distinct from `alarm`, which means ACT NOW. 5.13
    *
    * PUSHED ORANGE deliberately (was `#e0a94a`): at that value GOLD EARNED
    * (`resource`) and GOLD SPENT (`cost`) sat 32 apart in RGB and read as the
    * same amber in the ledger, so the two halves of the row it is meant to
    * separate still looked alike on the phone. `#e0913f` is 55 from `resource`
-   * and still 41 from `alarm` — a cost must not be mistaken for either the
+   * and still 43 from `alarm` — a cost must not be mistaken for either the
    * money you have or an emergency.
    */
   cost: '#e0913f',
-  /** A positive delta: a gem's `+N`, a level buy, HEALING DONE. 8.55 */
+  /** A positive delta: a gem's `+N`, a level buy, HEALING DONE. 7.29 */
   gain: '#9ad17a',
   /** ACT NOW: the last life, BOSS THIS WAVE. Reserved — if everything is an
-   * alarm nothing is. String twin of `UI.textAlarm`. 5.29 */
-  alarm: '#e8785e',
-  /** How much ROOM there is: deck slots, gem sockets, card counts. 6.73 */
+   * alarm nothing is. String twin of `UI.textAlarm`. 4.75 */
+  alarm: '#ef7b61',
+  /** How much ROOM there is: deck slots, gem sockets, card counts. 5.74 */
   capacity: '#7fb2d9',
   /** Dark ink for text sitting ON a bronze/accent fill. 7.10 on `UI.chip`. */
   onAccent: '#1a1208',
