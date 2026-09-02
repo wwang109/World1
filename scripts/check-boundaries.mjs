@@ -182,9 +182,35 @@ function allowReason(sourceFile, text, node) {
 const isPhaser = (spec) => spec === 'phaser' || spec.startsWith('phaser/');
 
 /** Lexically resolve a relative specifier against `fromFile`, repo-relative. */
+/**
+ * Force an AUTHOR-WRITTEN specifier onto forward slashes.
+ *
+ * Every other path in this checker is POSIX by construction (`walk` and
+ * `resolveImport` build them with `posix.join`). A specifier is the one
+ * exception: it is raw source text, so it carries whatever the author typed,
+ * and `posix.join` treats a backslash as an ordinary CHARACTER rather than a
+ * separator. So `'../engine/combat\\simulate'` resolves to the literal
+ * `src/engine/combat\simulate`, and `bannedHit`'s `combat/simulate` needle —
+ * which is spelled with a slash — never matches it.
+ *
+ * That is a FALSE NEGATIVE in the gate, not a cosmetic defect: `tsc`, esbuild
+ * and Rollup all resolve the backslash form happily, so the import compiles,
+ * `vite build` inlines the combat rules into the client bundle, and this
+ * checker still prints `boundaries OK`. Rule 2 exists to stop exactly that.
+ *
+ * Normalize where source text BECOMES a path — both callers below — so the
+ * needles can stay slash-spelled and no downstream comparison has to remember
+ * to re-patch. (2026-09-02: an earlier pass moved `walk`/`resolveImport` to
+ * `posix.join` and deleted the per-call-site patches this replaces, which
+ * closed the reporting half and reopened the matching half.)
+ */
+function specSeparators(spec) {
+  return spec.split('\\').join('/');
+}
+
 function normalizeSpec(fromFile, spec) {
   if (!spec.startsWith('.')) return null;
-  return posix.normalize(posix.join(posix.dirname(fromFile), spec));
+  return posix.normalize(posix.join(posix.dirname(fromFile), specSeparators(spec)));
 }
 
 /** Does `spec`, read from `fromFile`, point into src/game? */
@@ -241,7 +267,7 @@ const GAME_BANNED = [
 /** Resolve a relative import specifier to a real file path, or null. */
 function resolveImport(fromFile, spec) {
   if (!spec.startsWith('.')) return null;
-  const base = posix.join(fromFile, '..', spec);
+  const base = posix.join(fromFile, '..', specSeparators(spec));
   for (const suffix of RESOLVE_SUFFIXES) {
     const candidate = `${base}${suffix}`;
     try {

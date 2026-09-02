@@ -82,6 +82,44 @@ describe('check-boundaries: shapes that must be REJECTED', () => {
     expect(v.out).toContain('src/engine/combat/simulate.ts');
   });
 
+  /**
+   * BACKSLASH SPECIFIERS (2026-09-02). Every path the checker BUILDS is POSIX,
+   * but a specifier is raw source text, and `posix.join` treats `\` as an
+   * ordinary character — so `combat\simulate` resolved to a literal that the
+   * slash-spelled `combat/simulate` needle could never match. tsc, esbuild and
+   * Rollup all resolve that form happily, so it compiled, `vite build` inlined
+   * the rules into the client bundle, and the checker still said `boundaries
+   * OK`: a false negative in the one gate rule 2 depends on. These three cases
+   * are the shapes that slipped through.
+   */
+  it('rejects a backslash-separated specifier reaching combat', () => {
+    const v = check({
+      'src/engine/combat/simulate.ts': SIMULATE,
+      'src/game/scene.ts': `import { simulate } from '../engine/combat\\\\simulate';\nsimulate();\n`,
+    });
+    expect(v.code).toBe(1);
+    expect(v.out).toContain('src/engine/combat/simulate.ts');
+  });
+
+  it('rejects a backslash specifier laundered through an `export *` barrel', () => {
+    const v = check({
+      'src/engine/combat/simulate.ts': SIMULATE,
+      'src/engine/combat/index.ts': `export * from '.\\\\simulate';\n`,
+      'src/game/scene.ts': "import { simulate } from '../engine/combat';\nsimulate();\n",
+    });
+    expect(v.code).toBe(1);
+    expect(v.out).toContain('src/engine/combat/simulate.ts');
+  });
+
+  it('rejects a pure layer importing src/game through backslashes', () => {
+    const v = check({
+      'src/game/thing.ts': 'export const thing = 1;\n',
+      'src/run/c.ts': `import { thing } from '..\\\\game\\\\thing';\nthing;\n`,
+    });
+    expect(v.code).toBe(1);
+    expect(v.out).toContain('src/run/c.ts');
+  });
+
   it('rejects a dynamic import of combat from src/game', () => {
     const v = check({
       'src/run/resolveBattle.ts': RESOLVE_BATTLE,
