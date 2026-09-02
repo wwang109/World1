@@ -26,6 +26,9 @@ doc disagrees with code, code wins.** Three classes:
 | [`run-tutorial-design.md`](run-tutorial-design.md) | LIVING (planned feature) | Skippable in-fight tutorial design — not yet built. |
 | [`icon-generation-prompts.md`](icon-generation-prompts.md) | LIVING (reference) | Image-generation prompt blocks for icons/card art. |
 | [`art-prompt-pack.md`](art-prompt-pack.md) | LIVING (reference) | Run-layer UI asset pack: one prompt block + final master path per placeholder in `art-src/placeholders/` (event areas, choice icons, coin, heart, boss, storefront). |
+| [`biome-paths-proposal.md`](biome-paths-proposal.md) | LIVING (proposal) | Biome bands design: Phase 1 built 2026-08-26; the fork (Phase 3) still open. Header banner tracks build status. |
+| [`event-chains-proposal.md`](event-chains-proposal.md) | LIVING (proposal) | Event chains/gates design: mechanism + 7 events + legibility built (77cb57b, 4dcae89); the rejected-designs register stays binding; rung 4 open. |
+| [`sandbox-features-proposal.md`](sandbox-features-proposal.md) | LIVING (proposal) | Custom foe decks + dual-use share codes (PLAY IT / FIGHT IT): full implementation contract, not yet built. |
 | [`history/`](history/) | HISTORY | Everything superseded: Codex-era docs, pre-rebuild combat-ui spec, executed plans/proposals (superpowers/), pl-changelog. Each file's banner names its successor. |
 
 Adding a doc? Give it a scope line at the top, add a row here, and make sure
