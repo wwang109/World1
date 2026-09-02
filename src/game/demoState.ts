@@ -2,7 +2,7 @@ import { gemBook } from '../data/gems';
 import { skillBook } from '../data/skills';
 import { clampTierToCard } from '../engine/types';
 import type { BoardPiece, Gem, SkillTier } from '../engine/types';
-import type { EnemyTitle } from '../run/encounter';
+import type { EnemyTitle, FoeDeckCard } from '../run/encounter';
 import type { Allocation } from '../run/leveling';
 import type { CardOffer, GemOffer } from '../run/shop';
 
@@ -51,6 +51,15 @@ export interface EnemyFightConfig {
    * own defaults) stays valid and affix-free.
    */
   affix?: string | null;
+  /**
+   * Player-built deck replacing the authored board entirely (sandbox only).
+   * null/omitted = the normal authored+title+rank pipeline. Structural twin of
+   * `BattleFoeConfig.deck` (src/run/resolveBattle.ts), so a foe config travels
+   * prep -> timeline -> battle request intact (same rule as `affix`): both the
+   * preview and the battle service re-resolve the SAME deck recipe through
+   * `buildEnemyEncounter`.
+   */
+  deck?: FoeDeckCard[] | null;
 }
 
 export interface DemoState {
@@ -237,7 +246,13 @@ function cloneGemInventory(gems: GemInventorySlot[]): GemInventorySlot[] {
 }
 
 function cloneEnemyTeam(team: EnemyFightConfig[]): EnemyFightConfig[] {
-  return team.map((enemy) => ({ ...enemy, modifiers: [...enemy.modifiers] }));
+  return team.map((enemy) => ({
+    ...enemy,
+    modifiers: [...enemy.modifiers],
+    // A custom deck is a nested array of structs — deep-copy it so a reset
+    // snapshot/override can never share card entries with live state.
+    ...(enemy.deck != null ? { deck: enemy.deck.map((card) => ({ ...card })) } : {}),
+  }));
 }
 
 function cloneAllocation(alloc: Allocation): Allocation {

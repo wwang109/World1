@@ -22,6 +22,10 @@ export function battleRequestOf(input: BattleTimelineInput): BattleRequest {
   const foes: BattleFoeConfig[] = input.enemyTeam && input.enemyTeam.length > 0
     ? input.enemyTeam.map((c) => ({
       enemyId: c.enemyId, level: c.level, title: c.title, rank: c.rank, modifiers: [...(c.modifiers ?? [])], affix: c.affix ?? null,
+      // Custom foe deck (sandbox): the recipe rides the request like every
+      // other dial — the service re-resolves it, the client never ships a
+      // resolved board. Copied so the payload is detached from live state.
+      deck: c.deck?.map((card) => ({ ...card })) ?? null,
     }))
     : [{
       enemyId: input.enemyId,

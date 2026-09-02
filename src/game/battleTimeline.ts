@@ -571,8 +571,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     : [{ enemyId: input.enemyId, level: input.enemyLevel, title: input.enemyTitle, rank: input.enemyRank, modifiers: [...(input.enemyModifiers ?? [])], affix: input.enemyAffix ?? null }];
   // `cfg.affix` is the elite affix (see `EnemyFightConfig`): the board rendered
   // mid-battle must contain the affix card the service actually resolved with,
-  // or the enemy's card column would disagree with its own event log.
-  const encs = teamConfigs.map((cfg) => buildEnemyEncounter(cfg.enemyId, cfg.level, cfg.title, cfg.rank, cfg.modifiers, cfg.affix ?? null));
+  // or the enemy's card column would disagree with its own event log. Same
+  // rule for `cfg.deck` (sandbox custom foe deck): the rendered board must be
+  // the SAME custom board the service re-resolved from this identical config.
+  const encs = teamConfigs.map((cfg) => buildEnemyEncounter(cfg.enemyId, cfg.level, cfg.title, cfg.rank, cfg.modifiers, cfg.affix ?? null, undefined, cfg.deck ?? null));
   const foeSetups = encs.map((e) => e.setup);
   const heroName = hero.name;
   const heroStats: ScalingStats = { attack: hero.stats.attack, magicPower: hero.stats.magicPower, armor: hero.stats.armor, magicResist: hero.stats.magicResist };

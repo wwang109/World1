@@ -23,9 +23,11 @@
 // see `eliteAffixIdFor` and the block above it.
 // The resolver-seam pattern — no combat-loop involvement. No RNG, no Phaser.
 
+import { clampTierToCard } from '../engine/types';
 import type { BoardPiece, CombatantSetup, EnemyDef, SkillTier } from '../engine/types';
 import { enemies } from '../data/enemies';
 import { skillBook } from '../data/skills';
+import { gemBook } from '../data/gems';
 import { BASE_HERO_STATS, HERO_BOARD_SLOTS } from '../data/heroes';
 import { ELITE_AFFIX_IDS, ENEMY_MODIFIER_IDS, MODIFIER_PRESETS, type EnemyModifierPreset } from '../data/modifiers';
 import { hashSeed } from '../engine/rng';
@@ -895,6 +897,94 @@ function clampLevel(level: number): number {
   return Math.max(1, Math.floor(level));
 }
 
+// ---------------------------------------------------------------------------
+// CUSTOM FOE DECKS (2026-09-02) — the sandbox's player-authored enemy boards
+// (docs/sandbox-features-proposal.md §1). A `deck` REPLACES the authored board
+// pipeline (affix install, title filler, rank stamping) while every stat dial
+// (LEVEL / TITLE / MODIFIER bonusPL) keeps meaning exactly what it means
+// today. The share-code FIGHT IT path writes this same shape.
+// ---------------------------------------------------------------------------
+
+/** The custom-deck slot cap — `HERO_BOARD_SLOTS`' twin on the foe side (the
+ * pure layers must not import src/game, and heroes.ts is src/data, so the
+ * value is taken from there directly). */
+export const FOE_DECK_SLOTS = HERO_BOARD_SLOTS;
+
+/**
+ * One player-authored card on a custom foe deck. `slot` is the leftmost
+ * occupied slot (size comes from the skill book), same contract as
+ * `BoardPiece` (engine/types.ts). `gemId` is a `gemBook` id — the config
+ * ships the ID and the resolver sockets the real `Gem`, so the request stays
+ * small and gem definitions have one source of truth.
+ */
+export interface FoeDeckCard {
+  skillId: string;
+  slot: number;
+  /** Omitted = the card's own authored tier. */
+  tier?: SkillTier;
+  /** Omitted/null = no gem. */
+  gemId?: string | null;
+}
+
+/**
+ * The custom deck's tier-steps above each card's authored tier — the honest
+ * `EncounterUnit.rank` echo for a player-authored board, so the prep stat
+ * sheet and `battleGoldReward`-style consumers keep reading real tier-steps.
+ */
+function deckRankEcho(pieces: readonly BoardPiece[]): number {
+  let steps = 0;
+  for (const piece of pieces) {
+    const authored = TIER_ORDER.indexOf(skillBook[piece.skillId]?.tier ?? 'bronze');
+    const stamped = TIER_ORDER.indexOf(piece.tier ?? skillBook[piece.skillId]?.tier ?? 'bronze');
+    steps += Math.max(0, stamped - authored);
+  }
+  return steps;
+}
+
+/**
+ * Map a validated custom deck 1:1 onto `BoardPiece[]` — the deck-path
+ * replacement for (affix install → title filler → `assignRankTiers`). The
+ * player-authored tiers ARE the tiers; a tier below the card's authored floor
+ * is CLAMPED via `clampTierToCard` (never thrown — mirrors `createOwnedCard`,
+ * the sandbox's own stamping point). Validation THROWS, the resolver's
+ * existing contract (typos scream): unknown `skillId`/`gemId`, an empty deck,
+ * overlapping slots, and any `slot + size > FOE_DECK_SLOTS`.
+ */
+function resolveFoeDeck(deck: readonly FoeDeckCard[]): BoardPiece[] {
+  if (deck.length === 0) {
+    throw new Error('buildEnemyEncounter: a custom deck must carry at least one card');
+  }
+  const covered = new Array<boolean>(FOE_DECK_SLOTS).fill(false);
+  const pieces: BoardPiece[] = [];
+  for (const card of deck) {
+    const skill = skillBook[card.skillId];
+    if (!skill) throw new Error(`buildEnemyEncounter: unknown skill id "${card.skillId}" on the custom deck`);
+    const size = skill.size;
+    if (!Number.isInteger(card.slot) || card.slot < 0 || card.slot + size > FOE_DECK_SLOTS) {
+      throw new Error(
+        `buildEnemyEncounter: custom deck card "${card.skillId}" (size ${size}) does not fit at slot ${card.slot} (deck is ${FOE_DECK_SLOTS} slots)`,
+      );
+    }
+    for (let s = card.slot; s < card.slot + size; s += 1) {
+      if (covered[s]) throw new Error(`buildEnemyEncounter: custom deck slots overlap at slot ${s}`);
+      covered[s] = true;
+    }
+    const tier = card.tier === undefined ? undefined : (clampTierToCard(skill, card.tier) ?? card.tier);
+    const gemId = card.gemId ?? null;
+    const gem = gemId === null ? undefined : gemBook[gemId];
+    if (gemId !== null && !gem) {
+      throw new Error(`buildEnemyEncounter: unknown gem id "${gemId}" on custom deck card "${card.skillId}"`);
+    }
+    pieces.push({
+      skillId: card.skillId,
+      slot: card.slot,
+      ...(tier === undefined ? {} : { tier }),
+      ...(gem === undefined ? {} : { gem }),
+    });
+  }
+  return pieces;
+}
+
 /**
  * Resolve an enemy encounter along the dials. `title` picks a preset;
  * `rankOverride` (if given) replaces the title's rank so the prep UI can tune
@@ -917,6 +1007,15 @@ function clampLevel(level: number): number {
  * DEPTH-RAMPED title package via `titlePresetFor` — see the TITLE DEPTH RAMP
  * block above. Omitted (dev tools, prep scenes, direct callers) = the flat
  * `TITLE_PRESETS` package, byte-identical to the pre-ramp behavior.
+ *
+ * `deck` (sandbox custom foe decks, see the CUSTOM FOE DECKS block above)
+ * REPLACES the whole board pipeline — affix install, title filler and rank
+ * stamping are skipped; the player-authored cards/tiers/gems ARE the board —
+ * while the stat pipeline (level + title delta + modifier `bonusPL`) is
+ * untouched. `forceTier` modifiers still trump explicit deck tiers, and
+ * `rank` echoes the deck's real tier-steps. `affix` and `deck` are mutually
+ * exclusive (an affix is only a card installation, which a custom deck
+ * replaces) — both at once throws. Omitted/null = byte-identical to before.
  */
 export function buildEnemyEncounter(
   enemyId: string,
@@ -926,6 +1025,7 @@ export function buildEnemyEncounter(
   modifiers: readonly string[] = [],
   affix: string | null = null,
   fightNumber?: number,
+  deck?: readonly FoeDeckCard[] | null,
 ): EncounterUnit {
   const enemy = enemies[enemyId];
   if (!enemy) {
@@ -950,23 +1050,42 @@ export function buildEnemyEncounter(
     stats = applyLevelAllocation(stats, allocateMonsterPL(mod.bonusPL, profile));
   }
 
-  // AFFIX CARDS FIRST — they consume the title's filler allowance (see the
-  // doc comment above); `addExtraCards` then backfills whatever is left, and
-  // its own dedupe pass already sees the affix card because it reads the
-  // pieces it is handed.
-  const affixCards = affixCardsFor(affix);
-  const withAffix = addNamedCards(scaled.pieces, affixCards);
-  const fillerCount = Math.max(0, preset.extraCards - affixCards.length);
-  const withCards = addExtraCards(withAffix, poolFor(enemy), fillerCount);
-  let rank = Math.max(0, Math.min(rankOverride ?? preset.rank, maxRankFor(withCards.length)));
-  let pieces = assignRankTiers(withCards, rank);
+  let rank: number;
+  let pieces: BoardPiece[];
+  if (deck != null) {
+    // CUSTOM DECK — replaces the affix/filler/rank board pipeline entirely
+    // (see the CUSTOM FOE DECKS block above). `rank` is echoed from the FINAL
+    // pieces below so a forceTier trump is counted honestly too.
+    if (affix) {
+      throw new Error('buildEnemyEncounter: a custom deck already owns the board (affix and deck are mutually exclusive)');
+    }
+    pieces = resolveFoeDeck(deck);
+    rank = 0;
+  } else {
+    // AFFIX CARDS FIRST — they consume the title's filler allowance (see the
+    // doc comment above); `addExtraCards` then backfills whatever is left, and
+    // its own dedupe pass already sees the affix card because it reads the
+    // pieces it is handed.
+    const affixCards = affixCardsFor(affix);
+    const withAffix = addNamedCards(scaled.pieces, affixCards);
+    const fillerCount = Math.max(0, preset.extraCards - affixCards.length);
+    const withCards = addExtraCards(withAffix, poolFor(enemy), fillerCount);
+    rank = Math.max(0, Math.min(rankOverride ?? preset.rank, maxRankFor(withCards.length)));
+    pieces = assignRankTiers(withCards, rank);
+  }
 
-  // Modifier tier overrides (e.g. DIAMOND-POWERED) trump rank assignment.
+  // Modifier tier overrides (e.g. DIAMOND-POWERED) trump rank assignment —
+  // and trump explicit custom-deck tiers too, consistent with "modifier tier
+  // overrides trump rank assignment" (the prep UI already labels the rank
+  // stepper "MAXED BY <modifier>" for this case).
   const forceTier = presets.map((m) => m.forceTier).find((t) => t !== undefined);
   if (forceTier) {
     pieces = pieces.map((p) => ({ ...p, tier: forceTier }));
     if (forceTier === 'diamond') rank = maxRankFor(pieces.length);
   }
+  // The deck path's rank ECHOES the deck's real tier-steps (Σ tier-index above
+  // each card's authored tier), computed from the final stamped pieces.
+  if (deck != null) rank = deckRankEcho(pieces);
   const boardSize = Math.max(enemy.boardSize, nextFreeSlot(pieces));
 
   return {

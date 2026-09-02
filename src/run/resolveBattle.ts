@@ -2,7 +2,7 @@ import { simulate } from '../engine/combat/simulate';
 import { skillBook } from '../data/skills';
 import type { CombatEvent } from '../engine/combat/events';
 import type { BoardPiece, CombatOutcome } from '../engine/types';
-import { buildAutoHeroSetup, buildEnemyEncounter, type EnemyTitle } from './encounter';
+import { buildAutoHeroSetup, buildEnemyEncounter, type EnemyTitle, type FoeDeckCard } from './encounter';
 import type { Allocation } from './leveling';
 
 /**
@@ -40,6 +40,15 @@ export interface BattleFoeConfig {
    * only thing that makes the prep chip honest.
    */
   affix?: string | null;
+  /**
+   * Player-built deck replacing the authored board entirely (sandbox custom
+   * foe decks / share-code FIGHT IT), or omitted/null for the normal
+   * authored+title+rank pipeline. Structural twin of `EnemyFightConfig.deck`
+   * (src/game/demoState.ts), the same additive rule `affix` followed: the
+   * client ships the deck RECIPE (ids, not resolved boards) and the service
+   * re-resolves it through the SAME `buildEnemyEncounter` the preview uses.
+   */
+  deck?: readonly FoeDeckCard[] | null;
 }
 
 /** The prep information a battle is resolved from — the request payload. */
@@ -74,7 +83,7 @@ export function resolveBattle(request: BattleRequest): BattleLog {
     request.heroAllocation,
   ).setup;
   const foeSetups = request.foes.map(
-    (f) => buildEnemyEncounter(f.enemyId, f.level, f.title, f.rank, f.modifiers ?? [], f.affix ?? null).setup,
+    (f) => buildEnemyEncounter(f.enemyId, f.level, f.title, f.rank, f.modifiers ?? [], f.affix ?? null, undefined, f.deck ?? null).setup,
   );
   const { result, turns, events } = simulate(
     { playerTeam: [hero], enemyTeam: foeSetups, skillBook },

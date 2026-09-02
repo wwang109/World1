@@ -74,6 +74,21 @@ describe('run/resolveBattle', () => {
     expect(cardsOf(plain)).not.toContain('braced_pike');
   });
 
+  it('carries a CUSTOM FOE DECK onto the request, and the event log reflects it', () => {
+    // fireball is not on bandit_duelist's authored kit; with a deck the foe
+    // casts ONLY its custom cards — the authored board is fully replaced.
+    const decked: BattleRequest = {
+      ...REQUEST,
+      foes: [{ ...REQUEST.foes[0]!, deck: [{ skillId: 'fireball', slot: 0 }] }],
+    };
+    const cardsOf = (log: ReturnType<typeof resolveBattle>): string[] =>
+      log.events.filter((e) => e.kind === 'play' && e.side === 'enemy').map((e) => (e as { skillId: string }).skillId);
+    const withDeck = cardsOf(resolveBattle(decked));
+    expect(withDeck.length).toBeGreaterThan(0);
+    expect(new Set(withDeck)).toEqual(new Set(['fireball']));
+    expect(cardsOf(resolveBattle(REQUEST))).not.toContain('fireball');
+  });
+
   it('the affix survives the client -> request hop', () => {
     const request = battleRequestOf({
       ...TIMELINE_INPUT,
