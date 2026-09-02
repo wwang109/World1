@@ -41,6 +41,27 @@ function check(files: Record<string, string>, extra?: (root: string) => void): V
 const SIMULATE = 'export const simulate = () => 1;\n';
 const RESOLVE_BATTLE = 'export const resolveBattle = () => 1;\n';
 
+/**
+ * Can this machine create a symlink at all? On POSIX, always. On Windows it
+ * needs Developer Mode or an elevated shell, and without either `symlinkSync`
+ * throws EPERM — a fact about the machine, not about the checker. Probed once
+ * here so the dangling-symlink case can SKIP with a reason instead of failing
+ * on a permission it never meant to test. It must not fall back to running
+ * the case without the symlink: the checker would then never see one, and a
+ * green result would prove nothing.
+ */
+const CAN_SYMLINK = ((): boolean => {
+  const dir = mkdtempSync(join(tmpdir(), 'world1-symlink-probe-'));
+  try {
+    symlinkSync(join(dir, 'nowhere.ts'), join(dir, 'link.ts'));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+})();
+
 describe('check-boundaries: shapes that must be REJECTED', () => {
   it('rejects a re-export chain out of src/game', () => {
     const v = check({
@@ -175,7 +196,8 @@ describe('check-boundaries: shapes that must be ACCEPTED', () => {
     expect(v.code).toBe(0);
   });
 
-  it('survives a broken symlink under src/ instead of crashing', () => {
+  it('survives a broken symlink under src/ instead of crashing', (ctx) => {
+    ctx.skip(!CAN_SYMLINK, 'symlinks are not permitted here (Windows needs Developer Mode or an elevated shell)');
     const v = check(
       { 'src/engine/ok.ts': 'export const ok = 1;\n' },
       (root) => symlinkSync(join(root, 'does-not-exist.ts'), join(root, 'src/engine/dangling.ts')),

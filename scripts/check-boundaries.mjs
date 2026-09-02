@@ -34,7 +34,7 @@
 // `export … from` / `export * from` re-export chains, dynamic `import('x')`
 // and `require('x')` — plus, now, the non-literal forms of the last two.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, posix } from 'node:path';
+import { posix } from 'node:path';
 import ts from 'typescript';
 
 const PURE_DIRS = ['src/engine', 'src/data', 'src/run', 'src/meta'];
@@ -48,6 +48,15 @@ const RESOLVE_SUFFIXES = [
   '/index.ts', '/index.tsx', '/index.mts', '/index.js', '/index.jsx', '/index.mjs',
 ];
 
+// Every path this checker holds is POSIX-separated on EVERY platform: the two
+// places that build one (`walk` below and `resolveImport`) use `posix.join`,
+// never `join`, and Node's fs accepts forward slashes on Windows too. Two
+// things depend on that invariant. (1) The violation messages — a gate that
+// prints `src\game\barrel.ts` on Windows and `src/game/barrel.ts` on CI is a
+// gate whose output nothing downstream can match on. (2) Specifier matching:
+// `combat/simulate` is not findable in a resolved path spelled with
+// backslashes, so a Windows run would let the barrel launder the name through.
+
 function walk(dir, out = []) {
   let entries;
   try {
@@ -56,7 +65,7 @@ function walk(dir, out = []) {
     return out;
   }
   for (const entry of entries) {
-    const path = join(dir, entry.name);
+    const path = posix.join(dir, entry.name);
     let isDir = entry.isDirectory();
     if (entry.isSymbolicLink()) {
       // A symlink's Dirent says nothing about its target, and a BROKEN symlink
@@ -175,7 +184,7 @@ const isPhaser = (spec) => spec === 'phaser' || spec.startsWith('phaser/');
 /** Lexically resolve a relative specifier against `fromFile`, repo-relative. */
 function normalizeSpec(fromFile, spec) {
   if (!spec.startsWith('.')) return null;
-  return posix.normalize(posix.join(posix.dirname(fromFile.split('\\').join('/')), spec));
+  return posix.normalize(posix.join(posix.dirname(fromFile), spec));
 }
 
 /** Does `spec`, read from `fromFile`, point into src/game? */
@@ -232,7 +241,7 @@ const GAME_BANNED = [
 /** Resolve a relative import specifier to a real file path, or null. */
 function resolveImport(fromFile, spec) {
   if (!spec.startsWith('.')) return null;
-  const base = join(fromFile, '..', spec);
+  const base = posix.join(fromFile, '..', spec);
   for (const suffix of RESOLVE_SUFFIXES) {
     const candidate = `${base}${suffix}`;
     try {
@@ -244,7 +253,7 @@ function resolveImport(fromFile, spec) {
 
 /** Combat reached by a specifier OR by the file it resolves to. */
 function bannedHit(spec, resolved) {
-  const hay = `${spec}\u0000${(resolved ?? '').split('\\').join('/')}`;
+  const hay = `${spec}\u0000${resolved ?? ''}`;
   return GAME_BANNED.find(({ needle }) => hay.includes(needle)) ?? null;
 }
 

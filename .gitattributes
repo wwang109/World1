@@ -1,0 +1,26 @@
+# Line endings for the generated content documents.
+#
+# `src/data/content/*.v1.json` are OUTPUTS of `npm run content:export`
+# (scripts/exportEnemies.ts, scripts/exportModifiers.ts). Those exporters
+# build the document text in memory joined with `\n` and write it verbatim,
+# and their idempotency tests — tests/data/enemiesExportIdempotency.test.ts
+# and tests/data/modifiersExportIdempotency.test.ts — compare the
+# regenerated string against the committed file BYTE-FOR-BYTE. The byte
+# comparison is the whole point of those tests: values can match while bytes
+# differ (skills.v1.json shipped exactly that drift once, with non-ASCII
+# escaping written raw instead of `\uXXXX`), so they must not be softened
+# into a line-ending-tolerant compare.
+#
+# On a Windows clone with `core.autocrlf=true`, git rewrites LF to CRLF on
+# checkout. `readFileSync(..., 'utf8')` then returns CRLF while the exporter
+# still produces LF, and the comparison fails on every line of the document.
+# Pinning these files to LF in the working tree makes the exporter and the
+# checkout agree on every platform, so the tests behave the same on Windows
+# as they already do on Linux/macOS.
+#
+# Deliberately scoped to these generated documents ONLY. A repo-wide
+# `* text=auto eol=lf` would rewrite ~418 other tracked text files on the
+# next checkout — that is a separate decision, not this one. Tracked art
+# under public/ and art-src/ is binary by git's own NUL-byte heuristic and
+# is unaffected either way.
+/src/data/content/*.v1.json text eol=lf

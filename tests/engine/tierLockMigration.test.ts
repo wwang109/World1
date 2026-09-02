@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { applyTier, autoScaleTier, resolveEffectiveSkill } from '../../src/engine/cards';
 import { capViolations, powerLevelBreakdown, powerLevelDeci, TIER_BUDGET_DECI } from '../../src/engine/balance';
@@ -42,6 +43,19 @@ const PRE_MIGRATION_REV = 'd695eaa';
 const CONTENT_PATH = 'src/data/content/skills.v1.json';
 
 /**
+ * The repo root, as a REAL filesystem path.
+ *
+ * `fileURLToPath`, not `new URL('../..', import.meta.url).pathname` — that
+ * getter hands back a URL path, which on Windows is `/C:/Users/.../world1/`
+ * (leading slash, forward slashes, `%20` for spaces). Passed as a `cwd` it names
+ * a directory that does not exist, and Node reports a bad `cwd` as
+ * `spawnSync git ENOENT` — an error that blames the EXECUTABLE and sends every
+ * reader hunting through PATH and PATHEXT for a `git` that was on PATH the whole
+ * time. Kept as a named constant so the mistake cannot be re-inlined.
+ */
+const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
+
+/**
  * The pre-migration book, read from git and built through the production loader.
  *
  * NOT `JSON.parse` into a hand-shaped object: the loader is what strips the
@@ -54,15 +68,21 @@ function preMigrationBook(): Record<string, SkillDef> {
   let raw: string;
   try {
     raw = execFileSync('git', ['show', `${PRE_MIGRATION_REV}:${CONTENT_PATH}`], {
-      cwd: new URL('../..', import.meta.url).pathname,
+      cwd: REPO_ROOT,
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
     });
   } catch (cause) {
     // Loud, never skipped: a before/after test that quietly stops comparing is
     // worse than no test, because the suite still reads as if it were checking.
+    //
+    // The message names the `cwd` because the failure mode that actually cost a
+    // diagnosis cycle here reported itself as `spawnSync git ENOENT` while `git`
+    // was perfectly reachable — the directory was the thing missing. Print what
+    // was passed and the next reader checks the right variable first.
     throw new Error(
-      `cannot read the PRE-migration content from git (${PRE_MIGRATION_REV}:${CONTENT_PATH}). `
+      `cannot read the PRE-migration content from git (${PRE_MIGRATION_REV}:${CONTENT_PATH}) `
+      + `in cwd ${REPO_ROOT}. `
       + 'This test is a real before/after and has no self-consistent fallback by design. '
       + `Cause: ${String(cause)}`,
     );
