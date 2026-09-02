@@ -700,7 +700,7 @@ export class MobileWikiScene extends Phaser.Scene {
       playSfx('uiClick');
       const result = this.addToBag(skill, this.detailTier);
       this.closeDetail();
-      if (result.ok) this.showToast(`Added ${this.detailTier} · bag ${result.used}/${SLOTS}`, '#9ad17a');
+      if (result.ok) this.showToast(`Added ${this.detailTier} · bag ${result.used}/${SLOTS}`, UI.textGem);
       else this.showToast(`Bag full — no room for size ${Math.max(1, skill.size)}`, '#e8907a');
     });
     objs.push(btn, btnText);
@@ -797,7 +797,7 @@ export class MobileWikiScene extends Phaser.Scene {
       playSfx('uiClick');
       demoState.gemInventory = [...demoState.gemInventory, gem.id];
       this.renderGemDetail();
-      this.showToast(`${gem.name} added to pouch`, '#9ad17a');
+      this.showToast(`${gem.name} added to pouch`, UI.textGem);
     });
     objs.push(btn, btnText);
 

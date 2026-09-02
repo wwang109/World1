@@ -47,7 +47,9 @@ export function renderActionBar(
   for (const b of buttons) {
     const w = (usable * (b.flex ?? 1)) / totalFlex;
     const fill = b.highlight ? 0xe8b446 : b.primary ? 0xb78a46 : 0x1b2940;
-    const color = b.primary || b.highlight ? '#1a1208' : '#e8e0c8';
+    // Tokens, not pasted copies of them (`#1a1208`/`#e8e0c8`): a copy misses
+    // the next palette move the way the scenes' `#8a94a6` missed 2026-09-02's.
+    const color = b.primary || b.highlight ? UI.textOnChip : UI.textBright;
     const r = scene.add.rectangle(cx, y, w, FOOTER_HEIGHT, fill)
       .setOrigin(0, 0).setStrokeStyle(b.highlight ? 2 : 1, b.highlight ? 0xffe2a0 : UI.border, b.highlight ? 1 : 0.7).setInteractive({ useHandCursor: true });
     const label = scene.add.text(cx + w / 2, y + FOOTER_HEIGHT / 2, b.label, {

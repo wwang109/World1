@@ -87,14 +87,19 @@ const TAG_COLOR: Record<string, string> = {
  * other entry is green/orange/red/tan/purple/blue). Kept byte-identical to
  * Desktop's map — a new tag must be added to BOTH or it renders untinted on
  * whichever scene is missed.
+ *
+ * poison/expose/thorns LIFTED 2026-09-02, in LOCKSTEP with Desktop's map,
+ * `KEYWORD_TEXT_COLOR` (cardTextMarkup.ts) and its pin test — the card-face
+ * keyword palette now holds every entry at >= 4.5:1 on both battle card
+ * fills (hues held; measured ratios recorded in cardTextMarkup.ts).
  */
-const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8', thorns: '#3f9e7a', guard: '#7a9cc9' };
+const AILMENT_COLOR: Record<string, string> = { poison: '#92c05f', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#c4a6e5', thorns: '#68c3a0', guard: '#7a9cc9' };
 // `ward` gets its own key here, mirroring Desktop's map byte-for-byte (see
 // the comment there for why: thorns already set the precedent that a BUFF
 // status still needs a badge tint, and blue has no relative in this palette
 // so it can never collide with another ailment's color). `guard` mirrors
 // Desktop's own newest entry the same way — same slate-blue, same reasoning.
-const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xa678d8, thorns: 0x3f9e7a, ward: 0x4fa8d8, guard: 0x7a9cc9 };
+const AILMENT_TINT: Record<string, number> = { poison: 0x92c05f, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xc4a6e5, thorns: 0x68c3a0, ward: 0x4fa8d8, guard: 0x7a9cc9 };
 
 /**
  * Mobile Battle — vertical: LOG dock (top, tap a HIT to expand its D: math) ·
@@ -857,7 +862,7 @@ export class MobileBattleScene extends Phaser.Scene {
     // Expose badge number — the EFFECTIVE (strongest-standing) amplification,
     // never the last application's own pct (see the `exposePct` param doc).
     const exposeText = (exposePct ?? 0) > 0
-      ? this.add.text(0, 0, `EXPOSE +${exposePct}%`, { ...bold, fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#a678d8' })
+      ? this.add.text(0, 0, `EXPOSE +${exposePct}%`, { ...bold, fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#c4a6e5' })
       : undefined;
     // Guard badge — the EFFECTIVE (compounded) per-property mitigation (see the
     // `guardPct` param doc + `formatGuardBadge`). Chained off the expose badge:
@@ -944,7 +949,7 @@ export class MobileBattleScene extends Phaser.Scene {
     // both destroyed at the end) — no separate cleanup path to leak.
     const suffix = taxSuffix
       ? this.add.text(fx + t.width / 2 + 3, y - 4, taxSuffix, {
-          fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#a678d8', fontFamily: FONT.body, fontStyle: 'bold',
+          fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#c4a6e5', fontFamily: FONT.body, fontStyle: 'bold',
         }).setOrigin(0, 0.5).setDepth(30).setScale(0.5)
       : undefined;
     const targets: Phaser.GameObjects.Text[] = suffix ? [t, suffix] : [t];

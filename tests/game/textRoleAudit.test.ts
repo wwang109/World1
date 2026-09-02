@@ -239,36 +239,50 @@ const FONT_SIZE_LITERAL = /fontSize: (?:'[0-9]+px'|`\$\{[^}]*\}px`)/g;
  */
 const ALLOWLIST: Record<string, { hex?: number; fontSize?: number }> = {
   'scenes/BootScene.ts': { fontSize: 1 },
-  'scenes/DesktopBattleScene.ts': { hex: 32, fontSize: 31 },
+  // Down from `{ hex: 32, fontSize: 31 }` (2026-09-02): `renderStatus` took
+  // `UI.textMuted` — its literal was a stale pre-lift copy measuring 4.25:1 on
+  // the new panelAlt — and the fontSize ceiling was re-measured to the actual
+  // count (the 31 had gone stale above it).
+  'scenes/DesktopBattleScene.ts': { hex: 31, fontSize: 30 },
   'scenes/DesktopDeckBuildScene.ts': { hex: 1, fontSize: 28 },
   'scenes/DesktopDraftScene.ts': { fontSize: 5 },
   'scenes/DesktopPrepScene.ts': { fontSize: 4 },
   'scenes/DesktopRunEventScene.ts': { fontSize: 3 },
   'scenes/DesktopRunMapScene.ts': { fontSize: 6 },
   'scenes/DesktopRunPrepScene.ts': { fontSize: 13 },
-  'scenes/DesktopShopScene.ts': { hex: 3, fontSize: 50 },
-  'scenes/DesktopWikiScene.ts': { hex: 2, fontSize: 21 },
-  'scenes/MobileBattleScene.ts': { hex: 39, fontSize: 31 },
+  // Down 1 hex apiece (2026-09-02): the `color === UI.good ? ... : ...` toast
+  // idiom's positive green was a pasted `'#9ad17a'` — the exact literal
+  // `UI.textGem` was canonicalised FROM (its doc comment cites this idiom).
+  'scenes/DesktopShopScene.ts': { hex: 2, fontSize: 50 },
+  'scenes/DesktopWikiScene.ts': { hex: 1, fontSize: 21 },
+  // Down from `{ hex: 39, fontSize: 31 }` (2026-09-02): both ceilings had gone
+  // stale above the measured counts — re-pinned to what the file actually
+  // holds (37/30) so the ratchet grips again.
+  'scenes/MobileBattleScene.ts': { hex: 37, fontSize: 30 },
   'scenes/MobileDeckBuildScene.ts': { hex: 12, fontSize: 33 },
   'scenes/MobileDraftScene.ts': { hex: 2, fontSize: 9 },
   'scenes/MobilePrepScene.ts': { hex: 9, fontSize: 5 },
   'scenes/MobileRunEventScene.ts': { fontSize: 3 },
   'scenes/MobileRunPrepScene.ts': { fontSize: 1 },
-  // Down from `{ hex: 19, fontSize: 48 }` (2026-08-31): the shelf row's price
-  // chip moved out of `CardToken`'s inward corner into its own reserved gutter
-  // (`ui/cardCellLayout.ts`) and took a `label` ROLE with `resource`/`alarm`
-  // ink on the way, retiring its two hand-picked golds and its `#0b1420` scrim
-  // (the gutter is scene ground, so there is nothing to scrim against).
-  'scenes/MobileShopScene.ts': { hex: 16, fontSize: 47 },
-  // Down from `{ hex: 7, fontSize: 26 }` (2026-08-31): the catalogue's `PL n`
-  // chip moved into the reserved row under the card and took the `kicker` role
-  // with `resource` ink, retiring its raw gold and its `#0b1420` scrim.
-  'scenes/MobileWikiScene.ts': { hex: 5, fontSize: 25 },
+  // Down from `{ hex: 19, fontSize: 48 }` (2026-08-31, price chip into its
+  // reserved gutter with a `label` ROLE), then to 13 hex (2026-09-02): the
+  // three purchase/merge/sell toasts' pasted positive green took `UI.textGem`.
+  'scenes/MobileShopScene.ts': { hex: 13, fontSize: 47 },
+  // Down from `{ hex: 7, fontSize: 26 }` (2026-08-31, the `PL n` chip took the
+  // `kicker` role), then to 3 hex (2026-09-02): two toast greens -> `UI.textGem`.
+  'scenes/MobileWikiScene.ts': { hex: 3, fontSize: 25 },
   'scenes/StartScene.ts': { hex: 1, fontSize: 4 },
   'scenes/UiKitScene.ts': { hex: 5, fontSize: 31 },
-  'ui/ActionBar.ts': { hex: 2, fontSize: 1 },
-  'ui/BoardColumn.ts': { hex: 1, fontSize: 1 },
-  'ui/CardToken.ts': { hex: 13, fontSize: 8 },
+  // hex retired (2026-09-02): the footer's on-gold/off-gold label pair were
+  // pasted copies of `UI.textOnChip`/`UI.textBright` — now the tokens.
+  'ui/ActionBar.ts': { fontSize: 1 },
+  // hex retired (2026-09-02): the empty slot number was a stale `#8a94a6`
+  // (pre-lift textMuted, 4.25:1 on the new panelAlt) — now `UI.textMuted`.
+  'ui/BoardColumn.ts': { fontSize: 1 },
+  // Down from `{ hex: 13 }` (2026-09-02): the face's name/compact-line cream
+  // (4x), affinity footnote and cursor-badge dark ink were byte-identical
+  // copies of `UI.textBright`/`UI.textFootnote`/`UI.textOnChip` — now tokens.
+  'ui/CardToken.ts': { hex: 7, fontSize: 8 },
   'ui/DesktopNav.ts': { fontSize: 4 },
   'ui/FantasyCardTemplateV2.ts': { hex: 14, fontSize: 9 },
   'ui/RunChoicePanel.ts': { fontSize: 4 },
@@ -287,8 +301,14 @@ const ALLOWLIST: Record<string, { hex?: number; fontSize?: number }> = {
   'ui/cardInfoBox.ts': { hex: 2, fontSize: 1 },
   // A colour DICTIONARY for card body markup, not a renderer — but listed
   // rather than exempted, because the honest place for those 24 entries is
-  // eventually `INK`/`theme.ts` too.
-  'ui/cardTextMarkup.ts': { hex: 24 },
+  // eventually `INK`/`theme.ts` too. Count unchanged 2026-09-02, values not:
+  // all 24 now clear 4.5:1 on both battle card fills (13 were under, worst
+  // 2.46) — measured ratios recorded in the map's own comments.
+  // 24 -> 25 (2026-09-02): `taunt` gained its first card (champions_challenge),
+  // so the keyword map gained its 25th semantic colour. Growth here is a new
+  // KEYWORD, never a stray literal — the map is the one legitimate place a new
+  // hex appears when content grows.
+  'ui/cardTextMarkup.ts': { hex: 25 },
   'ui/hoverTip.ts': { hex: 2, fontSize: 2 },
   // The stat-run renderer's own two `fontSize:` writes ARE the shrink-to-fit
   // pass applying a role's scaled size — the one place in the codebase that is
@@ -378,7 +398,10 @@ describe('src/game: the type-system ratchet', () => {
   it('the whole-codebase total is at or below the recorded high-water mark', () => {
     // One number to watch in review. It may only ever go DOWN — raise it and
     // you are consciously undoing the pass this test exists to protect.
-    const HIGH_WATER = { hex: 189, fontSize: 410 };
+    // 2026-09-02: hex 189 -> 170 (17 literals tokenised in the stale-copy
+    // sweep, 2 stale ceiling points re-measured away), fontSize 410 -> 408
+    // (two stale battle-scene ceilings re-pinned to measured counts).
+    const HIGH_WATER = { hex: 171, fontSize: 408 }; // 170 -> 171: taunt keyword colour (see cardTextMarkup budget note)
     const totals = [...counts.values()].reduce((a, c) => ({ hex: a.hex + c.hex, fontSize: a.fontSize + c.fontSize }), { hex: 0, fontSize: 0 });
     expect(totals.hex, 'raw colour literals in src/game (excluding theme.ts)').toBeLessThanOrEqual(HIGH_WATER.hex);
     expect(totals.fontSize, 'inline fontSize literals in src/game').toBeLessThanOrEqual(HIGH_WATER.fontSize);

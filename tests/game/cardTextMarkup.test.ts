@@ -42,9 +42,14 @@ describe('card text keyword markup', () => {
   // DesktopBattleScene.ts, off-limits to this file — copied here as literals,
   // not imported, because those scenes import Phaser and this module must
   // not) so the two palettes can never drift apart silently again.
+  // Values re-pinned 2026-09-02: the keyword palette's AA lift (every entry
+  // >= 4.5:1 on both battle card fills — see cardTextMarkup.ts) moved all
+  // three IN LOCKSTEP with both scenes' maps, exactly the drift-in-unison
+  // this pin exists to force. Anyone changing one side must change all four
+  // places or this test names the traitor.
   it('matches the battle scenes\' ailment palette for poison/thorns/expose', () => {
-    expect(keywordTextColor('poison')).toBe('#8fbe5a');
-    expect(keywordTextColor('thorns')).toBe('#3f9e7a');
-    expect(keywordTextColor('expose')).toBe('#a678d8');
+    expect(keywordTextColor('poison')).toBe('#92c05f');
+    expect(keywordTextColor('thorns')).toBe('#68c3a0');
+    expect(keywordTextColor('expose')).toBe('#c4a6e5');
   });
 });

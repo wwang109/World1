@@ -218,20 +218,23 @@ export class CardToken extends Phaser.GameObjects.Container {
     };
     const faceMode = opts.faceMode ?? defaultFaceMode();
     if (!spec.compact) {
-      line(spec.name, skill.name, '#e8e0c8', true);
+      // Name/affinity inks are the THEME TOKENS, not pasted copies of their
+      // values — a copy strands the face on the old palette at the next ground
+      // lift (the fate of the scenes' `#8a94a6` on 2026-09-02).
+      line(spec.name, skill.name, UI.textBright, true);
       // DMG 16 +ATK / DMG 16 · PSN 5 — each token tinted to match its
       // KEYWORD_TEXT_COLOR (cardTextMarkup.ts) when it has one, so a keyword's
       // color reads the same here as it does in flavor text / the glossary.
       this.segmentedLine(scene, spec, spec.effects, effectFaceSegments(skill, opts.stats, faceMode, '#e8d8b0', opts.comboLive), '#e8d8b0');
-      line(spec.affinity, this.affinityLine(skill, type, opts.deck), '#9aa4b6');
+      line(spec.affinity, this.affinityLine(skill, type, opts.deck), UI.textFootnote);
     } else {
       // COMPACT (slim strips like TEMP HOLDING): one centered line, clamped to
       // the token width so long names never overflow the strip. The name
       // token stays cream; effect tokens tint the same as the regular variant.
       this.segmentedLine(scene, spec, spec.compactLine, [
-        { text: skill.name, color: '#e8e0c8' },
-        ...effectFaceSegments(skill, opts.stats, faceMode, '#e8e0c8', opts.comboLive),
-      ], '#e8e0c8');
+        { text: skill.name, color: UI.textBright },
+        ...effectFaceSegments(skill, opts.stats, faceMode, UI.textBright, opts.comboLive),
+      ], UI.textBright);
     }
 
     // small dark scrim so a corner label stays readable over bright art.
@@ -280,7 +283,7 @@ export class CardToken extends Phaser.GameObjects.Container {
     if (opts.state === 'cursor') {
       const badgeText = side === 'left' ? '▶ NEXT' : 'NEXT ◀';
       const t = scene.add.text(spec.cursorBadge.x, spec.cursorBadge.y, badgeText, {
-        fontSize: '9px', color: '#1a1208', fontFamily: FONT.body, fontStyle: 'bold',
+        fontSize: '9px', color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold',
       }).setOrigin(side === 'left' ? 1 : 0, 1);
       // Same fix as `scrimLabel`: center the pill on the text's true bounds
       // instead of reusing its corner origin.

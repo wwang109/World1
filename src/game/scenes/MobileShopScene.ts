@@ -1318,7 +1318,7 @@ export class MobileShopScene extends Phaser.Scene {
       this.detailGemIndex = null;
       this.rerender();
       if (!result.ok) this.showToast(result.reason === 'bag' || result.reason === 'slot' ? 'No room there — purchase cancelled' : 'Could not complete purchase', '#e8907a');
-      else { playSfx('purchase'); this.showToast(`Bought ${name}`, '#9ad17a'); }
+      else { playSfx('purchase'); this.showToast(`Bought ${name}`, UI.textGem); }
     };
     const doMerge = (): void => {
       const result = runMode ? mergeCurrentShopCard(buy.index) : mergeCard(shopId, buy.index);
@@ -1327,7 +1327,7 @@ export class MobileShopScene extends Phaser.Scene {
       this.detailGemIndex = null;
       this.rerender();
       if (!result.ok) this.showToast('Could not complete merge', '#e8907a');
-      else { playSfx('purchase'); this.showToast(`Merged into ${mergeTarget!.toTier.toUpperCase()} ${name}`, '#9ad17a'); }
+      else { playSfx('purchase'); this.showToast(`Merged into ${mergeTarget!.toTier.toUpperCase()} ${name}`, UI.textGem); }
     };
 
     const buttons: ConfirmButton[] = [
@@ -1374,7 +1374,7 @@ export class MobileShopScene extends Phaser.Scene {
       this.pendingSell = null;
       this.rerender();
       if (!result.ok) this.showToast('Could not complete sale', '#e8907a');
-      else { playSfx('uiClick'); this.showToast(`Sold ${preview.name} · +${result.goldReceived} gold`, '#9ad17a'); }
+      else { playSfx('uiClick'); this.showToast(`Sold ${preview.name} · +${result.goldReceived} gold`, UI.textGem); }
     };
 
     const margin = 16; const gap = 8;

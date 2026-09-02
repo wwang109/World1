@@ -68,8 +68,15 @@ const TAG_COLOR: Record<string, string> = {
  * the badge bucket until this same pass, that collision had never actually
  * rendered on screen to be caught. Teal has no other relative here (every
  * other entry is green/orange/red/tan/purple/blue).
+ *
+ * poison/expose/thorns LIFTED 2026-09-02, in LOCKSTEP with
+ * `KEYWORD_TEXT_COLOR` (cardTextMarkup.ts) and its pin test — those three are
+ * byte-shared with the card-face keyword palette, which now holds every entry
+ * at >= 4.5:1 on both battle card fills (hues held; see cardTextMarkup.ts for
+ * the measured ratios). Same values here so the two palettes stay identical,
+ * as the 2026-08-17 reconciliation requires.
  */
-const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#a678d8', thorns: '#3f9e7a', guard: '#7a9cc9' };
+const AILMENT_COLOR: Record<string, string> = { poison: '#92c05f', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#c4a6e5', thorns: '#68c3a0', guard: '#7a9cc9' };
 // `ward` gets its OWN key here, same precedent `thorns` set: this map is
 // keyed by `statusByTurn`'s ailment names, and a held-charges buff is exactly
 // as invisible on the HP badge as an affliction pile once its own status row
@@ -84,7 +91,7 @@ const AILMENT_COLOR: Record<string, string> = { poison: '#8fbe5a', burn: '#e07a3
 // the guard badge below existed to read a real per-property number. Picked a
 // slate blue distinct from `ward`'s brighter sky blue (both read as
 // "defensive"/cool-toned but must stay tellable apart at a glance).
-const AILMENT_TINT: Record<string, number> = { poison: 0x8fbe5a, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xa678d8, thorns: 0x3f9e7a, ward: 0x4fa8d8, guard: 0x7a9cc9 };
+const AILMENT_TINT: Record<string, number> = { poison: 0x92c05f, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xc4a6e5, thorns: 0x68c3a0, ward: 0x4fa8d8, guard: 0x7a9cc9 };
 
 /** Shared landscape geometry — computed once from the desktop canvas so the
  * board/log/footer regions never overlap and nothing draws past y=876. */
@@ -267,8 +274,11 @@ export class DesktopBattleScene extends Phaser.Scene {
   /** Centered status/error text — the only thing drawn before the log arrives. */
   private renderStatus(message: string): void {
     this.children.removeAll();
+    // UI.textMuted the TOKEN, not a pasted copy of it: this literal was a
+    // stale `#8a94a6` that missed the 2026-09-02 ground lift (4.25:1 on the
+    // new panelAlt vs the token's 4.82 worst-ground).
     this.add.text(SCREEN.width / 2, SCREEN.height / 2, message, {
-      fontSize: '16px', color: '#8a94a6', fontFamily: FONT.body,
+      fontSize: '16px', color: UI.textMuted, fontFamily: FONT.body,
       align: 'center', wordWrap: { width: SCREEN.width - 200 }, lineSpacing: 6,
     }).setOrigin(0.5);
   }
@@ -923,7 +933,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     // Expose badge number — the EFFECTIVE (strongest-standing) amplification,
     // never the last application's own pct (see the `exposePct` param doc).
     const exposeText = (exposePct ?? 0) > 0
-      ? this.add.text(0, 0, `EXPOSE +${exposePct}%`, { ...bold, fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#a678d8' })
+      ? this.add.text(0, 0, `EXPOSE +${exposePct}%`, { ...bold, fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#c4a6e5' })
       : undefined;
     // Guard badge — the EFFECTIVE (compounded) per-property mitigation (see
     // the `guardPct` param doc + `formatGuardBadge`). Chained off the expose
@@ -1007,7 +1017,7 @@ export class DesktopBattleScene extends Phaser.Scene {
     // both destroyed at the end) — no separate cleanup path to leak.
     const suffix = taxSuffix
       ? this.add.text(fx + t.width / 2 + 3, y - 4, taxSuffix, {
-          fontFamily: FONT.body, fontSize: `${F.tiny}px`, fontStyle: 'bold', color: AILMENT_COLOR.expose ?? '#a678d8',
+          fontFamily: FONT.body, fontSize: `${F.tiny}px`, fontStyle: 'bold', color: AILMENT_COLOR.expose ?? '#c4a6e5',
         }).setOrigin(0, 0.5).setDepth(30).setScale(0.5)
       : undefined;
     const targets: Phaser.GameObjects.Text[] = suffix ? [t, suffix] : [t];

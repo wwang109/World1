@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { SkillDef, SkillTier } from '../../engine/types';
+import { UI } from '../theme';
 import { CardToken } from './CardToken';
 import type { ScalingStats, SkillFaceMode } from './skillPresentation';
 
@@ -96,8 +97,10 @@ class EmptySlot extends Phaser.GameObjects.Container {
     super(scene, x, y);
     const bg = scene.add.rectangle(0, 0, w, h, 0x121e30, 0.45).setOrigin(0.5).setStrokeStyle(1, 0x24344a, 0.9);
     const numX = side === 'left' ? w / 2 - 6 : -w / 2 + 6;
+    // UI.textMuted the TOKEN — this was a stale `#8a94a6` copy that missed the
+    // 2026-09-02 ground lift (4.25:1 on the new panelAlt vs the token's 4.82).
     const num = scene.add.text(numX, -h / 2 + 5, label, {
-      fontSize: '10px', color: '#8a94a6', fontFamily: 'monospace', fontStyle: 'bold',
+      fontSize: '10px', color: UI.textMuted, fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(side === 'left' ? 1 : 0, 0);
     this.add([bg, num]);
     scene.add.existing(this);

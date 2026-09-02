@@ -1540,7 +1540,7 @@ export class DesktopShopScene extends Phaser.Scene {
     this.toastObjects = [];
     const y = SCREEN.height - DESKTOP_PROFILE.safe.bottom - 40;
     const label = this.add.text(SCREEN.width / 2, y, text, {
-      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: color === UI.good ? '#9ad17a' : '#e8907a',
+      fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.label}px`, color: color === UI.good ? UI.textGem : '#e8907a',
     }).setOrigin(0.5).setDepth(4001);
     const bg = this.add.rectangle(SCREEN.width / 2, y, label.width + 24, label.height + 14, UI.panelMuted, 0.94)
       .setOrigin(0.5).setDepth(4000).setStrokeStyle(1, UI.border, 0.8);
