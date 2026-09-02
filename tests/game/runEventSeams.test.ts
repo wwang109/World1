@@ -270,3 +270,43 @@ describe('game seam sweep: no run-layer field is produced and then thrown away',
     expect(offenders).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// SEAM 4 — the event-chain UI pass (2026-09-02): lock reasons, the recap line,
+// derived-door family labels. Same posture as SEAM 3 (no canvas here, so the
+// scene half is held structurally): the run layer WORDS these three values
+// (`choiceLockReason` / `eventRecapLine` / `derivedChoiceFamily`,
+// src/run/events.ts — see tests/run/events.presenters.test.ts for what they
+// say); each sweep below is positioned so that unwiring one of them from
+// either scene — the exact both-platforms drift the 2026-08-05 audits caught —
+// turns it red.
+// ---------------------------------------------------------------------------
+
+describe('game seam sweep: the chain UI pass is wired into BOTH event scenes', () => {
+  for (const scene of EVENT_SCENES) {
+    it(`${scene} dims rungs through choiceLockReason and prints the reason on the locked row`, () => {
+      const src = read(scene);
+      // ONE call carries both halves: the boolean (`=== null`) and the wording.
+      expect(src).toContain('choiceLockReason(');
+      expect(src, 'the locked row does not render the run layer\'s reason').toMatch(/LOCKED · \$\{lockReason\}/);
+      // Re-importing the bare predicate beside it would let the boolean and
+      // the printed reason be computed twice — the drift this seam forbids.
+      expect(src, 'the scene re-imports the bare usability predicate').not.toMatch(/import\s*\{[^}]*\bisEventChoiceUsable\b/);
+    });
+
+    it(`${scene} names a derived door's family through the run layer's one derivation`, () => {
+      const src = read(scene);
+      expect(src).toContain('derivedChoiceFamily(');
+      expect(src, 'the family suffix is not rendered onto the label').toMatch(/\$\{choice\.label\} — \$\{family\}/);
+    });
+
+    it(`${scene} opens a chain payoff with the recap line INSIDE the body box`, () => {
+      const src = read(scene);
+      expect(src).toContain('eventRecapLine(');
+      // Prepended to the body COPY — never a new layout block, so the choice
+      // reservation math stays untouched (the mobile 3-choice budget is
+      // load-bearing; see EventDef's own doc comment in src/data/events.ts).
+      expect(src, 'the recap is not prepended into the body copy').toMatch(/\$\{recap\}\\n\\n\$\{event\.body\}/);
+    });
+  }
+});

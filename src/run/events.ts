@@ -23,7 +23,7 @@
 import { hashSeed, Rng } from '../engine/rng';
 import { cardOfferableAtTier, clampTierToCard } from '../engine/types';
 import type { Element, SkillDef, SkillTier, WeaponType } from '../engine/types';
-import { boardTypeIdentity } from '../engine/combat/typeIdentity';
+import { boardTypeIdentity, IDENTITY_THRESHOLD } from '../engine/combat/typeIdentity';
 import {
   eventCatalog,
   eventCatalogIds,
@@ -39,7 +39,7 @@ import type { CardFilter } from '../data/shopTypes';
 import type { DraftCard } from './draft';
 import { skillBook } from '../data/skills';
 import { gemBook } from '../data/gems';
-import { biomeFor, counterTypeFor } from './biome';
+import { biomeFor, counterTypeFor, leanLabel } from './biome';
 import { cardMatchesFilter, gemMatchesFilter, pickWeightedGem, pickWeightedGems, sellPriceOfGem } from './shop';
 import {
   currentEventNode,
@@ -382,17 +382,22 @@ export function eventGateMet(state: RunState, gate: EventGate): boolean {
   return false;
 }
 
-/** Whether the named run counter has reached `gate.atLeast`. `wins`/`losses`/
- * `bossesCleared` live top-level on `RunState` (the stats ledger deliberately
- * does not duplicate them — see `RunStats`'s doc comment in runState.ts); the
- * other four are `state.stats` fields. */
+/** The named run counter's CURRENT value — `wins`/`losses`/`bossesCleared`
+ * live top-level on `RunState` (the stats ledger deliberately does not
+ * duplicate them — see `RunStats`'s doc comment in runState.ts); the other
+ * four are `state.stats` fields. One read shared by `eventTallyMet` and the
+ * worded presenters below (`choiceLockReason`/`eventRecapLine`), so a lock
+ * line can never quote a number the predicate didn't judge. */
+function tallyValue(state: RunState, stat: EventTallyGate['stat']): number {
+  return stat === 'wins' ? state.wins
+    : stat === 'losses' ? state.losses
+    : stat === 'bossesCleared' ? state.bossesCleared
+    : state.stats[stat];
+}
+
+/** Whether the named run counter has reached `gate.atLeast`. */
 export function eventTallyMet(state: RunState, gate: EventTallyGate): boolean {
-  const value =
-    gate.stat === 'wins' ? state.wins
-    : gate.stat === 'losses' ? state.losses
-    : gate.stat === 'bossesCleared' ? state.bossesCleared
-    : state.stats[gate.stat];
-  return value >= gate.atLeast;
+  return tallyValue(state, gate.stat) >= gate.atLeast;
 }
 
 /** Both gates on an `EventDef` or `EventChoiceDef` at once (absent = open).
@@ -469,6 +474,25 @@ export function derivedChoiceFilter(state: RunState, choice: EventChoiceDef): Ca
   return resolveFilterFrom(state, currentEventNode(state) ?? null, source);
 }
 
+/**
+ * The FAMILY a `filterFrom` door resolves to right now, as the display token
+ * the scenes suffix onto the door's label ("Take the local make — FROST") —
+ * `undefined` for a choice with no `filterFrom` and for one whose source
+ * cannot resolve (that rung is dark, and `choiceLockReason` below words WHY
+ * instead). A thin read of `derivedChoiceFilter`, exported so neither scene
+ * ever re-derives the family a second way (thin client, one authority):
+ * `resolveFilterFrom` only ever substitutes a single-type element/weapon
+ * filter, and this names that one type in the same uppercase the biome lean
+ * chip uses (`leanLabel`, run/biome.ts).
+ */
+export function derivedChoiceFamily(state: RunState, choice: EventChoiceDef): string | undefined {
+  if (filterFromOf(choice.outcome) === undefined) return undefined;
+  const filter = derivedChoiceFilter(state, choice);
+  const clause = filter?.[0];
+  const type = clause?.elements?.[0] ?? clause?.weapons?.[0];
+  return type === undefined ? undefined : type.toUpperCase();
+}
+
 /** Whether `choice` is USABLE right now — `isEventChoiceAffordable` (the
  * gold gate) PLUS the choice's own gates PLUS any outcome-specific
  * precondition. The preconditions, in check order:
@@ -502,25 +526,146 @@ export function derivedChoiceFilter(state: RunState, choice: EventChoiceDef): Ca
  * unaffordable priced choices (tests/run/events.test.ts), `resolveEventChoice`
  * does NOT re-check gates: this predicate is the guard, the once-per-node
  * throw kills the dangerous replay class, and a bypassed gate's outcome is an
- * ordinary priced outcome — nothing exploitable behind it. */
+ * ordinary priced outcome — nothing exploitable behind it.
+ *
+ * IMPLEMENTED AS `choiceLockReason(state, choice) === null` (2026-09-02, the
+ * lock-reason UI pass): the checks themselves live in ONE body so the worded
+ * twin below can never disagree with this boolean — a rung this predicate
+ * dims always has a reason, and a rung it lights never shows one. */
 export function isEventChoiceUsable(state: RunState, choice: EventChoiceDef): boolean {
-  if (!isEventChoiceAffordable(state, choice)) return false;
-  if (!gatesMet(state, choice)) return false;
+  return choiceLockReason(state, choice) === null;
+}
+
+/** `choice.label` with a trailing " (2 gold)"-style parenthetical stripped —
+ * the lock line quotes a PAST choice as a deed, and the price tag it was
+ * bought at is not part of the deed. */
+function strippedChoiceLabel(label: string): string {
+  return label.replace(/\s*\([^)]*\)$/, '');
+}
+
+/** Words an unmet `EventGate` for the lock line. Names the exact past door
+ * when the gate hangs on ONE choice (that is what teaches "this face is
+ * remembered"), the past event when any of its choices would do. The dangling
+ * fallback is unreachable for catalog content (lint L1, events.chains.test.ts)
+ * but this is a presenter — it must never throw over data. */
+function gateLockReason(gate: EventGate): string {
+  const target = eventCatalog[gate.eventId];
+  if (!target) return 'needs a past deed';
+  if (gate.choiceIds && gate.choiceIds.length === 1) {
+    const past = target.choices.find((c) => c.id === gate.choiceIds![0]);
+    if (past) return `needs "${strippedChoiceLabel(past.label)}"`;
+  }
+  return `needs a deed at ${target.title}`;
+}
+
+/** Worded noun for each tally counter — one map shared by the lock line
+ * ("0/1 lives lost") and the recap line ("You have spent 14 gold…" builds its
+ * own sentences but from the same `tallyValue` read). */
+const TALLY_NOUN: Record<EventTallyGate['stat'], string> = {
+  goldSpent: 'gold spent',
+  cardsBought: 'cards bought',
+  gemsBought: 'gems bought',
+  livesLost: 'lives lost',
+  wins: 'fights won',
+  losses: 'fights lost',
+  bossesCleared: 'bosses cleared',
+};
+
+/** Words an unmet `EventTallyGate`: the live count against the bar, so the
+ * locked rung doubles as a progress readout ("8/12 gold spent"). */
+function tallyLockReason(state: RunState, gate: EventTallyGate): string {
+  return `${tallyValue(state, gate.stat)}/${gate.atLeast} ${TALLY_NOUN[gate.stat]}`;
+}
+
+/** Words an unresolvable `filterFrom` source. `boardIdentity` teaches the
+ * threshold itself; `biomeCounter` names the lean nothing counters (the
+ * Arrowfell/bow fact, taught a fourth way); the no-node fallback covers a
+ * biome source read off an event node this state is not standing on. */
+function filterFromLockReason(state: RunState, source: FilterFromSource): string {
+  if (source === 'boardIdentity') return `no ${IDENTITY_THRESHOLD}-of-a-kind on your board`;
+  const node = currentEventNode(state);
+  if (node && source === 'biomeCounter') {
+    const lean = biomeFor(state.seed, node.wave, node.biomeId).lean;
+    if (counterTypeFor(lean) === undefined) return `nothing counters ${leanLabel(lean)}`;
+  }
+  return 'the land cannot be read';
+}
+
+/**
+ * WHY `choice` is locked right now, as a short lower-case human line for the
+ * scenes' disabled-button detail ("LOCKED · needs 2 gold") — or `null` when
+ * the choice is usable. THE WORDED TWIN of `isEventChoiceUsable`, and the one
+ * body both share (that predicate is now `=== null` over this): same inputs,
+ * same checks, same order, so the scenes never re-derive a reason the
+ * predicate didn't gate on. Check order is the predicate's historical order —
+ * gold first, then gates, then the outcome-specific preconditions — and the
+ * FIRST failing check names the reason.
+ *
+ * `mergeCards` (2026-08-26): a merge needs `MERGE_INPUT_COUNT` owned cards
+ * sharing ONE non-Diamond tier AND a deliverable output — all four decisions
+ * live in `mergeCardsPlan`, and this gate is the SAME call the offer and the
+ * finalizer make, so an event can never advertise a trade it would then
+ * refuse (a player with three Diamonds and nothing else, or a bag with no
+ * room for anything at tier+1, sees this rung dark instead of spending three
+ * cards for a fallback coin). Its reason line reuses the resolver's own
+ * "no mergeable trio" wording (`mergeCardsOutcome`'s throw) — one vocabulary.
+ *
+ * Pure read, no Rng, ~30 characters worst case for catalog content — sized to
+ * one line of the choice panel's detail row on the mobile profile.
+ */
+export function choiceLockReason(state: RunState, choice: EventChoiceDef): string | null {
+  if (!isEventChoiceAffordable(state, choice)) return `needs ${choice.cost ?? 0} gold`;
+  if (choice.requires && !eventGateMet(state, choice.requires)) return gateLockReason(choice.requires);
+  if (choice.requiresTally && !eventTallyMet(state, choice.requiresTally)) return tallyLockReason(state, choice.requiresTally);
   const source = filterFromOf(choice.outcome);
   if (source !== undefined && resolveFilterFrom(state, currentEventNode(state) ?? null, source) === undefined) {
-    return false;
+    return filterFromLockReason(state, source);
   }
-  if (choice.outcome.kind === 'sellGem') return state.gemInventory.length > 0;
-  // `mergeCards` (2026-08-26): the second outcome-specific precondition, and the
-  // reason this function exists apart from `isEventChoiceAffordable`. A merge
-  // needs `MERGE_INPUT_COUNT` owned cards sharing ONE non-Diamond tier AND a
-  // deliverable output — all four decisions live in `mergeCardsPlan`, and this
-  // gate is the SAME call the offer and the finalizer make, so an event can
-  // never advertise a trade it would then refuse (a player with three Diamonds
-  // and nothing else, or a bag with no room for anything at tier+1, sees this
-  // rung dark instead of spending three cards for a fallback coin).
-  if (choice.outcome.kind === 'mergeCards') return mergeCardsPlan(state) !== null;
-  return true;
+  if (choice.outcome.kind === 'sellGem' && state.gemInventory.length === 0) return 'nothing in your pouch';
+  if (choice.outcome.kind === 'mergeCards' && mergeCardsPlan(state) === null) return 'no mergeable trio';
+  return null;
+}
+
+/**
+ * The ONE-LINE "your past choice" recap a chain-payoff event opens with —
+ * rendered by both event scenes INSIDE the existing body box, above the body
+ * (the box's own height budget absorbs it; the choice-block reservation math
+ * is untouched). `null` for anything that is not a chain payoff: an ungated
+ * event, or a gated one whose gate is somehow unmet (the priority draw never
+ * shows one, but a presenter never trusts that).
+ *
+ * An EVENT-gated payoff names the deed that opened it — the first choice, in
+ * the TARGET event's own authored order (stable catalog data, never ledger
+ * key order), that the gate accepts and the run resolved. A TALLY-gated
+ * payoff quotes the live counter through the same `tallyValue` read the gate
+ * predicate used. Pure read; no Rng; no save field.
+ */
+export function eventRecapLine(state: RunState, event: EventDef): string | null {
+  if (event.requires && eventGateMet(state, event.requires)) {
+    const target = eventCatalog[event.requires.eventId];
+    if (!target) return null;
+    for (const past of target.choices) {
+      if (event.requires.choiceIds && !event.requires.choiceIds.includes(past.id)) continue;
+      if (!eventGateMet(state, { eventId: target.id, choiceIds: [past.id] })) continue;
+      return `You chose "${strippedChoiceLabel(past.label)}" at ${target.title}.`;
+    }
+    return null;
+  }
+  if (event.requiresTally && eventTallyMet(state, event.requiresTally)) {
+    const stat = event.requiresTally.stat;
+    const value = tallyValue(state, stat);
+    const plural = (one: string, many: string): string => (value === 1 ? one : many);
+    switch (stat) {
+      case 'goldSpent': return `You have spent ${value} gold on this road.`;
+      case 'cardsBought': return `You have bought ${value} ${plural('card', 'cards')} on this road.`;
+      case 'gemsBought': return `You have bought ${value} ${plural('gem', 'gems')} on this road.`;
+      case 'livesLost': return `The road has taken ${value} of your lives.`;
+      case 'wins': return `You have won ${value} ${plural('fight', 'fights')} on this road.`;
+      case 'losses': return `You have lost ${value} ${plural('fight', 'fights')} on this road.`;
+      case 'bossesCleared': return `You have felled ${value} ${plural('boss', 'bosses')} on this road.`;
+    }
+  }
+  return null;
 }
 
 /** An event is eligible to be OFFERED at `state.gold` (and current inventory)

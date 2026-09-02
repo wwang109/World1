@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { EventChoiceDef, EventDef } from '../../data/events';
 import type { DraftCard } from '../../run/draft';
-import { isEventChoiceUsable, type EventOutcome, type MergeCardsReceipt, type SellGemOption, type UpgradeCardOption } from '../../run/events';
+import { choiceLockReason, derivedChoiceFamily, eventRecapLine, type EventOutcome, type MergeCardsReceipt, type SellGemOption, type UpgradeCardOption } from '../../run/events';
 import { DESKTOP_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, UI } from '../theme';
 import { renderRunChoicePanel, runChoicePanelMinHeight, type RunChoiceViewModel } from '../ui/RunChoicePanel';
@@ -207,7 +207,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
         },
       });
     } else {
-      const story = this.renderStory(event, event.choices.length);
+      const story = this.renderStory(run, event, event.choices.length);
       this.renderChoicePanel(run, event, story);
     }
     if (this.retireConfirmOpen) {
@@ -337,11 +337,20 @@ export class DesktopRunEventScene extends Phaser.Scene {
    * long body shrinks its own font (and truncates, as a last resort) rather
    * than ever pushing the choice rows off the bottom of the screen — proven
    * against every catalog event by `tests/game/runEventStoryLayout.test.ts`. */
-  private renderStory(event: EventDef, choiceCount: number): StoryLayout {
+  private renderStory(run: NonNullable<ReturnType<typeof getActiveRun>>, event: EventDef, choiceCount: number): StoryLayout {
     const { px, py, pw } = this.panelGeometry();
     const inset = 32;
     const innerX = px + inset;
     const innerW = pw - inset * 2;
+    // RUNG 2 (event chains): a chain payoff opens with ONE recap line naming
+    // the past this event pays off ("You have spent 14 gold on this road."),
+    // worded by the run layer (`eventRecapLine`) off `eventResolutions`/the
+    // tally counters. Prepended INSIDE the existing body box so the box's own
+    // audited budget absorbs it (a long body shrinks its font within
+    // `bodyMaxHeight` exactly as before) and the choice-block reservation math
+    // below stays untouched. `null` — the plain body — for every ungated event.
+    const recap = eventRecapLine(run, event);
+    const bodyCopy = recap ? `${recap}\n\n${event.body}` : event.body;
 
     // Reserve the choice block's own footprint FIRST — see the doc comment
     // above. `rowGap`/`runChoicePanelMinHeight(F)` here MUST stay
@@ -394,7 +403,7 @@ export class DesktopRunEventScene extends Phaser.Scene {
     const bodyMaxHeight = eventBodyMaxHeight(storyLimit, bodyBoxTop, bodyPad, 40);
     const bodyBox = this.add.rectangle(px, bodyBoxTop, pw, 10, UI.panel, 0.94).setOrigin(0, 0).setStrokeStyle(2, UI.chip, 0.7);
     const bodyRail = this.add.rectangle(px, bodyBoxTop, 6, 10, UI.chip, 0.92).setOrigin(0, 0);
-    const body = this.add.text(innerX, bodyBoxTop + bodyPad, event.body, {
+    const body = this.add.text(innerX, bodyBoxTop + bodyPad, bodyCopy, {
       fontFamily: FONT.body, fontSize: `${F.body}px`, color: UI.textDim, wordWrap: { width: innerW }, lineSpacing: 6,
     });
     auditTextBlock(body, { name: 'Run event body', maxWidth: innerW, maxHeight: bodyMaxHeight, minFontSize: 10 });
@@ -418,11 +427,14 @@ export class DesktopRunEventScene extends Phaser.Scene {
 
     event.choices.forEach((choice: EventChoiceDef, choiceIndex: number) => {
       const cost = choice.cost ?? 0;
-      // `isEventChoiceUsable` (not the bare `gold >= cost` this used to be) —
-      // a `sellGem` choice also needs SOMETHING in the pouch to sell (see
-      // that function's doc comment, src/run/events.ts); every other outcome
-      // kind still reduces to the plain cost check.
-      const affordable = isEventChoiceUsable(run, choice);
+      // `choiceLockReason` (not the bare `gold >= cost` this used to be) is
+      // the worded twin of `isEventChoiceUsable` and the ONE body both share
+      // (src/run/events.ts): `null` means usable, anything else is WHY the
+      // rung is dark — gold, an unmet chain gate, a tally bar, an
+      // unresolvable derived door, an empty pouch, no mergeable trio. The
+      // scene renders the reason; it never re-derives one.
+      const lockReason = choiceLockReason(run, choice);
+      const affordable = lockReason === null;
       const costLabel = cost > 0 ? `COST ${cost} GOLD` : 'FREE';
       // RESOLVED (`adoptRecordedResolution`): the rungs are still drawn, but as
       // the RECORD of a decision already made — every row locked (the shared
@@ -431,11 +443,24 @@ export class DesktopRunEventScene extends Phaser.Scene {
       // fresh-looking choice screen is the whole bug.
       const done = this.phase === 'resolved';
       const taken = done && choice.id === this.resolvedChoiceId;
+      // RUNG 3: a derived door (`filterFrom`) names its resolved family on the
+      // label — "Take the local make — FROST" — through the run layer's one
+      // derivation (`derivedChoiceFamily` wraps the exported
+      // `derivedChoiceFilter`; the scene never re-derives it). Skipped on a
+      // revisited/resolved node: the suffix reads CURRENT state (a board
+      // identity can drift after the pick), and a done row is a record of what
+      // was offered, not a live offer.
+      const family = done ? undefined : derivedChoiceFamily(run, choice);
       const model: RunChoiceViewModel = {
         nodeId: `event-${choice.id}`,
         kind: 'event',
-        title: choice.label,
-        detail: `${taken ? 'TAKEN' : 'REWARD'} · ${choiceOutcomeHint(choice.outcome)}`,
+        title: family !== undefined ? `${choice.label} — ${family}` : choice.label,
+        // RUNG 1: a LOCKED live rung spends its detail line on WHY; the reward
+        // hint returns the moment the rung lights. Done rows keep the record
+        // form (TAKEN / REWARD · what it was) untouched.
+        detail: !done && lockReason !== null
+          ? `LOCKED · ${lockReason}`
+          : `${taken ? 'TAKEN' : 'REWARD'} · ${choiceOutcomeHint(choice.outcome)}`,
         footer: done ? (taken ? 'ALREADY TAKEN' : 'NOT TAKEN') : costLabel,
         image: { textureKey: choiceArtKey(choice.outcome.kind) },
         accent: taken ? UI.good : UI.chip,
