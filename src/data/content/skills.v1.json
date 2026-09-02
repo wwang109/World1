@@ -27,7 +27,8 @@
   "Hybrid + depth pass (2026-08-18b): deepened ward/thorns/bleed/poison and authored keyword-pair bridges the user asked for by name (heal+thorns, shield+thorns) plus the heal -> ward -> thorns chain (sanctum_thorn, bramblemend, warded_reprisal, bulwark_thicket, unbreakable_stance, umbral_ward, thorn_shackle, mortal_wound, barbed_rampart, crippling_gore, poison_bloom, poison_ritual, evasive_cordon). See content-designer notes on each card for its balance derivation.",
   "Affinity reachability pass (2026-08-26): +7 gated cards outside offense (rustbind_hex, blooded_fang, hoarfrost_creed, pikewall_oath, sanctified_vigil, oathplate, graveside_rite). The keyword shipped 16 offense + 1 healing gated cards, so the Alchemist (debuff) and Bulwark (defensive/support) shelves offered one 0.0% of the time over 500 measured rolls. These add gated debuffStat / bleed / expose / guard / ward / attunedShield / cleanse \u2014 seven families the gate had never been attached to. See each card's notes for its budget derivation.",
   "Whole-PL-at-every-tier re-solve (2026-08-26): the whole-PL-parts invariant was only ever swept over BASE `effects`, so 11 cards shipped fractional parts above Bronze (barrage, chain_spark, concussive_shot, crushing_blow, overgrowth, penitent_mending, rapid_volley, shadow_bolt, sword_slash, twin_slash, vow_broken). Every tier of every card is now swept by tests/engine/balance.ts's whole-PL test, which also asserts budget exactness and output monotonicity per rank. See each card's notes for its re-solve.",
-  "Q2 positional pass + Q3 affinity-density pass (2026-08-26): +10 cards. Q2 \u2014 the board was a bag: 6 of 156 cards carried an `aura`, all six `support`, all six `adjacent` or `allBoard`, and NOTHING had ever used a direction (`left`/`right`) or a gap (`reach` > 1). Six new cards use them, on offense / defensive / debuff / healing / support, five of them at `reach: 2`. One-sided reach is the honest shape: `PRICE.auraDamageFlat` is derived as 5 x its 2-NEIGHBOUR coverage and `powerLevelDeci` never reads `reach`, so `left`/`right` at `reach: 2` covers exactly the two pieces the rate is calibrated for while `adjacent` at `reach: 2` would cover four at the same price \u2014 pinned by tests/engine/auraCoverage.test.ts. Q3 \u2014 measured per type over bronze-reachable gated cards: bow 1, then frost/lightning/dark/beast/nature/lance/axe 2, then fire/holy/sword 3, against enabler pools of 10 (bow, frost) to 22 (axe). Nine of the ten new cards carry a gated line, taking every type to at least 3 and holding the enabler floor; tests/run/affinityReachability.test.ts now asserts both halves. Plus `rimebarb_vigil`, the first thorns card whose stack count grows with rank \u2014 see its notes."
+  "Q2 positional pass + Q3 affinity-density pass (2026-08-26): +10 cards. Q2 \u2014 the board was a bag: 6 of 156 cards carried an `aura`, all six `support`, all six `adjacent` or `allBoard`, and NOTHING had ever used a direction (`left`/`right`) or a gap (`reach` > 1). Six new cards use them, on offense / defensive / debuff / healing / support, five of them at `reach: 2`. One-sided reach is the honest shape: `PRICE.auraDamageFlat` is derived as 5 x its 2-NEIGHBOUR coverage and `powerLevelDeci` never reads `reach`, so `left`/`right` at `reach: 2` covers exactly the two pieces the rate is calibrated for while `adjacent` at `reach: 2` would cover four at the same price \u2014 pinned by tests/engine/auraCoverage.test.ts. Q3 \u2014 measured per type over bronze-reachable gated cards: bow 1, then frost/lightning/dark/beast/nature/lance/axe 2, then fire/holy/sword 3, against enabler pools of 10 (bow, frost) to 22 (axe). Nine of the ten new cards carry a gated line, taking every type to at least 3 and holding the enabler floor; tests/run/affinityReachability.test.ts now asserts both halves. Plus `rimebarb_vigil`, the first thorns card whose stack count grows with rank \u2014 see its notes.",
+  "Support/debuff pass (2026-09-02, +8 cards): emberchant_rite, frostbind_litany, storm_tithe, writ_of_sanction, quiverwardens_call, standard_of_the_ninth, blightstep_dirge, ironmarch_tithe. Measured over the 166 cards before this pass, `support` had ZERO fire and ZERO frost entries, `buffStat` had only ever named attack and speed (armor/magicResist/magicPower never buffed, while armor is the most DEBUFFED stat in the game), every shipped aura carried exactly ONE mod, all 3 shipped `empowerNext` armers were affinity-gated (payoff only, never a builder), all 4 splash cards spread a SINGLE payload, and the tempo family (disrupt/slow/burden/curse/splash) had no affinity gate on any of its five keywords. These eight close those holes. Every tier of every card sums EXACTLY to TIER_BUDGET_DECI with zero cap violations; see each card's notes for the term-by-term derivation."
  ],
  "cards": [
   {
@@ -10204,6 +10205,1127 @@
        },
        "diamond": {
         "text": "{{Thorns}} 5 plus 3 three times \u2014 a 14-stack wall; attackers take the stack count as physical damage per hit (their DEF applies) \u00b7 Gain 64 (+MDEF) magical shield."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "emberchant_rite",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Emberchant Rite",
+      "text": "+30% MATK (2 turns) \u00b7 Passive: the two cards to its RIGHT deal +2 damage and are -1 weight (cast sooner).",
+      "notes": [
+       "THE FIRST FIRE SUPPORT CARD. Measured over the 166 shipped cards, the",
+       "`support` archetype has ZERO fire and ZERO frost entries (support is",
+       "holy 4 / dark 4 / lightning 3 / beast 2 / nature 1 / sword 1 / axe 1 /",
+       "lance 1 / bow 1). Fire's whole identity in the book is burn/DoT offense;",
+       "this is the first fire card that hands its power to the board instead.",
+       "THREE THINGS NO SHIPPED CARD DOES. (1) `buffStat` has only ever named",
+       "`attack` (4 uses) or `speed` (10 uses) \u2014 nothing in the game has ever",
+       "buffed magicPower, so a magical board has no way to raise its own MATK.",
+       "(2) Every shipped aura carries exactly ONE of damageFlat/healFlat/",
+       "weightDelta; this is the first aura with TWO mods, so the two pieces to",
+       "its right both hit harder and come round sooner. (3) It is the first",
+       "PURE support card (no damage line) to use a DIRECTIONAL aura \u2014 the five",
+       "left/right cards are all offense/defensive/healing hybrids.",
+       "WHY `right`, `reach: 2` AND NOT `adjacent`: PRICE.auraDamageFlat is",
+       "derived as 5 x its 2-NEIGHBOUR coverage, and powerLevelDeci never reads",
+       "`reach`, so one-sided reach 2 covers exactly the two pieces the rate is",
+       "calibrated for (the Q2 positional-pass rule, pinned by",
+       "tests/engine/auraCoverage.test.ts). `adjacent` at reach 2 would cover",
+       "four pieces at the same price.",
+       "THE AURA IS THE TIER SINK, DELIBERATELY. Both cast lines are `empower`",
+       "family, whose cap is FROZEN at 100 deci for a size-1 card at every tier",
+       "(EFFECT_CAPS_DECI.empower), so the buff can only climb to 100 and the",
+       "card would have nothing to spend Gold/Diamond on. Auras are exempt from",
+       "the caps (passive board identity, priced per reach), which is exactly",
+       "the room a capped support card needs \u2014 the same shape warlord_banner",
+       "uses in reverse.",
+       "PRICING, term by term (size 1 -> grant 0; weight and cooldown at",
+       "baseline -> 0):",
+       "  Bronze:  buffStat magicPower 30% x 2t = 30*2*1 = 60",
+       "         + aura (damageFlat 2 -> 2*10 = 20, weightDelta -1 -> 1*20 = 20)",
+       "           = 40, reach x1 (not allBoard)",
+       "         = 60 + 40 = 100 = Bronze exactly.",
+       "  Silver:  buffStat 40% x 2t = 80 + aura (3*10 + 2*20 = 30 + 40 = 70)",
+       "         = 150 = Silver exactly.",
+       "  Gold:    buffStat 50% x 2t = 100 + aura (4*10 + 3*20 = 40 + 60 = 100)",
+       "         = 200 = Gold exactly.",
+       "  Diamond: buffStat 50% x 2t = 100 + aura (5*10 + 5*20 = 50 + 100 = 150)",
+       "         = 250 = Diamond exactly.",
+       "CAP CHECK: empower spend 60 / 80 / 100 / 100 against the size-1 empower",
+       "ceiling of 100 at every tier \u2014 the Gold and Diamond copies sit exactly",
+       "ON the cap, never over it. No control, dot, damage, shield or heal line.",
+       "WHOLE-PL CHECK: every part is a multiple of 10 deci (60/40, 80/70,",
+       "100/100, 100/150).",
+       "NO-DOWNGRADE CHECK: alwaysOnOutputDeci counts EFFECTS only, so the",
+       "ladder it sees is 60 -> 80 -> 100 -> 100 \u2014 never falling. The aura",
+       "growth is on top of that and is not double-counted."
+      ],
+      "archetypes": [
+       "support"
+      ],
+      "property": "magical",
+      "element": "fire",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "buffStat",
+        "stat": "magicPower",
+        "pct": 30,
+        "turns": 2
+       }
+      ],
+      "aura": {
+       "affects": "right",
+       "reach": 2,
+       "mods": {
+        "damageFlat": 2,
+        "weightDelta": -1
+       }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "aura": {
+         "affects": "right",
+         "reach": 2,
+         "mods": {
+          "damageFlat": 3,
+          "weightDelta": -2
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "magicPower",
+          "pct": 40,
+          "turns": 2
+         }
+        ],
+        "text": "+40% MATK (2 turns) \u00b7 Passive: the two cards to its RIGHT deal +3 damage and are -2 weight (cast sooner)."
+       },
+       "gold": {
+        "aura": {
+         "affects": "right",
+         "reach": 2,
+         "mods": {
+          "damageFlat": 4,
+          "weightDelta": -3
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "magicPower",
+          "pct": 50,
+          "turns": 2
+         }
+        ],
+        "text": "+50% MATK (2 turns) \u00b7 Passive: the two cards to its RIGHT deal +4 damage and are -3 weight (cast sooner)."
+       },
+       "diamond": {
+        "aura": {
+         "affects": "right",
+         "reach": 2,
+         "mods": {
+          "damageFlat": 5,
+          "weightDelta": -5
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "magicPower",
+          "pct": 50,
+          "turns": 2
+         }
+        ],
+        "text": "+50% MATK (2 turns) \u00b7 Passive: the two cards to its RIGHT deal +5 damage and are -5 weight (cast sooner)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "frostbind_litany",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Frostbind Litany",
+      "text": "-15% enemy MATK and -10% enemy MDEF (2 turns) \u00b7 Remove up to 2 of your ailments.",
+      "notes": [
+       "THE FIRST CARD IN THE GAME TO DEBUFF TWO STATS AT ONCE. All 16 shipped",
+       "debuffStat cards carry exactly ONE stat line; the tally across the book",
+       "is armor 12 / attack 3 / speed 3 / magicResist 2 / magicPower 2, so the",
+       "two rarest stat lines in the game are the two this card pairs. Against a",
+       "caster enemy that is the whole answer at once: they hit softer AND",
+       "resist your magic worse.",
+       "ALSO THE FIRST FROST SUPPORT CARD \u2014 `support` has zero frost entries",
+       "across the 166 (see emberchant_rite's note for the full measurement),",
+       "and frost's 12 cards are 7 debuff / 3 defensive / rest offense.",
+       "`cleanse + debuffStat` is a new signature: cleanse ships on 6 cards",
+       "(purify, warding_prayer, purge_the_rot, graveside_rite, poison_ritual,",
+       "penitent_mending) and has never sat beside a stat debuff.",
+       "CLEANSE IS THE TIER SINK BECAUSE IT IS THE ONLY FAMILY THAT SCALES.",
+       "`control` (where debuffStat lives) is FROZEN at 100 deci for size 1 at",
+       "every tier, so the two debuff lines top out at Silver and cannot absorb",
+       "Gold or Diamond. `cleanse` is the single named carve-out in",
+       "TIER_SCALED_FAMILIES (user-locked 2026-08-17): its cap is",
+       "floor(100 * TIER_BUDGET_DECI / 100) = 100 / 150 / 200 / 250, so a bigger",
+       "budget legally buys more self-repair. Same structural trick",
+       "poison_ritual uses, on the opposite half of the card.",
+       "PRICING, term by term (size 1 -> grant 0; weight/cooldown baseline -> 0):",
+       "  Bronze:  debuffStat magicPower 15% x 2t = 15*2*1 = 30",
+       "         + debuffStat magicResist 10% x 2t = 10*2*1 = 20",
+       "         + cleanse 2 charges = 2*25 = 50",
+       "         = 30 + 20 + 50 = 100 = Bronze exactly.",
+       "  Silver:  25*2 = 50 + 25*2 = 50 + cleanse 2 (50) = 150 = Silver exactly.",
+       "  Gold:    50 + 50 + cleanse 4 (4*25 = 100) = 200 = Gold exactly.",
+       "  Diamond: 50 + 50 + cleanse 6 (6*25 = 150) = 250 = Diamond exactly.",
+       "CAP CHECK: control spend 50 / 100 / 100 / 100 against the frozen size-1",
+       "control ceiling of 100 (Silver onward sits exactly on it). Cleanse spend",
+       "50 / 50 / 100 / 150 against its OWN tier-scaled ceiling 100 / 150 / 200",
+       "/ 250 \u2014 clear at every rank.",
+       "WHOLE-PL CHECK: 30 / 20 / 50, then 50 / 50 / 50, 50 / 50 / 100,",
+       "50 / 50 / 150 \u2014 every part a multiple of 10 deci. Charge counts are",
+       "EVEN on purpose: cleansePerCharge is 25, so an odd count would price a",
+       "fractional 2.5 PL part.",
+       "NO-DOWNGRADE CHECK: effect price 100 -> 150 -> 200 -> 250, and no",
+       "individual line ever shrinks (MATK 15 -> 25 -> 25 -> 25, MDEF 10 -> 25",
+       "-> 25 -> 25, cleanse 2 -> 2 -> 4 -> 6).",
+       "ARCHETYPES: support AND debuff from Bronze \u2014 the cleanse half is on the",
+       "Bronze copy, so the `support` tag is not a promise the base card cannot",
+       "keep (the shape poison_ritual established)."
+      ],
+      "archetypes": [
+       "support",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "debuffStat",
+        "stat": "magicPower",
+        "pct": 15,
+        "turns": 2
+       },
+       {
+        "kind": "debuffStat",
+        "stat": "magicResist",
+        "pct": 10,
+        "turns": 2
+       },
+       {
+        "kind": "cleanse",
+        "charges": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "magicPower",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "magicResist",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "cleanse",
+          "charges": 2
+         }
+        ],
+        "text": "-25% enemy MATK and -25% enemy MDEF (2 turns) \u00b7 Remove up to 2 of your ailments."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "magicPower",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "magicResist",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "cleanse",
+          "charges": 4
+         }
+        ],
+        "text": "-25% enemy MATK and -25% enemy MDEF (2 turns) \u00b7 Remove up to 4 of your ailments."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "debuffStat",
+          "stat": "magicPower",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "debuffStat",
+          "stat": "magicResist",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "cleanse",
+          "charges": 6
+         }
+        ],
+        "text": "-25% enemy MATK and -25% enemy MDEF (2 turns) \u00b7 Remove up to 6 of your ailments."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "storm_tithe",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Storm Tithe",
+      "text": "{{Disrupt}} 6 banked readiness \u00b7 {{Slow}} the enemy's next action by +8 weight \u00b7 +20% SPD (2 turns).",
+      "notes": [
+       "THE TEMPO THIEF \u2014 the only card in the game that denies tempo on BOTH",
+       "axes and hands the difference to the caster. `disrupt` ships on 3 cards",
+       "(concussive_shot, overcharge, static_jolt) and `slow` on 4",
+       "(chain_spark, frost_shackle, hamstring, line_breaker); ALL SEVEN carry a",
+       "damage line, and the two keywords have never appeared on the same card.",
+       "This one lands both with no hit at all until Diamond, so what it takes",
+       "is time, not HP: `disrupt` drains banked readiness that is already in",
+       "the bank, `slow` taxes the weight of the action they were about to pay",
+       "for, and the SPD buff spends the gap on your side of the initiative",
+       "order.",
+       "`buffStat + disrupt + slow` is a new signature. It is also only the",
+       "second card to pair a foe-side control line with a self-side empower",
+       "line at Bronze without a hit between them.",
+       "WHY THE DIAMOND LINE IS A HIT. Both halves are capped and FROZEN at",
+       "size 1: control 100 deci (disrupt + slow) and empower 100 deci",
+       "(buffStat), so Gold already spends 200 of the 200 available and Diamond",
+       "has 50 deci that cannot legally go into either half. A small Lightning",
+       "jolt is the honest sink and it reads as the capstone the card earns.",
+       "PRICING, term by term (size 1 -> grant 0; weight/cooldown baseline -> 0).",
+       "disrupt is BRACKETED and MARGINAL (points 1-5 at 5 deci, 6-10 at 15):",
+       "  disrupt 6 = 5*5 + 1*15 = 25 + 15 = 40",
+       "  disrupt 8 = 5*5 + 3*15 = 25 + 45 = 70",
+       "  Bronze:  disrupt 6 (40) + slow 8 (floor(8*5/2) = 20)",
+       "         + buffStat speed 20% x 2t (20*2*1 = 40)",
+       "         = 40 + 20 + 40 = 100 = Bronze exactly.",
+       "  Silver:  disrupt 8 (70) + slow 8 (20) + buffStat 30% x 2t (60)",
+       "         = 150 = Silver exactly.",
+       "  Gold:    disrupt 8 (70) + slow 12 (floor(12*5/2) = 30)",
+       "         + buffStat 50% x 2t (100) = 200 = Gold exactly.",
+       "  Diamond: damage 10 (10*5 = 50) + disrupt 8 (70) + slow 12 (30)",
+       "         + buffStat 50% x 2t (100) = 250 = Diamond exactly.",
+       "CAP CHECK: control (disrupt + slow) 60 / 90 / 100 / 100 against the",
+       "frozen size-1 ceiling of 100; empower (buffStat) 40 / 60 / 100 / 100",
+       "against its own 100; damage 50 at Diamond against the size-1 damage",
+       "ceiling of 300. Nothing over.",
+       "WHOLE-PL CHECK: every slow weight is a multiple of 4 (slowPerWeight is",
+       "5/2, so 8 -> 20 and 12 -> 30 are whole PL; 10 would price 2.5 PL), every",
+       "disrupt amount lands on a clean bracket total (6 -> 40, 8 -> 70), every",
+       "pct x turns product is a multiple of 10, and damage 10 is even.",
+       "NO-DOWNGRADE CHECK: 100 -> 150 -> 200 -> 250 on unconditional effects,",
+       "and no line ever shrinks (disrupt 6 -> 8 -> 8 -> 8, slow 8 -> 8 -> 12 ->",
+       "12, SPD 20 -> 30 -> 50 -> 50)."
+      ],
+      "archetypes": [
+       "support",
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "lightning",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "disrupt",
+        "amount": 6
+       },
+       {
+        "kind": "slow",
+        "weight": 8
+       },
+       {
+        "kind": "buffStat",
+        "stat": "speed",
+        "pct": 20,
+        "turns": 2
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "disrupt",
+          "amount": 8
+         },
+         {
+          "kind": "slow",
+          "weight": 8
+         },
+         {
+          "kind": "buffStat",
+          "stat": "speed",
+          "pct": 30,
+          "turns": 2
+         }
+        ],
+        "text": "{{Disrupt}} 8 banked readiness \u00b7 {{Slow}} the enemy's next action by +8 weight \u00b7 +30% SPD (2 turns)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "disrupt",
+          "amount": 8
+         },
+         {
+          "kind": "slow",
+          "weight": 12
+         },
+         {
+          "kind": "buffStat",
+          "stat": "speed",
+          "pct": 50,
+          "turns": 2
+         }
+        ],
+        "text": "{{Disrupt}} 8 banked readiness \u00b7 {{Slow}} the enemy's next action by +12 weight \u00b7 +50% SPD (2 turns)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 10
+         },
+         {
+          "kind": "disrupt",
+          "amount": 8
+         },
+         {
+          "kind": "slow",
+          "weight": 12
+         },
+         {
+          "kind": "buffStat",
+          "stat": "speed",
+          "pct": 50,
+          "turns": 2
+         }
+        ],
+        "text": "Deal 10 (+MATK) Lightning damage \u00b7 {{Disrupt}} 8 banked readiness \u00b7 {{Slow}} the enemy's next action by +12 weight \u00b7 +50% SPD (2 turns)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "writ_of_sanction",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Writ of Sanction",
+      "text": "{{Curse}} the card the enemy is about to play deals 12 less damage for 2 turns \u00b7 {{Burden}} +8 weight on it \u00b7 {{Splash}} \u2014 and on the cards either side of it.",
+      "notes": [
+       "THE FIRST CARD TO SPREAD BOTH CARD-SCOPE TAXES AT ONCE. There are four",
+       "splash cards in the book and every one of them spreads a SINGLE payload:",
+       "shockwave_slam and arc_cascade spread a burden, line_breaker spreads a",
+       "burden (its slow is unit-scope and does not ride the spreader),",
+       "sapping_arc spreads a curse. CARD_TARGETING_KINDS is exactly",
+       "{ burden, curse } and this is the first cast to carry both, so one",
+       "spreader widens the weight tax and the damage denial together across",
+       "the whole band \u2014 up to three of the victim's pieces come back both",
+       "slower and softer.",
+       "IT IS ALSO THE BOOK'S SECOND HOLY DEBUFF CARD. Measured over the 166:",
+       "debuff is axe 13 / frost 7 / lance 6 / dark 5 / beast 5 / nature 4 /",
+       "lightning 3 / bow 3 / sword 3 / fire 1 / HOLY 1 (judgment_light, which",
+       "is offense-first). Holy is the book's judgement/censure element and had",
+       "no pure debuff at all; a writ that binds a weapon rather than smiting",
+       "it is exactly that flavour.",
+       "AND IT HAS NO HIT AT BRONZE. The Bronze copy is 100% control \u2014 the",
+       "entire size-1 control budget spent on denial, with nothing recouped in",
+       "damage. Cast it BEFORE your attackers, not with them.",
+       "PRICING, term by term (size 1 -> grant 0; weight/cooldown baseline -> 0).",
+       "curse is TWO summed terms \u2014 the first denial at 5/2 per point and the",
+       "repeats at 5/4 per point-turn (cursePerAmountTurnDen = BASELINE_COOLDOWN",
+       "+ 1 = 4):",
+       "  curse 12 for 2t = floor(12*5/2) + floor(12*2*5/4) = 30 + 30 = 60",
+       "  burden 8        = floor(8*5/2) = 20",
+       "  splash          = 20 flat (splashFlatDeci; standalone, payload-blind,",
+       "                    never a multiplier on what it spreads)",
+       "  Bronze:  60 + 20 + 20 = 100 = Bronze exactly.",
+       "  Silver:  damage 10 (50) + 60 + 20 + 20 = 150 = Silver exactly.",
+       "  Gold:    damage 20 (100) + 60 + 20 + 20 = 200 = Gold exactly.",
+       "  Diamond: damage 30 (150) + 60 + 20 + 20 = 250 = Diamond exactly.",
+       "CAP CHECK: control spend is curse 60 + burden 20 + splash 20 = 100 at",
+       "EVERY tier, sitting exactly on the frozen size-1 control ceiling of 100",
+       "\u2014 which is why the tax numbers never move and the tier budget goes into",
+       "the hit instead. Damage 0 / 50 / 100 / 150 against the size-1 damage",
+       "ceiling of 300.",
+       "WHOLE-PL CHECK: burden weight is a multiple of 4 (burdenPerWeight 5/2),",
+       "the curse pair lands on 60 because amount 12 makes BOTH floors exact,",
+       "splash is a whole 2 PL by construction, and every damage power is even.",
+       "AUTHORING-RULE CHECK: the splash has something to spread at every tier",
+       "(rejectSpreaderWithNothingToSpread), scope is left at the default `one`",
+       "so the AoE+splash refusal never applies, and there is no conditional",
+       "rider so the ordering rule is inert.",
+       "NO-DOWNGRADE CHECK: 100 -> 150 -> 200 -> 250, no line ever shrinks."
+      ],
+      "archetypes": [
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "curse",
+        "amount": 12,
+        "turns": 2
+       },
+       {
+        "kind": "burden",
+        "weight": 8
+       },
+       {
+        "kind": "splash"
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 10
+         },
+         {
+          "kind": "curse",
+          "amount": 12,
+          "turns": 2
+         },
+         {
+          "kind": "burden",
+          "weight": 8
+         },
+         {
+          "kind": "splash"
+         }
+        ],
+        "text": "Deal 10 (+MATK) Holy damage \u00b7 {{Curse}} the card the enemy is about to play deals 12 less damage for 2 turns \u00b7 {{Burden}} +8 weight on it \u00b7 {{Splash}} \u2014 and on the cards either side of it."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 20
+         },
+         {
+          "kind": "curse",
+          "amount": 12,
+          "turns": 2
+         },
+         {
+          "kind": "burden",
+          "weight": 8
+         },
+         {
+          "kind": "splash"
+         }
+        ],
+        "text": "Deal 20 (+MATK) Holy damage \u00b7 {{Curse}} the card the enemy is about to play deals 12 less damage for 2 turns \u00b7 {{Burden}} +8 weight on it \u00b7 {{Splash}} \u2014 and on the cards either side of it."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 30
+         },
+         {
+          "kind": "curse",
+          "amount": 12,
+          "turns": 2
+         },
+         {
+          "kind": "burden",
+          "weight": 8
+         },
+         {
+          "kind": "splash"
+         }
+        ],
+        "text": "Deal 30 (+MATK) Holy damage \u00b7 {{Curse}} the card the enemy is about to play deals 12 less damage for 2 turns \u00b7 {{Burden}} +8 weight on it \u00b7 {{Splash}} \u2014 and on the cards either side of it."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "quiverwardens_call",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Quiverwarden's Call",
+      "text": "{{Charge}} Bow \u2014 your next Bow card deals +16 damage \u00b7 Passive: the two cards to its RIGHT deal +2 damage.",
+      "notes": [
+       "THE FIRST UNGATED `empowerNext` IN THE GAME. All three shipped armers \u2014",
+       "kindling_rite, whetstone_vow, thunderhead \u2014 carry `affinity: true` on",
+       "the empowerNext line, so the forward charge only exists on a board that",
+       "has ALREADY reached its type identity. That makes the keyword a payoff",
+       "and never a builder. This card pays the FULL rate",
+       "(empowerNext = flatPowerPerPoint, 5 deci/pt) instead of the halved",
+       "affinity price, and in exchange the charge stands on any board from the",
+       "first cast \u2014 which is the point: `empowerNext` arms the caster's next",
+       "cast OF THIS CARD'S OWN TYPE (`cardType(skill)` in the interpreter's",
+       "empowerNext arm), so an ungated armer is a card that PAYS you for",
+       "running more Bow, one card at a time, instead of demanding three of them",
+       "up front. It is the on-ramp to a Bow identity rather than its reward.",
+       "It is also the first card to combine `empowerNext` with an aura",
+       "(signature `empowerNext | aura` does not exist in the book), and the",
+       "second bow support card in a pool of one (spotter's_mark).",
+       "THE CHARGE DOES NOT STACK AND IS NOT LOST. The interpreter keeps the",
+       "STRONGEST standing charge (`standing.amount >= action.amount` breaks",
+       "early) and it is only spent by a matching-type cast, so the 16 points",
+       "sit there until a Bow card actually fires \u2014 which is why the rate is the",
+       "undiscounted one and not comboBonus's uptime-halved 2.5/pt.",
+       "PRICING, term by term (size 1 -> grant 0; weight/cooldown baseline -> 0):",
+       "  Bronze:  empowerNext 16 = 16*5 = 80",
+       "         + aura damageFlat 2, right, reach 2 = 2*10 = 20 (reach x1)",
+       "         = 100 = Bronze exactly.",
+       "  Silver:  empowerNext 20 (100) + aura damageFlat 5 (50) = 150 = Silver.",
+       "  Gold:    empowerNext 20 (100) + aura damageFlat 10 (100) = 200 = Gold.",
+       "  Diamond: empowerNext 20 (100) + aura damageFlat 15 (150) = 250 = Diamond.",
+       "WHY THE AURA CARRIES THE LADDER: empowerNext is `empower` family, frozen",
+       "at 100 deci for a size-1 card at every tier, so 20 points is the most",
+       "the charge can ever be worth. Auras are cap-exempt, so the Gold and",
+       "Diamond budget goes into the two pieces on the right \u2014 the same",
+       "cap-relief the fire support card uses, and the reason `war_banner`'s",
+       "+10 adjacent (100 deci) is the calibration point for +15 at 150.",
+       "CAP CHECK: empower spend 80 / 100 / 100 / 100 against the frozen size-1",
+       "empower ceiling of 100. No control, dot, damage, shield or heal line.",
+       "WHOLE-PL CHECK: empowerNext amounts are EVEN (5 deci/pt), aura",
+       "damageFlat is priced at a whole 10 deci per point \u2014 every part is a",
+       "multiple of 10 deci.",
+       "NO-DOWNGRADE CHECK: effects-only 80 -> 100 -> 100 -> 100, never falling,",
+       "and the aura climbs 2 -> 5 -> 10 -> 15 on top."
+      ],
+      "archetypes": [
+       "support"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "empowerNext",
+        "amount": 16
+       }
+      ],
+      "aura": {
+       "affects": "right",
+       "reach": 2,
+       "mods": {
+        "damageFlat": 2
+       }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "aura": {
+         "affects": "right",
+         "reach": 2,
+         "mods": {
+          "damageFlat": 5
+         }
+        },
+        "effects": [
+         {
+          "kind": "empowerNext",
+          "amount": 20
+         }
+        ],
+        "text": "{{Charge}} Bow \u2014 your next Bow card deals +20 damage \u00b7 Passive: the two cards to its RIGHT deal +5 damage."
+       },
+       "gold": {
+        "aura": {
+         "affects": "right",
+         "reach": 2,
+         "mods": {
+          "damageFlat": 10
+         }
+        },
+        "effects": [
+         {
+          "kind": "empowerNext",
+          "amount": 20
+         }
+        ],
+        "text": "{{Charge}} Bow \u2014 your next Bow card deals +20 damage \u00b7 Passive: the two cards to its RIGHT deal +10 damage."
+       },
+       "diamond": {
+        "aura": {
+         "affects": "right",
+         "reach": 2,
+         "mods": {
+          "damageFlat": 15
+         }
+        },
+        "effects": [
+         {
+          "kind": "empowerNext",
+          "amount": 20
+         }
+        ],
+        "text": "{{Charge}} Bow \u2014 your next Bow card deals +20 damage \u00b7 Passive: the two cards to its RIGHT deal +15 damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "standard_of_the_ninth",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Standard of the Ninth",
+      "text": "+30% ATK and +30% DEF (2 turns) \u00b7 Passive: ALL board cards deal +6 damage.",
+      "notes": [
+       "THE FIRST CARD TO BUFF A DEFENSIVE STAT. `buffStat` has 14 uses across",
+       "the book and names exactly two stats \u2014 attack (4) and speed (10). Armor,",
+       "magicResist and magicPower have never been buffed by anything, while",
+       "armor is the single most DEBUFFED stat in the game (12 of 16 debuffStat",
+       "uses). This is the answer to that whole lane: the one card that puts DEF",
+       "back up while the enemy's armor_break / hex_of_frailty / umbral_ward /",
+       "mind_frost shelf is trying to take it away.",
+       "IT IS ALSO THE BOOK'S FIRST SIZE-2 PURE SUPPORT CARD (17 of the 18",
+       "support cards are size 1 and the eighteenth is an offense hybrid), and",
+       "the first EPIC support card (all 18 shipped support cards are `rare`) \u2014",
+       "two distribution holes closed by one entry. A second `allBoard` aura",
+       "joins warlord_banner, the only one in the game.",
+       "TWO SLOTS IS THE POINT, NOT A COST. A size-2 card busies its caster an",
+       "extra turn after firing, so a banner that fires rarely and leaves a",
+       "board-wide passive standing between casts is the honest shape for the",
+       "grant it collects.",
+       "PRICING, term by term (size 2 -> sizeGrantDeci 140 / 170 / 210 / 240;",
+       "weight left at the size baseline of 20 -> weight part 0; cooldown",
+       "baseline -> 0). An `allBoard` aura is priced at reach x2:",
+       "  Bronze:  buffStat attack 30% x 2t (60) + buffStat armor 30% x 2t (60)",
+       "         + aura damageFlat 6 allBoard (6*10*2 = 120)",
+       "         = 240; 240 - 140 (size-2 grant) = 100 = Bronze exactly.",
+       "  Silver:  attack 40% x 2t (80) + armor 30% x 2t (60)",
+       "         + aura damageFlat 9 (9*10*2 = 180) = 320; 320 - 170 = 150.",
+       "  Gold:    attack 40% x 2t (80) + armor 35% x 2t (70)",
+       "         + aura damageFlat 13 (13*10*2 = 260) = 410; 410 - 210 = 200.",
+       "  Diamond: attack 40% x 2t (80) + armor 35% x 2t (70)",
+       "         + aura damageFlat 17 (17*10*2 = 340) = 490; 490 - 240 = 250.",
+       "CAP CHECK: empower spend (the two buffs) 120 / 140 / 150 / 150 against",
+       "the size-2 empower ceiling of 150 \u2014 Gold and Diamond sit exactly on it,",
+       "which is why both buff lines freeze there and the aura carries the rest.",
+       "Auras are cap-exempt (passive board identity, priced per reach).",
+       "WHOLE-PL CHECK: each pct x turns product is a multiple of 10, and an",
+       "allBoard damageFlat point costs a flat 20 deci, so every part lands on a",
+       "whole PL. The size grant itself is floored to whole PL by sizeGrantDeci.",
+       "NO-DOWNGRADE CHECK: effects-only 120 -> 140 -> 150 -> 150 (never",
+       "falling), and no printed number ever shrinks: ATK 30 -> 40 -> 40 -> 40,",
+       "DEF 30 -> 30 -> 35 -> 35, aura 6 -> 9 -> 13 -> 17."
+      ],
+      "archetypes": [
+       "support"
+      ],
+      "property": "physical",
+      "weapon": "sword",
+      "size": 2,
+      "rarity": "epic",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "buffStat",
+        "stat": "attack",
+        "pct": 30,
+        "turns": 2
+       },
+       {
+        "kind": "buffStat",
+        "stat": "armor",
+        "pct": 30,
+        "turns": 2
+       }
+      ],
+      "aura": {
+       "affects": "allBoard",
+       "mods": {
+        "damageFlat": 6
+       }
+      },
+      "tierUpgrades": {
+       "silver": {
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "damageFlat": 9
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "attack",
+          "pct": 40,
+          "turns": 2
+         },
+         {
+          "kind": "buffStat",
+          "stat": "armor",
+          "pct": 30,
+          "turns": 2
+         }
+        ],
+        "text": "+40% ATK and +30% DEF (2 turns) \u00b7 Passive: ALL board cards deal +9 damage."
+       },
+       "gold": {
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "damageFlat": 13
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "attack",
+          "pct": 40,
+          "turns": 2
+         },
+         {
+          "kind": "buffStat",
+          "stat": "armor",
+          "pct": 35,
+          "turns": 2
+         }
+        ],
+        "text": "+40% ATK and +35% DEF (2 turns) \u00b7 Passive: ALL board cards deal +13 damage."
+       },
+       "diamond": {
+        "aura": {
+         "affects": "allBoard",
+         "mods": {
+          "damageFlat": 17
+         }
+        },
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "attack",
+          "pct": 40,
+          "turns": 2
+         },
+         {
+          "kind": "buffStat",
+          "stat": "armor",
+          "pct": 35,
+          "turns": 2
+         }
+        ],
+        "text": "+40% ATK and +35% DEF (2 turns) \u00b7 Passive: ALL board cards deal +17 damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "blightstep_dirge",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Blightstep Dirge",
+      "text": "{{Slow}} the enemy's next action by +8 weight \u00b7 {{Poison}} 8 (poison bypasses shields).",
+      "notes": [
+       "THE FIRST DoT + CONTROL CARD WITH NO HIT. Nine poison cards ship and",
+       "none of them slows; four slow cards ship and every one of them is a",
+       "damage card. `poison + slow` is a new signature and a genuinely",
+       "different clock: the venom is already ticking while the victim is being",
+       "made too heavy to answer it, so every weight point the slow costs them",
+       "is another tick they eat before they can act.",
+       "THE ONLY COMMON-RARITY CARD IN THIS SET, on purpose. Debuff has 6",
+       "commons against 41 rares; a cheap early-shop control card is what the",
+       "archetype's low end is missing.",
+       "THE DoT IS THE TIER SINK. `control` (slow) is frozen at 100 deci for",
+       "size 1, but the `dot` family cap is 200 deci at size 1 \u2014 twice control's",
+       "\u2014 so poison is what a rank-up actually buys. The Diamond copy sits",
+       "EXACTLY on the DoT ceiling (200 deci = 20 stacks), which is why the last",
+       "rung's extra 10 deci goes into the slow instead.",
+       "PRICING, term by term (size 1 -> grant 0; weight/cooldown baseline -> 0).",
+       "DoTs are LINEAR per authored stack (dotPerStack 10), never priced on the",
+       "total the decay curve delivers:",
+       "  Bronze:  slow 8 (floor(8*5/2) = 20) + poison 8 (8*10 = 80)",
+       "         = 100 = Bronze exactly.",
+       "  Silver:  slow 12 (30) + poison 12 (120) = 150 = Silver exactly.",
+       "  Gold:    slow 16 (40) + poison 16 (160) = 200 = Gold exactly.",
+       "  Diamond: slow 20 (50) + poison 20 (200) = 250 = Diamond exactly.",
+       "CAP CHECK: control 20 / 30 / 40 / 50 against the size-1 ceiling of 100;",
+       "dot 80 / 120 / 160 / 200 against the size-1 ceiling of 200 \u2014 Diamond",
+       "sits exactly on it. Poison 20 matches the highest stack count already",
+       "shipped (poison 20), so this is not an out-of-band magnitude.",
+       "WHOLE-PL CHECK: every slow weight is a multiple of 4 (slowPerWeight",
+       "5/2), and every stack count prices at a whole 10 deci by construction.",
+       "NO-DOWNGRADE CHECK: 100 -> 150 -> 200 -> 250, slow 8 -> 12 -> 16 -> 20,",
+       "poison 8 -> 12 -> 16 -> 20 \u2014 nothing shrinks.",
+       "NO STAT TOKEN in the text on purpose: the card has no damage, shield or",
+       "heal action, so it has no scaling term to advertise."
+      ],
+      "archetypes": [
+       "debuff"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "slow",
+        "weight": 8
+       },
+       {
+        "kind": "poison",
+        "stacks": 8
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "slow",
+          "weight": 12
+         },
+         {
+          "kind": "poison",
+          "stacks": 12
+         }
+        ],
+        "text": "{{Slow}} the enemy's next action by +12 weight \u00b7 {{Poison}} 12 (poison bypasses shields)."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "slow",
+          "weight": 16
+         },
+         {
+          "kind": "poison",
+          "stacks": 16
+         }
+        ],
+        "text": "{{Slow}} the enemy's next action by +16 weight \u00b7 {{Poison}} 16 (poison bypasses shields)."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "slow",
+          "weight": 20
+         },
+         {
+          "kind": "poison",
+          "stacks": 20
+         }
+        ],
+        "text": "{{Slow}} the enemy's next action by +20 weight \u00b7 {{Poison}} 20 (poison bypasses shields)."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "ironmarch_tithe",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Ironmarch Tithe",
+      "text": "Deal 14 (+ATK) Lance damage \u00b7 {{Burden}} +8 weight on the card the enemy is about to play \u00b7 {{Affinity}} Lance \u2014 {{Disrupt}} 4 banked readiness.",
+      "notes": [
+       "THE FIRST AFFINITY GATE ON THE TEMPO FAMILY. Affinity ships on 38 cards",
+       "and has been attached to 14 keywords \u2014 damage, empowerNext, burn, stun,",
+       "heal, debuffStat, bleed, expose, guard, ward, attunedShield, cleanse,",
+       "buffStat, poison \u2014 but NEVER to disrupt, slow, burden, curse or splash.",
+       "So the whole readiness/weight lane has no board-committed payoff at all.",
+       "This is it: a Lance board that has actually reached its identity taxes",
+       "the bank as well as the card.",
+       "`burden + disrupt` is also a new pairing \u2014 the two denials sit on",
+       "different clocks (a burden rides one of the victim's PIECES until that",
+       "piece is next played and can never expire unpaid; a disrupt drains",
+       "banked readiness that was about to be spent this turn), so a board",
+       "running both taxes the same enemy twice with no overlap.",
+       "THE GATED DISRUPT IS FROZEN AT 4 ON EVERY RANK \u2014 the family rule",
+       "(`autoScaleTier`, GATED SINKS ARE FROZEN; enforced by",
+       "tests/engine/affinityTier.test.ts): a gated payload is what the card",
+       "PROMISES its board and does not move with rank; the UNGATED half",
+       "absorbs the whole tier delta. All 38 shipped affinity cards read that",
+       "way \u2014 base grows, payload constant \u2014 and this card now does too (an",
+       "earlier draft ranked the gated disrupt 4 -> 6 -> 6 -> 10, which the",
+       "freeze audit rejects: `gated disrupt 4 -> 6` at silver). Rank-ups",
+       "therefore buy a bigger unconditional hit and a heavier burden, never a",
+       "bigger payoff; the payoff's value at rank is that the SAME 4-point",
+       "drain rides a card you now cast into bigger fights, every cast, on any",
+       "board that holds three Lance.",
+       "WHY THE GATE IS ON THE DISRUPT AND NOT THE DAMAGE. `disrupt` is priced",
+       "on an ESCALATING bracket precisely because banked-readiness drain has",
+       "no counterplay window, so it is the most expensive thing per point this",
+       "card could carry; the gate's half-price refund is what lets the card",
+       "afford a real drain beside a real hit at Bronze. The hit and the burden",
+       "stay unconditional, so an off-type board still gets a complete card \u2014",
+       "the no-downgrade property the affinity ladder needs.",
+       "PRICING, term by term (size 1 -> grant 0; weight/cooldown baseline ->",
+       "0). disrupt 4 = 4 x 5 deci (all four points in the 1-5 bracket) = 20",
+       "raw; the affinity refund is floor(price / 2) (affinityPayoffNum/Den =",
+       "1/2), so the gated line costs floor(20/2) = 10 deci \u2014 AT EVERY TIER,",
+       "because the frozen amount never moves:",
+       "  Bronze:  damage 14 (14*5 = 70) + burden 8 (floor(8*5/2) = 20)",
+       "         + disrupt 4 gated (10) = 100 = Bronze exactly.",
+       "  Silver:  damage 24 (120) + burden 8 (20) + disrupt 4 gated (10)",
+       "         = 150 = Silver exactly.",
+       "  Gold:    damage 32 (160) + burden 12 (30) + disrupt 4 gated (10)",
+       "         = 200 = Gold exactly.",
+       "  Diamond: damage 42 (210) + burden 12 (30) + disrupt 4 gated (10)",
+       "         = 250 = Diamond exactly.",
+       "CAP CHECK: control (burden + the gated disrupt, priced AFTER the",
+       "refund exactly as capViolations prices it) 30 / 30 / 40 / 40 against",
+       "the frozen size-1 control ceiling of 100. Damage 70 / 120 / 160 / 210",
+       "against the size-1 damage ceiling of 300. One hit kind only, so no",
+       "multi-hit premium.",
+       "WHOLE-PL CHECK: damage powers are even (5 deci/pt -> 70/120/160/210),",
+       "burden weights are multiples of 4 (burdenPerWeight 5/2 -> 20/30), and",
+       "the gated disrupt part is a whole PL (10 deci) by the same choice that",
+       "froze it at 4 \u2014 a raw bracket total of 20 halves cleanly.",
+       "FREEZE-AUDIT CHECK (tests/engine/affinityTier.test.ts, mirrored by",
+       "hand): the gated action keeps its kind, its affinity flag and its",
+       "BRONZE magnitude (4) at silver/gold/diamond, at the same effects index",
+       "(2) \u2014 the audit compares ranked.effects[i] against card.effects[i] by",
+       "index, which is why every tierUpgrades block restates the list in the",
+       "same damage/burden/disrupt order. Ungated lines never shrink (damage",
+       "14 -> 24 -> 32 -> 42, burden 8 -> 8 -> 12 -> 12) and at least one",
+       "grows at every rank, so the family's ladder-climb non-vacuity is fed,",
+       "not just not-broken.",
+       "NO-DOWNGRADE CHECK: guaranteedPowerLevelDeci (the kit with the gated",
+       "line stripped) is 90 -> 140 -> 190 -> 240, climbing at every rank \u2014",
+       "an off-type board's copy gets strictly better with every purchase, so",
+       "this is not one of the deliberate Diamond capstone trades and needs no",
+       "allowlist entry."
+      ],
+      "archetypes": [
+       "offense",
+       "debuff"
+      ],
+      "property": "physical",
+      "weapon": "lance",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "damage",
+        "power": 14
+       },
+       {
+        "kind": "burden",
+        "weight": 8
+       },
+       {
+        "kind": "disrupt",
+        "amount": 4,
+        "affinity": true
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 24
+         },
+         {
+          "kind": "burden",
+          "weight": 8
+         },
+         {
+          "kind": "disrupt",
+          "amount": 4,
+          "affinity": true
+         }
+        ],
+        "text": "Deal 24 (+ATK) Lance damage \u00b7 {{Burden}} +8 weight on the card the enemy is about to play \u00b7 {{Affinity}} Lance \u2014 {{Disrupt}} 4 banked readiness."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 32
+         },
+         {
+          "kind": "burden",
+          "weight": 12
+         },
+         {
+          "kind": "disrupt",
+          "amount": 4,
+          "affinity": true
+         }
+        ],
+        "text": "Deal 32 (+ATK) Lance damage \u00b7 {{Burden}} +12 weight on the card the enemy is about to play \u00b7 {{Affinity}} Lance \u2014 {{Disrupt}} 4 banked readiness."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "damage",
+          "power": 42
+         },
+         {
+          "kind": "burden",
+          "weight": 12
+         },
+         {
+          "kind": "disrupt",
+          "amount": 4,
+          "affinity": true
+         }
+        ],
+        "text": "Deal 42 (+ATK) Lance damage \u00b7 {{Burden}} +12 weight on the card the enemy is about to play \u00b7 {{Affinity}} Lance \u2014 {{Disrupt}} 4 banked readiness."
        }
       }
      }

@@ -26,9 +26,13 @@ import { cardArtPlaceholderStyle } from '../../src/game/ui/cardArtPresentation';
  *   2. THE FILES ARE THE DERIVATIVES. Every catalogue entry resolves to a
  *      `.webp` that exists, and no single one may exceed `MAX_FILE_BYTES` —
  *      dropping a 2.3 MB master back into the catalogue fails here.
- *   3. THE PLACEHOLDER COVERS EVERY SKILL. All 166 skills — including the 94
- *      with no art at all — must produce a placeholder style, because that is
- *      now the ONLY thing standing between a card and an empty rectangle.
+ *   3. THE PLACEHOLDER COVERS EVERY SKILL. Every skill in the book — with or
+ *      without catalogue art — must produce a placeholder style, because that
+ *      is the ONLY thing standing between an art-pending card (see
+ *      ART_PENDING below) and an empty rectangle. Coverage of shipped art is
+ *      ratcheted per-id there, not assumed to be 100%: it was exactly 100%
+ *      only in the gap between the 166-set completion and the next content
+ *      pass, which is a moment, not an invariant.
  *
  * A FOURTH THING, added 2026-08-30 with the `art-src/` move: NO PNG MASTER MAY
  * SIT UNDER `public/`. `vite build` copies `public/` verbatim, so a master
@@ -128,11 +132,40 @@ describe('card art budget', () => {
     }
   });
 
-  it('every skill has catalogue art and a placeholder fallback', () => {
+  /**
+   * ART-PENDING RATCHET (2026-09-02). Coverage reached 100% when the 166-card
+   * set completed (fc5cbc4) and this assertion became `toEqual([])`. New
+   * content then re-taught the original lesson: a card ships as JSON in one
+   * pass and gets its master painted in another, so "zero artless cards" is
+   * only ever true BETWEEN content passes. The placeholder path below is the
+   * shipping contract for the gap — it is not a failure mode.
+   *
+   * So the gate is an enumerated ratchet, not an empty set: every artless id
+   * must be LISTED here, which means coverage of the shipped 166 can never
+   * silently regress (an old id appearing in `withoutArt` still fails) and a
+   * new card cannot be added without either art or a deliberate line in this
+   * list. Ship art for a listed card -> DELETE its line. The list reaching
+   * empty again is the goal, not the invariant.
+   */
+  const ART_PENDING = [
+    'blightstep_dirge',
+    'emberchant_rite',
+    'frostbind_litany',
+    'ironmarch_tithe',
+    'quiverwardens_call',
+    'standard_of_the_ninth',
+    'storm_tithe',
+    'writ_of_sanction',
+  ];
+
+  it('every skill has catalogue art or a deliberate art-pending entry, plus a placeholder fallback', () => {
     const skills = Object.values(skillBook);
     expect(skills.length).toBeGreaterThan(0);
     const withoutArt = skills.filter((skill) => CARD_ART_CATALOG[skill.id] === undefined);
-    expect(withoutArt).toEqual([]);
+    expect(withoutArt.map((s) => s.id).sort()).toEqual([...ART_PENDING].sort());
+    // A listed id that GAINED art is stale debt bookkeeping — fail that too.
+    const stale = ART_PENDING.filter((id) => CARD_ART_CATALOG[id] !== undefined);
+    expect(stale).toEqual([]);
     for (const skill of skills) {
       const style = cardArtPlaceholderStyle(skill);
       expect(Number.isInteger(style.tint)).toBe(true);
