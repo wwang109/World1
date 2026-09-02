@@ -17,6 +17,7 @@ import { captionCell, captionCellHeight, MOBILE_WIKI_TOKEN_H, WIKI_PL_ROW_H, WIK
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import { gridWindow, inGridWindow } from '../ui/gridWindow';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
+import { currentRunGemInventory, isRunInProgress } from '../runStore';
 
 const F = MOBILE_PROFILE.font;
 const SLOTS = 10;
@@ -127,6 +128,14 @@ export class MobileWikiScene extends Phaser.Scene {
 
   constructor() { super('MobileWiki'); }
 
+  /** The pouch this wiki visit reports: the RUN pouch while a run is in
+   * progress, the Sandbox pouch (`demoState`) otherwise. One method so the
+   * count label and the detail pane's IN POUCH can never route differently —
+   * see the count-label comment in `renderFilterBand` (a66eca4). */
+  private wikiPouch(): readonly string[] {
+    return isRunInProgress() ? currentRunGemInventory() : demoState.gemInventory;
+  }
+
   /** State changed → rebuild this frame in place (see sceneRebuild.ts). */
   private rerender(): void {
     rebuildScene(this);
@@ -213,9 +222,15 @@ export class MobileWikiScene extends Phaser.Scene {
       });
       tx += w + 6;
     }
+    // IN POUCH is context-routed (a66eca4): while a run is IN PROGRESS the
+    // pouch that exists is the RUN's (event/shop grants) — the unconditional
+    // `demoState` read here told a player whose run pouch held three gems
+    // "0 IN POUCH". Routed rather than hidden because the number itself is
+    // the fix; the sandbox pouch (and ADD TO POUCH) resumes once no run is
+    // live. See `wikiPouch` / `isRunInProgress`.
     const countLabel = this.view === 'cards'
       ? `${this.filteredSkills().length}/${Object.keys(skillBook).length} CARDS`
-      : `${Object.keys(gemBook).length} GEMS · ${demoState.gemInventory.length} IN POUCH`;
+      : `${Object.keys(gemBook).length} GEMS · ${this.wikiPouch().length} IN POUCH`;
     this.add.text(this.W - 22, y + 12, countLabel, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' }).setOrigin(1, 0);
     this.add.rectangle(22, y + 31, this.W - 44, 1, 0x2a3a52).setOrigin(0, 0);
 
@@ -773,7 +788,9 @@ export class MobileWikiScene extends Phaser.Scene {
     objs.push(body);
     y += body.height + 12;
 
-    const owned = demoState.gemInventory.filter((id) => id === gem.id).length;
+    // Context-routed (a66eca4) — the RUN pouch while a run is in progress,
+    // the Sandbox pouch otherwise; see `wikiPouch`.
+    const owned = this.wikiPouch().filter((id) => id === gem.id).length;
     const ownedText = this.add.text(centerX, y, `IN POUCH: ${owned}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.body}px`, color: UI.textDim,
     }).setOrigin(0.5, 0).setDepth(3002);
@@ -786,20 +803,27 @@ export class MobileWikiScene extends Phaser.Scene {
     objs.push(noteText);
     y += noteText.height + 16;
 
-    const btnW = paneWidth;
-    const btnH = 40;
-    const btn = this.add.rectangle(centerX, y, btnW, btnH, 0xe8b446).setOrigin(0.5, 0).setDepth(3002).setStrokeStyle(1, 0x1a1208, 0.8).setInteractive({ useHandCursor: true });
-    const btnText = this.add.text(centerX, y + btnH / 2, 'ADD TO POUCH', {
-      fontSize: `${F.body}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(3003);
-    btn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
-      event.stopPropagation();
-      playSfx('uiClick');
-      demoState.gemInventory = [...demoState.gemInventory, gem.id];
-      this.renderGemDetail();
-      this.showToast(`${gem.name} added to pouch`, UI.textGem);
-    });
-    objs.push(btn, btnText);
+    // ADD TO POUCH is a SANDBOX cheat: it writes `demoState.gemInventory`.
+    // While a run is in progress the IN POUCH count above reads the RUN
+    // pouch, which this button cannot feed — pressing it would toast success
+    // and move nothing on screen, the exact "my gems vanished" shape the
+    // routing exists to kill. So it is suppressed until no run is live.
+    if (!isRunInProgress()) {
+      const btnW = paneWidth;
+      const btnH = 40;
+      const btn = this.add.rectangle(centerX, y, btnW, btnH, 0xe8b446).setOrigin(0.5, 0).setDepth(3002).setStrokeStyle(1, 0x1a1208, 0.8).setInteractive({ useHandCursor: true });
+      const btnText = this.add.text(centerX, y + btnH / 2, 'ADD TO POUCH', {
+        fontSize: `${F.body}px`, color: UI.textOnChip, fontFamily: FONT.body, fontStyle: 'bold',
+      }).setOrigin(0.5).setDepth(3003);
+      btn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        playSfx('uiClick');
+        demoState.gemInventory = [...demoState.gemInventory, gem.id];
+        this.renderGemDetail();
+        this.showToast(`${gem.name} added to pouch`, UI.textGem);
+      });
+      objs.push(btn, btnText);
+    }
 
     this.detailObjects = objs;
   }

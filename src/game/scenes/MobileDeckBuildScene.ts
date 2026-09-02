@@ -12,7 +12,7 @@ import { gemBook } from '../../data/gems';
 import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { demoState, type OwnedBoardPiece, type OwnedCard, type InventorySlot } from '../demoState';
 import { MOBILE_PROFILE } from '../layoutProfile';
-import { FONT, GEM_RARITY_COLOR, SCREEN, UI } from '../theme';
+import { FONT, GEM_RARITY_COLOR, SCREEN, textRole, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { addHoverTipZone, attachHoverTip } from '../ui/hoverTip';
 import { gemHoverEntry } from '../ui/gemGlossary';
@@ -20,7 +20,7 @@ import { powerLevelEntry } from '../ui/cardGlossary';
 import { renderCardInfoBox } from '../ui/cardInfoBox';
 import { FantasyCardTemplateV2 } from '../ui/FantasyCardTemplateV2';
 import type { ScalingStats } from '../ui/skillPresentation';
-import { deckMetaStatRun } from '../ui/statRunModel';
+import { deckMetaStatRun, pouchStatRun } from '../ui/statRunModel';
 import { renderStatRun } from '../ui/statRunStrip';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
@@ -382,7 +382,10 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const used = this.deckOccupied().filter(Boolean).length;
     let plDeci = 0;
     for (const p of this.pieces) { const s = skillBook[p.skillId]; if (s) plDeci += instancePowerLevelDeci(s, { gem: p.gem ?? null }); }
-    const gems = this.pieces.filter((p) => p.gem).length;
+    // Socketed vs. OWNED (socketed + pouch): the pouch half comes through the
+    // context-routed accessor, so both the run pouch (event/shop grants) and
+    // the Sandbox pouch (WIKI › ADD TO POUCH) count — see `DeckMetaFacts`.
+    const gemsSocketed = this.pieces.filter((p) => p.gem).length;
     const hero = buildAutoHeroSetup(this.heroLevel, this.pieces.map((p) => ({ ...p })), this.heroAllocation).setup;
     // Hero-scope stat gems fold in here too — see `resolveDisplayHeroStats`.
     const s = resolveDisplayHeroStats(hero.stats, hero.pieces);
@@ -400,8 +403,12 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       used,
       slots: SLOTS,
       powerLevel: Math.round(plDeci / 10),
-      gems,
-    }), { x: 12, y: 48 + this.headerOffset, maxWidth: this.W - 24 });
+      gemsSocketed,
+      gemsOwned: gemsSocketed + this.gemInventory.length,
+      // compact=true: the ◆ GEMS label — the socketed/owned value overflows
+      // fitRun's floor at 412px under the word label and gets dropped
+      // entirely; see `deckMetaStatRun`'s doc for the measured numbers.
+    }, true), { x: 12, y: 48 + this.headerOffset, maxWidth: this.W - 24 });
   }
 
   /** Dashed 1px border (the mockup's transfer/trash strip style). */
@@ -476,6 +483,7 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     // DECK (left)
     const deckOcc = this.deckOccupied();
     const deckBySlot = new Map(this.pieces.map((p) => [p.slot, p]));
+    const pouchCount = this.gemInventory.length;
     for (let row = 0; row < SLOTS; row++) {
       const piece = deckBySlot.get(row);
       if (piece) {
@@ -487,8 +495,20 @@ export class MobileDeckBuildScene extends Phaser.Scene {
         const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
         const tok = new CardToken(this, deckX + colW / 2, rowTop(row) + h / 2, skill, {
           width: colW, height: h, side: 'left', slotLabel: label, deck: deckSkills, stats: this.heroStats,
-          // Accessory rail (see cardTokenSpec.ts): socketed gem shows as a ◆ badge.
-          accessories: piece.gem ? [{ label: '◆' }] : undefined,
+          // Accessory rail (see cardTokenSpec.ts): socketed gem shows as a ◆
+          // badge; while gems WAIT in the pouch, an empty socket shows the
+          // muted ◇ outline in the same rail slot — the existing badge's
+          // unfilled twin, not new visual language (a66eca4: the socket panel
+          // was real but undiscoverable). Gone again once the pouch empties.
+          // KNOWN LIMIT, same as the shipped ◆: at this column width (~192px)
+          // the rail spec computes accessoryMax = 0, so NEITHER badge actually
+          // draws on mobile today — the spec protects the text clamps. Kept
+          // identical to desktop (both-platforms rule) so the cue appears the
+          // moment the rail has room; mobile discoverability is carried by
+          // the POUCH row below.
+          accessories: piece.gem
+            ? [{ label: '◆' }]
+            : pouchCount > 0 ? [{ label: '◇', textColor: UI.textMuted }] : undefined,
         });
         this.makeDraggable(tok, { where: 'deck', instanceId: piece.instanceId, card: { instanceId: piece.instanceId, skillId: piece.skillId, tier: piece.tier } });
         row += span - 1;
@@ -533,6 +553,18 @@ export class MobileDeckBuildScene extends Phaser.Scene {
       this.add.rectangle(label.x + 8 + i * 13, py, 9, 9, filled ? 0xb78a46 : 0x16233a).setOrigin(0, 0.5).setStrokeStyle(1, 0x3a4a62, 1);
     }
     this.add.text(label.x + 8 + 3 * 13 + 6, py, id ? 'affinity' : '3 to unlock', { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body }).setOrigin(0, 0.5);
+
+    // POUCH row — the affinity readout's mirror, under the BAG column: the
+    // one surface the gem pouch has on the screen that spends it (a66eca4:
+    // three event-granted pouch gems were invisible here and the socket panel
+    // undiscoverable). Count via the shared `pouchStatRun` (capacity ink,
+    // matching the header's GEMS); the teach line hangs off `endX` in the
+    // TEMP HOLDING strip's own "— verb phrase" idiom, bottom-aligned to the
+    // run's baseline the same way `renderStatRun` aligns its own pieces.
+    // `textRole('micro')` — no new px/hex literal, the ratchet stays put.
+    const pouchY = py - 8;
+    const pouchRun = renderStatRun(this, pouchStatRun(pouchCount), { x: bagX, y: pouchY, maxWidth: colW - 4 });
+    this.add.text(pouchRun.endX + 6, pouchY + pouchRun.height, '— tap a deck card to socket', textRole('micro')).setOrigin(0, 1);
   }
 
   /** Slim TRASH strip (mockup): dashed red border · label + grey sub. No emoji (canvas tofu). */
@@ -904,7 +936,13 @@ export class MobileDeckBuildScene extends Phaser.Scene {
     const listTop = curY + 48 + 14;
     this.add.text(px + 14, listTop - 12, `GEM POUCH · ${pouch.length}`, { fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, fontStyle: 'bold' });
     if (pouch.length === 0) {
-      this.add.text(px + 14, listTop + 8, 'No gems in the pouch — collect some\nin the WIKI › GEMS tab.', {
+      // Context-split copy (a66eca4): the WIKI pointer is a SANDBOX fact —
+      // the wiki (and its ADD TO POUCH) is unreachable mid-run, where gems
+      // come from event grants and shop stock instead. Pointing a run player
+      // at a sandbox tab was one leg of the "my gems vanished" misread.
+      this.add.text(px + 14, listTop + 8, this.runContext
+        ? 'No gems in the pouch — events and\nshops on the map grant them.'
+        : 'No gems in the pouch — collect some\nin the WIKI › GEMS tab.', {
         fontSize: `${F.tiny}px`, color: UI.textMuted, fontFamily: FONT.body, lineSpacing: 3,
       });
       return;

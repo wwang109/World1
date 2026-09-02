@@ -309,7 +309,18 @@ export interface DeckMetaFacts {
   /** Whole PL (the caller floors the deci figure — this module formats, it
    * does not do balance math). */
   powerLevel: number;
-  gems: number;
+  /**
+   * Gems SOCKETED onto board pieces vs. gems OWNED in total (socketed + still
+   * in the pouch). Two numbers, not one, after the 2026-08-31 playtest
+   * (investigated in a66eca4): the header read `pieces.filter(p => p.gem)`
+   * alone, so three event-granted pouch gems rendered as "GEMS 0" and the
+   * player concluded they had vanished. The data was never lost — the COUNT
+   * was counting the wrong thing. `socketed/owned` is the same capacity
+   * grammar SLOTS' `used/slots` already uses, so the pouch can never again be
+   * invisible from the one screen that sockets it.
+   */
+  gemsSocketed: number;
+  gemsOwned: number;
 }
 
 /**
@@ -323,8 +334,18 @@ export interface DeckMetaFacts {
  * six. What is left is exactly the facts a deck edit moves — LV, HP, ATK,
  * MATK, SPD, slots, PL, gems — and dropping two segments is what pays for the
  * value/label split on the remaining ones.
+ *
+ * `compact` (mobile) spells the GEMS label as the established '◆' gem glyph —
+ * the same word-vs-glyph split `runProgressStatRun` already makes for
+ * GOLD/'G' and LIVES/'♥', and bought for the same reason: measured with the
+ * real renderer at the 412px design width (budget 388px, shrink floor 9px),
+ * `GEMS 0/3`..`GEMS 2/12` all overflow fitRun's last step by 2-8px and the
+ * whole segment gets DROPPED — the pouch-truth stat vanishing on the one
+ * platform the playtest ran on — while `◆ 2/12` fits at 0.85, the exact
+ * scale the shipped `GEMS 2` fit at. '◆' already means "gem" one segment to
+ * the left (the `◆+N` delta) and on every socketed card badge.
  */
-export function deckMetaStatRun(facts: DeckMetaFacts): StatRun {
+export function deckMetaStatRun(facts: DeckMetaFacts, compact = false): StatRun {
   const keys: readonly DeckMetaStatKey[] = ['maxHp', 'attack', 'magicPower', 'speed'];
   return {
     separator: ' · ',
@@ -339,8 +360,26 @@ export function deckMetaStatRun(facts: DeckMetaFacts): StatRun {
       })),
       { label: 'SLOTS', value: `${facts.used}/${facts.slots}`, kind: 'capacity', tone: 'lead' },
       { label: 'PL', value: `${facts.powerLevel}`, kind: 'cost', tone: 'normal' },
-      { label: 'GEMS', value: `${facts.gems}`, kind: 'capacity', tone: 'quiet' },
+      { label: compact ? '◆' : 'GEMS', value: `${facts.gemsSocketed}/${facts.gemsOwned}`, kind: 'capacity', tone: 'quiet' },
     ],
+  };
+}
+
+/**
+ * The Deck/Bag screen's POUCH row — the one visible surface the gem pouch has
+ * on the screen that spends it. Added off the a66eca4 investigation: event
+ * grants land in `gemInventory`, the socket panel that lists them opens only
+ * by tapping a board card, and NOTHING on the screen said either fact — a
+ * playtest with three pouch gems concluded the feature did not exist. One
+ * segment (`capacity`, same ink as the header's GEMS so the two reads bind),
+ * `lead` so the count takes the full value size; the renderer's caller hangs
+ * the "— tap a deck card to socket" teach line off `endX`, which is what that
+ * return field is for.
+ */
+export function pouchStatRun(count: number): StatRun {
+  return {
+    separator: ' · ',
+    segments: [{ label: 'POUCH', value: `${count}`, kind: 'capacity', tone: 'lead' }],
   };
 }
 

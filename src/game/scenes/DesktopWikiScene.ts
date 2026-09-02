@@ -16,6 +16,7 @@ import { captionCell, captionCellHeight, WIKI_PL_ROW_H, WIKI_PL_ROW_INSET, type 
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
 import { gridWindow, inGridWindow } from '../ui/gridWindow';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
+import { currentRunGemInventory, isRunInProgress } from '../runStore';
 
 const F = DESKTOP_PROFILE.font;
 const SLOTS = 10;
@@ -91,6 +92,14 @@ export class DesktopWikiScene extends Phaser.Scene {
 
   constructor() {
     super('DesktopWiki');
+  }
+
+  /** The pouch this wiki visit reports: the RUN pouch while a run is in
+   * progress, the Sandbox pouch (`demoState`) otherwise. One method so the
+   * count label and the detail pane's IN POUCH can never route differently —
+   * see the count-label comment in `renderFilterRow` (a66eca4). */
+  private wikiPouch(): readonly string[] {
+    return isRunInProgress() ? currentRunGemInventory() : demoState.gemInventory;
   }
 
   init(): void {
@@ -200,9 +209,15 @@ export class DesktopWikiScene extends Phaser.Scene {
       tx += width + 8;
     });
 
+    // IN POUCH is context-routed (a66eca4): while a run is IN PROGRESS the
+    // pouch that exists is the RUN's (event/shop grants) — the unconditional
+    // `demoState` read here told a player whose run pouch held three gems
+    // "0 IN POUCH". Routed rather than hidden because the number itself is
+    // the fix; the sandbox pouch (and ADD TO POUCH) resumes once no run is
+    // live. See `wikiPouch` / `isRunInProgress`.
     const countLabel = this.view === 'cards'
       ? `${this.filteredSkills().length}/${Object.keys(skillBook).length} AUTHORED ENTRIES`
-      : `${Object.keys(gemBook).length} GEMS · ${demoState.gemInventory.length} IN POUCH`;
+      : `${Object.keys(gemBook).length} GEMS · ${this.wikiPouch().length} IN POUCH`;
     const count = this.add.text(this.gridBounds().right, top, countLabel, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.tiny}px`, color: UI.textDim,
     }).setOrigin(1, 0);
@@ -750,7 +765,9 @@ export class DesktopWikiScene extends Phaser.Scene {
     }).setOrigin(0.5, 0);
     this.detailObjects.push(body);
     y += body.height + 12;
-    const owned = demoState.gemInventory.filter((id) => id === gem.id).length;
+    // Context-routed (a66eca4) — the RUN pouch while a run is in progress,
+    // the Sandbox pouch otherwise; see `wikiPouch`.
+    const owned = this.wikiPouch().filter((id) => id === gem.id).length;
     const ownedText = this.add.text(centerX, y, `IN POUCH: ${owned}`, {
       fontFamily: FONT.body, fontStyle: 'bold', fontSize: `${F.small}px`, color: UI.textDim,
     }).setOrigin(0.5, 0);
@@ -759,6 +776,12 @@ export class DesktopWikiScene extends Phaser.Scene {
       fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textSoft, align: 'center', lineSpacing: 3,
     }).setOrigin(0.5, 0));
 
+    // ADD TO POUCH is a SANDBOX cheat: it writes `demoState.gemInventory`.
+    // While a run is in progress the IN POUCH count above reads the RUN
+    // pouch, which this button cannot feed — pressing it would toast success
+    // and move nothing on screen, the exact "my gems vanished" shape the
+    // routing exists to kill. So it is suppressed until no run is live.
+    if (isRunInProgress()) return;
     const buttonY = bottom - 60;
     const button = this.add.rectangle(centerX, buttonY, 220, 40, UI.chip)
       .setStrokeStyle(1, UI.border, 0.9).setInteractive({ useHandCursor: true });

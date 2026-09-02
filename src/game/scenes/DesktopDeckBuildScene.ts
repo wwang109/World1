@@ -13,7 +13,7 @@ import { stripCardTextMarkup } from '../ui/cardTextMarkup';
 import { GEM_RARITY_COLOR } from '../theme';
 import { demoState, type OwnedBoardPiece, type OwnedCard, type InventorySlot } from '../demoState';
 import { DESKTOP_PROFILE } from '../layoutProfile';
-import { FONT, SCREEN, UI } from '../theme';
+import { FONT, SCREEN, textRole, UI } from '../theme';
 import { CardToken } from '../ui/CardToken';
 import { renderDesktopBackground, renderDesktopHeader, DESKTOP_LAYOUT } from '../ui/DesktopNav';
 import { addHoverTipZone } from '../ui/hoverTip';
@@ -22,7 +22,7 @@ import { cardHoverEntries } from '../ui/cardHoverEntries';
 import { powerLevelEntry } from '../ui/cardGlossary';
 import { renderCardInfoBox } from '../ui/cardInfoBox';
 import type { ScalingStats } from '../ui/skillPresentation';
-import { deckMetaStatRun } from '../ui/statRunModel';
+import { deckMetaStatRun, pouchStatRun } from '../ui/statRunModel';
 import { renderStatRun } from '../ui/statRunStrip';
 import { rebuildScene, wasPointerConsumedByRebuild } from '../sceneRebuild';
 import { getDeckBuildContext } from '../deckBuildContext';
@@ -360,7 +360,10 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     const used = this.deckOccupied().filter(Boolean).length;
     let plDeci = 0;
     for (const p of this.pieces) { const s = skillBook[p.skillId]; if (s) plDeci += instancePowerLevelDeci(s, { gem: p.gem ?? null }); }
-    const gems = this.pieces.filter((p) => p.gem).length;
+    // Socketed vs. OWNED (socketed + pouch): the pouch half comes through the
+    // context-routed accessor, so both the run pouch (event/shop grants) and
+    // the Sandbox pouch (WIKI › ADD TO POUCH) count — see `DeckMetaFacts`.
+    const gemsSocketed = this.pieces.filter((p) => p.gem).length;
     const gemAdds = gemHeroStats(this.pieces);
     // Right-aligned; in run context this sits just under the HUD (which
     // already owns the tab row's old position) instead of on top of it.
@@ -375,7 +378,8 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       used,
       slots: SLOTS,
       powerLevel: Math.round(plDeci / 10),
-      gems,
+      gemsSocketed,
+      gemsOwned: gemsSocketed + this.gemInventory.length,
     }), { x: SCREEN.width - gx, y, maxWidth: SCREEN.width - gx * 2, align: 'right' });
   }
 
@@ -452,6 +456,7 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     // DECK (left)
     const deckOcc = this.deckOccupied();
     const deckBySlot = new Map(this.pieces.map((p) => [p.slot, p]));
+    const pouchCount = this.gemInventory.length;
     for (let row = 0; row < SLOTS; row++) {
       const piece = deckBySlot.get(row);
       if (piece) {
@@ -467,8 +472,15 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
         const label = span > 1 ? `${row + 1}-${row + span}` : `${row + 1}`;
         const tok = new CardToken(this, deckX + colW / 2, rowTop(row) + h / 2, skill, {
           width: colW, height: h, side: 'left', slotLabel: label, deck: deckSkills, stats: this.heroStats,
-          // Accessory rail (see cardTokenSpec.ts): socketed gem shows as a ◆ badge.
-          accessories: piece.gem ? [{ label: '◆' }] : undefined,
+          // Accessory rail (see cardTokenSpec.ts): socketed gem shows as a ◆
+          // badge; while gems WAIT in the pouch, an empty socket shows the
+          // muted ◇ outline in the same rail slot — the existing badge's
+          // unfilled twin, not new visual language, so the click-to-socket
+          // affordance reads on the card itself (a66eca4: the socket panel
+          // was real but undiscoverable). Gone again once the pouch empties.
+          accessories: piece.gem
+            ? [{ label: '◆' }]
+            : pouchCount > 0 ? [{ label: '◇', textColor: UI.textMuted }] : undefined,
         });
         this.makeDraggable(tok, { where: 'deck', instanceId: piece.instanceId, card: { instanceId: piece.instanceId, skillId: piece.skillId, tier: piece.tier } });
         this.attachCardHover(tok, base, piece.gem);
@@ -513,6 +525,17 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
       this.add.rectangle(label.x + 10 + i * 16, py, 11, 11, filled ? UI.chip : UI.slot).setOrigin(0, 0.5).setStrokeStyle(1, UI.border, 1);
     }
     this.add.text(label.x + 10 + 3 * 16 + 8, py, id ? 'affinity' : '3 to unlock', { fontSize: `${F.small}px`, color: UI.textDim, fontFamily: FONT.body }).setOrigin(0, 0.5);
+
+    // POUCH row — the affinity readout's mirror, under the BAG column: the
+    // one surface the gem pouch has on the screen that spends it (a66eca4:
+    // three event-granted pouch gems were invisible here and the socket panel
+    // undiscoverable). Count via the shared `pouchStatRun` (capacity ink,
+    // matching the header's GEMS); the teach line hangs off `endX` in the
+    // TEMP HOLDING strip's own "— verb phrase" idiom, bottom-aligned to the
+    // run's baseline the same way `renderStatRun` aligns its own pieces.
+    // `textRole('micro')` — no new px/hex literal, the ratchet stays put.
+    const pouchRun = renderStatRun(this, pouchStatRun(pouchCount), { x: bagX, y: py - 10, maxWidth: colW - 8 });
+    this.add.text(pouchRun.endX + 8, py - 10 + pouchRun.height, '— click a deck card to socket', textRole('micro')).setOrigin(0, 1);
   }
 
   /** TRASH strip along the bottom of the content area. */
@@ -745,7 +768,13 @@ export class DesktopDeckBuildScene extends Phaser.Scene {
     let ly = curY + rowH + 18;
     this.add.text(px + 20, ly - 12, `GEM POUCH · ${pouch.length}`, { fontSize: `${F.tiny}px`, color: UI.textDim, fontFamily: FONT.body, fontStyle: 'bold' });
     if (pouch.length === 0) {
-      this.add.text(px + 20, ly + 10, 'No gems in the pouch — collect some in the WIKI › GEMS tab.', { fontSize: `${F.small}px`, color: UI.textSoft, fontFamily: FONT.body });
+      // Context-split copy (a66eca4): the WIKI pointer is a SANDBOX fact —
+      // the wiki (and its ADD TO POUCH) is unreachable mid-run, where gems
+      // come from event grants and shop stock instead. Pointing a run player
+      // at a sandbox tab was one leg of the "my gems vanished" misread.
+      this.add.text(px + 20, ly + 10, this.runContext
+        ? 'No gems in the pouch — events and shops on the map grant them.'
+        : 'No gems in the pouch — collect some in the WIKI › GEMS tab.', { fontSize: `${F.small}px`, color: UI.textSoft, fontFamily: FONT.body });
     }
     pouch.forEach((gem, index) => {
       const rowY = ly + 8 + index * (rowH + 8) - 8;

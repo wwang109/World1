@@ -131,6 +131,22 @@ export function getActiveRun(): RunState | null {
 }
 
 /**
+ * Whether a run is currently IN PROGRESS — drafting or fighting, not a
+ * finished (`defeat`/`retired`/`victory`) run still parked for its end
+ * banner. This is the signal for SANDBOX surfaces that show run-adjacent
+ * facts to a player who merely stepped out to the menus mid-run: the wiki's
+ * GEMS tab reads the pouch through this (a66eca4 — its unconditional
+ * `demoState.gemInventory` read showed "0 IN POUCH" while the run pouch held
+ * three, feeding the "my gems vanished" misread). Deliberately narrower than
+ * `getActiveRun() !== null` (which also covers ended-but-uncleared runs,
+ * where the Sandbox is the player's context again) and unrelated to
+ * `deckBuildContext` (which is a per-visit routing flag the wiki never sets).
+ */
+export function isRunInProgress(): boolean {
+  return activeRun !== null && (activeRun.status === 'drafting' || activeRun.status === 'active');
+}
+
+/**
  * Cosmetic pre-run seed shown on the START RUN panel's seed box — same
  * "mash the sine wave" reroll idiom as `demoState.seed`'s REROLL button
  * (see DesktopPrepScene/MobilePrepScene). Not part of `RunState`; it only

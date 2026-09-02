@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   capabilityStatRun, deckMetaStatRun, foeSecondaryStatRun, ledgerStatRows,
-  livesAreCritical, runProgressStatRun, statDeltaInk, statLabelInk,
+  livesAreCritical, pouchStatRun, runProgressStatRun, statDeltaInk, statLabelInk,
   statRunPlainText, statSegmentRoles, statValueInk,
   type StatKind, type StatSegment,
 } from '../../src/game/ui/statRunModel';
@@ -208,7 +208,7 @@ describe('statRunModel: the deck-build header', () => {
     heroLevel: 1,
     stats: { maxHp: 100, attack: 12, magicPower: 8, speed: 14 },
     gemAdds: { speed: 4 },
-    used: 6, slots: 10, powerLevel: 56, gems: 2,
+    used: 6, slots: 10, powerLevel: 56, gemsSocketed: 1, gemsOwned: 4,
   };
 
   it('drops DEF/MDEF and says so — eight facts, not ten', () => {
@@ -216,6 +216,19 @@ describe('statRunModel: the deck-build header', () => {
     expect(s.map((x) => x.label)).toEqual(['LV', 'HP', 'ATK', 'MATK', 'SPD', 'SLOTS', 'PL', 'GEMS']);
     expect(s.map((x) => x.label)).not.toContain('DEF');
     expect(s.map((x) => x.label)).not.toContain('MDEF');
+  });
+
+  it('compact (mobile) spells GEMS as the ◆ glyph and changes NOTHING else', () => {
+    // The runProgressStatRun G/♥ idiom: same facts, same kinds, same values,
+    // one label narrowed for the 412px budget (see the builder's measured
+    // numbers — the word label pushes every socketed/owned value past
+    // fitRun's floor and the whole segment is dropped).
+    const word = deckMetaStatRun(facts).segments;
+    const glyph = deckMetaStatRun(facts, true).segments;
+    expect(glyph.map((x) => x.label)).toEqual(['LV', 'HP', 'ATK', 'MATK', 'SPD', 'SLOTS', 'PL', '◆']);
+    expect(glyph.map((x) => x.value)).toEqual(word.map((x) => x.value));
+    expect(glyph.map((x) => x.kind)).toEqual(word.map((x) => x.kind));
+    expect(glyph.map((x) => x.tone)).toEqual(word.map((x) => x.tone));
   });
 
   it('SLOTS leads (it is what a deck edit is about), PL is a cost, GEMS is capacity', () => {
@@ -226,16 +239,47 @@ describe('statRunModel: the deck-build header', () => {
     expect(statValueInk(byLabel.get('LV')!)).toBe('secondary');
   });
 
+  it('GEMS is socketed/owned — a pouch gem can never again render as "GEMS 0"', () => {
+    // The a66eca4 playtest: three event-granted gems sat in the pouch, the
+    // header read `pieces[].gem` alone and said "GEMS 0", and the player
+    // concluded the feature did not exist. This is that exact state.
+    const byLabel = new Map(deckMetaStatRun(facts).segments.map((s) => [s.label, s]));
+    expect(byLabel.get('GEMS')!.value).toBe('1/4');
+    const playtest = deckMetaStatRun({ ...facts, gemsSocketed: 0, gemsOwned: 3 });
+    expect(playtest.segments.find((s) => s.label === 'GEMS')!.value).toBe('0/3');
+  });
+
   it('the plain-text form is shorter than the flat line it replaced, for the same data', () => {
     // The exact string `MobileDeckBuildScene` shipped for these facts: 79
     // characters of one colour at one weight in a 412px header. Fewer
     // characters is what pays for the value/label size split — the labels then
     // render 2-4px SMALLER than the values on top of that, so the pixel saving
-    // is larger than the character saving.
+    // is larger than the character saving. The socketed/owned GEMS value
+    // (2026-09-02, a66eca4 follow-up) costs 2 characters and stays inside the
+    // same shipped-width contract.
     const SHIPPED = 'LV 1 · HP 100 · ATK 12 · MATK 8 · SPD 14 (+4)   ·   6/10 slots · PL 56 · 2 gems';
     expect(SHIPPED).toHaveLength(79);
-    const plain = statRunPlainText(deckMetaStatRun(facts));
-    expect(plain.length).toBeLessThan(SHIPPED.length);
+    // Both spellings — the desktop word form and the mobile ◆ form (the one
+    // the 412px header actually draws) — stay inside the shipped budget.
+    expect(statRunPlainText(deckMetaStatRun(facts)).length).toBeLessThan(SHIPPED.length);
+    expect(statRunPlainText(deckMetaStatRun(facts, true)).length).toBeLessThan(SHIPPED.length);
+  });
+});
+
+describe('statRunModel: the deck/bag POUCH row', () => {
+  it('one CAPACITY segment, POUCH label, lead tone — the count is the point', () => {
+    const run = pouchStatRun(3);
+    expect(run.segments).toHaveLength(1);
+    const seg = run.segments[0]!;
+    expect(seg.label).toBe('POUCH');
+    expect(seg.value).toBe('3');
+    expect(seg.tone).toBe('lead');
+    // Same ink as the header's GEMS — the two reads must bind as one fact.
+    expect(statValueInk(seg)).toBe('capacity');
+  });
+
+  it('an empty pouch still renders a 0, not a missing row — absence is what shipped the bug', () => {
+    expect(pouchStatRun(0).segments[0]!.value).toBe('0');
   });
 });
 
