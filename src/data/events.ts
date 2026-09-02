@@ -123,6 +123,80 @@ import type { CardFilter, GemFilter } from './shopTypes';
  * gameplay branching in the resolver. */
 export type EventTheme = 'training' | 'cache' | 'recruit' | 'forge' | 'market' | 'omen';
 
+// ===========================================================================
+// EVENT CHAINS (2026-09-02) — gates over state the run ALREADY remembers.
+//
+// A gate makes an event (or one rung of an event) conditional on the run's own
+// ledger: `RunState.eventResolutions` (which rungs were taken, kept for the
+// re-entry/reload idempotency memo) and the tally counters `RunState.stats` /
+// `wins`/`losses`/`bossesCleared` already maintain. Both gate shapes below are
+// PURE READS — no Rng, and deliberately ZERO new save fields: a chain's whole
+// memory is state that every shipped transition was already writing.
+//
+// The predicate authority lives in `src/run/events.ts` (`eventGateMet` /
+// `eventTallyMet`, checked inside `isEventChoiceUsable` and
+// `rollEventForNode`) — this module only DECLARES the gates, same
+// content/logic split as the outcome specs above.
+//
+// A GATED EVENT NEVER ENTERS A THEME BAG. Bag entries the draw skips stay in
+// the bag and a bag refills only when EMPTY, so one permanently-locked
+// resident would pin its theme's bag at length >= 1 forever — the theme never
+// reshuffles again and every draw after exhaustion widens to the same
+// fixed-order catalog scan (provable starvation, see `rollEventForNode`'s
+// chain-scan comment). Instead, an unlocked chain is drawn by PRIORITY at the
+// next node of its theme — best delivery a path-dependent map can honestly
+// promise (one merge door in the 6-deep forge bag reached only 64.2% of runs;
+// a bag resident that must ALSO outlive its unlock reaches strictly fewer).
+// Because gated ids never join any pool, every seeded event sequence is
+// byte-identical until a gate opens — the same zero-perturbation discipline
+// `ruined_anvil/beat_together` documents for the merge door.
+// ===========================================================================
+
+/** "This unlocks only after the player resolved that." A pure scan of
+ * `RunState.eventResolutions` — no Rng, no new save field. A `pending`
+ * resolution counts (the cost is paid and the choice committed the moment
+ * `resolveEventChoice` returns; `pending` only means a deferred picker has
+ * not been answered yet). */
+export interface EventGate {
+  /** Catalog event whose past resolution unlocks this. */
+  eventId: string;
+  /** Which choice ids on that event count; absent = any choice of `eventId`. */
+  choiceIds?: readonly string[];
+}
+
+/** "This unlocks only once a run counter reaches a bar." A pure read of the
+ * fields `RunState` already maintains (`stats.*` for the first four; the
+ * top-level `wins`/`losses`/`bossesCleared` for the rest). */
+export interface EventTallyGate {
+  stat: 'goldSpent' | 'cardsBought' | 'gemsBought' | 'livesLost' | 'wins' | 'losses' | 'bossesCleared';
+  atLeast: number;
+}
+
+/**
+ * The state a `filterFrom` card pool is derived FROM at resolve time — the
+ * seam that lets a door follow the run instead of naming a static category
+ * (2026-09-02, see `the_lands_measure`/`banner_scribe`). NOT a new outcome
+ * kind: `src/run/events.ts#resolveFilterFrom` substitutes a concrete
+ * `CardFilter` (a pure read — no Rng, no save change) and the existing
+ * `cardChoice`/`bonusDraft` resolvers then run unchanged.
+ *
+ *   - `biomeLean`    — the active node's band lean (`biomeFor`, run/biome.ts),
+ *                      as a single-type element/weapon filter.
+ *   - `biomeCounter` — `counterTypeFor(lean)` (run/biome.ts): the type that
+ *                      farms what lives here. UNRESOLVABLE on a bow band —
+ *                      nothing counters bow — and the rung goes dark.
+ *   - `boardIdentity`— `boardTypeIdentity` (engine/combat/typeIdentity.ts)
+ *                      over the BOARD pieces only, matching the combat fold's
+ *                      own read. Unresolvable until the board commits to
+ *                      3-of-a-kind; dark until then (the mergeCards idiom).
+ *
+ * An unresolvable source gates its rung dark via `isEventChoiceUsable`; if
+ * the known-gap resolve path is taken anyway, the resolver falls back to the
+ * spec's static `filter` (usually none) — the module's standing "never throw
+ * over a narrow filter" posture.
+ */
+export type FilterFromSource = 'biomeLean' | 'biomeCounter' | 'boardIdentity';
+
 /** The result vocabulary an event choice resolves to. Small on purpose —
  * every grant reuses an existing system (bag insert, gem pouch, run wallet,
  * hero level, the start-draft set roller). */
@@ -154,12 +228,17 @@ export type EventOutcomeSpec =
   // fixed at `'bronze'` — every existing `bonusDraft` mini-draft in this
   // catalog is bronze-only for the same reason. Every current `cardChoice`
   // conversion is bronze already, so this costs nothing today.
-  | { kind: 'cardChoice'; filter?: CardFilter; tier?: 'bronze' }
+  // `filterFrom` (2026-09-02): derive the pool from run state at resolve time
+  // instead of naming it here — see `FilterFromSource`'s doc comment above.
+  // Author one of `filter`/`filterFrom`, never both (catalog-linted): when the
+  // source resolves it substitutes the whole filter, so a static one would be
+  // dead content pretending to matter.
+  | { kind: 'cardChoice'; filter?: CardFilter; filterFrom?: FilterFromSource; tier?: 'bronze' }
   | { kind: 'gemChoice'; filter?: GemFilter }
   | { kind: 'grantGold'; amount: number }
   | { kind: 'loseGold'; amount: number }
   | { kind: 'grantLevel' }
-  | { kind: 'bonusDraft'; filter?: CardFilter }
+  | { kind: 'bonusDraft'; filter?: CardFilter; filterFrom?: FilterFromSource }
   | { kind: 'upgradeCard' }
   // `sellGem` (2026-08-20) — the lapidary event's originally-wanted "sell a
   // gem" outcome, parked until the vocabulary/resolver work below existed.
@@ -219,6 +298,14 @@ export interface EventChoiceDef {
   /** Upfront gold cost paid before the outcome resolves (omitted/0 = free —
    * every event needs at least one cost-0 choice as its safe exit). */
   cost?: number;
+  /** A GATED RUNG: offered only once the named past resolution exists —
+   * checked by `isEventChoiceUsable` (the same predicate the scenes already
+   * dim buttons with), so a locked rung presents exactly like an
+   * empty-pouch `sellGem` rung does today. The event's cost-0 safe exit must
+   * never carry one (catalog-linted — a locked exit is no exit). */
+  requires?: EventGate;
+  /** Same, for a tally bar (see `EventTallyGate`). */
+  requiresTally?: EventTallyGate;
   outcome: EventOutcomeSpec;
 }
 
@@ -228,6 +315,17 @@ export interface EventDef {
   body: string;
   /** Which of the 6 event themes this node displays as (docs/run-events-design.md §3b). */
   theme: EventTheme;
+  /** A CHAINED EVENT: cannot be drawn at all before this gate opens. Gated
+   * events never enter a theme bag (see the EVENT CHAINS block above for the
+   * starvation proof); once the gate is open and the event undrawn this run,
+   * `rollEventForNode` draws it by PRIORITY at the next node of its `theme`
+   * — the theme label on the map stays honest (the KIND was readable, the
+   * DETAIL is the surprise — biomeForecast.ts's own principle). The gate's
+   * TARGET must itself be ungated (depth-1 chains only, catalog-linted:
+   * cycles and unreachable ladders are forbidden in one rule). */
+  requires?: EventGate;
+  /** Same, for a tally bar (see `EventTallyGate`). */
+  requiresTally?: EventTallyGate;
   /**
    * 2-3 choices, enforced by `tests/run/events.test.ts`'s "every event has
    * 2-3 choices" catalog lint. The upper bound of 3 is not arbitrary — it is
@@ -959,6 +1057,204 @@ const defs: EventDef[] = [
       },
       { id: 'scavenge', label: 'Scavenge the practice yard for scraps', outcome: { kind: 'grantGold', amount: 1 } },
       { id: 'skip', label: 'Skip the drill', outcome: { kind: 'nothing' } },
+    ],
+  },
+
+  // ==========================================================================
+  // Event-chain batch (2026-09-02, +7 events) — the run's past becomes doors
+  // (see the EVENT CHAINS block above for the gate mechanism and the
+  // no-bag/priority-draw delivery rule). FOUR are GATED (`tutors_return`,
+  // `the_reckoning`, `factors_ledger`, `pyre_watch`) and never enter a bag —
+  // ZERO seeded-sequence movement until a gate opens
+  // (`tests/run/events.chains.test.ts` pins the training/omen/forge sequences
+  // byte-for-byte against the pre-batch catalog). THREE are ordinary UNGATED
+  // additions (`the_lands_measure` cache 6->7, `flaw_finder` market 5->6,
+  // `banner_scribe` recruit 5->6) and reshuffle exactly those three theme
+  // bags — the same class of movement as the 2026-07-29 +12 batch.
+  //
+  // Every chain here is a RECOGNITION or TALLY shape: full value was paid at
+  // the setup, so a run whose road never reaches the payoff has lost nothing
+  // (the loan shape — value now, cost at an event the map may never deal — is
+  // banned; see the gambler's own loseGold history for why).
+  //
+  // Supply walk re-run with the batch in (same harness as the P19 pass,
+  // tests/run/eventRewardDoors.test.ts, 24 seeds x 11 types to wave 10):
+  // label-readers keep 2.76 same-type cards per run vs 1.56 ignoring them
+  // (the P19 gap holds), events alone hand over an identity in 51% of runs,
+  // shut-outs stay at 4%. Movement vs the pass's 60-seed numbers (2.91/1.67/
+  // 56%/4%) is the three reshuffled bags plus market gaining two non-card
+  // doors — every floor that file pins stayed green unchanged.
+  // ==========================================================================
+
+  {
+    // THE RECOGNITION CHAIN. Setup: `wandering_tutor/pay` (2g grantLevel),
+    // whose shipped body already plants the hook ("it won't be forgotten,
+    // either") — the setup event changes by zero bytes. The payoff is the
+    // second half of the lesson, free where the catalog charges 2 — bounded
+    // by once-per-run (priority draw + eventInstances) and by the 2 gold
+    // already paid at the setup. `finish_lesson` is cost-0 and non-`nothing`,
+    // so the event is eligible at ANY gold the moment the gate opens: it
+    // fires at the very next training node.
+    id: 'tutors_return',
+    title: "The Tutor's Return",
+    theme: 'training',
+    requires: { eventId: 'wandering_tutor', choiceIds: ['pay'] },
+    body: 'You know the gnarled staff before you know the face: the old sellsword from the Hollow Yard, planted at the edge of the practice ring as if the two of you had set an appointment. "You paid for a lesson," she says. "You got half of one. I don\'t leave debts standing — mine or anybody\'s." The second half won\'t cost you a coin. Her sparring circle, though, still charges for the privilege.',
+    choices: [
+      { id: 'finish_lesson', label: 'Take the second half of the lesson', outcome: { kind: 'grantLevel' } },
+      // Catalog-rate paid sibling: 2g bonusDraft, the exact price/width of
+      // weighing_stone/press_harder. No undercut of any paid door.
+      { id: 'spar_the_yard', label: 'Spar with her circle (2 gold)', cost: 2, outcome: { kind: 'bonusDraft' } },
+      { id: 'part_ways', label: 'Tell her the debt is settled', outcome: { kind: 'nothing' } },
+    ],
+  },
+  {
+    // THE TALLY CHAIN over the shrine's two faces. The event gate opens for a
+    // player who honored EITHER face; each settlement rung is lit only by ITS
+    // face's resolution, so a both-faces run sees both lit and must CHOOSE
+    // which devotion pays — the tally rendered as agency, not as a computed
+    // reward. Defacing the shrine deliberately does NOT summon it: scrap is
+    // scrap. Each settlement is the shrine's own paid 3-wide door upgraded to
+    // a FREE 5-wide one — same 100%-type discipline (P19), bigger because it
+    // is the payoff of a 2-gold investment made at the setup (free
+    // single-type bonusDrafts are an established shape: recruiter/pick_sword).
+    // Labels name their type ("holy work" / "dark work") — the guaranteed-door
+    // honesty lint in tests/run/eventRewardDoors.test.ts requires it.
+    id: 'the_reckoning',
+    title: 'The Reckoning',
+    theme: 'omen',
+    requires: { eventId: 'crossroads_shrine', choiceIds: ['tithe', 'moon_rite'] },
+    body: 'The shrine finds you, this time. A cairn of crossroads stone stands where no cairn stood yesterday, sun-mark and moon-mark cut fresh into its face — and beneath them, in scratches you never made, a tally of everything you ever left at the Crossroads Unquiet. Whatever keeps the shrine\'s accounts has ruled your devotion paid up, and tonight it settles its side of the ledger.',
+    choices: [
+      {
+        id: 'sun_road',
+        label: "Take the sun's settlement in holy work",
+        requires: { eventId: 'crossroads_shrine', choiceIds: ['tithe'] },
+        outcome: { kind: 'bonusDraft', filter: [{ elements: ['holy'] }] },
+      },
+      {
+        id: 'moon_road',
+        label: "Take the moon's settlement in dark work",
+        requires: { eventId: 'crossroads_shrine', choiceIds: ['moon_rite'] },
+        outcome: { kind: 'bonusDraft', filter: [{ elements: ['dark'] }] },
+      },
+      { id: 'keep_walking', label: 'Leave the account open', outcome: { kind: 'nothing' } },
+    ],
+  },
+  {
+    // THE BIOME-AWARE DOORS (UNGATED — an ordinary cache-bag resident): one
+    // door matched to the band's lean (build WITH the land), one to its
+    // counter (build AGAINST what lives here — "the counter farms it",
+    // run/biome.ts). Both pools are derived at resolve time via `filterFrom`
+    // (see FilterFromSource above), so a static label cannot name the type —
+    // the body promises LOCALITY, which the pool delivers at 100%, and the
+    // band banner on screen names the lean (the honesty rule applied to a
+    // derived category). `hunters_edge` is DARK on the one band with no
+    // counter (the Arrowfell — nothing counters bow), which teaches that fact
+    // a third way beside the biome data and the forecast.
+    id: 'the_lands_measure',
+    title: "The Land's Measure",
+    theme: 'cache',
+    body: 'A surveyor\'s drop-box juts from the mud of the Silt Hollows, stenciled with the mark of whatever country you are crossing. The locals cache what the land makes, and any land worth naming only makes one thing well — the box is local work to the last piece. Lashed underneath it rides a hunter\'s kit, picked to hurt what lives here. When anything can.',
+    choices: [
+      // Both doors at the shrine-door rate (2g cardChoice).
+      { id: 'local_make', label: 'Take the local make (2 gold)', cost: 2, outcome: { kind: 'cardChoice', filterFrom: 'biomeLean', tier: 'bronze' } },
+      { id: 'hunters_edge', label: "Take the hunter's kit (2 gold)", cost: 2, outcome: { kind: 'cardChoice', filterFrom: 'biomeCounter', tier: 'bronze' } },
+      // Safe exit — cost-0 grant, the gemsellers_mishap precedent.
+      { id: 'gather_stones', label: 'Pocket the loose stones', outcome: { kind: 'grantGold', amount: 1 } },
+    ],
+  },
+  {
+    // THE SPEND-TALLY CHAIN. The run records no purchase provenance
+    // (shopShelves keeps remaining offers only), so the chain reads the one
+    // thing every spend site already maintains: `stats.goldSpent` — shop
+    // buys, rerolls, event tolls alike, which is why the body says "stalls
+    // and tolls" (the honesty rule applied to a counter). 12g is roughly two
+    // waves of income: it opens mid-run for a spender and never for a
+    // hoarder. The credit is a free gemChoice where the catalog rate is 2g —
+    // deliberate, bounded generosity: once per run, gated behind 12g of REAL
+    // prior spend, so the free tier cannot be farmed and cannot be reached
+    // without out-spending every paid sibling first.
+    id: 'factors_ledger',
+    title: "The Factor's Ledger",
+    theme: 'market',
+    requiresTally: { stat: 'goldSpent', atLeast: 12 },
+    body: 'A trade factor steps into the road with a ledger already open to your page. "Twelve gold and change, through the stalls and tolls of this road, by my count," she says, turning the book so you can see the tally — and it is your tally, coin for coin. "The road pays its regulars. One credit, one time. Spend it or tear the page."',
+    choices: [
+      { id: 'standing_credit', label: 'Take your standing credit', outcome: { kind: 'gemChoice' } },
+      // Catalog-rate paid sibling (abandoned_cache/search_thoroughly).
+      { id: 'bulk_order', label: 'Place a bulk order (2 gold)', cost: 2, outcome: { kind: 'cardChoice', tier: 'bronze' } },
+      { id: 'tear_the_page', label: 'Tear your page out', outcome: { kind: 'nothing' } },
+    ],
+  },
+  {
+    // THE DEFEAT CHAIN. `stats.livesLost` is written by the exact transition
+    // that resolves every fight (recordBattleResult), so this event exists
+    // only in a run that has LOST one — the run's first defeat becomes a
+    // place on the road, which is the cheapest "choices matter later" the
+    // game can buy. The gate IS the telegraph: the player just watched the
+    // life counter drop. Alms at the standing free-coin rate x2
+    // (recruiter/take_coin grants 2) — cost-0 and non-`nothing`, so the event
+    // fires at the next omen node regardless of wallet.
+    id: 'pyre_watch',
+    title: 'The Pyre-Watch',
+    theme: 'omen',
+    requiresTally: { stat: 'livesLost', atLeast: 1 },
+    body: 'A watch-fire burns at the crossroads for the road\'s dead, tended by a hooded keeper who does not ask whose name you are carrying. The fire already knows: you left a life on a field behind you, and the pyre-watch keeps the old custom for anyone who limps past it — alms for the mourner, or arms for the living.',
+    choices: [
+      { id: 'alms', label: "Accept the mourner's alms", outcome: { kind: 'grantGold', amount: 2 } },
+      // THE ARMOR DOOR at the 2g rate — same pool/price as
+      // thorn_garden_shrine/push_through (defensive pool, 33+ cards).
+      { id: 'arm_the_living', label: 'Buy arms for the living (2 gold)', cost: 2, outcome: { kind: 'cardChoice', filter: [{ archetypes: ['defensive'] }], tier: 'bronze' } },
+      { id: 'let_it_burn', label: 'Let it burn, and walk on', outcome: { kind: 'nothing' } },
+    ],
+  },
+  {
+    // PURE CATALOG CONTENT (UNGATED), closing two measured gem-surface gaps
+    // at once: the 4-rung EXPOSE gem ladder lost its event door when
+    // the_lapidary's `cutting_cut` was traded for `sellGem` under the
+    // 3-choice bound (shop-only ever since), and `sellGem` itself had exactly
+    // ONE catalog surface — and the project's own merge-door measurement says
+    // a single door is a coin flip (one door = 64.2% of runs, two = 83.3%).
+    // The lapidary is forge; this is her market twin. Expose pool = 4 gems
+    // >= EVENT_CHOICE_SIZE (at wave 1 the Legendary top rung is depth-gated
+    // out leaving exactly 3 — clears the floor, same note as the 2026-08-19
+    // batch header).
+    id: 'flaw_finder',
+    title: 'The Flaw-Finder',
+    theme: 'market',
+    body: 'A jeweler\'s loupe glints from a stall no wider than its own strongbox on the Tolling Road. "Every stone has a flaw," its owner says, not as an apology — her whole tray is cut to FIND them, facets ground to open a weakness and hold it open. She buys as readily as she sells, if you are carrying a stone you are done with.',
+    choices: [
+      { id: 'expose_tray', label: 'Buy from the flaw-cut tray (2 gold)', cost: 2, outcome: { kind: 'gemChoice', filter: [{ actionKinds: ['expose'] }] } },
+      // THE SECOND sellGem SURFACE — priced/gated by machinery that already
+      // exists end-to-end (sellPriceOfGem pricing, the empty-pouch dark-rung
+      // gate in isEventChoiceUsable, picker + finalizer all shipped). At
+      // gold < 2 with an empty pouch the event is simply skipped by
+      // hasAffordableChoice and stays in the bag — the normal affordability
+      // dance, same as the gambler at gold < 2.
+      { id: 'sell_flawed', label: 'Sell her a stone of your own', outcome: { kind: 'sellGem' } },
+      { id: 'walk_on', label: 'Keep your flaws to yourself', outcome: { kind: 'nothing' } },
+    ],
+  },
+  {
+    // THE IDENTITY DOOR (UNGATED) — the direct P19 extension: a door that is
+    // the player's OWN committed type, every time it appears. Pool derived at
+    // resolve time from `boardTypeIdentity` (board pieces only, matching the
+    // combat fold's read — see FilterFromSource above); DARK until the board
+    // holds 3-of-a-kind, the mergeCards dark-rung idiom, which itself teaches
+    // the threshold. A Deck/Bag detour between resolve and pick re-derives
+    // against the board as it stands — the same documented class as
+    // upgradeCard/mergeCards re-derivation.
+    id: 'banner_scribe',
+    title: 'The Banner-Scribe',
+    theme: 'recruit',
+    body: 'A banner-scribe has set her table among the Muster Road\'s camps, reading fighters\' colors off their gear the way other scribes read letters. One look over your board and she is already mixing paint: if you march under a device, she knows a supplier for it — and if you march under none, she will still pay a copper for the sketch.',
+    choices: [
+      { id: 'blazon', label: 'Commission gear in your colors (2 gold)', cost: 2, outcome: { kind: 'cardChoice', filterFrom: 'boardIdentity', tier: 'bronze' } },
+      // She pays for the sketch — the standard free-coin rung, and the choice
+      // that keeps the event eligible at gold 0 with no identity.
+      { id: 'sketch_fee', label: 'Let her sketch your kit for a copper', outcome: { kind: 'grantGold', amount: 1 } },
+      { id: 'keep_marching', label: 'March on unblazoned', outcome: { kind: 'nothing' } },
     ],
   },
 ];

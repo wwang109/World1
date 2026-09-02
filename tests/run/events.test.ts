@@ -82,10 +82,22 @@ function isSafe(choice: { cost?: number; outcome: EventOutcomeSpec }): boolean {
   return (choice.cost ?? 0) === 0;
 }
 
+/** A GATED (chained) event — never enters a theme bag; drawn by
+ * `rollEventForNode`'s priority scan once its gate opens (2026-09-02 chain
+ * batch). Local predicate, same convention as this file's other lint logic. */
+function isGatedEventId(id: string): boolean {
+  const event = eventCatalog[id]!;
+  return event.requires !== undefined || event.requiresTally !== undefined;
+}
+
+/** The bag pools' actual membership — what `idsForTheme` (run/events.ts) and
+ * the defensive all-catalog bag draw from. */
+const UNGATED_IDS: readonly string[] = eventCatalogIds.filter((id) => !isGatedEventId(id));
+
 describe('data/events: catalog lint', () => {
-  it('has exactly 32 events, each with a unique id', () => {
-    expect(eventCatalogIds.length).toBe(32);
-    expect(new Set(eventCatalogIds).size).toBe(32);
+  it('has exactly 39 events (32 + the 2026-09-02 chain batch of 7), each with a unique id', () => {
+    expect(eventCatalogIds.length).toBe(39);
+    expect(new Set(eventCatalogIds).size).toBe(39);
   });
 
   it('every event has a theme', () => {
@@ -95,9 +107,14 @@ describe('data/events: catalog lint', () => {
     }
   });
 
-  it('every theme has at least 2 events', () => {
+  // Upgraded from "at least 2 events" (2026-09-02, chain batch): gated events
+  // never enter a bag, so what keeps a theme's rotation alive is its UNGATED
+  // population — the bag pool must never be thin enough for one exhausted
+  // cycle to strand the theme on the widen-fallback path (lint L3 of the
+  // chain design).
+  it('every theme has at least 2 UNGATED events (the bag pool, which excludes chained events)', () => {
     const counts: Record<string, number> = {};
-    for (const id of eventCatalogIds) {
+    for (const id of UNGATED_IDS) {
       const theme = eventCatalog[id]!.theme;
       counts[theme] = (counts[theme] ?? 0) + 1;
     }
@@ -248,7 +265,12 @@ describe('data/events: catalog lint', () => {
     expect(pool.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('exactly 8 cardChoice, 10 gemChoice, and 1 sellGem outcome in the catalog (2026-08-18 agency widening + 2026-08-19 new-mechanics batch and defect-fix pass + 2026-08-20 sellGem, which replaced the_lapidary\'s old cutting_cut gemChoice), and the 5 named-card grants are accounted for', () => {
+  // Census moved by the 2026-09-02 chain batch (+7 events): cardChoice
+  // 8 -> 13 (the_lands_measure x2, factors_ledger, pyre_watch, banner_scribe),
+  // gemChoice 10 -> 12 (factors_ledger, flaw_finder), sellGem 1 -> 2
+  // (flaw_finder — the second surface the merge-door reach measurement calls
+  // for: one door is a coin flip). Named-card grants unchanged at 5.
+  it('exactly 13 cardChoice, 12 gemChoice, and 2 sellGem outcomes in the catalog (2026-08-18 widening + 2026-08-19/20 batches + 2026-09-02 chain batch), and the 5 named-card grants are accounted for', () => {
     let cardChoiceCount = 0;
     let gemChoiceCount = 0;
     let sellGemCount = 0;
@@ -261,9 +283,9 @@ describe('data/events: catalog lint', () => {
         if (choice.outcome.kind === 'grantCard' && choice.outcome.cardId) namedGrantCardCount++;
       }
     }
-    expect(cardChoiceCount).toBe(8);
-    expect(gemChoiceCount).toBe(10);
-    expect(sellGemCount).toBe(1);
+    expect(cardChoiceCount).toBe(13);
+    expect(gemChoiceCount).toBe(12);
+    expect(sellGemCount).toBe(2);
     expect(namedGrantCardCount).toBe(5);
   });
 
@@ -345,19 +367,21 @@ describe('run/events: rollEventForNode', () => {
     }
   });
 
-  it('the event bag never repeats a catalog id within one cycle', () => {
+  it('the event bag never repeats a catalog id within one cycle (the UNGATED pool — chained events are never bagged)', () => {
     // Drive a synthetic sequence of distinct event nodes through the SAME
     // state, forcing bag draws in order, and check no id repeats until the
-    // bag would need to refill.
+    // bag would need to refill. The cycle length is the UNGATED catalog: a
+    // gated event only ever arrives via the priority scan, so it can neither
+    // appear here (no gate is met on a fresh run) nor shorten the cycle.
     let state = startedRun(9);
     const drawn: string[] = [];
-    for (let i = 0; i < eventCatalogIds.length; i++) {
+    for (let i = 0; i < UNGATED_IDS.length; i++) {
       const fakeNode = { id: `fake-${i}`, depth: 1, wave: 1, kind: 'event' as const, eventSeed: i };
       const result = rollEventForNode(state, fakeNode);
       drawn.push(result.event.id);
       state = result.state;
     }
-    expect(new Set(drawn).size).toBe(eventCatalogIds.length);
+    expect(new Set(drawn).size).toBe(UNGATED_IDS.length);
   });
 
   it('respects the node theme: the resolved event always matches node.eventTheme', () => {
@@ -400,12 +424,12 @@ describe('run/events: rollEventForNode', () => {
     expect(b.state.eventThemeBagRefills).toEqual(a.state.eventThemeBagRefills);
   });
 
-  it('falls back to the untyped all-catalog bag when eventTheme is absent (defensive path)', () => {
+  it('falls back to the untyped all-catalog bag when eventTheme is absent (defensive path; pool = ungated ids)', () => {
     let state = startedRun(14);
     const fakeNode = { id: 'no-theme', depth: 1, wave: 1, kind: 'event' as const, eventSeed: 1 };
     const result = rollEventForNode(state, fakeNode);
-    expect(eventCatalogIds).toContain(result.event.id);
-    expect(result.state.eventBag.length).toBe(eventCatalogIds.length - 1);
+    expect(UNGATED_IDS).toContain(result.event.id);
+    expect(result.state.eventBag.length).toBe(UNGATED_IDS.length - 1);
   });
 
   it('map-generated event nodes resolve to an event matching their eventTheme', () => {
@@ -975,14 +999,14 @@ describe('run/events: cardChoice/gemChoice (the 2026-08-18 agency widening)', ()
       }
     }
     // Sanity on the sweep itself — matches the catalog-lint count test above
-    // (8 cardChoice, 10 gemChoice — 2026-08-19 defect fix converted
-    // sweep_drill's `proper_stance` from a cardChoice to a named grantCard,
-    // see that event's own comment; 2026-08-20 replaced the_lapidary's
-    // `cutting_cut` gemChoice with a `sellGem` choice, 11 -> 10) so a future
-    // content edit that silently drops one of these choices out of the
-    // vocabulary is also caught here.
-    expect(cardChoiceChecked).toBe(8);
-    expect(gemChoiceChecked).toBe(10);
+    // (13 cardChoice, 12 gemChoice after the 2026-09-02 chain batch; the
+    // sweep deliberately includes the GATED events' rungs, since
+    // `resolveEventChoice` takes the same known-gap posture for gates as for
+    // affordability — the usability predicate is the guard, not the resolver)
+    // so a future content edit that silently drops one of these choices out
+    // of the vocabulary is also caught here.
+    expect(cardChoiceChecked).toBe(13);
+    expect(gemChoiceChecked).toBe(12);
   });
 });
 
@@ -1176,7 +1200,7 @@ describe('run/events: cardChoice/gemChoice throw on a too-small filtered pool (2
   });
 });
 
-describe('run/events: catalog invariants still hold with the expanded (32-event) catalog', () => {
+describe('run/events: catalog invariants still hold with the expanded (39-event) catalog', () => {
   it('an event rolled at gold 0 always has an affordable, non-nothing choice (many seeds/nodes)', () => {
     for (let i = 0; i < 20; i++) {
       const seed = i * 41 + 7;

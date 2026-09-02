@@ -12,14 +12,34 @@
 // `scene.start`, and so is a page reload — from resolving the same rung a
 // second time. `reopenEventChoice` is the one exception, and it charges
 // nothing: it re-asks a deferred picker that was paid for and never answered.
+//
+// EVENT CHAINS (2026-09-02): those same two memos double as the chains'
+// memory. A gate (`EventGate`/`EventTallyGate`, data/events.ts) is a pure
+// scan of `eventResolutions` / the run's tally counters — no Rng, no new
+// save field — checked per-rung in `isEventChoiceUsable` and per-event in
+// `rollEventForNode`, where gated events bypass the bags entirely (see the
+// chain scan there for why a locked bag resident would starve its theme).
 
 import { hashSeed, Rng } from '../engine/rng';
 import { cardOfferableAtTier, clampTierToCard } from '../engine/types';
-import type { SkillDef, SkillTier } from '../engine/types';
-import { eventCatalog, eventCatalogIds, type EventChoiceDef, type EventDef, type EventOutcomeSpec, type EventTheme } from '../data/events';
+import type { Element, SkillDef, SkillTier, WeaponType } from '../engine/types';
+import { boardTypeIdentity } from '../engine/combat/typeIdentity';
+import {
+  eventCatalog,
+  eventCatalogIds,
+  type EventChoiceDef,
+  type EventDef,
+  type EventGate,
+  type EventOutcomeSpec,
+  type EventTallyGate,
+  type EventTheme,
+  type FilterFromSource,
+} from '../data/events';
+import type { CardFilter } from '../data/shopTypes';
 import type { DraftCard } from './draft';
 import { skillBook } from '../data/skills';
 import { gemBook } from '../data/gems';
+import { biomeFor, counterTypeFor } from './biome';
 import { cardMatchesFilter, gemMatchesFilter, pickWeightedGem, pickWeightedGems, sellPriceOfGem } from './shop';
 import {
   currentEventNode,
@@ -39,7 +59,12 @@ import {
  * (also reused by `upgradeCard` when nothing owned is eligible to upgrade). */
 const CARD_FALLBACK_GOLD = 2;
 const DEFAULT_CARD_TIER: SkillTier = 'bronze';
-const BONUS_DRAFT_SIZE = 5;
+// Exported (2026-09-02) for the same reason as `EVENT_CHOICE_SIZE` below: the
+// derived-filter width lint (`tests/run/events.chains.test.ts`) asserts every
+// `filterFrom` source's worst-case pool clears the width its outcome deals,
+// and `sampleDistinct` silently deals fewer rather than erroring — the test
+// must measure against the resolver's own number, never a literal 5.
+export const BONUS_DRAFT_SIZE = 5;
 
 /**
  * Width of a `cardChoice`/`gemChoice` event outcome's deferred pick
@@ -332,23 +357,159 @@ export function isEventChoiceAffordable(state: RunState, choice: EventChoiceDef)
   return (choice.cost ?? 0) <= state.gold;
 }
 
+// ---------------------------------------------------------------------------
+// Event-chain gates (2026-09-02) — see the EVENT CHAINS block in
+// `data/events.ts`. Both predicates are PURE READS of state the run already
+// persists (`eventResolutions` and the tally counters), so they are
+// reload-stable, spend no Rng, and add zero save fields. One pair implements
+// both seams: a gated CHOICE (checked in `isEventChoiceUsable` below) and a
+// gated EVENT (checked in `rollEventForNode`'s chain scan).
+// ---------------------------------------------------------------------------
+
+/** Whether the run's choice ledger satisfies `gate` — some resolved rung
+ * anywhere this run matches `(gate.eventId, one of gate.choiceIds)`. A
+ * `pending` resolution counts: the cost is paid and the choice committed the
+ * moment `resolveEventChoice` returns; `pending` only means its deferred
+ * picker is unanswered. Key order over the record is moot — this is a boolean
+ * "some", not a fold. */
+export function eventGateMet(state: RunState, gate: EventGate): boolean {
+  const resolutions = state.eventResolutions ?? {};
+  for (const nodeId of Object.keys(resolutions)) {
+    const r = resolutions[nodeId]!;
+    if (r.eventId !== gate.eventId) continue;
+    if (!gate.choiceIds || gate.choiceIds.includes(r.choiceId)) return true;
+  }
+  return false;
+}
+
+/** Whether the named run counter has reached `gate.atLeast`. `wins`/`losses`/
+ * `bossesCleared` live top-level on `RunState` (the stats ledger deliberately
+ * does not duplicate them — see `RunStats`'s doc comment in runState.ts); the
+ * other four are `state.stats` fields. */
+export function eventTallyMet(state: RunState, gate: EventTallyGate): boolean {
+  const value =
+    gate.stat === 'wins' ? state.wins
+    : gate.stat === 'losses' ? state.losses
+    : gate.stat === 'bossesCleared' ? state.bossesCleared
+    : state.stats[gate.stat];
+  return value >= gate.atLeast;
+}
+
+/** Both gates on an `EventDef` or `EventChoiceDef` at once (absent = open).
+ * The shared shape is structural on purpose: one predicate, two seams. */
+function gatesMet(state: RunState, gated: { requires?: EventGate; requiresTally?: EventTallyGate }): boolean {
+  if (gated.requires && !eventGateMet(state, gated.requires)) return false;
+  if (gated.requiresTally && !eventTallyMet(state, gated.requiresTally)) return false;
+  return true;
+}
+
+/** A CHAINED event — one that must never enter a bag (see `rollEventForNode`'s
+ * chain scan for the starvation proof) and only draws once its gate is open. */
+function isGatedEvent(event: EventDef): boolean {
+  return event.requires !== undefined || event.requiresTally !== undefined;
+}
+
+/** The `filterFrom` source on a card-granting spec, or `undefined` — only
+ * `cardChoice`/`bonusDraft` carry the field (see `FilterFromSource` in
+ * data/events.ts). */
+function filterFromOf(spec: EventOutcomeSpec): FilterFromSource | undefined {
+  return spec.kind === 'cardChoice' || spec.kind === 'bonusDraft' ? spec.filterFrom : undefined;
+}
+
+/**
+ * Substitute a `filterFrom` source for a concrete `CardFilter` — the whole
+ * derived-door seam (`FilterFromSource`, data/events.ts) in one pure read.
+ * Returns `undefined` when the source cannot resolve (no node for a biome
+ * source; a bow-lean band for `biomeCounter` — nothing counters bow; an
+ * uncommitted board for `boardIdentity`), which `isEventChoiceUsable` renders
+ * as a dark rung and `applySpec` renders as "fall back to the static filter"
+ * (the module's standing "never throw over a narrow filter" posture).
+ *
+ * No Rng and no save change: `biomeFor` is a `hashSeed` re-derivation with its
+ * own un-stamped-save fallback, and `boardTypeIdentity` is an integer tally
+ * over the board pieces (BOARD only — matching the combat fold's own read).
+ * The outcome that consumes the result spends its same draws over a different
+ * array, so determinism holds: same state, same node, same filter.
+ *
+ * Exported for the UI's later dynamic-label pass ("Take the local make —
+ * FROST"): the scene must read THIS derivation, never re-derive it a second
+ * way (`derivedChoiceFilter` below is the per-choice convenience wrapper).
+ */
+export function resolveFilterFrom(state: RunState, node: RunNode | null, source: FilterFromSource): CardFilter | undefined {
+  if (source === 'boardIdentity') {
+    const boardSkills: SkillDef[] = [];
+    for (const piece of state.pieces) {
+      const skill = skillBook[piece.skillId];
+      if (skill) boardSkills.push(skill);
+    }
+    const identity = boardTypeIdentity(boardSkills);
+    if (!identity) return undefined;
+    return identity.kind === 'element' ? [{ elements: [identity.type] }] : [{ weapons: [identity.type] }];
+  }
+  if (!node) return undefined;
+  const lean = biomeFor(state.seed, node.wave, node.biomeId).lean;
+  if (source === 'biomeLean') {
+    return lean.kind === 'element' ? [{ elements: [lean.type] }] : [{ weapons: [lean.type] }];
+  }
+  // `biomeCounter` — the counter of an element lean is itself an element and
+  // of a weapon lean a weapon (`ELEMENT_BEATS`/`WEAPON_BEATS` never cross the
+  // two triangles), so the lean's own kind types the cast safely.
+  const counter = counterTypeFor(lean);
+  if (counter === undefined) return undefined;
+  return lean.kind === 'element' ? [{ elements: [counter as Element] }] : [{ weapons: [counter as WeaponType] }];
+}
+
+/** `resolveFilterFrom` for one catalog choice against the ACTIVE event node —
+ * `undefined` both for a choice with no `filterFrom` and for one whose source
+ * cannot resolve right now (the caller that needs to tell them apart checks
+ * the spec's `filterFrom` field itself, as `isEventChoiceUsable` does). */
+export function derivedChoiceFilter(state: RunState, choice: EventChoiceDef): CardFilter | undefined {
+  const source = filterFromOf(choice.outcome);
+  if (source === undefined) return undefined;
+  return resolveFilterFrom(state, currentEventNode(state) ?? null, source);
+}
+
 /** Whether `choice` is USABLE right now — `isEventChoiceAffordable` (the
- * gold gate) PLUS any outcome-specific precondition. There are TWO such
- * preconditions today. `sellGem`: its picker has nothing to offer with an
- * empty pouch, so a cost-0 `sellGem` choice at
- * `state.gemInventory.length === 0` reads as affordable (cost 0 <= any gold)
- * but is NOT usable — this is the gate that keeps `sellGemOutcome` from ever
- * resolving to an empty picker (see that function's doc comment).
+ * gold gate) PLUS the choice's own gates PLUS any outcome-specific
+ * precondition. The preconditions, in check order:
+ *
+ * GATES (2026-09-02, outcome-agnostic): a rung carrying `requires`/
+ * `requiresTally` is dark until the run's ledger satisfies it (`eventGateMet`/
+ * `eventTallyMet` above) — the same dark-rung presentation as everything
+ * below, which is what makes a chain's locked door legible through the scenes'
+ * existing dimming with zero UI changes.
+ *
+ * `filterFrom` (2026-09-02): a card door whose derived pool source cannot
+ * resolve right now (`biomeCounter` on a bow band, `boardIdentity` on an
+ * uncommitted board — see `resolveFilterFrom`) is dark rather than a button
+ * that would silently fall back to an unfiltered pool.
+ *
+ * `sellGem`: its picker has nothing to offer with an empty pouch, so a cost-0
+ * `sellGem` choice at `state.gemInventory.length === 0` reads as affordable
+ * (cost 0 <= any gold) but is NOT usable — this is the gate that keeps
+ * `sellGemOutcome` from ever resolving to an empty picker (see that
+ * function's doc comment).
+ *
  * `mergeCards`: it needs three owned cards of one non-Diamond tier AND a
  * deliverable output, so a cost-0 merge rung is unusable until
  * `mergeCardsPlan` finds a trade (see below). Every other outcome kind has no
- * such precondition and this reduces to `isEventChoiceAffordable` alone.
+ * such precondition and this reduces to affordability + gates alone.
+ *
  * This is the predicate the UI should call to dim an individual choice
  * button (not `isEventChoiceAffordable` directly) and the one
  * `hasAffordableChoice`/`rollEventForNode` use to decide whether an event is
- * eligible to be offered at all. */
+ * eligible to be offered at all. Like the resolver's KNOWN GAP for
+ * unaffordable priced choices (tests/run/events.test.ts), `resolveEventChoice`
+ * does NOT re-check gates: this predicate is the guard, the once-per-node
+ * throw kills the dangerous replay class, and a bypassed gate's outcome is an
+ * ordinary priced outcome — nothing exploitable behind it. */
 export function isEventChoiceUsable(state: RunState, choice: EventChoiceDef): boolean {
   if (!isEventChoiceAffordable(state, choice)) return false;
+  if (!gatesMet(state, choice)) return false;
+  const source = filterFromOf(choice.outcome);
+  if (source !== undefined && resolveFilterFrom(state, currentEventNode(state) ?? null, source) === undefined) {
+    return false;
+  }
   if (choice.outcome.kind === 'sellGem') return state.gemInventory.length > 0;
   // `mergeCards` (2026-08-26): the second outcome-specific precondition, and the
   // reason this function exists apart from `isEventChoiceAffordable`. A merge
@@ -401,9 +562,36 @@ function firstEligibleIndex(ids: readonly string[], state: RunState): number {
 // own head rather than leaving the node unresolved.
 // ---------------------------------------------------------------------------
 
-/** Catalog ids for one theme, in fixed catalog order. */
+/** UNGATED catalog ids for one theme, in fixed catalog order — the theme
+ * bag's pool. GATED (chained) events are excluded here, NOT filtered at draw
+ * time, because a locked bag resident is a provable starvation bug: skipped
+ * entries stay in the bag and a bag refills only at length 0, so one
+ * permanently-locked id would pin its theme's bag non-empty forever — the
+ * theme never reshuffles again, and once every other id is consumed every
+ * draw of that theme takes the widen-to-catalog path (the same first-eligible
+ * event, every time, for the rest of the run). Chained events are delivered
+ * by `rollEventForNode`'s priority scan instead; because they never join a
+ * pool, every seeded sequence is byte-identical until a gate opens. */
 function idsForTheme(theme: EventTheme): readonly string[] {
-  return eventCatalogIds.filter((id) => eventCatalog[id]!.theme === theme);
+  return eventCatalogIds.filter((id) => eventCatalog[id]!.theme === theme && !isGatedEvent(eventCatalog[id]!));
+}
+
+/** GATED catalog ids for one theme, fixed catalog order — the priority scan's
+ * pool (`rollEventForNode`). Fixed order is the tie-break when two chains of
+ * one theme unlock together: the first fires now, the second at the following
+ * node of that theme (never a loss — both stay "ready" until drawn). */
+function gatedIdsForTheme(theme: EventTheme): readonly string[] {
+  return eventCatalogIds.filter((id) => eventCatalog[id]!.theme === theme && isGatedEvent(eventCatalog[id]!));
+}
+
+/** Whether this run has already shown `eventId` at some node. `eventInstances`
+ * records every draw and the map never pre-draws unvisited nodes (runMap.ts
+ * labels via `node.eventTheme` precisely so labeling doesn't consume a bag),
+ * so membership here IS "the player saw it" — the chains' once-per-run bound,
+ * for free, from a field the run already maintains. */
+function isDrawnThisRun(state: RunState, eventId: string): boolean {
+  const drawn = Object.values(state.eventInstances);
+  return drawn.indexOf(eventId) !== -1;
 }
 
 /** Draws (idempotently) the event for `node` — repeated calls for the same
@@ -425,12 +613,17 @@ export function rollEventForNode(state: RunState, node: RunNode): { state: RunSt
   const theme = node.eventTheme;
   if (theme === undefined) {
     // Defensive fallback (no theme on the node) — today's original
-    // all-catalog no-repeat bag, now affordability-aware.
+    // all-catalog no-repeat bag, now affordability-aware. Its refill pool
+    // excludes gated ids for the same starvation reason `idsForTheme` does; a
+    // chained event only ever arrives through the themed priority scan below
+    // (it carries a normal theme, and only themed nodes exist on maps new
+    // enough to know about chains).
     let bag = state.eventBag;
     let refills = state.eventBagRefills;
     if (bag.length === 0) {
+      const pool = eventCatalogIds.filter((id) => !isGatedEvent(eventCatalog[id]!));
       const rng = new Rng(hashSeed('eventBag', state.seed, refills));
-      bag = sampleDistinct(rng, eventCatalogIds, eventCatalogIds.length);
+      bag = sampleDistinct(rng, pool, pool.length);
       refills += 1;
     }
     const eligibleIdx = firstEligibleIndex(bag, state);
@@ -461,6 +654,29 @@ export function rollEventForNode(state: RunState, node: RunNode): { state: RunSt
     return { state: nextState, event };
   }
 
+  // CHAINED EVENTS (2026-09-02): never bagged, drawn by PRIORITY the first
+  // time their gate is open at a node of their theme — before the bag is even
+  // looked at, and WITHOUT touching it (no reshuffle bookkeeping, no bag
+  // mutation, no Rng call: the whole draw stays a pure function of `state`).
+  // Once per run comes free from the `eventInstances` ledger; fixed catalog
+  // order breaks a two-chains-one-theme tie. `hasAffordableChoice` keeps the
+  // wave-1 "never a dead event" rule — and the catalog lint guarantees every
+  // chained event has a cost-0, non-`nothing` rung lit for every way its gate
+  // can open, so an open chain really does fire at the NEXT node of its theme
+  // rather than "once the player is also rich".
+  const ready = gatedIdsForTheme(theme).find((id) => {
+    const ev = eventCatalog[id]!;
+    return gatesMet(state, ev) && !isDrawnThisRun(state, id) && hasAffordableChoice(state, ev);
+  });
+  if (ready) {
+    const event = eventCatalog[ready]!;
+    const nextState: RunState = {
+      ...state,
+      eventInstances: { ...state.eventInstances, [node.id]: ready },
+    };
+    return { state: nextState, event };
+  }
+
   const themePool = idsForTheme(theme);
   const themeBags = state.eventThemeBags ?? {};
   const themeRefills = state.eventThemeBagRefills ?? {};
@@ -478,7 +694,17 @@ export function rollEventForNode(state: RunState, node: RunNode): { state: RunSt
     // the (possibly just-refilled) bag as-is — it wasn't consumed, only
     // scanned — and widen the draw to the first eligible id in the WHOLE
     // catalog, graceful and non-throwing even if that also comes up empty.
-    const eventId = eventCatalogIds[firstEligibleIndex(eventCatalogIds, state)] ?? bag[0] ?? eventCatalogIds[0]!;
+    // The widen pool takes the same gated-id treatment as the bags: a chained
+    // event may appear here only when its gate is open and it has not fired
+    // this run (off-theme delivery is acceptable on this deliberately-rare
+    // last-resort path; a still-locked chain never is). Gated ids sit at the
+    // catalog's tail, so on any state the old catalog could satisfy, the scan
+    // lands on the same id it always did.
+    const widenPool = eventCatalogIds.filter((id) => {
+      const ev = eventCatalog[id]!;
+      return !isGatedEvent(ev) || (gatesMet(state, ev) && !isDrawnThisRun(state, id));
+    });
+    const eventId = widenPool[firstEligibleIndex(widenPool, state)] ?? bag[0] ?? eventCatalogIds[0]!;
     const event = eventCatalog[eventId];
     if (!event) throw new Error(`rollEventForNode: unknown catalog event id "${eventId}"`);
     const nextState: RunState = {
@@ -1119,14 +1345,37 @@ function mergeCardsPickResult(
   };
 }
 
+/** A `cardChoice`/`bonusDraft` spec with any `filterFrom` source substituted
+ * for the concrete filter it derives to right now (`resolveFilterFrom`) — the
+ * existing outcome functions then run unchanged over the swapped array, so
+ * the deferred shape stays plain `bonusDraft` and no Rng call moves. An
+ * unresolvable source falls back to the spec's own static `filter` (usually
+ * none): the known-gap resolve path must never throw over a derivation the
+ * usability gate would have dimmed (see `resolveFilterFrom`'s doc comment). */
+function withResolvedFilterFrom<S extends Extract<EventOutcomeSpec, { kind: 'cardChoice' | 'bonusDraft' }>>(
+  state: RunState,
+  node: RunNode,
+  spec: S,
+): S {
+  if (!spec.filterFrom) return spec;
+  const derived = resolveFilterFrom(state, node, spec.filterFrom);
+  return { ...spec, filter: derived ?? spec.filter };
+}
+
 /** Applies a single (already-rolled) outcome spec. `depth` is the
  * node's shop-stock-equivalent depth band (see `grantGemOutcome`'s doc
- * comment) — `grantGem` and `gemChoice` both consume it today. */
+ * comment) — `grantGem` and `gemChoice` both consume it today. `node` is the
+ * active event node, consumed only by the `filterFrom` substitution (the
+ * biome sources are node-fixed: a reopened picker on the same node re-derives
+ * the same lean, while `boardIdentity` re-derives against the run as it
+ * stands — the same class as `upgradeCard`/`mergeCards`, see
+ * `reopenEventChoice`). */
 function applySpec(
   state: RunState,
   rng: Rng,
   spec: EventOutcomeSpec,
   depth: number,
+  node: RunNode,
 ): { state: RunState; outcome: EventOutcome } {
   switch (spec.kind) {
     case 'grantCard':
@@ -1157,9 +1406,9 @@ function applySpec(
       return { state: { ...state, heroLevel: level }, outcome: { kind: 'grantLevel', level } };
     }
     case 'bonusDraft':
-      return { state, outcome: bonusDraftOutcome(rng, spec) };
+      return { state, outcome: bonusDraftOutcome(rng, withResolvedFilterFrom(state, node, spec)) };
     case 'cardChoice':
-      return { state, outcome: cardChoiceOutcome(rng, spec) };
+      return { state, outcome: cardChoiceOutcome(rng, withResolvedFilterFrom(state, node, spec)) };
     case 'gemChoice':
       return { state, outcome: gemChoiceOutcome(rng, spec, depth) };
     case 'upgradeCard':
@@ -1240,7 +1489,7 @@ export function resolveEventChoice(
   }
 
   const rng = new Rng(hashSeed('event', node.eventSeed!, choiceId));
-  const { state: nextState, outcome } = applySpec(working, rng, choice.outcome, shopStockDepthForWave(node.wave));
+  const { state: nextState, outcome } = applySpec(working, rng, choice.outcome, shopStockDepthForWave(node.wave), node);
   return {
     state: recordEventResolution(
       { ...nextState, stats: { ...nextState.stats, eventsResolved: nextState.stats.eventsResolved + 1 } },
@@ -1282,7 +1531,7 @@ export function reopenEventChoice(state: RunState): { state: RunState; outcome: 
   if (!choice) return undefined;
 
   const rng = new Rng(hashSeed('event', node.eventSeed!, resolution.choiceId));
-  const { state: nextState, outcome } = applySpec(state, rng, choice.outcome, shopStockDepthForWave(node.wave));
+  const { state: nextState, outcome } = applySpec(state, rng, choice.outcome, shopStockDepthForWave(node.wave), node);
   return {
     state: isDeferredOutcome(outcome) ? nextState : clearPendingEventPick(nextState),
     outcome,
