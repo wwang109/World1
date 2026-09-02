@@ -38,7 +38,8 @@
  *      installs provide (e.g. `/opt/pw-browsers/chromium`) is tried first.
  *   3. Playwright's per-user default cache, scanned by the SAME `scan()` on
  *      every platform — `%USERPROFILE%\AppData\Local\ms-playwright` on
- *      Windows, `~/.cache/ms-playwright` elsewhere.
+ *      Windows, `~/Library/Caches/ms-playwright` on macOS,
+ *      `~/.cache/ms-playwright` elsewhere.
  *
  * Throws (naming both env vars) if nothing resolves — a browser-less script
  * must fail loudly, not fall through to `undefined` and let Playwright
@@ -64,9 +65,16 @@ function homeDir(): string {
  * Windows branch of the old copies rotted.
  */
 function scan(browsersPath: string): string | null {
-  const isWin = process.platform === 'win32';
-  const exeName = isWin ? 'chrome.exe' : 'chrome';
-  const platformDirs = isWin ? ['chrome-win64', 'chrome-win'] : ['chrome-linux'];
+  // Executable location RELATIVE to one `chromium-<rev>` build dir. A LIST on
+  // Windows because Playwright has shipped two layouts (`chrome-win64` new,
+  // `chrome-win` old). macOS has one layout but a deep one — the binary sits
+  // inside the `.app` bundle — which is why these are whole relative paths
+  // rather than the old (platform dir, exe name) pair that could not spell it.
+  const relExes = process.platform === 'win32'
+    ? [join('chrome-win64', 'chrome.exe'), join('chrome-win', 'chrome.exe')]
+    : process.platform === 'darwin'
+      ? [join('chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium')]
+      : [join('chrome-linux', 'chrome')];
 
   const symlink = join(browsersPath, 'chromium');
   if (existsSync(symlink)) return symlink;
@@ -84,12 +92,27 @@ function scan(browsersPath: string): string | null {
     .filter((e) => /^chromium-\d+$/.test(e))
     .sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]));
   for (const dir of revisioned) {
-    for (const sub of platformDirs) {
-      const candidate = join(browsersPath, dir, sub, exeName);
+    for (const rel of relExes) {
+      const candidate = join(browsersPath, dir, rel);
       if (existsSync(candidate)) return candidate;
     }
   }
   return null;
+}
+
+/**
+ * Playwright's per-user default browser cache. Three homes, one per platform:
+ * Windows keeps it in local AppData, macOS in `~/Library/Caches` (macOS does
+ * NOT follow the XDG `~/.cache` convention Linux uses — a `~/.cache` scan
+ * there quietly misses a perfectly good install), everything else in
+ * `~/.cache`.
+ */
+function defaultCacheDir(home: string): string {
+  switch (process.platform) {
+    case 'win32': return join(home, 'AppData', 'Local', 'ms-playwright');
+    case 'darwin': return join(home, 'Library', 'Caches', 'ms-playwright');
+    default: return join(home, '.cache', 'ms-playwright');
+  }
 }
 
 /** `scriptName` only names the caller in the throw, so the failure says which
@@ -105,10 +128,7 @@ export function resolveChromiumPath(scriptName: string): string {
 
   const home = homeDir();
   if (home) {
-    const cacheDir = process.platform === 'win32'
-      ? join(home, 'AppData', 'Local', 'ms-playwright')
-      : join(home, '.cache', 'ms-playwright');
-    const found = scan(cacheDir);
+    const found = scan(defaultCacheDir(home));
     if (found) return found;
   }
 

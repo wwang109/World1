@@ -20,7 +20,7 @@
  * the document automatically instead of by a hand-edit to the JSON.
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { MODIFIER_PRESETS } from '../src/data/modifiers';
 import { asciiSafeStringify } from './asciiSafeJson';
 
@@ -147,7 +147,7 @@ const perModifier = [...notesById.values()].reduce((n, v) => n + v.length, 0);
 function main(): void {
   mkdirSync(OUT_DIR, { recursive: true });
   writeFileSync(OUT, modifiersDocumentText);
-  console.log(`wrote ${modifierList.length} modifiers -> ${OUT.pathname}`);
+  console.log(`wrote ${modifierList.length} modifiers -> ${fileURLToPath(OUT)}`);
   console.log(`notes rescued: ${perModifier} lines across ${notesById.size}/${modifierList.length} modifiers, + ${docNotes.length} document-level = ${perModifier + docNotes.length} total`);
 }
 

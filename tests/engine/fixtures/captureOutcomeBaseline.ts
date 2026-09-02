@@ -17,6 +17,7 @@
  * Not a `*.test.ts` file, so vitest never collects it.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { simulate, ATTRITION_START_TURN } from '../../../src/engine/combat/simulate';
 import { sweepCases } from '../helpers/sweepConfigs';
 import { outcomeHash as hash } from '../helpers/outcomeHash';
@@ -93,4 +94,4 @@ for (const key of ['attritionOff', 'attritionOn'] as const) {
 }
 
 writeFileSync(OUT, `${JSON.stringify(next, null, 1)}\n`);
-console.log(`wrote ${OUT.pathname}`);
+console.log(`wrote ${fileURLToPath(OUT)}`);

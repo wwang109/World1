@@ -19,7 +19,7 @@
  * comments today, see the module doc on rescueNotes below).
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { enemies } from '../src/data/enemies';
 import { asciiSafeStringify } from './asciiSafeJson';
 
@@ -164,7 +164,11 @@ const perEnemy = [...notesById.values()].reduce((n, v) => n + v.length, 0);
 function main(): void {
   mkdirSync(OUT_DIR, { recursive: true });
   writeFileSync(OUT, enemiesDocumentText);
-  console.log(`wrote ${enemyList.length} enemies -> ${OUT.pathname}`);
+  // `fileURLToPath(OUT)`, not `OUT.pathname` — the getter hands back a URL
+  // path, which on Windows is `/C:/Users/...` with `%20` for spaces (the same
+  // trap tierLockMigration.test.ts's REPO_ROOT comment documents). The fs
+  // calls take the URL object itself, so only this printed line needs it.
+  console.log(`wrote ${enemyList.length} enemies -> ${fileURLToPath(OUT)}`);
   console.log(`notes rescued: ${perEnemy} lines across ${notesById.size}/${enemyList.length} enemies, + ${docNotes.length} document-level = ${perEnemy + docNotes.length} total`);
 }
 

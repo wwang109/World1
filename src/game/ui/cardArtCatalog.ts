@@ -32,7 +32,7 @@ export function cardArtUrl(entry: CardArtEntry): string {
 
 export const CARD_ART_CATALOG: Record<string, CardArtEntry> = {
   aegis_of_the_unbroken: { textureKey: 'card-art:aegis_of_the_unbroken_anime', fileName: 'aegis-of-the-unbroken-anime.webp' },
-  arcane_bolt: { textureKey: 'card-art:arcane_bolt_spell', fileName: 'arcane-bolt-spell.webp' },
+  arcane_bolt: { textureKey: 'card-art:arcane_bolt_anime', fileName: 'arcane-bolt-anime.webp' },
   armor_break: { textureKey: 'card-art:armor_break_anime', fileName: 'armor-break-anime.webp' },
   battle_howl: { textureKey: 'card-art:battle_howl_anime', fileName: 'battle-howl-anime.webp' },
   bramble_ward: { textureKey: 'card-art:bramble_ward_anime', fileName: 'bramble-ward-anime.webp' },
