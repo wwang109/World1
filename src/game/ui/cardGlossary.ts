@@ -296,6 +296,11 @@ function plainKeywordEntry(action: Action, property: Property, ownType?: Element
         title: 'Negate',
         body: `Cancels the next ${action.charges > 1 ? `${action.charges} direct ${action.property === 'true' ? '' : `${action.property} `}hits` : `direct ${action.property === 'true' ? '' : `${action.property} `}hit`}. DoT ticks don’t consume it (max 3 charges/property).`,
       };
+    case 'taunt':
+      return {
+        title: 'Taunt',
+        body: `+${action.amount} aggro on the caster. Enemies pick the target with the HIGHEST current aggro (ties fall back to their usual policy), so the taunter draws the hits their allies would have taken.`,
+      };
     case 'expose':
       return {
         title: 'Expose',

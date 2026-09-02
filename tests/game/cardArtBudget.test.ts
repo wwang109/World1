@@ -149,12 +149,21 @@ describe('card art budget', () => {
    */
   const ART_PENDING = [
     'blightstep_dirge',
+    'champions_challenge',
     'emberchant_rite',
+    'forgeheart_bastion',
     'frostbind_litany',
+    'heartwood_sanctum',
+    'hibernation',
+    'ironhide',
     'ironmarch_tithe',
+    'nullshroud',
+    'quickmend',
     'quiverwardens_call',
     'standard_of_the_ninth',
+    'steady_draw',
     'storm_tithe',
+    'the_long_watch',
     'writ_of_sanction',
   ];
 

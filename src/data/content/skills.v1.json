@@ -28,7 +28,8 @@
   "Affinity reachability pass (2026-08-26): +7 gated cards outside offense (rustbind_hex, blooded_fang, hoarfrost_creed, pikewall_oath, sanctified_vigil, oathplate, graveside_rite). The keyword shipped 16 offense + 1 healing gated cards, so the Alchemist (debuff) and Bulwark (defensive/support) shelves offered one 0.0% of the time over 500 measured rolls. These add gated debuffStat / bleed / expose / guard / ward / attunedShield / cleanse \u2014 seven families the gate had never been attached to. See each card's notes for its budget derivation.",
   "Whole-PL-at-every-tier re-solve (2026-08-26): the whole-PL-parts invariant was only ever swept over BASE `effects`, so 11 cards shipped fractional parts above Bronze (barrage, chain_spark, concussive_shot, crushing_blow, overgrowth, penitent_mending, rapid_volley, shadow_bolt, sword_slash, twin_slash, vow_broken). Every tier of every card is now swept by tests/engine/balance.ts's whole-PL test, which also asserts budget exactness and output monotonicity per rank. See each card's notes for its re-solve.",
   "Q2 positional pass + Q3 affinity-density pass (2026-08-26): +10 cards. Q2 \u2014 the board was a bag: 6 of 156 cards carried an `aura`, all six `support`, all six `adjacent` or `allBoard`, and NOTHING had ever used a direction (`left`/`right`) or a gap (`reach` > 1). Six new cards use them, on offense / defensive / debuff / healing / support, five of them at `reach: 2`. One-sided reach is the honest shape: `PRICE.auraDamageFlat` is derived as 5 x its 2-NEIGHBOUR coverage and `powerLevelDeci` never reads `reach`, so `left`/`right` at `reach: 2` covers exactly the two pieces the rate is calibrated for while `adjacent` at `reach: 2` would cover four at the same price \u2014 pinned by tests/engine/auraCoverage.test.ts. Q3 \u2014 measured per type over bronze-reachable gated cards: bow 1, then frost/lightning/dark/beast/nature/lance/axe 2, then fire/holy/sword 3, against enabler pools of 10 (bow, frost) to 22 (axe). Nine of the ten new cards carry a gated line, taking every type to at least 3 and holding the enabler floor; tests/run/affinityReachability.test.ts now asserts both halves. Plus `rimebarb_vigil`, the first thorns card whose stack count grows with rank \u2014 see its notes.",
-  "Support/debuff pass (2026-09-02, +8 cards): emberchant_rite, frostbind_litany, storm_tithe, writ_of_sanction, quiverwardens_call, standard_of_the_ninth, blightstep_dirge, ironmarch_tithe. Measured over the 166 cards before this pass, `support` had ZERO fire and ZERO frost entries, `buffStat` had only ever named attack and speed (armor/magicResist/magicPower never buffed, while armor is the most DEBUFFED stat in the game), every shipped aura carried exactly ONE mod, all 3 shipped `empowerNext` armers were affinity-gated (payoff only, never a builder), all 4 splash cards spread a SINGLE payload, and the tempo family (disrupt/slow/burden/curse/splash) had no affinity gate on any of its five keywords. These eight close those holes. Every tier of every card sums EXACTLY to TIER_BUDGET_DECI with zero cap violations; see each card's notes for the term-by-term derivation."
+  "Support/debuff pass (2026-09-02, +8 cards): emberchant_rite, frostbind_litany, storm_tithe, writ_of_sanction, quiverwardens_call, standard_of_the_ninth, blightstep_dirge, ironmarch_tithe. Measured over the 166 cards before this pass, `support` had ZERO fire and ZERO frost entries, `buffStat` had only ever named attack and speed (armor/magicResist/magicPower never buffed, while armor is the most DEBUFFED stat in the game), every shipped aura carried exactly ONE mod, all 3 shipped `empowerNext` armers were affinity-gated (payoff only, never a builder), all 4 splash cards spread a SINGLE payload, and the tempo family (disrupt/slow/burden/curse/splash) had no affinity gate on any of its five keywords. These eight close those holes. Every tier of every card sums EXACTLY to TIER_BUDGET_DECI with zero cap violations; see each card's notes for the term-by-term derivation.",
+  "Defensive/healing pass (2026-09-02, +9 cards): champions_challenge, ironhide, hibernation, steady_draw, heartwood_sanctum, nullshroud, the_long_watch, quickmend, forgeheart_bastion. Measured over the 174-card book: `taunt` shipped with an interpreter arm, a targeting policy that reads aggro, a UI row and a PRICE (tauntPerPoint, 2026-08-18) and ZERO cards casting it \u2014 champions_challenge is the first, pairing it with the guard that makes drawn fire survivable. All five prior buffStat actions raised attack or speed; ironhide is the first armor/magicResist buff. No base card had ever set `cooldownTurns`; hibernation is the first, spending the cd-5 refund (80 deci) to afford negate + heal at Bronze. Every prior guard was exactly 2 turns and physical/magical; the_long_watch is the first long-window guard (4-5 turns) and nullshroud the first TRUE guard \u2014 the only mitigation in the book that blunts the attrition breaker. No card carried more than one negate charge; forgeheart_bastion holds 2, legal only at size 3 where it sits exactly on the frozen empower cap, so it can never be out-scaled. Healing had no size-3 card (heartwood_sanctum is the first, stacking ward + cleanse + heal, a triple no card shipped) and no bow/frost/lightning entry (steady_draw / hibernation / quickmend). Every tier of every card sums EXACTLY to TIER_BUDGET_DECI with zero cap violations; see each card's notes for the term-by-term derivation."
  ],
  "cards": [
   {
@@ -11326,6 +11327,1017 @@
          }
         ],
         "text": "Deal 42 (+ATK) Lance damage \u00b7 {{Burden}} +12 weight on the card the enemy is about to play \u00b7 {{Affinity}} Lance \u2014 {{Disrupt}} 4 banked readiness."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "champions_challenge",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Champion's Challenge",
+      "text": "{{Taunt}} 2 \u2014 foes pick you first \u00b7 -20% incoming physical damage (2 turns) \u00b7 Gain 8 (+DEF) physical shield.",
+      "notes": [
+       "THE FIRST TAUNT CARD IN THE GAME. `taunt` shipped with an interpreter arm",
+       "(combat/interpreter.ts: caster.aggro += amount, permanent, never",
+       "turn-decremented), a default targeting policy that reads it (`aggro`,",
+       "combat/state.ts), a UI row and a PRICE (tauntPerPoint = 10, set by the",
+       "2026-08-18 pass that closed its silent zero) \u2014 and zero content casting it.",
+       "WHY TAUNT + GUARD IS THE RIGHT FIRST PAIRING: taunt decides WHO is hit and",
+       "guard decides HOW HARD. Alone, a taunt is a downside; behind mitigation it is",
+       "the tank's whole job. Every other guard card in the book waits to be attacked",
+       "and hopes; this one makes it happen.",
+       "TAUNT STAYS AT 2 AT EVERY RANK, deliberately. balance.ts's own tauntPerPoint",
+       "note states the effect is a THRESHOLD, not a curve: every unit's baseAggro is",
+       "0, so the FIRST point already wins undivided targeting priority and further",
+       "points are only tie-breakers against a competing taunter. Buying more would",
+       "be spending a rank-up on a number that changes nothing. 2 (not 1) so it",
+       "still wins against a future 1-point enemy taunter.",
+       "THE EMPOWER CAP IS WHAT SHAPES THE LADDER. taunt and guard are BOTH empower",
+       "family, capped at 100 deci for a size-1 card and FROZEN across tiers",
+       "(EFFECT_CAPS_DECI) \u2014 so guard can only climb to 40%x2 (80) beside taunt's 20,",
+       "and every deci above that has to land in the shield line. Gold and Diamond",
+       "sit at exactly the 100-deci empower ceiling.",
+       "Bronze:  taunt 2 (20) + guard 20%x2 (40) + shield  8 ( 40) = 100.",
+       "Silver:  taunt 2 (20) + guard 30%x2 (60) + shield 14 ( 70) = 150.",
+       "Gold:    taunt 2 (20) + guard 40%x2 (80) + shield 20 (100) = 200.",
+       "Diamond: taunt 2 (20) + guard 40%x2 (80) + shield 30 (150) = 250.",
+       "Hand-authored: `autoScaleTier` would leave guard and taunt frozen (neither is",
+       "a scalable sink) and pour everything into the shield, which is the opposite of",
+       "the card \u2014 the mitigation has to grow with the aggro it is drawing."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "axe",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "taunt",
+        "amount": 2
+       },
+       {
+        "kind": "guard",
+        "property": "physical",
+        "pct": 20,
+        "turns": 2
+       },
+       {
+        "kind": "shield",
+        "power": 8
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "taunt",
+          "amount": 2
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 30,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 14
+         }
+        ],
+        "text": "{{Taunt}} 2 \u2014 foes pick you first \u00b7 -30% incoming physical damage (2 turns) \u00b7 Gain 14 (+DEF) physical shield."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "taunt",
+          "amount": 2
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 40,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 20
+         }
+        ],
+        "text": "{{Taunt}} 2 \u2014 foes pick you first \u00b7 -40% incoming physical damage (2 turns) \u00b7 Gain 20 (+DEF) physical shield."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "taunt",
+          "amount": 2
+         },
+         {
+          "kind": "guard",
+          "property": "physical",
+          "pct": 40,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 30
+         }
+        ],
+        "text": "{{Taunt}} 2 \u2014 foes pick you first \u00b7 -40% incoming physical damage (2 turns) \u00b7 Gain 30 (+DEF) physical shield."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "ironhide",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Ironhide",
+      "text": "+20% DEF (2 turns) \u00b7 +20% MDEF (2 turns) \u00b7 Gain 4 (+DEF) physical shield.",
+      "notes": [
+       "THE FIRST DEFENSIVE STAT BUFF. All five shipped `buffStat` actions raise",
+       "`attack` (battle_howl) or `speed` (storm_guard, storm_surge, thunder_step,",
+       "stormrank_relay). `armor` and `magicResist` are both in BUFFABLE and both",
+       "priced by the same statPctTurn rate \u2014 nothing has ever bought them.",
+       "WHY IT IS NOT JUST A SHIELD. A shield is a finite pool that the first big hit",
+       "eats; a DEF/MDEF buff is a MULTIPLIER on every point of mitigation the unit",
+       "already owns, applied to every hit inside the window and to hits the shield",
+       "never sees (a shield only blocks its own property; armor comes off the damage",
+       "before any pool is touched). The two scale in opposite directions \u2014 the buff",
+       "is worth most on an already-armoured tank, the shield most on a squishy one \u2014",
+       "so pairing them makes one card that is never dead.",
+       "BOTH SIDES OF THE STAT SHEET, deliberately: the book's mitigation is otherwise",
+       "property-split (a physical guard does nothing about a magical hit). This is",
+       "the one card that hardens against both at once, at half the pct each.",
+       "buffStat is empower family (cap 100 deci, size 1, frozen across tiers), so the",
+       "two buffs together may never exceed 100: 20/20 at Bronze, 25/25 from Silver",
+       "on \u2014 exactly the ceiling \u2014 and every deci above that goes to the shield.",
+       "Bronze:  DEF +20%x2 (40) + MDEF +20%x2 (40) + shield  4 ( 20) = 100.",
+       "Silver:  DEF +25%x2 (50) + MDEF +25%x2 (50) + shield 10 ( 50) = 150.",
+       "Gold:    DEF +25%x2 (50) + MDEF +25%x2 (50) + shield 20 (100) = 200.",
+       "Diamond: DEF +25%x2 (50) + MDEF +25%x2 (50) + shield 30 (150) = 250.",
+       "Hand-authored: the kit has a frozen empower pair and one scalable sink, and",
+       "the Bronze -> Silver step spends its whole 50 deci on the buffs rather than",
+       "the shield, which `autoScaleTier` cannot express."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "physical",
+      "weapon": "beast",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "buffStat",
+        "stat": "armor",
+        "pct": 20,
+        "turns": 2
+       },
+       {
+        "kind": "buffStat",
+        "stat": "magicResist",
+        "pct": 20,
+        "turns": 2
+       },
+       {
+        "kind": "shield",
+        "power": 4
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "armor",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "buffStat",
+          "stat": "magicResist",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 10
+         }
+        ],
+        "text": "+25% DEF (2 turns) \u00b7 +25% MDEF (2 turns) \u00b7 Gain 10 (+DEF) physical shield."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "armor",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "buffStat",
+          "stat": "magicResist",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 20
+         }
+        ],
+        "text": "+25% DEF (2 turns) \u00b7 +25% MDEF (2 turns) \u00b7 Gain 20 (+DEF) physical shield."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "buffStat",
+          "stat": "armor",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "buffStat",
+          "stat": "magicResist",
+          "pct": 25,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 30
+         }
+        ],
+        "text": "+25% DEF (2 turns) \u00b7 +25% MDEF (2 turns) \u00b7 Gain 30 (+DEF) physical shield."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "hibernation",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Hibernation",
+      "text": "{{Negate}} the next magical attack \u00b7 Restore 16 (+MDEF) HP. Comes back around slowly \u2014 5-turn cooldown.",
+      "notes": [
+       "THE FIRST CARD IN THE BOOK AUTHORED AROUND A COOLDOWN. `cooldownTurns` is",
+       "set by no base card today; the refund table (PRICE.cooldownRefundStepDeci,",
+       "50/30/20 for the 1st/2nd/3rd turn past BASELINE_COOLDOWN) exists and is",
+       "tested, and only the four AoE tier gates touch it, inside tier blocks.",
+       "cooldownTurns 5 refunds 50 + 30 = 80 deci \u2014 bought for a real payoff.",
+       "THE REFUND IS BACK-LOADED, AND A REVIEWER SHOULD LOOK AT IT. Measured through",
+       "the real `simulate` (12 seeds, speed 10, this card + 3 size-1 fillers) against",
+       "the same board running a baseline-cooldown heal, mean casts:",
+       "   8 turns: 2.00 vs 2.00   \u00b7   12 turns: 2.00 vs 3.00",
+       "  16 turns: 3.00 vs 4.00   \u00b7   24 turns: 4.00 vs 5.00",
+       "So the cooldown costs NOTHING inside a median-length fight (the frozen sweep's",
+       "median is 7 turns) and exactly one cast from ~12 turns on. The 80-deci refund",
+       "is derived in balance.ts from the MEAN (7.6) rather than from any one board,",
+       "so this is a property of the shipped rate table rather than of this card \u2014 but",
+       "this is the first base card to spend that refund, so it is the first place the",
+       "shape is visible. Flagged deliberately, not hidden: if it reads as too cheap,",
+       "the honest fix is cooldownTurns 6 (refund 100), which would re-solve the heal",
+       "ladder to 12/22/32/42.",
+       "WHAT THE REFUND BUYS: `negate` costs 100 deci a charge, which is the WHOLE",
+       "Bronze budget AND the whole size-1 empower cap. Without the cooldown refund a",
+       "Bronze negate card can carry nothing else at all \u2014 which is exactly why the",
+       "two shipped negate cards (iron_riposte, ward_of_silence) pair it with a",
+       "damage/shield line only from Silver up. Hibernation is negate + HEAL at",
+       "Bronze, and the long cooldown is what pays for it.",
+       "FIRST negate + heal, and the first healing card on FROST. The fantasy and the",
+       "mechanics agree: you go dormant, the blow that was coming is simply refused,",
+       "and you wake up mended \u2014 but you cannot do it often.",
+       "DELIBERATE MIRROR of `quickmend` in this same set: the two are the slow/big",
+       "and fast/small ends of one axis, priced by the same table.",
+       "NEGATE IS FROZEN AT 1 CHARGE. It is empower family (cap 100 deci at size 1,",
+       "frozen across tiers), so a second charge is unaffordable at any rank on a",
+       "size-1 card, and the heal is the only sink the ladder can grow.",
+       "Bronze:  negate 1 (100) + heal 16 ( 80) - cd5 refund (80) = 100.",
+       "Silver:  negate 1 (100) + heal 26 (130) - cd5 refund (80) = 150.",
+       "Gold:    negate 1 (100) + heal 36 (180) - cd5 refund (80) = 200.",
+       "Diamond: negate 1 (100) + heal 46 (230) - cd5 refund (80) = 250.",
+       "Heal power is even at every rank because heal prices at 5 deci/pt and every",
+       "priced part must land on a whole PL.",
+       "`cooldownTurns: 5` is authored on the BASE def and inherited by every tier",
+       "block (applyTier spreads the block onto the base card), so the refund is the",
+       "same 80 deci at every rank \u2014 verified through the real pricer."
+      ],
+      "archetypes": [
+       "healing",
+       "defensive"
+      ],
+      "property": "magical",
+      "element": "frost",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "cooldownTurns": 5,
+      "effects": [
+       {
+        "kind": "negate",
+        "property": "magical",
+        "charges": 1
+       },
+       {
+        "kind": "heal",
+        "power": 16
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "negate",
+          "property": "magical",
+          "charges": 1
+         },
+         {
+          "kind": "heal",
+          "power": 26
+         }
+        ],
+        "text": "{{Negate}} the next magical attack \u00b7 Restore 26 (+MDEF) HP. Comes back around slowly \u2014 5-turn cooldown."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "negate",
+          "property": "magical",
+          "charges": 1
+         },
+         {
+          "kind": "heal",
+          "power": 36
+         }
+        ],
+        "text": "{{Negate}} the next magical attack \u00b7 Restore 36 (+MDEF) HP. Comes back around slowly \u2014 5-turn cooldown."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "negate",
+          "property": "magical",
+          "charges": 1
+         },
+         {
+          "kind": "heal",
+          "power": 46
+         }
+        ],
+        "text": "{{Negate}} the next magical attack \u00b7 Restore 46 (+MDEF) HP. Comes back around slowly \u2014 5-turn cooldown."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "steady_draw",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Steady Draw",
+      "text": "Restore 12 (+DEF) HP \u00b7 {{Charge}} Bow \u2014 your next Bow card deals +8 damage.",
+      "notes": [
+       "THE FIRST HEALING CARD ON A BOW, and the first `empowerNext` outside the",
+       "offense lane. Healing ships on exactly four of eleven types today (beast,",
+       "dark, holy, nature); every weapon except beast has zero healing cards.",
+       "WHAT IT DOES THAT NOTHING ELSE DOES: it is the only heal in the book that",
+       "pays an OFFENSIVE dividend. Every other healing card converts a turn into HP",
+       "and nothing else \u2014 a pure tempo loss while the enemy keeps swinging. This one",
+       "banks the turn: the charge STANDS until a Bow card actually casts (it is not",
+       "lost if the next cast is something else \u2014 see empowerNext's row in",
+       "keywords/pricing.ts, which is precisely why it prices at the full",
+       "flatPowerPerPoint rate rather than comboBonus's halved one).",
+       "UNGATED, deliberately. `empowerNext` ships gated or ungated from one row; the",
+       "three shipped users are all affinity-gated offense cards. An ungated one",
+       "costs full rate (5 deci/pt instead of the gate's half) and asks nothing of",
+       "the board \u2014 the point being that a healer should not also have to dictate",
+       "three slots.",
+       "empowerNext is empower family (cap 100 deci at size 1, frozen), so the charge",
+       "tops out at exactly 20 damage at Diamond and the two lines climb together.",
+       "Bronze:  heal 12 ( 60) + charge  8 ( 40) = 100.",
+       "Silver:  heal 18 ( 90) + charge 12 ( 60) = 150.",
+       "Gold:    heal 24 (120) + charge 16 ( 80) = 200.",
+       "Diamond: heal 30 (150) + charge 20 (100) = 250.",
+       "Even heal powers and even charge amounts throughout: both price at 5 deci/pt,",
+       "so odd numbers would be half a PL. Hand-authored \u2014 `autoScaleTier` freezes",
+       "`empowerNext` (not a scalable sink) and would grow the heal alone."
+      ],
+      "archetypes": [
+       "healing"
+      ],
+      "property": "physical",
+      "weapon": "bow",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "heal",
+        "power": 12
+       },
+       {
+        "kind": "empowerNext",
+        "amount": 8
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 18
+         },
+         {
+          "kind": "empowerNext",
+          "amount": 12
+         }
+        ],
+        "text": "Restore 18 (+DEF) HP \u00b7 {{Charge}} Bow \u2014 your next Bow card deals +12 damage."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 24
+         },
+         {
+          "kind": "empowerNext",
+          "amount": 16
+         }
+        ],
+        "text": "Restore 24 (+DEF) HP \u00b7 {{Charge}} Bow \u2014 your next Bow card deals +16 damage."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 30
+         },
+         {
+          "kind": "empowerNext",
+          "amount": 20
+         }
+        ],
+        "text": "Restore 30 (+DEF) HP \u00b7 {{Charge}} Bow \u2014 your next Bow card deals +20 damage."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "heartwood_sanctum",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Heartwood Sanctum",
+      "text": "{{Ward}} 2 \u2014 prevent the next 2 ailments outright \u00b7 Remove up to 2 of your ailments \u00b7 Restore 66 (+MDEF) HP.",
+      "notes": [
+       "THE FIRST SIZE-3 HEALING CARD. Ten size-3 cards ship \u2014 six offense/debuff,",
+       "four defensive, none healing \u2014 so the biggest board commitment the game",
+       "offers has never been available to a healer.",
+       "THE FIRST FULL ANTI-AFFLICTION STACK ON ONE CARD. The three answers ship in",
+       "pairs and never together: warding_prayer is ward+cleanse (no heal),",
+       "aegis_of_the_unbroken is ward+heal (no cleanse), purge_the_rot is cleanse+heal",
+       "(no ward). Putting all three on one piece is what a size-3 slot is FOR, and",
+       "the ordering matters mechanically: the ward denies the next applications",
+       "outright, the cleanse strips what already landed \u2014 which also strips the",
+       "anti-heal CATEGORY that affliction was imposing (heal/lifesteal are cut 20%",
+       "per category, floor -60%) \u2014 and only then does the heal land, into a lighter",
+       "tax or none.",
+       "THE TWO CAPS PULL IN OPPOSITE DIRECTIONS AND THAT IS THE LADDER. `ward` is",
+       "empower family: FROZEN at 200 deci for size 3, and clamped at 3 charges by",
+       "MAX_WARD_CHARGES, so it can only ever go 2 -> 3. `cleanse` is the one",
+       "TIER-SCALING family (user-locked 2026-08-17), its cap growing 200/300/400/500",
+       "with the tier budget \u2014 so cleanse is what is allowed to keep climbing.",
+       "Size-3 grants (380/470/570/660 deci) fold into each rank's effective budget.",
+       "Bronze:  ward 2 (100) + cleanse 2 ( 50) + heal  66 (330) = 480 = 100 + 380.",
+       "Silver:  ward 2 (100) + cleanse 4 (100) + heal  84 (420) = 620 = 150 + 470.",
+       "Gold:    ward 3 (150) + cleanse 4 (100) + heal 104 (520) = 770 = 200 + 570.",
+       "Diamond: ward 3 (150) + cleanse 6 (150) + heal 122 (610) = 910 = 250 + 660.",
+       "CHARGE COUNTS ARE CONSTRAINED, NOT CHOSEN: cleanse costs 25 deci a charge, so",
+       "only EVEN charge counts land on a whole PL (2/4/6, never 3 or 5); ward costs",
+       "50, so every count is legal but 3 is the engine's clamp. Heal powers are even",
+       "because heal prices at 5 deci/pt.",
+       "Hand-authored: three sinks at three different rates (ward 50/charge frozen,",
+       "cleanse 25/charge scaling, heal 5/pt) is exactly the non-homogeneous kit",
+       "`autoScaleTier` refuses."
+      ],
+      "archetypes": [
+       "healing",
+       "defensive"
+      ],
+      "property": "magical",
+      "element": "nature",
+      "size": 3,
+      "rarity": "epic",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "ward",
+        "charges": 2
+       },
+       {
+        "kind": "cleanse",
+        "charges": 2
+       },
+       {
+        "kind": "heal",
+        "power": 66
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 2
+         },
+         {
+          "kind": "cleanse",
+          "charges": 4
+         },
+         {
+          "kind": "heal",
+          "power": 84
+         }
+        ],
+        "text": "{{Ward}} 2 \u2014 prevent the next 2 ailments outright \u00b7 Remove up to 4 of your ailments \u00b7 Restore 84 (+MDEF) HP."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 3
+         },
+         {
+          "kind": "cleanse",
+          "charges": 4
+         },
+         {
+          "kind": "heal",
+          "power": 104
+         }
+        ],
+        "text": "{{Ward}} 3 \u2014 prevent the next 3 ailments outright \u00b7 Remove up to 4 of your ailments \u00b7 Restore 104 (+MDEF) HP."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "ward",
+          "charges": 3
+         },
+         {
+          "kind": "cleanse",
+          "charges": 6
+         },
+         {
+          "kind": "heal",
+          "power": 122
+         }
+        ],
+        "text": "{{Ward}} 3 \u2014 prevent the next 3 ailments outright \u00b7 Remove up to 6 of your ailments \u00b7 Restore 122 (+MDEF) HP."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "nullshroud",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Nullshroud",
+      "text": "-30% incoming TRUE damage (2 turns) \u00b7 Gain 8 TRUE shield \u2014 TRUE hits are blocked 1:1; physical/magical drain it 2:1.",
+      "notes": [
+       "THE FIRST TRUE-PROPERTY GUARD. All twelve shipped `guard` actions and both",
+       "`negate`s are physical- or magical-scoped, and a guard covers ONLY its own",
+       "property (combat/interpreter.ts) \u2014 so nothing in the book reduces TRUE damage",
+       "at all. TRUE shields exist (prism_barrier), but a shield is a pool that gets",
+       "eaten; a guard is a percentage that keeps applying for the whole window.",
+       "WHAT IT ACTUALLY ANSWERS, and why the niche is real rather than invented:",
+       "  - ATTRITION, the stalemate-breaker. From ATTRITION_START_TURN (15) the sim",
+       "    deals escalating TRUE damage to EVERYONE (combat/simulate.ts). No card has",
+       "    ever been able to blunt it. This one does, and it is the only card that",
+       "    can, which makes it the game's first genuine long-fight insurance.",
+       "  - The 9 TRUE cards, which bypass armor, magic resist and every typed shield.",
+       "PROPERTY-BLIND ON PURPOSE: a physical guard is dead against a mage and a",
+       "magical guard is dead against a duellist, but TRUE damage comes from BOTH",
+       "sides of the roster and from the clock, so this card is never a hard counter",
+       "and never a dead draw \u2014 it is a narrow, always-slightly-live mitigation.",
+       "SHIELD RATE NOTE: a TRUE shield prices at flatTrueShieldPerPoint = 5 deci/pt,",
+       "the SAME as a typed shield (typed-shield parity, user-locked 2026-07-20). The",
+       "TRUE premium is paid MECHANICALLY, not in PL \u2014 typed damage spilling into the",
+       "true pool drains it 2:1 \u2014 so 8 points of TRUE plating costs exactly what 8",
+       "points of physical plating costs, and the card face states the exchange rate.",
+       "The guard is capped by MAX_GUARD_PCT (60) and by the size-1 empower ceiling",
+       "(100 deci, frozen), which 50%x2 hits exactly at Gold.",
+       "Bronze:  guard TRUE 30%x2 ( 60) + TRUE shield  8 ( 40) = 100.",
+       "Silver:  guard TRUE 40%x2 ( 80) + TRUE shield 14 ( 70) = 150.",
+       "Gold:    guard TRUE 50%x2 (100) + TRUE shield 20 (100) = 200.",
+       "Diamond: guard TRUE 50%x2 (100) + TRUE shield 30 (150) = 250.",
+       "No stat token on the face: TRUE shields are pure flat, with no caster-stat",
+       "add (keywords/pricing.ts, shieldRate). The `dark` element on a TRUE card is",
+       "cosmetic \u2014 TRUE bypasses both the element wheel and the weapon triangle \u2014 and",
+       "matches how 7 of the 9 shipped TRUE cards are typed."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "true",
+      "element": "dark",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "guard",
+        "property": "true",
+        "pct": 30,
+        "turns": 2
+       },
+       {
+        "kind": "shield",
+        "power": 8
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "true",
+          "pct": 40,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 14
+         }
+        ],
+        "text": "-40% incoming TRUE damage (2 turns) \u00b7 Gain 14 TRUE shield \u2014 TRUE hits are blocked 1:1; physical/magical drain it 2:1."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "true",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 20
+         }
+        ],
+        "text": "-50% incoming TRUE damage (2 turns) \u00b7 Gain 20 TRUE shield \u2014 TRUE hits are blocked 1:1; physical/magical drain it 2:1."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "true",
+          "pct": 50,
+          "turns": 2
+         },
+         {
+          "kind": "shield",
+          "power": 30
+         }
+        ],
+        "text": "-50% incoming TRUE damage (2 turns) \u00b7 Gain 30 TRUE shield \u2014 TRUE hits are blocked 1:1; physical/magical drain it 2:1."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "the_long_watch",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "The Long Watch",
+      "text": "-20% incoming magical damage (4 turns) \u00b7 Gain 4 (+MDEF) magical shield.",
+      "notes": [
+       "EVERY ONE OF THE TWELVE SHIPPED GUARDS IS EXACTLY 2 TURNS. This is the first",
+       "one that is not, and the whole design is that single change.",
+       "IT IS FREE TO DO AND NOBODY HAD DONE IT. `guard` prices at pct x turns x 1",
+       "(guardPerPctTurnNum/Den, at parity with the plain stat-buff rate), so 20%x5",
+       "and 50%x2 cost the SAME 100 deci \u2014 the game already sold the long window at",
+       "an honest price and no card ever bought it.",
+       "WHY THE LONG WINDOW PLAYS DIFFERENTLY: BASELINE_COOLDOWN is 3, so a card",
+       "fires at most once every 4 turns (cooldownRemaining's stride is cooldown+1).",
+       "A 2-turn guard therefore covers HALF a rotation and gambles on the enemy",
+       "swinging inside it; a 5-turn guard covers a whole rotation with a turn to",
+       "spare, so it is never wasted and never needs to be timed. It trades the spike",
+       "(50% for one exchange) for coverage (20% on everything), which is the",
+       "difference between an emergency button and a standing posture.",
+       "THE BRONZE ROW IS 4 TURNS, NOT 5, for a pricing reason worth stating: at 20%",
+       "the whole 100-deci size-1 empower ceiling buys exactly 5 turns, leaving a",
+       "Bronze card with nothing else at all. 20%x4 (80) + a token 4-point shield (20)",
+       "is the honest Bronze; the fifth turn is what Silver buys, and from there the",
+       "guard is at its frozen ceiling and the shield is the only sink left.",
+       "Bronze:  guard 20%x4 ( 80) + shield  4 ( 20) = 100.",
+       "Silver:  guard 20%x5 (100) + shield 10 ( 50) = 150.",
+       "Gold:    guard 20%x5 (100) + shield 20 (100) = 200.",
+       "Diamond: guard 20%x5 (100) + shield 30 (150) = 250.",
+       "The guard sits inside MAX_GUARD_PCT (60) with room to spare \u2014 the constraint",
+       "here is the empower cap on pct x turns, not the per-application clamp.",
+       "Hand-authored: `autoScaleTier` freezes guard and would sell four ranks of the",
+       "same 4-turn window with a bigger shield, which sells the wrong half."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "magical",
+      "element": "holy",
+      "size": 1,
+      "rarity": "rare",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "guard",
+        "property": "magical",
+        "pct": 20,
+        "turns": 4
+       },
+       {
+        "kind": "shield",
+        "power": 4
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "magical",
+          "pct": 20,
+          "turns": 5
+         },
+         {
+          "kind": "shield",
+          "power": 10
+         }
+        ],
+        "text": "-20% incoming magical damage (5 turns) \u00b7 Gain 10 (+MDEF) magical shield."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "magical",
+          "pct": 20,
+          "turns": 5
+         },
+         {
+          "kind": "shield",
+          "power": 20
+         }
+        ],
+        "text": "-20% incoming magical damage (5 turns) \u00b7 Gain 20 (+MDEF) magical shield."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "guard",
+          "property": "magical",
+          "pct": 20,
+          "turns": 5
+         },
+         {
+          "kind": "shield",
+          "power": 30
+         }
+        ],
+        "text": "-20% incoming magical damage (5 turns) \u00b7 Gain 30 (+MDEF) magical shield."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "quickmend",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Quickmend",
+      "text": "Restore 16 (+MDEF) HP.",
+      "notes": [
+       "THE LIGHTEST HEAL IN THE GAME, and the first healing card on LIGHTNING \u2014 the",
+       "element whose whole identity is speed/tempo and which had no healing card.",
+       "WEIGHT IS THE ENTIRE DESIGN, and it is a priced dimension no heal has used.",
+       "Weight prices at (size x 10 - weight) x weightPer: lighter than baseline COSTS",
+       "PL, heavier REFUNDS it. Every shipped heal is at or ABOVE its baseline \u2014",
+       "verdant_touch / mending_light / vital_surge / purify take the free baseline,",
+       "renewing_wave (14) and leeching_fang (12) sell weight back for more healing.",
+       "Not one buys speed. This one spends 20 deci \u2014 a fifth of Bronze \u2014 to do it.",
+       "WHY 6 AND NOT 5: WEIGHT_MIN is 5, but weight 5 prices at (10-5) x 5 = 25 deci,",
+       "half a PL, which the whole-PL-parts invariant refuses. 6 is therefore the",
+       "lightest LEGAL weight in the game, not merely a chosen number.",
+       "WHAT THE LIGHT WEIGHT ACTUALLY BUYS \u2014 MEASURED THROUGH THE REAL `simulate`,",
+       "NOT ASSUMED, because the obvious claim turned out to be FALSE. It does NOT",
+       "make this heal fire more often: every card is gated by BASELINE_COOLDOWN",
+       "first, so quickmend and a weight-10 heal land the SAME number of casts at",
+       "every speed from 3 up (5 casts over 24 turns for both). An earlier draft of",
+       "this card sold 'the fastest heal, comes around sooner'; the engine does not",
+       "agree and the claim is withdrawn.",
+       "WHAT IT REALLY BUYS IS THE BOARD'S TEMPO. The readiness loop makes a performer",
+       "PAY its card's weight and then keeps resolving, so a 4-lighter cast leaves",
+       "readiness for the NEXT card that turn. Measured over 12 seeds x 24 turns on a",
+       "FULL board (this heal + 4 size-1 cards) against the identical board running",
+       "verdant_touch, counting TOTAL casts by the whole board:",
+       "  speed  3: 13.0 vs 12.0   \u00b7   speed  5: 19.0 vs 17.0",
+       "  speed  8: 25.0 vs 24.0   \u00b7   speed 12 and up: 27.0 vs 27.0 (no gain)",
+       "So: the heal that does not cost your board its turn. Worth most on a slow,",
+       "crowded board; worth nothing on a fast one. That is a narrower claim than the",
+       "one the card started with, and it is the one the engine supports.",
+       "DELIBERATE MIRROR of `hibernation` in this same set: same lane, same rates,",
+       "opposite ends of the tempo axis (cd 5 / big, vs weight 6 / small).",
+       "Bronze:  heal 16 ( 80) + weight 6 (+20) = 100.",
+       "Silver:  heal 26 (130) + weight 6 (+20) = 150.",
+       "Gold:    heal 36 (180) + weight 6 (+20) = 200.",
+       "Diamond: heal 46 (230) + weight 6 (+20) = 250.",
+       "Heal powers are even because heal prices at 5 deci/pt. The Diamond heal (230",
+       "deci) sits just under the size-1 heal family ceiling (300 deci), so the",
+       "single-sink ladder never needs a second line.",
+       "`speedWeight: 6` is on the BASE def and inherited by every tier block, so the",
+       "card is the fastest heal at every rank, not just at Bronze."
+      ],
+      "archetypes": [
+       "healing"
+      ],
+      "property": "magical",
+      "element": "lightning",
+      "size": 1,
+      "rarity": "common",
+      "tier": "bronze",
+      "speedWeight": 6,
+      "effects": [
+       {
+        "kind": "heal",
+        "power": 16
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 26
+         }
+        ],
+        "text": "Restore 26 (+MDEF) HP."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 36
+         }
+        ],
+        "text": "Restore 36 (+MDEF) HP."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "heal",
+          "power": 46
+         }
+        ],
+        "text": "Restore 46 (+MDEF) HP."
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "forgeheart_bastion",
+   "versions": [
+    {
+     "version": 1,
+     "def": {
+      "name": "Forgeheart Bastion",
+      "text": "{{Negate}} the next 2 magical attacks \u00b7 Gain 56 (+MDEF) magical shield.",
+      "notes": [
+       "THE ONLY MULTI-CHARGE NEGATE THE PRICE TABLE ALLOWS. Both shipped negate",
+       "cards carry exactly 1 charge, and that is not a taste decision: negate costs",
+       "100 deci a charge and lives in the `empower` family, whose cap is 100/150/200",
+       "deci by SIZE and is FROZEN across tiers (EFFECT_CAPS_DECI, user-locked",
+       "2026-07-23 \u2014 ranking up buys new effects, never bigger lockdown). So 2 charges",
+       "(200 deci) fit on exactly one shape of card in the entire game: size 3. This",
+       "is that card, sitting on the ceiling to the deci.",
+       "IT CANNOT BE POWER-CREPT. Because the empower cap does not move with tier, no",
+       "future Diamond card can carry 3 charges at size 3, and no size-1 or size-2",
+       "card can carry 2. The negate line here is permanently the strongest hit-denial",
+       "in the book, and every rank-up spends its whole 50-deci step on plating.",
+       "WHY NEGATE RATHER THAN MORE SHIELD, on a card that has both: they fail",
+       "differently, and that is the point of pairing them. A shield is drained",
+       "proportionally \u2014 a 200-damage hit eats 56 plating and 144 still lands \u2014 while",
+       "a negate charge blanks a whole instance regardless of its size. So the",
+       "charges answer exactly what the wall cannot (the one enormous hit), and the",
+       "wall answers exactly what the charges waste themselves on (a stream of small",
+       "ones). Against a multi-hit caster the charges burn fast and the plating",
+       "carries; against a boss's single big cast the plating is irrelevant and the",
+       "charges are everything.",
+       "Size-3 grants (380/470/570/660 deci) fold into each rank's effective budget.",
+       "Bronze:  negate 2 (200) + shield  56 (280) = 480 = 100 + 380.",
+       "Silver:  negate 2 (200) + shield  84 (420) = 620 = 150 + 470.",
+       "Gold:    negate 2 (200) + shield 114 (570) = 770 = 200 + 570.",
+       "Diamond: negate 2 (200) + shield 142 (710) = 910 = 250 + 660.",
+       "Shield powers are even (5 deci/pt, whole-PL parts). The Diamond wall is 710",
+       "deci against the size-3 shield family ceiling of 1250, so the sink never",
+       "binds. 2 charges is inside MAX_NEGATE_CHARGES (3) \u2014 the empower cap, not the",
+       "apply-time clamp, is what stops at 2.",
+       "Fills defensive x fire, which held exactly one card (cinder_skin)."
+      ],
+      "archetypes": [
+       "defensive"
+      ],
+      "property": "magical",
+      "element": "fire",
+      "size": 3,
+      "rarity": "epic",
+      "tier": "bronze",
+      "effects": [
+       {
+        "kind": "negate",
+        "property": "magical",
+        "charges": 2
+       },
+       {
+        "kind": "shield",
+        "power": 56
+       }
+      ],
+      "tierUpgrades": {
+       "silver": {
+        "effects": [
+         {
+          "kind": "negate",
+          "property": "magical",
+          "charges": 2
+         },
+         {
+          "kind": "shield",
+          "power": 84
+         }
+        ],
+        "text": "{{Negate}} the next 2 magical attacks \u00b7 Gain 84 (+MDEF) magical shield."
+       },
+       "gold": {
+        "effects": [
+         {
+          "kind": "negate",
+          "property": "magical",
+          "charges": 2
+         },
+         {
+          "kind": "shield",
+          "power": 114
+         }
+        ],
+        "text": "{{Negate}} the next 2 magical attacks \u00b7 Gain 114 (+MDEF) magical shield."
+       },
+       "diamond": {
+        "effects": [
+         {
+          "kind": "negate",
+          "property": "magical",
+          "charges": 2
+         },
+         {
+          "kind": "shield",
+          "power": 142
+         }
+        ],
+        "text": "{{Negate}} the next 2 magical attacks \u00b7 Gain 142 (+MDEF) magical shield."
        }
       }
      }
