@@ -24,3 +24,17 @@
 # under public/ and art-src/ is binary by git's own NUL-byte heuristic and
 # is unaffected either way.
 /src/data/content/*.v1.json text eol=lf
+
+# Same disease, different symptom: the engine outcome baseline.
+#
+# `tests/engine/fixtures/outcomeBaseline.json` is written by
+# `tests/engine/fixtures/captureOutcomeBaseline.ts`, which ends with
+# `writeFileSync(OUT, JSON.stringify(...) + '\n')` — pure LF, on every
+# platform. With `core.autocrlf=true` the checkout is CRLF, so regenerating
+# on Windows rewrites ALL ~2000 lines. Nothing breaks (`JSON.parse` does not
+# care), which is precisely why this rots unseen: the test stays green while
+# the REVIEW signal is destroyed. That script's whole promise is "a per-case
+# diff against the existing fixture so the blast radius is visible", and a
+# whole-file diff hides the handful of hashes that actually moved behind
+# 2000 lines that only changed their line endings.
+/tests/engine/fixtures/*.json text eol=lf

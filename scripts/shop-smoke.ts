@@ -6,8 +6,8 @@
  * `DragSource.shelfGem` doc comment) and the LEAVE SHOP regression fix were
  * both verified only by one manual Playwright session.
  *
- * Same mold as `scripts/run-hud-audit.ts`: same Chromium resolution via
- * `PW_CHROMIUM`/`PLAYWRIGHT_BROWSERS_PATH`, same named-step hard-failure
+ * Same mold as `scripts/run-hud-audit.ts`: literally the same Chromium
+ * resolver (`scripts/chromiumPath.ts`), same named-step hard-failure
  * discipline — a step whose target isn't on screen, or whose postcondition
  * doesn't hold, fails LOUDLY by that step's own name. Never silently no-ops.
  *
@@ -35,10 +35,9 @@
  * Requires the Vite dev server (`npm run dev`) and the battle API
  * (`npm run api`) — neither is started by this script.
  */
-import { existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { chromium, type Page } from 'playwright';
 import { pinPageAgainstHmr } from './pageHarness';
+import { resolveChromiumPath } from './chromiumPath';
 import { collectSceneTexts as collectTexts, type TextBound } from './sceneText';
 import { rollStartDraft, DRAFT_SET_KEYS } from '../src/run/draft';
 import { skillBook } from '../src/data/skills';
@@ -47,46 +46,6 @@ import { eventCatalog } from '../src/data/events';
 
 const BASE = process.env.WORLD1_DEV_URL ?? 'http://localhost:5173';
 const OUT_DIR = process.argv[2] ?? '.';
-
-/** Same resolution strategy as `scripts/run-hud-audit.ts` — see that file's
- * doc comment for the full rationale (manifest/unpacked-revision mismatch). */
-function resolveChromiumPath(): string {
-  if (process.env.PW_CHROMIUM) return process.env.PW_CHROMIUM;
-  const isWin = process.platform === 'win32';
-  const exeName = isWin ? 'chrome.exe' : 'chrome';
-  const platformDirs = isWin ? ['chrome-win64', 'chrome-win'] : ['chrome-linux'];
-  function scan(browsersPath: string): string | null {
-    const symlink = join(browsersPath, 'chromium');
-    if (existsSync(symlink)) return symlink;
-    let entries: string[];
-    try { entries = readdirSync(browsersPath); } catch { return null; }
-    const revisioned = entries
-      .filter((e) => /^chromium-\d+$/.test(e))
-      .sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]));
-    for (const dir of revisioned) {
-      for (const sub of platformDirs) {
-        const candidate = join(browsersPath, dir, sub, exeName);
-        if (existsSync(candidate)) return candidate;
-      }
-    }
-    return null;
-  }
-  const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
-  if (browsersPath) { const found = scan(browsersPath); if (found) return found; }
-  if (isWin) {
-    const winDefault = 'C:/Users/wenwa/AppData/Local/ms-playwright/chromium-1223/chrome-win64/chrome.exe';
-    if (existsSync(winDefault)) return winDefault;
-  } else {
-    const home = process.env.HOME ?? '';
-    const found = home ? scan(join(home, '.cache', 'ms-playwright')) : null;
-    if (found) return found;
-  }
-  throw new Error(
-    'shop-smoke: could not resolve a Chromium executable. Set PW_CHROMIUM to an explicit ' +
-    'binary path, or PLAYWRIGHT_BROWSERS_PATH to a Playwright browsers cache dir containing a ' +
-    "chromium-* build (see docs/ui-workbook.md's Screenshot capture recipe).",
-  );
-}
 
 type Platform = 'desktop' | 'mobile';
 const VIEWPORTS: Record<Platform, { width: number; height: number }> = {
@@ -775,7 +734,7 @@ async function runPlatform(page: Page, platform: Platform): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const chromiumPath = resolveChromiumPath();
+  const chromiumPath = resolveChromiumPath('shop-smoke');
   console.log(`Using Chromium: ${chromiumPath}`);
   const browser = await chromium.launch({
     executablePath: chromiumPath,

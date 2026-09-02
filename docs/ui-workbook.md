@@ -169,24 +169,33 @@ in either script; a missed choice click leaves the run-event scene in
 `choosing`, where neither scene draws CONTINUE › at all, and the failure
 surfaced one step later as "no visible text matching CONTINUE ›".
 
-Chromium resolution is environment-aware (`resolveChromiumPath` in the
-script), in priority order: `PW_CHROMIUM` (explicit path, always wins) →
-`PLAYWRIGHT_BROWSERS_PATH` (scanned for a `chromium-*` build, since
-Playwright's own version-resolution can name a revision that isn't actually
-unpacked under a custom browsers path) → a platform default (the historical
-Windows dev-machine path below, or `~/.cache/ms-playwright` on Linux/Mac,
-scanned the same way). It throws with a clear message if nothing resolves,
-rather than silently letting Playwright pick a possibly-mismatched version.
-On the Linux CI/sandbox environment, `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`
-resolves via the `chromium` convenience symlink; the launch args already
-include `--no-sandbox`.
+Chromium resolution is environment-aware and lives in ONE module,
+`scripts/chromiumPath.ts`, which `run-hud-audit.ts`, `shop-smoke.ts` and
+`encode-card-art.ts` all import. Priority order: `PW_CHROMIUM` (explicit path,
+always wins) → `PLAYWRIGHT_BROWSERS_PATH` (scanned for a `chromium-*` build,
+since Playwright's own version-resolution can name a revision that isn't
+actually unpacked under a custom browsers path) → Playwright's per-user cache,
+scanned the same way (`%USERPROFILE%\AppData\Local\ms-playwright` on Windows,
+`~/.cache/ms-playwright` elsewhere). It throws with a clear message if nothing
+resolves, rather than silently letting Playwright pick a possibly-mismatched
+version. On the Linux CI/sandbox environment,
+`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` resolves via the `chromium`
+convenience symlink; the launch args already include `--no-sandbox`.
+
+It is one module because it used to be three copies that had drifted: two
+pinned one developer's home directory AND Chromium revision 1223, and the
+third read `HOME`, which Windows only sets under Git Bash — so `npm run
+art:encode` threw from cmd/PowerShell. Scan for whatever revision is unpacked;
+never write a username or a revision number into the path.
 
 ## Screenshot capture recipe
 
-- Chromium for Playwright on this machine:
-  `C:/Users/wenwa/AppData/Local/ms-playwright/chromium-1223/chrome-win64/chrome.exe`
-  (also the `PW_CHROMIUM` default in run-hud-audit). Launch arg for headless
-  canvas capture: `--enable-unsafe-swiftshader`.
+- Chromium for Playwright: whatever `scripts/chromiumPath.ts` resolves, or
+  `PW_CHROMIUM` if you want to pin one. On Windows the default cache is
+  `%USERPROFILE%\AppData\Local\ms-playwright\chromium-<rev>\chrome-win64\chrome.exe`
+  — the revision moves with every `playwright install`, so read it, don't
+  memorise it. Launch arg for headless canvas capture:
+  `--enable-unsafe-swiftshader`.
 - Viewport = the platform profile: `{1440, 900}` or `{412, 892}`.
 - Navigate straight to a `?scene=` URL (plus dial params), wait ~1-2s for the
   scene to settle, then `page.screenshot(...)`.
@@ -195,10 +204,12 @@ include `--no-sandbox`.
   bound clicks the way `run-hud-audit.ts` does.
 
 ```js
+// Run under tsx (`npx tsx one-off.ts`) so the shared resolver is importable.
 const { chromium } = await import('playwright');
+const { resolveChromiumPath } = await import('./scripts/chromiumPath');
 const browser = await chromium.launch({
   headless: true,
-  executablePath: 'C:/Users/wenwa/AppData/Local/ms-playwright/chromium-1223/chrome-win64/chrome.exe',
+  executablePath: resolveChromiumPath('one-off'),
   args: ['--enable-unsafe-swiftshader'],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });

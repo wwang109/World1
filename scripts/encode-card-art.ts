@@ -35,9 +35,9 @@
  * NO NEW DEPENDENCIES. The encode runs in the Chromium that Playwright
  * already installs for this repo's smoke scripts (canvas drawImage at
  * `imageSmoothingQuality: 'high'`, then `toDataURL('image/webp', q)`), so
- * anyone who can run `npm run shop:smoke` can run this. Resolution follows
- * the same `PW_CHROMIUM` / `PLAYWRIGHT_BROWSERS_PATH` strategy as
- * `scripts/shop-smoke.ts`.
+ * anyone who can run `npm run shop:smoke` can run this. The binary is located
+ * by the shared `scripts/chromiumPath.ts` resolver — the same code
+ * `shop-smoke.ts` and `run-hud-audit.ts` call, not a copy of it.
  *
  * Usage:
  *   npm run art:encode              # only masters whose .webp is missing/stale
@@ -47,6 +47,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { chromium } from 'playwright';
+import { resolveChromiumPath } from './chromiumPath';
 
 interface Group {
   name: string;
@@ -64,39 +65,6 @@ const GROUPS: Group[] = [
   { name: 'placeholders', srcDir: 'art-src/placeholders', outDir: 'public/game-art/placeholders', maxHeight: 0, quality: 0.84 },
 ];
 
-/** Same resolution strategy as `scripts/shop-smoke.ts` — see that file. */
-function resolveChromiumPath(): string {
-  if (process.env.PW_CHROMIUM) return process.env.PW_CHROMIUM;
-  const isWin = process.platform === 'win32';
-  const exeName = isWin ? 'chrome.exe' : 'chrome';
-  const platformDirs = isWin ? ['chrome-win64', 'chrome-win'] : ['chrome-linux'];
-  function scan(browsersPath: string): string | null {
-    const symlink = join(browsersPath, 'chromium');
-    if (existsSync(symlink)) return symlink;
-    let entries: string[];
-    try { entries = readdirSync(browsersPath); } catch { return null; }
-    const revisioned = entries
-      .filter((e) => /^chromium-\d+$/.test(e))
-      .sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]));
-    for (const dir of revisioned) {
-      for (const sub of platformDirs) {
-        const candidate = join(browsersPath, dir, sub, exeName);
-        if (existsSync(candidate)) return candidate;
-      }
-    }
-    return null;
-  }
-  const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
-  if (browsersPath) { const found = scan(browsersPath); if (found) return found; }
-  const home = process.env.HOME ?? '';
-  const found = home ? scan(join(home, isWin ? 'AppData/Local/ms-playwright' : '.cache/ms-playwright')) : null;
-  if (found) return found;
-  throw new Error(
-    'encode-card-art: could not resolve a Chromium executable. Set PW_CHROMIUM to an explicit ' +
-    'binary path, or PLAYWRIGHT_BROWSERS_PATH to a Playwright browsers cache dir.',
-  );
-}
-
 const args = process.argv.slice(2);
 const force = args.includes('--force');
 const groupArg = args.includes('--group') ? args[args.indexOf('--group') + 1] : undefined;
@@ -106,7 +74,7 @@ if (groups.length === 0) throw new Error(`encode-card-art: unknown --group ${Str
 const kb = (n: number): string => `${(n / 1024).toFixed(1)} KB`;
 
 async function main(): Promise<void> {
-  const browser = await chromium.launch({ executablePath: resolveChromiumPath() });
+  const browser = await chromium.launch({ executablePath: resolveChromiumPath('encode-card-art') });
   const page = await browser.newPage();
   await page.setContent('<html><body></body></html>');
 

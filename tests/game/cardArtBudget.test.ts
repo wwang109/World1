@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { skillBook } from '../../src/data/skills';
 import {
@@ -84,12 +84,19 @@ describe('card art budget', () => {
     expect(code).not.toContain('CARD_ART_CATALOG');
   });
 
-  it('every catalogue entry is a webp derivative that exists on disk', () => {
+  it('every catalogue entry is a webp derivative that exists on disk, spelled EXACTLY', () => {
+    // Directory listing, not `existsSync`. NTFS and APFS match file names
+    // case-INsensitively, so a catalogue entry spelled `Fireball.webp` against
+    // a `fireball.webp` on disk passes on every machine this is developed on —
+    // and then 404s for every player, because the Cloudflare Pages tree the
+    // game actually fetches from is case-SENSITIVE. Exact-case set membership
+    // is the only form of this check that fails where the bug is.
+    const onDisk = new Set(readdirSync(CARDS_DIR));
     const missing: string[] = [];
     const wrongType: string[] = [];
     for (const [skillId, entry] of Object.entries(CARD_ART_CATALOG)) {
       if (!entry.fileName.endsWith('.webp')) wrongType.push(`${skillId} -> ${entry.fileName}`);
-      if (!existsSync(join(CARDS_DIR, entry.fileName))) missing.push(`${skillId} -> ${entry.fileName}`);
+      if (!onDisk.has(entry.fileName)) missing.push(`${skillId} -> ${entry.fileName}`);
     }
     expect(wrongType).toEqual([]);
     expect(missing).toEqual([]);
