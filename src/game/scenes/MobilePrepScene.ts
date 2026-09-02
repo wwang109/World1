@@ -17,6 +17,14 @@ import { renderActionBar } from '../ui/ActionBar';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene } from '../sceneRebuild';
+import { deckRowLabel, renderFoeDeckEditor, seedFoeDeckDraft, type FoeDeckDraft } from '../ui/foeDeckEditor';
+import {
+  copiedToast, copyTextToClipboard, decodeFailureMessage, decodeReportLines, describeLoadout,
+  fightItEnabled, fightItExplainer, PLAY_IT_EXPLAINER, promptForCode, showCodeFallback,
+  type ImportDialogState,
+} from '../ui/codePrompt';
+import { applyAsFoe, applyAsHero, captureLoadout } from '../shareActions';
+import { decodeCode, encodeLoadout, ShareCodeError } from '../../run/shareCode';
 
 const F = MOBILE_PROFILE.font;
 
@@ -32,6 +40,13 @@ export class MobilePrepScene extends Phaser.Scene {
   private oy = 0;
   /** Open foe-picker overlay: 'add' appends a new foe, a number swaps that entry. */
   private picker: 'add' | number | null = null;
+  /** Open foe-deck editor draft (sandbox custom foe boards) — class fields
+   * survive `rebuildScene`; reset on scene start like `picker`. */
+  private deckEditor: FoeDeckDraft | null = null;
+  /** Open share-code import dialog (decoded / error / applied-result view). */
+  private importDialog: ImportDialogState | null = null;
+  /** CODE footer menu open (COPY MY CODE / PASTE A CODE). */
+  private codeMenu = false;
 
   constructor() { super('MobilePrep'); }
 
@@ -42,6 +57,9 @@ export class MobilePrepScene extends Phaser.Scene {
 
   init(): void {
     this.picker = null;
+    this.deckEditor = null;
+    this.importDialog = null;
+    this.codeMenu = false;
   }
 
   /** The foe entry the sheet controls edit. */
@@ -59,7 +77,11 @@ export class MobilePrepScene extends Phaser.Scene {
     const foe = this.activeFoe();
     const title = foe.title;
     const level = foe.level;
-    const encounter = buildEnemyEncounter(foe.enemyId, level, title, foe.rank, foe.modifiers, foe.affix ?? null);
+    // `foe.deck ?? null` (arg 8) — the SAME preview-vs-fight honesty rule as
+    // `affix`: the battle request ships the deck recipe (battleApi.ts), so the
+    // preview must resolve it too or a deck-carrying config previews the
+    // authored board while fighting the custom one.
+    const encounter = buildEnemyEncounter(foe.enemyId, level, title, foe.rank, foe.modifiers, foe.affix ?? null, undefined, foe.deck ?? null);
     const enemyDef = enemies[foe.enemyId]!;
 
     this.renderTabs();
@@ -69,6 +91,9 @@ export class MobilePrepScene extends Phaser.Scene {
     this.renderColumns(encounter, heroBottom);
     this.renderFooter();
     if (this.picker !== null) this.renderPicker();
+    if (this.codeMenu) this.renderCodeMenu();
+    if (this.importDialog !== null) this.renderImportDialog(this.importDialog);
+    if (this.deckEditor !== null) this.renderDeckEditor(enemyDef.name);
   }
 
   private x(dx: number): number { return this.ox + dx; }
@@ -208,7 +233,13 @@ export class MobilePrepScene extends Phaser.Scene {
     // (`rollEncounter`: `unitAffix = memberTitle === 'elite' ? nodeAffix : null`)
     // and like the desktop prep panel — every other title draws this sheet
     // byte-identically to before, at its original 164px.
-    const showAffix = title === 'elite';
+    // …AND on the deck being AUTO: a custom deck replaces the whole board
+    // pipeline, affix install included (the resolver throws on affix+deck), so
+    // the affix row hides while one is set (spec §2.1) — its cards are just
+    // cards the player can add from the editor's catalog.
+    const foe = this.activeFoe();
+    const customDeck = foe.deck != null;
+    const showAffix = title === 'elite' && !customDeck;
     const affix = showAffix ? presentEliteAffix(encounter.affix) : null;
     const affixLines = affix ? affixBlockLines(affix, this.W - 40, F.tiny) : null;
     const affixTextRows = affixLines ? affixLines.answer.length : 0;
@@ -216,7 +247,11 @@ export class MobilePrepScene extends Phaser.Scene {
     const stepperY = showAffix
       ? affixRowY + 22 + 4 + affixTextRows * (F.tiny + 2) + 8
       : top + 136;
-    const h = showAffix ? (stepperY + 24 + 8) - top : 164;
+    // The sheet grows for the DECK row under the steppers (40px controls —
+    // the min tap for NEW mobile controls; the 24px steppers above are
+    // grandfathered) — the same growth pattern the affix block set.
+    const deckRowY = stepperY + 24 + 8;
+    const h = (deckRowY + 40 + 8) - top;
     this.add.rectangle(this.x(10), this.y(top), this.W - 20, h, 0x101a2a).setOrigin(0, 0).setStrokeStyle(1, 0x2a3a52);
     this.add.rectangle(this.x(10), this.y(top), 5, h, 0xc9a15a).setOrigin(0, 0);
     this.text(20, top + 8, name, F.title, UI.textBright, { display: true, bold: true });
@@ -234,8 +269,8 @@ export class MobilePrepScene extends Phaser.Scene {
       bandText.setText('DMG/turn n/a').setColor(UI.textMuted);
     });
 
-    // title chips (row 1) — edit the ACTIVE foe entry.
-    const foe = this.activeFoe();
+    // title chips (row 1) — edit the ACTIVE foe entry (`foe`, declared with
+    // the sheet geometry above).
     let kx = 20;
     for (const t of ENEMY_TITLES) {
       const active = t === title;
@@ -298,15 +333,36 @@ export class MobilePrepScene extends Phaser.Scene {
     // LV + RANK steppers (row 4) — edit the ACTIVE foe entry.
     this.stepper(20, stepperY, 'LV', foe.level, (d) => { foe.level = Math.max(1, foe.level + d); syncPrimaryFoe(); this.rerender(); });
     // Rank caps at deckSize × 3; a tier-forcing modifier (DIAMOND-POWERED)
-    // pins it there, so show the RESOLVED rank and freeze the stepper.
+    // pins it there, so show the RESOLVED rank and freeze the stepper. A
+    // custom deck freezes it the same way (the authored tiers ARE the tiers;
+    // the value shown is the resolver's honest tier-step echo).
     const rankCap = maxRankFor(encounter.setup.pieces.length);
     const tierForced = foe.modifiers.some((id) => MODIFIER_PRESETS[id]?.forceTier !== undefined);
     this.stepper(150, stepperY, 'RANK', encounter.rank, (d) => {
-      if (tierForced) return;
+      if (tierForced || customDeck) return;
       foe.rank = Math.max(0, Math.min(rankCap, encounter.rank + d));
       syncPrimaryFoe();
       this.rerender();
     });
+
+    // DECK row (row 5) — the custom-foe-board entry point (sandbox only: this
+    // scene IS the sandbox prep; Run Mode preps are the *RunPrepScene files).
+    // EDIT opens the editor seeded from the RESOLVED board; ✕ AUTO returns to
+    // the authored pipeline.
+    const editW = 64;
+    const autoW = 84;
+    this.text(20, deckRowY + 20, deckRowLabel(foe.deck, encounter.setup.pieces.length), F.tiny, customDeck ? UI.textAccent : UI.textMuted, { bold: true, origin: [0, 0.5] });
+    this.button(this.W - 20 - editW, deckRowY, editW, 40, 'EDIT', 0x16233a, UI.textAccent, () => {
+      this.deckEditor = seedFoeDeckDraft(encounter.setup.pieces);
+      this.rerender();
+    }, F.tiny);
+    if (customDeck) {
+      this.button(this.W - 20 - editW - 6 - autoW, deckRowY, autoW, 40, '✕ AUTO', 0x16233a, UI.textDim, () => {
+        foe.deck = null;
+        syncPrimaryFoe();
+        this.rerender();
+      }, F.tiny);
+    }
     return top + h;
   }
 
@@ -461,6 +517,9 @@ export class MobilePrepScene extends Phaser.Scene {
 
   private renderFooter(): void {
     renderActionBar(this, this.W, this.H, [
+      // Share codes (spec §3.7): CODE opens the copy/paste menu. Row fit at
+      // the 412px design width is pinned by tests/game/actionBarFit.test.ts.
+      { label: 'CODE', flex: 0.8, onPress: () => { playSfx('uiClick'); this.codeMenu = true; this.rerender(); } },
       {
         label: `SEED ${demoState.seed}`,
         onPress: () => {
@@ -471,5 +530,168 @@ export class MobilePrepScene extends Phaser.Scene {
       },
       { label: 'FIGHT', primary: true, flex: 2, onPress: () => { playSfx('uiClick'); setBattleContext('demo'); this.scene.start('MobileBattle'); } },
     ]);
+  }
+
+  /**
+   * The CODE menu (spec §3.7 mobile): two 48px rows — COPY MY CODE (mints the
+   * canonical W1- code, acknowledges on its own label, DOM fallback when the
+   * clipboard is blocked) and PASTE A CODE (DOM prompt → the PLAY IT/FIGHT IT
+   * import dialog). Tap outside cancels.
+   */
+  private renderCodeMenu(): void {
+    const scrim = this.add.rectangle(0, 0, this.W, this.H, UI.shadow, 0.75).setOrigin(0, 0).setInteractive();
+    scrim.on('pointerdown', () => { playSfx('uiBack'); this.codeMenu = false; this.rerender(); });
+    const pw = this.W - 40;
+    const ph = 44 + 2 * (48 + 8) + 6;
+    const px = 20;
+    const py = (this.H - ph) / 2;
+    const panel = this.add.rectangle(px, py, pw, ph, 0x142738, 0.98).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive();
+    void panel; // swallows scrim taps under the panel
+    this.text(px + 14, py + 12, 'SHARE CODE', F.lead, UI.textAccent, { bold: true, display: true });
+    this.text(px + pw - 14, py + 16, 'tap outside to cancel', F.tiny, UI.textSoft, { origin: [1, 0] });
+
+    const rowW = pw - 28;
+    const copyY = py + 44;
+    const copyRect = this.add.rectangle(this.x(px + 14), this.y(copyY), rowW, 48, 0x16233a).setOrigin(0, 0)
+      .setStrokeStyle(1, UI.border, 0.7).setInteractive({ useHandCursor: true });
+    const copyLabel = this.text(px + 14 + rowW / 2, copyY + 24, '⧉ COPY MY CODE', F.body, UI.textBright, { bold: true, origin: [0.5, 0.5] });
+    copyRect.on('pointerdown', () => {
+      playSfx('uiClick');
+      const code = encodeLoadout(captureLoadout());
+      void copyTextToClipboard(code).then((ok) => {
+        if (!this.scene.isActive() || !copyLabel.active) return;
+        if (ok) copyLabel.setText(copiedToast(code));
+        else showCodeFallback(code);
+      });
+    });
+
+    this.button(px + 14, copyY + 48 + 8, rowW, 48, '⇩ PASTE A CODE', 0x16233a, UI.textBright, () => {
+      this.codeMenu = false;
+      void promptForCode().then((text) => {
+        if (!this.scene.isActive()) return;
+        const trimmed = text?.trim() ?? '';
+        if (trimmed === '') { this.rerender(); return; }
+        try {
+          const { loadout, report } = decodeCode(trimmed);
+          this.importDialog = { kind: 'decoded', loadout, report };
+        } catch (err) {
+          this.importDialog = {
+            kind: 'error',
+            message: decodeFailureMessage(err instanceof ShareCodeError ? err.failure : 'invalid'),
+          };
+        }
+        this.rerender();
+      });
+      this.rerender();
+    }, F.body);
+  }
+
+  /**
+   * The import dialog, full-screen variant (spec §3.7): summary + the
+   * DecodeReport lines verbatim + both explainers in the panel; PLAY IT /
+   * FIGHT IT / CANCEL as an ActionBar row (FIGHT IT inert for an empty-board
+   * code). Applying flips the dialog into its result view carrying the
+   * mapper's returned lines — CLOSE dismisses (no timers; lines must survive
+   * rebuilds until read).
+   */
+  private renderImportDialog(state: ImportDialogState): void {
+    const scrim = this.add.rectangle(0, 0, this.W, this.H, UI.shadow, 0.8).setOrigin(0, 0).setInteractive();
+    scrim.on('pointerdown', () => { playSfx('uiBack'); this.importDialog = null; this.rerender(); });
+
+    // Explainer strings can outrun a 372px panel — split on the ' · '
+    // separators instead of word-wrap so each fact keeps its own line
+    // (mobile-first log convention).
+    const lineH = F.tiny + 5;
+    const report = state.kind === 'decoded' ? decodeReportLines(state.report)
+      : state.kind === 'applied' ? state.lines : [state.message];
+    const explainers = state.kind === 'decoded'
+      ? [`PLAY IT ${PLAY_IT_EXPLAINER}`, ...fightItExplainer(state.loadout).split(' · ').map((s, i) => i === 0 ? `FIGHT IT ${s}` : s)]
+      : [];
+    const bodyRows = (state.kind === 'decoded' ? 1 : 0) + report.length + explainers.length;
+    const ph = 44 + bodyRows * lineH + (explainers.length > 0 ? 10 : 0) + 18;
+    const px = 10;
+    const pw = this.W - 20;
+    const py = Math.max(60, (this.H - ph) / 2 - 40);
+    const panel = this.add.rectangle(px, py, pw, ph, 0x142738, 0.98).setOrigin(0, 0).setStrokeStyle(2, UI.border, 1).setInteractive();
+    void panel;
+    const title = state.kind === 'decoded' ? 'IMPORT SHARE CODE' : state.kind === 'applied' ? state.title : 'IMPORT FAILED';
+    this.text(px + 14, py + 12, title, F.lead, UI.textAccent, { bold: true, display: true });
+    let cy = py + 40;
+    if (state.kind === 'decoded') {
+      this.text(px + 14, cy, describeLoadout(state.loadout), F.tiny, UI.textBright, { bold: true });
+      cy += lineH;
+    }
+    for (const line of report) {
+      this.text(px + 14, cy, state.kind === 'error' ? line : `· ${line}`, F.tiny, state.kind === 'error' ? UI.textBright : UI.textAccent, { bold: true });
+      cy += lineH;
+    }
+    if (explainers.length > 0) cy += 10;
+    for (const line of explainers) {
+      this.text(px + 14, cy, line, F.tiny, UI.textMuted);
+      cy += lineH;
+    }
+
+    if (state.kind === 'decoded') {
+      const loadout = state.loadout;
+      const canFight = fightItEnabled(loadout);
+      renderActionBar(this, this.W, this.H, [
+        { label: 'CANCEL', onPress: () => { playSfx('uiBack'); this.importDialog = null; this.rerender(); } },
+        {
+          // Inert (not hidden) for an empty-board code, so the row keeps its
+          // shape and the reason reads on the button itself.
+          label: canFight ? 'FIGHT IT' : 'NO BOARD',
+          onPress: () => {
+            if (!canFight) return;
+            playSfx('uiClick');
+            const lines = applyAsFoe(loadout);
+            this.importDialog = { kind: 'applied', title: 'FIGHT IT — FOE DECK SET', lines: lines.length ? lines : ['board mapped 1:1'] };
+            this.rerender();
+          },
+        },
+        {
+          label: 'PLAY IT', primary: true, flex: 1.3,
+          onPress: () => {
+            playSfx('uiClick');
+            const lines = applyAsHero(loadout);
+            this.importDialog = { kind: 'applied', title: 'PLAY IT — BUILD APPLIED', lines: lines.length ? lines : ['applied cleanly'] };
+            this.rerender();
+          },
+        },
+      ]);
+    } else {
+      renderActionBar(this, this.W, this.H, [
+        { label: 'CLOSE', primary: true, onPress: () => { playSfx('uiClick'); this.importDialog = null; this.rerender(); } },
+      ]);
+    }
+  }
+
+  /** The custom foe-deck editor overlay (ui/foeDeckEditor.ts — spec §2.2). */
+  private renderDeckEditor(foeName: string): void {
+    renderFoeDeckEditor(this, {
+      profile: 'mobile',
+      screenW: this.W,
+      screenH: this.H,
+      draft: this.deckEditor!,
+      foeName,
+      onChange: () => this.rerender(),
+      onApply: (deck) => {
+        const foe = this.activeFoe();
+        foe.deck = deck;
+        // A custom deck owns the board — the resolver throws on affix+deck
+        // (spec §1.1.7), so APPLY clears the affix in the same write.
+        foe.affix = null;
+        syncPrimaryFoe();
+        this.deckEditor = null;
+        this.rerender();
+      },
+      onAuto: () => {
+        const foe = this.activeFoe();
+        foe.deck = null;
+        syncPrimaryFoe();
+        this.deckEditor = null;
+        this.rerender();
+      },
+      onCancel: () => { this.deckEditor = null; this.rerender(); },
+    });
   }
 }

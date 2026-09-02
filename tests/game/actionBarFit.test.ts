@@ -157,6 +157,47 @@ describe('ui/ActionBar: mobile footer row fit', () => {
     expect(primaryWidth).toBeGreaterThan(summaryWidth);
   });
 
+  // WHY THESE THREE ROWS JOINED THE AUDIT (2026-09-02, sandbox share codes +
+  // foe deck editor): the MobilePrep footer grew a third button (CODE), and
+  // two NEW overlay rows render through the same renderActionBar — the foe
+  // deck editor's AUTO/CANCEL/APPLY and the import dialog's CANCEL/FIGHT IT/
+  // PLAY IT. Every row is pinned at the 412px design width with its WIDEST
+  // live labels (SEED at its 6-digit max, APPLY in its disabled "(0)" form,
+  // FIGHT IT in its inert "NO BOARD" form) — the exact shape the 2026-08-17
+  // clipping bug took. No budget loosened: the assertion is the same
+  // audit.passed the Sandbox row already answers to.
+  const SANDBOX_NEW_ROWS: Array<[string, ActionButton[]]> = [
+    ['MobilePrep footer (CODE · SEED · FIGHT)', [
+      { label: 'CODE', flex: 0.8, onPress: () => {} },
+      { label: 'SEED 999999', onPress: () => {} },
+      { label: 'FIGHT', primary: true, flex: 2, onPress: () => {} },
+    ]],
+    ['foe deck editor (AUTO · CANCEL · APPLY)', [
+      { label: 'AUTO', onPress: () => {} },
+      { label: 'CANCEL', onPress: () => {} },
+      { label: 'APPLY (0)', flex: 1.4, onPress: () => {} },
+    ]],
+    ['import dialog (CANCEL · FIGHT IT · PLAY IT)', [
+      { label: 'CANCEL', onPress: () => {} },
+      { label: 'FIGHT IT', onPress: () => {} },
+      { label: 'PLAY IT', primary: true, flex: 1.3, onPress: () => {} },
+    ]],
+  ];
+
+  it.each(SANDBOX_NEW_ROWS)('%s: every label fits its own button at the mobile design width', (_name, buttons) => {
+    const { scene, rects } = makeFakeScene();
+    renderActionBar(scene as unknown as Phaser.Scene, MOBILE_PROFILE.canvas.width, MOBILE_PROFILE.canvas.height, buttons);
+    expect(rects).toHaveLength(buttons.length);
+    for (const [i, rect] of rects.entries()) {
+      const audit = rect.getData('controlLayoutAudit') as ControlAuditResult;
+      expect(audit, `button ${i} (${buttons[i]!.label}) never ran the label-fit audit`).toBeDefined();
+      expect(audit.passed, `button ${i} (${buttons[i]!.label}) overflowed its own rect: ${JSON.stringify(audit)}`).toBe(true);
+      // Fitting by ellipsis would pass the overlap bar while hiding the verb —
+      // these labels are short enough that they must fit UNTRUNCATED.
+      expect(audit.truncated, `button ${i} (${buttons[i]!.label}) should not need truncation`).toBe(false);
+    }
+  });
+
   it('a label too wide even at the shrink floor still fits ONLY because it ellipsizes — proving the safety net, not just generous flex, is what prevents overlap', () => {
     const { scene, rects } = makeFakeScene();
     // Four flex-1 siblings squeeze the last button down to a sliver — its
