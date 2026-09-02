@@ -14,9 +14,21 @@ import {
   chooseNode,
   createRun,
   ensureRunShopShelf,
+  leaveEvent,
+  leaveShop,
+  recordBattleResult,
   rerollRunShop,
+  type RunNode,
   type RunState,
 } from '../../src/run/runState';
+import {
+  applyGemChoicePick,
+  eventResolutionAt,
+  reopenEventChoice,
+  resolveEventChoice,
+  rollEventForNode,
+} from '../../src/run/events';
+import { gemBook } from '../../src/data/gems';
 import { rollStartDraft, DRAFT_SET_KEYS, type DraftSetKey } from '../../src/run/draft';
 
 /** In-memory fake `StorageDriver` — same seam/idiom as
@@ -76,6 +88,158 @@ function midRunState(seed: number): RunState {
   }
   return state;
 }
+
+/** Walk a fresh run to its first reachable EVENT node (fights won, shops
+ * left), returning the state with that node committed/current — same helper
+ * idiom as `tests/run/events.test.ts#stateAtFirstEvent`, duplicated here per
+ * this suite's convention (each test file carries its own tiny fixtures). */
+function stateAtFirstEventNode(seed: number): { state: RunState; node: RunNode } {
+  let state = applyDraftResult(createRun(seed), draftPicksFor(seed));
+  for (let guard = 0; guard < 200; guard++) {
+    const choices = availableChoices(state);
+    if (choices.length === 0) throw new Error('no event node reachable for this seed');
+    const eventChoice = choices.find((n) => n.kind === 'event');
+    if (eventChoice) {
+      state = chooseNode(state, eventChoice.id);
+      return { state, node: eventChoice };
+    }
+    const node = choices[0]!;
+    state = chooseNode(state, node.id);
+    if (node.kind === 'shop') state = leaveShop(state);
+    else state = recordBattleResult(state, { won: true, goldEarned: 1 });
+  }
+  throw new Error('guard exceeded while looking for an event node');
+}
+
+// ---------------------------------------------------------------------------
+// EVENT GEM GRANTS SURVIVE THE SAVE (2026-09-02 playtest investigation).
+//
+// A live run reported gems picked at event nodes "gone" later — deck header
+// GEMS 0, no gem visible anywhere — on a run that was reloaded ~10 times. The
+// suspicion was a persistence hole: a field the grants write that the save
+// shape drops. This suite PINS the truth the other way: the whole real chain
+// — `resolveEventChoice` on the node's own drawn event, the paid-but-
+// unanswered `pending` window, `reopenEventChoice` after a reload,
+// `applyGemChoicePick`, `leaveEvent` — round-trips through the REAL
+// `saveRun`/`loadRun` at every step, and the gem is still in
+// `RunState.gemInventory` (the pouch the Deck/Bag socket panel lists) at the
+// end. The "GEMS 0" the playtest saw is the deck header counting SOCKETED
+// gems (`pieces[].gem`) — a different field than grants write — which the
+// last assertion documents from the pure side: the grant socketed nothing.
+// ---------------------------------------------------------------------------
+
+describe('meta/runSave: an event-granted gem survives reload at every step of the real chain', () => {
+  /** Save + load through the real runSave layer, asserting the round-trip is
+   * byte-exact — one forced "page reload" of the playtest's ~10. */
+  function reload(storage: StorageDriver, state: RunState): RunState {
+    expect(saveRun(storage, state)).toEqual({ ok: true });
+    const loaded = loadRun(storage);
+    expect(loaded).toEqual(state);
+    return loaded!;
+  }
+
+  // Seed 13: the first reachable event node draws an event whose choices
+  // include a usable `gemChoice` rung (`fences_offer`'s "take the stone") —
+  // the catalog's real gem source (it has no immediate `grantGem` choice any
+  // more, so every playtest gem went through this deferred picker). If the
+  // catalog/map ever changes this seed's draw, the loud expects below fail
+  // rather than silently passing a fixture that stopped exercising gems.
+  const SEED = 13;
+
+  it('grant -> reload mid-pending -> reopen -> pick -> reload -> leave -> reload keeps the gem in gemInventory', () => {
+    const storage = fakeStorage();
+    const at = stateAtFirstEventNode(SEED);
+    const { node } = at;
+
+    // The node's OWN drawn event (idempotent memo), reloaded before choosing.
+    const drawn = rollEventForNode(at.state, node);
+    let state = reload(storage, drawn.state);
+    const rung = drawn.event.choices.find((c) => c.outcome.kind === 'gemChoice');
+    expect(rung).toBeDefined(); // seed contract — see SEED above
+
+    // Take the rung for real: cost deducted, resolution recorded PENDING.
+    const resolved = resolveEventChoice(state, drawn.event.id, rung!.id);
+    expect(resolved.outcome.kind).toBe('gemChoicePick');
+    const offeredBefore = resolved.outcome.kind === 'gemChoicePick' ? resolved.outcome.options : [];
+    expect(offeredBefore.length).toBeGreaterThan(0);
+
+    // RELOAD inside the paid-but-unanswered window (the playtest's habit).
+    state = reload(storage, resolved.state);
+    expect(eventResolutionAt(state, node.id)?.pending).toBe(true);
+
+    // The reopened picker offers the IDENTICAL gems (same seeded stream).
+    const reopened = reopenEventChoice(state);
+    expect(reopened).toBeDefined();
+    expect(reopened!.outcome.kind).toBe('gemChoicePick');
+    const options = reopened!.outcome.kind === 'gemChoicePick' ? reopened!.outcome.options : [];
+    expect(options).toEqual(offeredBefore);
+
+    // Pick one — the finalizer pushes it into the pouch and clears `pending`.
+    const gemId = options[0]!;
+    expect(gemBook[gemId]).toBeDefined();
+    const picked = applyGemChoicePick(reopened!.state, gemId);
+    expect(picked.outcome).toEqual({ kind: 'grantGem', gemId });
+    expect(picked.state.gemInventory).toEqual([gemId]);
+
+    // RELOAD again: the pouch — the field the Deck/Bag socket panel reads via
+    // `currentRunGemInventory()` — still holds the gem, and the pick cannot be
+    // re-opened for a second copy.
+    state = reload(storage, picked.state);
+    expect(state.gemInventory).toEqual([gemId]);
+    expect(eventResolutionAt(state, node.id)?.pending).toBeUndefined();
+    expect(reopenEventChoice(state)).toBeUndefined();
+
+    // Leave the node and reload once more — still there.
+    state = reload(storage, leaveEvent(state));
+    expect(state.gemInventory).toEqual([gemId]);
+
+    // THE "GEMS 0" MECHANISM, pinned from the pure side: the grant lands in
+    // the POUCH and sockets nothing, so a header that counts `pieces[].gem`
+    // (the deck screens' GEMS segment) reads 0 while the run truly owns the
+    // gem. The counter reads a DIFFERENT field than grants write — a UI gap,
+    // not a persistence hole.
+    expect(state.pieces.every((p) => !p.gem)).toBe(true);
+  });
+
+  it('an old-shape v1 blob (no optional fields) still loads, and the gem chain works on top of it', () => {
+    // Simulate a save written by an OLDER v1 build: every OPTIONAL RunState
+    // field stripped (held/draft/eventThemeBags/eventThemeBagRefills/
+    // eventResolutions — absent meant exactly "empty" when they shipped, and
+    // must forever). `gemInventory` itself is NOT optional and predates the
+    // save layer, so every real v1 blob carries it.
+    const at = stateAtFirstEventNode(SEED);
+    const drawn = rollEventForNode(at.state, at.node);
+    const {
+      held: _held,
+      draft: _draft,
+      eventThemeBags: _bags,
+      eventThemeBagRefills: _refills,
+      eventResolutions: _resolutions,
+      ...oldShape
+    } = drawn.state;
+
+    const storage = fakeStorage({
+      [RUN_SAVE_STORAGE_KEY]: JSON.stringify({ schemaVersion: SCHEMA_VERSION, run: oldShape }),
+    });
+    const loaded = loadRun(storage);
+    expect(loaded).not.toBeNull();
+    expect(loaded).toEqual(oldShape);
+
+    // The gem chain still works on the loaded old-shape state: resolve the
+    // drawn event's gem rung, answer the picker, and the pouch has the gem.
+    const rung = drawn.event.choices.find((c) => c.outcome.kind === 'gemChoice');
+    expect(rung).toBeDefined();
+    const resolved = resolveEventChoice(loaded!, drawn.event.id, rung!.id);
+    expect(resolved.outcome.kind).toBe('gemChoicePick');
+    const options = resolved.outcome.kind === 'gemChoicePick' ? resolved.outcome.options : [];
+    const picked = applyGemChoicePick(resolved.state, options[0]!);
+    expect(picked.state.gemInventory).toEqual([options[0]!]);
+
+    // And the whole thing round-trips forward at the CURRENT shape.
+    expect(saveRun(storage, picked.state)).toEqual({ ok: true });
+    expect(loadRun(storage)).toEqual(picked.state);
+  });
+});
 
 describe('meta/runSave: load with nothing stored', () => {
   it('returns null', () => {
