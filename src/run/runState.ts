@@ -22,7 +22,7 @@ import {
   PACK_VARIANT_WEIGHTS,
   resolvePackMemberLevel,
   resolvePackRosterLevel,
-  TITLE_PRESETS,
+  titlePresetFor,
   type EncounterPack,
   type EncounterUnit,
   type EnemyTitle,
@@ -421,6 +421,22 @@ export type FightTableEntry = FightSpec;
  * so this axis never repeats an id. */
 const MODIFIER_PER_OVERFLOW_FIGHTS = 5;
 
+/**
+ * BOSS TEMPO (2026-09-02): every boss-CADENCE fight (position 5 — never a
+ * hard-option boss title) from this fight number onward carries the `swift`
+ * modifier (+8 PL of pure Speed). Measured with the same 40x3-seed probe that
+ * drove the title depth ramp: the flat boss package deep in the ladder was
+ * WEAKER than its band's optional hard rung (w15 boss 35% win vs the w14 hard
+ * rung's 12.5%) — swift moves w15 35%->~20% and w10 25%->~20%, so a milestone
+ * boss out-threatens its band's standard fights again. Boss #1 (fight 5) is
+ * exempt: the early curve was the inverted half (see TITLE_RAMP in
+ * encounter.ts). Distinct-id rule kept: once the deep-run escalation ramp
+ * unlocks `swift` on its own (past `MAX_LEVEL`), it is NOT added twice, so
+ * `battleGoldReward`'s `modifiers.length` difficulty term stays honest —
+ * bosses 10..34 pay one tick more gold, which is intended.
+ */
+export const BOSS_SWIFT_FROM_FIGHT = 10;
+
 /** The full fight-spec for a 1-indexed fight number (>= 1; endless — no upper bound). */
 export function fightSpecFor(fightNumber: number): FightSpec {
   const n = Math.max(1, Math.floor(fightNumber));
@@ -430,6 +446,10 @@ export function fightSpecFor(fightNumber: number): FightSpec {
   const overflow = Math.max(0, n - MAX_LEVEL);
   const modifierCount = Math.min(ENEMY_MODIFIER_IDS.length, Math.floor(overflow / MODIFIER_PER_OVERFLOW_FIGHTS));
   const modifiers: string[] = ENEMY_MODIFIER_IDS.slice(0, modifierCount);
+  // Boss tempo — see BOSS_SWIFT_FROM_FIGHT above. Pure function of n; no draw.
+  if (title === 'boss' && n >= BOSS_SWIFT_FROM_FIGHT && !modifiers.includes('swift')) {
+    modifiers.push('swift');
+  }
   return { level, title, modifiers };
 }
 
@@ -838,8 +858,9 @@ function rollPackVariant(rng: Rng): PackVariant {
  * (mob/normal only — no elite/boss packs in v1); a `'hard'` fight-option's +1
  * level still lands on every member via `entry.level` feeding the solve (the
  * title bump is simply capped back down). Rank stays the SAME per-title
- * budget every solo foe uses (`TITLE_PRESETS[title].rank`) — no new budget
- * path, per member.
+ * budget every solo foe uses (`titlePresetFor(title, fightNumber).rank` —
+ * the depth-ramped package, see the TITLE DEPTH RAMP block in encounter.ts)
+ * — no new budget path, per member.
  *
  * DEPTH GATING (2026-08-19, see `enemyDepth.ts`): the node's `fightNumber`
  * (the fight track's own depth measure — shared across a fight column's
@@ -920,7 +941,9 @@ export function rollEncounter(state: RunState): EncounterPack {
   let memberLevel = entry.level;
   let memberTitle: EnemyTitle = entry.title;
   if (variant !== 'solo') {
-    const solvedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[variant], entry.modifiers, nodeAffix);
+    // The node's fight number rides along so the budget is priced at the SAME
+    // depth-ramped title package (`titlePresetFor`) the solo build ships.
+    const solvedLevel = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[variant], entry.modifiers, nodeAffix, node.fightNumber!);
     if (solvedLevel === null) {
       // Budget floor-fallback (encounter.ts#resolvePackMemberLevel): even
       // level 1 would exceed this member's taxed share — ship solo instead.
@@ -931,7 +954,9 @@ export function rollEncounter(state: RunState): EncounterPack {
     }
   }
   const size = PACK_SIZE[variant];
-  const rank = TITLE_PRESETS[memberTitle].rank;
+  // TITLE DEPTH RAMP (2026-09-02): rank comes from the fight-number-ramped
+  // package, not the flat preset — see `titlePresetFor` in encounter.ts.
+  const rank = titlePresetFor(memberTitle, node.fightNumber!).rank;
   // Pack members are mob/normal (`capPackTitle`), so a pack drops the affix
   // with the title it belonged to — no elite packs, no affixed packs, and
   // `resolvePackMemberLevel`'s member-deck term above matches that exactly.
@@ -953,12 +978,12 @@ export function rollEncounter(state: RunState): EncounterPack {
     enemyIds.push(drawPool[rng.int(drawPool.length)]!);
   }
   if (size > 1) {
-    memberLevel = resolvePackRosterLevel(enemyIds, entry.level, entry.title, entry.modifiers, nodeAffix) ?? memberLevel;
+    memberLevel = resolvePackRosterLevel(enemyIds, entry.level, entry.title, entry.modifiers, nodeAffix, node.fightNumber!) ?? memberLevel;
   }
 
   const units: EncounterUnit[] = [];
   for (let i = 0; i < size; i++) {
-    units.push(buildEnemyEncounter(enemyIds[i]!, memberLevel, memberTitle, rank, entry.modifiers, unitAffix));
+    units.push(buildEnemyEncounter(enemyIds[i]!, memberLevel, memberTitle, rank, entry.modifiers, unitAffix, node.fightNumber!));
   }
   return { variant, units };
 }

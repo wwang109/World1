@@ -74,6 +74,11 @@ export interface TitlePreset {
  * `levelDelta` feeds `effectiveLevel` below, which is intentionally NOT
  * floored at 1 any more — Mob's demotion needs to be able to go negative to
  * reach `scaleMonsterToLevel`'s negative-PL un-buy path.
+ *
+ * These are the FULL packages. The run ladder consumes them through
+ * `titlePresetFor(title, fightNumber)` (the TITLE DEPTH RAMP below), which
+ * ramps elite/boss up to these values by fight `TITLE_RAMP_FULL_FIGHT` —
+ * measured early-game fix, zero change at or past that fight.
  */
 export const TITLE_PRESETS: Record<EnemyTitle, TitlePreset> = {
   mob: { levelDelta: -4, rank: 0, extraCards: 0 },
@@ -83,6 +88,103 @@ export const TITLE_PRESETS: Record<EnemyTitle, TitlePreset> = {
 };
 
 export const ENEMY_TITLES: EnemyTitle[] = ['mob', 'normal', 'elite', 'boss'];
+
+// ---------------------------------------------------------------------------
+// TITLE DEPTH RAMP (2026-09-02) — the run ladder consumes elite/boss packages
+// through `titlePresetFor(title, fightNumber)`, which ramps UP TO the full
+// `TITLE_PRESETS` package by fight 10 and NEVER past it. This is an
+// EARLY-GAME fix, measured, not a global retune:
+//
+// The flat packages made the early curve INVERTED (probe: 40 run seeds x 3
+// fight seeds per cell, real `rollEncounter` + real `simulate`, on-curve
+// boards, auto stat spend, no gems):
+//   • wave-5 boss #1 (full {+4,+4,+2} on a 4-5 fight-old hero): 0% win —
+//     while the SAME kit at the plain normal title measured 47.5%. The
+//     PACKAGE was the wall: decomposition held it at 0% under every single
+//     levelDelta 0-4 and rank 0-4 while the full package SHAPE remained.
+//   • waves 3-4 elites (full {+2,+2,+1}): 10% win.
+//   • the SAME packages at waves 13-15: 35-50% — and the w15 boss (35%) was
+//     WEAKER than its own band's optional hard rung (12.5%). The flat preset
+//     is a wall at fight 5 and a speed bump at fight 15.
+// So the package a title pays out now scales with the fight number: small
+// where the hero owns 4-7 bronze cards, full where the package was already
+// fair. Fights >= TITLE_RAMP_FULL_FIGHT are BYTE-IDENTICAL to the flat
+// presets (pinned in tests/run/encounter.test.ts) — zero late-game change.
+//
+// ELITE `extraCards` NEVER RAMPS BELOW 1: the elite affix system installs its
+// card IN PLACE of the title's generic filler (see the ELITE AFFIXES block
+// below), and that zero-PL substitution needs a filler slot to consume at
+// EVERY fight an elite can occur (hard options make elites from fight 1).
+//
+// PURE DATA, PURE FUNCTION: the ramp is a lookup on (title, fightNumber) —
+// no RNG, no state — so it cannot disturb any Rng call order, map/biome
+// fingerprint, or preview/committed agreement.
+// ---------------------------------------------------------------------------
+
+/** First fight number at which `titlePresetFor` pays the FULL `TITLE_PRESETS`
+ * package (and forever after). */
+export const TITLE_RAMP_FULL_FIGHT = 10;
+
+/**
+ * Fights 1..9 (index = fightNumber - 1) of the elite/boss package ramp.
+ * `mob`/`normal` never ramp (their presets are the zero/negative floor).
+ *
+ * EVERY CELL BELOW WAS MEASURED, not derived (same 40x3-seed probe as the
+ * block comment above; per-axis sweeps on the real rolled encounters):
+ *   • The extra CARD is the heaviest axis on a boss kit early — at fight 5,
+ *     triad {1,1,0} won 30% and {1,1,1} only 7.5%; the RANK step is the
+ *     heaviest on early elites — {1,0,1} won 50%, {1,1,1} only 17.5%.
+ *   • Boss cells serve TWO different rungs. Fights 3-4/8-9 are the OPTIONAL
+ *     hard-option boss (an elite pushed one rung — it keeps the elite's
+ *     filler card); fight 5 is the MILESTONE boss #1, which fields its
+ *     authored signature triad un-padded (a generic filler card only dilutes
+ *     the one kit the player was told to prepare for). That is why rank/
+ *     extraCards dip at fight 5: milestone vs hard-rung, not one curve.
+ *   • Measured at the shipped cells (on-curve boards): f3 elite 50%,
+ *     f4 elite 45%, f5 boss 37.5% (was 0%), f3/f4 hard boss 5%/17.5%
+ *     (was 0%), f9 hard boss ~7% (was 0%) — the hard rung stays the brutal
+ *     opt-in it is deep (w14 hard: 12.5%).
+ */
+export const TITLE_RAMP: Record<'elite' | 'boss', readonly TitlePreset[]> = {
+  elite: [
+    { levelDelta: 0, rank: 0, extraCards: 1 }, // fight 1 (hard option only)
+    { levelDelta: 0, rank: 0, extraCards: 1 }, // fight 2 (hard option only)
+    { levelDelta: 1, rank: 0, extraCards: 1 }, // fight 3 — 10% -> 50% win
+    { levelDelta: 1, rank: 0, extraCards: 1 }, // fight 4 — 10% -> 45% win
+    { levelDelta: 1, rank: 1, extraCards: 1 }, // fight 5 (defensive: boss wave)
+    { levelDelta: 2, rank: 2, extraCards: 1 }, // fight 6 = full package
+    { levelDelta: 2, rank: 2, extraCards: 1 }, // fight 7
+    { levelDelta: 2, rank: 2, extraCards: 1 }, // fight 8 — mid band already fair
+    { levelDelta: 2, rank: 2, extraCards: 1 }, // fight 9
+  ],
+  boss: [
+    { levelDelta: 1, rank: 1, extraCards: 1 }, // fight 1 (unreachable, defensive)
+    { levelDelta: 1, rank: 1, extraCards: 1 }, // fight 2 (unreachable, defensive)
+    { levelDelta: 1, rank: 1, extraCards: 1 }, // fight 3 (hard rung: 0% -> 5%)
+    { levelDelta: 1, rank: 1, extraCards: 1 }, // fight 4 (hard rung: 0% -> 17.5%)
+    { levelDelta: 1, rank: 0, extraCards: 0 }, // fight 5 — MILESTONE boss #1: 0% -> 37.5%
+    { levelDelta: 2, rank: 2, extraCards: 1 }, // fight 6 (unreachable, defensive)
+    { levelDelta: 2, rank: 2, extraCards: 1 }, // fight 7 (unreachable, defensive)
+    { levelDelta: 3, rank: 3, extraCards: 2 }, // fight 8 (hard rung)
+    { levelDelta: 3, rank: 3, extraCards: 2 }, // fight 9 (hard rung: 0% -> ~7%)
+  ],
+};
+
+/**
+ * The title package the run ladder pays at `fightNumber` — the ONE consumer-
+ * facing ramp resolver. `fightNumber` omitted (dev tools, prep scenes, tests
+ * exploring a title directly) or >= `TITLE_RAMP_FULL_FIGHT` returns the flat
+ * `TITLE_PRESETS` package unchanged; `mob`/`normal` are never ramped.
+ * Sub-1 fight numbers clamp to the ramp's first row (defensive only —
+ * `fightSpecFor` floors at 1).
+ */
+export function titlePresetFor(title: EnemyTitle, fightNumber?: number): TitlePreset {
+  if (fightNumber === undefined || title === 'mob' || title === 'normal') return TITLE_PRESETS[title];
+  const idx = Math.floor(fightNumber) - 1;
+  const ramp = TITLE_RAMP[title];
+  if (idx >= ramp.length) return TITLE_PRESETS[title];
+  return ramp[Math.max(0, idx)]!;
+}
 
 /**
  * Enemy MODIFIERS — the fourth additive dial (rogue-like affixes), stacked on
@@ -530,7 +632,9 @@ function modifierBonusDeci(modifierIds: readonly string[]): number {
 }
 
 /** The fixed board-threat PL (deci) every member at `title` ships — its
- * rank/extraCards come straight from `TITLE_PRESETS`, never a second dial.
+ * rank/extraCards come straight from the title package (`titlePresetFor`:
+ * the depth-ramped package when `fightNumber` is given, the flat
+ * `TITLE_PRESETS` otherwise), never a second dial.
  * A `forceTier` modifier (e.g. DIAMOND-POWERED) overrides the rank-tiered
  * deck entirely, matching `buildEnemyEncounter`'s post-rank tier override.
  *
@@ -539,8 +643,13 @@ function modifierBonusDeci(modifierIds: readonly string[]): number {
  * affixes against Elite's one filler slot add ZERO here — the substitution is
  * free by construction, not by an assumption. Anything an affix names PAST
  * that allowance grows the deck and is priced as the extra cards it is. */
-function memberDeckDeci(title: EnemyTitle, modifierIds: readonly string[] = [], affixId: string | null = null): number {
-  const preset = TITLE_PRESETS[title];
+function memberDeckDeci(
+  title: EnemyTitle,
+  modifierIds: readonly string[] = [],
+  affixId: string | null = null,
+  fightNumber?: number,
+): number {
+  const preset = titlePresetFor(title, fightNumber);
   const affixCards = affixCardsFor(affixId).length;
   const deckSize = REFERENCE_ENEMY_DECK_SIZE + Math.max(preset.extraCards, affixCards);
   const forceTier = forceTierFor(modifierIds);
@@ -559,14 +668,20 @@ function memberDeckDeci(title: EnemyTitle, modifierIds: readonly string[] = [], 
  * `affixId` prices the elite affix this node would deal (`eliteAffixIdFor`);
  * it is free today (a one-for-one card substitution) and priced if a future
  * affix ever grows the deck past the title's own filler allowance.
+ * `fightNumber` selects the depth-ramped title package (`titlePresetFor`) —
+ * pass the node's fight number to price what the ladder actually ships at
+ * that rung; omit it for the flat reference package.
  */
 export function soloThreatDeci(
   level: number,
   title: EnemyTitle,
   modifierIds: readonly string[] = [],
   affixId: string | null = null,
+  fightNumber?: number,
 ): number {
-  return levelStatDeci(level, title) + modifierBonusDeci(modifierIds) + memberDeckDeci(title, modifierIds, affixId);
+  return levelStatDeci(level, title, fightNumber)
+    + modifierBonusDeci(modifierIds)
+    + memberDeckDeci(title, modifierIds, affixId, fightNumber);
 }
 
 /**
@@ -577,8 +692,8 @@ export function soloThreatDeci(
  * a per-BODY auto-spend, so a K-member roster pays it K times and it belongs
  * with the roster cost (`packRosterCostDeci`), not with the node's one level.
  */
-function levelStatDeci(level: number, title: EnemyTitle): number {
-  return Math.max(0, monsterLevelPL(clampLevel(level) + TITLE_PRESETS[title].levelDelta)) * 10;
+function levelStatDeci(level: number, title: EnemyTitle, fightNumber?: number): number {
+  return Math.max(0, monsterLevelPL(clampLevel(level) + titlePresetFor(title, fightNumber).levelDelta)) * 10;
 }
 
 /**
@@ -646,6 +761,10 @@ export function packThreatDeci(
  * past the title's own filler allowance is handed to the pack as LEVEL
  * instead. It is free today (a one-for-one card substitution), and this term
  * is what keeps that true by construction rather than by assumption.
+ *
+ * `fightNumber` ramps the NODE's budget only (`titlePresetFor` on the node's
+ * elite/boss title). The members' own cost is untouched by it: they are
+ * mob/normal (`capPackTitle`), which never ramp.
  */
 export function resolvePackMemberLevel(
   level: number,
@@ -653,12 +772,13 @@ export function resolvePackMemberLevel(
   size: number,
   modifierIds: readonly string[] = [],
   affixId: string | null = null,
+  fightNumber?: number,
 ): number | null {
   const k = Math.max(1, Math.floor(size));
   if (k <= 1) return clampLevel(level);
   const memberTitle = capPackTitle(title);
   // The BUDGET is what a SOLO foe at this node would cost, affix included.
-  const budgetDeci = soloThreatDeci(level, title, modifierIds, affixId);
+  const budgetDeci = soloThreatDeci(level, title, modifierIds, affixId, fightNumber);
   // The ROSTER's fixed cost: k boards + k modifier auto-spends, list price.
   const statPoolDeci = budgetDeci - packRosterCostDeci(k, memberTitle, modifierIds);
   if (statPoolDeci < 0) return null;
@@ -711,11 +831,12 @@ export function resolvePackRosterLevel(
   title: EnemyTitle,
   modifierIds: readonly string[] = [],
   affixId: string | null = null,
+  fightNumber?: number,
 ): number | null {
   const k = enemyIds.length;
   if (k <= 1) return clampLevel(level);
   const memberTitle = capPackTitle(title);
-  const budgetDeci = soloThreatDeci(level, title, modifierIds, affixId);
+  const budgetDeci = soloThreatDeci(level, title, modifierIds, affixId, fightNumber);
   const statPoolDeci = budgetDeci
     - rosterDeckDeci(enemyIds, memberTitle, modifierIds)
     - k * modifierBonusDeci(modifierIds);
@@ -740,13 +861,18 @@ export function resolvePackRosterLevel(
  * early ladder — but only because it was double-charging the roster's boards,
  * which is the bug that was fixed, not a design. On the honest ledger two
  * Bronze boards still out-cost a low node's whole threat, so a normal-titled
- * pair is unaffordable below node level 11 and a trio below 21; but an
- * ELITE-titled node (a `'hard'` option) is worth enough for a pair from level
- * 3, so packs now begin at FIGHT 2 rather than around fight 8 (measured over
- * 40 seeds: 8% of wave-2 fight nodes roll a pack, against 0% before). Wave 1
- * is still 0%, by this constant and nothing else. If the early game should
+ * pair is unaffordable below node level 11 and a trio below 21. Wave 1
+ * is 0% packs, by this constant and nothing else. If the early game should
  * stay solo for longer, THIS is the dial to move — not the ledger, which is
  * now the same at every depth.
+ *
+ * (2026-09-02, title depth ramp) An elite-titled node used to be worth enough
+ * for a pair from level 3, so packs began at fight 2 (8% of wave-2 nodes).
+ * The ramped early elite/boss packages are worth less, so the budget floor
+ * pushes the first packs back on its own: re-measured over the same 40 seeds,
+ * the first pack rolls now land at wave 4's hard option (12.5% of those
+ * nodes; 0% anywhere on waves 1-3). No change to this constant — the ramp
+ * moved the ledger's own floor.
  */
 export const MIN_PACK_FIGHT_NUMBER = 2;
 
@@ -786,6 +912,11 @@ function clampLevel(level: number): number {
  * card count at the SAME slots as a plain elite — identical rank distribution,
  * identical tier budget, zero PL added. That substitution is the whole reason
  * an affix reads as a different problem rather than a bigger one.
+ *
+ * `fightNumber` (the run ladder's rung, from `rollEncounter`) selects the
+ * DEPTH-RAMPED title package via `titlePresetFor` — see the TITLE DEPTH RAMP
+ * block above. Omitted (dev tools, prep scenes, direct callers) = the flat
+ * `TITLE_PRESETS` package, byte-identical to the pre-ramp behavior.
  */
 export function buildEnemyEncounter(
   enemyId: string,
@@ -794,6 +925,7 @@ export function buildEnemyEncounter(
   rankOverride?: number,
   modifiers: readonly string[] = [],
   affix: string | null = null,
+  fightNumber?: number,
 ): EncounterUnit {
   const enemy = enemies[enemyId];
   if (!enemy) {
@@ -804,7 +936,7 @@ export function buildEnemyEncounter(
     if (!preset) throw new Error(`buildEnemyEncounter: unknown modifier id "${id}"`);
     return preset;
   });
-  const preset = TITLE_PRESETS[title];
+  const preset = titlePresetFor(title, fightNumber);
   const resolvedLevel = clampLevel(level);
   const effectiveLevel = resolvedLevel + preset.levelDelta;
   const scaled = scaleMonsterToLevel(enemy, effectiveLevel);

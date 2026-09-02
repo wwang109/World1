@@ -20,6 +20,7 @@ import {
   MODIFIER_PRESETS,
   soloThreatDeci,
   TITLE_PRESETS,
+  titlePresetFor,
 } from '../../src/run/encounter';
 import { skillBook } from '../../src/data/skills';
 import { enemies } from '../../src/data/enemies';
@@ -265,6 +266,10 @@ describe('run/eliteAffix: the deal is deterministic and spends no Rng draw', () 
       for (const node of nodes) {
         const pack = rollEncounter({ ...state, currentNodeId: node.id });
         for (const unit of pack.units) {
+          // RE-PINNED 2026-09-02 (title depth ramp): the reconstruction must
+          // rebuild at the node's own fightNumber — the ramped package is what
+          // rollEncounter ships at fights < 10, and the point of THIS test is
+          // that removing the AFFIX (not the ramp) changes nothing.
           const bare = buildEnemyEncounter(
             unit.enemyId,
             unit.level,
@@ -272,6 +277,7 @@ describe('run/eliteAffix: the deal is deterministic and spends no Rng draw', () 
             unit.rank,
             unit.modifiers,
             null,
+            node.fightNumber!,
           );
           expect(bare.enemyId).toBe(unit.enemyId);
           expect(bare.setup.stats).toEqual(unit.setup.stats);
@@ -475,17 +481,31 @@ describe('run/eliteAffix: PL honesty', () => {
     }
   });
 
-  it('no affix names more cards than the ELITE title\'s own filler allowance, so the swap is one-for-one', () => {
+  it('no affix names more cards than the ELITE title\'s own filler allowance — at the FULL package AND at every ramp fight (the ramp keeps extraCards >= 1 exactly for this)', () => {
     for (const affix of ELITE_AFFIX_IDS) {
       expect(MODIFIER_PRESETS[affix]!.cards!.length, affix).toBeLessThanOrEqual(TITLE_PRESETS.elite.extraCards);
+      // TITLE DEPTH RAMP (2026-09-02): an elite can occur at ANY fight number
+      // (hard options make elites from fight 1), so the one-for-one swap must
+      // hold against the ramped allowance at every early fight too.
+      for (let f = 1; f <= 12; f += 1) {
+        expect(MODIFIER_PRESETS[affix]!.cards!.length, `${affix} @ fight ${f}`)
+          .toBeLessThanOrEqual(titlePresetFor('elite', f).extraCards);
+      }
     }
   });
 
-  it('soloThreatDeci is IDENTICAL with and without an affix (the deck it prices did not grow)', () => {
+  it('soloThreatDeci is IDENTICAL with and without an affix (the deck it prices did not grow) — flat and at every ramp fight', () => {
     for (const affix of ELITE_AFFIX_IDS) {
       for (let level = 1; level <= 60; level++) {
         expect(soloThreatDeci(level, 'elite', [], affix), `${affix} @ ${level}`).toBe(
           soloThreatDeci(level, 'elite', [], null),
+        );
+      }
+      // Ramped packages price the substitution at zero too (same reason:
+      // max(extraCards, affixCards) with extraCards >= 1 at every fight).
+      for (let f = 1; f <= 12; f += 1) {
+        expect(soloThreatDeci(f, 'elite', [], affix, f), `${affix} @ ramp fight ${f}`).toBe(
+          soloThreatDeci(f, 'elite', [], null, f),
         );
       }
     }

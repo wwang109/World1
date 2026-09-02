@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyDraftResult,
   availableChoices,
+  BOSS_SWIFT_FROM_FIGHT,
   buyHeroStatAllocation,
   buyRunCard,
   buyRunGem,
@@ -335,9 +336,39 @@ describe('run/runState: fight-spec resolver (endless, replaces the fixed FIGHT_T
     }
   });
 
-  it('no modifiers at/under the level cap (fight 30)', () => {
-    const at30 = fightSpecFor(30);
-    expect(at30.modifiers).toEqual([]);
+  // RE-PINNED (2026-09-02, boss tempo): fights at/under the cap used to carry
+  // NO modifiers at all. Bosses from `BOSS_SWIFT_FROM_FIGHT` (10) now carry
+  // `swift` — measured fix for milestone bosses under-threatening their band
+  // (w15 boss won 35% vs its band's 47.5-50% standard fights and even sat
+  // above the optional hard rung's 12.5%; with swift it measures 20%).
+  // Non-boss fights at/under the cap still carry none.
+  it('at/under the level cap (fight 30): non-boss fights carry no modifiers; bosses from fight 10 carry exactly [swift]', () => {
+    expect(fightSpecFor(30).modifiers).toEqual(['swift']); // fight 30 is a boss (pos 5)
+    expect(fightSpecFor(29).modifiers).toEqual([]);
+    expect(fightSpecFor(28).modifiers).toEqual([]);
+    for (let n = 1; n <= 30; n += 1) {
+      const spec = fightSpecFor(n);
+      if (spec.title === 'boss' && n >= BOSS_SWIFT_FROM_FIGHT) {
+        expect(spec.modifiers, `fight ${n}`).toEqual(['swift']);
+      } else {
+        expect(spec.modifiers, `fight ${n}`).toEqual([]);
+      }
+    }
+  });
+
+  it('boss tempo: swift starts EXACTLY at BOSS_SWIFT_FROM_FIGHT, and is never duplicated once the escalation ramp unlocks it', () => {
+    expect(BOSS_SWIFT_FROM_FIGHT).toBe(10);
+    expect(fightSpecFor(5).modifiers).toEqual([]); // boss #1 stays swift-free (early-curve fix)
+    expect(fightSpecFor(10).modifiers).toEqual(['swift']);
+    expect(fightSpecFor(15).modifiers).toEqual(['swift']);
+    // Deep bosses: the escalation ramp already delivers swift as a distinct id
+    // — the boss branch must not add a second copy (battleGoldReward counts
+    // modifiers.length, so a duplicate would inflate gold for free).
+    for (let n = BOSS_SWIFT_FROM_FIGHT; n <= 200; n += 1) {
+      const spec = fightSpecFor(n);
+      if (spec.title !== 'boss') continue;
+      expect(spec.modifiers.filter((id) => id === 'swift'), `fight ${n}`).toHaveLength(1);
+    }
   });
 
   it('modifiers past the cap are DISTINCT (never repeated) at every fight number 1-200', () => {
@@ -375,7 +406,9 @@ describe('run/runState: fight-spec resolver (endless, replaces the fixed FIGHT_T
     const table = rows.map((n) => ({ n, ...fightSpecFor(n) }));
     // fight 30 is exactly the old cap: level now simply equals the fight
     // number on both sides — 31/32 keep climbing (31, 32), not pinned at 30.
-    expect(table.find((r) => r.n === 30)).toMatchObject({ level: 30, title: 'boss' });
+    // RE-PINNED 2026-09-02: fight 30 is a boss, so it carries the boss-tempo
+    // `swift` (see BOSS_SWIFT_FROM_FIGHT); non-boss 31/32 still carry nothing.
+    expect(table.find((r) => r.n === 30)).toMatchObject({ level: 30, title: 'boss', modifiers: ['swift'] });
     expect(table.find((r) => r.n === 31)).toMatchObject({ level: 31, title: 'normal', modifiers: [] });
     expect(table.find((r) => r.n === 32)).toMatchObject({ level: 32, title: 'normal' });
   });

@@ -59,6 +59,23 @@ Every dial is a PURE function of the 1-indexed fight number — no RNG:
 
 - **Title cadence** repeats per `BOSS_EVERY` block: positions 1-2 `'normal'`,
   3-4 `'elite'`, 5 `'boss'`.
+- **Title packages are depth-ramped** (`titlePresetFor(title, fightNumber)`,
+  `TITLE_RAMP` in `src/run/encounter.ts`): the flat elite/boss packages made
+  the early curve inverted — measured at 40×3 seeds, the wave-5 boss's full
+  `{+4 levels, +4 rank, +2 cards}` was a 0%-win wall (the bare kit at normal
+  title won 47.5%) and waves 3-4 elites sat at 10%, while the SAME packages
+  at waves 13-15 won 35-50%. Elite/boss therefore pay a smaller package early
+  — the fight-5 milestone boss fields its authored kit at `{+1 level}` flat
+  (37.5% measured), early elites `{+1 level, +1 card}` (45-50%) — reaching
+  the full `TITLE_PRESETS` values at fight `TITLE_RAMP_FULL_FIGHT` (10) and
+  never exceeding them: fights ≥ 10 are byte-identical to the flat packages.
+  The elite ramp keeps `extraCards ≥ 1` everywhere so the elite affix
+  substitution stays free by construction. From `BOSS_SWIFT_FROM_FIGHT` (10)
+  every cadence boss also carries the `swift` modifier (+4 SPD, priced
+  through the same PL economy) — without it a deep milestone boss was weaker
+  than its band's optional hard rung (w15 boss 35% vs the hard rung's 12.5%;
+  with swift, 20%) — and its `modifiers.length` legitimately pays one more
+  gold tick.
 - **Enemy level = fight number, uncapped** — it tracks the fight number 1:1
   forever. The HERO caps at `MAX_LEVEL` (30), so the gap widens by design.
 - **Modifiers**: one additional DISTINCT id from the **escalation pool**
@@ -197,7 +214,9 @@ strength. `rollEncounter` now returns an `EncounterPack` (`{ variant, units }`,
   `'normal'` rather than skipped; an `'easy'` option's −1 level/normal-capped
   title feeds the SAME solve from a smaller budget, so an easy pack is
   solved from the easy solo cost with no separate code path. Rank stays the
-  ordinary `TITLE_PRESETS[title].rank` per member — no second budget path.
+  ordinary `titlePresetFor(title, fightNumber).rank` per member (the
+  depth-ramped title package — see Difficulty escalation) — no second budget
+  path.
 - **Gold/battle wiring is already generic**: `battleGoldReward` and
   `resolveBattle`/`simulate` already accept a foe LIST (this is how the
   Sandbox's 5v1 mode works) — `battleContext.ts#runBattleInput` just always

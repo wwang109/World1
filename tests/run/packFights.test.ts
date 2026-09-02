@@ -218,8 +218,11 @@ describe('run/runState: PACK FIGHTS — variant mix (deep enough that the budget
         const node = state.map.depths.flat().find((n) => n.id === nodeId)!;
         if (node.kind !== 'fight') continue;
         const entry = fightTableEntryForNode(node);
-        const pairViable = resolvePackMemberLevel(entry.level, entry.title, 2, entry.modifiers) !== null;
-        const trioViable = resolvePackMemberLevel(entry.level, entry.title, 3, entry.modifiers) !== null;
+        // RE-PINNED 2026-09-02 (title depth ramp): viability is judged at the
+        // node's own fightNumber so the filter prices the SAME ramped budget
+        // rollEncounter solves against (identical at fights >= 10).
+        const pairViable = resolvePackMemberLevel(entry.level, entry.title, 2, entry.modifiers, null, node.fightNumber!) !== null;
+        const trioViable = resolvePackMemberLevel(entry.level, entry.title, 3, entry.modifiers, null, node.fightNumber!) !== null;
         if (!pairViable || !trioViable) continue; // budget would floor one of these — skip
         const pack = rollEncounter({ ...state, currentNodeId: nodeId });
         counts[pack.variant] += 1;
@@ -290,7 +293,13 @@ describe('run/runState: PACK FIGHTS — BUDGET math (the ledger identity)', () =
         const size = PACK_SIZE[pack.variant];
         // The BUDGET is what a SOLO foe at this node costs — one number, the
         // same one the map's other two options are priced against.
-        const budgetDeci = soloThreatDeci(entry.level, entry.title, entry.modifiers);
+        // RE-PINNED 2026-09-02 (title depth ramp): priced at the node's own
+        // fightNumber — at fights < 10 an elite/boss-titled node's budget is
+        // the RAMPED package (what a solo there actually ships), identical to
+        // the flat package at fights >= 10. Without this, a fight-4 hard
+        // (boss-titled) pack would be held to the flat {+4,+4,+2} budget
+        // (940 deci) it was never given (ramped: 600).
+        const budgetDeci = soloThreatDeci(entry.level, entry.title, entry.modifiers, null, node.fightNumber!);
 
         expect(pack.units).toHaveLength(size);
         const expectedTitle = capPackTitle(entry.title);
@@ -340,8 +349,10 @@ describe('run/runState: PACK FIGHTS — BUDGET math (the ledger identity)', () =
         if (pack.variant === 'solo') continue;
         const entry = fightTableEntryForNode(node);
         const size = PACK_SIZE[pack.variant];
-        const generic = resolvePackMemberLevel(entry.level, entry.title, size, entry.modifiers);
-        const exact = resolvePackRosterLevel(pack.units.map((u) => u.enemyId), entry.level, entry.title, entry.modifiers);
+        // (2026-09-02) Both solves at the node's fightNumber — the ramped
+        // budget rollEncounter itself uses; see the ledger re-pin above.
+        const generic = resolvePackMemberLevel(entry.level, entry.title, size, entry.modifiers, null, node.fightNumber!);
+        const exact = resolvePackRosterLevel(pack.units.map((u) => u.enemyId), entry.level, entry.title, entry.modifiers, null, node.fightNumber!);
         expect(generic).not.toBeNull();
         expect(exact).not.toBeNull();
         expect(exact!).toBeGreaterThanOrEqual(generic!);
@@ -408,12 +419,14 @@ describe('run/runState: PACK FIGHTS — BUDGET math (the ledger identity)', () =
         sawPack = true;
         const entry = fightTableEntryForNode(node); // already the hard-bumped spec
         const ids = pack.units.map((u) => u.enemyId);
-        const expectedLevel = resolvePackRosterLevel(ids, entry.level, entry.title, entry.modifiers);
+        // (2026-09-02) At the node's fightNumber: the hard option's title bump
+        // lands on the RAMPED package at fights < 10 (see the ledger re-pin).
+        const expectedLevel = resolvePackRosterLevel(ids, entry.level, entry.title, entry.modifiers, null, node.fightNumber!);
         for (const unit of pack.units) expect(unit.level).toBe(expectedLevel);
         // and the hard bump is what moved it: the same roster at the STANDARD
         // spec must solve no higher.
         const standardSpec = fightTableEntryForNode({ fightNumber: node.fightNumber, fightOption: 'standard' });
-        const standardLevel = resolvePackRosterLevel(ids, standardSpec.level, standardSpec.title, standardSpec.modifiers);
+        const standardLevel = resolvePackRosterLevel(ids, standardSpec.level, standardSpec.title, standardSpec.modifiers, null, node.fightNumber!);
         // `null` = the standard spec cannot even afford this roster, which is
         // itself the hard option being the bigger budget.
         if (standardLevel !== null) expect(expectedLevel!).toBeGreaterThanOrEqual(standardLevel);
@@ -433,7 +446,9 @@ describe('run/runState: PACK FIGHTS — BUDGET math (the ledger identity)', () =
         if (pack.variant === 'solo') continue;
         sawPack = true;
         const entry = fightTableEntryForNode(node); // already the easy-shrunk spec (-1 level, title capped at normal)
-        const expectedLevel = resolvePackRosterLevel(pack.units.map((u) => u.enemyId), entry.level, entry.title, entry.modifiers);
+        // (2026-09-02) fightNumber passed for uniformity — easy's normal title
+        // never ramps, so this is identical either way.
+        const expectedLevel = resolvePackRosterLevel(pack.units.map((u) => u.enemyId), entry.level, entry.title, entry.modifiers, null, node.fightNumber!);
         for (const unit of pack.units) {
           expect(unit.level).toBe(expectedLevel);
           expect(unit.title).toBe('normal'); // capPackTitle('normal') === 'normal'; easy's own cap already forces normal
@@ -450,7 +465,12 @@ describe('run/runState: PACK FIGHTS — BUDGET math (the ledger identity)', () =
         const specs = (['easy', 'standard', 'hard'] as const).map((opt) => {
           const node = state.map.depths.flat().find((n) => n.id === tiers[opt]!)!;
           const entry = fightTableEntryForNode(node);
-          return soloThreatDeci(entry.level, entry.title, entry.modifiers);
+          // RE-PINNED 2026-09-02 (title depth ramp): priced at the node's own
+          // fightNumber, so this asserts the gradient of what the ladder
+          // actually ships — the ramp table was shaped so the RAMPED budgets
+          // stay strictly monotone per column too (hard's +1 level and its
+          // boss cell dominating the elite cell carry the ordering).
+          return soloThreatDeci(entry.level, entry.title, entry.modifiers, null, node.fightNumber!);
         });
         expect(specs[0]!).toBeLessThanOrEqual(specs[1]!);
         expect(specs[1]!).toBeLessThanOrEqual(specs[2]!);
@@ -551,7 +571,10 @@ describe('run/runState: PACK FIGHTS — floor-fallback to solo (never ships an o
         const raw = rawPackVariant(node.encounterSeed!);
         if (raw === 'solo') continue;
         const entry = fightTableEntryForNode(node);
-        const solved = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[raw], entry.modifiers);
+        // (2026-09-02) Solved at the node's fightNumber — the ramped early
+        // budgets floor MORE rolls back to solo (elite fights 3-4 can no
+        // longer afford two boards), which is exactly this test's subject.
+        const solved = resolvePackMemberLevel(entry.level, entry.title, PACK_SIZE[raw], entry.modifiers, null, node.fightNumber!);
         if (solved !== null) continue; // this node's budget actually affords the raw roll
         found = true;
         const pack = rollEncounter({ ...state, currentNodeId: nodeId });

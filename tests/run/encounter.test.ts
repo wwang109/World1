@@ -7,6 +7,10 @@ import {
   maxRankFor,
   MAX_TIER_STEPS,
   TITLE_PRESETS,
+  TITLE_RAMP,
+  TITLE_RAMP_FULL_FIGHT,
+  titlePresetFor,
+  type EnemyTitle,
 } from '../../src/run/encounter';
 import { enemies } from '../../src/data/enemies';
 import { skillBook } from '../../src/data/skills';
@@ -109,6 +113,116 @@ describe('run/encounter: buildEnemyEncounter', () => {
   it('defaultTitleFor reads the authored encounter-role tags', () => {
     expect(defaultTitleFor(enemies.giant_rat!)).toBe('normal');
     expect(defaultTitleFor(enemies.bandit_duelist!)).toBe('elite');
+  });
+});
+
+/**
+ * TITLE DEPTH RAMP (2026-09-02) — the run ladder consumes elite/boss packages
+ * through `titlePresetFor(title, fightNumber)`. Pinned because the flat
+ * packages made the early curve INVERTED (measured, 40 run seeds x 3 fight
+ * seeds per cell, real rollEncounter + real simulate, on-curve boards):
+ * wave-5 boss #1 won 0% (bare kit at normal title: 47.5%), waves 3-4 elites
+ * 10% — while the SAME packages at waves 13-15 measured 35-50%. The ramp is
+ * an early-game fix ONLY: at TITLE_RAMP_FULL_FIGHT (10) and beyond it IS the
+ * flat package, byte-for-byte.
+ */
+describe('run/encounter: titlePresetFor (the title depth ramp)', () => {
+  const AXES = ['levelDelta', 'rank', 'extraCards'] as const;
+  const ALL_TITLES: EnemyTitle[] = ['mob', 'normal', 'elite', 'boss'];
+
+  it('fights >= TITLE_RAMP_FULL_FIGHT (and an omitted fightNumber) return the flat TITLE_PRESETS package, for every title', () => {
+    for (const title of ALL_TITLES) {
+      expect(titlePresetFor(title)).toEqual(TITLE_PRESETS[title]);
+      for (let f = TITLE_RAMP_FULL_FIGHT; f <= 200; f += 1) {
+        expect(titlePresetFor(title, f), `${title} @ fight ${f}`).toEqual(TITLE_PRESETS[title]);
+      }
+    }
+  });
+
+  it('the ramp NEVER exceeds the full package on any axis (this is an early-game fix, not a buff anywhere)', () => {
+    for (const title of ['elite', 'boss'] as const) {
+      for (let f = 1; f < TITLE_RAMP_FULL_FIGHT; f += 1) {
+        const ramped = titlePresetFor(title, f);
+        for (const axis of AXES) {
+          expect(ramped[axis], `${title} @ fight ${f} ${axis}`).toBeLessThanOrEqual(TITLE_PRESETS[title][axis]);
+        }
+      }
+    }
+  });
+
+  it('mob/normal never ramp — their presets are already the floor', () => {
+    for (const title of ['mob', 'normal'] as const) {
+      for (let f = 1; f <= 12; f += 1) {
+        expect(titlePresetFor(title, f)).toEqual(TITLE_PRESETS[title]);
+      }
+    }
+  });
+
+  it('each ramp row covers exactly fights 1..TITLE_RAMP_FULL_FIGHT-1 (a short row would silently pay full packages early)', () => {
+    expect(TITLE_RAMP.elite).toHaveLength(TITLE_RAMP_FULL_FIGHT - 1);
+    expect(TITLE_RAMP.boss).toHaveLength(TITLE_RAMP_FULL_FIGHT - 1);
+  });
+
+  it('the ELITE row keeps extraCards >= 1 at every fight — the affix substitution needs a filler slot to consume wherever an elite can occur', () => {
+    for (let f = 1; f <= TITLE_RAMP_FULL_FIGHT; f += 1) {
+      expect(titlePresetFor('elite', f).extraCards, `fight ${f}`).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('the ELITE row is per-axis non-decreasing (one curve, no dips)', () => {
+    for (let f = 2; f < TITLE_RAMP_FULL_FIGHT; f += 1) {
+      const prev = titlePresetFor('elite', f - 1);
+      const cur = titlePresetFor('elite', f);
+      for (const axis of AXES) {
+        expect(cur[axis], `elite fight ${f} ${axis}`).toBeGreaterThanOrEqual(prev[axis]);
+      }
+    }
+  });
+
+  // The boss row is deliberately NOT one curve: fights 3-4/8-9 are the
+  // hard-option rung (an elite pushed up — it keeps the elite's filler card),
+  // fight 5 is the MILESTONE boss, which fields its authored signature triad
+  // un-padded. Measured (probe, 120 fights/cell): milestone {1,0,0} = 37.5%
+  // win (was 0% at the flat {4,4,2}); {1,1,1} at the same node measured 7.5%
+  // and {1,1,0} 30% — the extra CARD is the heaviest axis on a boss kit early.
+  it("boss #1 (fight 5) is the milestone package {+1 level, rank 0, no extra cards} — measured 37.5% for the on-curve board, was 0% flat", () => {
+    expect(titlePresetFor('boss', 5)).toEqual({ levelDelta: 1, rank: 0, extraCards: 0 });
+  });
+
+  it('the hard-rung boss cells dominate the elite cells they are bumped from (fights 1-4, 8-9)', () => {
+    for (const f of [1, 2, 3, 4, 8, 9]) {
+      const elite = titlePresetFor('elite', f);
+      const boss = titlePresetFor('boss', f);
+      for (const axis of AXES) {
+        expect(boss[axis], `fight ${f} ${axis}`).toBeGreaterThanOrEqual(elite[axis]);
+      }
+    }
+  });
+
+  it('buildEnemyEncounter consumes the ramp when given a fightNumber, and the flat package when not', () => {
+    const base = enemies.giant_rat!.pieces.length; // 2
+    // Milestone boss #1: authored kit only, no tiers, +1 effective level.
+    const rampedBoss = buildEnemyEncounter('giant_rat', 5, 'boss', undefined, [], null, 5);
+    expect(rampedBoss.effectiveLevel).toBe(6);
+    expect(rampedBoss.rank).toBe(0);
+    expect(rampedBoss.setup.pieces).toHaveLength(base);
+    expect(rampedBoss.setup.pieces.every((p) => !p.tier)).toBe(true);
+    // The SAME call without a fightNumber is the flat (pre-ramp) package.
+    const flatBoss = buildEnemyEncounter('giant_rat', 5, 'boss');
+    expect(flatBoss.effectiveLevel).toBe(5 + TITLE_PRESETS.boss.levelDelta);
+    expect(flatBoss.rank).toBe(TITLE_PRESETS.boss.rank);
+    expect(flatBoss.setup.pieces).toHaveLength(base + TITLE_PRESETS.boss.extraCards);
+    // Early elite: +1 card, +1 level, rank 0.
+    const rampedElite = buildEnemyEncounter('giant_rat', 3, 'elite', undefined, [], null, 3);
+    expect(rampedElite.effectiveLevel).toBe(4);
+    expect(rampedElite.rank).toBe(0);
+    expect(rampedElite.setup.pieces).toHaveLength(base + 1);
+    // Deep fight: ramp = flat, byte-identical setups.
+    const deepRamped = buildEnemyEncounter('giant_rat', 30, 'boss', undefined, [], null, 30);
+    const deepFlat = buildEnemyEncounter('giant_rat', 30, 'boss');
+    expect(JSON.stringify(deepRamped.setup)).toBe(JSON.stringify(deepFlat.setup));
+    expect(deepRamped.rank).toBe(deepFlat.rank);
+    expect(deepRamped.effectiveLevel).toBe(deepFlat.effectiveLevel);
   });
 });
 

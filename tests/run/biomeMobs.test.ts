@@ -11,7 +11,7 @@ import {
 import { biomeFor, bandIndexOf, biomeForBand, BIOME_MOB_WEIGHT } from '../../src/run/biome';
 import { biomeCatalog, biomeIds } from '../../src/data/biomes';
 import { enemies } from '../../src/data/enemies';
-import { TITLE_PRESETS } from '../../src/run/encounter';
+import { TITLE_PRESETS, titlePresetFor } from '../../src/run/encounter';
 import { forecastBand, forecastNextBand, renderBandForecast } from '../../src/run/biomeForecast';
 
 /**
@@ -179,7 +179,11 @@ describe('biome bosses: the band\'s boss is a promise, and the same one every ti
         const unit = pack.units[0]!;
         expect(biome.bosses, `${biome.id} fielded off-shortlist boss ${unit.enemyId}`).toContain(unit.enemyId);
         expect(unit.title, 'a boss column did not field the boss title').toBe('boss');
-        expect(unit.rank).toBe(TITLE_PRESETS.boss.rank);
+        // RE-PINNED 2026-09-02 (title depth ramp): the boss rank comes from
+        // `titlePresetFor(boss, fightNumber)` — the fight-5 milestone boss
+        // fields rank 0 (measured early-curve fix); fights >= 10 are the flat
+        // TITLE_PRESETS.boss.rank exactly as before.
+        expect(unit.rank).toBe(titlePresetFor('boss', node.fightNumber!).rank);
         const set = perBiome.get(biome.id) ?? new Set<string>();
         set.add(unit.enemyId);
         perBiome.set(biome.id, set);
@@ -236,8 +240,13 @@ describe('a biome has NO combat effect — PL is the balance unit', () => {
         biomesSeen.add(biomeFor(state.map.seed, node.wave, node.biomeId).id);
         for (const unit of pack.units) {
           expect(unit.modifiers, `${node.id} modifiers drifted`).toEqual(spec.modifiers);
-          expect(unit.rank, `${node.id} rank drifted`).toBe(TITLE_PRESETS[unit.title].rank);
-          expect(unit.effectiveLevel).toBe(unit.level + TITLE_PRESETS[unit.title].levelDelta);
+          // RE-PINNED 2026-09-02 (title depth ramp): rank/levelDelta come from
+          // the fight-number-ramped package (`titlePresetFor`), which equals
+          // the flat TITLE_PRESETS at fights >= 10 — still "the fight spec
+          // alone": the ramp is a pure function of (title, fightNumber), so a
+          // biome still cannot move any of these numbers.
+          expect(unit.rank, `${node.id} rank drifted`).toBe(titlePresetFor(unit.title, node.fightNumber!).rank);
+          expect(unit.effectiveLevel).toBe(unit.level + titlePresetFor(unit.title, node.fightNumber!).levelDelta);
           if (pack.variant === 'solo') {
             expect(unit.level, `${node.id} level drifted from the fight spec`).toBe(spec.level);
             expect(unit.title, `${node.id} title drifted from the fight spec`).toBe(spec.title);
