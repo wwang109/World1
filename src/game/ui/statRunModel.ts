@@ -188,6 +188,15 @@ export interface RunProgressFacts {
   heroLevel: number;
   lives: number;
   bossesCleared: number;
+  /**
+   * PL earned but not yet spent (`run/leveling.ts#bankedPL`). OPTIONAL —
+   * absent/0 renders nothing — because the two hand-built snapshots (the run
+   * maps' pre-run `EMPTY_HUD_SNAPSHOT`) have no run to read it from. When > 0
+   * the LV segment gains a `+N` delta (gain ink): the 2026-08-31 playtest
+   * showed a player walking into fights with 3 PL banked, so the one place
+   * the LEVEL is shown now carries what that level is still owed.
+   */
+  bankedPL?: number;
 }
 
 /**
@@ -230,7 +239,16 @@ export function runProgressStatRun(facts: RunProgressFacts, compact: boolean): S
       { label: compact ? 'D' : 'DAY', value: `${facts.day}`, kind: 'identity', tone: 'quiet' },
       { label: compact ? 'W' : 'WAVE', value: `${facts.wave}`, kind: 'identity', tone: 'quiet' },
       { label: compact ? 'G' : 'GOLD', value: `${facts.gold}`, kind: 'resource', tone: 'lead' },
-      { label: 'LV', value: `${facts.heroLevel}`, kind: 'identity', tone: 'quiet' },
+      // BANKED PL rides the LV segment as a `+N` delta (drawn in `INK.gain`,
+      // same mechanism as a gem's `◆+N`) — the level affordance itself says
+      // what is waiting, instead of relying on the separate badge alone.
+      // Absent at 0: a zero here is genuinely neutral (nothing is owed), and
+      // the mobile strip's ~28-char budget is bought back the moment the
+      // player spends.
+      {
+        label: 'LV', value: `${facts.heroLevel}`, kind: 'identity', tone: 'quiet',
+        ...((facts.bankedPL ?? 0) > 0 ? { delta: `+${facts.bankedPL}` } : {}),
+      },
       { label: compact ? '♥' : 'LIVES', value: `${facts.lives}`, kind: 'vital', tone: 'lead', alarm: critical },
       { label: compact ? 'B' : 'BOSSES', value: `${facts.bossesCleared}`, kind: 'tally', tone: 'quiet' },
     ],

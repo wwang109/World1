@@ -103,26 +103,44 @@ describe('src/game: every scene-level generic pointerdown/pointerup listener gua
 });
 
 /**
- * `renderRetireConfirm` (`src/game/ui/RunProgressStrip.ts`) is the SHARED
- * component behind CONFIRMED INSTANCE #20 (audit 2026-08): its scrim/CANCEL/
- * RETIRE buttons must hand the triggering pointer to the caller's
- * `onCancel`/`onConfirm`, not swallow it — see that function's doc comment.
+ * The shared confirm dialog (`src/game/ui/RunProgressStrip.ts` —
+ * `renderConfirmDialog`, behind BOTH `renderRetireConfirm` and
+ * `renderUnspentPlConfirm` since 2026-09-02) is the SHARED component behind
+ * CONFIRMED INSTANCE #20 (audit 2026-08): its scrim and both buttons must hand
+ * the triggering pointer to the caller's callbacks, not swallow it — see the
+ * function's doc comment. The pointer contract now lives on ONE handler type
+ * every callback field takes, so this pins that type and that every field —
+ * and every wrapper's public option — routes through it.
+ * (`tests/game/unspentPlConfirm.test.ts` proves the same thing behaviorally:
+ * each drawn control invokes its handler WITH the pointer object.)
  */
-describe('src/game/ui/RunProgressStrip: renderRetireConfirm threads the triggering pointer', () => {
+describe('src/game/ui/RunProgressStrip: the shared confirm dialog threads the triggering pointer', () => {
   const src = readFileSync(join(GAME_DIR, 'ui', 'RunProgressStrip.ts'), 'utf8');
 
-  it('declares onCancel/onConfirm as taking a pointer, not a bare callback', () => {
-    expect(src).toMatch(/onConfirm:\s*\(pointer:\s*Phaser\.Input\.Pointer\)\s*=>\s*void/);
-    expect(src).toMatch(/onCancel:\s*\(pointer:\s*Phaser\.Input\.Pointer\)\s*=>\s*void/);
+  it('declares ONE pointer-taking handler type, and every dialog callback field uses it', () => {
+    expect(src).toMatch(/type ConfirmHandler\s*=\s*\(pointer:\s*Phaser\.Input\.Pointer\)\s*=>\s*void/);
+    expect(src).toMatch(/onConfirm:\s*ConfirmHandler/);
+    expect(src).toMatch(/onCancel:\s*ConfirmHandler/);
+    expect(src).toMatch(/onScrim\?:\s*ConfirmHandler/);
+    // No dialog callback may re-declare itself as a bare `() => void` — that is
+    // exactly how a swallow re-enters. (Non-dialog HUD callbacks — action
+    // slots, badge/stat-panel openers — are legitimately bare; this scopes to
+    // the dialog's own field names plus the unspent-PL wrapper's three.)
+    for (const field of ['onConfirm', 'onCancel', 'onScrim', 'onFightAnyway', 'onSpendFirst', 'onDismiss']) {
+      expect(src).not.toMatch(new RegExp(`${field}\\??:\\s*\\(\\s*\\)\\s*=>`));
+      expect(src.includes(`${field}: ConfirmHandler`) || field === 'onScrim').toBe(true);
+    }
   });
 
-  it('every internal pointerdown handler (scrim, CANCEL, RETIRE) forwards the pointer, never calls with zero args', () => {
+  it('every internal pointerdown handler (scrim, cancel slot, confirm slot) forwards the pointer, never calls with zero args', () => {
     // Every dispatch site must pass an argument through — `opts.onCancel()` /
-    // `opts.onConfirm()` with NO argument is the exact regression this guards.
-    const bareCalls = [...src.matchAll(/opts\.on(?:Cancel|Confirm)\(\s*\)/g)];
+    // `opts.onConfirm()` / `onScrim()` with NO argument is the exact
+    // regression this guards.
+    const bareCalls = [...src.matchAll(/(?:opts\.on(?:Cancel|Confirm)|onScrim)\(\s*\)/g)];
     expect(bareCalls.map((m) => m[0])).toEqual([]);
-    expect(src.match(/opts\.onCancel\(pointer\)/g)?.length ?? 0).toBeGreaterThanOrEqual(2); // scrim + CANCEL button
-    expect(src.match(/opts\.onConfirm\(pointer\)/g)?.length ?? 0).toBeGreaterThanOrEqual(1); // RETIRE button
+    expect(src.match(/onScrim\(pointer\)/g)?.length ?? 0).toBeGreaterThanOrEqual(1); // the scrim
+    expect(src.match(/opts\.onCancel\(pointer\)/g)?.length ?? 0).toBeGreaterThanOrEqual(1); // cancel-slot button
+    expect(src.match(/opts\.onConfirm\(pointer\)/g)?.length ?? 0).toBeGreaterThanOrEqual(1); // confirm-slot button
   });
 });
 

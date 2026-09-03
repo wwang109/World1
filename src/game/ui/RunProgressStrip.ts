@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { playSfx } from '../audio/sfxSynth';
+import { bankedPL } from '../../run/leveling';
 import { type RunState } from '../runStore';
 import { FONT, INK, UI, textRole } from '../theme';
 import { auditControlLabel, auditTextBlock } from './controlLayoutAudit';
@@ -40,6 +41,11 @@ export interface RunProgressSnapshot {
   /** Not shown in the always-on HUD (kept for the stat panel/end-summary). */
   wins: number;
   losses: number;
+  /** PL earned but unspent (`run/leveling.ts#bankedPL`) — OPTIONAL so the two
+   * hand-built pre-run snapshots (the run maps' `EMPTY_HUD_SNAPSHOT`) stay
+   * valid; `snapshotRunProgress` always fills it. Drives the LV segment's
+   * `+N` delta (see `statRunModel.ts#runProgressStatRun`). */
+  bankedPL?: number;
 }
 
 /** Builds the HUD's display-only snapshot straight off `RunState` — no
@@ -58,6 +64,7 @@ export function snapshotRunProgress(run: Readonly<RunState>): RunProgressSnapsho
     bossesCleared: run.bossesCleared,
     wins: run.wins,
     losses: run.losses,
+    bankedPL: bankedPL(run.heroLevel, run.heroAllocation),
   };
 }
 
@@ -330,11 +337,37 @@ export function renderRunStatsStrip(scene: Phaser.Scene, opts: RunStatsStripOpti
   scene.add.rectangle(content.x, dividerY, content.width, 1, UI.border, 0.55).setOrigin(0, 0);
 }
 
+/** A pointer-carrying dialog callback — see `renderConfirmDialog`'s doc
+ * comment for why the pointer is part of the contract. */
+type ConfirmHandler = (pointer: Phaser.Input.Pointer) => void;
+
+interface ConfirmDialogOpts {
+  compact: boolean;
+  /** `section`-role heading, e.g. 'RETIRE THIS RUN?' / '3 PL UNSPENT'. */
+  title: string;
+  /** `body`-role copy, centred; '\n' where the mobile line should break. */
+  body: string;
+  /** LEFT button — the quiet way out (CANCEL / FIGHT ANYWAY). */
+  cancelLabel: string;
+  /** RIGHT button — the emphasized action (RETIRE / SPEND FIRST). */
+  confirmLabel: string;
+  /** What the emphasized action means: `'danger'` paints panel stroke + button
+   * in `UI.bad` with `onAlarm` ink (RETIRE); `'accent'` paints them in
+   * `UI.chip` with `onAccent` ink — the promoted-safe register the stat
+   * panel's CONFIRM already uses. */
+  tone: 'danger' | 'accent';
+  onCancel: ConfirmHandler;
+  onConfirm: ConfirmHandler;
+  /** Scrim tap. Defaults to `onCancel` (the retire dialog's behaviour). */
+  onScrim?: ConfirmHandler;
+}
+
 /**
- * RETIRE confirm — a scrim + 2-button dialog, shared by every screen that
- * exposes the tertiary RETIRE action. Callers own the open/close boolean.
+ * THE confirm-dialog idiom — a scrim + section heading + body + 2-button row,
+ * shared by RETIRE (every run screen's tertiary action) and the unspent-PL
+ * fight gate below. Callers own the open/close boolean and rebuild on close.
  *
- * `onCancel`/`onConfirm` receive the triggering `Phaser.Input.Pointer` — NOT
+ * Every handler receives the triggering `Phaser.Input.Pointer` — NOT
  * decorative. On any screen with a scene-level generic `pointerdown` listener
  * that hit-tests fresh content (drag wiring, etc.), that listener re-fires for
  * the SAME physical click once this dialog's own handler closes it via
@@ -344,31 +377,35 @@ export function renderRunStatsStrip(scene: Phaser.Scene, opts: RunStatsStripOpti
  * so callers need do nothing further — the shop scenes' own manual
  * `consumedPointerAt` guard (an unsound plain-`downTime` comparison) was
  * removed 2026-08 in favor of relying on this structural guard alone; no
- * caller of `renderRetireConfirm` needs a per-screen pointer-consumption
- * idiom of its own anymore.
+ * caller of these dialogs needs a per-screen pointer-consumption idiom of its
+ * own anymore.
+ *
+ * POINTER-ONLY, deliberately: no Phaser dialog in this codebase binds keys
+ * (only the DOM share-code prompts handle Enter/Escape — `ui/codePrompt.ts`);
+ * the scrim is the whole-viewport dismiss affordance on both platforms.
  */
-export function renderRetireConfirm(
-  scene: Phaser.Scene,
-  opts: { compact: boolean; onConfirm: (pointer: Phaser.Input.Pointer) => void; onCancel: (pointer: Phaser.Input.Pointer) => void },
-): void {
+function renderConfirmDialog(scene: Phaser.Scene, opts: ConfirmDialogOpts): void {
   const platform = opts.compact ? 'mobile' : 'desktop';
   const t = runScreenLayout(platform);
   const { width: W, height: H } = t.canvas;
+  const danger = opts.tone === 'danger';
+  const onScrim = opts.onScrim ?? opts.onCancel;
   scene.add.rectangle(0, 0, W, H, UI.shadow, 0.78).setOrigin(0, 0).setInteractive().setDepth(6000)
-    .on('pointerdown', (pointer: Phaser.Input.Pointer) => opts.onCancel(pointer));
+    .on('pointerdown', (pointer: Phaser.Input.Pointer) => onScrim(pointer));
 
   const pw = Math.min(W - 40, opts.compact ? W - 32 : 440);
   const ph = opts.compact ? 168 : 176;
   const px = (W - pw) / 2;
   const py = (H - ph) / 2;
-  scene.add.rectangle(px, py, pw, ph, UI.panelAlt, 0.98).setOrigin(0, 0).setStrokeStyle(2, UI.bad, 0.9).setInteractive().setDepth(6001);
+  scene.add.rectangle(px, py, pw, ph, UI.panelAlt, 0.98).setOrigin(0, 0)
+    .setStrokeStyle(2, danger ? UI.bad : UI.chip, 0.9).setInteractive().setDepth(6001);
 
   // A dialog is a `section` heading over `body` copy over two `label` buttons —
   // the same three roles every other panel in the game now takes, so the sizes
   // come off the profile ladder instead of a local 15/18 + 11/13 pair.
-  scene.add.text(px + pw / 2, py + 22, 'RETIRE THIS RUN?', textRole('section'))
+  scene.add.text(px + pw / 2, py + 22, opts.title, textRole('section'))
     .setOrigin(0.5, 0).setDepth(6002);
-  scene.add.text(px + pw / 2, py + 52, 'This ends the run right now — bosses cleared, days\nsurvived, gold, and hero level are locked in.', {
+  scene.add.text(px + pw / 2, py + 52, opts.body, {
     ...textRole('body'), align: 'center', wordWrap: { width: pw - 48 },
   }).setOrigin(0.5, 0).setDepth(6002);
 
@@ -376,16 +413,96 @@ export function renderRetireConfirm(
   const btnY = py + ph - 56;
   const cancelBtn = scene.add.rectangle(px + 24, btnY, btnW, 40, UI.panelMuted, 1).setOrigin(0, 0)
     .setStrokeStyle(1, UI.border, 0.8).setInteractive({ useHandCursor: true }).setDepth(6002);
-  scene.add.text(px + 24 + btnW / 2, btnY + 20, 'CANCEL', textRole('label'))
+  scene.add.text(px + 24 + btnW / 2, btnY + 20, opts.cancelLabel, textRole('label'))
     .setOrigin(0.5).setDepth(6002);
   cancelBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => opts.onCancel(pointer));
 
-  const retireX = px + 24 + btnW + 12;
-  const retireBtn = scene.add.rectangle(retireX, btnY, btnW, 40, UI.bad, 1).setOrigin(0, 0)
-    .setStrokeStyle(1, UI.bad, 1).setInteractive({ useHandCursor: true }).setDepth(6002);
-  // Dark ink ON the danger fill — `INK.onAlarm` is the token for exactly that
-  // (and is contrast-checked against `UI.bad` in `textRoleAudit.test.ts`).
-  scene.add.text(retireX + btnW / 2, btnY + 20, 'RETIRE', textRole('label', { ink: 'onAlarm' }))
+  const confirmX = px + 24 + btnW + 12;
+  const confirmBtn = scene.add.rectangle(confirmX, btnY, btnW, 40, danger ? UI.bad : UI.chip, 1).setOrigin(0, 0)
+    .setStrokeStyle(1, danger ? UI.bad : UI.border, 1).setInteractive({ useHandCursor: true }).setDepth(6002);
+  // Dark ink ON the filled action — `INK.onAlarm` on the danger fill /
+  // `INK.onAccent` on the bronze chip (both contrast-checked against exactly
+  // those fills in `textRoleAudit.test.ts`).
+  scene.add.text(confirmX + btnW / 2, btnY + 20, opts.confirmLabel, textRole('label', { ink: danger ? 'onAlarm' : 'onAccent' }))
     .setOrigin(0.5).setDepth(6002);
-  retireBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => opts.onConfirm(pointer));
+  confirmBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => opts.onConfirm(pointer));
+}
+
+/**
+ * RETIRE confirm — the danger-toned instance of `renderConfirmDialog`, shared
+ * by every screen that exposes the tertiary RETIRE action. Callers own the
+ * open/close boolean (see `renderConfirmDialog` for the pointer contract).
+ */
+export function renderRetireConfirm(
+  scene: Phaser.Scene,
+  opts: { compact: boolean; onConfirm: ConfirmHandler; onCancel: ConfirmHandler },
+): void {
+  renderConfirmDialog(scene, {
+    compact: opts.compact,
+    title: 'RETIRE THIS RUN?',
+    body: 'This ends the run right now — bosses cleared, days\nsurvived, gold, and hero level are locked in.',
+    cancelLabel: 'CANCEL',
+    confirmLabel: 'RETIRE',
+    tone: 'danger',
+    onCancel: opts.onCancel,
+    onConfirm: opts.onConfirm,
+  });
+}
+
+/**
+ * Where a battle start was requested from, for `shouldConfirmUnspentPL`.
+ * Only `'prep-fight'` — the prep screens' FIGHT press, the one place a NEW
+ * battle is entered by choice — is ever gated; `'battle-replay'` names the
+ * path that must never be (REPLAY re-runs a fight already fought, inside the
+ * battle scenes, and interrupting playback with a spend nag would be noise).
+ */
+export type BattleEntryPoint = 'prep-fight' | 'battle-replay';
+
+/**
+ * THE fight-gate decision (pure, pinned in `tests/game/unspentPlConfirm.test.ts`):
+ * warn if and only if the player is about to enter a NEW battle from a prep
+ * screen with PL still banked. Zero (or a defensive negative) banked never
+ * warns — the 2026-08-31 playtest failure was banked points going unnoticed,
+ * and a dialog for players with nothing to spend would teach everyone to
+ * dismiss it unread.
+ */
+export function shouldConfirmUnspentPL(banked: number, entry: BattleEntryPoint): boolean {
+  return entry === 'prep-fight' && banked > 0;
+}
+
+/**
+ * The unspent-PL fight gate's dialog — the accent-toned instance of
+ * `renderConfirmDialog` ("N PL UNSPENT — FIGHT ANYWAY / SPEND FIRST").
+ * Rendered by the four prep scenes when a FIGHT press trips
+ * `shouldConfirmUnspentPL`; never rendered at banked 0 (the gate) and never
+ * on any other battle path (only prep FIGHT handlers call the gate).
+ *
+ *   FIGHT ANYWAY — proceeds exactly as the ungated press would have
+ *                  (same battleContext + scene.start, supplied by the caller).
+ *   SPEND FIRST  — the emphasized action: stays on prep; run-prep callers
+ *                  open the stat-allocation panel from it, sandbox callers
+ *                  just close (their allocation grid is already on screen).
+ *   scrim        — plain dismiss, stays on prep.
+ */
+export function renderUnspentPlConfirm(
+  scene: Phaser.Scene,
+  opts: {
+    compact: boolean;
+    banked: number;
+    onFightAnyway: ConfirmHandler;
+    onSpendFirst: ConfirmHandler;
+    onDismiss: ConfirmHandler;
+  },
+): void {
+  renderConfirmDialog(scene, {
+    compact: opts.compact,
+    title: `${opts.banked} PL UNSPENT`,
+    body: 'Banked PL does nothing in a fight —\nspend it on stats first?',
+    cancelLabel: 'FIGHT ANYWAY',
+    confirmLabel: 'SPEND FIRST',
+    tone: 'accent',
+    onCancel: opts.onFightAnyway,
+    onConfirm: opts.onSpendFirst,
+    onScrim: opts.onDismiss,
+  });
 }

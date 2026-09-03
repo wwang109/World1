@@ -8,7 +8,7 @@ import { MOBILE_PROFILE } from '../layoutProfile';
 import { FONT, SCREEN, textRole, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { renderRunStatPanel } from '../ui/RunStatPanel';
-import { renderRetireConfirm, renderRunHud, snapshotRunProgress } from '../ui/RunProgressStrip';
+import { renderRetireConfirm, renderRunHud, renderUnspentPlConfirm, shouldConfirmUnspentPL, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayoutRef } from '../ui/runScreenLayout';
 import { addHoverTipZone } from '../ui/hoverTip';
 import { affixBlockLines, presentEliteAffix } from '../ui/affixPresentation';
@@ -18,7 +18,7 @@ import { renderStatRun } from '../ui/statRunStrip';
 import { setDeckBuildContext } from '../deckBuildContext';
 import { rebuildScene } from '../sceneRebuild';
 import {
-  currentEncounter, currentNode, enemyNameFor, getActiveRun, retireActiveRun, type RunNodeKind,
+  currentBankedPL, currentEncounter, currentNode, enemyNameFor, getActiveRun, retireActiveRun, type RunNodeKind,
 } from '../runStore';
 import { truncateNameKeepingSuffix } from '../ui/controlLayoutAudit';
 
@@ -46,12 +46,15 @@ export class MobileRunPrepScene extends Phaser.Scene {
   private H = SCREEN.height;
   private statPanelOpen = false;
   private retireConfirmOpen = false;
+  /** The unspent-PL fight gate's dialog (see `pressFight`). */
+  private fightConfirmOpen = false;
 
   constructor() { super('MobileRunPrep'); }
 
   init(): void {
     this.statPanelOpen = false;
     this.retireConfirmOpen = false;
+    this.fightConfirmOpen = false;
   }
 
   private rerender(): void { rebuildScene(this); }
@@ -93,6 +96,39 @@ export class MobileRunPrepScene extends Phaser.Scene {
         onConfirm: () => { retireActiveRun(); this.scene.start('MobileRunMap'); },
       });
     }
+    if (this.fightConfirmOpen) {
+      renderUnspentPlConfirm(this, {
+        compact: true,
+        banked: currentBankedPL(),
+        // Exactly the ungated FIGHT press — same battleContext, same scene.start.
+        onFightAnyway: () => this.startBattle(),
+        // Stays on prep and opens the allocation panel — the run's allocation
+        // section IS the stat panel OVERLAY (no scrolling exists to do), so
+        // opening it is the existing "point at it" affordance.
+        onSpendFirst: () => { this.fightConfirmOpen = false; this.statPanelOpen = true; this.rerender(); },
+        onDismiss: () => { this.fightConfirmOpen = false; this.rerender(); },
+      });
+    }
+  }
+
+  /** FIGHT press — gated by `shouldConfirmUnspentPL` (pure, tested): banked
+   * PL > 0 raises the SPEND FIRST / FIGHT ANYWAY confirm instead of starting
+   * the battle; zero-banked players go straight through, byte-identical to
+   * the ungated path. Battle REPLAY never comes through here (it lives inside
+   * the battle scenes), so only the prep -> new-battle entry is gated. */
+  private pressFight(): void {
+    if (shouldConfirmUnspentPL(currentBankedPL(), 'prep-fight')) {
+      this.fightConfirmOpen = true;
+      this.rerender();
+      return;
+    }
+    this.startBattle();
+  }
+
+  /** The one battle-entry path — shared by the ungated press and FIGHT ANYWAY. */
+  private startBattle(): void {
+    setBattleContext('run');
+    this.scene.start('MobileBattle');
   }
 
   /** THE run HUD — identical header on every run screen; FIGHT is this
@@ -107,7 +143,7 @@ export class MobileRunPrepScene extends Phaser.Scene {
       actions: {
         secondary: { label: 'DECK/BAG', onPress: () => { setDeckBuildContext('run'); this.scene.start('MobileDeckBuild'); } },
         tertiary: { label: 'RETIRE', danger: true, onPress: () => { this.retireConfirmOpen = true; this.rerender(); } },
-        primary: { label: 'FIGHT', onPress: () => { setBattleContext('run'); this.scene.start('MobileBattle'); } },
+        primary: { label: 'FIGHT', onPress: () => this.pressFight() },
       },
     });
   }

@@ -11,9 +11,10 @@ import { cachedDamageBand } from '../battleApi';
 import { setBattleContext } from '../battleContext';
 import { demoState, MAX_FOES, syncPrimaryFoe, type EnemyFightConfig } from '../demoState';
 import { DESKTOP_PROFILE } from '../layoutProfile';
-import { FONT, SCREEN, UI } from '../theme';
+import { FONT, INK, SCREEN, UI } from '../theme';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
 import { DESKTOP_LAYOUT, renderDesktopBackground, renderDesktopHeader } from '../ui/DesktopNav';
+import { renderUnspentPlConfirm, shouldConfirmUnspentPL } from '../ui/RunProgressStrip';
 import { STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene } from '../sceneRebuild';
 import { deckRowLabel, renderFoeDeckEditor, seedFoeDeckDraft, type FoeDeckDraft } from '../ui/foeDeckEditor';
@@ -51,6 +52,8 @@ export class DesktopPrepScene extends Phaser.Scene {
   private deckEditor: FoeDeckDraft | null = null;
   /** Open share-code import dialog (decoded / error / applied-result view). */
   private importDialog: ImportDialogState | null = null;
+  /** The unspent-PL fight gate's dialog (see `pressFight`). */
+  private fightConfirmOpen = false;
 
   constructor() { super('DesktopPrep'); }
 
@@ -58,6 +61,7 @@ export class DesktopPrepScene extends Phaser.Scene {
     this.picker = null;
     this.deckEditor = null;
     this.importDialog = null;
+    this.fightConfirmOpen = false;
   }
 
   /** State changed → rebuild this frame in place (see sceneRebuild.ts). */
@@ -90,6 +94,37 @@ export class DesktopPrepScene extends Phaser.Scene {
     if (this.picker !== null) this.renderPicker();
     if (this.importDialog !== null) this.renderImportDialog(this.importDialog);
     if (this.deckEditor !== null) this.renderDeckEditor();
+    if (this.fightConfirmOpen) {
+      renderUnspentPlConfirm(this, {
+        compact: false,
+        banked: bankedPL(demoState.heroLevel, demoState.heroAllocation),
+        // Exactly the ungated FIGHT press — same battleContext, same scene.start.
+        onFightAnyway: () => this.startBattle(),
+        // Stays on prep — the HERO allocation grid is already on screen in the
+        // CHOOSE FIGHT panel, so closing the dialog IS pointing at it.
+        onSpendFirst: () => { this.fightConfirmOpen = false; this.rerender(); },
+        onDismiss: () => { this.fightConfirmOpen = false; this.rerender(); },
+      });
+    }
+  }
+
+  /** FIGHT press — gated by `shouldConfirmUnspentPL` (pure, tested): banked
+   * PL > 0 raises the SPEND FIRST / FIGHT ANYWAY confirm instead of starting
+   * the battle; zero-banked players (the sandbox default: LV 1, nothing
+   * banked) go straight through, byte-identical to the ungated path. */
+  private pressFight(): void {
+    if (shouldConfirmUnspentPL(bankedPL(demoState.heroLevel, demoState.heroAllocation), 'prep-fight')) {
+      this.fightConfirmOpen = true;
+      this.rerender();
+      return;
+    }
+    this.startBattle();
+  }
+
+  /** The one battle-entry path — shared by the ungated press and FIGHT ANYWAY. */
+  private startBattle(): void {
+    setBattleContext('demo');
+    this.scene.start('DesktopBattle');
   }
 
   private text(x: number, y: number, s: string, size: number, color: string, opts: { bold?: boolean; display?: boolean; align?: string; origin?: [number, number] } = {}): Phaser.GameObjects.Text {
@@ -409,7 +444,10 @@ export class DesktopPrepScene extends Phaser.Scene {
     const banked = bankedPL(level, alloc);
 
     this.text(x, y, 'HERO', F.tiny, UI.textAccent, { bold: true });
-    this.text(x + w, y, `PL ${spentPL(alloc)}/${totalLevelPL(level)} SPENT · ${banked} BANKED`, F.tiny, banked > 0 ? UI.textAccent : UI.textDim, { bold: true, origin: [1, 0] });
+    // BANKED PL is a spendable RESOURCE while there is any (`INK.resource` —
+    // the same "a zero is not neutral" rule `RunStatPanel`'s header applies),
+    // not the section-accent bronze that made it read as part of the chrome.
+    this.text(x + w, y, `PL ${spentPL(alloc)}/${totalLevelPL(level)} SPENT · ${banked} BANKED`, F.tiny, banked > 0 ? INK.resource : UI.textDim, { bold: true, origin: [1, 0] });
     let cursor = y + F.tiny + 8;
 
     this.stepperRow(x, cursor, w, 'LV', level, (d) => {
@@ -803,7 +841,7 @@ export class DesktopPrepScene extends Phaser.Scene {
     fight.on('pointerover', () => fight.setFillStyle(UI.chipDark).setStrokeStyle(2, UI.chip, 1));
     fight.on('pointerout', () => fight.setFillStyle(UI.chip).setStrokeStyle(2, UI.border, 1));
     this.text(x + w / 2, y + FIGHT_H / 2, 'FIGHT', F.title, UI.textOnChip, { bold: true, display: true, origin: [0.5, 0.5] });
-    fight.on('pointerdown', () => { playSfx('uiClick'); setBattleContext('demo'); this.scene.start('DesktopBattle'); });
+    fight.on('pointerdown', () => { playSfx('uiClick'); this.pressFight(); });
   }
 }
 

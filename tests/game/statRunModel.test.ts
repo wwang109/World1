@@ -169,6 +169,40 @@ describe('statRunModel: the run HUD strip', () => {
     expect(statLabelInk(gold)).not.toBe(statLabelInk(bosses));
     expect(statSegmentRoles(gold, 'roomy').value).not.toBe(statSegmentRoles(bosses, 'roomy').value);
   });
+
+  // ------------------------------------------------------------------------
+  // BANKED PL on the LV segment (2026-09-02): the 2026-08-31 playtest showed
+  // a player entering fights with 3 PL banked — the LEVEL affordance itself
+  // now says what that level is still owed, as a `+N` delta in the gain ink
+  // (the same mechanism a gem's `◆+N` uses, so the renderer needs nothing new).
+  // ------------------------------------------------------------------------
+
+  it('LV gains a `+N` delta in the GAIN ink when PL is banked — both platforms', () => {
+    for (const compact of [true, false]) {
+      const lv = runProgressStatRun({ ...facts, bankedPL: 3 }, compact).segments[3]!;
+      expect(lv.label).toBe('LV');
+      expect(lv.delta).toBe('+3');
+      expect(statDeltaInk(lv)).toBe('gain');
+    }
+  });
+
+  it('no delta at zero/absent banked — nothing is owed, so nothing is added', () => {
+    // Absent covers the two hand-built pre-run snapshots (EMPTY_HUD_SNAPSHOT).
+    expect(runProgressStatRun(facts, true).segments[3]!.delta).toBeUndefined();
+    expect(runProgressStatRun({ ...facts, bankedPL: 0 }, true).segments[3]!.delta).toBeUndefined();
+    expect(runProgressStatRun({ ...facts, bankedPL: 0 }, false).segments[3]!.delta).toBeUndefined();
+  });
+
+  it('the delta is the ONLY thing banked PL changes about the line', () => {
+    // The mobile strip's ~28-char budget (USER-LOCKED) is spent on exactly one
+    // new token, and only while the debt exists — every label, value, kind and
+    // tone stays byte-identical to the zero-banked line.
+    const base = runProgressStatRun(facts, true);
+    const banked = runProgressStatRun({ ...facts, bankedPL: 3 }, true);
+    expect(statRunPlainText(banked)).toBe(statRunPlainText(base).replace('LV 4', 'LV 4 +3'));
+    expect(banked.segments.map((s) => [s.label, s.value, s.kind, s.tone]))
+      .toEqual(base.segments.map((s) => [s.label, s.value, s.kind, s.tone]));
+  });
 });
 
 describe('statRunModel: the capability statline (hero band + foe card, one grammar)', () => {

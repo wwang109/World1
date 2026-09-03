@@ -12,9 +12,10 @@ import { cachedDamageBand } from '../battleApi';
 import { setBattleContext } from '../battleContext';
 import { demoState, MAX_FOES, syncPrimaryFoe, type EnemyFightConfig } from '../demoState';
 import { MOBILE_PROFILE } from '../layoutProfile';
-import { FONT, SCREEN, UI } from '../theme';
+import { FONT, INK, SCREEN, UI } from '../theme';
 import { renderActionBar } from '../ui/ActionBar';
 import { BoardColumn, type ColumnPiece } from '../ui/BoardColumn';
+import { renderUnspentPlConfirm, shouldConfirmUnspentPL } from '../ui/RunProgressStrip';
 import { STAT_TOKEN } from '../ui/statLabels';
 import { rebuildScene } from '../sceneRebuild';
 import { deckRowLabel, renderFoeDeckEditor, seedFoeDeckDraft, type FoeDeckDraft } from '../ui/foeDeckEditor';
@@ -47,6 +48,8 @@ export class MobilePrepScene extends Phaser.Scene {
   private importDialog: ImportDialogState | null = null;
   /** CODE footer menu open (COPY MY CODE / PASTE A CODE). */
   private codeMenu = false;
+  /** The unspent-PL fight gate's dialog (see `pressFight`). */
+  private fightConfirmOpen = false;
 
   constructor() { super('MobilePrep'); }
 
@@ -60,6 +63,7 @@ export class MobilePrepScene extends Phaser.Scene {
     this.deckEditor = null;
     this.importDialog = null;
     this.codeMenu = false;
+    this.fightConfirmOpen = false;
   }
 
   /** The foe entry the sheet controls edit. */
@@ -94,6 +98,37 @@ export class MobilePrepScene extends Phaser.Scene {
     if (this.codeMenu) this.renderCodeMenu();
     if (this.importDialog !== null) this.renderImportDialog(this.importDialog);
     if (this.deckEditor !== null) this.renderDeckEditor(enemyDef.name);
+    if (this.fightConfirmOpen) {
+      renderUnspentPlConfirm(this, {
+        compact: true,
+        banked: bankedPL(demoState.heroLevel, demoState.heroAllocation),
+        // Exactly the ungated FIGHT press — same battleContext, same scene.start.
+        onFightAnyway: () => this.startBattle(),
+        // Stays on prep — the HERO allocation grid is already on this screen
+        // (this scene has no scrolling), so closing the dialog IS pointing at it.
+        onSpendFirst: () => { this.fightConfirmOpen = false; this.rerender(); },
+        onDismiss: () => { this.fightConfirmOpen = false; this.rerender(); },
+      });
+    }
+  }
+
+  /** FIGHT press — gated by `shouldConfirmUnspentPL` (pure, tested): banked
+   * PL > 0 raises the SPEND FIRST / FIGHT ANYWAY confirm instead of starting
+   * the battle; zero-banked players (the sandbox default: LV 1, nothing
+   * banked) go straight through, byte-identical to the ungated path. */
+  private pressFight(): void {
+    if (shouldConfirmUnspentPL(bankedPL(demoState.heroLevel, demoState.heroAllocation), 'prep-fight')) {
+      this.fightConfirmOpen = true;
+      this.rerender();
+      return;
+    }
+    this.startBattle();
+  }
+
+  /** The one battle-entry path — shared by the ungated press and FIGHT ANYWAY. */
+  private startBattle(): void {
+    setBattleContext('demo');
+    this.scene.start('MobileBattle');
   }
 
   private x(dx: number): number { return this.ox + dx; }
@@ -389,7 +424,10 @@ export class MobilePrepScene extends Phaser.Scene {
     const banked = bankedPL(level, alloc);
 
     this.text(innerX, top, 'HERO', F.small, '#b78a46', { bold: true });
-    this.text(this.W - 20, top, `PL ${spentPL(alloc)}/${totalLevelPL(level)} SPENT · ${banked} BANKED`, F.tiny, banked > 0 ? UI.textAccent : UI.textMuted, { bold: true, origin: [1, 0] });
+    // BANKED PL is a spendable RESOURCE while there is any (`INK.resource` —
+    // the same "a zero is not neutral" rule `RunStatPanel`'s header applies),
+    // not the section-accent bronze that made it read as part of the chrome.
+    this.text(this.W - 20, top, `PL ${spentPL(alloc)}/${totalLevelPL(level)} SPENT · ${banked} BANKED`, F.tiny, banked > 0 ? INK.resource : UI.textMuted, { bold: true, origin: [1, 0] });
     let cursor = top + 16;
 
     this.stepper(innerX, cursor, 'LV', level, (d) => {
@@ -528,7 +566,7 @@ export class MobilePrepScene extends Phaser.Scene {
           this.rerender();
         },
       },
-      { label: 'FIGHT', primary: true, flex: 2, onPress: () => { playSfx('uiClick'); setBattleContext('demo'); this.scene.start('MobileBattle'); } },
+      { label: 'FIGHT', primary: true, flex: 2, onPress: () => { playSfx('uiClick'); this.pressFight(); } },
     ]);
   }
 
