@@ -45,9 +45,18 @@
  */
 export const HP_BLOCK_LINE_BOX = 1.2;
 
-export type HpBlockLabelKey = 'name' | 'hp' | 'shield' | 'statLine' | 'expose' | 'guard';
+/**
+ * `expose` / `guard` are LEGACY-GEOMETRY keys only since the 2026-09-02 chip
+ * row: the live layouts render every status — expose and guard included — as
+ * `chip0..chipN` (+ `chipMore`, the "+N" overflow marker), and the two named
+ * badge labels survive solely so `legacy*HpBlockLayout` can keep reproducing
+ * the pre-fix geometry for the audit's teeth.
+ */
+export type HpBlockLabelKey =
+  | 'name' | 'hp' | 'shield' | 'statLine' | 'expose' | 'guard'
+  | `chip${number}` | 'chipMore';
 
-/** The three labels that share the block's dedicated STATUS row. */
+/** The labels that shared the pre-chip STATUS row — legacy geometry only. */
 export const STATUS_ROW_KEYS: readonly HpBlockLabelKey[] = ['shield', 'expose', 'guard'];
 
 /** One label the block wants to draw, with its NATURAL (unclamped) width. */
@@ -110,7 +119,9 @@ function collect(labels: PlacedHpBlockLabel[], bar: HpBlockBox): HpBlockGeometry
 }
 
 /** Everything the two platforms' status rows have in common: one right-anchored
- * chain, each link measured off the previous one, none of them past `leftStop`. */
+ * chain, each link measured off the previous one, none of them past `leftStop`.
+ * The live layouts chain only `shield` through this; `expose`/`guard` remain
+ * accepted for the LEGACY geometries (see `HpBlockLabelKey`'s doc). */
 function chainStatusRow(
   input: { shield?: HpBlockLabel; expose?: HpBlockLabel; guard?: HpBlockLabel },
   rowY: number, rightEdge: number, leftStop: number, gap: number,
@@ -125,6 +136,61 @@ function chainStatusRow(
     cursor = placed.left - gap;
   }
   return out;
+}
+
+/**
+ * THE STATUS-CHIP CHAIN — the per-combatant `PSN 8 · GRD 75%P · …` row (see
+ * `chipsByTurn`, game/battleTimeline.ts). Chips chain LEFT→RIGHT from the
+ * block's left edge along the SAME dedicated status row the shield total
+ * right-aligns on — the two chains grow toward each other and the chip chain
+ * stops short of whatever the right chain reached (`rightStop`), so the row
+ * can never collide with itself no matter how many statuses stand. That keeps
+ * the block height budget EXACTLY where it was (`blockHeight`/`rowHeight`
+ * unchanged): the chips reuse the row the expose/guard badges vacated, they
+ * do not add one.
+ *
+ * OVERFLOW IS EXPLICIT, NEVER SILENT: when not every chip fits, the chain
+ * keeps the longest PREFIX (chips arrive pre-ordered most-important-first —
+ * `CHIP_KIND_ORDER`, battleTimeline.ts) that still leaves room for the
+ * `chipMore` marker (`+N`), which is placed where the next chip would have
+ * gone. `overflow` is a caller-measured WORST-CASE sample ("+99"), so the
+ * reserve is honest for any realistic hidden count; the caller writes the
+ * real `+N` text into the placed box.
+ */
+export function chainChipsRow(
+  chips: readonly HpBlockLabel[],
+  overflow: HpBlockLabel | undefined,
+  rowY: number, leftEdge: number, rightStop: number, gap: number,
+): { labels: PlacedHpBlockLabel[]; shown: number; hidden: number } {
+  if (chips.length === 0) return { labels: [], shown: 0, hidden: 0 };
+  const budget = Math.max(0, rightStop - leftEdge);
+  const widthOf = (upTo: number): number => {
+    let w = 0;
+    for (let i = 0; i < upTo; i++) w += chips[i]!.width + (i > 0 ? gap : 0);
+    return w;
+  };
+  const overflowW = overflow ? overflow.width : 0;
+  let shown = chips.length;
+  if (widthOf(chips.length) > budget) {
+    shown = 0;
+    // Largest prefix that still fits WITH the overflow marker after it.
+    while (
+      shown < chips.length
+      && widthOf(shown + 1) + gap + overflowW <= budget
+    ) shown += 1;
+  }
+  const labels: PlacedHpBlockLabel[] = [];
+  let cursor = leftEdge;
+  for (let i = 0; i < shown; i++) {
+    const placed = place(`chip${i}`, chips[i]!, rowY, cursor, 0, rightStop - cursor);
+    labels.push(placed);
+    cursor = placed.left + placed.width + gap;
+  }
+  const hidden = chips.length - shown;
+  if (hidden > 0 && overflow) {
+    labels.push(place('chipMore', overflow, rowY, cursor, 0, Math.max(0, rightStop - cursor)));
+  }
+  return { labels, shown, hidden };
 }
 
 // ---------------------------------------------------------------------------
@@ -142,15 +208,19 @@ export const DESKTOP_HP_BLOCK = {
   /** Top of the HP bar band (the bar rect is centred at `barRowDy + 8`). */
   barRowDy: 26,
   barHeight: 16,
-  /** Full statline (left) + the ailment pips (right). */
+  /** Full statline. (The ailment pips that used to right-align on this row
+   * were superseded by the STATUS CHIPS on the row below — same colors, plus
+   * the magnitude the pips never had — so the statline owns the row alone.) */
   statRowDy: 46,
   /**
-   * SHIELD / EXPOSE / GUARD — their OWN row, under the statline and clear of
-   * the board column at `blockHeight`. The badges used to be at `statRowDy`
-   * (on top of the statline) and the shield total at `barRowDy - 2` (on top of
-   * the bar); see the module doc. 61 keeps a modelled 11px statline's line box
-   * (46 → 59.2) clear of a modelled 10px status row's (61 → 73), with the board
-   * top still 3px below.
+   * STATUS ROW: the chip chain (left→right) + the shield total (right-
+   * aligned) — under the statline and clear of the board column at
+   * `blockHeight`. The pre-chip badges used to be at `statRowDy` (on top of
+   * the statline) and the shield total at `barRowDy - 2` (on top of the bar);
+   * see the module doc. 61 keeps a modelled 11px statline's line box
+   * (46 → 59.2) clear of a modelled 10px status row's (61 → 73), with the
+   * board top still 3px below. The chip row REUSES this row (the expose/guard
+   * badges it replaces lived here), so `blockHeight` did not move for it.
    */
   statusRowDy: 61,
   /** Height the caller reserves before the board column — `HP_BLOCK_H`. */
@@ -159,8 +229,6 @@ export const DESKTOP_HP_BLOCK = {
   nameRightReserve: 90,
   /** Gap between chained labels, and between a label and what it must clear. */
   gap: 8,
-  /** Ailment pip geometry on the stat row (right-aligned, one per ailment). */
-  pip: { width: 8, pitch: 12, inset: 6 },
 } as const;
 
 export interface DesktopHpBlockInput {
@@ -171,22 +239,23 @@ export interface DesktopHpBlockInput {
   hp: HpBlockLabel;
   statLine: HpBlockLabel;
   shield?: HpBlockLabel;
+  /** Status chips, pre-ordered and pre-formatted (`chipsByTurn`,
+   * battleTimeline.ts). Chained left→right on the status row; see
+   * `chainChipsRow` for the overflow contract. */
+  chips?: HpBlockLabel[];
+  /** Worst-case measured `+N` overflow sample ("+99") — required for the
+   * chain to reserve honest room whenever `chips` may not all fit. */
+  chipsOverflow?: HpBlockLabel;
+}
+
+/** The legacy (pre-chip / pre-2026-08-30-fix) input surface — see
+ * `HpBlockLabelKey`'s doc. Only `legacyDesktopHpBlockLayout` reads these. */
+export interface LegacyDesktopHpBlockInput extends DesktopHpBlockInput {
   expose?: HpBlockLabel;
   guard?: HpBlockLabel;
-  /** Ailment pips drawn right-aligned on the STAT row — the statline is bounded
-   * off them too, so a five-ailment unit cannot have its stats run under them. */
-  ailmentPips?: number;
 }
 
-/** Left edge of the leftmost ailment pip on the stat row (the panel's right edge
- * when there are none) — what the statline must stop short of. */
-export function desktopPipLeft(panelX: number, panelW: number, pips: number): number {
-  const { width, pitch, inset } = DESKTOP_HP_BLOCK.pip;
-  if (pips <= 0) return panelX + panelW;
-  return panelX + panelW - inset - (pips - 1) * pitch - width;
-}
-
-function desktopBlock(input: DesktopHpBlockInput, statusRowDy: number): HpBlockGeometry {
+export function desktopHpBlockLayout(input: DesktopHpBlockInput): HpBlockGeometry {
   const { panelX, panelY, panelW } = input;
   const R = DESKTOP_HP_BLOCK;
   const right = panelX + panelW;
@@ -197,20 +266,19 @@ function desktopBlock(input: DesktopHpBlockInput, statusRowDy: number): HpBlockG
   labels.push(place('name', input.name, panelY + R.headRowDy, panelX, 0,
     Math.min(panelW - R.nameRightReserve, hp.left - panelX - R.gap)));
 
-  // The statline shares its row with the right-aligned ailment pips, so it is
-  // bounded off them — it used to be an unbounded `add.text` on the caller's side.
-  const pipLeft = desktopPipLeft(panelX, panelW, input.ailmentPips ?? 0);
-  labels.push(place('statLine', input.statLine, panelY + R.statRowDy, panelX, 0, pipLeft - panelX - R.gap));
+  labels.push(place('statLine', input.statLine, panelY + R.statRowDy, panelX, 0, panelW));
 
-  labels.push(...chainStatusRow(input, panelY + statusRowDy, right, panelX, R.gap));
+  // Status row: shield right-aligned first, then the chip chain grows toward
+  // it from the left and stops a gap short of whatever it reached.
+  const rowY = panelY + R.statusRowDy;
+  const shieldChain = chainStatusRow({ shield: input.shield }, rowY, right, panelX, R.gap);
+  labels.push(...shieldChain);
+  const rightStop = shieldChain.length > 0 ? shieldChain[shieldChain.length - 1]!.left - R.gap : right;
+  labels.push(...chainChipsRow(input.chips ?? [], input.chipsOverflow, rowY, panelX, rightStop, R.gap).labels);
 
   return collect(labels, {
     left: panelX, top: panelY + R.barRowDy, width: panelW, height: R.barHeight,
   });
-}
-
-export function desktopHpBlockLayout(input: DesktopHpBlockInput): HpBlockGeometry {
-  return desktopBlock(input, DESKTOP_HP_BLOCK.statusRowDy);
 }
 
 /**
@@ -220,7 +288,7 @@ export function desktopHpBlockLayout(input: DesktopHpBlockInput): HpBlockGeometr
  * still detects the defect it was written for — if this ever stops producing
  * overlaps, the audit has gone blind.
  */
-export function legacyDesktopHpBlockLayout(input: DesktopHpBlockInput): HpBlockGeometry {
+export function legacyDesktopHpBlockLayout(input: LegacyDesktopHpBlockInput): HpBlockGeometry {
   const { panelX, panelY, panelW } = input;
   const R = DESKTOP_HP_BLOCK;
   const labels: PlacedHpBlockLabel[] = [];
@@ -280,6 +348,15 @@ export interface MobileHpBlockInput {
   hp: HpBlockLabel;
   statLine: HpBlockLabel;
   shield?: HpBlockLabel;
+  /** Status chips — same contract as `DesktopHpBlockInput.chips`. */
+  chips?: HpBlockLabel[];
+  /** Worst-case measured `+N` overflow sample — see the desktop twin. */
+  chipsOverflow?: HpBlockLabel;
+}
+
+/** The legacy (pre-chip / pre-2026-08-30-fix) input surface — see
+ * `HpBlockLabelKey`'s doc. Only `legacyMobileHpBlockLayout` reads these. */
+export interface LegacyMobileHpBlockInput extends MobileHpBlockInput {
   expose?: HpBlockLabel;
   guard?: HpBlockLabel;
 }
@@ -305,7 +382,14 @@ export function mobileHpBlockLayout(input: MobileHpBlockInput): HpBlockGeometry 
   labels.push(place('statLine', input.statLine, rowY + R.statRowDy, R.barX, 0,
     screenW - R.barX - R.barRightPad));
 
-  labels.push(...chainStatusRow(input, rowY + R.statusRowDy, screenW - R.rightPad, R.nameX, R.gap));
+  // Status row: shield right-aligned, chip chain left→right toward it —
+  // exactly the desktop rule (see `chainChipsRow`), full strip width. Reuses
+  // the row the expose/guard badges vacated: `rowHeight` did not move.
+  const rowY2 = rowY + R.statusRowDy;
+  const shieldChain = chainStatusRow({ shield: input.shield }, rowY2, screenW - R.rightPad, R.nameX, R.gap);
+  labels.push(...shieldChain);
+  const rightStop = shieldChain.length > 0 ? shieldChain[shieldChain.length - 1]!.left - R.gap : screenW - R.rightPad;
+  labels.push(...chainChipsRow(input.chips ?? [], input.chipsOverflow, rowY2, R.nameX, rightStop, R.gap).labels);
 
   return collect(labels, mobileBar(screenW, rowY));
 }
@@ -316,7 +400,7 @@ export function mobileHpBlockLayout(input: MobileHpBlockInput): HpBlockGeometry 
  * chain at the bar. Exported ONLY so the audit can prove it still detects the
  * defect — see `legacyDesktopHpBlockLayout`.
  */
-export function legacyMobileHpBlockLayout(input: MobileHpBlockInput): HpBlockGeometry {
+export function legacyMobileHpBlockLayout(input: LegacyMobileHpBlockInput): HpBlockGeometry {
   const R = MOBILE_HP_BLOCK;
   const { screenW, rowY } = input;
   const labels: PlacedHpBlockLabel[] = [];
@@ -383,7 +467,11 @@ export function statusLabelsOverBar(
 ): HpBlockOverlap[] {
   const out: HpBlockOverlap[] = [];
   for (const l of geometry.labels) {
-    if (!STATUS_ROW_KEYS.includes(l.key) || l.width <= 0) continue;
+    // Everything living on the status row is held to this: the shield total,
+    // the chip chain and its overflow marker, and (legacy geometry only) the
+    // expose/guard badges.
+    const isStatusRowLabel = STATUS_ROW_KEYS.includes(l.key) || l.key.startsWith('chip');
+    if (!isStatusRowLabel || l.width <= 0) continue;
     const area = intersect(l, geometry.bar, tolerance);
     if (area > 0) out.push({ a: l.key, b: 'bar', area });
   }

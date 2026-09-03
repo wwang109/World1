@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import type { Archetype, SkillDef } from '../../engine/types';
 import {
-  buildBattleTimeline, formatGuardBadge, isComboLive, shieldPoolsLabel,
+  buildBattleTimeline, isComboLive, shieldPoolsLabel, slotModKey,
   type BattleTimelineInput,
-  type ComboArchetypeSnap, type CombatSummary, type FoeModel, type GuardBadgeEntry, type GuardSnap, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SpeedSnap, type TurnFx,
+  type ComboArchetypeSnap, type CombatSummary, type FoeModel, type HpSnap, type LogLine, type PlaybackStep, type ShieldSnap, type SlotModsSnap, type SpeedSnap, type StatusChip, type StatusChipsSnap, type TurnFx,
 } from '../battleTimeline';
 import { fetchBattleLog } from '../battleApi';
 import { creditBattleGold } from '../battleGold';
@@ -25,6 +25,7 @@ import { STAT_LABELS, statHoverEntry } from '../ui/statGlossary';
 import type { ScalingStats } from '../ui/skillPresentation';
 import { renderRunStatsStrip, snapshotRunProgress } from '../ui/RunProgressStrip';
 import { runScreenLayout } from '../ui/runScreenLayout';
+import { AILMENT_COLOR, AILMENT_TINT, STATUS_CHIP_COLOR } from '../ui/battleStatusPalette';
 
 const F = MOBILE_PROFILE.font;
 /**
@@ -76,30 +77,11 @@ const TAG_COLOR: Record<string, string> = {
   // gold so it reads as the log's third kind of bookend, never as a regular row.
   PHASE: '#e8b446',
 };
-/**
- * Ailment identity colors — used to tint the afflicted side's HP bar and its
- * DoT tick numbers. `thorns` was RE-PICKED (2026-08-17): its original
- * `#9fb86a` sat one of the original five thorns bugs right back into the
- * palette — an olive so close to `poison`'s `#8fbe5a` the two were
- * indistinguishable — and because `battleTimeline.ts` never fed thorns into
- * the badge bucket until this same pass, that collision had never actually
- * rendered on screen to be caught. Teal has no other relative here (every
- * other entry is green/orange/red/tan/purple/blue). Kept byte-identical to
- * Desktop's map — a new tag must be added to BOTH or it renders untinted on
- * whichever scene is missed.
- *
- * poison/expose/thorns LIFTED 2026-09-02, in LOCKSTEP with Desktop's map,
- * `KEYWORD_TEXT_COLOR` (cardTextMarkup.ts) and its pin test — the card-face
- * keyword palette now holds every entry at >= 4.5:1 on both battle card
- * fills (hues held; measured ratios recorded in cardTextMarkup.ts).
- */
-const AILMENT_COLOR: Record<string, string> = { poison: '#92c05f', burn: '#e07a3a', bleed: '#d05c4e', stun: '#c9a15a', expose: '#c4a6e5', thorns: '#68c3a0', guard: '#7a9cc9' };
-// `ward` gets its own key here, mirroring Desktop's map byte-for-byte (see
-// the comment there for why: thorns already set the precedent that a BUFF
-// status still needs a badge tint, and blue has no relative in this palette
-// so it can never collide with another ailment's color). `guard` mirrors
-// Desktop's own newest entry the same way — same slate-blue, same reasoning.
-const AILMENT_TINT: Record<string, number> = { poison: 0x92c05f, burn: 0xe07a3a, bleed: 0xd05c4e, stun: 0xc9a15a, expose: 0xc4a6e5, thorns: 0x68c3a0, ward: 0x4fa8d8, guard: 0x7a9cc9 };
+// Ailment identity colors — HOISTED to `ui/battleStatusPalette.ts`
+// (2026-09-02): this file and DesktopBattleScene.ts carried "kept
+// byte-identical by hand" copies, which is exactly how the two HAD drifted
+// (desktop's string map was missing `ward`). One import now; the palette
+// history/rationale comments moved with the values.
 
 /**
  * Mobile Battle — vertical: LOG dock (top, tap a HIT to expand its D: math) ·
@@ -116,8 +98,11 @@ export class MobileBattleScene extends Phaser.Scene {
   private shieldByTurn = new Map<number, ShieldSnap>();
   /** Active ailment keys per side per turn — drives the HP-bar ailment tint. */
   private statusByTurn = new Map<number, { player: string[]; enemy: string[]; enemyUnits?: string[][] }>();
-  private exposePctByTurn = new Map<number, { player: number; enemy: number; enemyUnits?: number[] }>();
-  private guardPctByTurn = new Map<number, GuardSnap>();
+  /** Per-unit status chips (replaces the old expose/guard badge maps — chips
+   * carry those two plus every other standing effect, with magnitudes). */
+  private chipsByTurn = new Map<number, StatusChipsSnap>();
+  /** Standing per-slot burden/curse for the board cards' modified-stat overlay. */
+  private slotModsByTurn = new Map<number, SlotModsSnap>();
   private speedByTurn = new Map<number, SpeedSnap>();
   private comboArchetypesByTurn = new Map<number, ComboArchetypeSnap>();
   /** Which board slot each side cast from, per turn — drives the gold cursor. */
@@ -355,8 +340,8 @@ export class MobileBattleScene extends Phaser.Scene {
     this.hpByTurn = model.hpByTurn;
     this.shieldByTurn = model.shieldByTurn;
     this.statusByTurn = model.statusByTurn;
-    this.exposePctByTurn = model.exposePctByTurn;
-    this.guardPctByTurn = model.guardPctByTurn;
+    this.chipsByTurn = model.chipsByTurn;
+    this.slotModsByTurn = model.slotModsByTurn;
     this.speedByTurn = model.speedByTurn;
     this.comboArchetypesByTurn = model.comboArchetypesByTurn;
     this.playSlotByTurn = model.playSlotByTurn;
@@ -392,8 +377,8 @@ export class MobileBattleScene extends Phaser.Scene {
     const hp = this.hpByStep[this.idx] ?? this.hpByTurn.get(turn) ?? { player: 0, enemy: 0, playerMax: 1, enemyMax: 1 };
     const shield = this.shieldByStep[this.idx] ?? this.shieldByTurn.get(turn) ?? { player: 0, enemy: 0 };
     const status = this.statusByTurn.get(turn) ?? { player: [], enemy: [] };
-    const exposePct = this.exposePctByTurn.get(turn) ?? { player: 0, enemy: 0 };
-    const guardPct = this.guardPctByTurn.get(turn) ?? { player: [], enemy: [] };
+    const chips = this.chipsByTurn.get(turn) ?? { player: [], enemy: [] };
+    const slotMods = this.slotModsByTurn.get(turn) ?? {};
     // FX (floating numbers, shakes, bar tweens, card pulse) only fire on a
     // single forward step — playback tick or one scrub click — never on a
     // jump/rewind, which would otherwise replay every step's FX in a burst.
@@ -532,8 +517,7 @@ export class MobileBattleScene extends Phaser.Scene {
       this.heroStatLine,
       forwardStep ? { hp: prevHp?.player ?? hp.player, shield: prevShield?.player ?? shield.player } : undefined,
       shieldPoolsLabel(shield.playerPools),
-      exposePct.player,
-      guardPct.player,
+      chips.player,
     );
     const foeBars: Array<HpBarHandles | undefined> = [];
     /** Tab-mode float anchor for foes whose full bar isn't on screen. */
@@ -544,8 +528,7 @@ export class MobileBattleScene extends Phaser.Scene {
       const foeMax = hp.enemyMaxes?.[u] ?? hp.enemyMax;
       const foeShield = shield.enemies?.[u] ?? shield.enemy;
       const foeStatus = status.enemyUnits?.[u] ?? status.enemy;
-      const foeExposePct = exposePct.enemyUnits?.[u] ?? exposePct.enemy;
-      const foeGuardPct = guardPct.enemyUnits?.[u] ?? guardPct.enemy;
+      const foeChips = chips.enemyUnits?.[u] ?? chips.enemy;
       const prevFoeHp = prevHp ? (prevHp.enemies?.[u] ?? prevHp.enemy) : undefined;
       const prevFoeShield = prevShield ? (prevShield.enemies?.[u] ?? prevShield.enemy) : undefined;
       const foePools = shield.enemiesPools?.[u] ?? (u === 0 ? shield.enemyPools : undefined);
@@ -554,14 +537,22 @@ export class MobileBattleScene extends Phaser.Scene {
         foeModel.statLine,
         animate ? { hp: prevFoeHp ?? foeHp, shield: prevFoeShield ?? foeShield } : undefined,
         shieldPoolsLabel(foePools),
-        foeExposePct,
-        foeGuardPct,
+        foeChips,
       );
     };
     let boardsTop: number;
     if (!tabbed) {
       this.foes.forEach((_, u) => foeRowAt(u, hpY + barRowH * (u + 1), forwardStep));
-      boardsTop = hpY + 32 + barRowH * this.foes.length;
+      // Every strip gets its FULL `rowHeight` pitch before the boards start —
+      // `hpY + 32 + barRowH * n` (the pre-status-row arithmetic: 32 was the
+      // name+bar+statline band) gave the LAST strip only 32px of its 48, so
+      // the last foe's whole STATUS ROW (dy 29..41 — the shield total and
+      // expose/guard badges before 2026-09-02, the chip row since) rendered
+      // and was then PAINTED OVER by the board tokens added after it. Board
+      // height pays the 16px (WHY: an unreadable status row is not a smaller
+      // cost than 16px of card art; the tabbed branch below always cleared it
+      // — `barRowH * 2 - 4` — so this also un-forks the two layouts).
+      boardsTop = hpY + barRowH * (this.foes.length + 1);
     } else {
       // Snap (don't tween) the focused bar right after a tab switch — a tween
       // from the PREVIOUS foe's HP fraction would be a lie.
@@ -645,12 +636,15 @@ export class MobileBattleScene extends Phaser.Scene {
     // Gold cursor on the card each side cast this turn (a size-N piece owns its span).
     const slots = this.playSlotByTurn.get(turn) ?? {};
     const comboSnap = this.comboArchetypesByTurn.get(turn) ?? { player: [], enemy: [] };
-    const mark = (pieces: ColumnPiece[], lastCast: readonly Archetype[], slot?: number): ColumnPiece[] => pieces.map((p) => ({
+    // `slotMods` lookup is by the piece's ANCHOR slot — exactly what the
+    // engine's burdened/cursed events name (see `SlotModsSnap`).
+    const mark = (pieces: ColumnPiece[], lastCast: readonly Archetype[], side: 'player' | 'enemy', unit: number, slot?: number): ColumnPiece[] => pieces.map((p) => ({
       ...p,
       state: slot !== undefined && slot >= p.slot && slot < p.slot + Math.max(1, p.skill.size) ? 'cursor' as const : p.state,
       comboLive: isComboLive(p.skill, lastCast),
+      slotMods: slotMods[slotModKey(side, unit, p.slot)],
     }));
-    const heroCol = new BoardColumn(this, { x: deckX, y: top, width: colW, height: colH, side: 'left', pieces: mark(this.heroPieces, comboSnap.player, slots.player), deck: this.heroSkills, stats: this.heroStats });
+    const heroCol = new BoardColumn(this, { x: deckX, y: top, width: colW, height: colH, side: 'left', pieces: mark(this.heroPieces, comboSnap.player, 'player', 0, slots.player), deck: this.heroSkills, stats: this.heroStats });
     if (forwardStep && slots.player !== undefined) this.pulseTokenAt(heroCol, this.heroPieces, slots.player, this.castFxFor('player', 0));
     // Enemy boards: 1–2 foes stack vertically in the right column; 3+ foes
     // show only the FOCUSED foe's board (the tab strip covers the rest).
@@ -660,7 +654,7 @@ export class MobileBattleScene extends Phaser.Scene {
       const foeLastCast = comboSnap.enemyUnits?.[u] ?? (u === 0 ? comboSnap.enemy : []);
       const foeCol = new BoardColumn(this, {
         x: bagX, y: boardTop, width: colW, height: boardH, side: 'right',
-        pieces: mark(foeModel.pieces, foeLastCast, foeSlot), deck: foeModel.skills, stats: foeModel.stats,
+        pieces: mark(foeModel.pieces, foeLastCast, 'enemy', u, foeSlot), deck: foeModel.skills, stats: foeModel.stats,
       });
       if (forwardStep && foeSlot !== undefined) this.pulseTokenAt(foeCol, foeModel.pieces, foeSlot, this.castFxFor('enemy', u));
     };
@@ -800,23 +794,24 @@ export class MobileBattleScene extends Phaser.Scene {
     /** "20 P · 30 M" — present only once >1 shield pool is nonzero, so a
      * stacked physical+magical shield never reads as one merged number. */
     poolsLabel?: string,
-    /** Current EFFECTIVE expose amplification (%) — the strongest standing
-     * pile, per `BattleTimeline.exposePctByTurn` (battleTimeline.ts). NOT the
-     * most recently applied pile's pct: a weaker reapplication landing on a
-     * unit already carrying a stronger expose must not drop this number. */
-    exposePct?: number,
-    /** Current EFFECTIVE guard mitigation (%), one entry per property still
-     * mitigated — `BattleTimeline.guardPctByTurn`. Property-scoped (unlike
-     * expose): a unit can carry an active physical AND magical guard at once,
-     * each compounded from its OWN piles independently. */
-    guardPct?: GuardBadgeEntry[],
+    /**
+     * This unit's STATUS CHIPS for the displayed turn (`chipsByTurn`,
+     * battleTimeline.ts) — pre-ordered, pre-formatted (`PSN 8`, `EXP +40%`,
+     * `GRD 75%P 40%M`, `ATK +30%` …). Replaces BOTH the old expose/guard
+     * badges (their numbers ride the EXP/GRD chips now, same derivations)
+     * AND the magnitude-less under-bar ailment pips. Rendered as a
+     * left→right chain on the status row; what cannot fit collapses into a
+     * `+N` marker — see `chainChipsRow` (ui/battleHpBlockLayout.ts).
+     */
+    chips: StatusChip[] = [],
   ): HpBarHandles {
     const R = MOBILE_HP_BLOCK;
     const barX = R.barX;
     const barW = this.W - barX - R.barRightPad;
     const frac = (v: number): number => barW * Math.max(0, Math.min(1, v / max));
     // Afflicted bars shift color toward their ailment (poison → green cast…)
-    // and carry a colored border + one pip per ailment under the bar's end.
+    // and carry a colored border; the chip row below the statline names each
+    // standing effect with its magnitude.
     const firstAilment = ailments.find((a) => AILMENT_TINT[a] !== undefined);
     const fillColor = firstAilment ? this.blendColor(color, AILMENT_TINT[firstAilment]!, 45) : color;
 
@@ -824,10 +819,6 @@ export class MobileBattleScene extends Phaser.Scene {
     // rect added after it.
     const border = this.add.rectangle(barX, y + 7, barW, 12, 0x1b2431).setOrigin(0, 0.5);
     border.setStrokeStyle(1, firstAilment ? AILMENT_TINT[firstAilment]! : 0x3a4a62, firstAilment ? 1 : 0.7);
-    ailments.forEach((a, i) => {
-      const tint = AILMENT_TINT[a];
-      if (tint !== undefined) this.add.rectangle(barX + barW - 4 - i * 10, y + 16, 6, 3, tint).setOrigin(1, 0.5);
-    });
 
     const hpTarget = frac(hp);
     const hpStart = prev ? frac(prev.hp) : hpTarget;
@@ -859,18 +850,17 @@ export class MobileBattleScene extends Phaser.Scene {
       ? this.add.text(0, 0, shieldLabel, { ...bold, fontSize: `${F.label}px`, color: '#5fa8d3' })
       : undefined;
     const statText = this.add.text(0, 0, statLine, { fontFamily: FONT.body, fontSize: `${F.tiny}px`, color: UI.textMuted });
-    // Expose badge number — the EFFECTIVE (strongest-standing) amplification,
-    // never the last application's own pct (see the `exposePct` param doc).
-    const exposeText = (exposePct ?? 0) > 0
-      ? this.add.text(0, 0, `EXPOSE +${exposePct}%`, { ...bold, fontSize: `${F.tiny}px`, color: AILMENT_COLOR.expose ?? '#c4a6e5' })
-      : undefined;
-    // Guard badge — the EFFECTIVE (compounded) per-property mitigation (see the
-    // `guardPct` param doc + `formatGuardBadge`). Chained off the expose badge:
-    // the two are independent statuses a unit can carry at once, so neither may
-    // overwrite the other.
-    const guardBadge = formatGuardBadge(guardPct ?? []);
-    const guardText = guardBadge
-      ? this.add.text(0, 0, guardBadge, { ...bold, fontSize: `${F.tiny}px`, color: AILMENT_COLOR.guard ?? '#7a9cc9' })
+    // STATUS CHIPS — one colored text token per standing effect (see the
+    // `chips` param doc). Created unplaced for measurement like every other
+    // label; `chainChipsRow` decides how many fit and where the `+N` overflow
+    // marker lands, and any chip it could not place is destroyed unrendered.
+    const chipTexts = chips.map((c) =>
+      this.add.text(0, 0, c.text, { ...bold, fontSize: `${F.tiny}px`, color: STATUS_CHIP_COLOR[c.kind] ?? UI.textDim }));
+    // Worst-case overflow sample ("+99") so the layout reserves honest room;
+    // the real `+N` is written in after placement. Muted, not a status color —
+    // it counts hidden chips, it is not itself an effect.
+    const moreText = chips.length > 0
+      ? this.add.text(0, 0, '+99', { ...bold, fontSize: `${F.tiny}px`, color: UI.textDim })
       : undefined;
 
     const measured = (t: Phaser.GameObjects.Text, fontSize: number): HpBlockLabel => ({ text: t.text, width: t.width, fontSize });
@@ -881,8 +871,8 @@ export class MobileBattleScene extends Phaser.Scene {
       hp: measured(hpText, F.body),
       statLine: measured(statText, F.tiny),
       shield: shieldText ? measured(shieldText, F.label) : undefined,
-      expose: exposeText ? measured(exposeText, F.tiny) : undefined,
-      guard: guardText ? measured(guardText, F.tiny) : undefined,
+      chips: chipTexts.map((t) => measured(t, F.tiny)),
+      chipsOverflow: moreText ? measured(moreText, F.tiny) : undefined,
     });
     const apply = (t: Phaser.GameObjects.Text | undefined, key: HpBlockLabelKey): void => {
       const placed = geo.byKey[key];
@@ -894,8 +884,23 @@ export class MobileBattleScene extends Phaser.Scene {
     apply(hpText, 'hp');
     apply(shieldText, 'shield');
     apply(statText, 'statLine');
-    apply(exposeText, 'expose');
-    apply(guardText, 'guard');
+    const placedChips: Phaser.GameObjects.Text[] = [];
+    chipTexts.forEach((t, i) => {
+      const placed = geo.byKey[`chip${i}`];
+      if (!placed) { t.destroy(); return; } // overflowed — counted by the +N marker
+      apply(t, `chip${i}`);
+      placedChips.push(t);
+    });
+    if (moreText) {
+      const moreBox = geo.byKey.chipMore;
+      if (moreBox) {
+        moreText.setText(`+${chips.length - placedChips.length}`);
+        apply(moreText, 'chipMore');
+        placedChips.push(moreText);
+      } else {
+        moreText.destroy(); // everything fit — no marker
+      }
+    }
 
     const statBox = geo.byKey.statLine!;
     addHoverTipZone(this, { x: statBox.left, y: statBox.top, w: statBox.maxWidth, h: statBox.height }, ALL_STAT_ENTRIES);
@@ -906,8 +911,7 @@ export class MobileBattleScene extends Phaser.Scene {
       shakeTargets: [
         nameText, fillRect, hpText,
         ...(shieldText ? [shieldText] : []),
-        ...(exposeText ? [exposeText] : []),
-        ...(guardText ? [guardText] : []),
+        ...placedChips,
       ],
       floatX: barX + barW / 2,
       floatY: y + 7,

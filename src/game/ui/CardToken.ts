@@ -83,6 +83,27 @@ export interface CardTokenOptions {
    * tint).
    */
   comboLive?: boolean;
+  /**
+   * Battle-playback-only STANDING CARD MODIFIERS on this piece, derived per
+   * turn from the event log (`slotModsByTurn`, game/battleTimeline.ts) — the
+   * same additive idiom as `comboLive` above: omitted by every non-battle
+   * caller and by every unmodified battle piece, and an omitted value renders
+   * byte-identically to before this field existed.
+   *
+   * - `burden` (engine `PieceState.nextWeightPenalty`): the weight badge
+   *   shows the EFFECTIVE weight (`weightOf(skill) + burden`) tinted in the
+   *   burden keyword's own color — the number the engine will actually charge
+   *   on this piece's next play (castSelect.ts folds the tax in), where the
+   *   printed base would be a lie. Cleared when the piece plays.
+   * - `curse` (engine `PieceState.curse.amount`): the face's effects line is
+   *   led by a `−N DMG` segment in the curse keyword's color — the flat
+   *   damage this card is losing per hit while the window stands. LEADS the
+   *   line (rather than trailing it) because `segmentedLine` truncates from
+   *   the TAIL on narrow faces, and the live combat modifier must survive
+   *   truncation ahead of static card text a player can read on any other
+   *   screen.
+   */
+  slotMods?: { burden?: number; curse?: number };
 }
 
 /** The active platform's default card-face number treatment — mobile keeps
@@ -217,6 +238,16 @@ export class CardToken extends Phaser.GameObjects.Container {
       this.add(t);
     };
     const faceMode = opts.faceMode ?? defaultFaceMode();
+    // Standing CURSE marker (battle playback only — see `slotMods`): the flat
+    // damage this piece is losing per hit while the window stands, as a
+    // LEADING effects-line segment in the curse keyword's own color (the hue
+    // the card text and the DEBUFF log row already teach). Leading, not
+    // trailing, so `segmentedLine`'s tail-first truncation can never hide the
+    // live modifier on a narrow face. Non-null asserted rather than
+    // `?? '#hex'`-defaulted: a pasted fallback would be a drifting copy of
+    // the keyword palette's value.
+    const curse = opts.slotMods?.curse ?? 0;
+    const curseSegments = curse > 0 ? [{ text: `−${curse} DMG`, color: keywordTextColor('curse')! }] : [];
     if (!spec.compact) {
       // Name/affinity inks are the THEME TOKENS, not pasted copies of their
       // values — a copy strands the face on the old palette at the next ground
@@ -225,14 +256,20 @@ export class CardToken extends Phaser.GameObjects.Container {
       // DMG 16 +ATK / DMG 16 · PSN 5 — each token tinted to match its
       // KEYWORD_TEXT_COLOR (cardTextMarkup.ts) when it has one, so a keyword's
       // color reads the same here as it does in flavor text / the glossary.
-      this.segmentedLine(scene, spec, spec.effects, effectFaceSegments(skill, opts.stats, faceMode, '#e8d8b0', opts.comboLive), '#e8d8b0');
+      this.segmentedLine(scene, spec, spec.effects, [
+        ...curseSegments,
+        ...effectFaceSegments(skill, opts.stats, faceMode, '#e8d8b0', opts.comboLive),
+      ], '#e8d8b0');
       line(spec.affinity, this.affinityLine(skill, type, opts.deck), UI.textFootnote);
     } else {
       // COMPACT (slim strips like TEMP HOLDING): one centered line, clamped to
       // the token width so long names never overflow the strip. The name
       // token stays cream; effect tokens tint the same as the regular variant.
+      // The curse marker rides right after the name (identity first, live
+      // modifier second, static effects last — same truncation reasoning).
       this.segmentedLine(scene, spec, spec.compactLine, [
         { text: skill.name, color: UI.textBright },
+        ...curseSegments,
         ...effectFaceSegments(skill, opts.stats, faceMode, UI.textBright, opts.comboLive),
       ], UI.textBright);
     }
@@ -262,9 +299,19 @@ export class CardToken extends Phaser.GameObjects.Container {
       }).setOrigin(spec.cornerOriginX, 0));
     }
 
-    // weight — inward BOTTOM corner badge
-    scrimLabel(scene.add.text(spec.weight.x, spec.weight.y, `W${weightOf(skill)}`, {
-      fontSize: '9px', color: '#c9a15a', fontFamily: FONT.body, fontStyle: 'bold',
+    // weight — inward BOTTOM corner badge. A standing BURDEN (battle playback
+    // only — see `slotMods`) folds into the number itself: the badge shows the
+    // EFFECTIVE weight the engine will actually charge on this piece's next
+    // play (castSelect.ts adds `nextWeightPenalty` before the `play` event is
+    // ever emitted), tinted in the burden keyword's color so the inflated
+    // number is readable as taxed at a glance rather than as a misprint. Same
+    // no-pasted-hex rule as the curse marker above (`keywordTextColor` + `!`).
+    // Works at EVERY board width on both platforms because the weight badge
+    // always renders — unlike the accessory rail, which computes zero slots at
+    // mobile card widths and so cannot carry a battle overlay at all.
+    const burden = opts.slotMods?.burden ?? 0;
+    scrimLabel(scene.add.text(spec.weight.x, spec.weight.y, `W${weightOf(skill) + burden}`, {
+      fontSize: '9px', color: burden > 0 ? keywordTextColor('burden')! : '#c9a15a', fontFamily: FONT.body, fontStyle: 'bold',
     }).setOrigin(spec.cornerOriginX, 1));
 
     // accessory rail — gem sockets / tier plates / future attachments.

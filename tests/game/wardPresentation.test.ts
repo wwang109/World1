@@ -141,8 +141,18 @@ describe('ward presentation', () => {
   });
 
   it('clears the ward key from the status bucket once the pile expires', () => {
+    // ENGINE-ACCURATE SEQUENCE: a ward pile only ever expires by its charges
+    // hitting zero, and `consumeWard` (interpreter.ts) always emits the
+    // zeroing `warded` spend IMMEDIATELY before the pile's `statusExpired` —
+    // a bare expiry with charges still tracked cannot occur in a real log.
+    // The fixture used to skip the spend; since the badge became multi-pile
+    // aware (2026-09-02 status chips: one pile's expiry must NOT blank the
+    // badge while a second pile still holds charges), the tracked total is
+    // what decides the clear, so the fixture now carries the spend the
+    // engine always emits.
     const events: CombatEvent[] = [
       { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'ward', charges: 1, turns: 0 },
+      { turn: 2, kind: 'warded', side: 'player', unit: 0, status: 'poison', chargesLeft: 0 },
       { turn: 2, kind: 'statusExpired', side: 'player', unit: 0, status: 'ward' },
       { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
     ];
@@ -150,5 +160,23 @@ describe('ward presentation', () => {
     const model = buildBattleTimeline(BASE, log);
     expect(model.statusByTurn.get(1)?.player).toContain('ward');
     expect(model.statusByTurn.get(2)?.player ?? []).not.toContain('ward');
+  });
+
+  it('one pile\'s expiry does NOT blank the badge while a second pile still holds charges', () => {
+    // Two piles (a recast opens a NEW pile — interpreter.ts's ward arm):
+    // 2 + 2 charges. The first pile empties (spends report the HOLDER total:
+    // 4 → 3 → 2) and announces its own expiry — the badge must survive it,
+    // because the second pile's 2 charges still stand.
+    const events: CombatEvent[] = [
+      { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'ward', charges: 2, turns: 0 },
+      { turn: 1, kind: 'statusApplied', side: 'player', unit: 0, status: 'ward', charges: 2, turns: 0 },
+      { turn: 2, kind: 'warded', side: 'player', unit: 0, status: 'poison', chargesLeft: 3 },
+      { turn: 2, kind: 'warded', side: 'player', unit: 0, status: 'bleed', chargesLeft: 2 },
+      { turn: 2, kind: 'statusExpired', side: 'player', unit: 0, status: 'ward' },
+      { turn: 3, kind: 'combatEnd', result: 'win', turns: 3 },
+    ];
+    const log: BattleLog = { events, result: 'win', turns: 3 };
+    const model = buildBattleTimeline(BASE, log);
+    expect(model.statusByTurn.get(2)?.player).toContain('ward');
   });
 });

@@ -56,9 +56,10 @@ export function markedKeywords(text: string): string[] {
  * palette in theme.ts; extend here when a new mechanical verb gets markup.
  *
  * poison / thorns / expose (2026-08-17 fix): these three now match the battle
- * scenes' own ailment palette EXACTLY (`AILMENT_COLOR`/`AILMENT_TINT` in
- * MobileBattleScene.ts / DesktopBattleScene.ts, off-limits to this file —
- * those are the source of truth). They used to be a DIFFERENT COLOR FAMILY
+ * scenes' own ailment palette EXACTLY (`AILMENT_COLOR`/`AILMENT_TINT`, hoisted
+ * 2026-09-02 from the two battle scenes into `ui/battleStatusPalette.ts`,
+ * off-limits to this file — that is the source of truth). They used to be a
+ * DIFFERENT COLOR FAMILY
  * entirely — card text highlighted "poison" in purple while the status it
  * applies tints the HP bar green, same for thorns (olive vs teal) and expose
  * (pink vs purple) — a genuine contradiction, not a shade difference, so a

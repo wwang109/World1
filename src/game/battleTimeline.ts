@@ -2,7 +2,7 @@ import { resolveDisplaySkill } from '../engine/cards';
 import { skillBook } from '../data/skills';
 import type { CombatEvent } from '../engine/combat/events';
 import type { ShieldPools } from '../engine/combat/state';
-import type { Archetype, Element, Property, SkillDef, SkillTier, WeaponType } from '../engine/types';
+import type { Archetype, BuffableStat, Element, Property, SkillDef, SkillTier, WeaponType } from '../engine/types';
 import { buildAutoHeroSetup, buildEnemyEncounter } from '../run/encounter';
 import type { EnemyTitle } from '../run/encounter';
 import type { BattleLog } from '../run/resolveBattle';
@@ -205,12 +205,62 @@ export function isComboLive(skill: SkillDef, lastCastArchetypes: readonly Archet
   return skill.archetypes.some((a) => lastCastArchetypes.includes(a));
 }
 
+/**
+ * One STATUS CHIP on a combatant's HP block: `kind` keys the shared color map
+ * (`STATUS_CHIP_COLOR`, ui/battleStatusPalette.ts) and `text` is the full
+ * compact readout (`PSN 8`, `GRD 75%P 40%M`, `ATK +30%`). Text is formatted
+ * HERE, once, so both platforms render byte-identical chips — a scene only
+ * measures, places and colors them.
+ */
+export interface StatusChip { kind: string; text: string; }
+/** Per-side (and per-enemy-unit) chip rows for one turn — parallel shape to
+ * `statusByTurn`. Chips are pre-ordered (see `CHIP_KIND_ORDER`); a renderer
+ * caps the row and shows `+N` for what it cannot fit, never reorders. */
+export interface StatusChipsSnap { player: StatusChip[]; enemy: StatusChip[]; enemyUnits?: StatusChip[][]; }
+
+/** Standing per-CARD modifiers on one board slot, AS OF a turn: `burden` =
+ * extra weight this piece owes on its next play (engine
+ * `PieceState.nextWeightPenalty`), `curse` = damage this piece loses per hit
+ * while its window stands (`PieceState.curse.amount`). */
+export interface SlotMod { burden?: number; curse?: number; }
+/** All slot mods for one turn, keyed by `slotModKey(side, unit, slot)` where
+ * `slot` is the PIECE'S ANCHOR slot (the leftmost slot it occupies — exactly
+ * what the engine's `burdened`/`cursed`/`curseExpired` events name). */
+export type SlotModsSnap = Record<string, SlotMod>;
+/** The one key format for `SlotModsSnap` — shared with the scenes so a lookup
+ * can never drift from the writer's format. */
+export function slotModKey(side: 'player' | 'enemy', unit: number, slot: number): string {
+  return `${side}:${unit}:${slot}`;
+}
+
 export interface BattleTimeline {
   linesByTurn: Map<number, LogLine[]>;
   hpByTurn: Map<number, HpSnap>;
   shieldByTurn: Map<number, ShieldSnap>;
   /** Active ailment keys per side per turn — drives the HP-bar ailment tint. */
   statusByTurn: Map<number, { player: string[]; enemy: string[] }>;
+  /**
+   * Per-combatant STATUS CHIP rows per turn — the persistent "what is on this
+   * unit and how much" readout (`PSN 8 · EXP +40% · GRD 75%P`) both battle
+   * scenes draw on every HP block. Derived ENTIRELY from the event log's
+   * already-reconstructed piles (the `dots*` buckets, the expose/guard shadow
+   * piles, and the negate/ward/stat-mod trackers below) — never re-simulated.
+   * Like `statusByTurn`, an entry is the state AS OF THE END of that turn's
+   * last event, which is the turn-scrub granularity every other per-turn map
+   * here already uses.
+   */
+  chipsByTurn: Map<number, StatusChipsSnap>;
+  /**
+   * Standing per-slot card modifiers (burden / curse) per turn — drives the
+   * board cards' modified-stat overlay (a burdened card's weight badge shows
+   * the EFFECTIVE weight in the burden ink; a cursed card's face carries its
+   * `−N DMG` marker). Snapshotted from the same `pendingBurdenBySlot` /
+   * `cursedBySlot` shadow maps the PLAY/WAIT log rows already read, so the
+   * badge and the log can never disagree. Same end-of-turn granularity as
+   * `chipsByTurn`; scrubbing to a turn before an application (or after its
+   * spend/expiry) shows the unmodified card again.
+   */
+  slotModsByTurn: Map<number, SlotModsSnap>;
   /** Per-side/unit last-resolved-cast archetypes, per turn — see
    * `ComboArchetypeSnap`. Feeds the battle board's COMBO token grey/lit state
    * (`isComboLive`); nothing else reads this. */
@@ -382,6 +432,30 @@ export function formatGuardBadge(entries: GuardBadgeEntry[]): string | undefined
   if (entries.length === 0) return undefined;
   return `GUARD ${entries.map((e) => `${e.pct}%${propertyLetter(e.property)}`).join(' ')}`;
 }
+
+/**
+ * Compact 3-letter chip glyph per status kind (the `<GLYPH> <total>` grammar
+ * of the HP-block chip row). Buff/debuff chips lead with their STAT_TOKEN
+ * instead (the stat IS the identity there); stun renders the bare glyph with
+ * NO count — `MAX_STUN_PER_CARD` caps every stun at one performance, so any
+ * number would be dishonest (the same user ruling, 2026-08-20, that made the
+ * log row a bare "Stunned").
+ */
+const CHIP_GLYPH: Record<string, string> = {
+  poison: 'PSN', burn: 'BRN', bleed: 'BLD', stun: 'STN', expose: 'EXP',
+  guard: 'GRD', negate: 'NGT', ward: 'WRD', thorns: 'THR',
+};
+
+/**
+ * FIXED chip display order (not application order, not severity-by-magnitude):
+ * threats first — the DoT damage clock, then lockdown, then the two incoming-
+ * hit amplifiers (expose, stat debuffs) — then the unit's own defenses
+ * (guard/negate/ward/thorns), stat buffs last. Fixed so (a) a chip never
+ * changes position when a NEIGHBOR expires mid-scrub, and (b) when a narrow
+ * row overflows into "+N", what gets cut is always the least
+ * survival-relevant tail, deterministically, on every platform.
+ */
+const STAT_MOD_STAT_ORDER: readonly BuffableStat[] = ['attack', 'magicPower', 'armor', 'magicResist', 'speed'];
 
 function propertyWord(p: Property | undefined): string {
   return p === 'magical' ? 'magical' : p === 'physical' ? 'physical' : p === 'true' ? 'true' : 'all';
@@ -644,6 +718,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   const hpByTurn = new Map<number, HpSnap>();
   const shieldByTurn = new Map<number, ShieldSnap>();
   const statusByTurn = new Map<number, { player: string[]; enemy: string[]; enemyUnits?: string[][] }>();
+  const chipsByTurn = new Map<number, StatusChipsSnap>();
+  const slotModsByTurn = new Map<number, SlotModsSnap>();
   const exposePctByTurn = new Map<number, { player: number; enemy: number; enemyUnits?: number[] }>();
   const guardPctByTurn = new Map<number, GuardSnap>();
   const speedByTurn = new Map<number, SpeedSnap>();
@@ -849,19 +925,149 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // a second time at a possibly-wrong strictness.
   const guardBadgeCurrent = new Map<string, GuardBadgeEntry[]>();
   const guardBadgeKey = (side: 'player' | 'enemy', unit: number): string => `${side}:${unit}`;
-  // Shadow-count of ACTIVE stat-debuff instances per (side, unit) — fed by
-  // statusApplied/statusExpired for `status: 'debuff'` exactly like every
-  // other reconstruction in this section. `debuff` never touches an HP-bar
-  // badge (no `AILMENT_TINT` entry for it — MobileBattleScene.ts /
-  // DesktopBattleScene.ts), so nothing here renders it directly; it exists
-  // solely to disambiguate a `cleansed` event below. A `cleanse` action
-  // (interpreter.ts) drains whichever `isCleansable` kind expires soonest
-  // across poison/burn/bleed/stun/debuff/expose on the target — so a poison
-  // badge can only be safely cleared/reduced from a bare `removed` COUNT when
-  // NO OTHER cleansable kind, including an invisible debuff, is also active
-  // to have absorbed some of those charges.
-  const debuffCountByUnit = new Map<string, number>();
-  const debuffKey = (side: 'player' | 'enemy', unit: number): string => `${side}:${unit}`;
+  // Shadow-piles of ACTIVE stat buff/debuff instances per (side, unit) — fed
+  // by statusApplied/statusExpired for `status: 'buff' | 'debuff'` exactly
+  // like the expose/guard piles above (same `expiresAtTurn = e.turn + e.turns`
+  // arithmetic, same natural-expiry contract from `statusExpired`'s doc). Two
+  // consumers:
+  //  - the STATUS CHIP row (`chipsByTurn`): chips aggregate the active piles
+  //    per stat, mirroring the engine's own `effStat` (state.ts) — pct terms
+  //    SUM per stat and flat terms SUM per stat, buffs and debuffs kept as
+  //    separate chips because they are separate statuses with separate
+  //    expiries (never netted into one number);
+  //  - the `cleansed` disambiguation below, which used to be a bare COUNT
+  //    (`debuffCountByUnit`) — the pile list carries strictly more (the count
+  //    is `.length`), so the count map was folded into this.
+  // `debuff` still feeds no HP-bar tint (no `AILMENT_TINT` entry —
+  // ui/battleStatusPalette.ts); the chip row is where it becomes visible.
+  interface StatModPile { stat: BuffableStat; pct: number; amount: number; expiresAtTurn: number; }
+  const buffPilesByUnit = new Map<string, StatModPile[]>();
+  const debuffPilesByUnit = new Map<string, StatModPile[]>();
+  const unitKey = (side: 'player' | 'enemy', unit: number): string => `${side}:${unit}`;
+  const statModPilesFor = (map: Map<string, StatModPile[]>, side: 'player' | 'enemy', unit: number): StatModPile[] => {
+    const k = unitKey(side, unit);
+    const arr = map.get(k);
+    if (arr) return arr;
+    const fresh: StatModPile[] = [];
+    map.set(k, fresh);
+    return fresh;
+  };
+  // Remaining NEGATE charges per (side, unit), per PROPERTY — negate is the
+  // one chip whose pile the engine never announces the end of: charges are
+  // spent by `negated` events (one charge per nullified hit, `dealDamage`,
+  // interpreter.ts) and the emptied status is silently filtered out — NO
+  // `statusExpired` ever fires for it (the wear-off row case below documents
+  // the same fact). So the chip's count is reconstructed here: `statusApplied`
+  // adds the application's charges (already clamped to `MAX_NEGATE_CHARGES`
+  // per property by the engine before the event is emitted), each `negated`
+  // subtracts one. Keyed per property because a negate only stops hits of its
+  // OWN property (same reason `guardToken`/`negateToken` are property-
+  // qualified) — one merged count would claim coverage the unit doesn't have.
+  const negateChargesByUnit = new Map<string, { physical: number; magical: number; true: number }>();
+  const negateChargesFor = (side: 'player' | 'enemy', unit: number): { physical: number; magical: number; true: number } => {
+    const k = unitKey(side, unit);
+    const cur = negateChargesByUnit.get(k);
+    if (cur) return cur;
+    const fresh = { physical: 0, magical: 0, true: 0 };
+    negateChargesByUnit.set(k, fresh);
+    return fresh;
+  };
+  // Remaining WARD charges per (side, unit) — the HOLDER TOTAL across piles
+  // (a recast opens a new pile, interpreter.ts's `ward` arm). Additions come
+  // from `statusApplied` (engine-clamped to `MAX_WARD_CHARGES`); every spend
+  // re-syncs to the event's own authoritative `chargesLeft` (`warded` /
+  // `wardReleased` both report the holder total after the spend), so the chip
+  // can never drift from the engine's count. NOTE the pre-existing `bucket`
+  // ward VALUE (set at application) is a single PILE's charges and goes stale
+  // across spends — the chip deliberately reads THIS tracker instead; the
+  // bucket keeps only its presence-for-tint job.
+  const wardChargesByUnit = new Map<string, number>();
+  /**
+   * Aggregate one kind's ACTIVE stat-mod piles into per-stat chips, mirroring
+   * the engine's own `effStat` fold (state.ts): pct terms SUM per stat and
+   * flat terms SUM per stat — never a "last applied wins". Buff and debuff
+   * stay SEPARATE chips (separate statuses, separate expiries — netting them
+   * into one signed number would hide that a +30% buff and a −20% debuff are
+   * two windows ending at two different turns). Fixed stat order so chips
+   * never reshuffle between turns. Remaining duration is deliberately NOT on
+   * the chip (mobile width; the application row's expandable detail states it).
+   */
+  const statModChips = (kind: 'buff' | 'debuff', piles: StatModPile[] | undefined): StatusChip[] => {
+    if (!piles || piles.length === 0) return [];
+    const out: StatusChip[] = [];
+    const sign = kind === 'buff' ? '+' : '−';
+    for (const stat of STAT_MOD_STAT_ORDER) {
+      let pct = 0;
+      let flat = 0;
+      for (const p of piles) {
+        if (p.stat === stat) { pct += p.pct; flat += p.amount; }
+      }
+      if (pct <= 0 && flat <= 0) continue;
+      const parts = `${pct > 0 ? `${sign}${pct}%` : ''}${flat > 0 ? `${sign}${flat}` : ''}`;
+      out.push({ kind, text: `${STAT_TOKEN[stat]} ${parts}` });
+    }
+    return out;
+  };
+  /**
+   * One (side, unit)'s STATUS CHIP row, in `CHIP_KIND_ORDER`'s fixed order
+   * (see that constant's doc for the ordering rationale) — every value read
+   * from the reconstructions this file already maintains, never re-derived:
+   *
+   *  - PSN/BRN/BLD n — the pile's CURRENT stacks (the `dots*` buckets, kept
+   *    in tick-lockstep by the `damage` case). Engine stack semantics
+   *    (simulate.ts): a poison/bleed tick deals the CURRENT stack count then
+   *    sheds one stack; a burn tick deals 2× stacks then HALVES (floored) —
+   *    so the chip's n is "what the next tick deals" (×2 for burn), not a
+   *    remaining-damage sum.
+   *  - STN — bare, no count (see `CHIP_GLYPH`'s stun note).
+   *  - EXP +n% — the EFFECTIVE (strongest standing pile) amplification, the
+   *    same value `exposePctByTurn` reports.
+   *  - stat debuffs / buffs — see `statModChips`.
+   *  - GRD … — the EFFECTIVE compounded per-property mitigation from
+   *    `guardBadgeCurrent` (already computed at the event's correct
+   *    strictness — see that map's doc).
+   *  - NGT nP/nM/nT — remaining negate charges per property, one chip per
+   *    property still holding charges (fixed P→M→T order).
+   *  - WRD n — the holder's TOTAL remaining ward charges.
+   *  - THR n — remaining thorn stacks (sting decay mirrored in the `damage`
+   *    case).
+   */
+  const buildChips = (side: 'player' | 'enemy', unit: number): StatusChip[] => {
+    const bucket = side === 'player' ? dotsPlayer : dotsEnemies[unit]!;
+    const chips: StatusChip[] = [];
+    for (const kind of ['poison', 'burn', 'bleed'] as const) {
+      const stacks = bucket.get(kind) ?? 0;
+      if (stacks > 0) chips.push({ kind, text: `${CHIP_GLYPH[kind]} ${stacks}` });
+    }
+    if (bucket.has('stun')) chips.push({ kind: 'stun', text: CHIP_GLYPH.stun! });
+    const exposePct = bucket.get('expose') ?? 0;
+    if (exposePct > 0) chips.push({ kind: 'expose', text: `${CHIP_GLYPH.expose} +${exposePct}%` });
+    chips.push(...statModChips('debuff', debuffPilesByUnit.get(unitKey(side, unit))));
+    const guardEntries = guardBadgeCurrent.get(guardBadgeKey(side, unit)) ?? [];
+    if (guardEntries.length > 0) {
+      chips.push({ kind: 'guard', text: `${CHIP_GLYPH.guard} ${guardEntries.map((g) => `${g.pct}%${propertyLetter(g.property)}`).join(' ')}` });
+    }
+    const neg = negateChargesByUnit.get(unitKey(side, unit));
+    if (neg) {
+      for (const p of SHIELD_PROPERTIES) {
+        if (neg[p] > 0) chips.push({ kind: 'negate', text: `${CHIP_GLYPH.negate} ${neg[p]}${propertyLetter(p)}` });
+      }
+    }
+    const wardCharges = wardChargesByUnit.get(unitKey(side, unit)) ?? 0;
+    if (wardCharges > 0) chips.push({ kind: 'ward', text: `${CHIP_GLYPH.ward} ${wardCharges}` });
+    const thorns = bucket.get('thorns') ?? 0;
+    if (thorns > 0) chips.push({ kind: 'thorns', text: `${CHIP_GLYPH.thorns} ${thorns}` });
+    chips.push(...statModChips('buff', buffPilesByUnit.get(unitKey(side, unit))));
+    return chips;
+  };
+  /** The turn's standing burden/curse per slot — read off the SAME shadow maps
+   * the PLAY/WAIT rows name their taxes from, so badge and log always agree. */
+  const snapSlotMods = (): SlotModsSnap => {
+    const out: SlotModsSnap = {};
+    for (const [k, weight] of pendingBurdenBySlot) out[k] = { burden: weight };
+    for (const [k, amount] of cursedBySlot) out[k] = { ...(out[k] ?? {}), curse: amount };
+    return out;
+  };
   // Shadow-tracks the engine's own `nextWeightPenalty` (combat/state.ts) so a
   // `slow` rider's pending bonus weight can be named on the WAIT/PLAY row of
   // the very card it will hit, not just the DEBUFF row announcing it landed.
@@ -891,7 +1097,10 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
   // by a play, a curse EXPIRES, so this map is cleared by the engine's own
   // `curseExpired` event rather than by the `play` row (see both cases below).
   const cursedBySlot = new Map<string, number>();
-  const slotKey = (side: 'player' | 'enemy', unit: number, slot: number): string => `${side}:${unit}:${slot}`;
+  // Same key the exported `slotModKey` builds — delegated, not retyped, so the
+  // per-turn `slotModsByTurn` snapshots and a scene's lookups can never drift
+  // from the format these shadow maps are written with.
+  const slotKey = slotModKey;
   const snapHp = (): HpSnap => ({
     player: curPlayer, enemy: curEnemies[0]!, playerMax, enemyMax: enemyMaxes[0]!,
     enemies: [...curEnemies], enemyMaxes: [...enemyMaxes],
@@ -1282,6 +1491,22 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           const cur = bucket.get(e.source);
           if (cur !== undefined) bucket.set(e.source, e.source === 'burn' ? Math.floor(cur / 2) : Math.max(0, cur - 1));
         }
+        // THORNS' own decay mirror: a sting spends exactly one stack of the
+        // HOLDER's pile (`reflectThorns`, interpreter.ts) with no holder-side
+        // event beyond this attacker-side `damage` line — without this the
+        // THR chip sat at the applied total until the pile's final
+        // `statusExpired`. `sourceCard` names the holder (the thorns-granting
+        // card's side/unit — the same attribution the DoT credit above relies
+        // on). KNOWN CORNER, accepted: a sting the attacker NEGATES spends
+        // the stack but emits no damage event at all, so the chip reads one
+        // high until the pile's own expiry event lands; the engine's
+        // `statusExpired` still zeroes it, and the builder never renders a
+        // <= 0 value.
+        if (e.source === 'thorns' && e.sourceCard) {
+          const holderBucket = e.sourceCard.side === 'player' ? dotsPlayer : dotsEnemies[e.sourceCard.unit];
+          const cur = holderBucket?.get('thorns');
+          if (cur !== undefined) holderBucket!.set('thorns', Math.max(0, cur - 1));
+        }
         pushFx(e.side, 'damage', dealt, u, e.source !== 'skill' ? e.source : undefined,
           e.source === 'skill' && e.sourceCard ? skillBook[e.sourceCard.skillId] : undefined);
         break;
@@ -1356,6 +1581,12 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // property it stopped via the same `negateToken` the application row uses.
       case 'negated': {
         push(e.turn, 'BUFF', `${label(e)} · ${negateToken(e.property)} blocked the hit`);
+        // One nullified hit = one charge spent (dealDamage's negate branch) —
+        // the ONLY signal negate's count ever gets after application, since
+        // the emptied status is dropped without a `statusExpired` (see
+        // `negateChargesByUnit`'s doc). Keeps the NGT chip's number honest.
+        const neg = negateChargesFor(e.side, unitOf(e));
+        neg[e.property] = Math.max(0, neg[e.property] - 1);
         break;
       }
       // Ward spending a charge to prevent an incoming affliction: the affliction
@@ -1370,6 +1601,9 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       case 'warded': {
         const denied = e.status.charAt(0).toUpperCase() + e.status.slice(1);
         push(e.turn, 'BUFF', `${label(e)} · Ward prevented ${denied} · ${e.chargesLeft} charge${e.chargesLeft === 1 ? '' : 's'} left`);
+        // `chargesLeft` is the holder TOTAL after this spend — authoritative,
+        // so the WRD chip re-syncs to it rather than decrementing on its own.
+        wardChargesByUnit.set(unitKey(e.side, unitOf(e)), e.chargesLeft);
         break;
       }
       // The VOLUNTEERED mirror of `warded`: the holder cashed its own charges in
@@ -1379,6 +1613,9 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       // same way a `shieldBurst`'s spent plating does.
       case 'wardReleased':
         push(e.turn, 'EFFECT', `${label(e)} · Released ${e.charges} ward charge${e.charges === 1 ? '' : 's'} into the hit · ${e.chargesLeft} left`);
+        // Same authoritative re-sync as `warded` — the release names the
+        // holder's remaining total itself.
+        wardChargesByUnit.set(unitKey(e.side, unitOf(e)), e.chargesLeft);
         break;
       // `cleanse` (interpreter.ts) previously rendered NOTHING: the switch had
       // no case for it at all, so a Purify curing 3 poison stacks left the
@@ -1421,8 +1658,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         const bucket = e.side === 'player' ? dotsPlayer : dotsEnemies[unitOf(e)]!;
         const badgeKeys = ['poison', 'burn', 'bleed', 'stun', 'expose'] as const;
         const activeBadgeKeys = badgeKeys.filter((k) => bucket.has(k));
-        const dk = debuffKey(e.side, unitOf(e));
-        const otherCleansableActive = (debuffCountByUnit.get(dk) ?? 0) > 0;
+        const cleansedDebuffPiles = statModPilesFor(debuffPilesByUnit, e.side, unitOf(e));
+        const otherCleansableActive = cleansedDebuffPiles.length > 0;
         if (activeBadgeKeys.length === 1 && !otherCleansableActive) {
           const key = activeBadgeKeys[0]!;
           if (key === 'poison' || key === 'burn' || key === 'bleed') {
@@ -1468,14 +1705,17 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           // so every one of this event's `removed` charges unambiguously came
           // from a debuff instance — each costs exactly one charge, same as
           // stun/expose above (interpreter.ts's non-stacking cleanse branch).
-          // Without this, a cleansed-away debuff never decremented
-          // `debuffCountByUnit` (only `statusExpired` did, and cleanse never
-          // emits it for the statuses it strips) — the shadow count stuck
-          // above zero forever, so `otherCleansableActive` stayed true and
-          // permanently blocked every later single-kind badge clear on this
-          // unit, reinstating the stale-badge bug this file exists to fix.
-          const cur = debuffCountByUnit.get(dk) ?? 0;
-          debuffCountByUnit.set(dk, Math.max(0, cur - e.removed));
+          // Without this, a cleansed-away debuff never left the shadow piles
+          // (only `statusExpired` prunes them, and cleanse never emits it for
+          // the statuses it strips) — the piles stuck non-empty forever, so
+          // `otherCleansableActive` stayed true and permanently blocked every
+          // later single-kind badge clear on this unit, reinstating the
+          // stale-badge bug this file exists to fix. Which piles left:
+          // cleanse drains WHICHEVER expires soonest (interpreter.ts's
+          // documented order), so drop the `removed` soonest-expiring piles —
+          // the same approximation the expose branch above already makes.
+          cleansedDebuffPiles.sort((a, b) => a.expiresAtTurn - b.expiresAtTurn);
+          cleansedDebuffPiles.splice(0, Math.max(0, e.removed));
         }
         break;
       }
@@ -1672,14 +1912,29 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
         else if (e.status === 'thorns') bucket.set('thorns', e.stacks ?? 1);
         // Ward feeds the same bucket for the same reason — a held ward pile is
         // otherwise invisible for its whole lifetime, exactly like thorns
-        // above.
-        else if (e.status === 'ward') bucket.set('ward', e.charges ?? 1);
-        // Debuff feeds no badge (see `debuffCountByUnit`'s own doc above) — it
-        // is tracked purely to know whether a later `cleansed` event on this
-        // unit has more than one candidate kind to have drained.
-        else if (e.status === 'debuff') {
-          const dk = debuffKey(e.side, unitOf(e));
-          debuffCountByUnit.set(dk, (debuffCountByUnit.get(dk) ?? 0) + 1);
+        // above. The chip's COUNT lives in `wardChargesByUnit` (holder total,
+        // re-synced by every spend event) — this bucket value is one pile's
+        // own charges and only its presence is read.
+        else if (e.status === 'ward') {
+          bucket.set('ward', e.charges ?? 1);
+          const wk = unitKey(e.side, unitOf(e));
+          wardChargesByUnit.set(wk, (wardChargesByUnit.get(wk) ?? 0) + (e.charges ?? 1));
+        }
+        // Negate feeds no bucket (no tint entry, and the engine never emits
+        // `statusExpired` for it) — the chip reads the per-property charge
+        // tracker, seeded here. `e.charges` is already the engine-clamped
+        // grant (`MAX_NEGATE_CHARGES` per property, interpreter.ts).
+        else if (e.status === 'negate' && e.property) {
+          negateChargesFor(e.side, unitOf(e))[e.property] += e.charges ?? 1;
+        }
+        // Stat buff/debuff piles (see `buffPilesByUnit`/`debuffPilesByUnit`'s
+        // doc above): recorded per application with the same absolute
+        // `expiresAtTurn` arithmetic the expose/guard piles use, so natural
+        // expiry can prune exactly the pile(s) that ended. A malformed event
+        // with no `stat` is skipped rather than guessed at.
+        else if ((e.status === 'buff' || e.status === 'debuff') && e.stat) {
+          const piles = statModPilesFor(e.status === 'buff' ? buffPilesByUnit : debuffPilesByUnit, e.side, unitOf(e));
+          piles.push({ stat: e.stat, pct: e.pct ?? 0, amount: e.amount ?? 0, expiresAtTurn: e.turn + e.turns });
         }
         break;
       }
@@ -1715,13 +1970,26 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
           guardBadgeCurrent.set(guardBadgeKey(e.side, unitOf(e)), entries);
           if (entries.length > 0) bucket.set('guard', 1);
           else bucket.delete('guard');
+        } else if (e.status === 'ward') {
+          // ONE ward pile emptied — the holder may still carry another pile's
+          // charges (a recast opens a NEW pile, interpreter.ts). Every spend
+          // already re-synced `wardChargesByUnit` to the event's own
+          // `chargesLeft`, so drop the tint/presence key only when the holder
+          // TOTAL is spent — deleting on the first pile's expiry blanked the
+          // badge while a second pile still stood.
+          if ((wardChargesByUnit.get(unitKey(e.side, unitOf(e))) ?? 0) <= 0) bucket.delete('ward');
         } else {
           bucket.delete(e.status);
         }
-        if (e.status === 'debuff') {
-          const dk = debuffKey(e.side, unitOf(e));
-          const cur = debuffCountByUnit.get(dk) ?? 0;
-          if (cur > 0) debuffCountByUnit.set(dk, cur - 1);
+        if (e.status === 'buff' || e.status === 'debuff') {
+          // Natural expiry (the only kind this event ever reports — see its
+          // doc): prune exactly the pile(s) whose window ends AT this turn,
+          // strict `>` for the same reason `effectiveExposePct`'s strict mode
+          // exists — `e.turn` IS the expiring pile's own `expiresAtTurn`.
+          const map = e.status === 'buff' ? buffPilesByUnit : debuffPilesByUnit;
+          const k = unitKey(e.side, unitOf(e));
+          const piles = map.get(k);
+          if (piles) map.set(k, piles.filter((p) => p.expiresAtTurn > e.turn));
         }
         // A row is worth printing only for the statuses that are otherwise
         // INVISIBLE while wearing off: guard/buff/debuff/expose silently
@@ -1839,6 +2107,15 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
       enemy: [...dotsEnemies[0]!.keys()],
       enemyUnits: dotsEnemies.map((m) => [...m.keys()]),
     });
+    // The chip row's own per-turn snapshot — same end-of-turn granularity as
+    // `statusByTurn` above (last event of the turn wins), so a scrub to turn T
+    // shows exactly the piles standing when T ended.
+    chipsByTurn.set(e.turn, {
+      player: buildChips('player', 0),
+      enemy: buildChips('enemy', 0),
+      enemyUnits: foes.map((_, u) => buildChips('enemy', u)),
+    });
+    slotModsByTurn.set(e.turn, snapSlotMods());
     // `dotsPlayer`/`dotsEnemies`' 'expose' VALUE is now always the effective
     // (strongest-standing) pct — see the `statusApplied`/`statusExpired`/
     // `cleansed` handling above — so reading it straight through here gives
@@ -1980,6 +2257,8 @@ export function buildBattleTimeline(input: BattleTimelineInput, log: BattleLog):
     hpByTurn,
     shieldByTurn,
     statusByTurn,
+    chipsByTurn,
+    slotModsByTurn,
     exposePctByTurn,
     guardPctByTurn,
     speedByTurn,

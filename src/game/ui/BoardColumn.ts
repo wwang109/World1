@@ -16,6 +16,10 @@ export interface ColumnPiece {
   /** Battle-playback-only COMBO live state — see `CardTokenOptions.comboLive`.
    * Omitted by every non-battle caller (prep/shop/deck build/draft/wiki). */
   comboLive?: boolean;
+  /** Battle-playback-only standing burden/curse on THIS piece — see
+   * `CardTokenOptions.slotMods`. Omitted by every non-battle caller, exactly
+   * like `comboLive` above. */
+  slotMods?: { burden?: number; curse?: number };
 }
 
 export interface BoardColumnOptions {
@@ -80,6 +84,7 @@ export class BoardColumn {
           width: opts.width, height: h, side, slotLabel: label, deck: opts.deck, state: piece.state, stats: opts.stats, faceMode: opts.faceMode,
           tier: piece.tier,
           comboLive: piece.comboLive,
+          slotMods: piece.slotMods,
           onInspect: opts.onInspectSlot ? () => opts.onInspectSlot!(currentRow) : undefined,
         }));
         row += span;

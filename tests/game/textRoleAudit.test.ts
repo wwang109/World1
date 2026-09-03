@@ -242,8 +242,11 @@ const ALLOWLIST: Record<string, { hex?: number; fontSize?: number }> = {
   // Down from `{ hex: 32, fontSize: 31 }` (2026-09-02): `renderStatus` took
   // `UI.textMuted` — its literal was a stale pre-lift copy measuring 4.25:1 on
   // the new panelAlt — and the fontSize ceiling was re-measured to the actual
-  // count (the 31 had gone stale above it).
-  'scenes/DesktopBattleScene.ts': { hex: 31, fontSize: 30 },
+  // count (the 31 had gone stale above it). Then 31 -> 22 hex (2026-09-02,
+  // status chips): the scene's hand-copied `AILMENT_COLOR` map (7) moved to
+  // `ui/battleStatusPalette.ts` — see that file's budget line — and the two
+  // expose/guard badge fallbacks went with the badges the chip row replaced.
+  'scenes/DesktopBattleScene.ts': { hex: 22, fontSize: 30 },
   'scenes/DesktopDeckBuildScene.ts': { hex: 1, fontSize: 28 },
   'scenes/DesktopDraftScene.ts': { fontSize: 5 },
   'scenes/DesktopPrepScene.ts': { fontSize: 4 },
@@ -257,8 +260,11 @@ const ALLOWLIST: Record<string, { hex?: number; fontSize?: number }> = {
   'scenes/DesktopWikiScene.ts': { hex: 1, fontSize: 21 },
   // Down from `{ hex: 39, fontSize: 31 }` (2026-09-02): both ceilings had gone
   // stale above the measured counts — re-pinned to what the file actually
-  // holds (37/30) so the ratchet grips again.
-  'scenes/MobileBattleScene.ts': { hex: 37, fontSize: 30 },
+  // holds (37/30) so the ratchet grips again. Then 37 -> 28 hex (2026-09-02,
+  // status chips): the hand-copied `AILMENT_COLOR` map (7) moved to
+  // `ui/battleStatusPalette.ts`, and the expose/guard badge fallbacks went
+  // with the badges the chip row replaced — same shape as Desktop's drop.
+  'scenes/MobileBattleScene.ts': { hex: 28, fontSize: 30 },
   'scenes/MobileDeckBuildScene.ts': { hex: 12, fontSize: 33 },
   'scenes/MobileDraftScene.ts': { hex: 2, fontSize: 9 },
   'scenes/MobilePrepScene.ts': { hex: 9, fontSize: 5 },
@@ -296,6 +302,13 @@ const ALLOWLIST: Record<string, { hex?: number; fontSize?: number }> = {
   'ui/RunRouteBoard.ts': { hex: 2, fontSize: 7 },
   'ui/RunStatPanel.ts': { fontSize: 2 },
   'ui/battleFxSpec.ts': { hex: 1 },
+  // The battle-status palette DICTIONARY (2026-09-02) — the ailment hexes the
+  // two battle scenes each hand-copied, hoisted into ONE file (both scenes'
+  // budgets dropped by more than this line adds: net −10 across the move).
+  // Same stance as `cardTextMarkup.ts` below: listed, not exempted, because
+  // the honest end-state for these 8 entries is `INK`/`theme.ts` too. The
+  // TINT twin is DERIVED from these strings, so it can never add literals.
+  'ui/battleStatusPalette.ts': { hex: 8 },
   'ui/brandMark.ts': { fontSize: 2 },
   'ui/cardDetailOverlay.ts': { hex: 1, fontSize: 3 },
   'ui/cardInfoBox.ts': { hex: 2, fontSize: 1 },
@@ -401,7 +414,11 @@ describe('src/game: the type-system ratchet', () => {
     // 2026-09-02: hex 189 -> 170 (17 literals tokenised in the stale-copy
     // sweep, 2 stale ceiling points re-measured away), fontSize 410 -> 408
     // (two stale battle-scene ceilings re-pinned to measured counts).
-    const HIGH_WATER = { hex: 171, fontSize: 408 }; // 170 -> 171: taunt keyword colour (see cardTextMarkup budget note)
+    // 170 -> 171: taunt keyword colour (see cardTextMarkup budget note).
+    // 171 -> 161 (2026-09-02, status chips): the two battle scenes' copied
+    // ailment palettes (−9 hex each) collapsed into `ui/battleStatusPalette.ts`
+    // (+8) — a real deduplication, so the mark moves DOWN.
+    const HIGH_WATER = { hex: 161, fontSize: 408 };
     const totals = [...counts.values()].reduce((a, c) => ({ hex: a.hex + c.hex, fontSize: a.fontSize + c.fontSize }), { hex: 0, fontSize: 0 });
     expect(totals.hex, 'raw colour literals in src/game (excluding theme.ts)').toBeLessThanOrEqual(HIGH_WATER.hex);
     expect(totals.fontSize, 'inline fontSize literals in src/game').toBeLessThanOrEqual(HIGH_WATER.fontSize);
