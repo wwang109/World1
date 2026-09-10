@@ -16,10 +16,13 @@
     "fight": "tsx scripts/fight.ts",
     "sim": "tsx scripts/balance.ts",
     "content:export": "tsx scripts/exportEnemies.ts && tsx scripts/exportModifiers.ts",
+    "content:events": "tsx scripts/eventPackCompiler.ts",
     "content:validate": "tsx scripts/validateContent.ts",
+    "content:wiki": "tsx scripts/generateEventCatalog.ts",
     "scaffold:card": "tsx scripts/scaffoldCard.ts",
     "shop:smoke": "tsx scripts/shop-smoke.ts",
     "audit:hud": "tsx scripts/run-hud-audit.ts",
+    "audit:cardface": "tsx scripts/card-face-truncation-audit.ts",
     "art:encode": "tsx scripts/encode-card-art.ts"
   },
   "dependencies": {

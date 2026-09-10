@@ -46,7 +46,7 @@ Two rules, both enforced by `scripts/check-boundaries.mjs` (run inside `npm test
 
 ```
 src/engine/   Pure deterministic combat sim. NO Phaser. Integer-only state.
-src/data/     Content: skills, enemies, heroes, gems, events, shop themes. No logic.
+src/data/     Content schemas/loaders plus catalogs; skills, gems, and events are JSON-authored under src/data/content/. No run logic.
 src/run/      In-run state: loadout, mapgen, shop, events, leveling, run state. Pure TS.
 src/meta/     Persistence, account progression. Pure TS. (not built yet)
 src/game/     Phaser scenes + playback rendering ONLY. Cannot simulate.
@@ -123,7 +123,7 @@ the pre-rebuild loop — the engine now runs the readiness model.)
 **Fable orchestrates. Mixed Sonnet/Opus workers do the heavy lifting.**
 
 The main session (run on Fable via `/model`) acts as the orchestrator: it breaks
-work into tasks, dispatches each to the right agent via the Task tool, **reads
+work into tasks, dispatches each to the right agent via the Agent tool (formerly named Task), **reads
 the returned summary to confirm the agent stayed on the correct path**, and only
 then moves on. Worker agents have their model pinned in frontmatter, so tier is
 independent of the orchestrator model.
@@ -291,3 +291,17 @@ item, DELETE the task** (`TaskUpdate` with `status: "deleted"`) — it is gone
 from the list and never mentioned again. Do NOT keep confirmed work around as
 a "completed" trophy row; re-raising finished items is, in the user's words,
 "just wasting token". A clean audit is one line; spend the words on what failed.
+
+### Working alongside other AI agents (Codex CLI shares this checkout)
+
+OpenAI Codex CLI and Claude Code both edit this working tree, sometimes at
+the same time. The cross-agent protocol is owned by the **`world1-handoff`**
+skill (`.agents/skills/` for Codex, `.claude/skills/` for Claude —
+identical twins, enforced by `tests/build/skillParity.test.ts`). Load it
+before the first edit of every task. In one breath: check who else is
+working (`git status`, `.superpowers/sdd/*/progress.md`, running agent
+processes); never touch, stash, or tidy another agent's dirty files; run
+focused tests, not the full gate, while the tree is live; write briefs,
+reports, and reviews into the shared SDD ledger so the other agent can
+continue; and hand off in `progress.md` before stopping. `AGENTS.md` is the
+Codex entrypoint; it summarises the rules and points here.

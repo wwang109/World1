@@ -3,9 +3,12 @@ name: team-combat
 description: "Orchestrate the combat team for World1: design → price → implement → render → test a combat feature (a card, rider, matchup rule, or engine mechanic) end-to-end, with an approval gate at each phase."
 argument-hint: "[combat feature, e.g. 'a Frost element rider that freezes the next cast']"
 user-invocable: true
-allowed-tools: Read, Glob, Grep, Bash, Task, AskUserQuestion, TaskCreate, TaskUpdate
-model: fable
+allowed-tools: Read, Glob, Grep, Bash, Agent, AskUserQuestion, TaskCreate, TaskUpdate
 ---
+
+**Before anything:** load the `world1-handoff` skill and run its liveness check —
+Codex CLI shares this checkout. Write briefs, reports and reviews into the SDD
+ledger (`.superpowers/sdd/<plan>/`) exactly as `/orchestrate` does.
 
 **Argument check:** If no feature is provided, output:
 > "Usage: `/team-combat [feature]` — e.g. `a lifesteal rider for magical cards`, `a Poison-stacking rework`, `a new boss with a Holy affinity`."

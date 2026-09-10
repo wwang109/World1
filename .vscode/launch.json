@@ -1,0 +1,38 @@
+{
+  // Start "World1: dev + api" (Run Task) first, then launch one of these to
+  // open the running game in a debuggable browser. Add ?scene=desktop-prep,
+  // ?scene=mprep, etc. per docs/ui-workbook.md "Launch routes".
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "World1: dev + api (Edge)",
+      "type": "msedge",
+      "request": "launch",
+      "preLaunchTask": "World1: dev + api",
+      "url": "http://localhost:5173/",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "World1: open game (Edge)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:5173/",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "World1: open game (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5173/",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "World1: mobile layout (Edge, 412x892)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:5173/?scene=mprep",
+      "webRoot": "${workspaceFolder}",
+      "runtimeArgs": ["--window-size=412,892"]
+    }
+  ]
+}

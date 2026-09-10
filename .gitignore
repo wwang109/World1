@@ -9,12 +9,22 @@ dist/
 .agents/skills/*
 !.agents/skills/world1-game-review/
 !.agents/skills/world1-game-review/SKILL.md
+!.agents/skills/world1-handoff/
+!.agents/skills/world1-handoff/SKILL.md
 .codex-remote-attachments/
 .playwright-mcp/
 .superpowers/
+# Local AI planning/design artifacts; keep project documentation tracked.
+/docs/superpowers/
+/design-qa.md
 /*.png
 .wrangler/
 scratchpad/
 .tmp/
 # Agent scratch dirs — probe fixtures, audit dumps. Same role as .tmp/.
 tmp/
+
+# Local AI planning notes and candidate artwork — never ship or commit.
+/design-qa.md
+/docs/superpowers/
+/art-src/manga-staging/

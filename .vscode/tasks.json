@@ -1,0 +1,70 @@
+{
+  // World1 dev needs TWO processes (thin-client rule, docs/architecture.md):
+  // the Vite client on :5173 and the battle service on :8787.
+  // Terminal -> Run Task -> "World1: dev + api" starts both in split panels.
+  // Mirrors .claude/launch.json, which is what Claude Code's Browser pane uses.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "World1: api (:8787)",
+      "type": "npm",
+      "script": "api",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "world1-api",
+        "pattern": { "regexp": ".*" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "battle api: http://localhost:8787/battle"
+        }
+      },
+      "runOptions": { "instanceLimit": 1 },
+      "presentation": { "group": "world1", "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "World1: dev (:5173)",
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "world1-vite",
+        "pattern": { "regexp": ".*" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "http://localhost:5173/"
+        }
+      },
+      "runOptions": { "instanceLimit": 1 },
+      "presentation": { "group": "world1", "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "World1: dev + api",
+      "dependsOn": ["World1: api (:8787)", "World1: dev (:5173)"],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "runOptions": { "instanceLimit": 1 },
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "World1: test gate (npm test)",
+      "type": "npm",
+      "script": "test",
+      "problemMatcher": ["$tsc"],
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "World1: fight log (ASCII)",
+      "type": "shell",
+      "command": "npm run fight -- ${input:enemyId} ${input:seed}",
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "reveal": "always" }
+    }
+  ],
+  "inputs": [
+    { "id": "enemyId", "type": "promptString", "description": "enemy id (e.g. bandit_duelist)", "default": "bandit_duelist" },
+    { "id": "seed", "type": "promptString", "description": "seed", "default": "5" }
+  ]
+}
